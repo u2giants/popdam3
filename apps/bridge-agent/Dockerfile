@@ -10,7 +10,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies for native modules (sharp)
-RUN apk add --no-cache python3 make g++ vips-dev
+RUN apk add --no-cache python3 make g++ vips-dev ghostscript graphicsmagick
 
 COPY package.json ./
 RUN npm install --production=false
@@ -26,7 +26,7 @@ RUN npm prune --production
 FROM node:20-alpine AS runtime
 
 # Install runtime dependencies for sharp/vips
-RUN apk add --no-cache vips
+RUN apk add --no-cache vips ghostscript graphicsmagick
 
 WORKDIR /app
 
