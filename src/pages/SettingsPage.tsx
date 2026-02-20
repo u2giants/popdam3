@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3 } from "lucide-react";
+import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import WorkerManagementTab from "@/components/settings/WorkerManagementTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -565,6 +566,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="config" className="space-y-4">
         <TabsList>
           <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="workers">Workers</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
           <TabsTrigger value="invitations">Invitations</TabsTrigger>
           <TabsTrigger value="doctor">Doctor</TabsTrigger>
@@ -573,6 +575,10 @@ export default function SettingsPage() {
         <TabsContent value="config" className="space-y-4">
           <EffectiveConfigSection />
           <PathTesterSection />
+        </TabsContent>
+
+        <TabsContent value="workers" className="space-y-4">
+          <WorkerManagementTab />
         </TabsContent>
 
         <TabsContent value="agents" className="space-y-4">

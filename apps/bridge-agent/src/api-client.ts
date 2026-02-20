@@ -54,8 +54,22 @@ export interface Counters {
   files_stat_failed: number;
 }
 
-export async function heartbeat(agentId: string, counters: Counters, lastError?: string): Promise<void> {
-  await callApi("heartbeat", { agent_id: agentId, counters, last_error: lastError });
+export interface HeartbeatResponse {
+  ok: boolean;
+  config?: {
+    do_spaces?: { key: string; secret: string; bucket: string; region: string; endpoint: string };
+    scanning?: { roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
+    resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
+  };
+  commands?: {
+    force_scan: boolean;
+    abort_scan: boolean;
+  };
+}
+
+export async function heartbeat(agentId: string, counters: Counters, lastError?: string): Promise<HeartbeatResponse> {
+  const data = await callApi("heartbeat", { agent_id: agentId, counters, last_error: lastError });
+  return data as HeartbeatResponse;
 }
 
 export interface IngestPayload {

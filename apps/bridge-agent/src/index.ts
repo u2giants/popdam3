@@ -18,7 +18,7 @@ import * as api from "./api-client.js";
 import { validateScanRoots, scanFiles, type FileCandidate } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail } from "./thumbnailer.js";
-import { uploadThumbnail } from "./uploader.js";
+import { uploadThumbnail, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
 
 // ── State ───────────────────────────────────────────────────────
@@ -54,19 +54,90 @@ function resetCounters() {
   counters.files_stat_failed = 0;
 }
 
+// ── Cloud Config State (overridden by heartbeat config sync) ────────
+
+let cloudScanRoots: string[] | null = null; // null = use env fallback
+let cloudBatchSize: number | null = null;
+let cloudIdleInterval: number | null = null;
+let cloudActiveInterval: number | null = null;
+let cloudConcurrency: number | null = null;
+
+function getEffectiveScanRoots(): string[] {
+  return (cloudScanRoots && cloudScanRoots.length > 0) ? cloudScanRoots : config.scanRoots;
+}
+
+function getEffectiveBatchSize(): number {
+  return cloudBatchSize ?? config.ingestBatchSize;
+}
+
+function getEffectiveConcurrency(): number {
+  return cloudConcurrency ?? config.thumbConcurrency;
+}
+
 // ── Heartbeat (runs on its own timer, never blocked by scanning) ──
 
 function startHeartbeat() {
   const INTERVAL_MS = 30_000;
   setInterval(async () => {
     try {
-      await api.heartbeat(agentId, { ...counters }, lastError);
+      const response = await api.heartbeat(agentId, { ...counters }, lastError);
       logger.debug("Heartbeat sent");
+
+      // Process config sync from heartbeat response
+      if (response.config) {
+        applyCloudConfig(response.config);
+      }
+
+      // Process commands
+      if (response.commands) {
+        if (response.commands.abort_scan && isScanning) {
+          logger.info("Abort requested via heartbeat");
+          abortRequested = true;
+        }
+        if (!isScanning && response.commands.force_scan) {
+          logger.info("Scan requested via heartbeat config sync");
+          runScan().catch((e) => logger.error("Scan error", { error: (e as Error).message }));
+        }
+      }
     } catch (e) {
       logger.error("Heartbeat failed", { error: (e as Error).message });
     }
   }, INTERVAL_MS);
   logger.info("Heartbeat started (30s interval)");
+}
+
+interface CloudConfig {
+  do_spaces?: { key: string; secret: string; bucket: string; region: string; endpoint: string };
+  scanning?: { roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
+  resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
+}
+
+function applyCloudConfig(cfg: CloudConfig) {
+  // Hot-reload S3 client if DO credentials changed
+  if (cfg.do_spaces && cfg.do_spaces.key && cfg.do_spaces.secret) {
+    reinitializeS3Client(cfg.do_spaces);
+  }
+
+  // Update scan roots from cloud
+  if (cfg.scanning) {
+    if (cfg.scanning.roots && cfg.scanning.roots.length > 0) {
+      cloudScanRoots = cfg.scanning.roots;
+    }
+    if (cfg.scanning.batch_size) {
+      cloudBatchSize = cfg.scanning.batch_size;
+    }
+    if (cfg.scanning.adaptive_polling) {
+      cloudIdleInterval = cfg.scanning.adaptive_polling.idle_seconds * 1000;
+      cloudActiveInterval = cfg.scanning.adaptive_polling.active_seconds * 1000;
+    }
+  }
+
+  // Update resource guard
+  if (cfg.resource_guard) {
+    if (cfg.resource_guard.concurrency) {
+      cloudConcurrency = cfg.resource_guard.concurrency;
+    }
+  }
 }
 
 // ── Thumbnail pipeline (bounded concurrency) ────────────────────
@@ -103,11 +174,12 @@ async function runScan() {
   abortRequested = false;
   resetCounters();
   const sessionId = randomUUID();
-  logger.info("Scan starting", { sessionId });
+  const effectiveRoots = getEffectiveScanRoots();
+  logger.info("Scan starting", { sessionId, roots: effectiveRoots });
 
   try {
     // §4.1: Validate roots first
-    const rootsValid = await validateScanRoots(counters);
+    const rootsValid = await validateScanRoots(counters, effectiveRoots);
     if (!rootsValid) {
       logger.error("Scan aborted: invalid scan roots", { counters });
       await api.scanProgress(sessionId, "failed", counters);
@@ -119,7 +191,7 @@ async function runScan() {
     // Collect files and process in batches
     let batch: FileCandidate[] = [];
 
-    for await (const file of scanFiles(counters)) {
+    for await (const file of scanFiles(counters, effectiveRoots)) {
       if (abortRequested) {
         logger.info("Scan aborted by cloud request");
         await api.scanProgress(sessionId, "failed", counters, "Aborted by user");
@@ -128,7 +200,7 @@ async function runScan() {
 
       batch.push(file);
 
-      if (batch.length >= config.ingestBatchSize) {
+      if (batch.length >= getEffectiveBatchSize()) {
         await processBatch(batch, sessionId);
         batch = [];
       }
@@ -160,7 +232,7 @@ async function runScan() {
 
 async function processBatch(batch: FileCandidate[], sessionId: string) {
   // Process files with bounded thumbnail concurrency
-  const concurrency = config.thumbConcurrency;
+  const concurrency = getEffectiveConcurrency();
   let i = 0;
 
   while (i < batch.length) {
@@ -242,13 +314,14 @@ async function processFile(file: FileCandidate) {
 }
 
 // ── Polling loop (outbound only per §8) ─────────────────────────
+// Note: scan commands are now also delivered via heartbeat config sync.
+// This loop remains as a secondary check mechanism.
 
 async function startPolling() {
-  const IDLE_INTERVAL = 30_000;
-  const ACTIVE_INTERVAL = 5_000;
-
   while (true) {
-    const interval = isScanning ? ACTIVE_INTERVAL : IDLE_INTERVAL;
+    const idleMs = cloudIdleInterval ?? 30_000;
+    const activeMs = cloudActiveInterval ?? 5_000;
+    const interval = isScanning ? activeMs : idleMs;
 
     try {
       const result = await api.checkScanRequest(agentId);

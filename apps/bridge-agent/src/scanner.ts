@@ -29,10 +29,19 @@ export interface FileCandidate {
  * Validate that all configured scan roots exist and are readable directories.
  * Per WORKER_LOGIC §4.1: refuse to scan if any root is invalid.
  */
-export async function validateScanRoots(counters: Counters): Promise<boolean> {
+export async function validateScanRoots(counters: Counters, scanRoots?: string[]): Promise<boolean> {
+  const roots = scanRoots ?? config.scanRoots;
   let allValid = true;
 
-  for (const root of config.scanRoots) {
+  for (const root of roots) {
+    // Validate against NAS_CONTAINER_MOUNT_ROOT
+    if (!root.startsWith(config.nasContainerMountRoot)) {
+      logger.error("Scan root is outside NAS_CONTAINER_MOUNT_ROOT", { root, mountRoot: config.nasContainerMountRoot });
+      counters.roots_invalid++;
+      allValid = false;
+      continue;
+    }
+
     try {
       const s = await stat(root);
       if (!s.isDirectory()) {
@@ -63,8 +72,9 @@ export async function validateScanRoots(counters: Counters): Promise<boolean> {
  * Recursively scan directories and yield file candidates.
  * Per WORKER_LOGIC §4.2: do NOT follow symlinks.
  */
-export async function* scanFiles(counters: Counters): AsyncGenerator<FileCandidate> {
-  for (const root of config.scanRoots) {
+export async function* scanFiles(counters: Counters, scanRoots?: string[]): AsyncGenerator<FileCandidate> {
+  const roots = scanRoots ?? config.scanRoots;
+  for (const root of roots) {
     yield* scanDirectory(root, counters);
   }
 }

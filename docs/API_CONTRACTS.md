@@ -64,7 +64,7 @@ Response:
 
 \### POST /agent/heartbeat
 
-Purpose: liveness + counters
+Purpose: liveness + counters + **config sync** (returns full config payload)
 
 Request:
 
@@ -74,7 +74,45 @@ Request:
 
 \- last\_error (optional)
 
-Response: ok
+Response (Config Sync Payload):
+
+```json
+{
+  "ok": true,
+  "config": {
+    "do_spaces": {
+      "key": "string",
+      "secret": "string",
+      "bucket": "string",
+      "region": "string",
+      "endpoint": "string"
+    },
+    "scanning": {
+      "roots": ["string"],
+      "batch_size": 100,
+      "adaptive_polling": {
+        "idle_seconds": 30,
+        "active_seconds": 5
+      }
+    },
+    "resource_guard": {
+      "cpu_percentage_limit": 50,
+      "memory_limit_mb": 512,
+      "concurrency": 2
+    }
+  },
+  "commands": {
+    "force_scan": false,
+    "abort_scan": false
+  }
+}
+```
+
+Notes:
+\- Agent must compare `do\_spaces` credentials with its current state and re-initialize its S3 client if they differ (hot-reload, no restart needed).
+\- `scanning.roots` from cloud override the agent's env `SCAN\_ROOTS` when non-empty.
+\- `commands.force\_scan` and `commands.abort\_scan` are consumed once and cleared server-side.
+\- `resource\_guard` values reflect the active schedule (or defaults if no schedule matches).
 
 
 
