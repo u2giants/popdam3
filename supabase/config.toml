@@ -1,1 +1,7 @@
 project_id = "vklanxwmaeqjbwtmnygj"
+
+[functions.agent-api]
+verify_jwt = false
+
+[functions.admin-api]
+verify_jwt = false
