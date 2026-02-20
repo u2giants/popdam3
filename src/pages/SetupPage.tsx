@@ -286,12 +286,24 @@ services:
             </div>
           )}
 
-          {step === 3 && (
+          {step === 3 && (() => {
+            const containerMount = state.nasContainerMount || "/mnt/nas/mac";
+            const scanRootsList = (state.scanRoots || "").split(",").map(s => s.trim()).filter(Boolean);
+            const toggleScanRoot = (folder: string) => {
+              const root = `${containerMount}/${folder}`;
+              const updated = scanRootsList.includes(root)
+                ? scanRootsList.filter(r => r !== root)
+                : [...scanRootsList, root];
+              update("scanRoots", updated.length > 0 ? updated.join(",") : containerMount);
+            };
+            const isScanRootSelected = (folder: string) => scanRootsList.includes(`${containerMount}/${folder}`);
+            const isAllSelected = scanRootsList.length === 1 && scanRootsList[0] === containerMount;
+
+            return (
             <div className="space-y-3">
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground font-semibold">Host Path (Synology volume)</label>
-                <Input value={state.nasHostPath} onChange={(e) => update("nasHostPath", e.target.value)} className="font-mono text-xs" />
-                <p className="text-xs text-muted-foreground font-semibold mt-1">Top-level shares</p>
+                <Input value={state.nasHostPath || ""} onChange={(e) => update("nasHostPath", e.target.value)} className="font-mono text-xs" />
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     "/volume1/mac",
@@ -303,9 +315,12 @@ services:
                   ].map((p) => (
                     <button
                       key={p}
-                      onClick={() => update("nasHostPath", p)}
+                      onClick={() => {
+                        update("nasHostPath", p);
+                        update("scanRoots", state.nasContainerMount || "/mnt/nas/mac");
+                      }}
                       className={`text-xs px-2 py-1 rounded border transition-colors ${
-                        state.nasHostPath === p
+                        (state.nasHostPath || "") === p
                           ? "border-primary bg-primary/10 text-primary font-semibold"
                           : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
                       }`}
@@ -314,70 +329,72 @@ services:
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground font-semibold mt-2">Subfolders of /volume1/mac/</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    "/volume1/mac/Art Library",
-                    "/volume1/mac/Decor",
-                    "/volume1/mac/Books",
-                    "/volume1/mac/Gift Bags",
-                    "/volume1/mac/SCOTT",
-                    "/volume1/mac/Fonts",
-                    "/volume1/mac/Old",
-                    "/volume1/mac/icons",
-                  ].map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => update("nasHostPath", p)}
-                      className={`text-xs px-2 py-1 rounded border transition-colors ${
-                        state.nasHostPath === p
-                          ? "border-primary bg-primary/10 text-primary font-semibold"
-                          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                      }`}
-                    >
-                      {p.replace("/volume1/mac/", "mac/")}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground font-semibold mt-2">Subfolders of /volume1/mac/Decor/</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    "/volume1/mac/Decor/Character Licensed",
-                    "/volume1/mac/Decor/Generic Decor",
-                    "/volume1/mac/Decor/Generic_Images",
-                    "/volume1/mac/Decor/Images",
-                    "/volume1/mac/Decor/Other Licensed",
-                    "/volume1/mac/Decor/Styleguides",
-                    "/volume1/mac/Decor/Gina's Design Team",
-                    "/volume1/mac/Decor/Books",
-                  ].map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => update("nasHostPath", p)}
-                      className={`text-xs px-2 py-1 rounded border transition-colors ${
-                        state.nasHostPath === p
-                          ? "border-primary bg-primary/10 text-primary font-semibold"
-                          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                      }`}
-                    >
-                      {p.replace("/volume1/mac/Decor/", "Decor/")}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">Select a folder or type a custom path above.</p>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Container Mount Path</label>
-                <Input value={state.nasContainerMount} onChange={(e) => update("nasContainerMount", e.target.value)} className="font-mono text-xs" />
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground font-semibold">Container Mount Path</label>
+                <Input value={state.nasContainerMount || ""} onChange={(e) => update("nasContainerMount", e.target.value)} className="font-mono text-xs" />
                 <p className="text-xs text-muted-foreground">Path inside the Docker container (read-only). Usually fine to leave as default.</p>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Scan Roots (comma-separated)</label>
-                <Input value={state.scanRoots} onChange={(e) => update("scanRoots", e.target.value)} className="font-mono text-xs" />
-                <p className="text-xs text-muted-foreground">Directories inside the container mount to scan.</p>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground font-semibold">Scan Roots <span className="font-normal">(click to toggle — multi-select)</span></label>
+                <Input value={state.scanRoots || ""} onChange={(e) => update("scanRoots", e.target.value)} className="font-mono text-xs" />
+
+                <button
+                  onClick={() => update("scanRoots", containerMount)}
+                  className={`text-xs px-2 py-1 rounded border transition-colors ${
+                    isAllSelected
+                      ? "border-primary bg-primary/10 text-primary font-semibold"
+                      : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                  }`}
+                >
+                  ✦ Scan everything (recursive)
+                </button>
+
+                {(state.nasHostPath || "") === "/volume1/mac" && (
+                  <>
+                    <p className="text-xs text-muted-foreground font-semibold mt-1">mac/ subfolders</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["Art Library", "Decor", "Books", "Gift Bags", "SCOTT", "Fonts", "Old", "icons"].map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => toggleScanRoot(f)}
+                          className={`text-xs px-2 py-1 rounded border transition-colors ${
+                            isScanRootSelected(f)
+                              ? "border-primary bg-primary/10 text-primary font-semibold"
+                              : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground font-semibold mt-1">Decor/ subfolders</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["Character Licensed", "Generic Decor", "Generic_Images", "Images", "Other Licensed", "Styleguides", "Gina's Design Team", "Books"].map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => toggleScanRoot(`Decor/${f}`)}
+                          className={`text-xs px-2 py-1 rounded border transition-colors ${
+                            isScanRootSelected(`Decor/${f}`)
+                              ? "border-primary bg-primary/10 text-primary font-semibold"
+                              : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                <p className="text-xs text-muted-foreground">Selected roots appear in the text field above. Click folders to toggle.</p>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {step === 4 && (
             <div className="space-y-3">
