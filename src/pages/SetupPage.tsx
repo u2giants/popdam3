@@ -291,6 +291,7 @@ services:
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground font-semibold">Host Path (Synology volume)</label>
                 <Input value={state.nasHostPath} onChange={(e) => update("nasHostPath", e.target.value)} className="font-mono text-xs" />
+                <p className="text-xs text-muted-foreground font-semibold mt-1">Top-level shares</p>
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     "/volume1/mac",
@@ -313,7 +314,32 @@ services:
                     </button>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">Select the share containing your design files, or type a custom path above.</p>
+                <p className="text-xs text-muted-foreground font-semibold mt-2">Subfolders of /volume1/mac/</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "/volume1/mac/Art Library",
+                    "/volume1/mac/Decor",
+                    "/volume1/mac/Books",
+                    "/volume1/mac/Gift Bags",
+                    "/volume1/mac/SCOTT",
+                    "/volume1/mac/Fonts",
+                    "/volume1/mac/Old",
+                    "/volume1/mac/icons",
+                  ].map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => update("nasHostPath", p)}
+                      className={`text-xs px-2 py-1 rounded border transition-colors ${
+                        state.nasHostPath === p
+                          ? "border-primary bg-primary/10 text-primary font-semibold"
+                          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                      }`}
+                    >
+                      {p.replace("/volume1/mac/", "mac/")}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Select a folder or type a custom path above.</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Container Mount Path</label>
