@@ -738,6 +738,115 @@ function DateCutoffSettings() {
   );
 }
 
+// ── Image Output Settings ───────────────────────────────────────────
+
+function ImageOutputSettings() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-config", "IMAGE_OUTPUT"],
+    queryFn: () => call("get-config", { keys: ["IMAGE_OUTPUT"] }),
+  });
+
+  const currentConfig = (() => {
+    const val = data?.config?.IMAGE_OUTPUT?.value ?? data?.config?.IMAGE_OUTPUT;
+    return (val && typeof val === "object" ? val : {
+      thumbnail_height: 400,
+      preview_height: 1200,
+      jpeg_quality: 85,
+    }) as Record<string, number>;
+  })();
+
+  const [form, setForm] = useState<Record<string, number> | null>(null);
+  const values = form ?? currentConfig;
+  const dirty = form !== null;
+
+  const update = (key: string, val: number) => {
+    setForm({ ...values, [key]: val });
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: () => call("set-config", { entries: { IMAGE_OUTPUT: values } }),
+    onSuccess: () => {
+      toast.success("Image output settings saved — agent picks up on next heartbeat");
+      setForm(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (isLoading) return <Card><CardContent className="py-6"><p className="text-sm text-muted-foreground">Loading...</p></CardContent></Card>;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Gauge className="h-4 w-4" /> Image Output Settings
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <p className="text-xs text-muted-foreground">
+          Control the output resolution (by height — width scales proportionally) and JPEG compression quality for generated thumbnails and previews.
+        </p>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Thumbnail Height</Label>
+            <Badge variant="secondary" className="font-mono text-xs">{values.thumbnail_height ?? 400}px</Badge>
+          </div>
+          <Slider
+            value={[values.thumbnail_height ?? 400]}
+            onValueChange={(v) => update("thumbnail_height", v[0])}
+            min={200}
+            max={800}
+            step={50}
+          />
+          <p className="text-[10px] text-muted-foreground">Used for grid view cards. Default: 400px.</p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Preview Height</Label>
+            <Badge variant="secondary" className="font-mono text-xs">{values.preview_height ?? 1200}px</Badge>
+          </div>
+          <Slider
+            value={[values.preview_height ?? 1200]}
+            onValueChange={(v) => update("preview_height", v[0])}
+            min={600}
+            max={2400}
+            step={100}
+          />
+          <p className="text-[10px] text-muted-foreground">Used for detail panel / lightbox. Default: 1200px.</p>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">JPEG Quality</Label>
+            <Badge variant="secondary" className="font-mono text-xs">{values.jpeg_quality ?? 85}%</Badge>
+          </div>
+          <Slider
+            value={[values.jpeg_quality ?? 85]}
+            onValueChange={(v) => update("jpeg_quality", v[0])}
+            min={50}
+            max={100}
+            step={5}
+          />
+          <p className="text-[10px] text-muted-foreground">Higher = better quality, larger files. Default: 85%.</p>
+        </div>
+
+        {dirty && (
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            <Save className="h-3.5 w-3.5 mr-1.5" /> Save Image Settings
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Export ───────────────────────────────────────────────────────────
 
 export default function WorkerManagementTab() {
@@ -746,6 +855,7 @@ export default function WorkerManagementTab() {
       <DateCutoffSettings />
       <SpacesConfigSettings />
       <FolderManager />
+      <ImageOutputSettings />
       <ResourceGuardSettings />
       <PollingConfig />
     </div>
