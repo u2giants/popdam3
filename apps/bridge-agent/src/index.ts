@@ -25,6 +25,7 @@ import { randomUUID } from "node:crypto";
 
 let agentId: string = "";
 let isScanning = false;
+let abortRequested = false;
 let lastError: string | undefined;
 
 const counters: api.Counters = {
@@ -99,6 +100,7 @@ async function runScan() {
   }
 
   isScanning = true;
+  abortRequested = false;
   resetCounters();
   const sessionId = randomUUID();
   logger.info("Scan starting", { sessionId });
@@ -118,6 +120,12 @@ async function runScan() {
     let batch: FileCandidate[] = [];
 
     for await (const file of scanFiles(counters)) {
+      if (abortRequested) {
+        logger.info("Scan aborted by cloud request");
+        await api.scanProgress(sessionId, "failed", counters, "Aborted by user");
+        return;
+      }
+
       batch.push(file);
 
       if (batch.length >= config.ingestBatchSize) {
@@ -127,7 +135,7 @@ async function runScan() {
     }
 
     // Process remaining
-    if (batch.length > 0) {
+    if (batch.length > 0 && !abortRequested) {
       await processBatch(batch, sessionId);
     }
 
@@ -243,13 +251,16 @@ async function startPolling() {
     const interval = isScanning ? ACTIVE_INTERVAL : IDLE_INTERVAL;
 
     try {
-      if (!isScanning) {
-        const requested = await api.checkScanRequest(agentId);
-        if (requested) {
-          logger.info("Scan requested by cloud, starting scan");
-          // Don't await — let it run in background while polling continues
-          runScan().catch((e) => logger.error("Scan error", { error: (e as Error).message }));
-        }
+      const result = await api.checkScanRequest(agentId);
+
+      if (result.scan_abort && isScanning) {
+        logger.info("Abort requested by cloud");
+        abortRequested = true;
+      }
+
+      if (!isScanning && result.scan_requested) {
+        logger.info("Scan requested by cloud, starting scan");
+        runScan().catch((e) => logger.error("Scan error", { error: (e as Error).message }));
       }
     } catch (e) {
       logger.error("Poll failed", { error: (e as Error).message });

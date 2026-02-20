@@ -439,6 +439,23 @@ async function handleTriggerScan(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Stop Scan ──────────────────────────────────────────────────────
+
+async function handleStopScan(_body: Record<string, unknown>) {
+  const db = serviceClient();
+  const { data: agents } = await db
+    .from("agent_registrations")
+    .select("id, metadata");
+  for (const a of agents || []) {
+    const metadata = (a.metadata as Record<string, unknown>) || {};
+    await db
+      .from("agent_registrations")
+      .update({ metadata: { ...metadata, scan_requested: false, scan_abort: true } })
+      .eq("id", a.id);
+  }
+  return json({ ok: true });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -489,6 +506,8 @@ serve(async (req: Request) => {
         return await handleDoctor();
       case "trigger-scan":
         return await handleTriggerScan(body);
+      case "stop-scan":
+        return await handleStopScan(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
