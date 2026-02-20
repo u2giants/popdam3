@@ -199,7 +199,57 @@ async function handleHeartbeat(
     .eq("id", agentId);
 
   if (error) return err(error.message, 500);
-  return json({ ok: true });
+
+  // ── Resource Guard: return active cpu_shares + thumb_concurrency ──
+  // Look up RESOURCE_GUARD config from admin_config
+  const { data: guardConfig } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "RESOURCE_GUARD")
+    .maybeSingle();
+
+  let directives: Record<string, unknown> = {};
+  if (guardConfig?.value) {
+    const guard = guardConfig.value as Record<string, unknown>;
+    const schedules = guard.schedules as Array<Record<string, unknown>> | undefined;
+
+    if (schedules && schedules.length > 0) {
+      // Determine which schedule is active based on current day/time (UTC)
+      const now = new Date();
+      const dayOfWeek = now.getUTCDay(); // 0=Sun
+      const hour = now.getUTCHours();
+
+      let matched: Record<string, unknown> | null = null;
+      for (const sched of schedules) {
+        const days = sched.days as number[] | undefined;
+        const startHour = sched.start_hour as number | undefined;
+        const endHour = sched.end_hour as number | undefined;
+        if (days && days.includes(dayOfWeek) && startHour !== undefined && endHour !== undefined) {
+          if (hour >= startHour && hour < endHour) {
+            matched = sched;
+            break;
+          }
+        }
+      }
+
+      if (matched) {
+        directives = {
+          cpu_shares: matched.cpu_shares ?? null,
+          thumb_concurrency: matched.thumb_concurrency ?? null,
+        };
+      }
+    }
+
+    // Fallback to top-level defaults if no schedule matched
+    if (!directives.cpu_shares && guard.default_cpu_shares) {
+      directives.cpu_shares = guard.default_cpu_shares;
+    }
+    if (!directives.thumb_concurrency && guard.default_thumb_concurrency) {
+      directives.thumb_concurrency = guard.default_thumb_concurrency;
+    }
+  }
+
+  return json({ ok: true, directives });
 }
 
 async function handleIngest(body: Record<string, unknown>) {
