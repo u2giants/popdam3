@@ -205,15 +205,15 @@ async function handleHeartbeat(
   const { data: configRows } = await db
     .from("admin_config")
     .select("key, value")
-    .in("key", ["DO_SPACES", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG"]);
+    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG"]);
 
   const configMap: Record<string, unknown> = {};
   for (const row of configRows || []) {
     configMap[row.key] = row.value;
   }
 
-  // DO Spaces config
-  const doSpaces = (configMap.DO_SPACES as Record<string, string>) || {};
+  // Spaces config (non-secret fields only — agent has key/secret in .env)
+  const spacesConfig = (configMap.SPACES_CONFIG as Record<string, string>) || {};
 
   // Scanning config
   const scanRoots = (configMap.SCAN_ROOTS as string[]) || [];
@@ -267,11 +267,10 @@ async function handleHeartbeat(
     ok: true,
     config: {
       do_spaces: {
-        key: doSpaces.key || "",
-        secret: doSpaces.secret || "",
-        bucket: doSpaces.bucket || "popdam",
-        region: doSpaces.region || "nyc3",
-        endpoint: doSpaces.endpoint || "https://nyc3.digitaloceanspaces.com",
+        bucket: spacesConfig.bucket || "popdam",
+        region: spacesConfig.region || "nyc3",
+        endpoint: spacesConfig.endpoint || "https://nyc3.digitaloceanspaces.com",
+        public_base_url: spacesConfig.public_base_url || "https://popdam.nyc3.digitaloceanspaces.com",
       },
       scanning: {
         roots: scanRoots,
