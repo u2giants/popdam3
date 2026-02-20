@@ -281,6 +281,7 @@ async function handleListAgents() {
       last_heartbeat: a.last_heartbeat,
       last_counters: metadata.last_counters || null,
       last_error: metadata.last_error || null,
+      heartbeat_history: metadata.heartbeat_history || [],
       key_preview: a.agent_key_hash ? `${a.agent_key_hash.substring(0, 8)}...` : null,
       created_at: a.created_at,
     };
