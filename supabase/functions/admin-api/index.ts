@@ -405,6 +405,40 @@ async function handleDoctor() {
   });
 }
 
+// ── Trigger Scan ────────────────────────────────────────────────────
+
+async function handleTriggerScan(body: Record<string, unknown>) {
+  const agentId = optionalString(body, "agent_id");
+  const db = serviceClient();
+
+  if (agentId) {
+    const { data: agent } = await db
+      .from("agent_registrations")
+      .select("metadata")
+      .eq("id", agentId)
+      .single();
+    const metadata = (agent?.metadata as Record<string, unknown>) || {};
+    await db
+      .from("agent_registrations")
+      .update({ metadata: { ...metadata, scan_requested: true } })
+      .eq("id", agentId);
+  } else {
+    // Set scan_requested on all agents
+    const { data: agents } = await db
+      .from("agent_registrations")
+      .select("id, metadata");
+    for (const a of agents || []) {
+      const metadata = (a.metadata as Record<string, unknown>) || {};
+      await db
+        .from("agent_registrations")
+        .update({ metadata: { ...metadata, scan_requested: true } })
+        .eq("id", a.id);
+    }
+  }
+
+  return json({ ok: true });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -453,6 +487,8 @@ serve(async (req: Request) => {
         return await handleRevokeAgent(body);
       case "doctor":
         return await handleDoctor();
+      case "trigger-scan":
+        return await handleTriggerScan(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
