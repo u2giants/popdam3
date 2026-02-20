@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { HardDrive, FolderPlus, Trash2, Save, Eye, EyeOff, Gauge, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,29 +11,28 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
-// ── DigitalOcean Settings ───────────────────────────────────────────
+// ── DigitalOcean Spaces (non-secret fields only) ────────────────────
 
-function DOSpacesSettings() {
+function SpacesConfigSettings() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
-  const [showSecret, setShowSecret] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-config", "DO_SPACES"],
-    queryFn: () => call("get-config", { keys: ["DO_SPACES"] }),
+    queryKey: ["admin-config", "SPACES_CONFIG"],
+    queryFn: () => call("get-config", { keys: ["SPACES_CONFIG"] }),
   });
 
-  const currentConfig = (data?.config?.DO_SPACES?.value ?? data?.config?.DO_SPACES ?? {
-    key: "", secret: "", bucket: "popdam", region: "nyc3", endpoint: "https://nyc3.digitaloceanspaces.com"
+  const currentConfig = (data?.config?.SPACES_CONFIG?.value ?? data?.config?.SPACES_CONFIG ?? {
+    bucket: "popdam", region: "nyc3", endpoint: "https://nyc3.digitaloceanspaces.com", public_base_url: "https://popdam.nyc3.digitaloceanspaces.com"
   }) as Record<string, string>;
 
   const [form, setForm] = useState<Record<string, string> | null>(null);
   const values = form ?? currentConfig;
 
   const saveMutation = useMutation({
-    mutationFn: () => call("set-config", { entries: { DO_SPACES: values } }),
+    mutationFn: () => call("set-config", { entries: { SPACES_CONFIG: values } }),
     onSuccess: () => {
-      toast.success("DigitalOcean Spaces settings saved");
+      toast.success("Spaces config saved — agent picks up on next heartbeat");
       setForm(null);
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     },
@@ -54,20 +53,10 @@ function DOSpacesSettings() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Non-secret settings only. Access Key &amp; Secret are configured in the agent's <code>.env</code> file on the NAS and never stored here.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Access Key</Label>
-            <Input className="font-mono text-xs" value={values.key || ""} onChange={(e) => update("key", e.target.value)} placeholder="DO_SPACES_KEY" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Secret Key</Label>
-            <div className="relative">
-              <Input className="font-mono text-xs pr-10" type={showSecret ? "text" : "password"} value={values.secret || ""} onChange={(e) => update("secret", e.target.value)} placeholder="DO_SPACES_SECRET" />
-              <Button variant="ghost" size="icon" className="absolute right-0 top-0 h-full w-10" onClick={() => setShowSecret(!showSecret)}>
-                {showSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              </Button>
-            </div>
-          </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Bucket</Label>
             <Input className="font-mono text-xs" value={values.bucket || ""} onChange={(e) => update("bucket", e.target.value)} placeholder="popdam" />
@@ -80,10 +69,14 @@ function DOSpacesSettings() {
             <Label className="text-xs">Endpoint</Label>
             <Input className="font-mono text-xs" value={values.endpoint || ""} onChange={(e) => update("endpoint", e.target.value)} placeholder="https://nyc3.digitaloceanspaces.com" />
           </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs">Public Base URL (for thumbnail URLs)</Label>
+            <Input className="font-mono text-xs" value={values.public_base_url || ""} onChange={(e) => update("public_base_url", e.target.value)} placeholder="https://popdam.nyc3.digitaloceanspaces.com" />
+          </div>
         </div>
         {form && (
           <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            <Save className="h-3.5 w-3.5 mr-1.5" /> Save DO Settings
+            <Save className="h-3.5 w-3.5 mr-1.5" /> Save Spaces Config
           </Button>
         )}
       </CardContent>
@@ -537,7 +530,7 @@ export default function WorkerManagementTab() {
   return (
     <div className="space-y-4">
       <DateCutoffSettings />
-      <DOSpacesSettings />
+      <SpacesConfigSettings />
       <FolderManager />
       <ResourceGuardSettings />
       <PollingConfig />
