@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight, FlaskConical, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,109 @@ function SpacesConfigSettings() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Path Test Button ─────────────────────────────────────────────────
+
+function PathTestButton({ hostPath, mountRoot, scanRoots }: { hostPath: string; mountRoot: string; scanRoots: string[] }) {
+  const { call } = useAdminApi();
+  const [status, setStatus] = useState<"idle" | "waiting" | "done">("idle");
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
+
+  // Poll for result when waiting
+  useEffect(() => {
+    if (status !== "waiting" || !requestId) return;
+    const interval = setInterval(async () => {
+      try {
+        const resp = await call("get-config", { keys: ["PATH_TEST_RESULT"] });
+        const testResult = resp?.config?.PATH_TEST_RESULT?.value ?? resp?.config?.PATH_TEST_RESULT;
+        if (testResult && typeof testResult === "object" && (testResult as Record<string, unknown>).request_id === requestId) {
+          setResult(testResult as Record<string, unknown>);
+          setStatus("done");
+        }
+      } catch { /* keep polling */ }
+    }, 3000);
+    // Timeout after 60s
+    const timeout = setTimeout(() => {
+      if (status === "waiting") {
+        setResult({ error: "Timed out waiting for agent response. Is the Bridge Agent running?" });
+        setStatus("done");
+      }
+    }, 60000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [status, requestId, call]);
+
+  const startTest = async () => {
+    const id = crypto.randomUUID();
+    setRequestId(id);
+    setResult(null);
+    setStatus("waiting");
+    try {
+      await call("set-config", {
+        entries: {
+          PATH_TEST_REQUEST: { request_id: id, status: "pending", host_path: hostPath, container_mount_root: mountRoot, scan_roots: scanRoots },
+        },
+      });
+    } catch (e) {
+      setResult({ error: `Failed to send test request: ${e instanceof Error ? e.message : String(e)}` });
+      setStatus("done");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={startTest}
+        disabled={status === "waiting" || !mountRoot}
+        className="gap-1.5"
+      >
+        {status === "waiting" ? (
+          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Waiting for agent...</>
+        ) : (
+          <><FlaskConical className="h-3.5 w-3.5" /> Test Paths</>
+        )}
+      </Button>
+      {status === "waiting" && (
+        <p className="text-[11px] text-muted-foreground">
+          Request sent. The agent will validate paths on its next heartbeat (up to ~30s).
+        </p>
+      )}
+      {status === "done" && result && (
+        <div className="bg-muted/50 rounded-md px-3 py-2 space-y-1 text-xs">
+          {result.error ? (
+            <div className="flex items-center gap-1.5 text-destructive">
+              <XCircle className="h-3.5 w-3.5 shrink-0" /> {String(result.error)}
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5">
+                {(result.mount_root_valid as boolean) ? (
+                  <><CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" /> <span>Container mount root <code className="font-mono">{mountRoot}</code> exists</span></>
+                ) : (
+                  <><XCircle className="h-3.5 w-3.5 text-destructive shrink-0" /> <span>Container mount root <code className="font-mono">{mountRoot}</code> not found</span></>
+                )}
+              </div>
+              {Array.isArray(result.scan_root_results) && (result.scan_root_results as Array<Record<string, unknown>>).map((sr, i) => (
+                <div key={i} className="flex items-center gap-1.5 ml-4">
+                  {sr.valid ? (
+                    <><CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" /> <code className="font-mono">{String(sr.path)}</code> <span className="text-muted-foreground">({String(sr.file_count ?? "?")} items)</span></>
+                  ) : (
+                    <><XCircle className="h-3.5 w-3.5 text-destructive shrink-0" /> <code className="font-mono">{String(sr.path)}</code> <span className="text-muted-foreground">— {String(sr.error || "not found")}</span></>
+                  )}
+                </div>
+              ))}
+              {result.tested_at && (
+                <p className="text-[10px] text-muted-foreground mt-1">Tested at {new Date(result.tested_at as string).toLocaleString()}</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -217,6 +321,7 @@ function FolderManager() {
               docker-compose: <span className="text-primary">{hostPathValue}:{mountRootValue}:ro</span>
             </div>
           )}
+          <PathTestButton hostPath={hostPathValue} mountRoot={mountRootValue} scanRoots={roots} />
           {pathsDirty && (
             <Button size="sm" onClick={() => savePathsMutation.mutate()} disabled={savePathsMutation.isPending}>
               <Save className="h-3.5 w-3.5 mr-1.5" /> Save Mapping
