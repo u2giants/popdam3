@@ -74,6 +74,8 @@ Required columns:
 - `tags text[] NOT NULL DEFAULT '{}'::text[]`
 - `workflow_status workflow_status DEFAULT 'other'`
 - `status asset_status DEFAULT 'pending'`
+- Visibility Guard: Add is_deleted boolean DEFAULT false.
+- Integrity Guard: Add UNIQUE(share_id, relative_path) to the assets table to prevent duplicate ingestion.
 
 Hashing + scan bookkeeping:
 - `quick_hash text NOT NULL`

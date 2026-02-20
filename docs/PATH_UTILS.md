@@ -109,7 +109,8 @@ When producing or storing `relative_path`:
 - Remove any trailing `/`
 - Preserve internal folder name casing, but treat share matching case-insensitively
 - Do not allow `..` path traversal segments in stored values
-
+Prefix Literalism: Treat USER_SYNC_ROOT as a literal string. Never assume drive letters (e.g., C:).
+- Separator Scrubbing: Always strip trailing slashes from both the prefix and the relative path before joining them.
 ---
 
 ## 7) Examples (Ground Truth)

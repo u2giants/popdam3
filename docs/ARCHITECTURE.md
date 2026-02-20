@@ -43,6 +43,8 @@ Only used when `.ai` thumbnails can’t be reliably generated on the NAS.
 
 ## 2) Communication Model (No Inbound NAS Networking)
 Hard rule: The cloud backend does NOT “reach into” the NAS by IP.
+Outbound Only: The Bridge Agent polls outward to the cloud. The Cloud never initiates a connection to the NAS.
+- Tailscale Role: Tailscale is for user file access (Synology Drive) and human admin, not for the app's internal data flow.
 
 Instead:
 - The cloud sets work flags / queues work (DB)
