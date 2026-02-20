@@ -26,6 +26,7 @@ export const config = {
   // Cloud API
   supabaseUrl: required("SUPABASE_URL"),
   agentKey: required("AGENT_KEY"),
+  agentName: optional("AGENT_NAME", "bridge-agent"),
 
   // DigitalOcean Spaces
   doSpacesKey: required("DO_SPACES_KEY"),
