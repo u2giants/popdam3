@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { HardDrive, FolderPlus, Trash2, Save, Eye, EyeOff, Gauge, Clock } from "lucide-react";
+import { HardDrive, FolderPlus, Trash2, Save, Eye, EyeOff, Gauge, Clock, Calendar as CalendarIcon } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -444,9 +444,99 @@ function PollingConfig() {
 
 // ── Export ───────────────────────────────────────────────────────────
 
+// ── Date Cutoffs ────────────────────────────────────────────────────
+
+function DateCutoffSettings() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-config", "DATE_CUTOFFS"],
+    queryFn: () => call("get-config", { keys: ["SCAN_MIN_DATE", "THUMBNAIL_MIN_DATE"] }),
+  });
+
+  const currentScan = (() => {
+    const val = data?.config?.SCAN_MIN_DATE?.value ?? data?.config?.SCAN_MIN_DATE;
+    return typeof val === "string" ? val : "2010-01-01";
+  })();
+  const currentThumb = (() => {
+    const val = data?.config?.THUMBNAIL_MIN_DATE?.value ?? data?.config?.THUMBNAIL_MIN_DATE;
+    return typeof val === "string" ? val : "2020-01-01";
+  })();
+
+  const [scanDate, setScanDate] = useState<string | null>(null);
+  const [thumbDate, setThumbDate] = useState<string | null>(null);
+
+  const scanVal = scanDate ?? currentScan;
+  const thumbVal = thumbDate ?? currentThumb;
+  const dirty = scanDate !== null || thumbDate !== null;
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const entries: Record<string, string> = {};
+      if (scanDate !== null) entries.SCAN_MIN_DATE = scanDate;
+      if (thumbDate !== null) entries.THUMBNAIL_MIN_DATE = thumbDate;
+      return call("set-config", { entries });
+    },
+    onSuccess: () => {
+      toast.success("Date cutoffs saved");
+      setScanDate(null);
+      setThumbDate(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  if (isLoading) return <Card><CardContent className="py-6"><p className="text-sm text-muted-foreground">Loading...</p></CardContent></Card>;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4" /> Date Cutoffs
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Files older than <strong>Scan Min Date</strong> are skipped during ingestion entirely. 
+          Files older than <strong>Thumbnail Min Date</strong> are ingested but hidden from the library unless they have a thumbnail.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Scan Min Date (don't ingest files older than this)</Label>
+            <Input
+              type="date"
+              className="font-mono text-xs"
+              value={scanVal}
+              onChange={(e) => setScanDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Thumbnail Min Date (visibility threshold)</Label>
+            <Input
+              type="date"
+              className="font-mono text-xs"
+              value={thumbVal}
+              onChange={(e) => setThumbDate(e.target.value)}
+            />
+          </div>
+        </div>
+        {dirty && (
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            <Save className="h-3.5 w-3.5 mr-1.5" /> Save Date Cutoffs
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Export ───────────────────────────────────────────────────────────
+
 export default function WorkerManagementTab() {
   return (
     <div className="space-y-4">
+      <DateCutoffSettings />
       <DOSpacesSettings />
       <FolderManager />
       <ResourceGuardSettings />
