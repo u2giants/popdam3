@@ -205,7 +205,7 @@ async function handleHeartbeat(
   const { data: configRows } = await db
     .from("admin_config")
     .select("key, value")
-    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT"]);
+    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH"]);
 
   const configMap: Record<string, unknown> = {};
   for (const row of configRows || []) {
