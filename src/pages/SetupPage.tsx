@@ -42,7 +42,7 @@ interface WizardState {
   nasContainerMount: string;
   scanRoots: string;
   thumbConcurrency: string;
-  cpuLimit: string;
+  cpuShares: string;
   memLimit: string;
   generatedKey: string | null;
 }
@@ -58,7 +58,7 @@ const INITIAL_STATE: WizardState = {
   nasContainerMount: "/mnt/nas/mac",
   scanRoots: "/mnt/nas/mac",
   thumbConcurrency: "2",
-  cpuLimit: "1.0",
+  cpuShares: "1024",
   memLimit: "2g",
   generatedKey: null,
 };
@@ -177,6 +177,8 @@ INGEST_BATCH_SIZE=100
   const composeContent = `# PopDAM Bridge Agent — docker-compose.yml
 # Deploy via Synology Container Manager > Project > Import
 # No source code on NAS — pre-built image only.
+# NOTE: Uses cpu_shares (not cpus/NanoCPUs) for Synology kernel compatibility.
+#   256 shares ≈ 20% priority, 1024 ≈ default, 8192 ≈ 80% priority.
 
 version: "3.8"
 services:
@@ -185,13 +187,10 @@ services:
     container_name: popdam-bridge
     restart: unless-stopped
     env_file: .env
+    cpu_shares: ${state.cpuShares}
+    mem_limit: ${state.memLimit}
     volumes:
       - ${state.nasContainerMount}:${state.nasContainerMount}:ro
-    deploy:
-      resources:
-        limits:
-          cpus: "${state.cpuLimit}"
-          memory: ${state.memLimit}
 `;
 
   return (
@@ -308,8 +307,9 @@ services:
               </p>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">CPU Limit</label>
-                  <Input value={state.cpuLimit} onChange={(e) => update("cpuLimit", e.target.value)} className="font-mono text-xs" />
+                  <label className="text-xs text-muted-foreground">CPU Shares</label>
+                  <Input value={state.cpuShares} onChange={(e) => update("cpuShares", e.target.value)} className="font-mono text-xs" />
+                  <p className="text-xs text-muted-foreground">256 = ~20% · 1024 = default · 8192 = ~80%</p>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Memory Limit</label>

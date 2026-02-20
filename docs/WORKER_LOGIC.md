@@ -38,8 +38,11 @@ touching huge PSD/AI files and producing thumbnails near the storage.
 
 ### 2.2 Resource Limits
 The deployment MUST support container-level limits (Synology Container Manager / docker-compose):
-- CPU limit (example target: 0.5–1.0 CPU)
-- Memory limit (example target: 1–2 GB)
+- **cpu_shares** (not `cpus`/NanoCPUs — Synology kernel doesn't support CFS NanoCPUs):
+  - 256 shares ≈ 20% priority
+  - 1024 shares = default
+  - 8192 shares ≈ 80% priority
+- Memory limit via `mem_limit` (example target: 1–2 GB)
 - Low process priority (nice/priority) where supported
 
 These are not optional “nice to have” — they are required to avoid the worker starving other NAS workloads.
