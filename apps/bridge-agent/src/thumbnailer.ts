@@ -1,17 +1,12 @@
 /**
  * Thumbnail generation per WORKER_LOGIC §5.
  *
- * PSD fallback chain:
- *   1) Embedded composite preview (via ag-psd)
- *   2) Sharp fallback (flatten + resize)
- *   3) Set thumbnail_error if all fail
- *
+ * PSD: Sharp reads PSD directly (flattened composite).
  * AI files:
  *   1) Try PDF-compat rendering via sharp (many .ai files are valid PDF)
  *   2) If fails, set thumbnail_error = "no_pdf_compat" and queue for Windows Render Agent
  */
 
-import { readFile } from "node:fs/promises";
 import sharp from "sharp";
 import { logger } from "./logger.js";
 
@@ -25,39 +20,9 @@ export interface ThumbnailResult {
 
 /**
  * Generate a thumbnail for a PSD file.
- * Uses ag-psd to extract the embedded composite preview first.
+ * Sharp can read PSD files directly (flattened composite).
  */
 async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
-  // Strategy 1: Extract embedded composite via ag-psd
-  try {
-    const { readPsd } = await import("ag-psd");
-    // Read only the composite — skip layer data to save RAM
-    const fileBuffer = await readFile(filePath);
-    const psd = readPsd(fileBuffer, {
-      skipLayerImageData: true,
-      skipThumbnail: false,
-    });
-
-    if (psd.canvas) {
-      // ag-psd returns an OffscreenCanvas in node via node-canvas polyfill,
-      // but we'll use the imageData approach
-      logger.debug("PSD composite found, extracting via ag-psd", { filePath });
-    }
-
-    // Try using the thumbnail stored in PSD resource
-    if (psd.imageResources?.thumbnail) {
-      const thumbData = psd.imageResources.thumbnail;
-      // thumbnail is a canvas — convert to buffer
-      logger.debug("PSD thumbnail resource found", { filePath });
-    }
-  } catch (e) {
-    logger.debug("ag-psd extraction failed, trying sharp fallback", {
-      filePath,
-      error: (e as Error).message,
-    });
-  }
-
-  // Strategy 2: Sharp can sometimes read PSD directly (flattened)
   try {
     const img = sharp(filePath, { pages: -1 }).flatten({ background: "#ffffff" });
     const meta = await img.metadata();
