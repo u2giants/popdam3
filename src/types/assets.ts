@@ -16,6 +16,7 @@ export interface AssetFilters {
   propertyId: string | null;
   assetType: string[];
   artSource: string[];
+  tagFilter: string;
 }
 
 export const defaultFilters: AssetFilters = {
@@ -28,9 +29,10 @@ export const defaultFilters: AssetFilters = {
   propertyId: null,
   assetType: [],
   artSource: [],
+  tagFilter: "",
 };
 
-export interface FilterCounts {
+export interface FacetCounts {
   fileType: Record<string, number>;
   status: Record<string, number>;
   workflowStatus: Record<string, number>;
@@ -47,7 +49,8 @@ export function hasActiveFilters(filters: AssetFilters): boolean {
     filters.licensorId !== null ||
     filters.propertyId !== null ||
     filters.assetType.length > 0 ||
-    filters.artSource.length > 0
+    filters.artSource.length > 0 ||
+    filters.tagFilter !== ""
   );
 }
 
@@ -61,5 +64,6 @@ export function countActiveFilters(filters: AssetFilters): number {
   if (filters.propertyId) count++;
   if (filters.assetType.length > 0) count++;
   if (filters.artSource.length > 0) count++;
+  if (filters.tagFilter) count++;
   return count;
 }

@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AssetFilters } from "@/types/assets";
+import type { AssetFilters, FacetCounts } from "@/types/assets";
 import { Constants } from "@/integrations/supabase/types";
 
 interface FilterSidebarProps {
@@ -20,6 +20,7 @@ interface FilterSidebarProps {
   onClose: () => void;
   licensors: { id: string; name: string }[];
   properties: { id: string; name: string }[];
+  facetCounts: FacetCounts | null;
 }
 
 function CheckboxGroup({
@@ -27,11 +28,13 @@ function CheckboxGroup({
   options,
   selected,
   onChange,
+  counts,
 }: {
   label: string;
   options: readonly string[];
   selected: string[];
   onChange: (v: string[]) => void;
+  counts?: Record<string, number>;
 }) {
   const toggle = (val: string) => {
     onChange(
@@ -45,23 +48,25 @@ function CheckboxGroup({
     <div className="space-y-2">
       <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</h4>
       <div className="space-y-1.5">
-        {options.map((opt) => (
-          <label key={opt} className="flex items-center gap-2 cursor-pointer text-sm">
-            <Checkbox
-              checked={selected.includes(opt)}
-              onCheckedChange={() => toggle(opt)}
-              className="h-3.5 w-3.5"
-            />
-            <span className="capitalize">{opt.replace(/_/g, " ")}</span>
-          </label>
-        ))}
+        {options.map((opt) => {
+          const c = counts?.[opt];
+          return (
+            <label key={opt} className="flex items-center gap-2 cursor-pointer text-sm">
+              <Checkbox
+                checked={selected.includes(opt)}
+                onCheckedChange={() => toggle(opt)}
+                className="h-3.5 w-3.5"
+              />
+              <span className="capitalize flex-1">{opt.replace(/_/g, " ")}</span>
+              {c !== undefined && (
+                <span className="text-[10px] text-muted-foreground tabular-nums">{c}</span>
+              )}
+            </label>
+          );
+        })}
       </div>
     </div>
   );
-}
-
-function formatLabel(val: string): string {
-  return val.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default function FilterSidebar({
@@ -70,6 +75,7 @@ export default function FilterSidebar({
   onClose,
   licensors,
   properties,
+  facetCounts,
 }: FilterSidebarProps) {
   const update = (partial: Partial<AssetFilters>) =>
     onFiltersChange({ ...filters, ...partial });
@@ -85,6 +91,7 @@ export default function FilterSidebar({
       propertyId: null,
       assetType: [],
       artSource: [],
+      tagFilter: "",
     });
 
   return (
@@ -103,12 +110,26 @@ export default function FilterSidebar({
 
       <ScrollArea className="flex-1 px-4 py-3">
         <div className="space-y-5">
+          {/* Tag filter */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tag</h4>
+            <Input
+              placeholder="Filter by tag…"
+              value={filters.tagFilter}
+              onChange={(e) => update({ tagFilter: e.target.value })}
+              className="h-8 bg-background text-sm"
+            />
+          </div>
+
+          <Separator />
+
           {/* File Type */}
           <CheckboxGroup
             label="File Type"
             options={Constants.public.Enums.file_type}
             selected={filters.fileType}
             onChange={(v) => update({ fileType: v })}
+            counts={facetCounts?.fileType}
           />
 
           <Separator />
@@ -119,6 +140,7 @@ export default function FilterSidebar({
             options={Constants.public.Enums.asset_status}
             selected={filters.status}
             onChange={(v) => update({ status: v })}
+            counts={facetCounts?.status}
           />
 
           <Separator />
@@ -129,6 +151,7 @@ export default function FilterSidebar({
             options={Constants.public.Enums.workflow_status}
             selected={filters.workflowStatus}
             onChange={(v) => update({ workflowStatus: v })}
+            counts={facetCounts?.workflowStatus}
           />
 
           <Separator />
@@ -140,18 +163,24 @@ export default function FilterSidebar({
               {[
                 { label: "Yes", value: true },
                 { label: "No", value: false },
-              ].map((opt) => (
-                <label key={String(opt.value)} className="flex items-center gap-2 cursor-pointer text-sm">
-                  <Checkbox
-                    checked={filters.isLicensed === opt.value}
-                    onCheckedChange={(checked) =>
-                      update({ isLicensed: checked ? opt.value : null })
-                    }
-                    className="h-3.5 w-3.5"
-                  />
-                  {opt.label}
-                </label>
-              ))}
+              ].map((opt) => {
+                const countVal = facetCounts?.isLicensed?.[String(opt.value) as "true" | "false"];
+                return (
+                  <label key={String(opt.value)} className="flex items-center gap-2 cursor-pointer text-sm">
+                    <Checkbox
+                      checked={filters.isLicensed === opt.value}
+                      onCheckedChange={(checked) =>
+                        update({ isLicensed: checked ? opt.value : null })
+                      }
+                      className="h-3.5 w-3.5"
+                    />
+                    <span className="flex-1">{opt.label}</span>
+                    {countVal !== undefined && (
+                      <span className="text-[10px] text-muted-foreground tabular-nums">{countVal}</span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           </div>
 
