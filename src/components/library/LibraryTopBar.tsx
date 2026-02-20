@@ -56,6 +56,22 @@ export default function LibraryTopBar({
 }: LibraryTopBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-overlay px-4 py-3">
+      {/* Filters toggle — far left so it sits above the sidebar */}
+      <Button
+        variant={filtersOpen ? "secondary" : "ghost"}
+        size="sm"
+        className="h-9 gap-1.5"
+        onClick={onToggleFilters}
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+        Filters
+        {activeFilterCount > 0 && (
+          <Badge variant="default" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+            {activeFilterCount}
+          </Badge>
+        )}
+      </Button>
+
       {/* Search */}
       <div className="relative flex-1 min-w-[200px] max-w-sm">
         <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -107,22 +123,6 @@ export default function LibraryTopBar({
         title={sortDirection === "asc" ? "Ascending" : "Descending"}
       >
         <span className="text-xs font-mono">{sortDirection === "asc" ? "A↑" : "Z↓"}</span>
-      </Button>
-
-      {/* Filters toggle */}
-      <Button
-        variant={filtersOpen ? "secondary" : "ghost"}
-        size="sm"
-        className="h-9 gap-1.5"
-        onClick={onToggleFilters}
-      >
-        <SlidersHorizontal className="h-4 w-4" />
-        Filters
-        {activeFilterCount > 0 && (
-          <Badge variant="default" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
-            {activeFilterCount}
-          </Badge>
-        )}
       </Button>
 
       {/* Sync / Stop */}
