@@ -145,7 +145,7 @@ export default function SetupPage() {
       case 0: return state.agentName.trim().length > 0;
       case 1: return true; // supabaseUrl auto-filled
       case 2: return state.doSpacesKey.trim().length > 0 && state.doSpacesSecret.trim().length > 0;
-      case 3: return state.nasHostPath.trim().length > 0 && state.nasContainerMount.trim().length > 0;
+      case 3: return (state.nasHostPath || "").trim().length > 0 && (state.nasContainerMount || "").trim().length > 0;
       case 4: return true;
       default: return true;
     }
