@@ -284,6 +284,8 @@ async function handleListAgents() {
       heartbeat_history: metadata.heartbeat_history || [],
       key_preview: a.agent_key_hash ? `${a.agent_key_hash.substring(0, 8)}...` : null,
       created_at: a.created_at,
+      force_stop: metadata.force_stop === true,
+      scan_abort: metadata.scan_abort === true,
     };
   });
 

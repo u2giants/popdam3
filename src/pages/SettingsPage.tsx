@@ -97,8 +97,7 @@ function AgentStatusSection() {
 
   // Check if any agent has force_stop
   const anyForceStopped = agents.some((a: Record<string, unknown>) => {
-    const meta = (a as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
-    return meta?.force_stop === true || meta?.scan_abort === true;
+    return a.force_stop === true || a.scan_abort === true;
   });
 
   const resumeMutation = useMutation({
