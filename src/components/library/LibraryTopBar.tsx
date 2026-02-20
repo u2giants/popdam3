@@ -1,4 +1,4 @@
-import { Search, LayoutGrid, List, SlidersHorizontal, RefreshCw } from "lucide-react";
+import { Search, LayoutGrid, List, SlidersHorizontal, RefreshCw, Square } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ interface LibraryTopBarProps {
   totalCount: number;
   isLoading: boolean;
   onSync: () => void;
+  onStopScan: () => void;
 }
 
 const sortOptions: { value: SortField; label: string }[] = [
@@ -51,6 +52,7 @@ export default function LibraryTopBar({
   totalCount,
   isLoading,
   onSync,
+  onStopScan,
 }: LibraryTopBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-overlay px-4 py-3">
@@ -123,9 +125,12 @@ export default function LibraryTopBar({
         )}
       </Button>
 
-      {/* Sync */}
+      {/* Sync / Stop */}
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onSync} title="Trigger scan">
         <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={onStopScan} title="Stop scan">
+        <Square className="h-4 w-4" />
       </Button>
 
       {/* Count */}

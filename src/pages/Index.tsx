@@ -92,6 +92,15 @@ export default function LibraryPage() {
     }
   };
 
+  const handleStopScan = async () => {
+    try {
+      await call("stop-scan");
+      toast({ title: "Stop requested", description: "The agent will abort the current scan shortly." });
+    } catch (e) {
+      toast({ title: "Failed to stop scan", description: (e as Error).message, variant: "destructive" });
+    }
+  };
+
   const assets = data?.assets ?? [];
   const pageSize = data?.pageSize ?? 40;
   const count = totalCount ?? data?.totalCount ?? 0;
@@ -126,6 +135,7 @@ export default function LibraryPage() {
         totalCount={count}
         isLoading={isFetching}
         onSync={handleSync}
+        onStopScan={handleStopScan}
       />
       {showBulkBar && (
         <BulkActionBar

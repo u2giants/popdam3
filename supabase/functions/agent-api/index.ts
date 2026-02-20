@@ -653,16 +653,17 @@ async function handleCheckScanRequest(
 
   const metadata = (agent.metadata as Record<string, unknown>) || {};
   const scanRequested = metadata.scan_requested === true;
+  const scanAbort = metadata.scan_abort === true;
 
-  // Clear the flag
-  if (scanRequested) {
+  // Clear the flags
+  if (scanRequested || scanAbort) {
     await db
       .from("agent_registrations")
-      .update({ metadata: { ...metadata, scan_requested: false } })
+      .update({ metadata: { ...metadata, scan_requested: false, scan_abort: false } })
       .eq("id", agentId);
   }
 
-  return json({ ok: true, scan_requested: scanRequested });
+  return json({ ok: true, scan_requested: scanRequested, scan_abort: scanAbort });
 }
 
 async function handleClaim(body: Record<string, unknown>) {

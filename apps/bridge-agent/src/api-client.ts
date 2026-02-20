@@ -97,9 +97,12 @@ export async function scanProgress(
   });
 }
 
-export async function checkScanRequest(agentId: string): Promise<boolean> {
+export async function checkScanRequest(agentId: string): Promise<{ scan_requested: boolean; scan_abort: boolean }> {
   const data = await callApi("check-scan-request", { agent_id: agentId });
-  return data.scan_requested === true;
+  return {
+    scan_requested: data.scan_requested === true,
+    scan_abort: data.scan_abort === true,
+  };
 }
 
 export async function queueRender(assetId: string, reason: string): Promise<string> {
