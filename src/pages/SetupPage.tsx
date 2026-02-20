@@ -339,6 +339,31 @@ services:
                     </button>
                   ))}
                 </div>
+                <p className="text-xs text-muted-foreground font-semibold mt-2">Subfolders of /volume1/mac/Decor/</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "/volume1/mac/Decor/Character Licensed",
+                    "/volume1/mac/Decor/Generic Decor",
+                    "/volume1/mac/Decor/Generic_Images",
+                    "/volume1/mac/Decor/Images",
+                    "/volume1/mac/Decor/Other Licensed",
+                    "/volume1/mac/Decor/Styleguides",
+                    "/volume1/mac/Decor/Gina's Design Team",
+                    "/volume1/mac/Decor/Books",
+                  ].map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => update("nasHostPath", p)}
+                      className={`text-xs px-2 py-1 rounded border transition-colors ${
+                        state.nasHostPath === p
+                          ? "border-primary bg-primary/10 text-primary font-semibold"
+                          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                      }`}
+                    >
+                      {p.replace("/volume1/mac/Decor/", "Decor/")}
+                    </button>
+                  ))}
+                </div>
                 <p className="text-xs text-muted-foreground">Select a folder or type a custom path above.</p>
               </div>
               <div className="space-y-1">
