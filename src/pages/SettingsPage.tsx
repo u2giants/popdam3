@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -452,6 +453,105 @@ function InvitationSection() {
   );
 }
 
+// ── Throughput Chart ─────────────────────────────────────────────────
+
+interface HistoryPoint {
+  ts: string;
+  ingested_new?: number;
+  updated_existing?: number;
+  moved_detected?: number;
+  errors?: number;
+  files_checked?: number;
+}
+
+function AgentThroughputChart() {
+  const { call } = useAdminApi();
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-agents"],
+    queryFn: () => call("list-agents"),
+  });
+
+  const chartData = useMemo(() => {
+    const agents = data?.agents || [];
+    const allPoints: { time: string; ingested: number; updated: number; moved: number; errors: number }[] = [];
+
+    for (const agent of agents) {
+      const metadata = (agent as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
+      const history = (metadata?.heartbeat_history || (agent as Record<string, unknown>).heartbeat_history) as HistoryPoint[] | undefined;
+      if (!Array.isArray(history)) continue;
+
+      for (const point of history) {
+        allPoints.push({
+          time: new Date(point.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          ingested: point.ingested_new ?? 0,
+          updated: point.updated_existing ?? 0,
+          moved: point.moved_detected ?? 0,
+          errors: point.errors ?? 0,
+        });
+      }
+    }
+
+    // Sort by time and take last 60 points
+    return allPoints.slice(-60);
+  }, [data]);
+
+  if (isLoading) return null;
+  if (chartData.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" /> Throughput
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">No heartbeat history yet. Data appears after the Bridge Agent sends several heartbeats.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <BarChart3 className="h-4 w-4" /> Throughput (Recent Heartbeats)
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[220px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220 14% 22%)" />
+              <XAxis dataKey="time" tick={{ fontSize: 10, fill: "hsl(220 10% 55%)" }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "hsl(220 10% 55%)" }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <RechartsTooltip
+                contentStyle={{
+                  backgroundColor: "hsl(220 16% 15%)",
+                  border: "1px solid hsl(220 14% 22%)",
+                  borderRadius: "6px",
+                  fontSize: 12,
+                  color: "hsl(220 13% 91%)",
+                }}
+              />
+              <Area type="monotone" dataKey="ingested" name="Ingested" stroke="hsl(38 92% 55%)" fill="hsl(38 92% 55% / 0.2)" strokeWidth={2} />
+              <Area type="monotone" dataKey="updated" name="Updated" stroke="hsl(217 91% 60%)" fill="hsl(217 91% 60% / 0.1)" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="moved" name="Moved" stroke="hsl(142 71% 45%)" fill="hsl(142 71% 45% / 0.1)" strokeWidth={1.5} />
+              <Area type="monotone" dataKey="errors" name="Errors" stroke="hsl(0 72% 51%)" fill="hsl(0 72% 51% / 0.1)" strokeWidth={1.5} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex items-center justify-center gap-4 mt-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-primary" /> Ingested</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[hsl(var(--info))]" /> Updated</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[hsl(var(--success))]" /> Moved</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> Errors</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Settings Page ──────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -478,6 +578,7 @@ export default function SettingsPage() {
         <TabsContent value="agents" className="space-y-4">
           <AgentKeySection />
           <AgentStatusSection />
+          <AgentThroughputChart />
         </TabsContent>
 
         <TabsContent value="invitations">
