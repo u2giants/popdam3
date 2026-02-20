@@ -1,1 +1,13 @@
 project_id = "vklanxwmaeqjbwtmnygj"
+
+[functions.agent-api]
+verify_jwt = false
+
+[functions.admin-api]
+verify_jwt = false
+
+[functions.ai-tag]
+verify_jwt = false
+
+[functions.send-invite-email]
+verify_jwt = false
