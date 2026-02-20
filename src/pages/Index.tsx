@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
-import { useAssets, useAssetCount, useFilterOptions } from "@/hooks/useAssets";
+import { useState, useCallback, useMemo, useRef } from "react";
+import { useAssets, useAssetCount, useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
 import FilterSidebar from "@/components/library/FilterSidebar";
@@ -18,6 +18,7 @@ export default function LibraryPage() {
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailAssetId, setDetailAssetId] = useState<string | null>(null);
+  const lastSelectedIndex = useRef<number | null>(null);
 
   // Debounced search
   const [searchInput, setSearchInput] = useState("");
@@ -38,31 +39,46 @@ export default function LibraryPage() {
     setPage(0);
   }, []);
 
-  const { data, isLoading, isFetching } = useAssets(filters, sortField, sortDirection, page);
-  const { data: totalCount } = useAssetCount(filters);
+  const { data: visibilityDate } = useVisibilityDate();
+  const { data, isLoading, isFetching } = useAssets(filters, sortField, sortDirection, page, visibilityDate);
+  const { data: totalCount } = useAssetCount(filters, visibilityDate);
   const { licensors, properties } = useFilterOptions();
+  const { data: facetCounts } = useFilterCounts(filters);
 
   const handleSelect = useCallback((id: string, event: React.MouseEvent) => {
-    // Single click opens detail panel
-    if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
-      setDetailAssetId((prev) => (prev === id ? null : id));
-      setSelectedIds(new Set([id]));
+    const assets = data?.assets ?? [];
+    const clickedIndex = assets.findIndex((a) => a.id === id);
+
+    // Shift+Click range select
+    if (event.shiftKey && lastSelectedIndex.current !== null && clickedIndex >= 0) {
+      const start = Math.min(lastSelectedIndex.current, clickedIndex);
+      const end = Math.max(lastSelectedIndex.current, clickedIndex);
+      const rangeIds = assets.slice(start, end + 1).map((a) => a.id);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        rangeIds.forEach((rid) => next.add(rid));
+        return next;
+      });
       return;
     }
 
-    // Multi-select with modifier keys
+    // Single click opens detail panel
+    if (!event.metaKey && !event.ctrlKey) {
+      setDetailAssetId((prev) => (prev === id ? null : id));
+      setSelectedIds(new Set([id]));
+      lastSelectedIndex.current = clickedIndex;
+      return;
+    }
+
+    // Ctrl/Cmd+Click multi-select
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (event.metaKey || event.ctrlKey) {
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-      } else {
-        next.clear();
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
-  }, []);
+    lastSelectedIndex.current = clickedIndex;
+  }, [data?.assets]);
 
   const handleSync = () => {
     toast({ title: "Scan requested", description: "The Bridge Agent will pick this up on next heartbeat." });
@@ -98,7 +114,6 @@ export default function LibraryPage() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Filter sidebar */}
         {filtersOpen && (
           <FilterSidebar
             filters={filters}
@@ -106,10 +121,10 @@ export default function LibraryPage() {
             onClose={() => setFiltersOpen(false)}
             licensors={licensors}
             properties={properties}
+            facetCounts={facetCounts ?? null}
           />
         )}
 
-        {/* Content area */}
         <div className="flex flex-1 flex-col overflow-auto">
           {viewMode === "grid" ? (
             <AssetGrid
@@ -137,7 +152,6 @@ export default function LibraryPage() {
           </div>
         </div>
 
-        {/* Detail panel */}
         {detailAsset && (
           <AssetDetailPanel
             asset={detailAsset}
