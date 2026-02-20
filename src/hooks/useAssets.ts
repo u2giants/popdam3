@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 
 const PAGE_SIZE = 40;
@@ -144,7 +145,7 @@ export function useFilterCounts(filters: AssetFilters) {
       if (filters.tagFilter) filterPayload.tagFilter = filters.tagFilter;
 
       const { data, error } = await supabase.rpc("get_filter_counts", {
-        p_filters: filterPayload as any,
+        p_filters: filterPayload as unknown as Json,
       });
       if (error) throw error;
       return (data ?? {}) as unknown as FacetCounts;

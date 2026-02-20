@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Asset } from "@/types/assets";
+import type { Enums } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -81,7 +82,7 @@ export default function BulkActionBar({ selectedAssets, onClearSelection }: Bulk
       const ids = selectedAssets.map((a) => a.id);
       const { error } = await supabase
         .from("assets")
-        .update({ workflow_status: status as any })
+        .update({ workflow_status: status as Enums<"workflow_status"> })
         .in("id", ids);
       if (error) throw error;
     },
