@@ -12,8 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
     "ag-psd": "^19.2.0",
-    "sharp": "^0.33.4",
-    "pdf2pic": "^3.1.1"
+    "sharp": "^0.33.4"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
