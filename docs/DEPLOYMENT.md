@@ -40,3 +40,8 @@ On push to main:
 - `.env.example` is required for all components.
 - Raw agent keys must never be stored in DB or returned by APIs.
 
+---
+
+## 5) Golden Rule: File Date Preservation
+The Bridge Agent volume mount should be `:ro` (read-only) whenever possible. The agent must never modify file timestamps on source art. Before reading a file for hashing or thumbnailing, it must record original `mtime`/`birthtime` and restore them if changed. If restoration fails, the agent must halt and report a critical error. See PROJECT_BIBLE.md §15.
+

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import WorkerManagementTab from "@/components/settings/WorkerManagementTab";
+import { NasStorageTab, ImageOutputTab, ScanningTab } from "@/components/settings/WorkerManagementTab";
 import ApisTab from "@/components/settings/ApisTab";
 
 function CopyButton({ text }: { text: string }) {
@@ -598,23 +598,27 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-semibold">Settings</h1>
       </div>
 
-      <Tabs defaultValue="config" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="config">Configuration</TabsTrigger>
-          <TabsTrigger value="workers">Workers</TabsTrigger>
+      <Tabs defaultValue="nas-storage" className="space-y-4">
+        <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="nas-storage">NAS & Storage</TabsTrigger>
+          <TabsTrigger value="image-output">Image Output</TabsTrigger>
+          <TabsTrigger value="scanning">Scanning</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="apis">APIs</TabsTrigger>
-          <TabsTrigger value="invitations">Invitations</TabsTrigger>
-          <TabsTrigger value="doctor">Doctor</TabsTrigger>
+          <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="config" className="space-y-4">
-          <EffectiveConfigSection />
-          <PathTesterSection />
+        <TabsContent value="nas-storage" className="space-y-4">
+          <NasStorageTab />
         </TabsContent>
 
-        <TabsContent value="workers" className="space-y-4">
-          <WorkerManagementTab />
+        <TabsContent value="image-output" className="space-y-4">
+          <ImageOutputTab />
+        </TabsContent>
+
+        <TabsContent value="scanning" className="space-y-4">
+          <ScanningTab />
         </TabsContent>
 
         <TabsContent value="agents" className="space-y-4">
@@ -623,16 +627,18 @@ export default function SettingsPage() {
           <AgentThroughputChart />
         </TabsContent>
 
-        <TabsContent value="apis" className="space-y-4">
+        <TabsContent value="taxonomy" className="space-y-4">
           <ApisTab />
         </TabsContent>
 
-        <TabsContent value="invitations">
+        <TabsContent value="users">
           <InvitationSection />
         </TabsContent>
 
-        <TabsContent value="doctor">
+        <TabsContent value="diagnostics" className="space-y-4">
           <DoctorSection />
+          <EffectiveConfigSection />
+          <PathTesterSection />
         </TabsContent>
       </Tabs>
     </div>

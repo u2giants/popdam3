@@ -146,4 +146,15 @@ If the cloud misses 3 heartbeats, it marks the worker Offline in the UI.
 - Poll intervals:
   - idle: 30–60 seconds
   - when scan requested / active: 2–5 seconds
-- No inbound networking to NAS is required.
+---
+
+## 9) Golden Rule: File Date Preservation (Non-Negotiable)
+**The Bridge Agent must NEVER modify the created or modified date of any source file.**
+
+Before any file operation (read for hashing, read for thumbnailing):
+1. `stat()` the file and record `mtime` + `birthtime`.
+2. After the operation, `stat()` again.
+3. If timestamps changed, immediately restore them via `utimes()`.
+4. If restoration fails: **STOP processing**, report a critical error to the cloud API, and refuse to process further files until an admin resolves the issue.
+
+This is a hard stop — not a warning. File dates are sacred for licensor compliance and version tracking.

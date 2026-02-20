@@ -96,3 +96,8 @@ Publish the bridge agent as a pre-built Docker image to Docker Hub or GitHub Con
 Heartbeat Rule: The cloud API must track the last_heartbeat from the Agent. If it is older than 2 minutes, the Admin Config page must display a "Check Tailscale Connection" warning.
 
 Image Appliance Mode: Reiterate that the Bridge Agent is a read-only appliance. It should never have "Write" permissions to your source art folders unless explicitly configured for metadata embedding.
+
+---
+
+## 6) Golden Rule: File Date Preservation
+The Bridge Agent must NEVER modify file timestamps (mtime/birthtime) on source art files. Before any file read, record original timestamps; after, verify and restore if changed. If restoration fails, halt processing and report a critical error. See PROJECT_BIBLE.md §15.

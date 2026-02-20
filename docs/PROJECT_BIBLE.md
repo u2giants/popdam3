@@ -24,7 +24,7 @@ Build **PopDAM** — a Digital Asset Manager for licensed consumer-product art (
 - generate thumbnails (with fallbacks)
 - upload thumbnails to **DigitalOcean Spaces**
 - let users browse/search/filter/tag assets in a **dark-mode web app**
-- avoid past failure modes: **config drift**, **silent scan failures**, **hard-coded paths**, **type drift**, **pagination bugs**, and “fix-on-fix” instability.
+- avoid past failure modes: **config drift**, **silent scan failures**, **hard-coded paths**, **type drift**, **pagination bugs**, and "fix-on-fix" instability.
 
 ---
 
@@ -35,9 +35,9 @@ Build **PopDAM** — a Digital Asset Manager for licensed consumer-product art (
 - admin config + monitoring + diagnostics
 - AI tagging (cloud calls model using thumbnail URLs)
 ## Bridge Agent Scope + NAS Protection (Non-negotiable)
-The Synology Bridge Agent is a minimal “appliance.” It exists only to do the work that must be local to the NAS: **scan → read filesystem timestamps → quick-hash → thumbnail → upload to DigitalOcean Spaces → report to cloud API**. It must not host UI/DB, must not implement business logic, and must not transfer full PSD/AI files to the cloud. The cloud never reaches into the NAS (outbound polling only). The worker must be resource-bounded (CPU/memory limits + low concurrency). **Authoritative details are in `docs/WORKER_LOGIC.md` and must be followed exactly.**
+The Synology Bridge Agent is a minimal "appliance." It exists only to do the work that must be local to the NAS: **scan → read filesystem timestamps → quick-hash → thumbnail → upload to DigitalOcean Spaces → report to cloud API**. It must not host UI/DB, must not implement business logic, and must not transfer full PSD/AI files to the cloud. The cloud never reaches into the NAS (outbound polling only). The worker must be resource-bounded (CPU/memory limits + low concurrency). **Authoritative details are in `docs/WORKER_LOGIC.md` and must be followed exactly.**
 
-### B) Muscle = Bridge Agent (Synology Docker “appliance”)
+### B) Muscle = Bridge Agent (Synology Docker "appliance")
 - scans the NAS filesystem locally
 - reads filesystem timestamps from disk (`mtime` + `birthtime` when available)
 - computes **quick hash** for move detection
@@ -47,7 +47,7 @@ The Synology Bridge Agent is a minimal “appliance.” It exists only to do the
 - persists scan state incrementally (see scanning rules)
 
 ### C) Optional Muscle #2 = Windows Render Agent (Illustrator)
-Only for `.ai` files that can’t be thumbnailed reliably on NAS:
+Only for `.ai` files that can't be thumbnailed reliably on NAS:
 - claims render jobs
 - renders via Illustrator ExtendScript API
 - uploads to Spaces
@@ -59,7 +59,7 @@ Only for `.ai` files that can’t be thumbnailed reliably on NAS:
 Hard rule: The cloud does **not** reach into the NAS over IP.  
 The NAS worker **polls outward** (HTTPS) to claim work and report status.
 
-This avoids fragile “cloud → private network” requirements and keeps DevOps simpler.
+This avoids fragile "cloud → private network" requirements and keeps DevOps simpler.
 
 ---
 
@@ -103,7 +103,7 @@ Hard rule: **Never mix admin routes with agent routes in one function.**
 
 ---
 
-## 5) Security (No “remote shell” footguns)
+## 5) Security (No "remote shell" footguns)
 Hard rule: **No endpoint accepts arbitrary shell commands** or user-provided command strings.
 
 If Docker management exists:
@@ -142,7 +142,7 @@ Important:
 
 ---
 
-## 8) Scanner Reliability Rules (No Silent “Success”)
+## 8) Scanner Reliability Rules (No Silent "Success")
 Bridge Agent must:
 - `stat()` every configured scan root at startup
 - if any root missing / not a directory:
@@ -160,7 +160,7 @@ UI must show these counters prominently:
 - files_stat_failed
 - files_checked, candidates_found, ingested_new, moved_detected, updated_existing, errors
 
-Also: UI must label counts correctly (“files checked” vs “assets ingested”).
+Also: UI must label counts correctly ("files checked" vs "assets ingested").
 
 ---
 
@@ -220,9 +220,25 @@ No copying source code to NAS; no building on NAS.
 
 ---
 
-## 14) “No Fix-on-Fix” Development Rule
+## 14) "No Fix-on-Fix" Development Rule
 When implementing changes:
 - make small diffs
 - show what changed
 - run checks/tests you claim were run
 - if the same bug persists after two attempts: stop, re-read this doc + relevant appendices, and propose a different approach
+
+---
+
+## 15) Golden Rule: File Date Preservation (Non-Negotiable)
+**This DAM must NEVER modify the created or modified date of any source file on the NAS.**
+
+The Bridge Agent operates in **read-only** mode against source art. If any operation (thumbnail generation, hashing, scanning) causes the OS to update a file's `mtime` or `birthtime`:
+
+1. **Record the original timestamps** (via `stat()`) **before** touching the file.
+2. **Restore the original timestamps** (via `utimes()`) **immediately after**.
+3. If restoration fails:
+   - **STOP all processing** (do not continue to the next file).
+   - Report a **critical error** to the cloud API with details: which file, what the timestamps were before/after, and why restoration failed.
+   - The agent must remain stopped until an admin acknowledges/resolves the issue.
+
+This rule exists because design teams rely on file dates for version tracking, audit trails, and licensor compliance. A DAM that silently alters file dates is worse than no DAM at all.
