@@ -11,6 +11,7 @@ import BulkActionBar from "@/components/library/BulkActionBar";
 import PaginationBar from "@/components/library/PaginationBar";
 import { toast } from "@/hooks/use-toast";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useAgentStatus } from "@/hooks/useAgentStatus";
 
 export default function LibraryPage() {
   const queryClient = useQueryClient();
@@ -23,6 +24,14 @@ export default function LibraryPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailAssetId, setDetailAssetId] = useState<string | null>(null);
   const lastSelectedIndex = useRef<number | null>(null);
+  const [pageSize, setPageSize] = useState(200);
+  const [scanTriggered, setScanTriggered] = useState(false);
+  const agentStatus = useAgentStatus();
+
+  // Clear pending state when scan actually starts
+  if (scanTriggered && agentStatus.scanRunning) {
+    setScanTriggered(false);
+  }
 
   // Debounced search
   const [searchInput, setSearchInput] = useState("");
@@ -44,7 +53,7 @@ export default function LibraryPage() {
   }, []);
 
   const { data: visibilityDate } = useVisibilityDate();
-  const { data, isLoading, isFetching } = useAssets(filters, sortField, sortDirection, page, visibilityDate);
+  const { data, isLoading, isFetching } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize);
   const { data: totalCount } = useAssetCount(filters, visibilityDate);
   const { licensors, properties } = useFilterOptions();
   const { data: facetCounts } = useFilterCounts(filters);
@@ -88,6 +97,7 @@ export default function LibraryPage() {
   const handleSync = async () => {
     try {
       await call("trigger-scan");
+      setScanTriggered(true);
       toast({ title: "Scan triggered", description: "The Bridge Agent will start scanning on its next poll (~30s)." });
     } catch (e) {
       toast({ title: "Failed to trigger scan", description: (e as Error).message, variant: "destructive" });
@@ -110,7 +120,6 @@ export default function LibraryPage() {
   }, [queryClient]);
 
   const assets = data?.assets ?? [];
-  const pageSize = data?.pageSize ?? 40;
   const count = totalCount ?? data?.totalCount ?? 0;
   const activeFilterCount = countActiveFilters(filters);
 
@@ -141,7 +150,8 @@ export default function LibraryPage() {
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
         activeFilterCount={activeFilterCount}
         totalCount={count}
-        isLoading={isFetching}
+        scanRunning={agentStatus.scanRunning}
+        scanPending={scanTriggered && !agentStatus.scanRunning}
         onSync={handleSync}
         onStopScan={handleStopScan}
         onRefresh={handleRefresh}
@@ -191,6 +201,7 @@ export default function LibraryPage() {
               totalCount={count}
               pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
             />
           </div>
         </div>

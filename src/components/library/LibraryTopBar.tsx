@@ -25,7 +25,8 @@ interface LibraryTopBarProps {
   onToggleFilters: () => void;
   activeFilterCount: number;
   totalCount: number;
-  isLoading: boolean;
+  scanRunning: boolean;
+  scanPending: boolean;
   onSync: () => void;
   onStopScan: () => void;
   onRefresh: () => void;
@@ -51,7 +52,8 @@ export default function LibraryTopBar({
   onToggleFilters,
   activeFilterCount,
   totalCount,
-  isLoading,
+  scanRunning,
+  scanPending,
   onSync,
   onStopScan,
   onRefresh,
@@ -131,9 +133,21 @@ export default function LibraryTopBar({
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onRefresh} title="Refresh library">
         <RotateCcw className="h-4 w-4" />
       </Button>
-      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onSync} title="Trigger scan">
-        <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-9 w-9 relative"
+        onClick={onSync}
+        title={scanRunning ? "Scanning…" : scanPending ? "Waiting for agent…" : "Trigger scan"}
+      >
+        <RefreshCw className={cn("h-4 w-4", scanRunning && "animate-spin")} />
+        {scanPending && !scanRunning && (
+          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+        )}
       </Button>
+      {scanRunning && (
+        <span className="text-xs text-muted-foreground">Scanning…</span>
+      )}
       <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={onStopScan} title="Stop scan">
         <Square className="h-4 w-4" />
       </Button>

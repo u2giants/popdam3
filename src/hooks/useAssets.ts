@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 
-const PAGE_SIZE = 40;
+const PAGE_SIZE = 200;
 
 /** Fetch THUMBNAIL_MIN_DATE from admin_config (cached) */
 export function useVisibilityDate() {
@@ -77,13 +77,15 @@ export function useAssets(
   sortField: SortField,
   sortDirection: SortDirection,
   page: number,
-  visibilityDate?: string
+  visibilityDate?: string,
+  customPageSize?: number,
 ) {
+  const effectivePageSize = customPageSize ?? PAGE_SIZE;
   return useQuery({
-    queryKey: ["assets", filters, sortField, sortDirection, page, visibilityDate],
+    queryKey: ["assets", filters, sortField, sortDirection, page, visibilityDate, effectivePageSize],
     queryFn: async () => {
-      const from = page * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
+      const from = page * effectivePageSize;
+      const to = from + effectivePageSize - 1;
       const minDate = visibilityDate ?? "2020-01-01";
 
       let query = supabase
@@ -101,7 +103,7 @@ export function useAssets(
       return {
         assets: (data ?? []) as Asset[],
         totalCount: count ?? 0,
-        pageSize: PAGE_SIZE,
+        pageSize: effectivePageSize,
         page,
       };
     },
