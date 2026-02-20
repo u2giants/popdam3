@@ -275,7 +275,7 @@ async function main() {
 
   // 1. Register with cloud
   try {
-    agentId = await api.register("bridge-agent");
+    agentId = await api.register(config.agentName);
     logger.info("Registered with cloud API", { agentId });
   } catch (e) {
     logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });

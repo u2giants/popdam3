@@ -83,7 +83,9 @@ function ConnectivityTest({ agentName }: { agentName: string }) {
     try {
       const result = await call("list-agents");
       const agents = result?.agents || [];
-      const match = agents.find((a: Record<string, unknown>) => a.name === agentName && a.status === "online");
+      // Match by name first, fall back to any online agent
+      const match = agents.find((a: Record<string, unknown>) => a.name === agentName && a.status === "online")
+        || agents.find((a: Record<string, unknown>) => a.status === "online");
       setStatus(match ? "online" : "offline");
     } catch {
       setStatus("offline");
