@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAssets, useAssetCount, useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
@@ -12,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAdminApi } from "@/hooks/useAdminApi";
 
 export default function LibraryPage() {
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<AssetFilters>(defaultFilters);
   const [sortField, setSortField] = useState<SortField>("modified_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -101,6 +103,12 @@ export default function LibraryPage() {
     }
   };
 
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["asset-count"] });
+    queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
+  }, [queryClient]);
+
   const assets = data?.assets ?? [];
   const pageSize = data?.pageSize ?? 40;
   const count = totalCount ?? data?.totalCount ?? 0;
@@ -136,6 +144,7 @@ export default function LibraryPage() {
         isLoading={isFetching}
         onSync={handleSync}
         onStopScan={handleStopScan}
+        onRefresh={handleRefresh}
       />
       {showBulkBar && (
         <BulkActionBar
