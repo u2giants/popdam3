@@ -159,6 +159,7 @@ export default function SetupPage() {
 # Cloud API connection (outbound HTTPS only — no inbound NAS networking)
 SUPABASE_URL=${effectiveUrl}
 AGENT_KEY=${state.generatedKey || "<generate key above>"}
+AGENT_NAME=${state.agentName}
 
 # DigitalOcean Spaces (thumbnail upload)
 DO_SPACES_KEY=${state.doSpacesKey}
