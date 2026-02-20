@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Wand2, Copy, Check, ChevronRight, ChevronLeft } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Wand2, Copy, Check, ChevronRight, ChevronLeft, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,6 +71,47 @@ const STEPS = [
   { title: "Resource Limits", description: "CPU, memory, and concurrency" },
   { title: "Generate & Deploy", description: "Get .env and docker-compose.yml" },
 ];
+
+function ConnectivityTest({ agentName }: { agentName: string }) {
+  const { call } = useAdminApi();
+  const [status, setStatus] = useState<"idle" | "checking" | "online" | "offline">("idle");
+
+  const check = async () => {
+    setStatus("checking");
+    try {
+      const result = await call("list-agents");
+      const agents = result?.agents || [];
+      const match = agents.find((a: Record<string, unknown>) => a.name === agentName && a.status === "online");
+      setStatus(match ? "online" : "offline");
+    } catch {
+      setStatus("offline");
+    }
+  };
+
+  return (
+    <div className="border border-border rounded-md p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">Connectivity Test</span>
+        <Button size="sm" variant="outline" onClick={check} disabled={status === "checking"} className="gap-1.5 text-xs">
+          {status === "checking" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
+          Test Connection
+        </Button>
+      </div>
+      {status === "online" && (
+        <div className="flex items-center gap-2 text-xs text-[hsl(var(--success))]">
+          <Wifi className="h-3.5 w-3.5" />
+          <span className="font-semibold">Agent "{agentName}" is online and connected!</span>
+        </div>
+      )}
+      {status === "offline" && (
+        <div className="flex items-center gap-2 text-xs text-destructive">
+          <WifiOff className="h-3.5 w-3.5" />
+          <span>Agent "{agentName}" not detected yet. Deploy the container and wait ~30 seconds, then try again.</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SetupPage() {
   const { call } = useAdminApi();
@@ -314,12 +355,14 @@ services:
                   <li>Save the <code>.env</code> and <code>docker-compose.yml</code> files into that folder</li>
                   <li>In Synology Container Manager → Project → Create → Import → select the folder</li>
                   <li>Click Deploy — the agent will poll outward to the cloud API automatically</li>
+                  <li>Come back here and click <strong>Test Connection</strong> below</li>
                 </ol>
                 <p className="mt-2 text-muted-foreground">
                   <strong>No inbound networking required.</strong> The agent polls outward over HTTPS only.
-                  Tailscale is not needed for the agent ↔ cloud connection.
                 </p>
               </div>
+
+              <ConnectivityTest agentName={state.agentName} />
             </div>
           )}
         </CardContent>
