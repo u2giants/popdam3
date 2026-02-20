@@ -81,11 +81,10 @@ Response (Config Sync Payload):
   "ok": true,
   "config": {
     "do_spaces": {
-      "key": "string",
-      "secret": "string",
       "bucket": "string",
       "region": "string",
-      "endpoint": "string"
+      "endpoint": "string",
+      "public_base_url": "string"
     },
     "scanning": {
       "roots": ["string"],
@@ -109,7 +108,8 @@ Response (Config Sync Payload):
 ```
 
 Notes:
-\- Agent must compare `do\_spaces` credentials with its current state and re-initialize its S3 client if they differ (hot-reload, no restart needed).
+\- **Secrets (DO\_SPACES\_KEY, DO\_SPACES\_SECRET, AGENT\_KEY) are NEVER stored in admin\_config or returned by the API.** They exist only in the agent's local `.env` on the NAS.
+\- `do\_spaces` contains only non-secret fields from the `SPACES_CONFIG` admin\_config key. The agent uses its local `.env` for S3 credentials.
 \- `scanning.roots` from cloud override the agent's env `SCAN\_ROOTS` when non-empty.
 \- `commands.force\_scan` and `commands.abort\_scan` are consumed once and cleared server-side.
 \- `resource\_guard` values reflect the active schedule (or defaults if no schedule matches).
