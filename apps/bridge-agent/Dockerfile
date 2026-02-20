@@ -5,24 +5,27 @@
 # Run:   docker run --env-file .env -v /volume1/nas-share:/mnt/nas/mac:ro ghcr.io/u2giants/popdam-bridge:latest
 
 # ── Stage 1: Build ───────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies for native modules (sharp)
-# python3, make, g++ are needed to compile sharp from source using system vips
-RUN apk add --no-cache python3 make g++ vips-dev ghostscript graphicsmagick
+# Install build dependencies for native modules (sharp, etc.)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    python3 \
+    make \
+    g++ \
+    libvips-dev \
+    ghostscript \
+    graphicsmagick \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY package.json ./
 
-# CRITICAL: Tell sharp to build from source using the system vips we just installed,
-# instead of trying to download a prebuilt binary from GitHub (which fails in CI/buildx).
-# SHARP_IGNORE_GLOBAL_LIBVIPS=0 means "use the system libvips"
-# npm_config_sharp_libvips_binary_host="" disables the CDN download attempt entirely
-ENV npm_config_sharp_libvips_binary_host=""
-ENV SHARP_IGNORE_GLOBAL_LIBVIPS=0
-
-RUN npm install --production=false
+# NOTE: Using npm install (not npm ci) because package-lock.json is not committed.
+# To lock versions further, run `npm install` locally inside apps/bridge-agent/,
+# commit the generated package-lock.json, then switch this to `npm ci`.
+RUN npm install --loglevel verbose
 
 COPY tsconfig.json ./
 COPY src/ ./src/
@@ -32,10 +35,16 @@ RUN npm run build
 RUN npm prune --production
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
 
-# Install runtime dependencies for sharp/vips
-RUN apk add --no-cache vips ghostscript graphicsmagick
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    dumb-init \
+    libvips42 \
+    ghostscript \
+    graphicsmagick \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -45,11 +54,11 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 
 # Non-root user for security
-RUN addgroup -S popdam && adduser -S popdam -G popdam
+RUN groupadd --system popdam && useradd --system --gid popdam popdam
 USER popdam
 
 # Health check — process must be running
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD node -e "process.exit(0)"
 
-ENTRYPOINT ["node", "dist/index.js"]
+ENTRYPOINT ["dumb-init", "node", "dist/index.js"]
