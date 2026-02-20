@@ -9,6 +9,7 @@ import AssetDetailPanel from "@/components/library/AssetDetailPanel";
 import BulkActionBar from "@/components/library/BulkActionBar";
 import PaginationBar from "@/components/library/PaginationBar";
 import { toast } from "@/hooks/use-toast";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 export default function LibraryPage() {
   const [filters, setFilters] = useState<AssetFilters>(defaultFilters);
@@ -81,8 +82,14 @@ export default function LibraryPage() {
     lastSelectedIndex.current = clickedIndex;
   }, [data?.assets]);
 
-  const handleSync = () => {
-    toast({ title: "Scan requested", description: "The Bridge Agent will pick this up on next heartbeat." });
+  const { call } = useAdminApi();
+  const handleSync = async () => {
+    try {
+      await call("trigger-scan");
+      toast({ title: "Scan triggered", description: "The Bridge Agent will start scanning on its next poll (~30s)." });
+    } catch (e) {
+      toast({ title: "Failed to trigger scan", description: (e as Error).message, variant: "destructive" });
+    }
   };
 
   const assets = data?.assets ?? [];
