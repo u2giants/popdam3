@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.send-invite-email]
 verify_jwt = false
+
+[functions.sync-external]
+verify_jwt = false
