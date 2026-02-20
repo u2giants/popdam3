@@ -15,6 +15,7 @@
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
+import { stat, readdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, type FileCandidate } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail } from "./thumbnailer.js";
@@ -97,6 +98,12 @@ function startHeartbeat() {
         if (!isScanning && response.commands.force_scan) {
           logger.info("Scan requested via heartbeat config sync");
           runScan().catch((e) => logger.error("Scan error", { error: (e as Error).message }));
+        }
+        // Handle path test command
+        if (response.commands.test_paths) {
+          handlePathTest(response.commands.test_paths).catch((e) =>
+            logger.error("Path test failed", { error: (e as Error).message })
+          );
         }
       }
     } catch (e) {
@@ -311,6 +318,41 @@ async function processFile(file: FileCandidate) {
       error: lastError,
     });
   }
+}
+
+// ── Path Test Handler ────────────────────────────────────────────
+
+async function handlePathTest(cmd: { request_id: string; container_mount_root: string; scan_roots: string[] }) {
+  logger.info("Path test requested", { requestId: cmd.request_id });
+
+  let mountRootValid = false;
+  try {
+    const s = await stat(cmd.container_mount_root);
+    mountRootValid = s.isDirectory();
+  } catch { /* not found */ }
+
+  const scanRootResults: Array<{ path: string; valid: boolean; file_count?: number; error?: string }> = [];
+  for (const root of cmd.scan_roots) {
+    try {
+      const s = await stat(root);
+      if (!s.isDirectory()) {
+        scanRootResults.push({ path: root, valid: false, error: "exists but is not a directory" });
+        continue;
+      }
+      const entries = await readdir(root);
+      scanRootResults.push({ path: root, valid: true, file_count: entries.length });
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      scanRootResults.push({ path: root, valid: false, error: code === "ENOENT" ? "not found" : code === "EACCES" ? "permission denied" : String(e) });
+    }
+  }
+
+  await api.reportPathTest(cmd.request_id, {
+    mount_root_valid: mountRootValid,
+    scan_root_results: scanRootResults,
+  });
+
+  logger.info("Path test completed", { mountRootValid, scanRootResults });
 }
 
 // ── Polling loop (outbound only per §8) ─────────────────────────

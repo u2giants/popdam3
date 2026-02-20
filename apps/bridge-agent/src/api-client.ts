@@ -64,6 +64,11 @@ export interface HeartbeatResponse {
   commands?: {
     force_scan: boolean;
     abort_scan: boolean;
+    test_paths?: {
+      request_id: string;
+      container_mount_root: string;
+      scan_roots: string[];
+    } | null;
   };
 }
 
@@ -122,4 +127,11 @@ export async function checkScanRequest(agentId: string): Promise<{ scan_requeste
 export async function queueRender(assetId: string, reason: string): Promise<string> {
   const data = await callApi("queue-render", { asset_id: assetId, reason });
   return data.job_id as string;
+}
+
+export async function reportPathTest(
+  requestId: string,
+  results: Record<string, unknown>,
+): Promise<void> {
+  await callApi("report-path-test", { request_id: requestId, results });
 }
