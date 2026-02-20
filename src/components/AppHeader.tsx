@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { NavLink } from "@/components/NavLink";
@@ -10,7 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Library, Settings, Download, LogOut, User, Cpu, Wand2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Library, Settings, Download, LogOut, User, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -20,18 +25,10 @@ const navItems = [
   { to: "/downloads", label: "Downloads", icon: Download },
 ];
 
-const statusColor: Record<string, string> = {
+const dotColor: Record<string, string> = {
   online: "bg-success",
-  degraded: "bg-warning",
   offline: "bg-destructive",
   none: "bg-muted-foreground/40",
-};
-
-const statusLabel: Record<string, string> = {
-  online: "Agents online",
-  degraded: "Some agents offline",
-  offline: "All agents offline",
-  none: "No agents registered",
 };
 
 export default function AppHeader() {
@@ -64,14 +61,37 @@ export default function AppHeader() {
 
       {/* Right: Agent status + User menu */}
       <div className="flex items-center gap-3">
-        {/* Agent status indicator */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground" title={statusLabel[agent.status]}>
-          <Cpu className="h-3.5 w-3.5" />
-          <span className={cn("h-2 w-2 rounded-full", statusColor[agent.status])} />
-          <span className="hidden sm:inline">
-            {agent.agentCount === 0 ? "No agents" : `${agent.onlineCount}/${agent.agentCount}`}
-          </span>
-        </div>
+        {/* Bridge agent status — click for full agent list */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
+              title={agent.bridgeStatus === "online" ? "Synology connected" : agent.bridgeStatus === "offline" ? "Synology offline" : "No bridge agent"}
+            >
+              <span className={cn("h-2.5 w-2.5 rounded-full", dotColor[agent.bridgeStatus])} />
+              <span className="hidden sm:inline">
+                {agent.bridgeStatus === "online" ? "Synology" : agent.bridgeStatus === "offline" ? "Offline" : "No agent"}
+              </span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-64 p-3">
+            <p className="mb-2 text-xs font-semibold text-foreground">Agent Status</p>
+            {agent.agents.length === 0 && (
+              <p className="text-xs text-muted-foreground">No agents registered.</p>
+            )}
+            <div className="space-y-1.5">
+              {agent.agents.map((a) => (
+                <div key={a.id} className="flex items-center justify-between rounded-md px-2 py-1.5 text-xs bg-muted/40">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("h-2 w-2 rounded-full", a.isOnline ? "bg-success" : "bg-destructive")} />
+                    <span className="font-medium text-foreground">{a.agent_name}</span>
+                  </div>
+                  <span className="text-muted-foreground capitalize">{a.agent_type}</span>
+                </div>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         {/* User dropdown */}
         <DropdownMenu>
