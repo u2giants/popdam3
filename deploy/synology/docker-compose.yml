@@ -1,0 +1,16 @@
+# PopDAM Bridge Agent — Synology Container Manager
+# Import: Container Manager → Project → Create → select this folder
+version: "3.8"
+services:
+  bridge-agent:
+    image: ghcr.io/u2giants/popdam-bridge:latest
+    container_name: popdam-bridge
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /volume1/nas-share:/mnt/nas/mac:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2g

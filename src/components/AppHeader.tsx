@@ -10,11 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Library, Settings, Download, LogOut, User, Cpu } from "lucide-react";
+import { Library, Settings, Download, LogOut, User, Cpu, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", label: "Library", icon: Library },
+  { to: "/setup", label: "Setup", icon: Wand2 },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/downloads", label: "Downloads", icon: Download },
 ];
