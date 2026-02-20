@@ -288,20 +288,48 @@ services:
 
           {step === 3 && (
             <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Host Path (Synology volume)</label>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground font-semibold">Host Path (Synology volume)</label>
                 <Input value={state.nasHostPath} onChange={(e) => update("nasHostPath", e.target.value)} className="font-mono text-xs" />
-                <p className="text-xs text-muted-foreground">The actual path on your Synology NAS, e.g. <code>/volume1/nas-share</code>. This must exist on the host.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "/volume1/ActiveShare",
+                    "/volume1/homes",
+                    "/volume1/docker/data",
+                    "/volume1/nas-share",
+                    "/volume2/ActiveShare",
+                  ].map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => update("nasHostPath", p)}
+                      className={`text-xs px-2 py-1 rounded border transition-colors ${
+                        state.nasHostPath === p
+                          ? "border-primary bg-primary/10 text-primary font-semibold"
+                          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <div className="bg-[hsl(var(--info)/0.1)] border border-[hsl(var(--info)/0.3)] rounded-md p-2.5 text-xs text-muted-foreground space-y-1">
+                  <p className="font-semibold text-[hsl(var(--info))]">How to find your path:</p>
+                  <ol className="list-decimal list-inside space-y-0.5">
+                    <li>SSH into your NAS: <code className="text-foreground">ssh admin@your-nas-ip</code></li>
+                    <li>List shared folders: <code className="text-foreground">ls /volume1/</code></li>
+                    <li>Your path is usually <code className="text-foreground">/volume1/YourShareName</code></li>
+                  </ol>
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Container Mount Path</label>
                 <Input value={state.nasContainerMount} onChange={(e) => update("nasContainerMount", e.target.value)} className="font-mono text-xs" />
-                <p className="text-xs text-muted-foreground">Path inside the Docker container where the host path is mounted (read-only).</p>
+                <p className="text-xs text-muted-foreground">Path inside the Docker container (read-only). Usually fine to leave as default.</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Scan Roots (comma-separated)</label>
                 <Input value={state.scanRoots} onChange={(e) => update("scanRoots", e.target.value)} className="font-mono text-xs" />
-                <p className="text-xs text-muted-foreground">Directories inside the container mount to scan. Multiple roots separated by commas.</p>
+                <p className="text-xs text-muted-foreground">Directories inside the container mount to scan.</p>
               </div>
             </div>
           )}
