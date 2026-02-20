@@ -205,7 +205,7 @@ async function handleHeartbeat(
   const { data: configRows } = await db
     .from("admin_config")
     .select("key, value")
-    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH"]);
+    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH", "PATH_TEST_REQUEST"]);
 
   const configMap: Record<string, unknown> = {};
   for (const row of configRows || []) {
@@ -255,6 +255,17 @@ async function handleHeartbeat(
   const scanAbort = metadata.scan_abort === true;
   const forceStop = metadata.force_stop === true;
 
+  // Path test request
+  const pathTestRequest = configMap.PATH_TEST_REQUEST as Record<string, unknown> | undefined;
+  let testPaths: { request_id: string; container_mount_root: string; scan_roots: string[] } | null = null;
+  if (pathTestRequest && pathTestRequest.status === "pending") {
+    testPaths = {
+      request_id: pathTestRequest.request_id as string,
+      container_mount_root: (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
+      scan_roots: scanRoots,
+    };
+  }
+
   // Only clear scan_requested after reading (abort stays until admin clears it)
   if (scanRequested) {
     await db
@@ -286,6 +297,7 @@ async function handleHeartbeat(
     commands: {
       force_scan: scanRequested && !forceStop,
       abort_scan: scanAbort || forceStop,
+      test_paths: testPaths,
     },
   });
 }
@@ -820,6 +832,33 @@ async function handleGetConfig(body: Record<string, unknown>) {
   return json({ ok: true, config });
 }
 
+async function handleReportPathTest(body: Record<string, unknown>) {
+  const requestId = requireString(body, "request_id");
+  const results = body.results as Record<string, unknown>;
+  if (!results) return err("Missing 'results' object");
+
+  const db = serviceClient();
+
+  // Write PATH_TEST_RESULT to admin_config
+  await db.from("admin_config").upsert({
+    key: "PATH_TEST_RESULT",
+    value: {
+      request_id: requestId,
+      tested_at: new Date().toISOString(),
+      ...results,
+    },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "key" });
+
+  // Mark request as completed
+  await db.from("admin_config").update({
+    value: { request_id: requestId, status: "completed" },
+    updated_at: new Date().toISOString(),
+  }).eq("key", "PATH_TEST_REQUEST");
+
+  return json({ ok: true });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -892,6 +931,8 @@ serve(async (req: Request) => {
         return await handleGetScanRoots(agentId);
       case "get-config":
         return await handleGetConfig(body);
+      case "report-path-test":
+        return await handleReportPathTest(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
