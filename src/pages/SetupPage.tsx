@@ -58,7 +58,7 @@ const INITIAL_STATE: WizardState = {
   doSpacesEndpoint: "https://nyc3.digitaloceanspaces.com",
   nasHostPath: "/volume1/mac",
   nasContainerMount: "/mnt/nas/mac",
-  scanRoots: "/mnt/nas/mac",
+  scanRoots: "",
   thumbConcurrency: "2",
   cpuShares: "1024",
   memLimit: "2g",
@@ -147,7 +147,7 @@ export default function SetupPage() {
       case 0: return state.agentName.trim().length > 0;
       case 1: return true; // supabaseUrl auto-filled
       case 2: return state.doSpacesKey.trim().length > 0 && state.doSpacesSecret.trim().length > 0;
-      case 3: return (state.nasHostPath || "").trim().length > 0 && (state.nasContainerMount || "").trim().length > 0;
+      case 3: return (state.nasHostPath || "").trim().length > 0 && (state.nasContainerMount || "").trim().length > 0 && (state.scanRoots || "").trim().length > 0;
       case 4: return true;
       default: return true;
     }
@@ -294,10 +294,12 @@ services:
             const scanRootsList = (state.scanRoots || "").split(",").map(s => s.trim()).filter(Boolean);
             const toggleScanRoot = (folder: string) => {
               const root = `${containerMount}/${folder}`;
-              const updated = scanRootsList.includes(root)
-                ? scanRootsList.filter(r => r !== root)
-                : [...scanRootsList, root];
-              update("scanRoots", updated.length > 0 ? updated.join(",") : containerMount);
+              // Remove the "scan everything" root when picking specific folders
+              const withoutBase = scanRootsList.filter(r => r !== containerMount);
+              const updated = withoutBase.includes(root)
+                ? withoutBase.filter(r => r !== root)
+                : [...withoutBase, root];
+              update("scanRoots", updated.length > 0 ? updated.join(",") : "");
             };
             const isScanRootSelected = (folder: string) => scanRootsList.includes(`${containerMount}/${folder}`);
             const isAllSelected = scanRootsList.length === 1 && scanRootsList[0] === containerMount;
@@ -320,7 +322,7 @@ services:
                       key={p}
                       onClick={() => {
                         update("nasHostPath", p);
-                        update("scanRoots", state.nasContainerMount || "/mnt/nas/mac");
+                        // Don't reset scanRoots — let user pick subfolders separately
                       }}
                       className={`text-xs px-2 py-1 rounded border transition-colors ${
                         (state.nasHostPath || "") === p
@@ -345,7 +347,7 @@ services:
                 <Input value={state.scanRoots || ""} onChange={(e) => update("scanRoots", e.target.value)} className="font-mono text-xs" />
 
                 <button
-                  onClick={() => update("scanRoots", containerMount)}
+                  onClick={() => update("scanRoots", isAllSelected ? "" : containerMount)}
                   className={`text-xs px-2 py-1 rounded border transition-colors ${
                     isAllSelected
                       ? "border-primary bg-primary/10 text-primary font-semibold"
