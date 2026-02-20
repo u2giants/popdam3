@@ -1,13 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useAssets, useAssetCount, useFilterOptions } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
 import FilterSidebar from "@/components/library/FilterSidebar";
 import AssetGrid from "@/components/library/AssetGrid";
 import AssetListView from "@/components/library/AssetListView";
+import AssetDetailPanel from "@/components/library/AssetDetailPanel";
 import PaginationBar from "@/components/library/PaginationBar";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
 export default function LibraryPage() {
   const [filters, setFilters] = useState<AssetFilters>(defaultFilters);
@@ -17,6 +17,7 @@ export default function LibraryPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [detailAssetId, setDetailAssetId] = useState<string | null>(null);
 
   // Debounced search
   const [searchInput, setSearchInput] = useState("");
@@ -42,18 +43,22 @@ export default function LibraryPage() {
   const { licensors, properties } = useFilterOptions();
 
   const handleSelect = useCallback((id: string, event: React.MouseEvent) => {
+    // Single click opens detail panel
+    if (!event.metaKey && !event.ctrlKey && !event.shiftKey) {
+      setDetailAssetId((prev) => (prev === id ? null : id));
+      setSelectedIds(new Set([id]));
+      return;
+    }
+
+    // Multi-select with modifier keys
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (event.metaKey || event.ctrlKey) {
         if (next.has(id)) next.delete(id);
         else next.add(id);
       } else {
-        if (next.size === 1 && next.has(id)) {
-          next.clear();
-        } else {
-          next.clear();
-          next.add(id);
-        }
+        next.clear();
+        next.add(id);
       }
       return next;
     });
@@ -67,6 +72,11 @@ export default function LibraryPage() {
   const pageSize = data?.pageSize ?? 40;
   const count = totalCount ?? data?.totalCount ?? 0;
   const activeFilterCount = countActiveFilters(filters);
+
+  const detailAsset = useMemo(
+    () => (detailAssetId ? assets.find((a) => a.id === detailAssetId) ?? null : null),
+    [detailAssetId, assets]
+  );
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
@@ -126,6 +136,14 @@ export default function LibraryPage() {
             />
           </div>
         </div>
+
+        {/* Detail panel */}
+        {detailAsset && (
+          <AssetDetailPanel
+            asset={detailAsset}
+            onClose={() => setDetailAssetId(null)}
+          />
+        )}
       </div>
     </div>
   );
