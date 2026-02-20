@@ -8,7 +8,14 @@
  */
 
 import sharp from "sharp";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { logger } from "./logger.js";
+
+const execFileAsync = promisify(execFile);
 
 const THUMB_MAX_DIM = 800; // px
 
@@ -45,8 +52,36 @@ async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
  * Generate a thumbnail for an AI file.
  * Many .ai files contain a PDF-compatible stream that sharp/poppler can read.
  */
+async function thumbnailAiGhostscript(filePath: string): Promise<ThumbnailResult> {
+  const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-gs-"));
+  const outPath = path.join(tmpDir, "thumb.png");
+  try {
+    await execFileAsync("gs", [
+      "-dNOPAUSE", "-dBATCH", "-dSAFER",
+      "-sDEVICE=png16m",
+      `-r150`,
+      "-dFirstPage=1", "-dLastPage=1",
+      `-sOutputFile=${outPath}`,
+      filePath,
+    ], { timeout: 60_000 });
+
+    const resized = sharp(outPath)
+      .flatten({ background: "#ffffff" })
+      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
+    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
+    const meta = await sharp(buffer).metadata();
+    return {
+      buffer,
+      width: meta.width || 0,
+      height: meta.height || 0,
+    };
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
-  // AI files that are PDF-compatible can be read by sharp
+  // Step 1: Try sharp (PDF-compatible .ai files)
   try {
     const img = sharp(filePath, { density: 150 }).flatten({ background: "#ffffff" });
     const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
@@ -58,7 +93,14 @@ async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
       height: meta.height || 0,
     };
   } catch (e) {
-    logger.warn("AI PDF-compat rendering failed", { filePath, error: (e as Error).message });
+    logger.warn("AI sharp PDF-compat failed, trying Ghostscript", { filePath, error: (e as Error).message });
+  }
+
+  // Step 2: Try Ghostscript directly
+  try {
+    return await thumbnailAiGhostscript(filePath);
+  } catch (e) {
+    logger.warn("AI Ghostscript rendering failed", { filePath, error: (e as Error).message });
   }
 
   throw new Error("no_pdf_compat");
