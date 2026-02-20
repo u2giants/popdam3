@@ -6,6 +6,7 @@ import FilterSidebar from "@/components/library/FilterSidebar";
 import AssetGrid from "@/components/library/AssetGrid";
 import AssetListView from "@/components/library/AssetListView";
 import AssetDetailPanel from "@/components/library/AssetDetailPanel";
+import BulkActionBar from "@/components/library/BulkActionBar";
 import PaginationBar from "@/components/library/PaginationBar";
 import { toast } from "@/hooks/use-toast";
 
@@ -94,6 +95,13 @@ export default function LibraryPage() {
     [detailAssetId, assets]
   );
 
+  const selectedAssets = useMemo(
+    () => assets.filter((a) => selectedIds.has(a.id)),
+    [selectedIds, assets]
+  );
+
+  const showBulkBar = selectedIds.size > 1;
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
       <LibraryTopBar
@@ -112,6 +120,15 @@ export default function LibraryPage() {
         isLoading={isFetching}
         onSync={handleSync}
       />
+      {showBulkBar && (
+        <BulkActionBar
+          selectedAssets={selectedAssets}
+          onClearSelection={() => {
+            setSelectedIds(new Set());
+            setDetailAssetId(null);
+          }}
+        />
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {filtersOpen && (
