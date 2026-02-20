@@ -39,6 +39,7 @@ interface WizardState {
   doSpacesBucket: string;
   doSpacesRegion: string;
   doSpacesEndpoint: string;
+  nasHostPath: string;
   nasContainerMount: string;
   scanRoots: string;
   thumbConcurrency: string;
@@ -55,6 +56,7 @@ const INITIAL_STATE: WizardState = {
   doSpacesBucket: "popdam",
   doSpacesRegion: "nyc3",
   doSpacesEndpoint: "https://nyc3.digitaloceanspaces.com",
+  nasHostPath: "/volume1/nas-share",
   nasContainerMount: "/mnt/nas/mac",
   scanRoots: "/mnt/nas/mac",
   thumbConcurrency: "2",
@@ -143,7 +145,7 @@ export default function SetupPage() {
       case 0: return state.agentName.trim().length > 0;
       case 1: return true; // supabaseUrl auto-filled
       case 2: return state.doSpacesKey.trim().length > 0 && state.doSpacesSecret.trim().length > 0;
-      case 3: return state.nasContainerMount.trim().length > 0;
+      case 3: return state.nasHostPath.trim().length > 0 && state.nasContainerMount.trim().length > 0;
       case 4: return true;
       default: return true;
     }
@@ -190,7 +192,7 @@ services:
     cpu_shares: ${state.cpuShares}
     mem_limit: ${state.memLimit}
     volumes:
-      - ${state.nasContainerMount}:${state.nasContainerMount}:ro
+      - ${state.nasHostPath}:${state.nasContainerMount}:ro
 `;
 
   return (
@@ -287,9 +289,14 @@ services:
           {step === 3 && (
             <div className="space-y-3">
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Container Mount Root</label>
+                <label className="text-xs text-muted-foreground">Host Path (Synology volume)</label>
+                <Input value={state.nasHostPath} onChange={(e) => update("nasHostPath", e.target.value)} className="font-mono text-xs" />
+                <p className="text-xs text-muted-foreground">The actual path on your Synology NAS, e.g. <code>/volume1/nas-share</code>. This must exist on the host.</p>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Container Mount Path</label>
                 <Input value={state.nasContainerMount} onChange={(e) => update("nasContainerMount", e.target.value)} className="font-mono text-xs" />
-                <p className="text-xs text-muted-foreground">Path inside the Docker container where NAS share is mounted (read-only).</p>
+                <p className="text-xs text-muted-foreground">Path inside the Docker container where the host path is mounted (read-only).</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Scan Roots (comma-separated)</label>

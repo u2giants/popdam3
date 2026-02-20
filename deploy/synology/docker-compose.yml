@@ -10,4 +10,4 @@ services:
     cpu_shares: 1024
     mem_limit: 2g
     volumes:
-      - /volume1/nas-share:/mnt/nas/mac:ro
+      - /volume1/nas-share:/mnt/nas/mac:ro  # host-path:container-path
