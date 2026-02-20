@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,15 +89,20 @@ function SpacesConfigSettings() {
 function FolderManager() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
-  const [newRoot, setNewRoot] = useState("");
+  const [newFolder, setNewFolder] = useState("");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-config", "SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT"],
-    queryFn: () => call("get-config", { keys: ["SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT"] }),
+    queryKey: ["admin-config", "SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH"],
+    queryFn: () => call("get-config", { keys: ["SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH"] }),
   });
 
   const mountRoot: string = (() => {
     const val = data?.config?.NAS_CONTAINER_MOUNT_ROOT?.value ?? data?.config?.NAS_CONTAINER_MOUNT_ROOT;
+    return typeof val === "string" ? val : "/mnt/nas";
+  })();
+
+  const hostPath: string = (() => {
+    const val = data?.config?.NAS_HOST_PATH?.value ?? data?.config?.NAS_HOST_PATH;
     return typeof val === "string" ? val : "";
   })();
 
@@ -106,13 +111,22 @@ function FolderManager() {
     return Array.isArray(val) ? val : [];
   })();
 
+  const [hostPathForm, setHostPathForm] = useState<string | null>(null);
   const [mountRootForm, setMountRootForm] = useState<string | null>(null);
+  const hostPathValue = hostPathForm ?? hostPath;
   const mountRootValue = mountRootForm ?? mountRoot;
+  const pathsDirty = hostPathForm !== null || mountRootForm !== null;
 
-  const saveMountRootMutation = useMutation({
-    mutationFn: (val: string) => call("set-config", { entries: { NAS_CONTAINER_MOUNT_ROOT: val } }),
+  const savePathsMutation = useMutation({
+    mutationFn: () => {
+      const entries: Record<string, string> = {};
+      if (hostPathForm !== null) entries.NAS_HOST_PATH = hostPathForm;
+      if (mountRootForm !== null) entries.NAS_CONTAINER_MOUNT_ROOT = mountRootForm;
+      return call("set-config", { entries });
+    },
     onSuccess: () => {
-      toast.success("Container mount root saved");
+      toast.success("Volume mapping saved");
+      setHostPathForm(null);
       setMountRootForm(null);
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     },
@@ -122,21 +136,37 @@ function FolderManager() {
   const saveMutation = useMutation({
     mutationFn: (newRoots: string[]) => call("set-config", { entries: { SCAN_ROOTS: newRoots } }),
     onSuccess: () => {
-      toast.success("Scan roots updated");
+      toast.success("Scan folders updated — agent picks up on next heartbeat");
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const addRoot = () => {
-    const trimmed = newRoot.trim();
+  // Convert a subfolder name to a full container path
+  const toContainerPath = (subfolder: string) => {
+    const mr = mountRootValue.replace(/\/+$/, "");
+    const sf = subfolder.replace(/^\/+/, "").replace(/\/+$/, "");
+    return sf ? `${mr}/${sf}` : mr;
+  };
+
+  // Extract subfolder from a full container path
+  const toSubfolder = (fullPath: string) => {
+    const mr = mountRootValue.replace(/\/+$/, "");
+    if (fullPath.startsWith(mr + "/")) return fullPath.slice(mr.length + 1);
+    if (fullPath === mr) return "";
+    return fullPath; // fallback — show raw
+  };
+
+  const addFolder = () => {
+    const trimmed = newFolder.trim().replace(/^\/+/, "").replace(/\/+$/, "");
     if (!trimmed) return;
-    if (roots.includes(trimmed)) {
-      toast.error("This path is already in the list");
+    const containerPath = toContainerPath(trimmed);
+    if (roots.includes(containerPath)) {
+      toast.error("This folder is already in the list");
       return;
     }
-    saveMutation.mutate([...roots, trimmed]);
-    setNewRoot("");
+    saveMutation.mutate([...roots, containerPath]);
+    setNewFolder("");
   };
 
   const removeRoot = (path: string) => {
@@ -149,62 +179,92 @@ function FolderManager() {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <FolderPlus className="h-4 w-4" /> NAS Folders &amp; Scan Roots
+          <FolderPlus className="h-4 w-4" /> Volume Mapping &amp; Scan Folders
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Container Mount Root */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">Container Mount Root</Label>
+        {/* Volume Mapping */}
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Docker Volume Mapping</Label>
           <p className="text-xs text-muted-foreground">
-            The path <strong>inside the Docker container</strong> where your NAS share is mounted.
-            This is the <code>target</code> side of your <code>docker-compose.yml</code> volume mapping
-            (e.g. <code>/volume1/Design:/mnt/nas</code> → set this to <code>/mnt/nas</code>).
+            This mirrors the <code>volumes:</code> line in your Synology Container Manager.
+            The <strong>Synology path</strong> is the shared folder you see in DSM File Station.
+            The <strong>Container path</strong> is where the agent sees it internally.
           </p>
-          <div className="flex gap-2">
-            <Input
-              className="font-mono text-xs"
-              value={mountRootValue}
-              onChange={(e) => setMountRootForm(e.target.value)}
-              placeholder="/mnt/nas"
-            />
-            {mountRootForm !== null && (
-              <Button size="sm" onClick={() => saveMountRootMutation.mutate(mountRootForm)} disabled={saveMountRootMutation.isPending}>
-                <Save className="h-3.5 w-3.5 mr-1.5" /> Save
-              </Button>
-            )}
+          <div className="flex items-center gap-2 bg-muted/50 rounded-md p-3">
+            <div className="flex-1 space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Synology Path (DSM File Station)</Label>
+              <Input
+                className="font-mono text-xs"
+                value={hostPathValue}
+                onChange={(e) => setHostPathForm(e.target.value)}
+                placeholder="/volume1/Design"
+              />
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-5" />
+            <div className="flex-1 space-y-1">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Container Path (inside Docker)</Label>
+              <Input
+                className="font-mono text-xs"
+                value={mountRootValue}
+                onChange={(e) => setMountRootForm(e.target.value)}
+                placeholder="/mnt/nas"
+              />
+            </div>
           </div>
+          {hostPathValue && mountRootValue && (
+            <div className="text-[11px] font-mono text-muted-foreground bg-muted/30 rounded px-3 py-1.5">
+              docker-compose: <span className="text-primary">{hostPathValue}:{mountRootValue}:ro</span>
+            </div>
+          )}
+          {pathsDirty && (
+            <Button size="sm" onClick={() => savePathsMutation.mutate()} disabled={savePathsMutation.isPending}>
+              <Save className="h-3.5 w-3.5 mr-1.5" /> Save Mapping
+            </Button>
+          )}
         </div>
 
         <Separator />
 
-        {/* Scan Roots */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">Scan Roots</Label>
+        {/* Scan Folders */}
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Folders to Scan</Label>
           <p className="text-xs text-muted-foreground">
-            Subfolders inside <code>{mountRootValue || "/mnt/nas"}</code> to scan for <code>.psd</code> / <code>.ai</code> files.
-            Each path must start with the container mount root above.
-            If empty, the agent falls back to its <code>.env</code> SCAN_ROOTS.
+            Which subfolders inside <strong>{hostPathValue || "/volume1/Design"}</strong> should the agent scan for <code>.psd</code> / <code>.ai</code> files?
+            Enter folder names as you see them in <strong>DSM File Station</strong>.
           </p>
         </div>
         <div className="flex gap-2">
-          <Input className="font-mono text-xs" value={newRoot} onChange={(e) => setNewRoot(e.target.value)} placeholder={`${mountRootValue || "/mnt/nas"}/Decor/Projects`} onKeyDown={(e) => e.key === "Enter" && addRoot()} />
-          <Button size="sm" onClick={addRoot} disabled={!newRoot.trim()}>
-            <FolderPlus className="h-3.5 w-3.5 mr-1.5" /> Add
+          <Input
+            className="font-mono text-xs"
+            value={newFolder}
+            onChange={(e) => setNewFolder(e.target.value)}
+            placeholder="Decor/Projects"
+            onKeyDown={(e) => e.key === "Enter" && addFolder()}
+          />
+          <Button size="sm" onClick={addFolder} disabled={!newFolder.trim()}>
+            <FolderPlus className="h-3.5 w-3.5 mr-1.5" /> Add Folder
           </Button>
         </div>
         {roots.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No scan roots configured. The agent will fall back to its .env SCAN_ROOTS.</p>
+          <p className="text-xs text-muted-foreground italic">No folders configured. Add at least one subfolder to start scanning.</p>
         ) : (
           <div className="space-y-1">
-            {roots.map((root) => (
-              <div key={root} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
-                <code className="text-xs font-mono text-foreground">{root}</code>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeRoot(root)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
+            {roots.map((root) => {
+              const subfolder = toSubfolder(root);
+              const synPath = hostPathValue ? `${hostPathValue.replace(/\/+$/, "")}/${subfolder}` : subfolder;
+              return (
+                <div key={root} className="flex items-center justify-between bg-muted/50 rounded-md px-3 py-2">
+                  <div className="min-w-0">
+                    <code className="text-xs font-mono text-foreground block truncate">📁 {synPath || root}</code>
+                    <code className="text-[10px] font-mono text-muted-foreground block truncate">→ {root}</code>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive shrink-0" onClick={() => removeRoot(root)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
