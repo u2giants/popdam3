@@ -1,0 +1,803 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-agent-key",
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function err(message: string, status = 400) {
+  return json({ ok: false, error: message }, status);
+}
+
+function serviceClient() {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+}
+
+// ── Agent auth via x-agent-key ──────────────────────────────────────
+
+async function authenticateAgent(
+  req: Request,
+): Promise<{ agentId: string; agentName: string } | Response> {
+  const agentKey = req.headers.get("x-agent-key");
+  if (!agentKey) return err("Missing x-agent-key header", 401);
+
+  const db = serviceClient();
+  // Hash the key to compare against stored hash
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest(
+    "SHA-256",
+    encoder.encode(agentKey),
+  );
+  const hashHex = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const { data, error } = await db
+    .from("agent_registrations")
+    .select("id, agent_name")
+    .eq("agent_key_hash", hashHex)
+    .maybeSingle();
+
+  if (error || !data) return err("Invalid agent key", 401);
+  return { agentId: data.id, agentName: data.agent_name };
+}
+
+// ── Zod-lite validators (inline to avoid deno.lock issues) ──────────
+
+function requireString(obj: Record<string, unknown>, key: string): string {
+  const v = obj[key];
+  if (typeof v !== "string" || v.trim() === "")
+    throw new Error(`Missing required string field: ${key}`);
+  return v.trim();
+}
+
+function optionalString(
+  obj: Record<string, unknown>,
+  key: string,
+): string | null {
+  const v = obj[key];
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "string") throw new Error(`Field ${key} must be a string`);
+  return v.trim() || null;
+}
+
+function requireNumber(obj: Record<string, unknown>, key: string): number {
+  const v = obj[key];
+  if (typeof v !== "number") throw new Error(`Field ${key} must be a number`);
+  return v;
+}
+
+function optionalNumber(
+  obj: Record<string, unknown>,
+  key: string,
+): number | null {
+  const v = obj[key];
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "number") throw new Error(`Field ${key} must be a number`);
+  return v;
+}
+
+// ── Metadata derivation from path ───────────────────────────────────
+
+const WORKFLOW_FOLDER_MAP: Record<string, string> = {
+  "product ideas": "product_ideas",
+  "concept approved": "concept_approved",
+  "in development": "in_development",
+  "freelancer art": "freelancer_art",
+  discontinued: "discontinued",
+  "in process": "in_process",
+  "customer adopted": "customer_adopted",
+  "licensor approved": "licensor_approved",
+};
+
+function deriveMetadataFromPath(relativePath: string): {
+  workflow_status: string;
+  is_licensed: boolean;
+} {
+  const lowerPath = relativePath.toLowerCase();
+  let workflow_status = "other";
+  for (const [folder, status] of Object.entries(WORKFLOW_FOLDER_MAP)) {
+    if (lowerPath.includes(folder)) {
+      workflow_status = status;
+      break;
+    }
+  }
+  const is_licensed = lowerPath.includes("character licensed");
+  return { workflow_status, is_licensed };
+}
+
+// ── Route handlers ──────────────────────────────────────────────────
+
+async function handleRegister(body: Record<string, unknown>) {
+  const agentName = requireString(body, "agent_name");
+  const agentType = requireString(body, "agent_type");
+  const agentKey = requireString(body, "agent_key");
+
+  if (!["bridge", "windows-render"].includes(agentType)) {
+    return err("agent_type must be 'bridge' or 'windows-render'");
+  }
+
+  // Hash the raw key
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest(
+    "SHA-256",
+    encoder.encode(agentKey),
+  );
+  const hashHex = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("agent_registrations")
+    .upsert(
+      {
+        agent_name: agentName,
+        agent_type: agentType,
+        agent_key_hash: hashHex,
+        last_heartbeat: new Date().toISOString(),
+      },
+      { onConflict: "agent_key_hash" },
+    )
+    .select("id")
+    .single();
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, agent_id: data.id });
+}
+
+async function handleHeartbeat(
+  body: Record<string, unknown>,
+  agentId: string,
+) {
+  const counters = body.counters as Record<string, unknown> | undefined;
+  const lastError = optionalString(body, "last_error");
+
+  const db = serviceClient();
+
+  // Get current metadata to append counters for throughput chart (keep last 60)
+  const { data: agent } = await db
+    .from("agent_registrations")
+    .select("metadata")
+    .eq("id", agentId)
+    .single();
+
+  const metadata = (agent?.metadata as Record<string, unknown>) || {};
+  const history = Array.isArray(metadata.counter_history)
+    ? (metadata.counter_history as unknown[])
+    : [];
+  history.push({ ts: new Date().toISOString(), ...counters });
+  if (history.length > 60) history.splice(0, history.length - 60);
+
+  const newMetadata = {
+    ...metadata,
+    last_counters: counters || {},
+    last_error: lastError,
+    counter_history: history,
+  };
+
+  const { error } = await db
+    .from("agent_registrations")
+    .update({
+      last_heartbeat: new Date().toISOString(),
+      metadata: newMetadata,
+    })
+    .eq("id", agentId);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
+async function handleIngest(body: Record<string, unknown>) {
+  const relativePath = requireString(body, "relative_path");
+  const filename = requireString(body, "filename");
+  const fileType = requireString(body, "file_type");
+  const fileSize = optionalNumber(body, "file_size") ?? 0;
+  const modifiedAt = requireString(body, "modified_at");
+  const fileCreatedAt = optionalString(body, "file_created_at");
+  const quickHash = requireString(body, "quick_hash");
+  const quickHashVersion = optionalNumber(body, "quick_hash_version") ?? 1;
+  const thumbnailUrl = optionalString(body, "thumbnail_url");
+  const thumbnailError = optionalString(body, "thumbnail_error");
+  const width = optionalNumber(body, "width") ?? 0;
+  const height = optionalNumber(body, "height") ?? 0;
+
+  if (!["psd", "ai"].includes(fileType)) {
+    return err("file_type must be 'psd' or 'ai'");
+  }
+
+  const derived = deriveMetadataFromPath(relativePath);
+  const db = serviceClient();
+
+  // 1) Check for move: same quick_hash, different path
+  const { data: existingByHash } = await db
+    .from("assets")
+    .select("id, relative_path")
+    .eq("quick_hash", quickHash)
+    .neq("relative_path", relativePath)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingByHash) {
+    // Move detected
+    const oldPath = existingByHash.relative_path;
+    const reDerived = deriveMetadataFromPath(relativePath);
+
+    const { error: moveError } = await db
+      .from("assets")
+      .update({
+        relative_path: relativePath,
+        filename,
+        modified_at: modifiedAt,
+        file_created_at: fileCreatedAt || modifiedAt,
+        last_seen_at: new Date().toISOString(),
+        workflow_status: reDerived.workflow_status,
+        is_licensed: reDerived.is_licensed,
+        ...(thumbnailUrl ? { thumbnail_url: thumbnailUrl } : {}),
+        ...(thumbnailError ? { thumbnail_error: thumbnailError } : {}),
+      })
+      .eq("id", existingByHash.id);
+
+    if (moveError) return err(moveError.message, 500);
+
+    // Log path history
+    await db.from("asset_path_history").insert({
+      asset_id: existingByHash.id,
+      old_relative_path: oldPath,
+      new_relative_path: relativePath,
+    });
+
+    return json({
+      ok: true,
+      action: "moved",
+      asset_id: existingByHash.id,
+    });
+  }
+
+  // 2) Check for existing by path (update)
+  const { data: existingByPath } = await db
+    .from("assets")
+    .select("id")
+    .eq("relative_path", relativePath)
+    .maybeSingle();
+
+  if (existingByPath) {
+    const { error: updateError } = await db
+      .from("assets")
+      .update({
+        filename,
+        file_type: fileType,
+        file_size: fileSize,
+        width,
+        height,
+        modified_at: modifiedAt,
+        file_created_at: fileCreatedAt || modifiedAt,
+        quick_hash: quickHash,
+        quick_hash_version: quickHashVersion,
+        last_seen_at: new Date().toISOString(),
+        ...(thumbnailUrl ? { thumbnail_url: thumbnailUrl } : {}),
+        ...(thumbnailError ? { thumbnail_error: thumbnailError } : {}),
+      })
+      .eq("id", existingByPath.id);
+
+    if (updateError) return err(updateError.message, 500);
+    return json({
+      ok: true,
+      action: "updated",
+      asset_id: existingByPath.id,
+    });
+  }
+
+  // 3) New asset
+  const { data: newAsset, error: insertError } = await db
+    .from("assets")
+    .insert({
+      relative_path: relativePath,
+      filename,
+      file_type: fileType,
+      file_size: fileSize,
+      width,
+      height,
+      modified_at: modifiedAt,
+      file_created_at: fileCreatedAt || modifiedAt,
+      quick_hash: quickHash,
+      quick_hash_version: quickHashVersion,
+      last_seen_at: new Date().toISOString(),
+      thumbnail_url: thumbnailUrl,
+      thumbnail_error: thumbnailError,
+      workflow_status: derived.workflow_status,
+      is_licensed: derived.is_licensed,
+    })
+    .select("id")
+    .single();
+
+  if (insertError) return err(insertError.message, 500);
+
+  // Queue for processing
+  await db.from("processing_queue").insert({
+    asset_id: newAsset.id,
+    job_type: "thumbnail",
+  });
+
+  return json({ ok: true, action: "created", asset_id: newAsset.id });
+}
+
+async function handleUpdateAsset(body: Record<string, unknown>) {
+  const assetId = requireString(body, "asset_id");
+  const updates: Record<string, unknown> = {};
+
+  const allowedFields = [
+    "thumbnail_url",
+    "thumbnail_error",
+    "status",
+    "tags",
+    "width",
+    "height",
+    "artboards",
+    "file_size",
+    "ai_description",
+    "scene_description",
+    "workflow_status",
+    "is_licensed",
+    "licensor_id",
+    "property_id",
+    "asset_type",
+    "art_source",
+    "big_theme",
+    "little_theme",
+    "design_ref",
+    "design_style",
+  ];
+
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) {
+      updates[field] = body[field];
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return err("No valid fields to update");
+  }
+
+  const db = serviceClient();
+  const { error } = await db.from("assets").update(updates).eq("id", assetId);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, asset_id: assetId });
+}
+
+async function handleMoveAsset(body: Record<string, unknown>) {
+  const assetId = requireString(body, "asset_id");
+  const newRelativePath = requireString(body, "new_relative_path");
+  const newFilename = optionalString(body, "filename");
+
+  const db = serviceClient();
+
+  const { data: asset, error: fetchError } = await db
+    .from("assets")
+    .select("relative_path, filename")
+    .eq("id", assetId)
+    .single();
+
+  if (fetchError || !asset) return err("Asset not found", 404);
+
+  const derived = deriveMetadataFromPath(newRelativePath);
+
+  const { error: updateError } = await db
+    .from("assets")
+    .update({
+      relative_path: newRelativePath,
+      filename: newFilename || asset.filename,
+      workflow_status: derived.workflow_status,
+      is_licensed: derived.is_licensed,
+      last_seen_at: new Date().toISOString(),
+    })
+    .eq("id", assetId);
+
+  if (updateError) return err(updateError.message, 500);
+
+  await db.from("asset_path_history").insert({
+    asset_id: assetId,
+    old_relative_path: asset.relative_path,
+    new_relative_path: newRelativePath,
+  });
+
+  return json({ ok: true, asset_id: assetId });
+}
+
+async function handleScanProgress(body: Record<string, unknown>) {
+  const sessionId = requireString(body, "session_id");
+  const status = requireString(body, "status");
+  const counters = body.counters as Record<string, unknown> | undefined;
+  const currentPath = optionalString(body, "current_path");
+
+  const db = serviceClient();
+
+  // Store scan progress in admin_config for UI consumption
+  const { error } = await db.from("admin_config").upsert({
+    key: "SCAN_PROGRESS",
+    value: {
+      session_id: sessionId,
+      status,
+      counters: counters || {},
+      current_path: currentPath,
+      updated_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
+async function handleIngestionProgress(body: Record<string, unknown>) {
+  const processed = requireNumber(body, "processed");
+  const total = requireNumber(body, "total");
+
+  const db = serviceClient();
+  const { error } = await db.from("admin_config").upsert({
+    key: "INGESTION_PROGRESS",
+    value: {
+      processed,
+      total,
+      updated_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
+async function handleQueueRender(body: Record<string, unknown>) {
+  const assetId = requireString(body, "asset_id");
+  const reason = optionalString(body, "reason") ?? "no_pdf_compat";
+
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("render_queue")
+    .insert({ asset_id: assetId, status: "pending" })
+    .select("id")
+    .single();
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, job_id: data.id });
+}
+
+async function handleClaimRender(body: Record<string, unknown>) {
+  const agentId = requireString(body, "agent_id");
+  const db = serviceClient();
+
+  // Manual SKIP LOCKED via raw rpc isn't available, so use select + update pattern
+  const { data: jobs } = await db
+    .from("render_queue")
+    .select("id, asset_id")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (!jobs || jobs.length === 0) {
+    return json({ ok: true, job: null });
+  }
+
+  const job = jobs[0];
+  const { error } = await db
+    .from("render_queue")
+    .update({
+      status: "claimed",
+      claimed_by: agentId,
+      claimed_at: new Date().toISOString(),
+    })
+    .eq("id", job.id)
+    .eq("status", "pending"); // optimistic lock
+
+  if (error) return json({ ok: true, job: null }); // someone else claimed it
+
+  return json({
+    ok: true,
+    job: { job_id: job.id, asset_id: job.asset_id },
+  });
+}
+
+async function handleCompleteRender(body: Record<string, unknown>) {
+  const jobId = requireString(body, "job_id");
+  const success = body.success === true;
+  const thumbnailUrl = optionalString(body, "thumbnail_url");
+  const errorMsg = optionalString(body, "error");
+
+  const db = serviceClient();
+
+  const { data: job } = await db
+    .from("render_queue")
+    .select("asset_id")
+    .eq("id", jobId)
+    .single();
+
+  if (!job) return err("Job not found", 404);
+
+  await db
+    .from("render_queue")
+    .update({
+      status: success ? "completed" : "failed",
+      completed_at: new Date().toISOString(),
+      error_message: errorMsg,
+    })
+    .eq("id", jobId);
+
+  if (success && thumbnailUrl) {
+    await db
+      .from("assets")
+      .update({ thumbnail_url: thumbnailUrl, thumbnail_error: null })
+      .eq("id", job.asset_id);
+  }
+
+  return json({ ok: true });
+}
+
+async function handleTriggerScan(body: Record<string, unknown>) {
+  const agentId = optionalString(body, "agent_id");
+  const db = serviceClient();
+
+  // If agent_id specified, set scan_requested on that agent
+  if (agentId) {
+    const { data: agent } = await db
+      .from("agent_registrations")
+      .select("metadata")
+      .eq("id", agentId)
+      .single();
+
+    if (!agent) return err("Agent not found", 404);
+
+    const metadata = (agent.metadata as Record<string, unknown>) || {};
+    await db
+      .from("agent_registrations")
+      .update({ metadata: { ...metadata, scan_requested: true } })
+      .eq("id", agentId);
+  } else {
+    // Set on all bridge agents
+    const { data: agents } = await db
+      .from("agent_registrations")
+      .select("id, metadata")
+      .eq("agent_type", "bridge");
+
+    if (agents) {
+      for (const a of agents) {
+        const metadata = (a.metadata as Record<string, unknown>) || {};
+        await db
+          .from("agent_registrations")
+          .update({ metadata: { ...metadata, scan_requested: true } })
+          .eq("id", a.id);
+      }
+    }
+  }
+
+  return json({ ok: true });
+}
+
+async function handleCheckScanRequest(
+  body: Record<string, unknown>,
+  agentId: string,
+) {
+  const db = serviceClient();
+  const { data: agent } = await db
+    .from("agent_registrations")
+    .select("metadata")
+    .eq("id", agentId)
+    .single();
+
+  if (!agent) return err("Agent not found", 404);
+
+  const metadata = (agent.metadata as Record<string, unknown>) || {};
+  const scanRequested = metadata.scan_requested === true;
+
+  // Clear the flag
+  if (scanRequested) {
+    await db
+      .from("agent_registrations")
+      .update({ metadata: { ...metadata, scan_requested: false } })
+      .eq("id", agentId);
+  }
+
+  return json({ ok: true, scan_requested: scanRequested });
+}
+
+async function handleClaim(body: Record<string, unknown>) {
+  const agentId = requireString(body, "agent_id");
+  const batchSize = optionalNumber(body, "batch_size") ?? 5;
+
+  const db = serviceClient();
+  const { data, error } = await db.rpc("claim_jobs", {
+    p_agent_id: agentId,
+    p_batch_size: batchSize,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, jobs: data });
+}
+
+async function handleComplete(body: Record<string, unknown>) {
+  const jobId = requireString(body, "job_id");
+  const success = body.success === true;
+  const errorMessage = optionalString(body, "error_message");
+
+  const db = serviceClient();
+  const { error } = await db
+    .from("processing_queue")
+    .update({
+      status: success ? "completed" : "failed",
+      completed_at: new Date().toISOString(),
+      error_message: errorMessage,
+    })
+    .eq("id", jobId);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
+async function handleResetStale(body: Record<string, unknown>) {
+  const timeoutMinutes = optionalNumber(body, "timeout_minutes") ?? 30;
+  const db = serviceClient();
+  const { data, error } = await db.rpc("reset_stale_jobs", {
+    p_timeout_minutes: timeoutMinutes,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, reset_count: data });
+}
+
+async function handleSetScanRoots(
+  body: Record<string, unknown>,
+  agentId: string,
+) {
+  const scanRoots = body.scan_roots;
+  if (!Array.isArray(scanRoots))
+    return err("scan_roots must be an array");
+
+  const db = serviceClient();
+  const { data: agent } = await db
+    .from("agent_registrations")
+    .select("metadata")
+    .eq("id", agentId)
+    .single();
+
+  if (!agent) return err("Agent not found", 404);
+
+  const metadata = (agent.metadata as Record<string, unknown>) || {};
+  await db
+    .from("agent_registrations")
+    .update({ metadata: { ...metadata, scan_roots: scanRoots } })
+    .eq("id", agentId);
+
+  return json({ ok: true });
+}
+
+async function handleGetScanRoots(agentId: string) {
+  const db = serviceClient();
+  const { data: agent } = await db
+    .from("agent_registrations")
+    .select("metadata")
+    .eq("id", agentId)
+    .single();
+
+  if (!agent) return err("Agent not found", 404);
+
+  const metadata = (agent.metadata as Record<string, unknown>) || {};
+  return json({ ok: true, scan_roots: metadata.scan_roots || [] });
+}
+
+async function handleGetConfig(body: Record<string, unknown>) {
+  const keys = body.keys;
+  const db = serviceClient();
+
+  let query = db.from("admin_config").select("key, value");
+  if (Array.isArray(keys) && keys.length > 0) {
+    query = query.in("key", keys as string[]);
+  }
+
+  const { data, error } = await query;
+  if (error) return err(error.message, 500);
+
+  const config: Record<string, unknown> = {};
+  for (const row of data || []) {
+    config[row.key] = row.value;
+  }
+  return json({ ok: true, config });
+}
+
+// ── Main router ─────────────────────────────────────────────────────
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return err("Method not allowed", 405);
+  }
+
+  const url = new URL(req.url);
+  const path = url.pathname.split("/").filter(Boolean);
+  // Path format: /agent-api/route-name or just route from body
+  const route = path[path.length - 1] || "";
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return err("Invalid JSON body");
+  }
+
+  // The route can also be specified in the body as "action"
+  const action = (body.action as string) || route;
+
+  try {
+    // Register doesn't require existing auth
+    if (action === "register") {
+      return await handleRegister(body);
+    }
+
+    // All other routes require agent authentication
+    const authResult = await authenticateAgent(req);
+    if (authResult instanceof Response) return authResult;
+    const { agentId } = authResult;
+
+    switch (action) {
+      case "heartbeat":
+        return await handleHeartbeat(body, agentId);
+      case "ingest":
+        return await handleIngest(body);
+      case "update-asset":
+        return await handleUpdateAsset(body);
+      case "move-asset":
+        return await handleMoveAsset(body);
+      case "scan-progress":
+        return await handleScanProgress(body);
+      case "ingestion-progress":
+        return await handleIngestionProgress(body);
+      case "queue-render":
+        return await handleQueueRender(body);
+      case "claim-render":
+        return await handleClaimRender(body);
+      case "complete-render":
+        return await handleCompleteRender(body);
+      case "trigger-scan":
+        return await handleTriggerScan(body);
+      case "check-scan-request":
+        return await handleCheckScanRequest(body, agentId);
+      case "claim":
+        return await handleClaim(body);
+      case "complete":
+        return await handleComplete(body);
+      case "reset-stale":
+        return await handleResetStale(body);
+      case "set-scan-roots":
+        return await handleSetScanRoots(body, agentId);
+      case "get-scan-roots":
+        return await handleGetScanRoots(agentId);
+      case "get-config":
+        return await handleGetConfig(body);
+      default:
+        return err(`Unknown action: ${action}`, 404);
+    }
+  } catch (e) {
+    console.error("agent-api error:", e);
+    return err(
+      e instanceof Error ? e.message : "Internal server error",
+      500,
+    );
+  }
+});
