@@ -200,56 +200,93 @@ async function handleHeartbeat(
 
   if (error) return err(error.message, 500);
 
-  // ── Resource Guard: return active cpu_shares + thumb_concurrency ──
-  // Look up RESOURCE_GUARD config from admin_config
-  const { data: guardConfig } = await db
+  // ── Build full config payload for Config Sync ──
+  // Fetch all relevant config keys in one query
+  const { data: configRows } = await db
     .from("admin_config")
-    .select("value")
-    .eq("key", "RESOURCE_GUARD")
-    .maybeSingle();
+    .select("key, value")
+    .in("key", ["DO_SPACES", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG"]);
 
-  let directives: Record<string, unknown> = {};
-  if (guardConfig?.value) {
-    const guard = guardConfig.value as Record<string, unknown>;
-    const schedules = guard.schedules as Array<Record<string, unknown>> | undefined;
+  const configMap: Record<string, unknown> = {};
+  for (const row of configRows || []) {
+    configMap[row.key] = row.value;
+  }
 
-    if (schedules && schedules.length > 0) {
-      // Determine which schedule is active based on current day/time (UTC)
-      const now = new Date();
-      const dayOfWeek = now.getUTCDay(); // 0=Sun
-      const hour = now.getUTCHours();
+  // DO Spaces config
+  const doSpaces = (configMap.DO_SPACES as Record<string, string>) || {};
 
-      let matched: Record<string, unknown> | null = null;
-      for (const sched of schedules) {
-        const days = sched.days as number[] | undefined;
-        const startHour = sched.start_hour as number | undefined;
-        const endHour = sched.end_hour as number | undefined;
-        if (days && days.includes(dayOfWeek) && startHour !== undefined && endHour !== undefined) {
-          if (hour >= startHour && hour < endHour) {
-            matched = sched;
-            break;
-          }
+  // Scanning config
+  const scanRoots = (configMap.SCAN_ROOTS as string[]) || [];
+  const pollingConfig = (configMap.POLLING_CONFIG as Record<string, number>) || {};
+
+  // Resource Guard
+  const guard = (configMap.RESOURCE_GUARD as Record<string, unknown>) || {};
+  const schedules = guard.schedules as Array<Record<string, unknown>> | undefined;
+  let resourceDirectives: Record<string, unknown> = {
+    cpu_percentage_limit: guard.default_cpu_shares ?? 50,
+    memory_limit_mb: guard.default_memory_limit_mb ?? 512,
+    concurrency: guard.default_thumb_concurrency ?? 2,
+  };
+
+  if (schedules && schedules.length > 0) {
+    const now = new Date();
+    const dayOfWeek = now.getUTCDay();
+    const hour = now.getUTCHours();
+
+    for (const sched of schedules) {
+      const days = sched.days as number[] | undefined;
+      const startHour = sched.start_hour as number | undefined;
+      const endHour = sched.end_hour as number | undefined;
+      if (days && days.includes(dayOfWeek) && startHour !== undefined && endHour !== undefined) {
+        if (hour >= startHour && hour < endHour) {
+          resourceDirectives = {
+            cpu_percentage_limit: sched.cpu_shares ?? resourceDirectives.cpu_percentage_limit,
+            memory_limit_mb: sched.memory_limit_mb ?? resourceDirectives.memory_limit_mb,
+            concurrency: sched.thumb_concurrency ?? resourceDirectives.concurrency,
+          };
+          break;
         }
       }
-
-      if (matched) {
-        directives = {
-          cpu_shares: matched.cpu_shares ?? null,
-          thumb_concurrency: matched.thumb_concurrency ?? null,
-        };
-      }
-    }
-
-    // Fallback to top-level defaults if no schedule matched
-    if (!directives.cpu_shares && guard.default_cpu_shares) {
-      directives.cpu_shares = guard.default_cpu_shares;
-    }
-    if (!directives.thumb_concurrency && guard.default_thumb_concurrency) {
-      directives.thumb_concurrency = guard.default_thumb_concurrency;
     }
   }
 
-  return json({ ok: true, directives });
+  // Commands from agent metadata
+  const scanRequested = metadata.scan_requested === true;
+  const scanAbort = metadata.scan_abort === true;
+
+  // Clear command flags after reading
+  if (scanRequested || scanAbort) {
+    await db
+      .from("agent_registrations")
+      .update({ metadata: { ...newMetadata, scan_requested: false, scan_abort: false } })
+      .eq("id", agentId);
+  }
+
+  return json({
+    ok: true,
+    config: {
+      do_spaces: {
+        key: doSpaces.key || "",
+        secret: doSpaces.secret || "",
+        bucket: doSpaces.bucket || "popdam",
+        region: doSpaces.region || "nyc3",
+        endpoint: doSpaces.endpoint || "https://nyc3.digitaloceanspaces.com",
+      },
+      scanning: {
+        roots: scanRoots,
+        batch_size: pollingConfig.batch_size ?? 100,
+        adaptive_polling: {
+          idle_seconds: pollingConfig.idle_seconds ?? 30,
+          active_seconds: pollingConfig.active_seconds ?? 5,
+        },
+      },
+      resource_guard: resourceDirectives,
+    },
+    commands: {
+      force_scan: scanRequested,
+      abort_scan: scanAbort,
+    },
+  });
 }
 
 async function handleIngest(body: Record<string, unknown>) {
