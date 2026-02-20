@@ -10,9 +10,18 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies for native modules (sharp)
+# python3, make, g++ are needed to compile sharp from source using system vips
 RUN apk add --no-cache python3 make g++ vips-dev ghostscript graphicsmagick
 
 COPY package.json ./
+
+# CRITICAL: Tell sharp to build from source using the system vips we just installed,
+# instead of trying to download a prebuilt binary from GitHub (which fails in CI/buildx).
+# SHARP_IGNORE_GLOBAL_LIBVIPS=0 means "use the system libvips"
+# npm_config_sharp_libvips_binary_host="" disables the CDN download attempt entirely
+ENV npm_config_sharp_libvips_binary_host=""
+ENV SHARP_IGNORE_GLOBAL_LIBVIPS=0
+
 RUN npm install --production=false
 
 COPY tsconfig.json ./
