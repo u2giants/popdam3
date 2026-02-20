@@ -56,7 +56,7 @@ const INITIAL_STATE: WizardState = {
   doSpacesBucket: "popdam",
   doSpacesRegion: "nyc3",
   doSpacesEndpoint: "https://nyc3.digitaloceanspaces.com",
-  nasHostPath: "/volume1/nas-share",
+  nasHostPath: "/volume1/mac",
   nasContainerMount: "/mnt/nas/mac",
   scanRoots: "/mnt/nas/mac",
   thumbConcurrency: "2",
@@ -293,11 +293,12 @@ services:
                 <Input value={state.nasHostPath} onChange={(e) => update("nasHostPath", e.target.value)} className="font-mono text-xs" />
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    "/volume1/ActiveShare",
-                    "/volume1/homes",
-                    "/volume1/docker/data",
-                    "/volume1/nas-share",
-                    "/volume2/ActiveShare",
+                    "/volume1/mac",
+                    "/volume1/styleguides",
+                    "/volume1/oldStyleguides",
+                    "/volume1/freelancers",
+                    "/volume1/Coldlion",
+                    "/volume1/files",
                   ].map((p) => (
                     <button
                       key={p}
@@ -312,14 +313,7 @@ services:
                     </button>
                   ))}
                 </div>
-                <div className="bg-[hsl(var(--info)/0.1)] border border-[hsl(var(--info)/0.3)] rounded-md p-2.5 text-xs text-muted-foreground space-y-1">
-                  <p className="font-semibold text-[hsl(var(--info))]">How to find your path:</p>
-                  <ol className="list-decimal list-inside space-y-0.5">
-                    <li>SSH into your NAS: <code className="text-foreground">ssh admin@your-nas-ip</code></li>
-                    <li>List shared folders: <code className="text-foreground">ls /volume1/</code></li>
-                    <li>Your path is usually <code className="text-foreground">/volume1/YourShareName</code></li>
-                  </ol>
-                </div>
+                <p className="text-xs text-muted-foreground">Select the share containing your design files, or type a custom path above.</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Container Mount Path</label>
