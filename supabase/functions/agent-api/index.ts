@@ -253,12 +253,13 @@ async function handleHeartbeat(
   // Commands from agent metadata
   const scanRequested = metadata.scan_requested === true;
   const scanAbort = metadata.scan_abort === true;
+  const forceStop = metadata.force_stop === true;
 
-  // Clear command flags after reading
-  if (scanRequested || scanAbort) {
+  // Only clear scan_requested after reading (abort stays until admin clears it)
+  if (scanRequested) {
     await db
       .from("agent_registrations")
-      .update({ metadata: { ...newMetadata, scan_requested: false, scan_abort: false } })
+      .update({ metadata: { ...newMetadata, scan_requested: false } })
       .eq("id", agentId);
   }
 
@@ -283,15 +284,28 @@ async function handleHeartbeat(
       resource_guard: resourceDirectives,
     },
     commands: {
-      force_scan: scanRequested,
-      abort_scan: scanAbort,
+      force_scan: scanRequested && !forceStop,
+      abort_scan: scanAbort || forceStop,
     },
   });
 }
 
-async function handleIngest(body: Record<string, unknown>) {
+async function handleIngest(body: Record<string, unknown>, agentId?: string) {
+  // Guard: reject ingestion if force_stop is set on this agent
+  if (agentId) {
+    const db = serviceClient();
+    const { data: agentReg } = await db
+      .from("agent_registrations")
+      .select("metadata")
+      .eq("id", agentId)
+      .maybeSingle();
+    const meta = (agentReg?.metadata as Record<string, unknown>) || {};
+    if (meta.force_stop === true || meta.scan_abort === true) {
+      return json({ ok: false, error: "Ingestion blocked: scan is stopped. Clear force_stop in admin to resume." }, 403);
+    }
+  }
+
   const relativePath = requireString(body, "relative_path");
-  const filename = requireString(body, "filename");
   const fileType = requireString(body, "file_type");
   const fileSize = optionalNumber(body, "file_size") ?? 0;
   const modifiedAt = requireString(body, "modified_at");
@@ -847,7 +861,7 @@ serve(async (req: Request) => {
       case "heartbeat":
         return await handleHeartbeat(body, agentId);
       case "ingest":
-        return await handleIngest(body);
+        return await handleIngest(body, agentId);
       case "update-asset":
         return await handleUpdateAsset(body);
       case "move-asset":
