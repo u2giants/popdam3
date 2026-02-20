@@ -194,3 +194,8 @@ Uniqueness Guard: Add a UNIQUE constraint on the pair (share_id, relative_path).
 Soft Delete: Add is_deleted boolean DEFAULT false. This allows the Admin to "hide" unwanted folders from the UI without wiping their metadata history.
 
 Audit Logs: Add last_scanned_at to the assets table to track which files are still "alive" on the disk during a scan.
+
+---
+
+## 7) Golden Rule: File Date Preservation
+`modified_at` and `file_created_at` are filesystem-sourced timestamps. The DAM must NEVER cause these to change on the source file. The Bridge Agent must record original timestamps before touching a file and restore them after. If restoration fails, processing must halt. See PROJECT_BIBLE.md §15 for full details.

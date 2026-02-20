@@ -357,13 +357,16 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
           {/* Dates */}
           <section className="space-y-2">
             <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" /> Dates
+              <Clock className="h-3.5 w-3.5" /> File Dates (from server)
             </h4>
             <div className="space-y-1.5">
-              <MetaRow label="Modified (disk)" value={format(new Date(asset.modified_at), "MMM d, yyyy HH:mm")} />
-              <MetaRow label="Created (disk)" value={asset.file_created_at ? format(new Date(asset.file_created_at), "MMM d, yyyy HH:mm") : "—"} />
+              <MetaRow label="File Modified" value={format(new Date(asset.modified_at), "MMM d, yyyy HH:mm")} />
+              <MetaRow label="File Created" value={asset.file_created_at ? format(new Date(asset.file_created_at), "MMM d, yyyy HH:mm") : "—"} />
+            </div>
+            <div className="mt-2 pt-2 border-t border-border/50 space-y-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60">DAM Internal</p>
               <MetaRow label="Ingested" value={asset.ingested_at ? format(new Date(asset.ingested_at), "MMM d, yyyy HH:mm") : "—"} />
-              <MetaRow label="Last seen" value={format(new Date(asset.last_seen_at), "MMM d, yyyy HH:mm")} />
+              <MetaRow label="Last Scanned" value={asset.last_seen_at ? format(new Date(asset.last_seen_at), "MMM d, yyyy HH:mm") : "—"} />
             </div>
           </section>
 

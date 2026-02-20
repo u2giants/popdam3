@@ -130,3 +130,8 @@ Output: invalid, PATH_OUT_OF_SCOPE
 No Drive Letter Assumptions: When building the "Remote Synology Drive" path, treat the USER_SYNC_ROOT as a literal prefix. Do not assume C: or /Users/ exists.
 
 Normalization: Always strip trailing slashes from both the prefix and the relative path before joining them to avoid // errors in the file path.
+
+---
+
+## 8) Golden Rule: File Date Preservation
+When any component reads a file (for path resolution, hashing, or thumbnailing), it must not alter the file's `mtime` or `birthtime`. The Bridge Agent must record and restore timestamps around any file access. See PROJECT_BIBLE.md §15.

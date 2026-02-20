@@ -128,3 +128,8 @@ Do not claim things were tested unless the tool actually ran them.
 
 If tests exist, run them; otherwise say “not executed” explicitly.
 
+
+---
+
+## 6) Golden Rule: File Date Preservation
+The DAM must NEVER modify file timestamps (mtime/birthtime) on source art files. Before reading any file, record original timestamps; after, verify and restore if changed. If restoration fails, HALT processing and report a critical error. This is a non-negotiable project invariant. See PROJECT_BIBLE.md §15.

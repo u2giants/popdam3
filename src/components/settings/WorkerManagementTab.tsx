@@ -847,7 +847,37 @@ function ImageOutputSettings() {
   );
 }
 
-// ── Export ───────────────────────────────────────────────────────────
+// ── Grouped Tab Exports ──────────────────────────────────────────────
+
+/** NAS & Storage tab: Volume mapping, scan folders, DO Spaces config */
+export function NasStorageTab() {
+  return (
+    <div className="space-y-4">
+      <FolderManager />
+      <SpacesConfigSettings />
+    </div>
+  );
+}
+
+/** Image Output tab: Thumbnail/preview resolution, JPEG quality */
+export function ImageOutputTab() {
+  return (
+    <div className="space-y-4">
+      <ImageOutputSettings />
+    </div>
+  );
+}
+
+/** Scanning tab: Date cutoffs, resource guard, polling config */
+export function ScanningTab() {
+  return (
+    <div className="space-y-4">
+      <DateCutoffSettings />
+      <ResourceGuardSettings />
+      <PollingConfig />
+    </div>
+  );
+}
 
 export default function WorkerManagementTab() {
   return (

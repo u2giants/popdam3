@@ -260,3 +260,8 @@ Create invite.
 
 Return diagnostics bundle (effective config, agent statuses, last counters, last errors).
 
+---
+
+\## 4) Golden Rule: File Date Preservation
+All timestamps reported by the agent (`modified\_at`, `file\_created\_at`) must be the original filesystem values. The agent must never cause these to change on disk. If a file operation inadvertently modifies timestamps, the agent must restore them and report a critical error if restoration fails. See PROJECT\_BIBLE.md §15.
+
