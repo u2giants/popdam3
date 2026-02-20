@@ -450,7 +450,20 @@ async function handleStopScan(_body: Record<string, unknown>) {
     const metadata = (a.metadata as Record<string, unknown>) || {};
     await db
       .from("agent_registrations")
-      .update({ metadata: { ...metadata, scan_requested: false, scan_abort: true } })
+      .update({ metadata: { ...metadata, scan_requested: false, scan_abort: true, force_stop: true } })
+      .eq("id", a.id);
+  }
+  return json({ ok: true });
+}
+
+async function handleResumeScanning() {
+  const db = serviceClient();
+  const { data: agents } = await db.from("agent_registrations").select("id, metadata");
+  for (const a of agents || []) {
+    const metadata = (a.metadata as Record<string, unknown>) || {};
+    await db
+      .from("agent_registrations")
+      .update({ metadata: { ...metadata, scan_abort: false, force_stop: false } })
       .eq("id", a.id);
   }
   return json({ ok: true });
@@ -508,6 +521,8 @@ serve(async (req: Request) => {
         return await handleTriggerScan(body);
       case "stop-scan":
         return await handleStopScan(body);
+      case "resume-scanning":
+        return await handleResumeScanning();
       default:
         return err(`Unknown action: ${action}`, 404);
     }

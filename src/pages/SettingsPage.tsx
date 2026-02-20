@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench } from "lucide-react";
+import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench, Play, StopCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
@@ -95,15 +95,50 @@ function AgentStatusSection() {
 
   const agents = data?.agents || [];
 
+  // Check if any agent has force_stop
+  const anyForceStopped = agents.some((a: Record<string, unknown>) => {
+    const meta = (a as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
+    return meta?.force_stop === true || meta?.scan_abort === true;
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: () => call("resume-scanning"),
+    onSuccess: () => {
+      toast.success("Scanning resumed — agents will accept new ingestions");
+      queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: () => call("stop-scan"),
+    onSuccess: () => {
+      toast.success("All agents stopped — ingestion blocked");
+      queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Activity className="h-4 w-4" /> Agent Status
         </CardTitle>
-        <Button variant="ghost" size="icon" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {anyForceStopped ? (
+            <Button variant="default" size="sm" onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} className="gap-1.5">
+              <Play className="h-3.5 w-3.5" /> Resume Scanning
+            </Button>
+          ) : (
+            <Button variant="destructive" size="sm" onClick={() => { if (confirm("Stop all agents and block ingestion?")) stopMutation.mutate(); }} disabled={stopMutation.isPending} className="gap-1.5">
+              <StopCircle className="h-3.5 w-3.5" /> Stop All
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
