@@ -205,7 +205,7 @@ async function handleHeartbeat(
   const { data: configRows } = await db
     .from("admin_config")
     .select("key, value")
-    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG"]);
+    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT"]);
 
   const configMap: Record<string, unknown> = {};
   for (const row of configRows || []) {
@@ -273,6 +273,7 @@ async function handleHeartbeat(
         public_base_url: spacesConfig.public_base_url || "https://popdam.nyc3.digitaloceanspaces.com",
       },
       scanning: {
+        container_mount_root: (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
         roots: scanRoots,
         batch_size: pollingConfig.batch_size ?? 100,
         adaptive_polling: {

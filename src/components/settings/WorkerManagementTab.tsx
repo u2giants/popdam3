@@ -92,14 +92,32 @@ function FolderManager() {
   const [newRoot, setNewRoot] = useState("");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-config", "SCAN_ROOTS"],
-    queryFn: () => call("get-config", { keys: ["SCAN_ROOTS"] }),
+    queryKey: ["admin-config", "SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT"],
+    queryFn: () => call("get-config", { keys: ["SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT"] }),
   });
+
+  const mountRoot: string = (() => {
+    const val = data?.config?.NAS_CONTAINER_MOUNT_ROOT?.value ?? data?.config?.NAS_CONTAINER_MOUNT_ROOT;
+    return typeof val === "string" ? val : "";
+  })();
 
   const roots: string[] = (() => {
     const val = data?.config?.SCAN_ROOTS?.value ?? data?.config?.SCAN_ROOTS;
     return Array.isArray(val) ? val : [];
   })();
+
+  const [mountRootForm, setMountRootForm] = useState<string | null>(null);
+  const mountRootValue = mountRootForm ?? mountRoot;
+
+  const saveMountRootMutation = useMutation({
+    mutationFn: (val: string) => call("set-config", { entries: { NAS_CONTAINER_MOUNT_ROOT: val } }),
+    onSuccess: () => {
+      toast.success("Container mount root saved");
+      setMountRootForm(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const saveMutation = useMutation({
     mutationFn: (newRoots: string[]) => call("set-config", { entries: { SCAN_ROOTS: newRoots } }),
@@ -131,15 +149,46 @@ function FolderManager() {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <FolderPlus className="h-4 w-4" /> Scan Roots (Folder Manager)
+          <FolderPlus className="h-4 w-4" /> NAS Folders &amp; Scan Roots
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground">
-          These paths are relative to the NAS container mount root. The Bridge Agent validates each path against <code>NAS_CONTAINER_MOUNT_ROOT</code> before scanning.
-        </p>
+        {/* Container Mount Root */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Container Mount Root</Label>
+          <p className="text-xs text-muted-foreground">
+            The path <strong>inside the Docker container</strong> where your NAS share is mounted.
+            This is the <code>target</code> side of your <code>docker-compose.yml</code> volume mapping
+            (e.g. <code>/volume1/Design:/mnt/nas</code> → set this to <code>/mnt/nas</code>).
+          </p>
+          <div className="flex gap-2">
+            <Input
+              className="font-mono text-xs"
+              value={mountRootValue}
+              onChange={(e) => setMountRootForm(e.target.value)}
+              placeholder="/mnt/nas"
+            />
+            {mountRootForm !== null && (
+              <Button size="sm" onClick={() => saveMountRootMutation.mutate(mountRootForm)} disabled={saveMountRootMutation.isPending}>
+                <Save className="h-3.5 w-3.5 mr-1.5" /> Save
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Scan Roots */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold">Scan Roots</Label>
+          <p className="text-xs text-muted-foreground">
+            Subfolders inside <code>{mountRootValue || "/mnt/nas"}</code> to scan for <code>.psd</code> / <code>.ai</code> files.
+            Each path must start with the container mount root above.
+            If empty, the agent falls back to its <code>.env</code> SCAN_ROOTS.
+          </p>
+        </div>
         <div className="flex gap-2">
-          <Input className="font-mono text-xs" value={newRoot} onChange={(e) => setNewRoot(e.target.value)} placeholder="/mnt/nas/Decor/Projects" onKeyDown={(e) => e.key === "Enter" && addRoot()} />
+          <Input className="font-mono text-xs" value={newRoot} onChange={(e) => setNewRoot(e.target.value)} placeholder={`${mountRootValue || "/mnt/nas"}/Decor/Projects`} onKeyDown={(e) => e.key === "Enter" && addRoot()} />
           <Button size="sm" onClick={addRoot} disabled={!newRoot.trim()}>
             <FolderPlus className="h-3.5 w-3.5 mr-1.5" /> Add
           </Button>
