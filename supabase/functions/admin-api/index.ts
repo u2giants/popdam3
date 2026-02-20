@@ -259,6 +259,57 @@ async function handleGenerateAgentKey(body: Record<string, unknown>, userId: str
   });
 }
 
+async function handleListAgents() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("agent_registrations")
+    .select("id, agent_name, agent_type, last_heartbeat, metadata, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) return err(error.message, 500);
+
+  const now = Date.now();
+  const agents = (data || []).map((a) => {
+    const lastHb = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
+    const offlineMs = 2 * 60 * 1000;
+    const metadata = (a.metadata as Record<string, unknown>) || {};
+    return {
+      id: a.id,
+      name: a.agent_name,
+      type: a.agent_type,
+      status: lastHb > 0 && now - lastHb < offlineMs ? "online" : "offline",
+      last_heartbeat: a.last_heartbeat,
+      last_counters: metadata.last_counters || null,
+      last_error: metadata.last_error || null,
+      key_preview: a.agent_key_hash ? `${a.agent_key_hash.substring(0, 8)}...` : null,
+      created_at: a.created_at,
+    };
+  });
+
+  return json({ ok: true, agents });
+}
+
+async function handleRevokeAgent(body: Record<string, unknown>) {
+  const agentId = requireString(body, "agent_id");
+  const db = serviceClient();
+
+  const { data: agent } = await db
+    .from("agent_registrations")
+    .select("id")
+    .eq("id", agentId)
+    .maybeSingle();
+
+  if (!agent) return err("Agent not found", 404);
+
+  const { error } = await db
+    .from("agent_registrations")
+    .delete()
+    .eq("id", agentId);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
 async function handleDoctor() {
   const db = serviceClient();
 
@@ -395,6 +446,10 @@ serve(async (req: Request) => {
         return await handleRevokeInvite(body);
       case "generate-agent-key":
         return await handleGenerateAgentKey(body, userId);
+      case "list-agents":
+        return await handleListAgents();
+      case "revoke-agent":
+        return await handleRevokeAgent(body);
       case "doctor":
         return await handleDoctor();
       default:
