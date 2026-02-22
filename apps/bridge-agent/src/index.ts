@@ -135,8 +135,9 @@ interface CloudConfig {
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
-  // Hot-reload S3 client if DO credentials changed
-  if (cfg.do_spaces && cfg.do_spaces.key && cfg.do_spaces.secret) {
+  // Hot-reload S3 client if DO Spaces config changed (bucket, region, endpoint)
+  // Key/secret are never sent from cloud — existing .env credentials are preserved
+  if (cfg.do_spaces) {
     reinitializeS3Client(cfg.do_spaces);
   }
 

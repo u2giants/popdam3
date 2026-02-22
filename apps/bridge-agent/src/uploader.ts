@@ -38,42 +38,54 @@ function getClient(): S3Client {
 }
 
 /**
- * Re-initialize the S3 client with new credentials from heartbeat config sync.
- * Only recreates if credentials actually changed.
+ * Re-initialize the S3 client when Spaces config changes via heartbeat.
+ * Key/secret are optional — if omitted, preserves existing credentials from .env.
  */
 export function reinitializeS3Client(doSpaces: {
-  key: string;
-  secret: string;
-  bucket: string;
-  region: string;
-  endpoint: string;
+  key?: string;
+  secret?: string;
+  bucket?: string;
+  region?: string;
+  endpoint?: string;
 }): boolean {
-  // Skip if no key provided (empty = use env fallback)
-  if (!doSpaces.key || !doSpaces.secret) return false;
+  // Ensure client is initialized so currentCredentials is populated
+  getClient();
+
+  const effectiveKey = doSpaces.key || currentCredentials.key;
+  const effectiveSecret = doSpaces.secret || currentCredentials.secret;
+  const effectiveBucket = doSpaces.bucket || currentCredentials.bucket;
+  const effectiveRegion = doSpaces.region || currentCredentials.region;
+  const effectiveEndpoint = doSpaces.endpoint || currentCredentials.endpoint;
 
   // Check if anything actually changed
   if (
-    doSpaces.key === currentCredentials.key &&
-    doSpaces.secret === currentCredentials.secret &&
-    doSpaces.bucket === currentCredentials.bucket &&
-    doSpaces.region === currentCredentials.region &&
-    doSpaces.endpoint === currentCredentials.endpoint
+    effectiveKey === currentCredentials.key &&
+    effectiveSecret === currentCredentials.secret &&
+    effectiveBucket === currentCredentials.bucket &&
+    effectiveRegion === currentCredentials.region &&
+    effectiveEndpoint === currentCredentials.endpoint
   ) {
     return false;
   }
 
-  logger.info("DO Spaces credentials changed — reinitializing S3 client", {
-    bucket: doSpaces.bucket,
-    region: doSpaces.region,
+  logger.info("DO Spaces config changed — reinitializing S3 client", {
+    bucket: effectiveBucket,
+    region: effectiveRegion,
   });
 
-  currentCredentials = { ...doSpaces };
+  currentCredentials = {
+    key: effectiveKey,
+    secret: effectiveSecret,
+    bucket: effectiveBucket,
+    region: effectiveRegion,
+    endpoint: effectiveEndpoint,
+  };
   s3Client = new S3Client({
-    region: doSpaces.region,
-    endpoint: doSpaces.endpoint,
+    region: effectiveRegion,
+    endpoint: effectiveEndpoint,
     credentials: {
-      accessKeyId: doSpaces.key,
-      secretAccessKey: doSpaces.secret,
+      accessKeyId: effectiveKey,
+      secretAccessKey: effectiveSecret,
     },
     forcePathStyle: false,
   });
