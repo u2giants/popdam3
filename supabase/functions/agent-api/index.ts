@@ -319,6 +319,7 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
   }
 
   const relativePath = requireString(body, "relative_path");
+  const filename = requireString(body, "filename");
   const fileType = requireString(body, "file_type");
   const fileSize = optionalNumber(body, "file_size") ?? 0;
   const modifiedAt = requireString(body, "modified_at");
