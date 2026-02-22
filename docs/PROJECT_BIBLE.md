@@ -16,6 +16,11 @@ This is the single highest-authority document for PopDAM V2.
 If anything conflicts with this file, **this file wins**.
 
 ---
+## Golden Rule: Never Change File Timestamps (Hard Stop)
+PopDAM must **never** permanently change a file’s timestamps (created/modified).  
+Before **any** operation that touches a file (thumbnail extraction, metadata read/write, sidecar creation, etc.), the worker must record the file’s original timestamps (mtime + birthtime/ctime where available). After the operation, the worker must verify timestamps are unchanged and, if the OS altered them, **restore them to the original values**.
+
+If the worker cannot restore timestamps exactly, it must **STOP processing new files immediately** and report a critical error indicating which file(s) had modified timestamps and what changed.
 
 ## 0) Mission
 Build **PopDAM** — a Digital Asset Manager for licensed consumer-product art (Disney/Marvel/etc.). Source design files (`.psd`, `.ai`) live on a **Synology NAS**. The system must reliably:
