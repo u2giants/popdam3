@@ -7,7 +7,34 @@ The Bridge Agent exists to do the work that is cheapest/fastest **only when done
 touching huge PSD/AI files and producing thumbnails near the storage.
 
 ---
+## Golden Rule: Timestamp Preservation (Stop-The-World)
+The Bridge Agent must never leave a file with modified timestamps due to processing.
 
+### Required behavior
+1) **Before touching a file**, record:
+   - `mtime` (modified time)
+   - `birthtime` when available
+   - and any other filesystem creation timestamp the OS exposes (platform-dependent)
+
+2) Perform the operation (thumbnailing, metadata writes, sidecar files, etc.).
+
+3) **Immediately re-stat the file** and compare timestamps to the originals.
+
+4) If any timestamp changed:
+   - attempt to restore the original timestamps exactly (save + restore)
+   - re-stat and verify restoration succeeded
+
+### Hard stop rule
+If restoration fails for any file:
+- set worker state to **CRITICAL_ERROR_TIMESTAMP_MUTATION**
+- **stop processing new files** (do not continue scanning/thumbnailing)
+- emit a critical error report to the cloud with:
+  - file path (relative_path)
+  - original timestamps
+  - observed timestamps after mutation
+  - whether restoration succeeded/failed
+ 
+  - 
 ## 1) Scope Fence (What Runs Where)
 
 ### 1.1 The Bridge Agent MUST do
@@ -146,6 +173,7 @@ If the cloud misses 3 heartbeats, it marks the worker Offline in the UI.
 - Poll intervals:
   - idle: 30–60 seconds
   - when scan requested / active: 2–5 seconds
+
 ---
 
 ## 9) Golden Rule: File Date Preservation (Non-Negotiable)
