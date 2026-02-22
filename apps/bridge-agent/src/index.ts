@@ -63,6 +63,11 @@ let cloudIdleInterval: number | null = null;
 let cloudActiveInterval: number | null = null;
 let cloudConcurrency: number | null = null;
 
+// Auto-scan state
+let autoScanEnabled = false;
+let autoScanIntervalHours = 6;
+let lastScanCompletedAt: number = 0; // epoch ms
+
 function getEffectiveScanRoots(): string[] {
   return (cloudScanRoots && cloudScanRoots.length > 0) ? cloudScanRoots : config.scanRoots;
 }
@@ -106,6 +111,16 @@ function startHeartbeat() {
           );
         }
       }
+
+      // Auto-scan: trigger if enabled + not scanning + interval elapsed
+      if (autoScanEnabled && !isScanning) {
+        const elapsedMs = Date.now() - lastScanCompletedAt;
+        const intervalMs = autoScanIntervalHours * 60 * 60 * 1000;
+        if (elapsedMs >= intervalMs) {
+          logger.info("Auto-scan triggered", { intervalHours: autoScanIntervalHours, elapsedMs });
+          runScan().catch((e) => logger.error("Auto-scan error", { error: (e as Error).message }));
+        }
+      }
     } catch (e) {
       logger.error("Heartbeat failed", { error: (e as Error).message });
     }
@@ -117,6 +132,7 @@ interface CloudConfig {
   do_spaces?: { key: string; secret: string; bucket: string; region: string; endpoint: string };
   scanning?: { roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
+  auto_scan?: { enabled: boolean; interval_hours: number };
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
@@ -143,6 +159,14 @@ function applyCloudConfig(cfg: CloudConfig) {
   if (cfg.resource_guard) {
     if (cfg.resource_guard.concurrency) {
       cloudConcurrency = cfg.resource_guard.concurrency;
+    }
+  }
+
+  // Update auto-scan config
+  if (cfg.auto_scan) {
+    autoScanEnabled = cfg.auto_scan.enabled === true;
+    if (cfg.auto_scan.interval_hours && cfg.auto_scan.interval_hours > 0) {
+      autoScanIntervalHours = cfg.auto_scan.interval_hours;
     }
   }
 }
@@ -234,6 +258,7 @@ async function runScan() {
     await api.scanProgress(sessionId, "failed", counters).catch(() => {});
   } finally {
     isScanning = false;
+    lastScanCompletedAt = Date.now();
   }
 }
 
