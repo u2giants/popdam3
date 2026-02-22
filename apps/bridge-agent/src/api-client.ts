@@ -63,6 +63,7 @@ export interface HeartbeatResponse {
   };
   commands?: {
     force_scan: boolean;
+    scan_session_id?: string;
     abort_scan: boolean;
     test_paths?: {
       request_id: string;
