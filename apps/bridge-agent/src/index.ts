@@ -130,7 +130,7 @@ function startHeartbeat() {
 
 interface CloudConfig {
   do_spaces?: { key: string; secret: string; bucket: string; region: string; endpoint: string };
-  scanning?: { roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
+  scanning?: { container_mount_root?: string; roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
   auto_scan?: { enabled: boolean; interval_hours: number };
 }
