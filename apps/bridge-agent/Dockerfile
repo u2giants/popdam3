@@ -20,12 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     graphicsmagick \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json ./
+COPY package.json package-lock.json* ./
 
-# NOTE: Using npm install (not npm ci) because package-lock.json is not committed.
-# To lock versions further, run `npm install` locally inside apps/bridge-agent/,
-# commit the generated package-lock.json, then switch this to `npm ci`.
-RUN npm install --loglevel verbose
+# Use npm ci if lockfile exists, otherwise fall back to npm install and generate one
+RUN if [ -f package-lock.json ]; then npm ci --loglevel verbose; else npm install --loglevel verbose; fi
 
 COPY tsconfig.json ./
 COPY src/ ./src/
