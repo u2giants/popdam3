@@ -29,14 +29,15 @@ export interface FileCandidate {
  * Validate that all configured scan roots exist and are readable directories.
  * Per WORKER_LOGIC §4.1: refuse to scan if any root is invalid.
  */
-export async function validateScanRoots(counters: Counters, scanRoots?: string[]): Promise<boolean> {
+export async function validateScanRoots(counters: Counters, scanRoots?: string[], mountRoot?: string): Promise<boolean> {
   const roots = scanRoots ?? config.scanRoots;
+  const effectiveMountRoot = mountRoot || config.nasContainerMountRoot;
   let allValid = true;
 
   for (const root of roots) {
     // Validate against NAS_CONTAINER_MOUNT_ROOT
-    if (!root.startsWith(config.nasContainerMountRoot)) {
-      logger.error("Scan root is outside NAS_CONTAINER_MOUNT_ROOT", { root, mountRoot: config.nasContainerMountRoot });
+    if (!root.startsWith(effectiveMountRoot)) {
+      logger.error("Scan root is outside NAS_CONTAINER_MOUNT_ROOT", { root, mountRoot: effectiveMountRoot });
       counters.roots_invalid++;
       allValid = false;
       continue;
