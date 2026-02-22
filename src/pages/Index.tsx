@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAssets, useAssetCount, useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode } from "@/types/assets";
@@ -12,6 +12,7 @@ import PaginationBar from "@/components/library/PaginationBar";
 import { toast } from "@/hooks/use-toast";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
+import { useScanProgress } from "@/hooks/useScanProgress";
 
 export default function LibraryPage() {
   const queryClient = useQueryClient();
@@ -27,11 +28,39 @@ export default function LibraryPage() {
   const [pageSize, setPageSize] = useState(200);
   const [scanTriggered, setScanTriggered] = useState(false);
   const agentStatus = useAgentStatus();
+  const scanProgress = useScanProgress();
 
-  // Clear pending state when scan actually starts
-  if (scanTriggered && agentStatus.scanRunning) {
-    setScanTriggered(false);
-  }
+  const scanRunning = scanProgress.status === "running";
+
+  // Clear pending state when scan actually starts, completes, or fails
+  useEffect(() => {
+    if (scanTriggered && scanProgress.status !== "idle") {
+      setScanTriggered(false);
+    }
+  }, [scanTriggered, scanProgress.status]);
+
+  // Auto-refresh assets when scan completes
+  const prevScanStatus = useRef(scanProgress.status);
+  useEffect(() => {
+    const prev = prevScanStatus.current;
+    prevScanStatus.current = scanProgress.status;
+
+    if (prev === "running" && scanProgress.status === "completed") {
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["asset-count"] });
+      queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
+      toast({ title: "Scan completed", description: `${scanProgress.counters?.files_checked ?? 0} files checked, ${scanProgress.counters?.ingested_new ?? 0} new assets ingested.` });
+    }
+
+    if (prev === "running" && scanProgress.status === "failed") {
+      const c = scanProgress.counters;
+      const desc = [
+        c ? `${c.files_checked} checked, ${c.errors} errors` : "No counters",
+        scanProgress.current_path ? `Last path: ${scanProgress.current_path}` : "",
+      ].filter(Boolean).join(". ");
+      toast({ title: "Scan failed", description: desc, variant: "destructive" });
+    }
+  }, [scanProgress.status, scanProgress.counters, scanProgress.current_path, queryClient]);
 
   // Debounced search
   const [searchInput, setSearchInput] = useState("");
@@ -150,8 +179,8 @@ export default function LibraryPage() {
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
         activeFilterCount={activeFilterCount}
         totalCount={count}
-        scanRunning={agentStatus.scanRunning}
-        scanPending={scanTriggered && !agentStatus.scanRunning}
+        scanRunning={scanRunning}
+        scanPending={scanTriggered && !scanRunning}
         onSync={handleSync}
         onStopScan={handleStopScan}
         onRefresh={handleRefresh}
