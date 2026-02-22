@@ -1,13 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ── CORS ────────────────────────────────────────────────────────────
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-agent-key",
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -36,7 +38,6 @@ async function authenticateAgent(
   if (!agentKey) return err("Missing x-agent-key header", 401);
 
   const db = serviceClient();
-  // Hash the key to compare against stored hash
   const encoder = new TextEncoder();
   const hashBuffer = await crypto.subtle.digest(
     "SHA-256",
@@ -56,12 +57,13 @@ async function authenticateAgent(
   return { agentId: data.id, agentName: data.agent_name };
 }
 
-// ── Zod-lite validators (inline to avoid deno.lock issues) ──────────
+// ── Validators (inline to avoid deno.lock issues) ───────────────────
 
 function requireString(obj: Record<string, unknown>, key: string): string {
   const v = obj[key];
-  if (typeof v !== "string" || v.trim() === "")
+  if (typeof v !== "string" || v.trim() === "") {
     throw new Error(`Missing required string field: ${key}`);
+  }
   return v.trim();
 }
 
@@ -91,14 +93,22 @@ function optionalNumber(
   return v;
 }
 
-function requireCanonicalRelativePath(obj: Record<string, unknown>, key: string): string {
+function requireCanonicalRelativePath(
+  obj: Record<string, unknown>,
+  key: string,
+): string {
   const raw = obj[key];
-  if (typeof raw !== "string" || raw.trim() === "")
+  if (typeof raw !== "string" || raw.trim() === "") {
     throw new Error(`Missing required string field: ${key}`);
+  }
   let p = raw.trim().replace(/\\/g, "/");
   p = p.replace(/^\/+/, "").replace(/\/+$/, "");
-  if (p === "") throw new Error(`${key} cannot be empty after normalization`);
-  if (p.includes("//")) throw new Error(`${key} contains empty path segments (//)`);
+  if (p === "") {
+    throw new Error(`${key} cannot be empty after normalization`);
+  }
+  if (p.includes("//")) {
+    throw new Error(`${key} contains empty path segments (//)`);
+  }
   return p;
 }
 
@@ -109,17 +119,17 @@ const WORKFLOW_FOLDER_MAP: Record<string, string> = {
   "concept approved": "concept_approved",
   "in development": "in_development",
   "freelancer art": "freelancer_art",
-  discontinued: "discontinued",
+  "discontinued": "discontinued",
   "in process": "in_process",
   "customer adopted": "customer_adopted",
   "licensor approved": "licensor_approved",
 };
 
-function deriveMetadataFromPath(relativePath: string): {
-  workflow_status: string;
-  is_licensed: boolean;
-} {
+function deriveMetadataFromPath(
+  relativePath: string,
+): { workflow_status: string; is_licensed: boolean } {
   const lowerPath = relativePath.toLowerCase();
+
   let workflow_status = "other";
   for (const [folder, status] of Object.entries(WORKFLOW_FOLDER_MAP)) {
     if (lowerPath.includes(folder)) {
@@ -127,11 +137,12 @@ function deriveMetadataFromPath(relativePath: string): {
       break;
     }
   }
+
   const is_licensed = lowerPath.includes("character licensed");
   return { workflow_status, is_licensed };
 }
 
-// ── Route handlers ──────────────────────────────────────────────────
+// ── Route: register ─────────────────────────────────────────────────
 
 async function handleRegister(body: Record<string, unknown>) {
   const agentName = requireString(body, "agent_name");
@@ -142,7 +153,6 @@ async function handleRegister(body: Record<string, unknown>) {
     return err("agent_type must be 'bridge' or 'windows-render'");
   }
 
-  // Hash the raw key
   const encoder = new TextEncoder();
   const hashBuffer = await crypto.subtle.digest(
     "SHA-256",
@@ -171,16 +181,29 @@ async function handleRegister(body: Record<string, unknown>) {
   return json({ ok: true, agent_id: data.id });
 }
 
+// ── Route: heartbeat ────────────────────────────────────────────────
+
+const HEARTBEAT_CONFIG_KEYS = [
+  "SPACES_CONFIG",
+  "SCAN_ROOTS",
+  "RESOURCE_GUARD",
+  "POLLING_CONFIG",
+  "NAS_CONTAINER_MOUNT_ROOT",
+  "NAS_HOST_PATH",
+  "PATH_TEST_REQUEST",
+  "AUTO_SCAN_CONFIG",
+  "SCAN_REQUEST",
+];
+
 async function handleHeartbeat(
   body: Record<string, unknown>,
   agentId: string,
 ) {
   const counters = body.counters as Record<string, unknown> | undefined;
   const lastError = optionalString(body, "last_error");
-
   const db = serviceClient();
 
-  // Get current metadata to append counters for throughput chart (keep last 60)
+  // ── Update agent metadata ──
   const { data: agent } = await db
     .from("agent_registrations")
     .select("metadata")
@@ -188,6 +211,8 @@ async function handleHeartbeat(
     .single();
 
   const metadata = (agent?.metadata as Record<string, unknown>) || {};
+
+  // Append to counter history (keep last 60)
   const history = Array.isArray(metadata.counter_history)
     ? (metadata.counter_history as unknown[])
     : [];
@@ -201,7 +226,7 @@ async function handleHeartbeat(
     counter_history: history,
   };
 
-  const { error } = await db
+  const { error: updateErr } = await db
     .from("agent_registrations")
     .update({
       last_heartbeat: new Date().toISOString(),
@@ -209,30 +234,34 @@ async function handleHeartbeat(
     })
     .eq("id", agentId);
 
-  if (error) return err(error.message, 500);
+  if (updateErr) return err(updateErr.message, 500);
 
-  // ── Build full config payload for Config Sync ──
-  // Fetch all relevant config keys in one query
+  // ── Fetch cloud config ──
   const { data: configRows } = await db
     .from("admin_config")
     .select("key, value")
-    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH", "PATH_TEST_REQUEST", "AUTO_SCAN_CONFIG", "SCAN_REQUEST"]);
+    .in("key", HEARTBEAT_CONFIG_KEYS);
 
   const configMap: Record<string, unknown> = {};
   for (const row of configRows || []) {
     configMap[row.key] = row.value;
   }
 
-  // Spaces config (non-secret fields only — agent has key/secret in .env)
-  const spacesConfig = (configMap.SPACES_CONFIG as Record<string, string>) || {};
+  // Spaces
+  const spacesConfig =
+    (configMap.SPACES_CONFIG as Record<string, string>) || {};
 
-  // Scanning config
+  // Scanning
   const scanRoots = (configMap.SCAN_ROOTS as string[]) || [];
-  const pollingConfig = (configMap.POLLING_CONFIG as Record<string, number>) || {};
+  const pollingConfig =
+    (configMap.POLLING_CONFIG as Record<string, number>) || {};
 
   // Resource Guard
-  const guard = (configMap.RESOURCE_GUARD as Record<string, unknown>) || {};
-  const schedules = guard.schedules as Array<Record<string, unknown>> | undefined;
+  const guard =
+    (configMap.RESOURCE_GUARD as Record<string, unknown>) || {};
+  const schedules =
+    guard.schedules as Array<Record<string, unknown>> | undefined;
+
   let resourceDirectives: Record<string, unknown> = {
     cpu_percentage_limit: guard.default_cpu_shares ?? 50,
     memory_limit_mb: guard.default_memory_limit_mb ?? 512,
@@ -248,45 +277,58 @@ async function handleHeartbeat(
       const days = sched.days as number[] | undefined;
       const startHour = sched.start_hour as number | undefined;
       const endHour = sched.end_hour as number | undefined;
-      if (days && days.includes(dayOfWeek) && startHour !== undefined && endHour !== undefined) {
-        if (hour >= startHour && hour < endHour) {
-          resourceDirectives = {
-            cpu_percentage_limit: sched.cpu_shares ?? resourceDirectives.cpu_percentage_limit,
-            memory_limit_mb: sched.memory_limit_mb ?? resourceDirectives.memory_limit_mb,
-            concurrency: sched.thumb_concurrency ?? resourceDirectives.concurrency,
-          };
-          break;
-        }
+
+      if (
+        days &&
+        days.includes(dayOfWeek) &&
+        startHour !== undefined &&
+        endHour !== undefined &&
+        hour >= startHour &&
+        hour < endHour
+      ) {
+        resourceDirectives = {
+          cpu_percentage_limit:
+            sched.cpu_shares ?? resourceDirectives.cpu_percentage_limit,
+          memory_limit_mb:
+            sched.memory_limit_mb ?? resourceDirectives.memory_limit_mb,
+          concurrency:
+            sched.thumb_concurrency ?? resourceDirectives.concurrency,
+        };
+        break;
       }
     }
   }
 
-  // Commands from agent metadata (abort/stop only)
+  // ── Commands (abort/stop from agent metadata) ──
   const scanAbort = metadata.scan_abort === true;
   const forceStop = metadata.force_stop === true;
 
-  // Durable scan request from admin_config
-  const scanRequest = configMap.SCAN_REQUEST as Record<string, unknown> | undefined;
+  // ── Durable scan request from admin_config ──
+  const scanRequest =
+    configMap.SCAN_REQUEST as Record<string, unknown> | undefined;
   let forceScan = false;
   let scanSessionId: string | null = null;
 
   if (
     scanRequest &&
     scanRequest.status === "pending" &&
-    (!scanRequest.target_agent_id || scanRequest.target_agent_id === agentId) &&
+    (!scanRequest.target_agent_id ||
+      scanRequest.target_agent_id === agentId) &&
     !forceStop
   ) {
-    // Atomically claim the request
     const claimedValue = {
       ...scanRequest,
       status: "claimed",
       claimed_by: agentId,
       claimed_at: new Date().toISOString(),
     };
-    const { error: claimErr } = await db.from("admin_config").update({
-      value: claimedValue,
-      updated_at: new Date().toISOString(),
-    }).eq("key", "SCAN_REQUEST");
+    const { error: claimErr } = await db
+      .from("admin_config")
+      .update({
+        value: claimedValue,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("key", "SCAN_REQUEST");
 
     if (!claimErr) {
       forceScan = true;
@@ -294,20 +336,47 @@ async function handleHeartbeat(
     }
   }
 
-  // Path test request
-  const pathTestRequest = configMap.PATH_TEST_REQUEST as Record<string, unknown> | undefined;
+  // ── Path test request ──
+  const pathTestRequest =
+    configMap.PATH_TEST_REQUEST as Record<string, unknown> | undefined;
 
+  let testPaths: {
+    request_id: string;
+    container_mount_root: string;
+    scan_roots: string[];
+  } | null = null;
+
+  if (pathTestRequest && pathTestRequest.status === "pending") {
+    testPaths = {
+      request_id: pathTestRequest.request_id as string,
+      container_mount_root:
+        (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
+      scan_roots: scanRoots,
+    };
+  }
+
+  // ── Auto-scan config ──
+  const autoScanConfig = (configMap.AUTO_SCAN_CONFIG as {
+    enabled: boolean;
+    interval_hours: number;
+  }) || { enabled: false, interval_hours: 6 };
+
+  // ── Response ──
   return json({
     ok: true,
     config: {
       do_spaces: {
         bucket: spacesConfig.bucket || "popdam",
         region: spacesConfig.region || "nyc3",
-        endpoint: spacesConfig.endpoint || "https://nyc3.digitaloceanspaces.com",
-        public_base_url: spacesConfig.public_base_url || "https://popdam.nyc3.digitaloceanspaces.com",
+        endpoint:
+          spacesConfig.endpoint || "https://nyc3.digitaloceanspaces.com",
+        public_base_url:
+          spacesConfig.public_base_url ||
+          "https://popdam.nyc3.digitaloceanspaces.com",
       },
       scanning: {
-        container_mount_root: (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
+        container_mount_root:
+          (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
         roots: scanRoots,
         batch_size: pollingConfig.batch_size ?? 100,
         adaptive_polling: {
@@ -316,7 +385,7 @@ async function handleHeartbeat(
         },
       },
       resource_guard: resourceDirectives,
-      auto_scan: (configMap.AUTO_SCAN_CONFIG as { enabled: boolean; interval_hours: number }) || { enabled: false, interval_hours: 6 },
+      auto_scan: autoScanConfig,
     },
     commands: {
       force_scan: forceScan,
@@ -327,8 +396,13 @@ async function handleHeartbeat(
   });
 }
 
-async function handleIngest(body: Record<string, unknown>, agentId?: string) {
-  // Guard: reject ingestion if force_stop is set on this agent
+// ── Route: ingest ───────────────────────────────────────────────────
+
+async function handleIngest(
+  body: Record<string, unknown>,
+  agentId?: string,
+) {
+  // Guard: reject ingestion if force_stop is set
   if (agentId) {
     const db = serviceClient();
     const { data: agentReg } = await db
@@ -336,9 +410,18 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
       .select("metadata")
       .eq("id", agentId)
       .maybeSingle();
+
     const meta = (agentReg?.metadata as Record<string, unknown>) || {};
     if (meta.force_stop === true || meta.scan_abort === true) {
-      return json({ ok: false, error: "Ingestion blocked: scan is stopped. Clear force_stop in admin to resume." }, 403);
+      return json(
+        {
+          ok: false,
+          error:
+            "Ingestion blocked: scan is stopped. " +
+            "Clear force_stop in admin to resume.",
+        },
+        403,
+      );
     }
   }
 
@@ -362,7 +445,8 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
   const derived = deriveMetadataFromPath(relativePath);
   const db = serviceClient();
 
-  // 1) Check for move: same quick_hash, different path
+  // ── 1) Move detection: same quick_hash, different path ──
+
   const { data: existingByHash } = await db
     .from("assets")
     .select("id, relative_path")
@@ -372,7 +456,6 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
     .maybeSingle();
 
   if (existingByHash) {
-    // Move detected
     const oldPath = existingByHash.relative_path;
     const reDerived = deriveMetadataFromPath(relativePath);
 
@@ -393,7 +476,6 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
 
     if (moveError) return err(moveError.message, 500);
 
-    // Log path history
     await db.from("asset_path_history").insert({
       asset_id: existingByHash.id,
       old_relative_path: oldPath,
@@ -407,7 +489,8 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
     });
   }
 
-  // 2) Check for existing by path (update)
+  // ── 2) Update existing by path ──
+
   const { data: existingByPath } = await db
     .from("assets")
     .select("id")
@@ -441,7 +524,8 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
     });
   }
 
-  // 3) New asset
+  // ── 3) New asset ──
+
   const { data: newAsset, error: insertError } = await db
     .from("assets")
     .insert({
@@ -466,7 +550,7 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
 
   if (insertError) return err(insertError.message, 500);
 
-  // Queue for processing
+  // Queue for thumbnail processing
   await db.from("processing_queue").insert({
     asset_id: newAsset.id,
     job_type: "thumbnail",
@@ -475,34 +559,36 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
   return json({ ok: true, action: "created", asset_id: newAsset.id });
 }
 
+// ── Route: update-asset ─────────────────────────────────────────────
+
+const ALLOWED_UPDATE_FIELDS = [
+  "thumbnail_url",
+  "thumbnail_error",
+  "status",
+  "tags",
+  "width",
+  "height",
+  "artboards",
+  "file_size",
+  "ai_description",
+  "scene_description",
+  "workflow_status",
+  "is_licensed",
+  "licensor_id",
+  "property_id",
+  "asset_type",
+  "art_source",
+  "big_theme",
+  "little_theme",
+  "design_ref",
+  "design_style",
+];
+
 async function handleUpdateAsset(body: Record<string, unknown>) {
   const assetId = requireString(body, "asset_id");
   const updates: Record<string, unknown> = {};
 
-  const allowedFields = [
-    "thumbnail_url",
-    "thumbnail_error",
-    "status",
-    "tags",
-    "width",
-    "height",
-    "artboards",
-    "file_size",
-    "ai_description",
-    "scene_description",
-    "workflow_status",
-    "is_licensed",
-    "licensor_id",
-    "property_id",
-    "asset_type",
-    "art_source",
-    "big_theme",
-    "little_theme",
-    "design_ref",
-    "design_style",
-  ];
-
-  for (const field of allowedFields) {
+  for (const field of ALLOWED_UPDATE_FIELDS) {
     if (body[field] !== undefined) {
       updates[field] = body[field];
     }
@@ -513,15 +599,23 @@ async function handleUpdateAsset(body: Record<string, unknown>) {
   }
 
   const db = serviceClient();
-  const { error } = await db.from("assets").update(updates).eq("id", assetId);
+  const { error } = await db
+    .from("assets")
+    .update(updates)
+    .eq("id", assetId);
 
   if (error) return err(error.message, 500);
   return json({ ok: true, asset_id: assetId });
 }
 
+// ── Route: move-asset ───────────────────────────────────────────────
+
 async function handleMoveAsset(body: Record<string, unknown>) {
   const assetId = requireString(body, "asset_id");
-  const newRelativePath = requireCanonicalRelativePath(body, "new_relative_path");
+  const newRelativePath = requireCanonicalRelativePath(
+    body,
+    "new_relative_path",
+  );
   const newFilename = optionalString(body, "filename");
 
   const db = serviceClient();
@@ -558,6 +652,8 @@ async function handleMoveAsset(body: Record<string, unknown>) {
   return json({ ok: true, asset_id: assetId });
 }
 
+// ── Route: scan-progress ────────────────────────────────────────────
+
 async function handleScanProgress(body: Record<string, unknown>) {
   const sessionId = requireString(body, "session_id");
   const status = requireString(body, "status");
@@ -566,7 +662,7 @@ async function handleScanProgress(body: Record<string, unknown>) {
 
   const db = serviceClient();
 
-  // Store scan progress in admin_config for UI consumption
+  // Store progress in admin_config for UI consumption
   const { error } = await db.from("admin_config").upsert({
     key: "SCAN_PROGRESS",
     value: {
@@ -588,19 +684,29 @@ async function handleScanProgress(body: Record<string, unknown>) {
       .select("value")
       .eq("key", "SCAN_REQUEST")
       .maybeSingle();
+
     if (reqRow) {
       const reqVal = reqRow.value as Record<string, unknown>;
       if (reqVal.request_id === sessionId) {
-        await db.from("admin_config").update({
-          value: { ...reqVal, status, completed_at: new Date().toISOString() },
-          updated_at: new Date().toISOString(),
-        }).eq("key", "SCAN_REQUEST");
+        await db
+          .from("admin_config")
+          .update({
+            value: {
+              ...reqVal,
+              status,
+              completed_at: new Date().toISOString(),
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("key", "SCAN_REQUEST");
       }
     }
   }
 
   return json({ ok: true });
 }
+
+// ── Route: ingestion-progress ───────────────────────────────────────
 
 async function handleIngestionProgress(body: Record<string, unknown>) {
   const processed = requireNumber(body, "processed");
@@ -621,9 +727,11 @@ async function handleIngestionProgress(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: queue-render ─────────────────────────────────────────────
+
 async function handleQueueRender(body: Record<string, unknown>) {
   const assetId = requireString(body, "asset_id");
-  const reason = optionalString(body, "reason") ?? "no_pdf_compat";
+  const _reason = optionalString(body, "reason") ?? "no_pdf_compat";
 
   const db = serviceClient();
   const { data, error } = await db
@@ -636,11 +744,12 @@ async function handleQueueRender(body: Record<string, unknown>) {
   return json({ ok: true, job_id: data.id });
 }
 
+// ── Route: claim-render ─────────────────────────────────────────────
+
 async function handleClaimRender(body: Record<string, unknown>) {
   const agentId = requireString(body, "agent_id");
   const db = serviceClient();
 
-  // Manual SKIP LOCKED via raw rpc isn't available, so use select + update pattern
   const { data: jobs } = await db
     .from("render_queue")
     .select("id, asset_id")
@@ -663,13 +772,17 @@ async function handleClaimRender(body: Record<string, unknown>) {
     .eq("id", job.id)
     .eq("status", "pending"); // optimistic lock
 
-  if (error) return json({ ok: true, job: null }); // someone else claimed it
+  if (error) {
+    return json({ ok: true, job: null }); // someone else claimed it
+  }
 
   return json({
     ok: true,
     job: { job_id: job.id, asset_id: job.asset_id },
   });
 }
+
+// ── Route: complete-render ──────────────────────────────────────────
 
 async function handleCompleteRender(body: Record<string, unknown>) {
   const jobId = requireString(body, "job_id");
@@ -706,13 +819,19 @@ async function handleCompleteRender(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-// agent-api trigger-scan is now a no-op fallback; scan requests go through admin_config SCAN_REQUEST
+// ── Route: trigger-scan (no-op fallback — use admin_config SCAN_REQUEST) ──
+
 async function handleTriggerScan(_body: Record<string, unknown>) {
-  return json({ ok: true, note: "Scan requests are now managed via admin_config SCAN_REQUEST" });
+  return json({
+    ok: true,
+    note: "Scan requests are now managed via admin_config SCAN_REQUEST",
+  });
 }
 
+// ── Route: check-scan-request ───────────────────────────────────────
+
 async function handleCheckScanRequest(
-  body: Record<string, unknown>,
+  _body: Record<string, unknown>,
   agentId: string,
 ) {
   const db = serviceClient();
@@ -728,16 +847,27 @@ async function handleCheckScanRequest(
   const scanRequested = metadata.scan_requested === true;
   const scanAbort = metadata.scan_abort === true;
 
-  // Clear the flags
   if (scanRequested || scanAbort) {
     await db
       .from("agent_registrations")
-      .update({ metadata: { ...metadata, scan_requested: false, scan_abort: false } })
+      .update({
+        metadata: {
+          ...metadata,
+          scan_requested: false,
+          scan_abort: false,
+        },
+      })
       .eq("id", agentId);
   }
 
-  return json({ ok: true, scan_requested: scanRequested, scan_abort: scanAbort });
+  return json({
+    ok: true,
+    scan_requested: scanRequested,
+    scan_abort: scanAbort,
+  });
 }
+
+// ── Route: claim ────────────────────────────────────────────────────
 
 async function handleClaim(body: Record<string, unknown>) {
   const agentId = requireString(body, "agent_id");
@@ -752,6 +882,8 @@ async function handleClaim(body: Record<string, unknown>) {
   if (error) return err(error.message, 500);
   return json({ ok: true, jobs: data });
 }
+
+// ── Route: complete ─────────────────────────────────────────────────
 
 async function handleComplete(body: Record<string, unknown>) {
   const jobId = requireString(body, "job_id");
@@ -772,8 +904,11 @@ async function handleComplete(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: reset-stale ──────────────────────────────────────────────
+
 async function handleResetStale(body: Record<string, unknown>) {
   const timeoutMinutes = optionalNumber(body, "timeout_minutes") ?? 30;
+
   const db = serviceClient();
   const { data, error } = await db.rpc("reset_stale_jobs", {
     p_timeout_minutes: timeoutMinutes,
@@ -783,13 +918,16 @@ async function handleResetStale(body: Record<string, unknown>) {
   return json({ ok: true, reset_count: data });
 }
 
+// ── Route: set-scan-roots ───────────────────────────────────────────
+
 async function handleSetScanRoots(
   body: Record<string, unknown>,
   agentId: string,
 ) {
   const scanRoots = body.scan_roots;
-  if (!Array.isArray(scanRoots))
+  if (!Array.isArray(scanRoots)) {
     return err("scan_roots must be an array");
+  }
 
   const db = serviceClient();
   const { data: agent } = await db
@@ -809,6 +947,8 @@ async function handleSetScanRoots(
   return json({ ok: true });
 }
 
+// ── Route: get-scan-roots ───────────────────────────────────────────
+
 async function handleGetScanRoots(agentId: string) {
   const db = serviceClient();
   const { data: agent } = await db
@@ -822,6 +962,8 @@ async function handleGetScanRoots(agentId: string) {
   const metadata = (agent.metadata as Record<string, unknown>) || {};
   return json({ ok: true, scan_roots: metadata.scan_roots || [] });
 }
+
+// ── Route: get-config ───────────────────────────────────────────────
 
 async function handleGetConfig(body: Record<string, unknown>) {
   const keys = body.keys;
@@ -842,6 +984,8 @@ async function handleGetConfig(body: Record<string, unknown>) {
   return json({ ok: true, config });
 }
 
+// ── Route: report-path-test ─────────────────────────────────────────
+
 async function handleReportPathTest(body: Record<string, unknown>) {
   const requestId = requireString(body, "request_id");
   const results = body.results as Record<string, unknown>;
@@ -849,22 +993,26 @@ async function handleReportPathTest(body: Record<string, unknown>) {
 
   const db = serviceClient();
 
-  // Write PATH_TEST_RESULT to admin_config
-  await db.from("admin_config").upsert({
-    key: "PATH_TEST_RESULT",
-    value: {
-      request_id: requestId,
-      tested_at: new Date().toISOString(),
-      ...results,
+  await db.from("admin_config").upsert(
+    {
+      key: "PATH_TEST_RESULT",
+      value: {
+        request_id: requestId,
+        tested_at: new Date().toISOString(),
+        ...results,
+      },
+      updated_at: new Date().toISOString(),
     },
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "key" });
+    { onConflict: "key" },
+  );
 
-  // Mark request as completed
-  await db.from("admin_config").update({
-    value: { request_id: requestId, status: "completed" },
-    updated_at: new Date().toISOString(),
-  }).eq("key", "PATH_TEST_REQUEST");
+  await db
+    .from("admin_config")
+    .update({
+      value: { request_id: requestId, status: "completed" },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("key", "PATH_TEST_REQUEST");
 
   return json({ ok: true });
 }
@@ -881,9 +1029,8 @@ serve(async (req: Request) => {
   }
 
   const url = new URL(req.url);
-  const path = url.pathname.split("/").filter(Boolean);
-  // Path format: /agent-api/route-name or just route from body
-  const route = path[path.length - 1] || "";
+  const pathSegments = url.pathname.split("/").filter(Boolean);
+  const route = pathSegments[pathSegments.length - 1] || "";
 
   let body: Record<string, unknown>;
   try {
@@ -892,7 +1039,6 @@ serve(async (req: Request) => {
     return err("Invalid JSON body");
   }
 
-  // The route can also be specified in the body as "action"
   const action = (body.action as string) || route;
 
   try {
