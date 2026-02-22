@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAdminApi } from "./useAdminApi";
 import type { ScanCounters } from "./useAgentStatus";
 
-export type ScanProgressStatus = "idle" | "running" | "completed" | "failed";
+export type ScanProgressStatus = "idle" | "running" | "completed" | "failed" | "stale";
 
 export interface ScanProgress {
   status: ScanProgressStatus;
@@ -11,6 +11,8 @@ export interface ScanProgress {
   current_path?: string;
   updated_at?: string;
 }
+
+const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 const POLL_IDLE_MS = 15_000;
 const POLL_ACTIVE_MS = 5_000;
@@ -36,13 +38,23 @@ export function useScanProgress(): ScanProgress {
         const raw = data?.config?.SCAN_PROGRESS?.value;
         if (raw && typeof raw === "object") {
           const sp = raw as Record<string, unknown>;
-          const status = (sp.status as ScanProgressStatus) || "idle";
+          let status = (sp.status as ScanProgressStatus) || "idle";
+          const updatedAt = sp.updated_at as string | undefined;
+
+          // Staleness detection: if "running" but no update in 2+ minutes
+          if (status === "running" && updatedAt) {
+            const elapsed = Date.now() - new Date(updatedAt).getTime();
+            if (elapsed > STALE_THRESHOLD_MS) {
+              status = "stale";
+            }
+          }
+
           setProgress({
             status,
             session_id: sp.session_id as string | undefined,
             counters: sp.counters as ScanCounters | undefined,
             current_path: sp.current_path as string | undefined,
-            updated_at: sp.updated_at as string | undefined,
+            updated_at: updatedAt,
           });
           prevStatusRef.current = status;
         } else {
