@@ -91,6 +91,17 @@ function optionalNumber(
   return v;
 }
 
+function requireCanonicalRelativePath(obj: Record<string, unknown>, key: string): string {
+  const raw = obj[key];
+  if (typeof raw !== "string" || raw.trim() === "")
+    throw new Error(`Missing required string field: ${key}`);
+  let p = raw.trim().replace(/\\/g, "/");
+  p = p.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (p === "") throw new Error(`${key} cannot be empty after normalization`);
+  if (p.includes("//")) throw new Error(`${key} contains empty path segments (//)`);
+  return p;
+}
+
 // ── Metadata derivation from path ───────────────────────────────────
 
 const WORKFLOW_FOLDER_MAP: Record<string, string> = {
@@ -318,7 +329,7 @@ async function handleIngest(body: Record<string, unknown>, agentId?: string) {
     }
   }
 
-  const relativePath = requireString(body, "relative_path");
+  const relativePath = requireCanonicalRelativePath(body, "relative_path");
   const filename = requireString(body, "filename");
   const fileType = requireString(body, "file_type");
   const fileSize = optionalNumber(body, "file_size") ?? 0;
@@ -497,7 +508,7 @@ async function handleUpdateAsset(body: Record<string, unknown>) {
 
 async function handleMoveAsset(body: Record<string, unknown>) {
   const assetId = requireString(body, "asset_id");
-  const newRelativePath = requireString(body, "new_relative_path");
+  const newRelativePath = requireCanonicalRelativePath(body, "new_relative_path");
   const newFilename = optionalString(body, "filename");
 
   const db = serviceClient();
