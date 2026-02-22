@@ -26,6 +26,7 @@ interface LibraryTopBarProps {
   activeFilterCount: number;
   totalCount: number;
   scanRunning: boolean;
+  scanStale?: boolean;
   scanPending: boolean;
   onSync: () => void;
   onStopScan: () => void;
@@ -53,6 +54,7 @@ export default function LibraryTopBar({
   activeFilterCount,
   totalCount,
   scanRunning,
+  scanStale,
   scanPending,
   onSync,
   onStopScan,
@@ -139,10 +141,10 @@ export default function LibraryTopBar({
         className="h-9 gap-1.5 relative"
         onClick={onSync}
         disabled={scanPending || scanRunning}
-        title={scanRunning ? "Scanning…" : scanPending ? "Waiting for agent…" : "Trigger scan"}
+        title={scanStale ? "Scan appears stuck — use Reset Scan State in Settings" : scanRunning ? "Scanning…" : scanPending ? "Waiting for agent…" : "Trigger scan"}
       >
-        <RefreshCw className={cn("h-4 w-4", scanRunning && "animate-spin")} />
-        {scanRunning ? "Scanning…" : "Sync"}
+        <RefreshCw className={cn("h-4 w-4", scanRunning && !scanStale && "animate-spin")} />
+        {scanStale ? "Scan stuck" : scanRunning ? "Scanning…" : "Sync"}
       </Button>
       {scanPending && !scanRunning && (
         <Badge variant="outline" className="gap-1 text-[10px] border-orange-500/50 text-orange-400 animate-pulse">

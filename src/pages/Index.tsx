@@ -30,7 +30,7 @@ export default function LibraryPage() {
   const agentStatus = useAgentStatus();
   const scanProgress = useScanProgress();
 
-  const scanRunning = scanProgress.status === "running";
+  const scanRunning = scanProgress.status === "running" || scanProgress.status === "stale";
 
   // Clear pending state when scan actually starts, completes, or fails
   useEffect(() => {
@@ -59,6 +59,14 @@ export default function LibraryPage() {
         scanProgress.current_path ? `Last path: ${scanProgress.current_path}` : "",
       ].filter(Boolean).join(". ");
       toast({ title: "Scan failed", description: desc, variant: "destructive" });
+    }
+
+    if (scanProgress.status === "stale" && prev !== "stale") {
+      toast({
+        title: "Scan appears stuck",
+        description: "No progress update for over 2 minutes. The agent may have crashed. Use 'Reset Scan State' in Settings to clear.",
+        variant: "destructive",
+      });
     }
   }, [scanProgress.status, scanProgress.counters, scanProgress.current_path, queryClient]);
 
@@ -180,6 +188,7 @@ export default function LibraryPage() {
         activeFilterCount={activeFilterCount}
         totalCount={count}
         scanRunning={scanRunning}
+        scanStale={scanProgress.status === "stale"}
         scanPending={scanTriggered && !scanRunning}
         onSync={handleSync}
         onStopScan={handleStopScan}
