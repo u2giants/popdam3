@@ -6,6 +6,14 @@ Key principle:
 - The DB must enforce correctness (especially timestamps and required fields) so the system fails loudly instead of silently drifting.
 
 ---
+## Timestamp Audit (Recommended)
+Store the timestamps the worker observed on disk during ingest:
+- `modified_at` and `file_created_at` (already required)
+Additionally recommended fields for audit/debug:
+- `last_stat_observed_at` (when the worker last checked timestamps)
+- `original_mtime_at_processing` / `original_birthtime_at_processing` (optional)
+If a timestamp mutation incident occurs, record it in a `worker_incidents` table or an `asset_processing_events` log.
+
 
 ## 1) Enums (Create First)
 - `file_type`: `psd`, `ai`
@@ -192,6 +200,7 @@ Create a single SQL function (or view) used everywhere:
 Uniqueness Guard: Add a UNIQUE constraint on the pair (share_id, relative_path). This is the ultimate defense against duplicate assets.
 
 Soft Delete: Add is_deleted boolean DEFAULT false. This allows the Admin to "hide" unwanted folders from the UI without wiping their metadata history.
+
 
 Audit Logs: Add last_scanned_at to the assets table to track which files are still "alive" on the disk during a scan.
 
