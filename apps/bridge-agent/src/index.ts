@@ -16,7 +16,7 @@ import { config } from "./config.js";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { stat, readdir } from "node:fs/promises";
-import { validateScanRoots, scanFiles, type FileCandidate } from "./scanner.js";
+import { validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail } from "./thumbnailer.js";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader.js";
@@ -223,7 +223,21 @@ async function runScan(providedSessionId?: string) {
     // Collect files and process in batches
     let batch: FileCandidate[] = [];
 
-    for await (const file of scanFiles(counters, effectiveRoots, () => abortRequested)) {
+    // Throttled progress reporter for directory walking
+    let lastProgressAt = 0;
+    const PROGRESS_INTERVAL_MS = 2000;
+    const callbacks: ScanCallbacks = {
+      shouldAbort: () => abortRequested,
+      onDir: (dirPath) => {
+        const now = Date.now();
+        if (now - lastProgressAt >= PROGRESS_INTERVAL_MS) {
+          lastProgressAt = now;
+          api.scanProgress(sessionId, "running", counters, dirPath).catch(() => {});
+        }
+      },
+    };
+
+    for await (const file of scanFiles(counters, effectiveRoots, callbacks)) {
       if (abortRequested) {
         logger.info("Scan aborted by cloud request");
         await api.scanProgress(sessionId, "failed", counters, "Aborted by user");

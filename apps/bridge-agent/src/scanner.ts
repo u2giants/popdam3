@@ -72,27 +72,33 @@ export async function validateScanRoots(counters: Counters, scanRoots?: string[]
  * Recursively scan directories and yield file candidates.
  * Per WORKER_LOGIC §4.2: do NOT follow symlinks.
  */
+export interface ScanCallbacks {
+  shouldAbort?: () => boolean;
+  onDir?: (dirPath: string) => void;
+}
+
 export async function* scanFiles(
   counters: Counters,
   scanRoots?: string[],
-  shouldAbort?: () => boolean,
+  callbacks?: ScanCallbacks,
 ): AsyncGenerator<FileCandidate> {
   const roots = scanRoots ?? config.scanRoots;
   for (const root of roots) {
-    if (shouldAbort?.()) return;
-    yield* scanDirectory(root, counters, shouldAbort);
+    if (callbacks?.shouldAbort?.()) return;
+    yield* scanDirectory(root, counters, callbacks);
   }
 }
 
 async function* scanDirectory(
   dirPath: string,
   counters: Counters,
-  shouldAbort?: () => boolean,
+  callbacks?: ScanCallbacks,
 ): AsyncGenerator<FileCandidate> {
-  if (shouldAbort?.()) return;
+  if (callbacks?.shouldAbort?.()) return;
   let entries;
   try {
     entries = await readdir(dirPath, { withFileTypes: true });
+    callbacks?.onDir?.(dirPath);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code === "EACCES") {
@@ -105,7 +111,7 @@ async function* scanDirectory(
   }
 
   for (const entry of entries) {
-    if (shouldAbort?.()) return;
+    if (callbacks?.shouldAbort?.()) return;
 
     const fullPath = join(dirPath, entry.name);
 
@@ -119,7 +125,7 @@ async function* scanDirectory(
     }
 
     if (entry.isDirectory()) {
-      yield* scanDirectory(fullPath, counters, shouldAbort);
+      yield* scanDirectory(fullPath, counters, callbacks);
       continue;
     }
 
