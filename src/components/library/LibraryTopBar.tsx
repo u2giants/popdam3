@@ -135,22 +135,26 @@ export default function LibraryTopBar({
       </Button>
       <Button
         variant="ghost"
-        size="icon"
-        className="h-9 w-9 relative"
+        size="sm"
+        className="h-9 gap-1.5 relative"
         onClick={onSync}
+        disabled={scanPending || scanRunning}
         title={scanRunning ? "Scanning…" : scanPending ? "Waiting for agent…" : "Trigger scan"}
       >
         <RefreshCw className={cn("h-4 w-4", scanRunning && "animate-spin")} />
-        {scanPending && !scanRunning && (
-          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-        )}
+        {scanRunning ? "Scanning…" : "Sync"}
       </Button>
-      {scanRunning && (
-        <span className="text-xs text-muted-foreground">Scanning…</span>
+      {scanPending && !scanRunning && (
+        <Badge variant="outline" className="gap-1 text-[10px] border-orange-500/50 text-orange-400 animate-pulse">
+          <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+          Sync queued
+        </Badge>
       )}
-      <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={onStopScan} title="Stop scan">
-        <Square className="h-4 w-4" />
-      </Button>
+      {scanRunning && (
+        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={onStopScan} title="Stop scan">
+          <Square className="h-4 w-4" />
+        </Button>
+      )}
 
       {/* Count */}
       <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
