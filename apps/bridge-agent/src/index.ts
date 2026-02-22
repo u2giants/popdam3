@@ -59,8 +59,6 @@ function resetCounters() {
 
 let cloudScanRoots: string[] | null = null; // null = use env fallback
 let cloudBatchSize: number | null = null;
-let cloudIdleInterval: number | null = null;
-let cloudActiveInterval: number | null = null;
 let cloudConcurrency: number | null = null;
 
 // Auto-scan state
@@ -149,10 +147,6 @@ function applyCloudConfig(cfg: CloudConfig) {
     }
     if (cfg.scanning.batch_size) {
       cloudBatchSize = cfg.scanning.batch_size;
-    }
-    if (cfg.scanning.adaptive_polling) {
-      cloudIdleInterval = cfg.scanning.adaptive_polling.idle_seconds * 1000;
-      cloudActiveInterval = cfg.scanning.adaptive_polling.active_seconds * 1000;
     }
   }
 
@@ -402,39 +396,9 @@ async function handlePathTest(cmd: { request_id: string; container_mount_root: s
   logger.info("Path test completed", { mountRootValid, scanRootResults });
 }
 
-// ── Polling loop (outbound only per §8) ─────────────────────────
-// Note: scan commands are now also delivered via heartbeat config sync.
-// This loop remains as a secondary check mechanism.
-
-async function startPolling() {
-  while (true) {
-    const idleMs = cloudIdleInterval ?? 30_000;
-    const activeMs = cloudActiveInterval ?? 5_000;
-    const interval = isScanning ? activeMs : idleMs;
-
-    try {
-      const result = await api.checkScanRequest(agentId);
-
-      if (result.scan_abort && isScanning) {
-        logger.info("Abort requested by cloud");
-        abortRequested = true;
-      }
-
-      if (!isScanning && result.scan_requested) {
-        logger.info("Scan requested by cloud, starting scan");
-        runScan().catch((e) => logger.error("Scan error", { error: (e as Error).message }));
-      }
-    } catch (e) {
-      logger.error("Poll failed", { error: (e as Error).message });
-    }
-
-    await sleep(interval);
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
+// Legacy polling loop removed.
+// All scan commands (force_scan, abort_scan, test_paths) are now
+// delivered exclusively via heartbeat config sync (see startHeartbeat).
 
 // ── Bootstrap ───────────────────────────────────────────────────
 
@@ -458,9 +422,8 @@ async function main() {
   // 2. Start heartbeat (independent timer)
   startHeartbeat();
 
-  // 3. Start polling loop
-  logger.info("Entering polling loop (outbound HTTPS only)");
-  await startPolling();
+  // 3. Ready — all scan/abort commands come via heartbeat
+  logger.info("Agent ready (all commands via heartbeat)");
 }
 
 main().catch((e) => {
