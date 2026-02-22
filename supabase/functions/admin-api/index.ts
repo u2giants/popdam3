@@ -127,7 +127,7 @@ async function handleSetConfig(
   const upserts = Object.entries(entries as Record<string, unknown>).map(
     ([key, value]) => ({
       key,
-      value: typeof value === "string" ? JSON.parse(`"${value}"`) : value,
+      value: value,
       updated_at: now,
       updated_by: userId,
     }),
