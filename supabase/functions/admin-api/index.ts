@@ -1,11 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ── CORS ────────────────────────────────────────────────────────────
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, " +
+    "x-supabase-client-platform, x-supabase-client-platform-version, " +
+    "x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// ── Helpers ─────────────────────────────────────────────────────────
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -27,12 +33,16 @@ function serviceClient() {
 
 function requireString(obj: Record<string, unknown>, key: string): string {
   const v = obj[key];
-  if (typeof v !== "string" || v.trim() === "")
+  if (typeof v !== "string" || v.trim() === "") {
     throw new Error(`Missing required string field: ${key}`);
+  }
   return v.trim();
 }
 
-function optionalString(obj: Record<string, unknown>, key: string): string | null {
+function optionalString(
+  obj: Record<string, unknown>,
+  key: string,
+): string | null {
   const v = obj[key];
   if (v === undefined || v === null) return null;
   if (typeof v !== "string") throw new Error(`Field ${key} must be a string`);
@@ -41,7 +51,9 @@ function optionalString(obj: Record<string, unknown>, key: string): string | nul
 
 // ── Auth: JWT validation + admin role check ─────────────────────────
 
-async function authenticateAdmin(req: Request): Promise<{ userId: string } | Response> {
+async function authenticateAdmin(
+  req: Request,
+): Promise<{ userId: string } | Response> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return err("Missing or invalid Authorization header", 401);
@@ -78,7 +90,7 @@ async function authenticateAdmin(req: Request): Promise<{ userId: string } | Res
   return { userId };
 }
 
-// ── Route handlers ──────────────────────────────────────────────────
+// ── Route: get-config ───────────────────────────────────────────────
 
 async function handleGetConfig(body: Record<string, unknown>) {
   const keys = body.keys;
@@ -99,7 +111,12 @@ async function handleGetConfig(body: Record<string, unknown>) {
   return json({ ok: true, config });
 }
 
-async function handleSetConfig(body: Record<string, unknown>, userId: string) {
+// ── Route: set-config ───────────────────────────────────────────────
+
+async function handleSetConfig(
+  body: Record<string, unknown>,
+  userId: string,
+) {
   const entries = body.entries;
   if (!entries || typeof entries !== "object" || Array.isArray(entries)) {
     return err("entries must be an object of { key: value } pairs");
@@ -116,7 +133,6 @@ async function handleSetConfig(body: Record<string, unknown>, userId: string) {
     }),
   );
 
-  // Upsert one at a time to handle jsonb correctly
   for (const row of upserts) {
     const { error } = await db.from("admin_config").upsert(row);
     if (error) return err(`Failed to set ${row.key}: ${error.message}`, 500);
@@ -125,7 +141,12 @@ async function handleSetConfig(body: Record<string, unknown>, userId: string) {
   return json({ ok: true });
 }
 
-async function handleInviteUser(body: Record<string, unknown>, userId: string) {
+// ── Route: invite-user ──────────────────────────────────────────────
+
+async function handleInviteUser(
+  body: Record<string, unknown>,
+  userId: string,
+) {
   const email = requireString(body, "email").toLowerCase();
   const roleStr = optionalString(body, "role") ?? "user";
 
@@ -133,14 +154,12 @@ async function handleInviteUser(body: Record<string, unknown>, userId: string) {
     return err("role must be 'admin' or 'user'");
   }
 
-  // Basic email validation
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return err("Invalid email format");
   }
 
   const db = serviceClient();
 
-  // Check if already invited
   const { data: existing } = await db
     .from("invitations")
     .select("id, accepted_at")
@@ -162,7 +181,7 @@ async function handleInviteUser(body: Record<string, unknown>, userId: string) {
 
   if (error) return err(error.message, 500);
 
-  // Trigger invite email via send-invite-email function (fire-and-forget)
+  // Fire-and-forget invite email
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -176,11 +195,12 @@ async function handleInviteUser(body: Record<string, unknown>, userId: string) {
     });
   } catch (e) {
     console.error("Failed to trigger invite email:", e);
-    // Don't fail the invitation creation if email fails
   }
 
   return json({ ok: true, invitation: data });
 }
+
+// ── Route: list-invites ─────────────────────────────────────────────
 
 async function handleListInvites() {
   const db = serviceClient();
@@ -193,6 +213,8 @@ async function handleListInvites() {
   return json({ ok: true, invitations: data });
 }
 
+// ── Route: revoke-invite ────────────────────────────────────────────
+
 async function handleRevokeInvite(body: Record<string, unknown>) {
   const invitationId = requireString(body, "invitation_id");
   const db = serviceClient();
@@ -204,7 +226,9 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
     .single();
 
   if (!invite) return err("Invitation not found", 404);
-  if (invite.accepted_at) return err("Cannot revoke an already accepted invitation");
+  if (invite.accepted_at) {
+    return err("Cannot revoke an already accepted invitation");
+  }
 
   const { error } = await db
     .from("invitations")
@@ -215,7 +239,12 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-async function handleGenerateAgentKey(body: Record<string, unknown>, userId: string) {
+// ── Route: generate-agent-key ───────────────────────────────────────
+
+async function handleGenerateAgentKey(
+  body: Record<string, unknown>,
+  userId: string,
+) {
   const agentName = requireString(body, "agent_name");
   const agentType = optionalString(body, "agent_type") ?? "bridge";
 
@@ -232,7 +261,10 @@ async function handleGenerateAgentKey(body: Record<string, unknown>, userId: str
 
   // Hash for storage
   const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawKey));
+  const hashBuffer = await crypto.subtle.digest(
+    "SHA-256",
+    encoder.encode(rawKey),
+  );
   const hashHex = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -250,7 +282,6 @@ async function handleGenerateAgentKey(body: Record<string, unknown>, userId: str
 
   if (error) return err(error.message, 500);
 
-  // Return the raw key ONCE — it cannot be retrieved again
   return json({
     ok: true,
     agent_id: data.id,
@@ -258,6 +289,8 @@ async function handleGenerateAgentKey(body: Record<string, unknown>, userId: str
     warning: "Store this key securely. It cannot be retrieved again.",
   });
 }
+
+// ── Route: list-agents ──────────────────────────────────────────────
 
 async function handleListAgents() {
   const db = serviceClient();
@@ -269,20 +302,28 @@ async function handleListAgents() {
   if (error) return err(error.message, 500);
 
   const now = Date.now();
+  const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
   const agents = (data || []).map((a) => {
-    const lastHb = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
-    const offlineMs = 2 * 60 * 1000;
+    const lastHb = a.last_heartbeat
+      ? new Date(a.last_heartbeat).getTime()
+      : 0;
     const metadata = (a.metadata as Record<string, unknown>) || {};
     return {
       id: a.id,
       name: a.agent_name,
       type: a.agent_type,
-      status: lastHb > 0 && now - lastHb < offlineMs ? "online" : "offline",
+      status:
+        lastHb > 0 && now - lastHb < OFFLINE_THRESHOLD_MS
+          ? "online"
+          : "offline",
       last_heartbeat: a.last_heartbeat,
       last_counters: metadata.last_counters || null,
       last_error: metadata.last_error || null,
       heartbeat_history: metadata.heartbeat_history || [],
-      key_preview: a.agent_key_hash ? `${a.agent_key_hash.substring(0, 8)}...` : null,
+      key_preview: a.agent_key_hash
+        ? `${a.agent_key_hash.substring(0, 8)}...`
+        : null,
       created_at: a.created_at,
       force_stop: metadata.force_stop === true,
       scan_abort: metadata.scan_abort === true,
@@ -291,6 +332,8 @@ async function handleListAgents() {
 
   return json({ ok: true, agents });
 }
+
+// ── Route: revoke-agent ─────────────────────────────────────────────
 
 async function handleRevokeAgent(body: Record<string, unknown>) {
   const agentId = requireString(body, "agent_id");
@@ -313,6 +356,8 @@ async function handleRevokeAgent(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: doctor ───────────────────────────────────────────────────
+
 async function handleDoctor() {
   const db = serviceClient();
 
@@ -329,18 +374,26 @@ async function handleDoctor() {
   // 2) Agent statuses
   const { data: agents } = await db
     .from("agent_registrations")
-    .select("id, agent_name, agent_type, last_heartbeat, metadata, created_at");
+    .select(
+      "id, agent_name, agent_type, last_heartbeat, metadata, created_at",
+    );
 
   const now = Date.now();
+  const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
   const agentStatuses = (agents || []).map((a) => {
-    const lastHb = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
-    const offlineThresholdMs = 2 * 60 * 1000; // 2 minutes
+    const lastHb = a.last_heartbeat
+      ? new Date(a.last_heartbeat).getTime()
+      : 0;
     const metadata = (a.metadata as Record<string, unknown>) || {};
     return {
       id: a.id,
       name: a.agent_name,
       type: a.agent_type,
-      status: lastHb > 0 && now - lastHb < offlineThresholdMs ? "online" : "offline",
+      status:
+        lastHb > 0 && now - lastHb < OFFLINE_THRESHOLD_MS
+          ? "online"
+          : "offline",
       last_heartbeat: a.last_heartbeat,
       last_counters: metadata.last_counters || null,
       last_error: metadata.last_error || null,
@@ -352,7 +405,7 @@ async function handleDoctor() {
   // 3) Scan progress
   const scanProgress = config.SCAN_PROGRESS || null;
 
-  // 4) Recent errors from processing queue
+  // 4) Recent errors
   const { data: recentErrors } = await db
     .from("processing_queue")
     .select("id, asset_id, job_type, error_message, completed_at")
@@ -407,9 +460,12 @@ async function handleDoctor() {
   });
 }
 
-// ── Trigger Scan ────────────────────────────────────────────────────
+// ── Route: trigger-scan ─────────────────────────────────────────────
 
-async function handleTriggerScan(body: Record<string, unknown>, userId: string) {
+async function handleTriggerScan(
+  body: Record<string, unknown>,
+  userId: string,
+) {
   const targetAgentId = optionalString(body, "agent_id");
   const db = serviceClient();
   const requestId = crypto.randomUUID();
@@ -431,33 +487,54 @@ async function handleTriggerScan(body: Record<string, unknown>, userId: string) 
   return json({ ok: true, request_id: requestId });
 }
 
-// ── Stop Scan ──────────────────────────────────────────────────────
+// ── Route: stop-scan ────────────────────────────────────────────────
 
 async function handleStopScan(_body: Record<string, unknown>) {
   const db = serviceClient();
   const { data: agents } = await db
     .from("agent_registrations")
     .select("id, metadata");
+
   for (const a of agents || []) {
     const metadata = (a.metadata as Record<string, unknown>) || {};
     await db
       .from("agent_registrations")
-      .update({ metadata: { ...metadata, scan_requested: false, scan_abort: true, force_stop: true } })
+      .update({
+        metadata: {
+          ...metadata,
+          scan_requested: false,
+          scan_abort: true,
+          force_stop: true,
+        },
+      })
       .eq("id", a.id);
   }
+
   return json({ ok: true });
 }
 
+// ── Route: resume-scanning ──────────────────────────────────────────
+
 async function handleResumeScanning() {
   const db = serviceClient();
-  const { data: agents } = await db.from("agent_registrations").select("id, metadata");
+  const { data: agents } = await db
+    .from("agent_registrations")
+    .select("id, metadata");
+
   for (const a of agents || []) {
     const metadata = (a.metadata as Record<string, unknown>) || {};
     await db
       .from("agent_registrations")
-      .update({ metadata: { ...metadata, scan_abort: false, force_stop: false } })
+      .update({
+        metadata: {
+          ...metadata,
+          scan_abort: false,
+          force_stop: false,
+        },
+      })
       .eq("id", a.id);
   }
+
   return json({ ok: true });
 }
 
@@ -472,7 +549,6 @@ serve(async (req: Request) => {
     return err("Method not allowed", 405);
   }
 
-  // Authenticate admin
   const authResult = await authenticateAdmin(req);
   if (authResult instanceof Response) return authResult;
   const { userId } = authResult;
@@ -485,8 +561,8 @@ serve(async (req: Request) => {
   }
 
   const url = new URL(req.url);
-  const path = url.pathname.split("/").filter(Boolean);
-  const route = path[path.length - 1] || "";
+  const pathSegments = url.pathname.split("/").filter(Boolean);
+  const route = pathSegments[pathSegments.length - 1] || "";
   const action = (body.action as string) || route;
 
   try {
@@ -520,6 +596,9 @@ serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("admin-api error:", e);
-    return err(e instanceof Error ? e.message : "Internal server error", 500);
+    return err(
+      e instanceof Error ? e.message : "Internal server error",
+      500,
+    );
   }
 });
