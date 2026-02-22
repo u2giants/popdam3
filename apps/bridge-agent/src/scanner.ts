@@ -72,17 +72,24 @@ export async function validateScanRoots(counters: Counters, scanRoots?: string[]
  * Recursively scan directories and yield file candidates.
  * Per WORKER_LOGIC §4.2: do NOT follow symlinks.
  */
-export async function* scanFiles(counters: Counters, scanRoots?: string[]): AsyncGenerator<FileCandidate> {
+export async function* scanFiles(
+  counters: Counters,
+  scanRoots?: string[],
+  shouldAbort?: () => boolean,
+): AsyncGenerator<FileCandidate> {
   const roots = scanRoots ?? config.scanRoots;
   for (const root of roots) {
-    yield* scanDirectory(root, counters);
+    if (shouldAbort?.()) return;
+    yield* scanDirectory(root, counters, shouldAbort);
   }
 }
 
 async function* scanDirectory(
   dirPath: string,
   counters: Counters,
+  shouldAbort?: () => boolean,
 ): AsyncGenerator<FileCandidate> {
+  if (shouldAbort?.()) return;
   let entries;
   try {
     entries = await readdir(dirPath, { withFileTypes: true });
@@ -98,6 +105,8 @@ async function* scanDirectory(
   }
 
   for (const entry of entries) {
+    if (shouldAbort?.()) return;
+
     const fullPath = join(dirPath, entry.name);
 
     // §4.2: Do NOT follow symlinks
@@ -110,7 +119,7 @@ async function* scanDirectory(
     }
 
     if (entry.isDirectory()) {
-      yield* scanDirectory(fullPath, counters);
+      yield* scanDirectory(fullPath, counters, shouldAbort);
       continue;
     }
 

@@ -223,7 +223,7 @@ async function runScan(providedSessionId?: string) {
     // Collect files and process in batches
     let batch: FileCandidate[] = [];
 
-    for await (const file of scanFiles(counters, effectiveRoots)) {
+    for await (const file of scanFiles(counters, effectiveRoots, () => abortRequested)) {
       if (abortRequested) {
         logger.info("Scan aborted by cloud request");
         await api.scanProgress(sessionId, "failed", counters, "Aborted by user");
@@ -241,6 +241,13 @@ async function runScan(providedSessionId?: string) {
     // Process remaining
     if (batch.length > 0 && !abortRequested) {
       await processBatch(batch, sessionId);
+    }
+
+    // Check abort after scan loop completes
+    if (abortRequested) {
+      logger.info("Scan aborted by cloud request (post-loop)");
+      await api.scanProgress(sessionId, "failed", counters, "Aborted by user");
+      return;
     }
 
     // §4.3: "0 files checked" is an error
