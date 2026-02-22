@@ -377,7 +377,7 @@ async function handleHeartbeat(
     ok: true,
     config: {
       do_spaces: {
-        bucket: spacesConfig.bucket || "popdam",
+        bucket: spacesConfig.bucket_name || spacesConfig.bucket || "popdam",
         region: spacesConfig.region || "nyc3",
         endpoint:
           spacesConfig.endpoint || "https://nyc3.digitaloceanspaces.com",
