@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench, Play, StopCircle, Globe } from "lucide-react";
+import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench, Play, StopCircle, Globe, RotateCcw } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
@@ -119,6 +119,16 @@ function AgentStatusSection() {
     onError: (e) => toast.error(e.message),
   });
 
+  const resetScanMutation = useMutation({
+    mutationFn: () => call("reset-scan-state"),
+    onSuccess: () => {
+      toast.success("Scan state reset — system returned to idle");
+      queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -135,6 +145,9 @@ function AgentStatusSection() {
               <StopCircle className="h-3.5 w-3.5" /> Stop All
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => { if (confirm("Reset scan state to idle? This clears any stuck scan.")) resetScanMutation.mutate(); }} disabled={resetScanMutation.isPending} className="gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Reset Scan State
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
           </Button>
