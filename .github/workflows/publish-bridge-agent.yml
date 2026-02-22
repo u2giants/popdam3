@@ -15,19 +15,29 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate package-lock.json if missing
+      - name: Ensure package-lock.json exists
         working-directory: apps/bridge-agent
         run: |
           if [ ! -f package-lock.json ]; then
             npm install --package-lock-only
+            echo "LOCKFILE_GENERATED=true" >> "$GITHUB_ENV"
             echo "Generated package-lock.json"
           fi
+
+      - name: Commit package-lock.json if generated
+        if: env.LOCKFILE_GENERATED == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/bridge-agent/package-lock.json
+          git commit -m "chore(bridge-agent): generate package-lock.json [skip ci]"
+          git push
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
