@@ -409,36 +409,26 @@ async function handleDoctor() {
 
 // ── Trigger Scan ────────────────────────────────────────────────────
 
-async function handleTriggerScan(body: Record<string, unknown>) {
-  const agentId = optionalString(body, "agent_id");
+async function handleTriggerScan(body: Record<string, unknown>, userId: string) {
+  const targetAgentId = optionalString(body, "agent_id");
   const db = serviceClient();
+  const requestId = crypto.randomUUID();
 
-  if (agentId) {
-    const { data: agent } = await db
-      .from("agent_registrations")
-      .select("metadata")
-      .eq("id", agentId)
-      .single();
-    const metadata = (agent?.metadata as Record<string, unknown>) || {};
-    await db
-      .from("agent_registrations")
-      .update({ metadata: { ...metadata, scan_requested: true } })
-      .eq("id", agentId);
-  } else {
-    // Set scan_requested on all agents
-    const { data: agents } = await db
-      .from("agent_registrations")
-      .select("id, metadata");
-    for (const a of agents || []) {
-      const metadata = (a.metadata as Record<string, unknown>) || {};
-      await db
-        .from("agent_registrations")
-        .update({ metadata: { ...metadata, scan_requested: true } })
-        .eq("id", a.id);
-    }
-  }
+  const { error } = await db.from("admin_config").upsert({
+    key: "SCAN_REQUEST",
+    value: {
+      request_id: requestId,
+      status: "pending",
+      requested_at: new Date().toISOString(),
+      requested_by: userId,
+      target_agent_id: targetAgentId,
+    },
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  });
 
-  return json({ ok: true });
+  if (error) return err(error.message, 500);
+  return json({ ok: true, request_id: requestId });
 }
 
 // ── Stop Scan ──────────────────────────────────────────────────────
@@ -520,7 +510,7 @@ serve(async (req: Request) => {
       case "doctor":
         return await handleDoctor();
       case "trigger-scan":
-        return await handleTriggerScan(body);
+        return await handleTriggerScan(body, userId);
       case "stop-scan":
         return await handleStopScan(body);
       case "resume-scanning":

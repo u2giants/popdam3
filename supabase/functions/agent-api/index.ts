@@ -216,7 +216,7 @@ async function handleHeartbeat(
   const { data: configRows } = await db
     .from("admin_config")
     .select("key, value")
-    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH", "PATH_TEST_REQUEST", "AUTO_SCAN_CONFIG"]);
+    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH", "PATH_TEST_REQUEST", "AUTO_SCAN_CONFIG", "SCAN_REQUEST"]);
 
   const configMap: Record<string, unknown> = {};
   for (const row of configRows || []) {
@@ -261,29 +261,41 @@ async function handleHeartbeat(
     }
   }
 
-  // Commands from agent metadata
-  const scanRequested = metadata.scan_requested === true;
+  // Commands from agent metadata (abort/stop only)
   const scanAbort = metadata.scan_abort === true;
   const forceStop = metadata.force_stop === true;
 
-  // Path test request
-  const pathTestRequest = configMap.PATH_TEST_REQUEST as Record<string, unknown> | undefined;
-  let testPaths: { request_id: string; container_mount_root: string; scan_roots: string[] } | null = null;
-  if (pathTestRequest && pathTestRequest.status === "pending") {
-    testPaths = {
-      request_id: pathTestRequest.request_id as string,
-      container_mount_root: (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
-      scan_roots: scanRoots,
+  // Durable scan request from admin_config
+  const scanRequest = configMap.SCAN_REQUEST as Record<string, unknown> | undefined;
+  let forceScan = false;
+  let scanSessionId: string | null = null;
+
+  if (
+    scanRequest &&
+    scanRequest.status === "pending" &&
+    (!scanRequest.target_agent_id || scanRequest.target_agent_id === agentId) &&
+    !forceStop
+  ) {
+    // Atomically claim the request
+    const claimedValue = {
+      ...scanRequest,
+      status: "claimed",
+      claimed_by: agentId,
+      claimed_at: new Date().toISOString(),
     };
+    const { error: claimErr } = await db.from("admin_config").update({
+      value: claimedValue,
+      updated_at: new Date().toISOString(),
+    }).eq("key", "SCAN_REQUEST");
+
+    if (!claimErr) {
+      forceScan = true;
+      scanSessionId = scanRequest.request_id as string;
+    }
   }
 
-  // Only clear scan_requested after reading (abort stays until admin clears it)
-  if (scanRequested) {
-    await db
-      .from("agent_registrations")
-      .update({ metadata: { ...newMetadata, scan_requested: false } })
-      .eq("id", agentId);
-  }
+  // Path test request
+  const pathTestRequest = configMap.PATH_TEST_REQUEST as Record<string, unknown> | undefined;
 
   return json({
     ok: true,
@@ -307,7 +319,8 @@ async function handleHeartbeat(
       auto_scan: (configMap.AUTO_SCAN_CONFIG as { enabled: boolean; interval_hours: number }) || { enabled: false, interval_hours: 6 },
     },
     commands: {
-      force_scan: scanRequested && !forceStop,
+      force_scan: forceScan,
+      scan_session_id: scanSessionId,
       abort_scan: scanAbort || forceStop,
       test_paths: testPaths,
     },
@@ -567,6 +580,25 @@ async function handleScanProgress(body: Record<string, unknown>) {
   });
 
   if (error) return err(error.message, 500);
+
+  // When scan completes or fails, also update SCAN_REQUEST if session matches
+  if (status === "completed" || status === "failed") {
+    const { data: reqRow } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", "SCAN_REQUEST")
+      .maybeSingle();
+    if (reqRow) {
+      const reqVal = reqRow.value as Record<string, unknown>;
+      if (reqVal.request_id === sessionId) {
+        await db.from("admin_config").update({
+          value: { ...reqVal, status, completed_at: new Date().toISOString() },
+          updated_at: new Date().toISOString(),
+        }).eq("key", "SCAN_REQUEST");
+      }
+    }
+  }
+
   return json({ ok: true });
 }
 
@@ -674,44 +706,9 @@ async function handleCompleteRender(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-async function handleTriggerScan(body: Record<string, unknown>) {
-  const agentId = optionalString(body, "agent_id");
-  const db = serviceClient();
-
-  // If agent_id specified, set scan_requested on that agent
-  if (agentId) {
-    const { data: agent } = await db
-      .from("agent_registrations")
-      .select("metadata")
-      .eq("id", agentId)
-      .single();
-
-    if (!agent) return err("Agent not found", 404);
-
-    const metadata = (agent.metadata as Record<string, unknown>) || {};
-    await db
-      .from("agent_registrations")
-      .update({ metadata: { ...metadata, scan_requested: true } })
-      .eq("id", agentId);
-  } else {
-    // Set on all bridge agents
-    const { data: agents } = await db
-      .from("agent_registrations")
-      .select("id, metadata")
-      .eq("agent_type", "bridge");
-
-    if (agents) {
-      for (const a of agents) {
-        const metadata = (a.metadata as Record<string, unknown>) || {};
-        await db
-          .from("agent_registrations")
-          .update({ metadata: { ...metadata, scan_requested: true } })
-          .eq("id", a.id);
-      }
-    }
-  }
-
-  return json({ ok: true });
+// agent-api trigger-scan is now a no-op fallback; scan requests go through admin_config SCAN_REQUEST
+async function handleTriggerScan(_body: Record<string, unknown>) {
+  return json({ ok: true, note: "Scan requests are now managed via admin_config SCAN_REQUEST" });
 }
 
 async function handleCheckScanRequest(

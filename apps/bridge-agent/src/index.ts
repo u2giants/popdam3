@@ -101,8 +101,9 @@ function startHeartbeat() {
           abortRequested = true;
         }
         if (!isScanning && response.commands.force_scan) {
-          logger.info("Scan requested via heartbeat config sync");
-          runScan().catch((e) => logger.error("Scan error", { error: (e as Error).message }));
+          const sessionId = response.commands.scan_session_id || undefined;
+          logger.info("Scan requested via heartbeat config sync", { sessionId });
+          runScan(sessionId).catch((e) => logger.error("Scan error", { error: (e as Error).message }));
         }
         // Handle path test command
         if (response.commands.test_paths) {
@@ -195,7 +196,7 @@ async function processThumbnail(
 
 // ── Scan + Ingest pipeline ──────────────────────────────────────
 
-async function runScan() {
+async function runScan(providedSessionId?: string) {
   if (isScanning) {
     logger.warn("Scan already in progress, skipping");
     return;
@@ -204,7 +205,7 @@ async function runScan() {
   isScanning = true;
   abortRequested = false;
   resetCounters();
-  const sessionId = randomUUID();
+  const sessionId = providedSessionId || randomUUID();
   const effectiveRoots = getEffectiveScanRoots();
   logger.info("Scan starting", { sessionId, roots: effectiveRoots });
 
