@@ -118,12 +118,9 @@ export function useAgentStatus(): AgentStatusInfo {
       const bridgeStatus: AgentOnlineStatus | "none" =
         bridgeAgents.length === 0 ? "none" : bridgeAgents.some((a) => a.isOnline) ? "online" : "offline";
 
-      // Scan is running if any online bridge agent has scan_requested and not scan_abort,
-      // AND its counters show activity (files_checked > 0 or candidates_found > 0)
-      const scanRunning = bridgeAgents.some((a) =>
-        a.isOnline && a.scanRequested && !a.scanAbort &&
-        a.lastCounters && (a.lastCounters.files_checked > 0 || a.lastCounters.candidates_found > 0)
-      );
+      // scanRunning is now driven by useScanProgress, not agent metadata.
+      // Kept as false here for backward compat; consumers should use useScanProgress.
+      const scanRunning = false;
 
       const online = agents.filter((a) => a.isOnline).length;
 
