@@ -48,35 +48,55 @@ function TaxonomyApiSection() {
   const { data: taxonomyData, isLoading } = useQuery({
     queryKey: ["taxonomy-data"],
     queryFn: async () => {
-      // Fetch all rows — characters can exceed the default 1000-row limit
-      const [licRes, propRes, charRes] = await Promise.all([
-        supabase.from("licensors").select("id, name, external_id").order("name"),
-        supabase.from("properties").select("id, name, external_id, licensor_id").order("name").limit(5000),
-        supabase.from("characters").select("id, name, property_id").order("name").limit(10000),
+      // Helper to fetch ALL rows with pagination (Supabase caps at 1000 per request)
+      async function fetchAll(table: string, select: string, orderCol: string) {
+        const PAGE = 1000;
+        const all: Record<string, unknown>[] = [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from(table as "licensors")
+            .select(select)
+            .order(orderCol)
+            .range(from, from + PAGE - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          all.push(...(data as unknown as Record<string, unknown>[]));
+          if (data.length < PAGE) break;
+          from += PAGE;
+        }
+        return all;
+      }
+
+      const [licensors, properties, characters] = await Promise.all([
+        fetchAll("licensors", "id, name, external_id", "name"),
+        fetchAll("properties", "id, name, external_id, licensor_id", "name"),
+        fetchAll("characters", "id, name, property_id", "name"),
       ]);
-      if (licRes.error) throw licRes.error;
-      if (propRes.error) throw propRes.error;
-      if (charRes.error) throw charRes.error;
 
       // Group characters by property_id
       const charsByProp = new Map<string, { id: string; name: string }[]>();
-      for (const c of charRes.data || []) {
-        const list = charsByProp.get(c.property_id) || [];
-        list.push({ id: c.id, name: c.name });
-        charsByProp.set(c.property_id, list);
+      for (const c of characters) {
+        const pid = c.property_id as string;
+        const list = charsByProp.get(pid) || [];
+        list.push({ id: c.id as string, name: c.name as string });
+        charsByProp.set(pid, list);
       }
 
       // Group properties by licensor_id
       const propsByLic = new Map<string, PropertyRow[]>();
-      for (const p of propRes.data || []) {
-        const list = propsByLic.get(p.licensor_id) || [];
-        list.push({ id: p.id, name: p.name, external_id: p.external_id, characters: charsByProp.get(p.id) || [] });
-        propsByLic.set(p.licensor_id, list);
+      for (const p of properties) {
+        const lid = p.licensor_id as string;
+        const list = propsByLic.get(lid) || [];
+        list.push({ id: p.id as string, name: p.name as string, external_id: p.external_id as string | null, characters: charsByProp.get(p.id as string) || [] });
+        propsByLic.set(lid, list);
       }
 
-      return (licRes.data || []).map((lic) => ({
-        ...lic,
-        properties: propsByLic.get(lic.id) || [],
+      return licensors.map((lic) => ({
+        id: lic.id as string,
+        name: lic.name as string,
+        external_id: lic.external_id as string | null,
+        properties: propsByLic.get(lic.id as string) || [],
       }));
     },
   });
