@@ -20,10 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     graphicsmagick \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 
-# Use npm ci if lockfile exists, otherwise fall back to npm install and generate one
-RUN if [ -f package-lock.json ]; then npm ci --loglevel verbose; else npm install --loglevel verbose; fi
+# Reproducible builds: npm ci requires a lockfile (guaranteed by CI workflow)
+RUN npm ci --loglevel verbose
 
 COPY tsconfig.json ./
 COPY src/ ./src/
