@@ -470,7 +470,7 @@ async function handleIngest(
     const oldPath = existingByHash.relative_path;
     const reDerived = deriveMetadataFromPath(relativePath);
 
-    const { error: moveError } = await db
+      const { error: moveError } = await db
       .from("assets")
       .update({
         relative_path: relativePath,
@@ -480,8 +480,12 @@ async function handleIngest(
         last_seen_at: new Date().toISOString(),
         workflow_status: reDerived.workflow_status,
         is_licensed: reDerived.is_licensed,
-        ...(thumbnailUrl ? { thumbnail_url: thumbnailUrl } : {}),
-        ...(thumbnailError ? { thumbnail_error: thumbnailError } : {}),
+        ...(thumbnailUrl
+          ? { thumbnail_url: thumbnailUrl, thumbnail_error: null }
+          : {}),
+        ...(!thumbnailUrl && thumbnailError
+          ? { thumbnail_error: thumbnailError }
+          : {}),
       })
       .eq("id", existingByHash.id);
 
@@ -522,8 +526,12 @@ async function handleIngest(
         quick_hash: quickHash,
         quick_hash_version: quickHashVersion,
         last_seen_at: new Date().toISOString(),
-        ...(thumbnailUrl ? { thumbnail_url: thumbnailUrl } : {}),
-        ...(thumbnailError ? { thumbnail_error: thumbnailError } : {}),
+        ...(thumbnailUrl
+          ? { thumbnail_url: thumbnailUrl, thumbnail_error: null }
+          : {}),
+        ...(!thumbnailUrl && thumbnailError
+          ? { thumbnail_error: thumbnailError }
+          : {}),
       })
       .eq("id", existingByPath.id);
 
