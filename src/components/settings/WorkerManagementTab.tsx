@@ -97,7 +97,9 @@ function PathTestButton({ hostPath, mountRoot, scanRoots }: { hostPath: string; 
   // Poll for result when waiting
   useEffect(() => {
     if (status !== "waiting" || !requestId) return;
+    let pollCount = 0;
     const interval = setInterval(async () => {
+      pollCount++;
       try {
         const resp = await call("get-config", { keys: ["PATH_TEST_RESULT"] });
         const testResult = resp?.config?.PATH_TEST_RESULT?.value ?? resp?.config?.PATH_TEST_RESULT;
@@ -110,7 +112,7 @@ function PathTestButton({ hostPath, mountRoot, scanRoots }: { hostPath: string; 
     // Timeout after 60s
     const timeout = setTimeout(() => {
       if (status === "waiting") {
-        setResult({ error: "Timed out waiting for agent response. Is the Bridge Agent running?" });
+        setResult({ agent_offline: true });
         setStatus("done");
       }
     }, 60000);
@@ -134,8 +136,12 @@ function PathTestButton({ hostPath, mountRoot, scanRoots }: { hostPath: string; 
     }
   };
 
+  const isAgentOffline = result && (result as Record<string, unknown>).agent_offline === true;
+  const hasError = result && typeof result.error === "string";
+  const hasResults = result && !isAgentOffline && !hasError;
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Button
         variant="outline"
         size="sm"
@@ -154,35 +160,95 @@ function PathTestButton({ hostPath, mountRoot, scanRoots }: { hostPath: string; 
           Request sent. The agent will validate paths on its next heartbeat (up to ~30s).
         </p>
       )}
-      {status === "done" && result && (
-        <div className="bg-muted/50 rounded-md px-3 py-2 space-y-1 text-xs">
-          {result.error ? (
-            <div className="flex items-center gap-1.5 text-destructive">
-              <XCircle className="h-3.5 w-3.5 shrink-0" /> {String(result.error)}
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center gap-1.5">
-                {(result.mount_root_valid as boolean) ? (
-                  <><CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" /> <span>Container mount root <code className="font-mono">{mountRoot}</code> exists</span></>
+
+      {/* Agent offline */}
+      {status === "done" && isAgentOffline && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 space-y-1">
+          <div className="flex items-center gap-2 text-destructive font-medium text-sm">
+            <XCircle className="h-4 w-4 shrink-0" />
+            NAS Agent Not Reachable
+          </div>
+          <p className="text-xs text-muted-foreground ml-6">
+            The Bridge Agent did not respond within 60 seconds. Make sure the Docker container is running on your Synology NAS and can reach the internet.
+          </p>
+        </div>
+      )}
+
+      {/* Generic error */}
+      {status === "done" && hasError && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-destructive text-sm">
+            <XCircle className="h-4 w-4 shrink-0" />
+            {String(result!.error)}
+          </div>
+        </div>
+      )}
+
+      {/* Successful results panel */}
+      {status === "done" && hasResults && (
+        <div className="rounded-lg border border-border bg-muted/30 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border bg-muted/50">
+            <p className="text-xs font-semibold text-foreground">Path Test Results</p>
+            {result!.tested_at && (
+              <p className="text-[10px] text-muted-foreground">
+                Tested at {new Date(result!.tested_at as string).toLocaleString()}
+              </p>
+            )}
+          </div>
+          <div className="px-4 py-3 space-y-3">
+            {/* Mount root */}
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Container Mount Root</p>
+              <div className="flex items-center gap-2">
+                {(result!.mount_root_valid as boolean) ? (
+                  <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))] shrink-0" />
                 ) : (
-                  <><XCircle className="h-3.5 w-3.5 text-destructive shrink-0" /> <span>Container mount root <code className="font-mono">{mountRoot}</code> not found</span></>
+                  <XCircle className="h-4 w-4 text-destructive shrink-0" />
                 )}
+                <code className="text-xs font-mono">{mountRoot}</code>
+                <Badge variant={(result!.mount_root_valid as boolean) ? "secondary" : "destructive"} className="text-[10px]">
+                  {(result!.mount_root_valid as boolean) ? "Valid" : "Not Found"}
+                </Badge>
               </div>
-              {Array.isArray(result.scan_root_results) && (result.scan_root_results as Array<Record<string, unknown>>).map((sr, i) => (
-                <div key={i} className="flex items-center gap-1.5 ml-4">
-                  {sr.valid ? (
-                    <><CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" /> <code className="font-mono">{String(sr.path)}</code> <span className="text-muted-foreground">({String(sr.file_count ?? "?")} items)</span></>
-                  ) : (
-                    <><XCircle className="h-3.5 w-3.5 text-destructive shrink-0" /> <code className="font-mono">{String(sr.path)}</code> <span className="text-muted-foreground">— {String(sr.error || "not found")}</span></>
-                  )}
+            </div>
+
+            {/* Scan roots */}
+            {Array.isArray(result!.scan_root_results) && (result!.scan_root_results as Array<Record<string, unknown>>).length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Scan Folders</p>
+                <div className="space-y-1.5">
+                  {(result!.scan_root_results as Array<Record<string, unknown>>).map((sr, i) => {
+                    const isValid = sr.valid === true;
+                    const fileCount = sr.file_count as number | undefined;
+                    const isEmpty = isValid && fileCount === 0;
+                    return (
+                      <div key={i} className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs ${
+                        isEmpty ? "bg-[hsl(var(--warning)/0.08)] border border-[hsl(var(--warning)/0.3)]"
+                          : isValid ? "bg-[hsl(var(--success)/0.06)] border border-[hsl(var(--success)/0.2)]"
+                          : "bg-destructive/5 border border-destructive/20"
+                      }`}>
+                        {isEmpty ? (
+                          <span className="text-[hsl(var(--warning))] shrink-0 text-base leading-none">⚠</span>
+                        ) : isValid ? (
+                          <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))] shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                        )}
+                        <code className="font-mono flex-1 truncate">{String(sr.path)}</code>
+                        {isValid ? (
+                          <span className={`shrink-0 font-medium ${isEmpty ? "text-[hsl(var(--warning))]" : "text-[hsl(var(--success))]"}`}>
+                            {fileCount} item{fileCount !== 1 ? "s" : ""}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-destructive">{String(sr.error || "not found")}</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-              {result.tested_at && (
-                <p className="text-[10px] text-muted-foreground mt-1">Tested at {new Date(result.tested_at as string).toLocaleString()}</p>
-              )}
-            </>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
