@@ -538,6 +538,60 @@ async function handleResumeScanning() {
   return json({ ok: true });
 }
 
+// ── Route: reset-scan-state ──────────────────────────────────────────
+
+async function handleResetScanState() {
+  const db = serviceClient();
+
+  // 1. Set SCAN_PROGRESS to idle
+  await db.from("admin_config").upsert({
+    key: "SCAN_PROGRESS",
+    value: { status: "idle" },
+    updated_at: new Date().toISOString(),
+  });
+
+  // 2. Cancel any pending/claimed SCAN_REQUEST
+  const { data: reqRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "SCAN_REQUEST")
+    .maybeSingle();
+
+  if (reqRow) {
+    const reqVal = (reqRow.value as Record<string, unknown>) || {};
+    if (reqVal.status === "pending" || reqVal.status === "claimed") {
+      await db.from("admin_config").update({
+        value: { ...reqVal, status: "canceled" },
+        updated_at: new Date().toISOString(),
+      }).eq("key", "SCAN_REQUEST");
+    }
+  }
+
+  // 3. Clear legacy flags in agent_registrations metadata
+  const { data: agents } = await db
+    .from("agent_registrations")
+    .select("id, metadata");
+
+  for (const a of agents || []) {
+    const metadata = (a.metadata as Record<string, unknown>) || {};
+    if (metadata.scan_abort || metadata.scan_requested || metadata.force_stop) {
+      await db
+        .from("agent_registrations")
+        .update({
+          metadata: {
+            ...metadata,
+            scan_abort: false,
+            scan_requested: false,
+            force_stop: false,
+          },
+        })
+        .eq("id", a.id);
+    }
+  }
+
+  return json({ ok: true });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -591,6 +645,8 @@ serve(async (req: Request) => {
         return await handleStopScan(body);
       case "resume-scanning":
         return await handleResumeScanning();
+      case "reset-scan-state":
+        return await handleResetScanState();
       default:
         return err(`Unknown action: ${action}`, 404);
     }
