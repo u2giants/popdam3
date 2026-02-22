@@ -58,6 +58,7 @@ function resetCounters() {
 // ── Cloud Config State (overridden by heartbeat config sync) ────────
 
 let cloudScanRoots: string[] | null = null; // null = use env fallback
+let cloudMountRoot: string | null = null;
 let cloudBatchSize: number | null = null;
 let cloudConcurrency: number | null = null;
 
@@ -141,8 +142,11 @@ function applyCloudConfig(cfg: CloudConfig) {
     reinitializeS3Client(cfg.do_spaces);
   }
 
-  // Update scan roots from cloud
+  // Update scan roots and mount root from cloud
   if (cfg.scanning) {
+    if (cfg.scanning.container_mount_root) {
+      cloudMountRoot = cfg.scanning.container_mount_root;
+    }
     if (cfg.scanning.roots && cfg.scanning.roots.length > 0) {
       cloudScanRoots = cfg.scanning.roots;
     }
@@ -206,7 +210,7 @@ async function runScan(providedSessionId?: string) {
 
   try {
     // §4.1: Validate roots first
-    const rootsValid = await validateScanRoots(counters, effectiveRoots);
+    const rootsValid = await validateScanRoots(counters, effectiveRoots, cloudMountRoot || undefined);
     if (!rootsValid) {
       logger.error("Scan aborted: invalid scan roots", { counters });
       await api.scanProgress(sessionId, "failed", counters);
