@@ -145,51 +145,63 @@ async function syncLicensor(
     return result;
   }
 
-  // 3) Upsert properties + characters
-  for (const prop of apiData) {
-    const externalPropId = String(prop.id);
+  // 3) Batch upsert properties
+  const now = new Date().toISOString();
+  const BATCH = 200;
 
-    const { data: propRow, error: propErr } = await db
+  const propRows = apiData.map((prop) => ({
+    name: prop.name,
+    external_id: String(prop.id),
+    licensor_id: licensor.id,
+    updated_at: now,
+  }));
+
+  // Upsert properties in batches
+  const propIdMap = new Map<string, string>(); // external_id → uuid
+  for (let i = 0; i < propRows.length; i += BATCH) {
+    const batch = propRows.slice(i, i + BATCH);
+    const { data: upserted, error: propErr } = await db
       .from("properties")
-      .upsert(
-        {
-          name: prop.name,
-          external_id: externalPropId,
-          licensor_id: licensor.id,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "external_id" },
-      )
-      .select("id")
-      .single();
+      .upsert(batch, { onConflict: "external_id" })
+      .select("id, external_id");
 
-    if (propErr || !propRow) {
-      result.errors.push(`Failed to upsert property "${prop.name}" (ext:${externalPropId}): ${propErr?.message}`);
+    if (propErr) {
+      result.errors.push(`Property batch ${i}-${i + batch.length} failed: ${propErr.message}`);
       continue;
     }
-    result.propertiesUpserted++;
-
-    for (const char of prop.characters || []) {
-      const externalCharId = String(char.id);
-
-      const { error: charErr } = await db
-        .from("characters")
-        .upsert(
-          {
-            name: char.name,
-            external_id: externalCharId,
-            property_id: propRow.id,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "external_id" },
-        );
-
-      if (charErr) {
-        result.errors.push(`Failed to upsert character "${char.name}" (ext:${externalCharId}): ${charErr.message}`);
-        continue;
-      }
-      result.charactersUpserted++;
+    for (const row of upserted || []) {
+      propIdMap.set(row.external_id!, row.id);
     }
+    result.propertiesUpserted += (upserted || []).length;
+  }
+
+  // 4) Batch upsert characters
+  const charRows: { name: string; external_id: string; property_id: string; updated_at: string }[] = [];
+  for (const prop of apiData) {
+    const propId = propIdMap.get(String(prop.id));
+    if (!propId) continue;
+    for (const char of prop.characters || []) {
+      charRows.push({
+        name: char.name,
+        external_id: String(char.id),
+        property_id: propId,
+        updated_at: now,
+      });
+    }
+  }
+
+  for (let i = 0; i < charRows.length; i += BATCH) {
+    const batch = charRows.slice(i, i + BATCH);
+    const { data: upserted, error: charErr } = await db
+      .from("characters")
+      .upsert(batch, { onConflict: "external_id" })
+      .select("id");
+
+    if (charErr) {
+      result.errors.push(`Character batch ${i}-${i + batch.length} failed: ${charErr.message}`);
+      continue;
+    }
+    result.charactersUpserted += (upserted || []).length;
   }
 
   return result;
