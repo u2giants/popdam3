@@ -48,10 +48,11 @@ function TaxonomyApiSection() {
   const { data: taxonomyData, isLoading } = useQuery({
     queryKey: ["taxonomy-data"],
     queryFn: async () => {
+      // Fetch all rows — characters can exceed the default 1000-row limit
       const [licRes, propRes, charRes] = await Promise.all([
         supabase.from("licensors").select("id, name, external_id").order("name"),
-        supabase.from("properties").select("id, name, external_id, licensor_id").order("name"),
-        supabase.from("characters").select("id, name, property_id").order("name"),
+        supabase.from("properties").select("id, name, external_id, licensor_id").order("name").limit(5000),
+        supabase.from("characters").select("id, name, property_id").order("name").limit(10000),
       ]);
       if (licRes.error) throw licRes.error;
       if (propRes.error) throw propRes.error;
