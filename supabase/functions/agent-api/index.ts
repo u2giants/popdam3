@@ -333,6 +333,17 @@ async function handleHeartbeat(
     if (!claimErr) {
       forceScan = true;
       scanSessionId = scanRequest.request_id as string;
+
+      // Clear any previous stop flags so the new scan can ingest
+      const clearedMeta = {
+        ...newMetadata,
+        force_stop: false,
+        scan_abort: false,
+      };
+      await db
+        .from("agent_registrations")
+        .update({ metadata: clearedMeta })
+        .eq("id", agentId);
     }
   }
 
