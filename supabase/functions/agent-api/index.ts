@@ -205,7 +205,7 @@ async function handleHeartbeat(
   const { data: configRows } = await db
     .from("admin_config")
     .select("key, value")
-    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH", "PATH_TEST_REQUEST"]);
+    .in("key", ["SPACES_CONFIG", "SCAN_ROOTS", "RESOURCE_GUARD", "POLLING_CONFIG", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH", "PATH_TEST_REQUEST", "AUTO_SCAN_CONFIG"]);
 
   const configMap: Record<string, unknown> = {};
   for (const row of configRows || []) {
@@ -293,6 +293,7 @@ async function handleHeartbeat(
         },
       },
       resource_guard: resourceDirectives,
+      auto_scan: (configMap.AUTO_SCAN_CONFIG as { enabled: boolean; interval_hours: number }) || { enabled: false, interval_hours: 6 },
     },
     commands: {
       force_scan: scanRequested && !forceStop,
