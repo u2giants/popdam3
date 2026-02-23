@@ -215,18 +215,6 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
             )}
           </div>
 
-          {/* AI Tag button */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-2"
-            onClick={handleAiTag}
-            disabled={aiTagging || !asset.thumbnail_url}
-          >
-            {aiTagging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {aiTagging ? "Tagging…" : "AI Tag"}
-          </Button>
-
           <Separator />
 
           {/* File info */}
@@ -333,26 +321,56 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
 
           <Separator />
 
-          {/* AI description */}
-          {asset.ai_description && (
-            <>
-              <section className="space-y-1.5">
-                <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">AI Description</h4>
-                <p className="text-xs text-foreground/80 leading-relaxed">{asset.ai_description}</p>
-              </section>
-              <Separator />
-            </>
-          )}
+          {/* AI Analysis */}
+          <section className="space-y-2.5">
+            <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5" /> AI Analysis
+            </h4>
 
-          {asset.scene_description && (
-            <>
-              <section className="space-y-1.5">
-                <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Scene Description</h4>
-                <p className="text-xs text-foreground/80 leading-relaxed">{asset.scene_description}</p>
-              </section>
-              <Separator />
-            </>
-          )}
+            {asset.ai_description ? (
+              <div className="space-y-2">
+                <div>
+                  <span className="text-[10px] uppercase text-muted-foreground tracking-wider">Description</span>
+                  <p className="text-xs text-foreground/80 leading-relaxed mt-0.5">{asset.ai_description}</p>
+                </div>
+                {asset.scene_description && (
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground tracking-wider">Scene</span>
+                    <p className="text-xs text-foreground/80 leading-relaxed mt-0.5">{asset.scene_description}</p>
+                  </div>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] gap-1"
+                  onClick={handleAiTag}
+                  disabled={aiTagging || !asset.thumbnail_url}
+                >
+                  {aiTagging ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  {aiTagging ? "Re-tagging…" : "Re-tag"}
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border p-3 text-center space-y-2">
+                <p className="text-xs text-muted-foreground">No AI analysis yet</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handleAiTag}
+                  disabled={aiTagging || !asset.thumbnail_url}
+                >
+                  {aiTagging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {aiTagging ? "Generating…" : "Generate AI Description"}
+                </Button>
+                {!asset.thumbnail_url && (
+                  <p className="text-[10px] text-muted-foreground/60">Requires a thumbnail first</p>
+                )}
+              </div>
+            )}
+          </section>
+
+          <Separator />
 
           {/* Dates */}
           <section className="space-y-2">

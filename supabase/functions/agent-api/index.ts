@@ -536,6 +536,15 @@ async function handleIngest(
       .eq("id", existingByPath.id);
 
     if (updateError) return err(updateError.message, 500);
+
+    // Queue AI tagging if this update provides a new thumbnail
+    if (thumbnailUrl) {
+      await db.from("processing_queue").insert({
+        asset_id: existingByPath.id,
+        job_type: "ai-tag",
+      }).then(() => {}).catch(() => {}); // best-effort, don't block ingest
+    }
+
     return json({
       ok: true,
       action: "updated",
@@ -569,11 +578,21 @@ async function handleIngest(
 
   if (insertError) return err(insertError.message, 500);
 
-  // Queue for thumbnail processing
-  await db.from("processing_queue").insert({
-    asset_id: newAsset.id,
-    job_type: "thumbnail",
-  });
+  // Queue for thumbnail processing (if no thumbnail yet)
+  if (!thumbnailUrl) {
+    await db.from("processing_queue").insert({
+      asset_id: newAsset.id,
+      job_type: "thumbnail",
+    });
+  }
+
+  // Queue for AI tagging if thumbnail is available
+  if (thumbnailUrl) {
+    await db.from("processing_queue").insert({
+      asset_id: newAsset.id,
+      job_type: "ai-tag",
+    });
+  }
 
   return json({ ok: true, action: "created", asset_id: newAsset.id });
 }
