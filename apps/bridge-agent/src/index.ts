@@ -323,7 +323,7 @@ async function runScan(providedSessionId?: string) {
     isScanning = false;
     lastScanCompletedAt = Date.now();
   }
-}
+
 }
 
 async function processBatch(batch: FileCandidate[], sessionId: string) {
