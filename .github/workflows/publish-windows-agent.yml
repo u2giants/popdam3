@@ -28,12 +28,22 @@ jobs:
         working-directory: apps/windows-agent
         run: npm run build
 
-      - name: Install pkg globally
+      - name: Verify dist output exists
+        working-directory: apps/windows-agent
+        shell: powershell
+        run: |
+          if (!(Test-Path "dist/index.js")) {
+            Write-Error "dist/index.js not found — TypeScript build failed"
+            exit 1
+          }
+          Write-Host "dist/index.js found, proceeding with packaging"
+
+      - name: Install pkg
         run: npm install -g pkg
 
       - name: Bundle into Windows exe
         working-directory: apps/windows-agent
-        run: pkg dist/index.js --target node18-win-x64 --output popdam-windows-agent.exe --compress GZip
+        run: pkg . --target node18-win-x64 --output popdam-windows-agent.exe --compress GZip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
