@@ -689,32 +689,40 @@ async function handleRenderQueueStats() {
 
 // ── Route: list-render-jobs ─────────────────────────────────────────
 
-async function handleListRenderJobs() {
+async function handleListRenderJobs(body: Record<string, unknown>) {
   const db = serviceClient();
-  const { data, error } = await db
+  const statusFilter = optionalString(body, "status_filter");
+
+  let query = db
     .from("render_queue")
     .select("id, asset_id, status, created_at, completed_at, error_message, claimed_by")
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(50);
 
+  if (statusFilter && ["pending", "completed", "failed", "claimed", "processing"].includes(statusFilter)) {
+    query = query.eq("status", statusFilter);
+  }
+
+  const { data, error } = await query;
   if (error) return err(error.message, 500);
 
-  // Join asset filenames
+  // Join asset filenames + thumbnail_url
   const assetIds = [...new Set((data || []).map((r) => r.asset_id))];
-  let assetMap: Record<string, string> = {};
+  let assetMap: Record<string, { filename: string; thumbnail_url: string | null }> = {};
   if (assetIds.length > 0) {
     const { data: assets } = await db
       .from("assets")
-      .select("id, filename")
+      .select("id, filename, thumbnail_url")
       .in("id", assetIds);
     for (const a of assets || []) {
-      assetMap[a.id] = a.filename;
+      assetMap[a.id] = { filename: a.filename, thumbnail_url: a.thumbnail_url };
     }
   }
 
   const jobs = (data || []).map((j) => ({
     ...j,
-    filename: assetMap[j.asset_id] || "Unknown",
+    filename: assetMap[j.asset_id]?.filename || "Unknown",
+    thumbnail_url: assetMap[j.asset_id]?.thumbnail_url || null,
   }));
 
   return json({ ok: true, jobs });
@@ -828,6 +836,48 @@ async function handleClearCompletedJobs() {
 
   if (error) return err(error.message, 500);
   return json({ ok: true, deleted_count: data?.length ?? 0 });
+}
+
+// ── Route: remove-agent-registration ────────────────────────────────
+
+async function handleRemoveAgentRegistration(body: Record<string, unknown>) {
+  const agentId = requireString(body, "agent_id");
+  const db = serviceClient();
+
+  const { data: agent } = await db
+    .from("agent_registrations")
+    .select("id")
+    .eq("id", agentId)
+    .maybeSingle();
+
+  if (!agent) return err("Agent registration not found", 404);
+
+  const { error } = await db
+    .from("agent_registrations")
+    .delete()
+    .eq("id", agentId);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
+// ── Route: requeue-render-job ───────────────────────────────────────
+
+async function handleRequeueRenderJob(body: Record<string, unknown>) {
+  const jobId = requireString(body, "job_id");
+  const db = serviceClient();
+
+  const { data, error } = await db
+    .from("render_queue")
+    .update({ status: "pending", error_message: null, claimed_by: null, claimed_at: null, completed_at: null })
+    .eq("id", jobId)
+    .eq("status", "failed")
+    .select("id")
+    .maybeSingle();
+
+  if (error) return err(error.message, 500);
+  if (!data) return err("Job not found or not in failed state", 404);
+  return json({ ok: true });
 }
 
 // ── Route: generate-bootstrap-token ─────────────────────────────────
@@ -993,7 +1043,11 @@ serve(async (req: Request) => {
       case "render-queue-stats":
         return await handleRenderQueueStats();
       case "list-render-jobs":
-        return await handleListRenderJobs();
+        return await handleListRenderJobs(body);
+      case "remove-agent-registration":
+        return await handleRemoveAgentRegistration(body);
+      case "requeue-render-job":
+        return await handleRequeueRenderJob(body);
       case "clear-failed-renders":
         return await handleClearFailedRenders();
       case "send-test-render":

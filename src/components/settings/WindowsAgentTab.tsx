@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
   Monitor, Download, ListChecks, ClipboardList, Copy, Check,
   Eye, EyeOff, RefreshCw, AlertTriangle, Trash2, Play, Timer, KeyRound,
+  RotateCcw, X, Image as ImageIcon,
 } from "lucide-react";
 
 // ── Copy Button ─────────────────────────────────────────────────────
@@ -28,10 +30,24 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
+// ── Duration formatter ──────────────────────────────────────────────
+
+function formatDuration(createdAt: string, completedAt: string): string {
+  const ms = new Date(completedAt).getTime() - new Date(createdAt).getTime();
+  if (ms < 0) return "—";
+  const totalSeconds = ms / 1000;
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  return `${minutes}m ${seconds}s`;
+}
+
 // ── Section 1: Status ───────────────────────────────────────────────
 
 function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
   const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["admin-agents"],
     queryFn: () => call("list-agents"),
@@ -43,11 +59,22 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
     queryFn: () => call("render-queue-stats"),
   });
 
+  const removeAgentMutation = useMutation({
+    mutationFn: (agentId: string) => call("remove-agent-registration", { agent_id: agentId }),
+    onSuccess: () => {
+      toast.success("Agent registration removed");
+      queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const agents = (data?.agents || []).filter(
     (a: Record<string, unknown>) => a.type === "windows-render"
   );
 
   const FIVE_MIN = 5 * 60 * 1000;
+  const ONE_HOUR = 60 * 60 * 1000;
+
   const onlineAgents = agents.filter((a: Record<string, unknown>) => {
     if (!a.last_heartbeat) return false;
     return Date.now() - new Date(a.last_heartbeat as string).getTime() < FIVE_MIN;
@@ -77,6 +104,10 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
           <div className="space-y-3">
             {agents.map((agent: Record<string, unknown>) => {
               const isOn = onlineAgents.includes(agent);
+              const lastHb = agent.last_heartbeat ? new Date(agent.last_heartbeat as string).getTime() : 0;
+              const offlineMs = lastHb > 0 ? Date.now() - lastHb : Infinity;
+              const canRemove = !isOn && offlineMs > ONE_HOUR;
+
               return (
                 <div key={agent.id as string} className="border border-border rounded-md p-3 space-y-2">
                   <div className="flex items-center gap-2">
@@ -85,6 +116,18 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     <Badge variant={isOn ? "default" : "destructive"}>
                       {isOn ? "Online" : "Offline"}
                     </Badge>
+                    {canRemove && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-auto gap-1 text-destructive hover:text-destructive h-7 text-xs"
+                        onClick={() => removeAgentMutation.mutate(agent.id as string)}
+                        disabled={removeAgentMutation.isPending}
+                      >
+                        <X className="h-3 w-3" />
+                        Remove
+                      </Button>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground font-mono space-y-0.5">
                     <div>Last heartbeat: {agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}</div>
@@ -158,7 +201,6 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
     onError: (e) => toast.error(e.message),
   });
 
-  // Countdown timer — auto-expire when it reaches zero
   useEffect(() => {
     if (!expiresAt) return;
     const tick = () => {
@@ -169,7 +211,6 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
-        // Auto-clear the token so UI reflects expiry immediately
         setToken(null);
       }
     };
@@ -416,15 +457,21 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
   );
 }
 
-// ── Section 4: Pending Jobs ─────────────────────────────────────────
+// ── Section 4: Render Jobs ──────────────────────────────────────────
 
-function PendingJobsTable() {
+type StatusFilter = "all" | "pending" | "completed" | "failed";
+
+function RenderJobsTable() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["render-queue-recent"],
-    queryFn: () => call("list-render-jobs"),
+    queryKey: ["render-queue-recent", statusFilter],
+    queryFn: () => call("list-render-jobs", {
+      status_filter: statusFilter === "all" ? undefined : statusFilter,
+    }),
   });
 
   const clearFailedMutation = useMutation({
@@ -437,13 +484,29 @@ function PendingJobsTable() {
     onError: (e) => toast.error(e.message),
   });
 
+  const requeueMutation = useMutation({
+    mutationFn: (jobId: string) => call("requeue-render-job", { job_id: jobId }),
+    onSuccess: () => {
+      toast.success("Job requeued");
+      queryClient.invalidateQueries({ queryKey: ["render-queue-recent"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-pending-count"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const jobs = data?.jobs || [];
+  const tabs: { key: StatusFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "pending", label: "Pending" },
+    { key: "completed", label: "Completed" },
+    { key: "failed", label: "Failed" },
+  ];
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <ClipboardList className="h-4 w-4" /> Pending Jobs
+          <ClipboardList className="h-4 w-4" /> Render Jobs
         </CardTitle>
         <div className="flex items-center gap-2">
           <Button
@@ -460,46 +523,128 @@ function PendingJobsTable() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {/* Status filter tabs */}
+        <div className="flex gap-1 border-b border-border pb-2">
+          {tabs.map((tab) => (
+            <Button
+              key={tab.key}
+              variant={statusFilter === tab.key ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setStatusFilter(tab.key)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : jobs.length === 0 ? (
           <p className="text-sm text-muted-foreground">No render jobs found.</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Filename</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Completed</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {jobs.map((job: Record<string, unknown>) => (
-                <TableRow key={job.id as string}>
-                  <TableCell className="font-mono text-xs">{job.filename as string || "—"}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        job.status === "completed" ? "default" :
-                        job.status === "failed" ? "destructive" :
-                        "secondary"
-                      }
-                    >
-                      {job.status as string}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {job.created_at ? new Date(job.created_at as string).toLocaleString() : "—"}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {job.completed_at ? new Date(job.completed_at as string).toLocaleString() : "—"}
-                  </TableCell>
+          <TooltipProvider>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Filename</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Completed</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead className="w-16"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job: Record<string, unknown>) => {
+                  const jobId = job.id as string;
+                  const isFailed = job.status === "failed";
+                  const isExpanded = expandedJobId === jobId;
+                  const hasThumbnail = !!job.thumbnail_url;
+                  const duration = job.completed_at && job.created_at
+                    ? formatDuration(job.created_at as string, job.completed_at as string)
+                    : "—";
+
+                  return (
+                    <>
+                      <TableRow
+                        key={jobId}
+                        className={isFailed ? "cursor-pointer hover:bg-destructive/5" : ""}
+                        onClick={() => isFailed && setExpandedJobId(isExpanded ? null : jobId)}
+                      >
+                        <TableCell className="p-1">
+                          {hasThumbnail ? (
+                            <img
+                              src={job.thumbnail_url as string}
+                              alt=""
+                              className="h-8 w-8 rounded object-cover border border-border"
+                            />
+                          ) : (
+                            <div className="h-8 w-8 rounded border border-border bg-muted flex items-center justify-center">
+                              <ImageIcon className="h-3 w-3 text-muted-foreground" />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs max-w-[200px] truncate">{job.filename as string || "—"}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              job.status === "completed" ? "default" :
+                              job.status === "failed" ? "destructive" :
+                              "secondary"
+                            }
+                          >
+                            {job.status as string}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {job.created_at ? new Date(job.created_at as string).toLocaleString() : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {job.completed_at ? new Date(job.completed_at as string).toLocaleString() : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground font-mono">
+                          {duration}
+                        </TableCell>
+                        <TableCell className="p-1">
+                          {isFailed && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    requeueMutation.mutate(jobId);
+                                  }}
+                                  disabled={requeueMutation.isPending}
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Requeue this job</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {isFailed && isExpanded && job.error_message && (
+                        <TableRow key={`${jobId}-error`}>
+                          <TableCell colSpan={7} className="bg-destructive/5 border-l-2 border-destructive">
+                            <p className="text-xs text-destructive font-mono whitespace-pre-wrap">
+                              {job.error_message as string}
+                            </p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TooltipProvider>
         )}
       </CardContent>
     </Card>
@@ -516,7 +661,7 @@ export default function WindowsAgentTab() {
       <WindowsAgentStatus pollFast={pollFast} />
       <WindowsAgentDownload />
       <WindowsAgentSetup onTokenGenerated={() => setPollFast(true)} />
-      <PendingJobsTable />
+      <RenderJobsTable />
     </div>
   );
 }
