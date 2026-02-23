@@ -63,11 +63,17 @@ function applyFilters(query: any, filters: AssetFilters) {
   if (filters.fileStatus === "has_preview") {
     query = query.not("thumbnail_url", "is", null);
   } else if (filters.fileStatus === "no_preview_renderable") {
-    query = query.is("thumbnail_url", null).or("thumbnail_error.is.null,and(thumbnail_error.neq.no_pdf_compat,thumbnail_error.neq.no_preview_or_render_failed)");
+    query = query
+      .is("thumbnail_url", null)
+      .is("thumbnail_error", null);
   } else if (filters.fileStatus === "no_pdf_compat") {
-    query = query.is("thumbnail_url", null).eq("thumbnail_error", "no_pdf_compat");
+    query = query
+      .is("thumbnail_url", null)
+      .eq("thumbnail_error", "no_pdf_compat");
   } else if (filters.fileStatus === "no_preview_unsupported") {
-    query = query.is("thumbnail_url", null).eq("thumbnail_error", "no_preview_or_render_failed");
+    query = query
+      .is("thumbnail_url", null)
+      .eq("thumbnail_error", "no_preview_or_render_failed");
   }
 
   return query;
