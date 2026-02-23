@@ -66,8 +66,10 @@ async function bootstrap() {
  * to a Windows UNC path using NAS_HOST and NAS_SHARE config.
  */
 function toUncPath(relativePath: string): string {
+  const host = cloudNasHost.replace(/^\\+/, '');
+  const share = cloudNasShare.replace(/^\\+/, '').replace(/^\/+/, '');
   const windowsPath = relativePath.replace(/\//g, "\\");
-  return `\\\\${cloudNasHost}\\${cloudNasShare}\\${windowsPath}`;
+  return `\\\\${host}\\${share}\\${windowsPath}`;
 }
 
 // ── Heartbeat ───────────────────────────────────────────────────
