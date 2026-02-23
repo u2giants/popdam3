@@ -115,6 +115,12 @@ jobs:
           FunctionEnd
 
           Section "Install"
+            ; Handle reinstall cleanly
+            IfFileExists "$INSTDIR\uninstall.exe" 0 +4
+              MessageBox MB_YESNO "PopDAM Windows Render Agent is already installed. Uninstall the existing version first?" IDNO +2
+              ExecWait '"$INSTDIR\uninstall.exe" /S'
+              Sleep 3000
+
             SetOutPath "$INSTDIR"
             File "popdam-windows-agent.exe"
 
@@ -126,11 +132,6 @@ jobs:
             FileWrite $0 "# AGENT_KEY is written automatically on first startup$\r$\n"
             FileClose $0
 
-            ; Start Menu shortcuts
-            CreateDirectory "$SMPROGRAMS\PopDAM"
-            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent.lnk" "$INSTDIR\popdam-windows-agent.exe"
-            CreateShortcut "$SMPROGRAMS\PopDAM\Uninstall Windows Agent.lnk" "$INSTDIR\uninstall.exe"
-
             ; Stop and remove any existing service
             nsExec::ExecToLog 'sc stop "PopDAMWindowsAgent"'
             nsExec::ExecToLog 'sc delete "PopDAMWindowsAgent"'
@@ -141,20 +142,49 @@ jobs:
             ; Start the service
             nsExec::ExecToLog 'sc start "PopDAMWindowsAgent"'
 
+            ; Start Menu shortcuts
+            CreateDirectory "$SMPROGRAMS\PopDAM"
+            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent.lnk" "$INSTDIR\popdam-windows-agent.exe"
+            CreateShortcut "$SMPROGRAMS\PopDAM\Uninstall Windows Agent.lnk" "$INSTDIR\uninstall.exe"
+
             ; Create uninstaller
             WriteUninstaller "$INSTDIR\uninstall.exe"
+
+            ; Register in Add/Remove Programs
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayName" "PopDAM Windows Render Agent"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "UninstallString" '"$INSTDIR\uninstall.exe"'
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "InstallLocation" "$INSTDIR"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayVersion" "1.0.0"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "Publisher" "PopDAM"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayIcon" "$INSTDIR\popdam-windows-agent.exe"
+            WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "NoModify" 1
+            WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "NoRepair" 1
+            WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "EstimatedSize" 60000
           SectionEnd
 
           Section "Uninstall"
-            ; Stop and delete service
-            nsExec::ExecToLog 'sc stop "PopDAMWindowsAgent"'
-            nsExec::ExecToLog 'sc delete "PopDAMWindowsAgent"'
+            ; Stop service cleanly
+            ExecWait 'sc stop PopDAMWindowsAgent'
+            Sleep 3000
+            ExecWait 'sc delete PopDAMWindowsAgent'
 
-            ; Remove files
-            RMDir /r "$INSTDIR"
+            ; Remove installed files
+            Delete "$INSTDIR\popdam-windows-agent.exe"
+            Delete "$INSTDIR\.env"
+            Delete "$INSTDIR\agent-key.cfg"
+            Delete "$INSTDIR\.env.example"
+            Delete "$INSTDIR\uninstall.exe"
+
+            ; Remove directories if empty
+            RMDir "$INSTDIR"
+            RMDir "$PROGRAMFILES64\PopDAM"
 
             ; Remove Start Menu shortcuts
             RMDir /r "$SMPROGRAMS\PopDAM"
+
+            ; Remove registry uninstall entry
+            DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent"
           SectionEnd
           NSIS_EOF
 
