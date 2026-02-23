@@ -593,6 +593,87 @@ async function handleResetScanState() {
   return json({ ok: true });
 }
 
+// ── Route: get-filter-options ────────────────────────────────────────
+
+async function handleGetFilterOptions(body: Record<string, unknown>) {
+  const licensorId = optionalString(body, "licensor_id");
+  const db = serviceClient();
+
+  // Licensors with asset counts (only those with non-deleted assets)
+  const { data: licensorRows, error: lErr } = await db.rpc("get_filter_options_licensors");
+  if (lErr) {
+    // Fallback: raw query via from()
+    console.error("RPC not found, using fallback query for licensors");
+  }
+
+  // Use direct SQL approach via service client
+  const { data: rawLicensors, error: lErr2 } = await db
+    .from("assets")
+    .select("licensor_id")
+    .eq("is_deleted", false)
+    .not("licensor_id", "is", null);
+
+  // Aggregate licensor counts
+  const licensorCounts: Record<string, number> = {};
+  for (const row of rawLicensors || []) {
+    const lid = row.licensor_id as string;
+    licensorCounts[lid] = (licensorCounts[lid] || 0) + 1;
+  }
+
+  // Fetch licensor names
+  const licensorIds = Object.keys(licensorCounts);
+  let licensors: { id: string; name: string; asset_count: number }[] = [];
+  if (licensorIds.length > 0) {
+    const { data: licensorNames } = await db
+      .from("licensors")
+      .select("id, name")
+      .in("id", licensorIds)
+      .order("name");
+    licensors = (licensorNames || []).map((l) => ({
+      id: l.id,
+      name: l.name,
+      asset_count: licensorCounts[l.id] || 0,
+    }));
+  }
+
+  // Properties with asset counts
+  let propertyQuery = db
+    .from("assets")
+    .select("property_id, licensor_id")
+    .eq("is_deleted", false)
+    .not("property_id", "is", null);
+
+  if (licensorId) {
+    propertyQuery = propertyQuery.eq("licensor_id", licensorId);
+  }
+
+  const { data: rawProperties } = await propertyQuery;
+
+  const propertyCounts: Record<string, number> = {};
+  for (const row of rawProperties || []) {
+    const pid = row.property_id as string;
+    propertyCounts[pid] = (propertyCounts[pid] || 0) + 1;
+  }
+
+  const propertyIds = Object.keys(propertyCounts);
+  let properties: { id: string; name: string; licensor_id: string; asset_count: number }[] = [];
+  if (propertyIds.length > 0) {
+    const { data: propertyNames } = await db
+      .from("properties")
+      .select("id, name, licensor_id")
+      .in("id", propertyIds)
+      .order("name");
+    properties = (propertyNames || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      licensor_id: p.licensor_id,
+      asset_count: propertyCounts[p.id] || 0,
+    }));
+  }
+
+  return json({ ok: true, licensors, properties });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -648,6 +729,8 @@ serve(async (req: Request) => {
         return await handleResumeScanning();
       case "reset-scan-state":
         return await handleResetScanState();
+      case "get-filter-options":
+        return await handleGetFilterOptions(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

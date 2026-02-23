@@ -156,30 +156,38 @@ export function useFilterCounts(filters: AssetFilters) {
   });
 }
 
-export function useFilterOptions() {
-  const licensors = useQuery({
-    queryKey: ["licensors-list"],
+export function useFilterOptions(licensorId?: string | null) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["filter-options", licensorId ?? "all"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("licensors")
-        .select("id, name")
-        .order("name");
-      if (error) throw error;
-      return data ?? [];
+      const { data: session } = await supabase.auth.getSession();
+      const token = session?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-api`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            action: "get-filter-options",
+            ...(licensorId ? { licensor_id: licensorId } : {}),
+          }),
+        },
+      );
+      if (!res.ok) throw new Error("Failed to fetch filter options");
+      return res.json();
     },
+    staleTime: 30_000,
   });
 
-  const properties = useQuery({
-    queryKey: ["properties-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("id, name")
-        .order("name");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  return { licensors: licensors.data ?? [], properties: properties.data ?? [] };
+  return {
+    licensors: (data?.licensors ?? []) as { id: string; name: string; asset_count: number }[],
+    properties: (data?.properties ?? []) as { id: string; name: string; licensor_id: string; asset_count: number }[],
+    isLoading,
+  };
 }
