@@ -14,6 +14,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveCo
 import { NasStorageTab, ImageOutputTab, ScanningTab } from "@/components/settings/WorkerManagementTab";
 import ApisTab from "@/components/settings/ApisTab";
 import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
+import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -655,9 +656,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="diagnostics" className="space-y-4">
-          <DoctorSection />
-          <EffectiveConfigSection />
-          <PathTesterSection />
+          <DiagnosticsTab />
         </TabsContent>
       </Tabs>
     </div>
