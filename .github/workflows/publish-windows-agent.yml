@@ -1,0 +1,139 @@
+name: Publish Windows Agent
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/windows-agent/**"
+      - ".github/workflows/publish-windows-agent.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: apps/windows-agent
+        run: npm install
+
+      - name: Build TypeScript
+        working-directory: apps/windows-agent
+        run: npm run build
+
+      - name: Install pkg globally
+        run: npm install -g pkg
+
+      - name: Bundle into Windows exe
+        working-directory: apps/windows-agent
+        run: pkg dist/index.js --target node20-win-x64 --output popdam-windows-agent.exe --compress GZip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent-exe
+          path: apps/windows-agent/popdam-windows-agent.exe
+
+  package-installer:
+    runs-on: windows-latest
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-agent-exe
+          path: installer/
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Create NSIS script
+        shell: bash
+        run: |
+          cat > installer/setup.nsi << 'NSIS_EOF'
+          !include "MUI2.nsh"
+
+          Name "PopDAM Windows Render Agent"
+          OutFile "popdam-windows-agent-setup.exe"
+          InstallDir "$PROGRAMFILES64\PopDAM\WindowsAgent"
+          RequestExecutionLevel admin
+
+          !insertmacro MUI_PAGE_DIRECTORY
+          !insertmacro MUI_PAGE_INSTFILES
+          !define MUI_FINISHPAGE_TEXT "Installation complete.$\r$\n$\r$\nEdit the .env file in:$\r$\n$INSTDIR$\r$\n$\r$\nThen restart the service:$\r$\nsc stop PopDAMWindowsAgent && sc start PopDAMWindowsAgent"
+          !insertmacro MUI_PAGE_FINISH
+
+          !insertmacro MUI_UNPAGE_CONFIRM
+          !insertmacro MUI_UNPAGE_INSTFILES
+
+          !insertmacro MUI_LANGUAGE "English"
+
+          Section "Install"
+            SetOutPath "$INSTDIR"
+            File "popdam-windows-agent.exe"
+            File "..\apps\windows-agent\.env.example"
+
+            ; Start Menu shortcuts
+            CreateDirectory "$SMPROGRAMS\PopDAM"
+            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent.lnk" "$INSTDIR\popdam-windows-agent.exe"
+            CreateShortcut "$SMPROGRAMS\PopDAM\Uninstall Windows Agent.lnk" "$INSTDIR\uninstall.exe"
+
+            ; Stop and remove any existing service
+            nsExec::ExecToLog 'sc stop "PopDAMWindowsAgent"'
+            nsExec::ExecToLog 'sc delete "PopDAMWindowsAgent"'
+
+            ; Register Windows Service
+            nsExec::ExecToLog 'sc create "PopDAMWindowsAgent" binPath= "\"$INSTDIR\popdam-windows-agent.exe\"" DisplayName= "PopDAM Windows Render Agent" start= auto'
+
+            ; Start the service
+            nsExec::ExecToLog 'sc start "PopDAMWindowsAgent"'
+
+            ; Create uninstaller
+            WriteUninstaller "$INSTDIR\uninstall.exe"
+          SectionEnd
+
+          Section "Uninstall"
+            ; Stop and delete service
+            nsExec::ExecToLog 'sc stop "PopDAMWindowsAgent"'
+            nsExec::ExecToLog 'sc delete "PopDAMWindowsAgent"'
+
+            ; Remove files
+            RMDir /r "$INSTDIR"
+
+            ; Remove Start Menu shortcuts
+            RMDir /r "$SMPROGRAMS\PopDAM"
+          SectionEnd
+          NSIS_EOF
+
+      - name: Build installer
+        run: makensis installer/setup.nsi
+
+      - name: Create versioned GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-agent-${{ github.sha }}
+          name: Windows Render Agent (${{ github.sha }})
+          files: installer/popdam-windows-agent-setup.exe
+          generate_release_notes: false
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update latest release
+        run: |
+          gh release delete windows-agent-latest --yes 2>$null
+          gh release create windows-agent-latest installer/popdam-windows-agent-setup.exe --title "Windows Render Agent (Latest)" --notes "Latest build of the PopDAM Windows Render Agent" --latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
