@@ -470,7 +470,23 @@ async function handleIngest(
     const oldPath = existingByHash.relative_path;
     const reDerived = deriveMetadataFromPath(relativePath);
 
-      const { error: moveError } = await db
+    // Thumbnail logic: protect existing working thumbnails from being overwritten by errors
+    const thumbMove: Record<string, unknown> = {};
+    if (thumbnailUrl) {
+      thumbMove.thumbnail_url = thumbnailUrl;
+      thumbMove.thumbnail_error = null;
+    } else if (thumbnailError) {
+      const { data: current } = await db
+        .from("assets")
+        .select("thumbnail_url")
+        .eq("id", existingByHash.id)
+        .single();
+      if (!current?.thumbnail_url) {
+        thumbMove.thumbnail_error = thumbnailError;
+      }
+    }
+
+    const { error: moveError } = await db
       .from("assets")
       .update({
         relative_path: relativePath,
@@ -480,12 +496,7 @@ async function handleIngest(
         last_seen_at: new Date().toISOString(),
         workflow_status: reDerived.workflow_status,
         is_licensed: reDerived.is_licensed,
-        ...(thumbnailUrl
-          ? { thumbnail_url: thumbnailUrl, thumbnail_error: null }
-          : {}),
-        ...(!thumbnailUrl && thumbnailError
-          ? { thumbnail_error: thumbnailError }
-          : {}),
+        ...thumbMove,
       })
       .eq("id", existingByHash.id);
 
