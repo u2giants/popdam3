@@ -36,11 +36,11 @@ serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const assetId = body.asset_id;
-    const thumbnailUrl = body.thumbnail_url;
+    // Accept both "asset_id" and "assetId" for compatibility
+    const assetId = body.asset_id || body.assetId;
 
-    if (!assetId || !thumbnailUrl) {
-      return err("asset_id and thumbnail_url are required");
+    if (!assetId) {
+      return err("asset_id is required");
     }
 
     // Fetch asset metadata for context
@@ -51,11 +51,19 @@ serve(async (req: Request) => {
 
     const { data: asset, error: fetchErr } = await db
       .from("assets")
-      .select("id, filename, relative_path, file_type, tags, licensor_id, property_id")
+      .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url")
       .eq("id", assetId)
       .single();
 
     if (fetchErr || !asset) return err("Asset not found", 404);
+
+    // Use provided thumbnail_url or fall back to the one stored on the asset
+    const thumbnailUrl = body.thumbnail_url || asset.thumbnail_url;
+    if (!thumbnailUrl) {
+      return err("Asset has no thumbnail_url — cannot analyze without an image");
+    }
+
+    
 
     // Fetch taxonomy context
     const { data: licensors } = await db.from("licensors").select("id, name").limit(50);
