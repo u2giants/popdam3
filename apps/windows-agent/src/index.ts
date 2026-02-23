@@ -172,7 +172,18 @@ async function main() {
     try {
       await bootstrap();
     } catch (e) {
-      logger.error("Bootstrap failed — exiting", { error: (e as Error).message });
+      const msg = (e as Error).message;
+      if (msg.includes("Invalid or expired")) {
+        logger.error(
+          "Bootstrap token is invalid or expired. " +
+          "Go to PopDAM Settings → Windows Agent and generate " +
+          "a new Install Token, then update BOOTSTRAP_TOKEN in " +
+          "C:\\Program Files\\PopDAM\\WindowsAgent\\.env and " +
+          "restart the PopDAMWindowsAgent service."
+        );
+      } else {
+        logger.error("Bootstrap failed — exiting", { error: msg });
+      }
       process.exit(1);
     }
   }

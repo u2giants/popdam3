@@ -158,15 +158,19 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
     onError: (e) => toast.error(e.message),
   });
 
-  // Countdown timer
+  // Countdown timer — auto-expire when it reaches zero
   useEffect(() => {
     if (!expiresAt) return;
     const tick = () => {
       const remaining = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
       setTimeLeft(remaining);
-      if (remaining <= 0 && timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+      if (remaining <= 0) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        // Auto-clear the token so UI reflects expiry immediately
+        setToken(null);
       }
     };
     tick();

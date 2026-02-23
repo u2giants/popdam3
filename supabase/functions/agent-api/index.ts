@@ -240,6 +240,29 @@ async function handleHeartbeat(
 
   if (updateErr) return err(updateErr.message, 500);
 
+  // ── Cleanup expired/used bootstrap tokens ──
+  try {
+    const { data: tokenRow } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", "WINDOWS_BOOTSTRAP_TOKEN")
+      .maybeSingle();
+
+    if (tokenRow) {
+      const tokenVal = tokenRow.value as Record<string, unknown>;
+      if (tokenVal) {
+        const isExpired = tokenVal.expires_at && new Date(tokenVal.expires_at as string).getTime() < Date.now();
+        const isUsed = tokenVal.used === true;
+        if (isExpired || isUsed) {
+          await db.from("admin_config").delete().eq("key", "WINDOWS_BOOTSTRAP_TOKEN");
+        }
+      }
+    }
+  } catch (cleanupErr) {
+    // Non-fatal — log and continue
+    console.error("Bootstrap token cleanup failed:", cleanupErr);
+  }
+
   // ── Fetch cloud config ──
   const { data: configRows } = await db
     .from("admin_config")
@@ -1300,11 +1323,16 @@ async function handleBootstrap(body: Record<string, unknown>) {
     updated_at: new Date().toISOString(),
   });
 
-  // Mark the bootstrap token as used
-  await db.from("admin_config").update({
+  // Mark the bootstrap token as used BEFORE returning the response (atomic)
+  const { error: markUsedErr } = await db.from("admin_config").update({
     value: { ...stored, used: true, used_at: new Date().toISOString() },
     updated_at: new Date().toISOString(),
   }).eq("key", "WINDOWS_BOOTSTRAP_TOKEN");
+
+  if (markUsedErr) {
+    // If we can't mark it used, abort — don't hand out a key with a reusable token
+    return err("Failed to finalize bootstrap — please retry", 500);
+  }
 
   return json({
     ok: true,
