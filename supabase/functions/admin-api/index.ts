@@ -800,6 +800,36 @@ async function handleCheckRenderJob(body: Record<string, unknown>) {
   });
 }
 
+// ── Route: retry-failed-jobs ─────────────────────────────────────────
+
+async function handleRetryFailedJobs() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("processing_queue")
+    .update({ status: "pending", error_message: null, agent_id: null, claimed_at: null })
+    .eq("status", "failed")
+    .select("id");
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, retried_count: data?.length ?? 0 });
+}
+
+// ── Route: clear-completed-jobs ─────────────────────────────────────
+
+async function handleClearCompletedJobs() {
+  const db = serviceClient();
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await db
+    .from("processing_queue")
+    .delete()
+    .eq("status", "completed")
+    .lt("completed_at", cutoff)
+    .select("id");
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, deleted_count: data?.length ?? 0 });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -867,6 +897,10 @@ serve(async (req: Request) => {
         return await handleSendTestRender();
       case "check-render-job":
         return await handleCheckRenderJob(body);
+      case "retry-failed-jobs":
+        return await handleRetryFailedJobs();
+      case "clear-completed-jobs":
+        return await handleClearCompletedJobs();
       default:
         return err(`Unknown action: ${action}`, 404);
     }
