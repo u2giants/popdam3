@@ -6,6 +6,8 @@ export type SortField = "modified_at" | "file_created_at" | "filename" | "file_s
 export type SortDirection = "asc" | "desc";
 export type ViewMode = "grid" | "list";
 
+export type FileStatusFilter = "" | "has_preview" | "no_preview_renderable" | "no_pdf_compat" | "no_preview_unsupported";
+
 export interface AssetFilters {
   search: string;
   fileType: string[];
@@ -17,6 +19,7 @@ export interface AssetFilters {
   assetType: string[];
   artSource: string[];
   tagFilter: string;
+  fileStatus: FileStatusFilter;
 }
 
 export const defaultFilters: AssetFilters = {
@@ -30,6 +33,7 @@ export const defaultFilters: AssetFilters = {
   assetType: [],
   artSource: [],
   tagFilter: "",
+  fileStatus: "",
 };
 
 export interface FacetCounts {
@@ -50,7 +54,8 @@ export function hasActiveFilters(filters: AssetFilters): boolean {
     filters.propertyId !== null ||
     filters.assetType.length > 0 ||
     filters.artSource.length > 0 ||
-    filters.tagFilter !== ""
+    filters.tagFilter !== "" ||
+    filters.fileStatus !== ""
   );
 }
 
@@ -65,5 +70,6 @@ export function countActiveFilters(filters: AssetFilters): number {
   if (filters.assetType.length > 0) count++;
   if (filters.artSource.length > 0) count++;
   if (filters.tagFilter) count++;
+  if (filters.fileStatus) count++;
   return count;
 }
