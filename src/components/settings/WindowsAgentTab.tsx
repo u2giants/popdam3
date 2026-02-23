@@ -186,6 +186,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
 
   // ── Bootstrap Token ──
   const [token, setToken] = useState<string | null>(null);
+  const [showToken, setShowToken] = useState(false);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -239,6 +240,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
   const [nasShare, setNasShare] = useState("");
   const [nasUser, setNasUser] = useState("");
   const [nasPass, setNasPass] = useState("");
+  const [showNasPass, setShowNasPass] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -334,8 +336,15 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
               <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-3 border border-border">
                 <KeyRound className="h-5 w-5 text-primary shrink-0" />
                 <code className="text-lg font-mono font-bold tracking-widest text-foreground flex-1">
-                  {token}
+                  {showToken ? token : "••••••••••••"}
                 </code>
+                <button
+                  type="button"
+                  onClick={() => setShowToken(!showToken)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
                 <CopyBtn text={token} />
               </div>
               <div className="flex items-center gap-2 text-sm">
@@ -407,7 +416,16 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Password</label>
-            <Input type="password" placeholder="••••••••" value={nasPass} onChange={(e) => setNasPass(e.target.value)} className="font-mono text-xs" />
+            <div className="relative">
+              <Input type={showNasPass ? "text" : "password"} placeholder="••••••••" value={nasPass} onChange={(e) => setNasPass(e.target.value)} className="font-mono text-xs pr-10" />
+              <button
+                type="button"
+                onClick={() => setShowNasPass(!showNasPass)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showNasPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             <p className="text-xs text-muted-foreground">Stored in your private database. Delivered to the agent automatically — no file editing required.</p>
           </div>
           <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
