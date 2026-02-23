@@ -833,6 +833,32 @@ async function handleClearCompletedJobs() {
 // ── Route: generate-bootstrap-token ─────────────────────────────────
 
 async function handleGenerateBootstrapToken(userId: string) {
+  const db = serviceClient();
+
+  // Check for an existing valid, unused token — return it instead of generating a new one
+  const { data: existingRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "WINDOWS_BOOTSTRAP_TOKEN")
+    .maybeSingle();
+
+  if (existingRow) {
+    const existing = existingRow.value as Record<string, unknown>;
+    if (
+      existing &&
+      existing.used !== true &&
+      existing.expires_at &&
+      new Date(existing.expires_at as string).getTime() > Date.now()
+    ) {
+      // Return the existing valid token with its original expiry
+      return json({
+        ok: true,
+        token: existing.token,
+        expires_at: existing.expires_at,
+      });
+    }
+  }
+
   // Generate 16-char token formatted as XXXX-XXXX-XXXX-XXXX
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 for readability
   let raw = "";
@@ -846,7 +872,6 @@ async function handleGenerateBootstrapToken(userId: string) {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
 
-  const db = serviceClient();
   const { error } = await db.from("admin_config").upsert({
     key: "WINDOWS_BOOTSTRAP_TOKEN",
     value: {
