@@ -197,6 +197,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "WINDOWS_AGENT_NAS_SHARE",
   "DO_SPACES_KEY",
   "DO_SPACES_SECRET",
+  "AGENT_UPDATE_REQUEST",
 ];
 
 async function handleHeartbeat(
@@ -399,6 +400,23 @@ async function handleHeartbeat(
     interval_hours: number;
   }) || { enabled: false, interval_hours: 6 };
 
+  // ── Update command from admin ──
+  const updateRequest =
+    configMap.AGENT_UPDATE_REQUEST as Record<string, unknown> | undefined;
+  let checkUpdate = false;
+  let applyUpdate = false;
+
+  if (updateRequest && updateRequest.requested_at) {
+    const requestAge = Date.now() - new Date(updateRequest.requested_at as string).getTime();
+    if (requestAge < 5 * 60 * 1000) {
+      checkUpdate = updateRequest.action === "check";
+      applyUpdate = updateRequest.action === "apply";
+
+      // Clear the request after delivering
+      await db.from("admin_config").delete().eq("key", "AGENT_UPDATE_REQUEST");
+    }
+  }
+
   // ── Response ──
   return json({
     ok: true,
@@ -436,6 +454,8 @@ async function handleHeartbeat(
       scan_session_id: scanSessionId,
       abort_scan: scanAbort || forceStop,
       test_paths: testPaths,
+      check_update: checkUpdate,
+      apply_update: applyUpdate,
     },
   });
 }
@@ -1260,6 +1280,23 @@ async function handleClearCheckpoint() {
   return json({ ok: true });
 }
 
+// ── Route: report-update-status ──────────────────────────────────────
+
+async function handleReportUpdateStatus(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const { error } = await db.from("admin_config").upsert({
+    key: "AGENT_UPDATE_STATUS",
+    value: {
+      ...body,
+      reported_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
 // ── Route: bootstrap ─────────────────────────────────────────────────
 
 async function handleBootstrap(body: Record<string, unknown>) {
@@ -1424,6 +1461,8 @@ serve(async (req: Request) => {
         return await handleGetCheckpoint(agentId);
       case "clear-checkpoint":
         return await handleClearCheckpoint();
+      case "report-update-status":
+        return await handleReportUpdateStatus(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

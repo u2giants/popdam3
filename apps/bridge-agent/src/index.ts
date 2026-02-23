@@ -110,6 +110,16 @@ function startHeartbeat() {
             logger.error("Path test failed", { error: (e as Error).message })
           );
         }
+
+        // Handle update commands
+        if (response.commands.check_update) {
+          handleCheckUpdate().catch((e) =>
+            logger.error("Update check failed", { error: (e as Error).message })
+          );
+        }
+        if (response.commands.apply_update) {
+          handleApplyUpdate();
+        }
       }
 
       // Auto-scan: trigger if enabled + not scanning + interval elapsed
@@ -486,6 +496,58 @@ async function handlePathTest(cmd: { request_id: string; container_mount_root: s
   });
 
   logger.info("Path test completed", { mountRootValid, scanRootResults });
+}
+
+// ── Self-Update Handlers ────────────────────────────────────────
+
+async function handleCheckUpdate() {
+  logger.info("Checking for Docker image update...");
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
+
+  try {
+    await execFileAsync("docker", ["pull", "ghcr.io/u2giants/popdam-bridge:latest", "--quiet"]);
+
+    const { stdout: currentDigest } = await execFileAsync(
+      "docker", ["inspect", "popdam-bridge", "--format={{.Image}}"]
+    );
+    const { stdout: latestDigest } = await execFileAsync(
+      "docker", ["inspect", "ghcr.io/u2giants/popdam-bridge:latest", "--format={{.Id}}"]
+    );
+
+    const updateAvailable = currentDigest.trim() !== latestDigest.trim();
+
+    await api.reportUpdateStatus({
+      current_digest: currentDigest.trim(),
+      latest_digest: latestDigest.trim(),
+      update_available: updateAvailable,
+    });
+
+    logger.info("Update check complete", { updateAvailable, currentDigest: currentDigest.trim(), latestDigest: latestDigest.trim() });
+  } catch (e) {
+    logger.error("Update check failed", { error: (e as Error).message });
+    await api.reportUpdateStatus({
+      error: (e as Error).message,
+      update_available: false,
+    }).catch(() => {});
+  }
+}
+
+function handleApplyUpdate() {
+  logger.info("Self-update requested — pulling and restarting container");
+  const { exec } = require("node:child_process");
+  // Fire and forget — container will stop mid-execution
+  exec([
+    "docker pull ghcr.io/u2giants/popdam-bridge:latest",
+    "docker stop popdam-bridge",
+    "docker rm popdam-bridge",
+    "docker compose -f /volume1/docker/popdam/docker-compose.yml up -d",
+  ].join(" && "), (err: Error | null) => {
+    if (err) {
+      logger.error("Self-update exec failed", { error: err.message });
+    }
+  });
 }
 
 // Legacy polling loop removed.

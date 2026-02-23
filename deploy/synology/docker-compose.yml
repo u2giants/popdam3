@@ -11,3 +11,5 @@ services:
     mem_limit: 2g
     volumes:
       - /volume1/nas-share:/mnt/nas/mac:ro  # host-path:container-path
+      # Docker socket: required for remote updates from PopDAM UI
+      - /var/run/docker.sock:/var/run/docker.sock
