@@ -830,6 +830,40 @@ async function handleClearCompletedJobs() {
   return json({ ok: true, deleted_count: data?.length ?? 0 });
 }
 
+// ── Route: generate-bootstrap-token ─────────────────────────────────
+
+async function handleGenerateBootstrapToken(userId: string) {
+  // Generate 16-char token formatted as XXXX-XXXX-XXXX-XXXX
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 for readability
+  let raw = "";
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  for (let i = 0; i < 16; i++) {
+    raw += chars[bytes[i] % chars.length];
+  }
+  const token = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
+
+  const db = serviceClient();
+  const { error } = await db.from("admin_config").upsert({
+    key: "WINDOWS_BOOTSTRAP_TOKEN",
+    value: {
+      token,
+      created_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+      used: false,
+      created_by: userId,
+    },
+    updated_at: now.toISOString(),
+    updated_by: userId,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, token, expires_at: expiresAt.toISOString() });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -901,6 +935,8 @@ serve(async (req: Request) => {
         return await handleRetryFailedJobs();
       case "clear-completed-jobs":
         return await handleClearCompletedJobs();
+      case "generate-bootstrap-token":
+        return await handleGenerateBootstrapToken(userId);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

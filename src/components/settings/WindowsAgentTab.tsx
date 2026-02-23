@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import {
   Monitor, Download, ListChecks, ClipboardList, Copy, Check,
-  Eye, EyeOff, RefreshCw, AlertTriangle, Trash2, Play,
+  Eye, EyeOff, RefreshCw, AlertTriangle, Trash2, Play, Timer, KeyRound,
 } from "lucide-react";
 
 // ── Copy Button ─────────────────────────────────────────────────────
@@ -30,11 +30,12 @@ function CopyBtn({ text }: { text: string }) {
 
 // ── Section 1: Status ───────────────────────────────────────────────
 
-function WindowsAgentStatus() {
+function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
   const { call } = useAdminApi();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["admin-agents"],
     queryFn: () => call("list-agents"),
+    refetchInterval: pollFast ? 10_000 : undefined,
   });
 
   const { data: renderData } = useQuery({
@@ -134,15 +135,50 @@ function WindowsAgentDownload() {
   );
 }
 
-// ── Section 3: Setup Instructions ───────────────────────────────────
+// ── Section 3: Install Token + Setup ────────────────────────────────
 
-function WindowsAgentSetup() {
+function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const agentApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-api`;
+  // ── Bootstrap Token ──
+  const [token, setToken] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load existing config values
+  const generateTokenMutation = useMutation({
+    mutationFn: () => call("generate-bootstrap-token"),
+    onSuccess: (data) => {
+      setToken(data.token);
+      setExpiresAt(new Date(data.expires_at));
+      onTokenGenerated();
+      toast.success("Install token generated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // Countdown timer
+  useEffect(() => {
+    if (!expiresAt) return;
+    const tick = () => {
+      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0 && timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [expiresAt]);
+
+  const isExpired = expiresAt ? Date.now() > expiresAt.getTime() : false;
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+
+  // ── NAS Config ──
   const { data: configData } = useQuery({
     queryKey: ["admin-config"],
     queryFn: () => call("get-config"),
@@ -154,14 +190,12 @@ function WindowsAgentSetup() {
     return typeof val === "string" ? val : "";
   };
 
-  const [showKey, setShowKey] = useState(false);
   const [nasHost, setNasHost] = useState("");
   const [nasShare, setNasShare] = useState("");
   const [nasUser, setNasUser] = useState("");
   const [nasPass, setNasPass] = useState("");
   const [initialized, setInitialized] = useState(false);
 
-  // Populate fields from config
   useEffect(() => {
     if (configData && !initialized) {
       setNasHost(getConfigVal("WINDOWS_AGENT_NAS_HOST"));
@@ -171,11 +205,6 @@ function WindowsAgentSetup() {
       setInitialized(true);
     }
   }, [configData, initialized]);
-
-  const agentKeyRaw = getConfigVal("AGENT_KEY");
-  const maskedKey = agentKeyRaw
-    ? "••••••••" + agentKeyRaw.slice(-4)
-    : "Not configured";
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -194,8 +223,7 @@ function WindowsAgentSetup() {
     onError: (e) => toast.error(e.message),
   });
 
-  // ── Test Job ──────────────────────────────────────────────────────
-
+  // ── Test Job ──
   const [testStatus, setTestStatus] = useState<"idle" | "sending" | "polling" | "success" | "error">("idle");
   const [testResult, setTestResult] = useState<string | null>(null);
 
@@ -205,13 +233,10 @@ function WindowsAgentSetup() {
     try {
       const result = await call("send-test-render");
       if (!result.ok) throw new Error(result.error || "Failed to send test job");
-
       const jobId = result.job_id as string;
       setTestStatus("polling");
-
-      // Poll for completion
       let attempts = 0;
-      const maxAttempts = 12; // 60 seconds
+      const maxAttempts = 12;
       const poll = async () => {
         attempts++;
         const status = await call("check-render-job", { job_id: jobId });
@@ -247,104 +272,105 @@ function WindowsAgentSetup() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Step 1 */}
-        <div className="space-y-2">
+        {/* Step 1: Generate Install Token */}
+        <div className="space-y-3">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-md px-2">1</Badge> Install
+            <Badge variant="secondary" className="rounded-md px-2">1</Badge> Generate Install Token
           </h3>
           <p className="text-sm text-muted-foreground">
-            Run the downloaded installer on your Windows PC. It will install the PopDAM Windows Agent as a Windows Service that starts automatically.
+            Generate a one-time install token. You'll paste this during the Windows agent installation.
+          </p>
+
+          {token && !isExpired ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 bg-muted/50 rounded-lg px-4 py-3 border border-border">
+                <KeyRound className="h-5 w-5 text-primary shrink-0" />
+                <code className="text-lg font-mono font-bold tracking-widest text-foreground flex-1">
+                  {token}
+                </code>
+                <CopyBtn text={token} />
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Timer className="h-4 w-4 text-[hsl(var(--warning))]" />
+                <span className="text-[hsl(var(--warning))] font-medium">
+                  Expires in {minutes}:{seconds.toString().padStart(2, "0")}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                During Windows agent installation, paste this token when prompted. It expires in 5 minutes and can only be used once.
+              </p>
+            </div>
+          ) : token && isExpired ? (
+            <div className="space-y-2">
+              <p className="text-sm text-destructive font-medium">Token expired — generate a new one.</p>
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => generateTokenMutation.mutate()}
+                disabled={generateTokenMutation.isPending}
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                Generate New Token
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={() => generateTokenMutation.mutate()}
+              disabled={generateTokenMutation.isPending}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              {generateTokenMutation.isPending ? "Generating..." : "Generate Install Token"}
+            </Button>
+          )}
+        </div>
+
+        {/* Step 2: Install */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Badge variant="secondary" className="rounded-md px-2">2</Badge> Install
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Run the downloaded installer on your Windows PC. When prompted, paste the install token from Step 1. The agent will authenticate itself automatically — no other configuration is needed during installation.
           </p>
         </div>
 
-        {/* Step 2 */}
+        {/* Step 3: NAS Config */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-md px-2">2</Badge> Configure
+            <Badge variant="secondary" className="rounded-md px-2">3</Badge> NAS Access
           </h3>
           <p className="text-sm text-muted-foreground">
-            During installation you will be asked for these values. Copy them from here:
+            Configure the NAS network share that the Windows agent uses to access design files. These settings are delivered to the agent automatically.
           </p>
 
-          {/* Agent API URL */}
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground font-medium">Agent API URL</label>
-            <div className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
-              <code className="text-xs font-mono text-foreground flex-1 break-all">{agentApiUrl}</code>
-              <CopyBtn text={agentApiUrl} />
-            </div>
-          </div>
-
-          {/* Agent Key */}
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground font-medium">Agent Key</label>
-            <div className="flex items-center gap-2 bg-muted/50 rounded-md px-3 py-2">
-              <code className="text-xs font-mono text-foreground flex-1 break-all">
-                {showKey ? agentKeyRaw || "Not configured" : maskedKey}
-              </code>
-              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setShowKey(!showKey)}>
-                {showKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              </Button>
-              {agentKeyRaw && <CopyBtn text={agentKeyRaw} />}
-            </div>
-            <p className="text-xs text-muted-foreground">Generate a key in the Agents tab if you don't have one yet.</p>
-          </div>
-
-          {/* NAS Host */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Host</label>
-            <Input
-              placeholder="\\192.168.1.100"
-              value={nasHost}
-              onChange={(e) => setNasHost(e.target.value)}
-              className="font-mono text-xs"
-            />
+            <Input placeholder="\\192.168.1.100" value={nasHost} onChange={(e) => setNasHost(e.target.value)} className="font-mono text-xs" />
           </div>
-
-          {/* NAS Share */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Share</label>
-            <Input
-              placeholder="\mac\Decor"
-              value={nasShare}
-              onChange={(e) => setNasShare(e.target.value)}
-              className="font-mono text-xs"
-            />
+            <Input placeholder="\mac\Decor" value={nasShare} onChange={(e) => setNasShare(e.target.value)} className="font-mono text-xs" />
           </div>
-
-          {/* NAS Username */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Username</label>
-            <Input
-              placeholder="admin"
-              value={nasUser}
-              onChange={(e) => setNasUser(e.target.value)}
-              className="font-mono text-xs"
-            />
+            <Input placeholder="admin" value={nasUser} onChange={(e) => setNasUser(e.target.value)} className="font-mono text-xs" />
           </div>
-
-          {/* NAS Password */}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Password</label>
-            <Input
-              type="password"
-              placeholder="••••••••"
-              value={nasPass}
-              onChange={(e) => setNasPass(e.target.value)}
-              className="font-mono text-xs"
-            />
-            <p className="text-xs text-muted-foreground">Stored in your private database. Not transmitted to third parties.</p>
+            <Input type="password" placeholder="••••••••" value={nasPass} onChange={(e) => setNasPass(e.target.value)} className="font-mono text-xs" />
+            <p className="text-xs text-muted-foreground">Stored in your private database. Delivered to the agent automatically — no file editing required.</p>
           </div>
-
           <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             Save NAS Settings
           </Button>
         </div>
 
-        {/* Step 3 */}
+        {/* Step 4: Verify */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-md px-2">3</Badge> Verify
+            <Badge variant="secondary" className="rounded-md px-2">4</Badge> Verify
           </h3>
           <p className="text-sm text-muted-foreground">
             After installation, the agent should appear as Online in the Status section above within 60 seconds. If it doesn't:
@@ -356,10 +382,10 @@ function WindowsAgentSetup() {
           </ul>
         </div>
 
-        {/* Step 4 */}
+        {/* Step 5: Test */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Badge variant="secondary" className="rounded-md px-2">4</Badge> Test
+            <Badge variant="secondary" className="rounded-md px-2">5</Badge> Test
           </h3>
           <Button
             size="sm"
@@ -372,14 +398,10 @@ function WindowsAgentSetup() {
             {testStatus === "sending" ? "Sending..." : testStatus === "polling" ? "Waiting for result..." : "Send Test Job"}
           </Button>
           {testStatus === "success" && (
-            <div className="text-sm text-[hsl(var(--success))] mt-1">
-              ✓ {testResult}
-            </div>
+            <div className="text-sm text-[hsl(var(--success))] mt-1">✓ {testResult}</div>
           )}
           {testStatus === "error" && (
-            <div className="text-sm text-destructive mt-1">
-              ✗ {testResult}
-            </div>
+            <div className="text-sm text-destructive mt-1">✗ {testResult}</div>
           )}
         </div>
       </CardContent>
@@ -480,11 +502,13 @@ function PendingJobsTable() {
 // ── Exported Tab ────────────────────────────────────────────────────
 
 export default function WindowsAgentTab() {
+  const [pollFast, setPollFast] = useState(false);
+
   return (
     <div className="space-y-4">
-      <WindowsAgentStatus />
+      <WindowsAgentStatus pollFast={pollFast} />
       <WindowsAgentDownload />
-      <WindowsAgentSetup />
+      <WindowsAgentSetup onTokenGenerated={() => setPollFast(true)} />
       <PendingJobsTable />
     </div>
   );

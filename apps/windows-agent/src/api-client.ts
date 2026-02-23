@@ -95,3 +95,24 @@ export async function completeRender(
     error,
   });
 }
+
+// ── Bootstrap (unauthenticated — uses one-time token) ──────────────
+
+export async function bootstrap(
+  bootstrapToken: string,
+  agentName: string,
+): Promise<{ agent_id: string; agent_key: string }> {
+  const res = await fetch(config.agentApiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "bootstrap",
+      bootstrap_token: bootstrapToken,
+      agent_name: agentName,
+    }),
+  });
+
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "Bootstrap failed");
+  return { agent_id: data.agent_id, agent_key: data.agent_key };
+}

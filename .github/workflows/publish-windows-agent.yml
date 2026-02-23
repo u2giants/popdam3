@@ -64,15 +64,23 @@ jobs:
         run: |
           cat > installer/setup.nsi << 'NSIS_EOF'
           !include "MUI2.nsh"
+          !include "nsDialogs.nsh"
 
           Name "PopDAM Windows Render Agent"
           OutFile "popdam-windows-agent-setup.exe"
           InstallDir "$PROGRAMFILES64\PopDAM\WindowsAgent"
           RequestExecutionLevel admin
 
+          Var BootstrapToken
+          Var TokenDialog
+          Var TokenLabel
+          Var TokenInput
+          Var TokenHelp
+
           !insertmacro MUI_PAGE_DIRECTORY
+          Page custom TokenPageCreate TokenPageLeave
           !insertmacro MUI_PAGE_INSTFILES
-          !define MUI_FINISHPAGE_TEXT "PopDAM Windows Render Agent has been installed and started as a Windows Service.$\r$\n$\r$\nIt will automatically receive its configuration from your PopDAM cloud settings. No further setup is required — the agent should appear as Online in PopDAM Settings → Windows Agent within 60 seconds."
+          !define MUI_FINISHPAGE_TEXT "PopDAM Windows Render Agent has been installed and started as a Windows Service.$\r$\n$\r$\nIt will automatically authenticate using your install token and receive its full configuration from PopDAM cloud settings. The agent should appear as Online in PopDAM Settings → Windows Agent within 60 seconds."
           !insertmacro MUI_PAGE_FINISH
 
           !insertmacro MUI_UNPAGE_CONFIRM
@@ -80,10 +88,43 @@ jobs:
 
           !insertmacro MUI_LANGUAGE "English"
 
+          Function TokenPageCreate
+            nsDialogs::Create 1018
+            Pop $TokenDialog
+
+            ${NSD_CreateLabel} 0 0 100% 24u "PopDAM Install Token"
+            Pop $TokenLabel
+            SendMessage $TokenLabel ${WM_SETFONT} 0 0
+
+            ${NSD_CreateText} 0 30u 100% 16u ""
+            Pop $TokenInput
+            ${NSD_SetText} $TokenInput ""
+            SendMessage $TokenInput ${EM_SETCUEBANNER} 1 "STR:XXXX-XXXX-XXXX-XXXX"
+
+            ${NSD_CreateLabel} 0 54u 100% 32u "Generate this token in PopDAM Settings → Windows Agent.$\r$\nIt expires in 5 minutes and can only be used once."
+            Pop $TokenHelp
+
+            nsDialogs::Show
+          FunctionEnd
+
+          Function TokenPageLeave
+            ${NSD_GetText} $TokenInput $BootstrapToken
+            StrCmp $BootstrapToken "" 0 +3
+              MessageBox MB_OK|MB_ICONEXCLAMATION "Please enter the install token from PopDAM Settings."
+              Abort
+          FunctionEnd
+
           Section "Install"
             SetOutPath "$INSTDIR"
             File "popdam-windows-agent.exe"
-            File "..\apps\windows-agent\.env.example"
+
+            ; Write .env with hardcoded Supabase URL and bootstrap token
+            FileOpen $0 "$INSTDIR\.env" w
+            FileWrite $0 "SUPABASE_URL=https://vklanxwmaeqjbwtmnygj.supabase.co$\r$\n"
+            FileWrite $0 "BOOTSTRAP_TOKEN=$BootstrapToken$\r$\n"
+            FileWrite $0 "AGENT_NAME=windows-render-agent$\r$\n"
+            FileWrite $0 "# AGENT_KEY is written automatically on first startup$\r$\n"
+            FileClose $0
 
             ; Start Menu shortcuts
             CreateDirectory "$SMPROGRAMS\PopDAM"

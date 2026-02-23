@@ -1237,6 +1237,82 @@ async function handleClearCheckpoint() {
   return json({ ok: true });
 }
 
+// ── Route: bootstrap ─────────────────────────────────────────────────
+
+async function handleBootstrap(body: Record<string, unknown>) {
+  const bootstrapToken = requireString(body, "bootstrap_token");
+  const agentName = optionalString(body, "agent_name") || "windows-render-agent";
+
+  const db = serviceClient();
+
+  // Read the stored bootstrap token
+  const { data: tokenRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "WINDOWS_BOOTSTRAP_TOKEN")
+    .maybeSingle();
+
+  if (!tokenRow) return err("Invalid or expired token", 401);
+
+  const stored = tokenRow.value as Record<string, unknown>;
+  if (!stored || stored.token !== bootstrapToken) {
+    return err("Invalid or expired token", 401);
+  }
+  if (stored.used === true) {
+    return err("Invalid or expired token", 401);
+  }
+  if (new Date(stored.expires_at as string).getTime() < Date.now()) {
+    return err("Invalid or expired token", 401);
+  }
+
+  // Generate a new secure agent key (32 hex chars = 64 hex string)
+  const keyBytes = new Uint8Array(32);
+  crypto.getRandomValues(keyBytes);
+  const rawKey = Array.from(keyBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // Hash for storage
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawKey));
+  const hashHex = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // Register the agent
+  const { data: agentData, error: regError } = await db
+    .from("agent_registrations")
+    .insert({
+      agent_name: agentName,
+      agent_type: "windows-render",
+      agent_key_hash: hashHex,
+      last_heartbeat: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (regError) return err(regError.message, 500);
+
+  // Store the agent key hash in admin_config for reference
+  await db.from("admin_config").upsert({
+    key: "WINDOWS_AGENT_KEY",
+    value: hashHex,
+    updated_at: new Date().toISOString(),
+  });
+
+  // Mark the bootstrap token as used
+  await db.from("admin_config").update({
+    value: { ...stored, used: true, used_at: new Date().toISOString() },
+    updated_at: new Date().toISOString(),
+  }).eq("key", "WINDOWS_BOOTSTRAP_TOKEN");
+
+  return json({
+    ok: true,
+    agent_id: agentData.id,
+    agent_key: rawKey,
+  });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1263,6 +1339,11 @@ serve(async (req: Request) => {
     // Register doesn't require existing auth
     if (action === "register") {
       return await handleRegister(body);
+    }
+
+    // Bootstrap doesn't require x-agent-key (it's the unauthenticated bootstrap route)
+    if (action === "bootstrap") {
+      return await handleBootstrap(body);
     }
 
     // All other routes require agent authentication
