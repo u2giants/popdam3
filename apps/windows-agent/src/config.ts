@@ -5,7 +5,16 @@
  * Fails fast only if no authentication method is available.
  */
 
-require("dotenv").config();
+const envPath = require("path").join(
+  require("path").dirname(process.execPath),
+  ".env"
+);
+require("dotenv").config({ path: envPath });
+
+console.log("[config] Loading .env from:", envPath);
+console.log("[config] SUPABASE_URL loaded:", !!process.env.SUPABASE_URL);
+console.log("[config] BOOTSTRAP_TOKEN loaded:", !!process.env.BOOTSTRAP_TOKEN);
+
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
