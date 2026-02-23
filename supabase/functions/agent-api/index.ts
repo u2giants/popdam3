@@ -1057,6 +1057,66 @@ async function handleReportPathTest(body: Record<string, unknown>) {
 
 // ── Main router ─────────────────────────────────────────────────────
 
+// ── Route: check-changed ─────────────────────────────────────────────
+
+async function handleCheckChanged(body: Record<string, unknown>) {
+  const files = body.files;
+  if (!Array.isArray(files) || files.length === 0) {
+    return err("files must be a non-empty array");
+  }
+
+  // Cap batch size to prevent abuse
+  if (files.length > 500) {
+    return err("files array exceeds maximum batch size of 500");
+  }
+
+  const db = serviceClient();
+  const relativePaths = files.map((f: Record<string, unknown>) => f.relative_path as string);
+
+  // Fetch existing assets by relative_path in one query
+  const { data: existingAssets, error } = await db
+    .from("assets")
+    .select("relative_path, modified_at, file_size")
+    .in("relative_path", relativePaths)
+    .eq("is_deleted", false);
+
+  if (error) return err(error.message, 500);
+
+  // Build lookup map: relative_path -> { modified_at, file_size }
+  const existingMap = new Map<string, { modified_at: string; file_size: number | null }>();
+  for (const asset of existingAssets || []) {
+    existingMap.set(asset.relative_path, {
+      modified_at: asset.modified_at,
+      file_size: asset.file_size,
+    });
+  }
+
+  // Determine which files are new or changed
+  const changed: string[] = [];
+  for (const file of files) {
+    const f = file as Record<string, unknown>;
+    const rp = f.relative_path as string;
+    const existing = existingMap.get(rp);
+
+    if (!existing) {
+      // New file — needs processing
+      changed.push(rp);
+      continue;
+    }
+
+    // Compare modified_at (truncate to seconds for comparison)
+    const incomingMod = new Date(f.modified_at as string).getTime();
+    const existingMod = new Date(existing.modified_at).getTime();
+    const incomingSize = f.file_size as number;
+
+    if (incomingMod !== existingMod || incomingSize !== (existing.file_size ?? 0)) {
+      changed.push(rp);
+    }
+  }
+
+  return json({ ok: true, changed });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1127,6 +1187,8 @@ serve(async (req: Request) => {
         return await handleGetConfig(body);
       case "report-path-test":
         return await handleReportPathTest(body);
+      case "check-changed":
+        return await handleCheckChanged(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

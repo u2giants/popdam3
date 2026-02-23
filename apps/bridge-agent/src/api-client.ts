@@ -136,3 +136,14 @@ export async function reportPathTest(
 ): Promise<void> {
   await callApi("report-path-test", { request_id: requestId, results });
 }
+
+export interface CheckChangedFile {
+  relative_path: string;
+  modified_at: string;
+  file_size: number;
+}
+
+export async function checkChanged(files: CheckChangedFile[]): Promise<string[]> {
+  const data = await callApi("check-changed", { files });
+  return (data.changed as string[]) || [];
+}

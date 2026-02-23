@@ -284,17 +284,47 @@ async function runScan(providedSessionId?: string) {
 }
 
 async function processBatch(batch: FileCandidate[], sessionId: string) {
-  // Process files with bounded thumbnail concurrency
+  // ── Change detection: ask cloud which files actually need processing ──
+  const checkPayload = batch.map((f) => ({
+    relative_path: f.relativePath,
+    modified_at: f.modifiedAt.toISOString(),
+    file_size: f.fileSize,
+  }));
+
+  let changedSet: Set<string>;
+  try {
+    const changedPaths = await api.checkChanged(checkPayload);
+    changedSet = new Set(changedPaths);
+  } catch (e) {
+    // If check-changed fails, fall back to processing everything
+    logger.warn("check-changed failed, processing entire batch", { error: (e as Error).message });
+    changedSet = new Set(batch.map((f) => f.relativePath));
+  }
+
+  const unchanged = batch.length - changedSet.size;
+  if (unchanged > 0) {
+    logger.debug(`Skipping ${unchanged}/${batch.length} unchanged files in batch`);
+    counters.files_checked += unchanged;
+  }
+
+  const filesToProcess = batch.filter((f) => changedSet.has(f.relativePath));
+  if (filesToProcess.length === 0) {
+    // Report progress even if nothing to process
+    await api.scanProgress(sessionId, "running", counters, batch[batch.length - 1]?.relativePath);
+    return;
+  }
+
+  // Process changed files with bounded thumbnail concurrency
   const concurrency = getEffectiveConcurrency();
   let i = 0;
 
-  while (i < batch.length) {
-    const chunk = batch.slice(i, i + concurrency);
+  while (i < filesToProcess.length) {
+    const chunk = filesToProcess.slice(i, i + concurrency);
     await Promise.all(chunk.map((file) => processFile(file)));
     i += concurrency;
 
     // Report progress
-    await api.scanProgress(sessionId, "running", counters, batch[Math.min(i, batch.length) - 1]?.relativePath);
+    await api.scanProgress(sessionId, "running", counters, filesToProcess[Math.min(i, filesToProcess.length) - 1]?.relativePath);
   }
 }
 
