@@ -92,7 +92,7 @@ export default function LibraryPage() {
   const { data: visibilityDate } = useVisibilityDate();
   const { data, isLoading, isFetching } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize);
   const { data: totalCount } = useAssetCount(filters, visibilityDate);
-  const { licensors, properties } = useFilterOptions();
+  const { licensors, properties } = useFilterOptions(filters.licensorId);
   const { data: facetCounts } = useFilterCounts(filters);
 
   const handleSelect = useCallback((id: string, event: React.MouseEvent) => {
