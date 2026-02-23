@@ -335,23 +335,33 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
   }));
 
   let changedSet: Set<string>;
+  let needsThumbnailSet: Set<string>;
   try {
-    const changedPaths = await api.checkChanged(checkPayload);
-    changedSet = new Set(changedPaths);
+    const result = await api.checkChanged(checkPayload);
+    changedSet = new Set(result.changed);
+    needsThumbnailSet = new Set(result.needs_thumbnail);
   } catch (e) {
     // If check-changed fails, fall back to processing everything
     logger.warn("check-changed failed, processing entire batch", { error: (e as Error).message });
     changedSet = new Set(batch.map((f) => f.relativePath));
+    needsThumbnailSet = new Set();
   }
 
-  const unchanged = batch.length - changedSet.size;
+  const unchanged = batch.length - changedSet.size - needsThumbnailSet.size;
   if (unchanged > 0) {
     logger.debug(`Skipping ${unchanged}/${batch.length} unchanged files in batch`);
     counters.files_checked += unchanged;
   }
 
+  // Files needing thumbnail retry: generate thumbnail + ingest (but they're otherwise unchanged)
+  const thumbRetryFiles = batch.filter((f) => needsThumbnailSet.has(f.relativePath));
+  if (thumbRetryFiles.length > 0) {
+    logger.info(`Retrying thumbnails for ${thumbRetryFiles.length} previously failed files`);
+  }
+
   const filesToProcess = batch.filter((f) => changedSet.has(f.relativePath));
-  if (filesToProcess.length === 0) {
+  const allToProcess = [...filesToProcess, ...thumbRetryFiles];
+  if (allToProcess.length === 0) {
     // Report progress even if nothing to process
     await api.scanProgress(sessionId, "running", counters, batch[batch.length - 1]?.relativePath);
     return;
@@ -361,13 +371,13 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
   const concurrency = getEffectiveConcurrency();
   let i = 0;
 
-  while (i < filesToProcess.length) {
-    const chunk = filesToProcess.slice(i, i + concurrency);
+  while (i < allToProcess.length) {
+    const chunk = allToProcess.slice(i, i + concurrency);
     await Promise.all(chunk.map((file) => processFile(file)));
     i += concurrency;
 
     // Report progress
-    await api.scanProgress(sessionId, "running", counters, filesToProcess[Math.min(i, filesToProcess.length) - 1]?.relativePath);
+    await api.scanProgress(sessionId, "running", counters, allToProcess[Math.min(i, allToProcess.length) - 1]?.relativePath);
   }
 }
 
