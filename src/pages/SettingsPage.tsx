@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { NasStorageTab, ImageOutputTab, ScanningTab } from "@/components/settings/WorkerManagementTab";
 import ApisTab from "@/components/settings/ApisTab";
+import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -617,6 +618,7 @@ export default function SettingsPage() {
           <TabsTrigger value="image-output">Image Output</TabsTrigger>
           <TabsTrigger value="scanning">Scanning</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="windows-agent">Windows Agent</TabsTrigger>
           <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
@@ -638,6 +640,10 @@ export default function SettingsPage() {
           <AgentKeySection />
           <AgentStatusSection />
           <AgentThroughputChart />
+        </TabsContent>
+
+        <TabsContent value="windows-agent" className="space-y-4">
+          <WindowsAgentTab />
         </TabsContent>
 
         <TabsContent value="taxonomy" className="space-y-4">

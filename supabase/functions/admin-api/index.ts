@@ -674,6 +674,132 @@ async function handleGetFilterOptions(body: Record<string, unknown>) {
   return json({ ok: true, licensors, properties });
 }
 
+// ── Route: render-queue-stats ────────────────────────────────────────
+
+async function handleRenderQueueStats() {
+  const db = serviceClient();
+  const { count, error } = await db
+    .from("render_queue")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "pending");
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, pending_count: count ?? 0 });
+}
+
+// ── Route: list-render-jobs ─────────────────────────────────────────
+
+async function handleListRenderJobs() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("render_queue")
+    .select("id, asset_id, status, created_at, completed_at, error_message, claimed_by")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error) return err(error.message, 500);
+
+  // Join asset filenames
+  const assetIds = [...new Set((data || []).map((r) => r.asset_id))];
+  let assetMap: Record<string, string> = {};
+  if (assetIds.length > 0) {
+    const { data: assets } = await db
+      .from("assets")
+      .select("id, filename")
+      .in("id", assetIds);
+    for (const a of assets || []) {
+      assetMap[a.id] = a.filename;
+    }
+  }
+
+  const jobs = (data || []).map((j) => ({
+    ...j,
+    filename: assetMap[j.asset_id] || "Unknown",
+  }));
+
+  return json({ ok: true, jobs });
+}
+
+// ── Route: clear-failed-renders ─────────────────────────────────────
+
+async function handleClearFailedRenders() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("render_queue")
+    .delete()
+    .eq("status", "failed")
+    .select("id");
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, deleted_count: data?.length ?? 0 });
+}
+
+// ── Route: send-test-render ─────────────────────────────────────────
+
+async function handleSendTestRender() {
+  const db = serviceClient();
+
+  // Find most recent asset with thumbnail_error = 'no_pdf_compat'
+  const { data: assets, error: aErr } = await db
+    .from("assets")
+    .select("id")
+    .eq("thumbnail_error", "no_pdf_compat")
+    .eq("is_deleted", false)
+    .is("thumbnail_url", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (aErr) return err(aErr.message, 500);
+  if (!assets || assets.length === 0) {
+    return err("No assets with 'no_pdf_compat' error found to test with");
+  }
+
+  const assetId = assets[0].id;
+
+  const { data: job, error: jErr } = await db
+    .from("render_queue")
+    .insert({ asset_id: assetId, status: "pending" })
+    .select("id")
+    .single();
+
+  if (jErr) return err(jErr.message, 500);
+  return json({ ok: true, job_id: job.id, asset_id: assetId });
+}
+
+// ── Route: check-render-job ─────────────────────────────────────────
+
+async function handleCheckRenderJob(body: Record<string, unknown>) {
+  const jobId = requireString(body, "job_id");
+  const db = serviceClient();
+
+  const { data, error } = await db
+    .from("render_queue")
+    .select("id, status, error_message, completed_at, asset_id")
+    .eq("id", jobId)
+    .single();
+
+  if (error) return err(error.message, 500);
+  if (!data) return err("Job not found", 404);
+
+  let thumbnailUrl: string | null = null;
+  if (data.status === "completed") {
+    const { data: asset } = await db
+      .from("assets")
+      .select("thumbnail_url")
+      .eq("id", data.asset_id)
+      .single();
+    thumbnailUrl = asset?.thumbnail_url ?? null;
+  }
+
+  return json({
+    ok: true,
+    status: data.status,
+    error_message: data.error_message,
+    completed_at: data.completed_at,
+    thumbnail_url: thumbnailUrl,
+  });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -731,6 +857,16 @@ serve(async (req: Request) => {
         return await handleResetScanState();
       case "get-filter-options":
         return await handleGetFilterOptions(body);
+      case "render-queue-stats":
+        return await handleRenderQueueStats();
+      case "list-render-jobs":
+        return await handleListRenderJobs();
+      case "clear-failed-renders":
+        return await handleClearFailedRenders();
+      case "send-test-render":
+        return await handleSendTestRender();
+      case "check-render-job":
+        return await handleCheckRenderJob(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
