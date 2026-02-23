@@ -32,11 +32,11 @@ jobs:
         working-directory: apps/windows-agent
         shell: powershell
         run: |
-          if (!(Test-Path "dist/index.js")) {
-            Write-Error "dist/index.js not found — TypeScript build failed"
+          if (!(Test-Path 'dist/index.js')) {
+            Write-Error 'dist/index.js not found — TypeScript build failed'
             exit 1
           }
-          Write-Host "dist/index.js found, proceeding with packaging"
+          Write-Host 'dist/index.js found, proceeding with packaging'
 
       - name: Install pkg
         run: npm install -g pkg
