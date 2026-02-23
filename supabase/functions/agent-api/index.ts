@@ -830,9 +830,22 @@ async function handleClaimRender(body: Record<string, unknown>) {
     return json({ ok: true, job: null }); // someone else claimed it
   }
 
+  // Fetch asset details so agent knows what file to render
+  const { data: asset } = await db
+    .from("assets")
+    .select("relative_path, file_type, filename")
+    .eq("id", job.asset_id)
+    .single();
+
   return json({
     ok: true,
-    job: { job_id: job.id, asset_id: job.asset_id },
+    job: {
+      job_id: job.id,
+      asset_id: job.asset_id,
+      relative_path: asset?.relative_path || null,
+      file_type: asset?.file_type || null,
+      filename: asset?.filename || null,
+    },
   });
 }
 
