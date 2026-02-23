@@ -99,6 +99,7 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
   if (cloudNasHost && cloudSpacesKey && cloudSpacesSecret) {
     configReceived = true;
   }
+}
 
 function startHeartbeat() {
   setInterval(async () => {
