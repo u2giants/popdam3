@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "$comment": "DO NOT REMOVE types:[node] — required for Node.js type resolution. Build will fail without it.",
+    
     "target": "ES2022",
     "module": "Node16",
     "moduleResolution": "node16",
