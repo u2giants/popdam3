@@ -64,7 +64,7 @@ export default function LibraryPage() {
     if (scanProgress.status === "stale" && prev !== "stale") {
       toast({
         title: "Scan appears stuck",
-        description: "No progress update for over 2 minutes. The agent may have crashed. Use 'Reset Scan State' in Settings to clear.",
+        description: "No progress update for over 10 minutes. The agent may have stalled. Check the NAS logs before clicking Reset Scan State.",
         variant: "destructive",
       });
     }

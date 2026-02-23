@@ -12,7 +12,7 @@ export interface ScanProgress {
   updated_at?: string;
 }
 
-const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 const POLL_IDLE_MS = 15_000;
 const POLL_ACTIVE_MS = 5_000;
