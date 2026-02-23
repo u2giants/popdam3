@@ -2,7 +2,7 @@
  * PopDAM Windows Render Agent — Main Entry Point
  *
  * Lifecycle:
- *   1. Validate config (fail-fast on missing env vars)
+ *   1. Check for agent key — if missing, bootstrap with one-time token
  *   2. Register with cloud API as agent_type = 'windows-render'
  *   3. Start heartbeat timer (every 30s)
  *   4. Poll render_queue for pending jobs (every 30s)
@@ -18,6 +18,7 @@ import * as api from "./api-client.js";
 import { renderWithIllustrator } from "./illustrator.js";
 import { uploadThumbnail } from "./uploader.js";
 import path from "node:path";
+import { writeFile } from "node:fs/promises";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -35,17 +36,31 @@ let cloudSpacesBucket = config.doSpacesBucket;
 let cloudSpacesRegion = config.doSpacesRegion;
 let cloudSpacesEndpoint = config.doSpacesEndpoint;
 
+// ── Bootstrap ───────────────────────────────────────────────────
+
+async function bootstrap() {
+  logger.info("No agent key found — bootstrapping with install token");
+
+  const result = await api.bootstrap(config.bootstrapToken, config.agentName);
+
+  // Write the returned agent_key to agent-key.cfg next to the executable
+  const keyFilePath = path.join(path.dirname(process.execPath), "agent-key.cfg");
+  await writeFile(keyFilePath, result.agent_key, "utf-8");
+
+  // Apply to runtime so the rest of startup uses it
+  process.env.AGENT_KEY = result.agent_key;
+  // Update config object (it reads from env via optional())
+  (config as { agentKey: string }).agentKey = result.agent_key;
+
+  agentId = result.agent_id;
+  logger.info("Bootstrap complete — agent key saved", { agentId, keyFile: keyFilePath });
+}
+
 // ── Path construction ───────────────────────────────────────────
 
 /**
  * Convert a canonical relative_path (POSIX, no leading slash)
  * to a Windows UNC path using NAS_HOST and NAS_SHARE config.
- *
- * Example:
- *   relative_path: "Decor/Projects/Foo/bar.ai"
- *   NAS_HOST: "SYNOLOGY"
- *   NAS_SHARE: "Design"
- *   Result: "\\\\SYNOLOGY\\Design\\Decor\\Projects\\Foo\\bar.ai"
  */
 function toUncPath(relativePath: string): string {
   const windowsPath = relativePath.replace(/\//g, "\\");
@@ -93,40 +108,20 @@ async function processJob(job: api.RenderJob): Promise<void> {
   });
 
   try {
-    // 1. Render with Illustrator
     const result = await renderWithIllustrator(uncPath);
-
-    // 2. Upload to Spaces
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
-
-    // 3. Report success
     await api.completeRender(job.job_id, true, thumbnailUrl);
     jobsCompleted++;
-
-    logger.info("Render job completed", {
-      jobId: job.job_id,
-      assetId: job.asset_id,
-      thumbnailUrl,
-    });
+    logger.info("Render job completed", { jobId: job.job_id, assetId: job.asset_id, thumbnailUrl });
   } catch (e) {
     const errorMsg = (e as Error).message;
     jobsFailed++;
     lastError = errorMsg;
-
-    logger.error("Render job failed", {
-      jobId: job.job_id,
-      assetId: job.asset_id,
-      error: errorMsg,
-    });
-
-    // Report failure
+    logger.error("Render job failed", { jobId: job.job_id, assetId: job.asset_id, error: errorMsg });
     try {
       await api.completeRender(job.job_id, false, undefined, errorMsg);
     } catch (reportErr) {
-      logger.error("Failed to report render failure", {
-        jobId: job.job_id,
-        error: (reportErr as Error).message,
-      });
+      logger.error("Failed to report render failure", { jobId: job.job_id, error: (reportErr as Error).message });
     }
   }
 }
@@ -136,22 +131,15 @@ async function processJob(job: api.RenderJob): Promise<void> {
 function startPolling() {
   setInterval(async () => {
     if (isProcessing) return;
-
     try {
       isProcessing = true;
       const job = await api.claimRender(agentId);
-
-      if (!job) {
-        logger.debug("No render jobs available");
-        return;
-      }
-
+      if (!job) { logger.debug("No render jobs available"); return; }
       if (!job.relative_path) {
         logger.error("Claimed job missing relative_path", { jobId: job.job_id });
         await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
         return;
       }
-
       await processJob(job);
     } catch (e) {
       logger.error("Polling error", { error: (e as Error).message });
@@ -162,7 +150,7 @@ function startPolling() {
   logger.info("Polling started", { intervalMs: config.pollIntervalMs });
 }
 
-// ── Bootstrap ───────────────────────────────────────────────────
+// ── Main ────────────────────────────────────────────────────────
 
 async function main() {
   logger.info("PopDAM Windows Render Agent starting", {
@@ -172,16 +160,35 @@ async function main() {
     timeoutMs: config.illustratorTimeoutMs,
   });
 
-  // 1. Register with cloud
-  try {
-    agentId = await api.register(config.agentName);
-    logger.info("Registered with cloud API", { agentId });
-  } catch (e) {
-    logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
-    process.exit(1);
+  // 1. Bootstrap if no agent key
+  if (!config.agentKey) {
+    if (!config.bootstrapToken) {
+      logger.error(
+        "No AGENT_KEY and no BOOTSTRAP_TOKEN set. Cannot start. " +
+        "Please reinstall and provide a bootstrap token from PopDAM Settings → Windows Agent."
+      );
+      process.exit(1);
+    }
+    try {
+      await bootstrap();
+    } catch (e) {
+      logger.error("Bootstrap failed — exiting", { error: (e as Error).message });
+      process.exit(1);
+    }
   }
 
-  // 2. First heartbeat — fetch cloud config before processing
+  // 2. Register with cloud (if not already registered via bootstrap)
+  if (!agentId) {
+    try {
+      agentId = await api.register(config.agentName);
+      logger.info("Registered with cloud API", { agentId });
+    } catch (e) {
+      logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
+      process.exit(1);
+    }
+  }
+
+  // 3. First heartbeat — fetch cloud config before processing
   try {
     const initialResponse = await api.heartbeat(agentId, undefined);
     applyCloudConfig(initialResponse);
@@ -191,22 +198,20 @@ async function main() {
       spacesBucket: cloudSpacesBucket,
     });
   } catch (e) {
-    logger.warn("Initial heartbeat failed — will retry on timer", {
-      error: (e as Error).message,
-    });
+    logger.warn("Initial heartbeat failed — will retry on timer", { error: (e as Error).message });
   }
 
   if (!cloudNasHost) {
     logger.warn(
       "NAS_HOST not configured. Set it in PopDAM Settings → Windows Agent. " +
-        "Render jobs will be skipped until configured.",
+      "Render jobs will be skipped until configured."
     );
   }
 
-  // 3. Start heartbeat timer
+  // 4. Start heartbeat timer
   startHeartbeat();
 
-  // 4. Start polling for render jobs
+  // 5. Start polling for render jobs
   startPolling();
 
   logger.info("Windows Render Agent ready");
