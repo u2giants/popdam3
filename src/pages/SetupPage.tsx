@@ -180,6 +180,8 @@ services:
     mem_limit: ${state.memLimit}
     volumes:
       - ${state.nasHostPath}:${state.nasContainerMount}:ro
+      # Docker socket: required for remote updates from PopDAM UI
+      - /var/run/docker.sock:/var/run/docker.sock
 `;
 
   return (

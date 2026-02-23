@@ -889,6 +889,50 @@ async function handleGenerateBootstrapToken(userId: string) {
   return json({ ok: true, token, expires_at: expiresAt.toISOString() });
 }
 
+// ── Route: trigger-agent-update ──────────────────────────────────────
+
+async function handleTriggerAgentUpdate(
+  body: Record<string, unknown>,
+  userId: string,
+) {
+  const action = requireString(body, "update_action");
+  if (!["check", "apply"].includes(action)) {
+    return err("update_action must be 'check' or 'apply'");
+  }
+
+  const db = serviceClient();
+  const requestId = crypto.randomUUID();
+
+  const { error } = await db.from("admin_config").upsert({
+    key: "AGENT_UPDATE_REQUEST",
+    value: {
+      request_id: requestId,
+      requested_at: new Date().toISOString(),
+      requested_by: userId,
+      action,
+    },
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, request_id: requestId });
+}
+
+// ── Route: get-update-status ────────────────────────────────────────
+
+async function handleGetUpdateStatus() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "AGENT_UPDATE_STATUS")
+    .maybeSingle();
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, status: data?.value ?? null });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -962,6 +1006,10 @@ serve(async (req: Request) => {
         return await handleClearCompletedJobs();
       case "generate-bootstrap-token":
         return await handleGenerateBootstrapToken(userId);
+      case "trigger-agent-update":
+        return await handleTriggerAgentUpdate(body, userId);
+      case "get-update-status":
+        return await handleGetUpdateStatus();
       default:
         return err(`Unknown action: ${action}`, 404);
     }

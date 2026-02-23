@@ -70,6 +70,8 @@ export interface HeartbeatResponse {
       container_mount_root: string;
       scan_roots: string[];
     } | null;
+    check_update?: boolean;
+    apply_update?: boolean;
   };
 }
 
@@ -167,4 +169,10 @@ export async function getCheckpoint(): Promise<ScanCheckpoint | null> {
 
 export async function clearCheckpoint(): Promise<void> {
   await callApi("clear-checkpoint", {});
+}
+
+export async function reportUpdateStatus(
+  status: Record<string, unknown>,
+): Promise<void> {
+  await callApi("report-update-status", status);
 }

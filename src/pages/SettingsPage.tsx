@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench, Play, StopCircle, Globe, RotateCcw } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench, Play, StopCircle, Globe, RotateCcw, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
@@ -74,6 +74,135 @@ function EffectiveConfigSection() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Agent Update Controls ───────────────────────────────────────────
+
+function AgentUpdateControls({ agentId, agentName }: { agentId: string; agentName: string }) {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+  const [checking, setChecking] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<Record<string, unknown> | null>(null);
+
+  const pollStatus = useCallback(async (maxAttempts: number, intervalMs: number) => {
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, intervalMs));
+      try {
+        const resp = await call("get-update-status");
+        if (resp?.status && resp.status.reported_at) {
+          setUpdateStatus(resp.status as Record<string, unknown>);
+          return resp.status as Record<string, unknown>;
+        }
+      } catch { /* keep polling */ }
+    }
+    return null;
+  }, [call]);
+
+  const handleCheck = async () => {
+    setChecking(true);
+    setUpdateStatus(null);
+    try {
+      await call("trigger-agent-update", { update_action: "check" });
+      const result = await pollStatus(10, 3000); // 10 attempts, 3s each = 30s max
+      if (!result) {
+        toast.error("Update check timed out — agent may be busy");
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleApply = async () => {
+    setApplying(true);
+    try {
+      await call("trigger-agent-update", { update_action: "apply" });
+      toast.info("Update in progress — agent will reconnect in ~30s");
+      // Poll list-agents every 5s until agent comes back online
+      for (let i = 0; i < 12; i++) { // 60s max
+        await new Promise((r) => setTimeout(r, 5000));
+        try {
+          const resp = await call("list-agents");
+          const agents = resp?.agents || [];
+          const agent = agents.find((a: Record<string, unknown>) => a.id === agentId || a.name === agentName);
+          if (agent && agent.status === "online") {
+            toast.success("Agent updated and back online");
+            queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+            setUpdateStatus(null);
+            setApplying(false);
+            return;
+          }
+        } catch { /* keep polling */ }
+      }
+      toast.warning("Agent hasn't reconnected yet — check Container Manager");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const hasUpdate = updateStatus?.update_available === true;
+  const isUpToDate = updateStatus && updateStatus.update_available === false && !updateStatus.error;
+  const hasError = updateStatus && typeof updateStatus.error === "string";
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap pt-1">
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5 text-xs h-7"
+        onClick={handleCheck}
+        disabled={checking || applying}
+      >
+        {checking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+        Check for Update
+      </Button>
+
+      {isUpToDate && (
+        <span className="text-xs text-[hsl(var(--success))] flex items-center gap-1 font-medium">
+          <CheckCircle2 className="h-3.5 w-3.5" /> Up to date
+        </span>
+      )}
+
+      {hasUpdate && (
+        <>
+          <Badge variant="secondary" className="text-xs bg-[hsl(var(--warning)/0.15)] text-[hsl(var(--warning))] border-[hsl(var(--warning)/0.3)]">
+            Update available
+          </Badge>
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-1.5 text-xs h-7"
+            onClick={handleApply}
+            disabled={applying}
+          >
+            {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            {applying ? "Updating..." : "Apply Update"}
+          </Button>
+        </>
+      )}
+
+      {!hasUpdate && !checking && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-xs h-7 text-muted-foreground"
+          onClick={handleApply}
+          disabled={applying}
+        >
+          {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+          {applying ? "Updating..." : "Force Update"}
+        </Button>
+      )}
+
+      {hasError && (
+        <span className="text-xs text-destructive">{updateStatus.error as string}</span>
+      )}
+    </div>
   );
 }
 
@@ -190,6 +319,9 @@ function AgentStatusSection() {
                 </div>
                 {agent.last_counters && (
                   <ScanCounters counters={agent.last_counters as Record<string, number>} />
+                )}
+                {agent.status === "online" && agent.type === "bridge" && (
+                  <AgentUpdateControls agentId={agent.id as string} agentName={agent.name as string} />
                 )}
               </div>
             ))}
