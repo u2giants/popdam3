@@ -73,9 +73,19 @@ jobs:
         shell: powershell
         run: |
           choco install nssm -y --no-progress
-          $nssmPath = (Get-Command nssm).Source
-          Write-Host "NSSM installed at: $nssmPath"
-          Copy-Item $nssmPath -Destination "installer\nssm.exe"
+          $realNssm = "C:\ProgramData\chocolatey\lib\NSSM\tools\nssm.exe"
+          if (!(Test-Path $realNssm)) {
+            $realNssm = Get-ChildItem "C:\ProgramData\chocolatey\lib\NSSM" -Recurse -Filter "nssm.exe" |
+              Where-Object { $_.DirectoryName -notlike "*x86*" } |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          Write-Host "Real NSSM found at: $realNssm"
+          $fileInfo = Get-Item $realNssm
+          Write-Host "File size: $($fileInfo.Length) bytes"
+          if ($fileInfo.Length -lt 100000) {
+            throw "nssm.exe is too small — this is a shim, not the real exe"
+          }
+          Copy-Item $realNssm -Destination "installer\nssm.exe"
 
       - name: Create NSIS script
         shell: bash
