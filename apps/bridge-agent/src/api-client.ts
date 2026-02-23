@@ -147,3 +147,23 @@ export async function checkChanged(files: CheckChangedFile[]): Promise<string[]>
   const data = await callApi("check-changed", { files });
   return (data.changed as string[]) || [];
 }
+
+export interface ScanCheckpoint {
+  session_id: string;
+  last_completed_dir: string;
+  saved_at: string;
+  agent_id: string;
+}
+
+export async function saveCheckpoint(sessionId: string, lastCompletedDir: string): Promise<void> {
+  await callApi("save-checkpoint", { session_id: sessionId, last_completed_dir: lastCompletedDir });
+}
+
+export async function getCheckpoint(): Promise<ScanCheckpoint | null> {
+  const data = await callApi("get-checkpoint", {});
+  return (data.checkpoint as ScanCheckpoint) || null;
+}
+
+export async function clearCheckpoint(): Promise<void> {
+  await callApi("clear-checkpoint", {});
+}

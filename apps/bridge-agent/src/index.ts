@@ -206,7 +206,25 @@ async function runScan(providedSessionId?: string) {
   resetCounters();
   const sessionId = providedSessionId || randomUUID();
   const effectiveRoots = getEffectiveScanRoots();
-  logger.info("Scan starting", { sessionId, roots: effectiveRoots });
+  let resumeFromDir: string | undefined;
+
+  // ── Check for resumable checkpoint ──
+  try {
+    const checkpoint = await api.getCheckpoint();
+    if (checkpoint && checkpoint.session_id !== sessionId) {
+      // Different session — this checkpoint is from a crashed previous scan
+      logger.info("Found checkpoint from crashed scan, resuming", {
+        checkpointSession: checkpoint.session_id,
+        lastCompletedDir: checkpoint.last_completed_dir,
+        savedAt: checkpoint.saved_at,
+      });
+      resumeFromDir = checkpoint.last_completed_dir;
+    }
+  } catch (e) {
+    logger.warn("Failed to fetch checkpoint, starting fresh", { error: (e as Error).message });
+  }
+
+  logger.info("Scan starting", { sessionId, roots: effectiveRoots, resumeFromDir: resumeFromDir || "none" });
 
   try {
     // §4.1: Validate roots first
@@ -214,6 +232,7 @@ async function runScan(providedSessionId?: string) {
     if (!rootsValid) {
       logger.error("Scan aborted: invalid scan roots", { counters });
       await api.scanProgress(sessionId, "failed", counters);
+      await api.clearCheckpoint().catch(() => {});
       return;
     }
 
@@ -221,6 +240,7 @@ async function runScan(providedSessionId?: string) {
 
     // Collect files and process in batches
     let batch: FileCandidate[] = [];
+    let currentTopLevelDir: string | null = null;
 
     // Throttled progress reporter for directory walking
     let lastProgressAt = 0;
@@ -228,6 +248,25 @@ async function runScan(providedSessionId?: string) {
     const callbacks: ScanCallbacks = {
       shouldAbort: () => abortRequested,
       onDir: (dirPath) => {
+        // Track top-level subdirectory transitions for checkpointing
+        for (const root of effectiveRoots) {
+          if (dirPath.startsWith(root) && dirPath !== root) {
+            const subPath = dirPath.slice(root.length).replace(/^\//, "");
+            const topLevel = subPath.split("/")[0];
+            if (topLevel) {
+              const topLevelFull = root + "/" + topLevel;
+              if (topLevelFull !== currentTopLevelDir && currentTopLevelDir !== null) {
+                // We've moved to a new top-level dir — checkpoint the completed one
+                api.saveCheckpoint(sessionId, currentTopLevelDir).catch((e) =>
+                  logger.warn("Failed to save checkpoint", { error: (e as Error).message })
+                );
+              }
+              currentTopLevelDir = topLevelFull;
+            }
+            break;
+          }
+        }
+
         const now = Date.now();
         if (now - lastProgressAt >= PROGRESS_INTERVAL_MS) {
           lastProgressAt = now;
@@ -236,7 +275,7 @@ async function runScan(providedSessionId?: string) {
       },
     };
 
-    for await (const file of scanFiles(counters, effectiveRoots, callbacks)) {
+    for await (const file of scanFiles(counters, effectiveRoots, callbacks, resumeFromDir)) {
       if (abortRequested) {
         logger.info("Scan aborted by cloud request");
         await api.scanProgress(sessionId, "failed", counters, "Aborted by user");
@@ -263,24 +302,28 @@ async function runScan(providedSessionId?: string) {
       return;
     }
 
-    // §4.3: "0 files checked" is an error
-    if (counters.files_checked === 0) {
+    // §4.3: "0 files checked" is an error (only if not resuming — resumed scans may legitimately have fewer files)
+    if (counters.files_checked === 0 && !resumeFromDir) {
       logger.error("Scan completed with 0 files checked — treating as error");
       counters.errors++;
       await api.scanProgress(sessionId, "failed", counters);
       return;
     }
 
-    logger.info("Scan completed", { counters });
+    logger.info("Scan completed", { counters, resumed: !!resumeFromDir });
     await api.scanProgress(sessionId, "completed", counters);
+    // Clear checkpoint on successful completion
+    await api.clearCheckpoint().catch(() => {});
   } catch (e) {
     lastError = (e as Error).message;
     logger.error("Scan failed with exception", { error: lastError });
     await api.scanProgress(sessionId, "failed", counters).catch(() => {});
+    // Don't clear checkpoint on failure — allows resume on restart
   } finally {
     isScanning = false;
     lastScanCompletedAt = Date.now();
   }
+}
 }
 
 async function processBatch(batch: FileCandidate[], sessionId: string) {
