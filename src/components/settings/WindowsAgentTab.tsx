@@ -506,6 +506,16 @@ function RenderJobsTable() {
     onError: (e) => toast.error(e.message),
   });
 
+  const clearJunkMutation = useMutation({
+    mutationFn: () => call("clear-junk-render-jobs"),
+    onSuccess: (data) => {
+      toast.success(`Cleared ${(data.cleared ?? 0).toLocaleString()} junk files from queue`);
+      queryClient.invalidateQueries({ queryKey: ["render-queue-recent"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-pending-count"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const requeueMutation = useMutation({
     mutationFn: (jobId: string) => call("requeue-render-job", { job_id: jobId }),
     onSuccess: () => {
@@ -531,6 +541,16 @@ function RenderJobsTable() {
           <ClipboardList className="h-4 w-4" /> Render Jobs
         </CardTitle>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => clearJunkMutation.mutate()}
+            disabled={clearJunkMutation.isPending}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {clearJunkMutation.isPending ? "Clearing..." : "Clear Junk Files"}
+          </Button>
           <Button
             variant="outline"
             size="sm"

@@ -861,6 +861,58 @@ async function handleRemoveAgentRegistration(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: clear-junk-render-jobs ────────────────────────────────────
+
+async function handleClearJunkRenderJobs() {
+  const db = serviceClient();
+  const JUNK_FILENAMES = new Set([".DS_Store", ".localized", "Thumbs.db", "desktop.ini"]);
+
+  const { data: jobs, error: fetchErr } = await db
+    .from("render_queue")
+    .select("id, asset_id")
+    .eq("status", "pending");
+
+  if (fetchErr) return err(fetchErr.message, 500);
+  if (!jobs || jobs.length === 0) return json({ ok: true, cleared: 0 });
+
+  // Fetch asset info for these jobs
+  const assetIds = [...new Set(jobs.map((j) => j.asset_id))];
+  const { data: assets } = await db
+    .from("assets")
+    .select("id, filename, relative_path")
+    .in("id", assetIds);
+
+  const assetMap: Record<string, { filename: string; relative_path: string }> = {};
+  for (const a of assets || []) {
+    assetMap[a.id] = { filename: a.filename, relative_path: a.relative_path };
+  }
+
+  const junkIds = jobs
+    .filter((job) => {
+      const info = assetMap[job.asset_id];
+      if (!info) return false;
+      const fn = info.filename;
+      const rp = info.relative_path;
+      return (
+        fn.startsWith("._") ||
+        fn.startsWith("~") ||
+        JUNK_FILENAMES.has(fn) ||
+        rp.includes("__MACOSX")
+      );
+    })
+    .map((job) => job.id);
+
+  if (junkIds.length === 0) return json({ ok: true, cleared: 0 });
+
+  const { error: updateErr } = await db
+    .from("render_queue")
+    .update({ status: "failed", error_message: "Skipped: macOS/system artifact" })
+    .in("id", junkIds);
+
+  if (updateErr) return err(updateErr.message, 500);
+  return json({ ok: true, cleared: junkIds.length });
+}
+
 // ── Route: requeue-render-job ───────────────────────────────────────
 
 async function handleRequeueRenderJob(body: Record<string, unknown>) {
@@ -1048,6 +1100,8 @@ serve(async (req: Request) => {
         return await handleRemoveAgentRegistration(body);
       case "requeue-render-job":
         return await handleRequeueRenderJob(body);
+      case "clear-junk-render-jobs":
+        return await handleClearJunkRenderJobs();
       case "clear-failed-renders":
         return await handleClearFailedRenders();
       case "send-test-render":
