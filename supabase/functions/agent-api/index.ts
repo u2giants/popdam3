@@ -193,6 +193,8 @@ const HEARTBEAT_CONFIG_KEYS = [
   "PATH_TEST_REQUEST",
   "AUTO_SCAN_CONFIG",
   "SCAN_REQUEST",
+  "WINDOWS_AGENT_NAS_HOST",
+  "WINDOWS_AGENT_NAS_SHARE",
 ];
 
 async function handleHeartbeat(
@@ -397,6 +399,10 @@ async function handleHeartbeat(
       },
       resource_guard: resourceDirectives,
       auto_scan: autoScanConfig,
+      windows_agent: {
+        nas_host: ((configMap.WINDOWS_AGENT_NAS_HOST as string) || ""),
+        nas_share: ((configMap.WINDOWS_AGENT_NAS_SHARE as string) || ""),
+      },
     },
     commands: {
       force_scan: forceScan,

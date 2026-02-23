@@ -41,12 +41,30 @@ export async function register(agentName: string): Promise<string> {
   return data.agent_id as string;
 }
 
-export async function heartbeat(agentId: string, lastError?: string): Promise<void> {
-  await callApi("heartbeat", {
+export interface WindowsHeartbeatResponse {
+  ok: boolean;
+  config?: {
+    do_spaces?: {
+      bucket: string;
+      region: string;
+      endpoint: string;
+    };
+    windows_agent?: {
+      nas_host: string;
+      nas_share: string;
+      nas_user?: string;
+      nas_pass?: string;
+    };
+  };
+}
+
+export async function heartbeat(agentId: string, lastError?: string): Promise<WindowsHeartbeatResponse> {
+  const data = await callApi("heartbeat", {
     agent_id: agentId,
     counters: {},
     last_error: lastError,
   });
+  return data as unknown as WindowsHeartbeatResponse;
 }
 
 export interface RenderJob {

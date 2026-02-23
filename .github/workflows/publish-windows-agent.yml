@@ -72,7 +72,7 @@ jobs:
 
           !insertmacro MUI_PAGE_DIRECTORY
           !insertmacro MUI_PAGE_INSTFILES
-          !define MUI_FINISHPAGE_TEXT "Installation complete.$\r$\n$\r$\nEdit the .env file in:$\r$\n$INSTDIR$\r$\n$\r$\nThen restart the service:$\r$\nsc stop PopDAMWindowsAgent && sc start PopDAMWindowsAgent"
+          !define MUI_FINISHPAGE_TEXT "PopDAM Windows Render Agent has been installed and started as a Windows Service.$\r$\n$\r$\nIt will automatically receive its configuration from your PopDAM cloud settings. No further setup is required — the agent should appear as Online in PopDAM Settings → Windows Agent within 60 seconds."
           !insertmacro MUI_PAGE_FINISH
 
           !insertmacro MUI_UNPAGE_CONFIRM
