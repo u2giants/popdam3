@@ -69,6 +69,15 @@ jobs:
       - name: Install NSIS
         run: choco install nsis -y --no-progress
 
+      - name: Download NSSM
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://nssm.cc/release/nssm-2.24.zip" `
+            -OutFile "nssm.zip"
+          Expand-Archive -Path "nssm.zip" -DestinationPath "nssm-extracted"
+          Copy-Item "nssm-extracted\nssm-2.24\win64\nssm.exe" `
+            -Destination "installer\nssm.exe"
+
       - name: Create NSIS script
         shell: bash
         run: |
@@ -133,6 +142,7 @@ jobs:
 
             SetOutPath "$INSTDIR"
             File "popdam-windows-agent.exe"
+            File "nssm.exe"
 
             ; Write .env with hardcoded Supabase URL and bootstrap token
             FileOpen $0 "$INSTDIR\.env" w
@@ -142,15 +152,28 @@ jobs:
             FileWrite $0 "# AGENT_KEY is written automatically on first startup$\r$\n"
             FileClose $0
 
-            ; Stop and remove any existing service
-            nsExec::ExecToLog 'sc stop "PopDAMWindowsAgent"'
-            nsExec::ExecToLog 'sc delete "PopDAMWindowsAgent"'
+            ; Remove existing service if present
+            ExecWait '"$INSTDIR\nssm.exe" stop PopDAMWindowsAgent'
+            ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
+            Sleep 2000
 
-            ; Register Windows Service
-            nsExec::ExecToLog 'sc create "PopDAMWindowsAgent" binPath= "\"$INSTDIR\popdam-windows-agent.exe\"" DisplayName= "PopDAM Windows Render Agent" start= auto'
+            ; Install via nssm
+            ExecWait '"$INSTDIR\nssm.exe" install PopDAMWindowsAgent "$INSTDIR\popdam-windows-agent.exe"'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppDirectory "$INSTDIR"'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent DisplayName "PopDAM Windows Render Agent"'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Description "Renders AI files using Adobe Illustrator for PopDAM"'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Start SERVICE_AUTO_START'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppStdout "$INSTDIR\logs\agent.log"'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppStderr "$INSTDIR\logs\agent-error.log"'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateFiles 1'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateSeconds 86400'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateBytes 10485760'
+
+            ; Create logs directory
+            CreateDirectory "$INSTDIR\logs"
 
             ; Start the service
-            nsExec::ExecToLog 'sc start "PopDAMWindowsAgent"'
+            ExecWait '"$INSTDIR\nssm.exe" start PopDAMWindowsAgent'
 
             ; Start Menu shortcuts
             CreateDirectory "$SMPROGRAMS\PopDAM"
@@ -174,17 +197,19 @@ jobs:
           SectionEnd
 
           Section "Uninstall"
-            ; Stop service cleanly
-            ExecWait 'sc stop PopDAMWindowsAgent'
-            Sleep 3000
-            ExecWait 'sc delete PopDAMWindowsAgent'
+            ; Stop and remove service via nssm
+            ExecWait '"$INSTDIR\nssm.exe" stop PopDAMWindowsAgent'
+            Sleep 2000
+            ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
 
             ; Remove installed files
             Delete "$INSTDIR\popdam-windows-agent.exe"
+            Delete "$INSTDIR\nssm.exe"
             Delete "$INSTDIR\.env"
             Delete "$INSTDIR\agent-key.cfg"
             Delete "$INSTDIR\.env.example"
             Delete "$INSTDIR\uninstall.exe"
+            RMDir /r "$INSTDIR\logs"
 
             ; Remove directories if empty
             RMDir "$INSTDIR"
