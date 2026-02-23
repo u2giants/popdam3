@@ -3,8 +3,8 @@
  * Handles registration, heartbeat, claim-render, and complete-render.
  */
 
-import { config } from "./config.js";
-import { logger } from "./logger.js";
+import { config } from "./config";
+import { logger } from "./logger";
 
 async function callApi(action: string, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
   const body = JSON.stringify({ action, ...payload });
