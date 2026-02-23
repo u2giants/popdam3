@@ -195,6 +195,8 @@ const HEARTBEAT_CONFIG_KEYS = [
   "SCAN_REQUEST",
   "WINDOWS_AGENT_NAS_HOST",
   "WINDOWS_AGENT_NAS_SHARE",
+  "DO_SPACES_KEY",
+  "DO_SPACES_SECRET",
 ];
 
 async function handleHeartbeat(
@@ -379,6 +381,8 @@ async function handleHeartbeat(
     ok: true,
     config: {
       do_spaces: {
+        key: ((configMap.DO_SPACES_KEY as string) || ""),
+        secret: ((configMap.DO_SPACES_SECRET as string) || ""),
         bucket: spacesConfig.bucket_name || spacesConfig.bucket || "popdam",
         region: spacesConfig.region || "nyc3",
         endpoint:

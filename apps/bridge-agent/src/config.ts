@@ -28,9 +28,9 @@ export const config = {
   agentKey: required("AGENT_KEY"),
   agentName: optional("AGENT_NAME", "bridge-agent"),
 
-  // DigitalOcean Spaces
-  doSpacesKey: required("DO_SPACES_KEY"),
-  doSpacesSecret: required("DO_SPACES_SECRET"),
+  // DigitalOcean Spaces (optional — delivered via heartbeat config sync)
+  doSpacesKey: optional("DO_SPACES_KEY", ""),
+  doSpacesSecret: optional("DO_SPACES_SECRET", ""),
   doSpacesBucket: optional("DO_SPACES_BUCKET", "popdam"),
   doSpacesRegion: optional("DO_SPACES_REGION", "nyc3"),
   doSpacesEndpoint: optional("DO_SPACES_ENDPOINT", "https://nyc3.digitaloceanspaces.com"),

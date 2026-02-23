@@ -34,11 +34,6 @@ function CopyBlock({ label, content }: { label: string; content: string }) {
 interface WizardState {
   agentName: string;
   supabaseUrl: string;
-  doSpacesKey: string;
-  doSpacesSecret: string;
-  doSpacesBucket: string;
-  doSpacesRegion: string;
-  doSpacesEndpoint: string;
   nasHostPath: string;
   nasContainerMount: string;
   scanRoots: string;
@@ -51,11 +46,6 @@ interface WizardState {
 const INITIAL_STATE: WizardState = {
   agentName: "synology-bridge-1",
   supabaseUrl: "",
-  doSpacesKey: "",
-  doSpacesSecret: "",
-  doSpacesBucket: "popdam",
-  doSpacesRegion: "nyc3",
-  doSpacesEndpoint: "https://nyc3.digitaloceanspaces.com",
   nasHostPath: "/volume1/mac",
   nasContainerMount: "/mnt/nas/mac",
   scanRoots: "",
@@ -68,7 +58,6 @@ const INITIAL_STATE: WizardState = {
 const STEPS = [
   { title: "Agent Identity", description: "Name your Bridge Agent" },
   { title: "Cloud API", description: "Connect to PopDAM cloud" },
-  { title: "DigitalOcean Spaces", description: "Thumbnail storage credentials" },
   { title: "NAS Mounts", description: "Container filesystem mapping" },
   { title: "Resource Limits", description: "CPU, memory, and concurrency" },
   { title: "Generate & Deploy", description: "Get .env and docker-compose.yml" },
@@ -146,9 +135,8 @@ export default function SetupPage() {
     switch (step) {
       case 0: return state.agentName.trim().length > 0;
       case 1: return true; // supabaseUrl auto-filled
-      case 2: return state.doSpacesKey.trim().length > 0 && state.doSpacesSecret.trim().length > 0;
-      case 3: return (state.nasHostPath || "").trim().length > 0 && (state.nasContainerMount || "").trim().length > 0 && (state.scanRoots || "").trim().length > 0;
-      case 4: return true;
+      case 2: return (state.nasHostPath || "").trim().length > 0 && (state.nasContainerMount || "").trim().length > 0 && (state.scanRoots || "").trim().length > 0;
+      case 3: return true;
       default: return true;
     }
   };
@@ -163,13 +151,6 @@ SUPABASE_URL=${effectiveUrl}
 AGENT_KEY=${state.generatedKey || "<generate key above>"}
 AGENT_NAME=${state.agentName}
 
-# DigitalOcean Spaces (thumbnail upload)
-DO_SPACES_KEY=${state.doSpacesKey}
-DO_SPACES_SECRET=${state.doSpacesSecret}
-DO_SPACES_BUCKET=${state.doSpacesBucket}
-DO_SPACES_REGION=${state.doSpacesRegion}
-DO_SPACES_ENDPOINT=${state.doSpacesEndpoint}
-
 # NAS filesystem (container mount paths)
 NAS_CONTAINER_MOUNT_ROOT=${state.nasContainerMount}
 SCAN_ROOTS=${state.scanRoots}
@@ -177,6 +158,9 @@ SCAN_ROOTS=${state.scanRoots}
 # Performance (resource bounding per WORKER_LOGIC.md)
 THUMB_CONCURRENCY=${state.thumbConcurrency}
 INGEST_BATCH_SIZE=100
+
+# All other settings (DigitalOcean Spaces credentials, etc.) are configured
+# automatically via PopDAM Settings → NAS & Storage. No manual editing needed.
 `;
 
   const composeContent = `# PopDAM Bridge Agent — docker-compose.yml
@@ -258,38 +242,7 @@ services:
             </div>
           )}
 
-          {step === 2 && (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                These credentials are for the Bridge Agent to upload thumbnails to DigitalOcean Spaces.
-                They are stored ONLY in the agent's .env file on the NAS — never in the cloud DB.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Spaces Key</label>
-                  <Input value={state.doSpacesKey} onChange={(e) => update("doSpacesKey", e.target.value)} className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Spaces Secret</label>
-                  <Input value={state.doSpacesSecret} onChange={(e) => update("doSpacesSecret", e.target.value)} type="password" className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Bucket</label>
-                  <Input value={state.doSpacesBucket} onChange={(e) => update("doSpacesBucket", e.target.value)} className="font-mono text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Region</label>
-                  <Input value={state.doSpacesRegion} onChange={(e) => update("doSpacesRegion", e.target.value)} className="font-mono text-xs" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Endpoint URL</label>
-                <Input value={state.doSpacesEndpoint} onChange={(e) => update("doSpacesEndpoint", e.target.value)} className="font-mono text-xs" />
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (() => {
+          {step === 2 && (() => {
             const containerMount = state.nasContainerMount || "/mnt/nas/mac";
             const scanRootsList = (state.scanRoots || "").split(",").map(s => s.trim()).filter(Boolean);
             const toggleScanRoot = (folder: string) => {
@@ -401,7 +354,7 @@ services:
             );
           })()}
 
-          {step === 4 && (
+          {step === 3 && (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 Per WORKER_LOGIC.md: resource limits are <strong>required</strong>, not optional.
@@ -425,7 +378,7 @@ services:
             </div>
           )}
 
-          {step === 5 && (
+          {step === 4 && (
             <div className="space-y-4">
               {!state.generatedKey && (
                 <div className="bg-[hsl(var(--warning)/0.1)] border border-[hsl(var(--warning)/0.3)] rounded-md p-3 space-y-2">
@@ -461,6 +414,7 @@ services:
                 </ol>
                 <p className="mt-2 text-muted-foreground">
                   <strong>No inbound networking required.</strong> The agent polls outward over HTTPS only.
+                  DigitalOcean Spaces credentials are configured in <strong>Settings → NAS &amp; Storage</strong> after deployment.
                 </p>
               </div>
 

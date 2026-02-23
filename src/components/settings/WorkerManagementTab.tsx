@@ -13,29 +13,47 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
-// ── DigitalOcean Spaces (non-secret fields only) ────────────────────
+// ── DigitalOcean Spaces ──────────────────────────────────────────────
 
 function SpacesConfigSettings() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-config", "SPACES_CONFIG"],
-    queryFn: () => call("get-config", { keys: ["SPACES_CONFIG"] }),
+    queryKey: ["admin-config", "SPACES_CONFIG", "DO_SPACES_KEY", "DO_SPACES_SECRET"],
+    queryFn: () => call("get-config", { keys: ["SPACES_CONFIG", "DO_SPACES_KEY", "DO_SPACES_SECRET"] }),
   });
 
   const currentConfig = (data?.config?.SPACES_CONFIG?.value ?? data?.config?.SPACES_CONFIG ?? {
     bucket: "popdam", region: "nyc3", endpoint: "https://nyc3.digitaloceanspaces.com", public_base_url: "https://popdam.nyc3.digitaloceanspaces.com"
   }) as Record<string, string>;
 
+  const currentKey = (data?.config?.DO_SPACES_KEY?.value ?? data?.config?.DO_SPACES_KEY ?? "") as string;
+  const currentSecret = (data?.config?.DO_SPACES_SECRET?.value ?? data?.config?.DO_SPACES_SECRET ?? "") as string;
+
   const [form, setForm] = useState<Record<string, string> | null>(null);
+  const [keyForm, setKeyForm] = useState<string | null>(null);
+  const [secretForm, setSecretForm] = useState<string | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+
   const values = form ?? currentConfig;
+  const keyValue = keyForm ?? currentKey;
+  const secretValue = secretForm ?? currentSecret;
+  const isDirty = form !== null || keyForm !== null || secretForm !== null;
 
   const saveMutation = useMutation({
-    mutationFn: () => call("set-config", { entries: { SPACES_CONFIG: values } }),
+    mutationFn: () => {
+      const entries: Record<string, unknown> = { SPACES_CONFIG: values };
+      if (keyForm !== null) entries.DO_SPACES_KEY = keyForm;
+      if (secretForm !== null) entries.DO_SPACES_SECRET = secretForm;
+      return call("set-config", { entries });
+    },
     onSuccess: () => {
       toast.success("Spaces config saved — agent picks up on next heartbeat");
       setForm(null);
+      setKeyForm(null);
+      setSecretForm(null);
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     },
     onError: (e) => toast.error(e.message),
@@ -55,10 +73,21 @@ function SpacesConfigSettings() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground">
-          Non-secret settings only. Access Key &amp; Secret are configured in the agent's <code>.env</code> file on the NAS and never stored here.
-        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Spaces Access Key</Label>
+            <div className="flex gap-1.5">
+              <Input className="font-mono text-xs flex-1" type={showKey ? "text" : "password"} value={keyValue} onChange={(e) => setKeyForm(e.target.value)} placeholder="DO00..." />
+              <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={() => setShowKey(!showKey)}>{showKey ? "Hide" : "Show"}</Button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Spaces Secret Key</Label>
+            <div className="flex gap-1.5">
+              <Input className="font-mono text-xs flex-1" type={showSecret ? "text" : "password"} value={secretValue} onChange={(e) => setSecretForm(e.target.value)} placeholder="••••••••" />
+              <Button variant="ghost" size="sm" className="h-9 px-2 text-xs" onClick={() => setShowSecret(!showSecret)}>{showSecret ? "Hide" : "Show"}</Button>
+            </div>
+          </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Bucket</Label>
             <Input className="font-mono text-xs" value={values.bucket || ""} onChange={(e) => update("bucket", e.target.value)} placeholder="popdam" />
@@ -76,7 +105,10 @@ function SpacesConfigSettings() {
             <Input className="font-mono text-xs" value={values.public_base_url || ""} onChange={(e) => update("public_base_url", e.target.value)} placeholder="https://popdam.nyc3.digitaloceanspaces.com" />
           </div>
         </div>
-        {form && (
+        <p className="text-[11px] text-muted-foreground">
+          Stored securely in your private database. Delivered to the agent automatically — no .env editing required.
+        </p>
+        {isDirty && (
           <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             <Save className="h-3.5 w-3.5 mr-1.5" /> Save Spaces Config
           </Button>
