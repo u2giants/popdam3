@@ -1,6 +1,7 @@
 /**
  * DigitalOcean Spaces thumbnail uploader for Windows Render Agent.
  * Same logic as bridge-agent uploader — uploads JPG thumbnails.
+ * Supports hot-reloading credentials from heartbeat config sync.
  */
 
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -9,19 +10,58 @@ import { logger } from "./logger";
 
 let s3Client: S3Client | null = null;
 
+// ── Mutable credentials state (updated from heartbeat) ──────────
+
+let currentCredentials = {
+  key: config.doSpacesKey,
+  secret: config.doSpacesSecret,
+  bucket: config.doSpacesBucket,
+  region: config.doSpacesRegion,
+  endpoint: config.doSpacesEndpoint,
+};
+
 function getClient(): S3Client {
   if (!s3Client) {
     s3Client = new S3Client({
-      region: config.doSpacesRegion,
-      endpoint: config.doSpacesEndpoint,
+      region: currentCredentials.region,
+      endpoint: currentCredentials.endpoint,
       credentials: {
-        accessKeyId: config.doSpacesKey,
-        secretAccessKey: config.doSpacesSecret,
+        accessKeyId: currentCredentials.key,
+        secretAccessKey: currentCredentials.secret,
       },
       forcePathStyle: false,
     });
   }
   return s3Client;
+}
+
+/**
+ * Reinitialize the S3 client with new credentials from cloud config.
+ * Merges provided values with current credentials (non-empty values win).
+ */
+export function reinitializeS3Client(doSpaces: {
+  key?: string;
+  secret?: string;
+  bucket?: string;
+  region?: string;
+  endpoint?: string;
+}): void {
+  const effectiveKey = doSpaces.key || currentCredentials.key;
+  const effectiveSecret = doSpaces.secret || currentCredentials.secret;
+  const effectiveBucket = doSpaces.bucket || currentCredentials.bucket;
+  const effectiveRegion = doSpaces.region || currentCredentials.region;
+  const effectiveEndpoint = doSpaces.endpoint || currentCredentials.endpoint;
+
+  currentCredentials = {
+    key: effectiveKey,
+    secret: effectiveSecret,
+    bucket: effectiveBucket,
+    region: effectiveRegion,
+    endpoint: effectiveEndpoint,
+  };
+
+  s3Client = null; // force reinit on next upload
+  logger.info("S3 client credentials updated from cloud config");
 }
 
 /**
@@ -37,7 +77,7 @@ export async function uploadThumbnail(
   const client = getClient();
   await client.send(
     new PutObjectCommand({
-      Bucket: config.doSpacesBucket,
+      Bucket: currentCredentials.bucket,
       Key: key,
       Body: buffer,
       ContentType: "image/jpeg",
@@ -46,7 +86,7 @@ export async function uploadThumbnail(
     }),
   );
 
-  const url = `https://${config.doSpacesBucket}.${config.doSpacesRegion}.digitaloceanspaces.com/${key}`;
+  const url = `https://${currentCredentials.bucket}.${currentCredentials.region}.digitaloceanspaces.com/${key}`;
   logger.info("Thumbnail uploaded", { assetId, url });
   return url;
 }

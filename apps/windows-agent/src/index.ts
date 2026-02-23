@@ -16,7 +16,7 @@ import { config } from "./config";
 import { logger } from "./logger";
 import * as api from "./api-client";
 import { renderWithIllustrator } from "./illustrator";
-import { uploadThumbnail } from "./uploader";
+import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
@@ -27,6 +27,7 @@ let isProcessing = false;
 let lastError: string | undefined;
 let jobsCompleted = 0;
 let jobsFailed = 0;
+let configReceived = false;
 
 // ── Cloud config overrides (updated from heartbeat) ─────────────
 
@@ -35,6 +36,8 @@ let cloudNasShare = config.nasShare;
 let cloudSpacesBucket = config.doSpacesBucket;
 let cloudSpacesRegion = config.doSpacesRegion;
 let cloudSpacesEndpoint = config.doSpacesEndpoint;
+let cloudSpacesKey = config.doSpacesKey;
+let cloudSpacesSecret = config.doSpacesSecret;
 
 // ── Bootstrap ───────────────────────────────────────────────────
 
@@ -80,8 +83,22 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (sp.bucket) cloudSpacesBucket = sp.bucket;
     if (sp.region) cloudSpacesRegion = sp.region;
     if (sp.endpoint) cloudSpacesEndpoint = sp.endpoint;
+    if (sp.key) cloudSpacesKey = sp.key;
+    if (sp.secret) cloudSpacesSecret = sp.secret;
+
+    reinitializeS3Client({
+      key: cloudSpacesKey,
+      secret: cloudSpacesSecret,
+      bucket: cloudSpacesBucket,
+      region: cloudSpacesRegion,
+      endpoint: cloudSpacesEndpoint,
+    });
   }
-}
+
+  // Mark config as received when all required values are present
+  if (cloudNasHost && cloudSpacesKey && cloudSpacesSecret) {
+    configReceived = true;
+  }
 
 function startHeartbeat() {
   setInterval(async () => {
@@ -131,6 +148,10 @@ async function processJob(job: api.RenderJob): Promise<void> {
 function startPolling() {
   setInterval(async () => {
     if (isProcessing) return;
+    if (!configReceived) {
+      logger.debug("Skipping poll — waiting for cloud config (NAS host + Spaces credentials)");
+      return;
+    }
     try {
       isProcessing = true;
       const job = await api.claimRender(agentId);

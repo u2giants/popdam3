@@ -45,6 +45,8 @@ export interface WindowsHeartbeatResponse {
   ok: boolean;
   config?: {
     do_spaces?: {
+      key: string;
+      secret: string;
       bucket: string;
       region: string;
       endpoint: string;
