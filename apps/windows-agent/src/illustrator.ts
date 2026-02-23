@@ -24,6 +24,29 @@ const execFileAsync = promisify(execFile);
 const THUMB_MAX_DIM = 800; // px — match bridge-agent output
 
 /**
+ * Mount a NAS share using net use before rendering.
+ */
+async function mountNasShare(
+  host: string,
+  share: string,
+  username: string,
+  password: string,
+): Promise<void> {
+  if (!host || !username || !password) return;
+  try {
+    await execFileAsync("net", [
+      "use", `\\\\${host}\\${share}`, "/delete", "/yes",
+    ]).catch(() => {});
+    await execFileAsync("net", [
+      "use", `\\\\${host}\\${share}`,
+      `/user:${username}`, password,
+    ]);
+  } catch (e) {
+    console.warn("net use warning:", (e as Error).message);
+  }
+}
+
+/**
  * Generate a VBScript that opens an AI file in Illustrator,
  * exports as JPEG, and closes.
  */
@@ -46,9 +69,16 @@ End If
 
 Err.Clear
 
-' Open the file
+' Suppress all dialogs and alerts
+appRef.UserInteractionLevel = -1
+
+' Open the file with options to ignore missing links
+Dim openOptions
+Set openOptions = CreateObject("Illustrator.OpenOptions")
+openOptions.UpdateLinks = 2
+
 Dim docRef
-Set docRef = appRef.Open("${escapedInput}")
+Set docRef = appRef.Open("${escapedInput}", 1, openOptions)
 
 If Err.Number <> 0 Then
   WScript.StdErr.Write "ERROR: Could not open file: " & Err.Description
@@ -117,7 +147,24 @@ export interface RenderResult {
  * Render an AI file using Adobe Illustrator's COM interface.
  * Returns the JPEG buffer.
  */
-export async function renderWithIllustrator(filePath: string): Promise<RenderResult> {
+export async function renderWithIllustrator(
+  filePath: string,
+  nasCredentials?: {
+    host: string;
+    share: string;
+    username: string;
+    password: string;
+  },
+): Promise<RenderResult> {
+  if (nasCredentials?.host && nasCredentials?.username) {
+    await mountNasShare(
+      nasCredentials.host,
+      nasCredentials.share,
+      nasCredentials.username,
+      nasCredentials.password,
+    );
+  }
+
   const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-ai-render-"));
   const vbsPath = path.join(tmpDir, "render.vbs");
   const jpgPath = path.join(tmpDir, "output.jpg");

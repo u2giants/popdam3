@@ -38,6 +38,8 @@ let cloudSpacesRegion = config.doSpacesRegion;
 let cloudSpacesEndpoint = config.doSpacesEndpoint;
 let cloudSpacesKey = config.doSpacesKey;
 let cloudSpacesSecret = config.doSpacesSecret;
+let cloudNasUsername = "";
+let cloudNasPassword = "";
 
 // ── Bootstrap ───────────────────────────────────────────────────
 
@@ -79,6 +81,8 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     const wa = response.config.windows_agent;
     if (wa.nas_host) cloudNasHost = wa.nas_host;
     if (wa.nas_share) cloudNasShare = wa.nas_share;
+    if (wa.nas_username) cloudNasUsername = wa.nas_username;
+    if (wa.nas_password) cloudNasPassword = wa.nas_password;
   }
   if (response.config?.do_spaces) {
     const sp = response.config.do_spaces;
@@ -128,7 +132,12 @@ async function processJob(job: api.RenderJob): Promise<void> {
   });
 
   try {
-    const result = await renderWithIllustrator(uncPath);
+    const result = await renderWithIllustrator(uncPath, {
+      host: cloudNasHost,
+      share: cloudNasShare,
+      username: cloudNasUsername,
+      password: cloudNasPassword,
+    });
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
     await api.completeRender(job.job_id, true, thumbnailUrl);
     jobsCompleted++;
