@@ -48,7 +48,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["admin-agents"],
     queryFn: () => call("list-agents"),
     refetchInterval: pollFast ? 10_000 : undefined,
@@ -88,8 +88,8 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
         <CardTitle className="text-base flex items-center gap-2">
           <Monitor className="h-4 w-4" /> Windows Agent Status
         </CardTitle>
-        <Button variant="ghost" size="icon" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
+        <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+          <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
         </Button>
       </CardHeader>
       <CardContent>
@@ -121,10 +121,14 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                         variant="ghost"
                         size="sm"
                         className="ml-auto gap-1 text-destructive hover:text-destructive h-7 text-xs"
-                        onClick={() => removeAgentMutation.mutate(agent.id as string)}
+                        onClick={() => {
+                          if (window.confirm("Remove this offline agent? This cannot be undone.")) {
+                            removeAgentMutation.mutate(agent.id as string);
+                          }
+                        }}
                         disabled={removeAgentMutation.isPending}
                       >
-                        <X className="h-3 w-3" />
+                        <Trash2 className="h-3 w-3" />
                         Remove
                       </Button>
                     )}
