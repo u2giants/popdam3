@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import type { AssetFilters, FacetCounts } from "@/types/assets";
+import type { AssetFilters, FacetCounts, FileStatusFilter } from "@/types/assets";
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,26 @@ interface FilterSidebarProps {
   facetCounts: FacetCounts | null;
 }
 
+// ── Display name maps ───────────────────────────────────────────────
+
+const ASSET_TYPE_LABELS: Record<string, string> = {
+  art_piece: "Art Piece",
+  product: "Product",
+  packaging: "Packaging",
+  tech_pack: "Tech Pack",
+  photography: "Photography",
+};
+
+const ASSET_TYPE_OPTIONS = ["art_piece", "product", "packaging", "tech_pack", "photography"] as const;
+
+const FILE_STATUS_OPTIONS: { value: FileStatusFilter; label: string }[] = [
+  { value: "", label: "All files" },
+  { value: "has_preview", label: "Has preview" },
+  { value: "no_preview_renderable", label: "No preview — renderable" },
+  { value: "no_pdf_compat", label: "No preview — AI not PDF compatible" },
+  { value: "no_preview_unsupported", label: "No preview — unsupported format" },
+];
+
 // ── Reusable checkbox group ─────────────────────────────────────────
 
 function CheckboxGroup({
@@ -26,12 +46,14 @@ function CheckboxGroup({
   selected,
   onChange,
   counts,
+  labelMap,
 }: {
   label: string;
   options: readonly string[];
   selected: string[];
   onChange: (v: string[]) => void;
   counts?: Record<string, number>;
+  labelMap?: Record<string, string>;
 }) {
   const toggle = (val: string) => {
     onChange(
@@ -47,6 +69,7 @@ function CheckboxGroup({
       <div className="space-y-1.5">
         {options.map((opt) => {
           const c = counts?.[opt];
+          const displayLabel = labelMap?.[opt] ?? opt.replace(/_/g, " ");
           return (
             <label key={opt} className="flex items-center gap-2 cursor-pointer text-sm">
               <Checkbox
@@ -54,7 +77,7 @@ function CheckboxGroup({
                 onCheckedChange={() => toggle(opt)}
                 className="h-3.5 w-3.5"
               />
-              <span className="capitalize flex-1">{opt.replace(/_/g, " ")}</span>
+              <span className="capitalize flex-1">{displayLabel}</span>
               {c !== undefined && (
                 <span className="text-[10px] text-muted-foreground tabular-nums">{c}</span>
               )}
@@ -91,7 +114,6 @@ function SearchableCombo({
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -115,7 +137,6 @@ function SearchableCombo({
     <div className="space-y-2">
       <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</h4>
       <div ref={containerRef} className="relative">
-        {/* Trigger */}
         <button
           type="button"
           onClick={() => { setOpen(!open); setSearch(""); }}
@@ -131,10 +152,8 @@ function SearchableCombo({
           <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         </button>
 
-        {/* Dropdown */}
         {open && (
           <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-md">
-            {/* Search input */}
             <div className="flex items-center border-b border-border px-2 py-1.5">
               <Search className="h-3.5 w-3.5 text-muted-foreground mr-1.5 shrink-0" />
               <input
@@ -148,7 +167,6 @@ function SearchableCombo({
 
             <ScrollArea className="max-h-[200px]">
               <div className="p-1">
-                {/* All option */}
                 <button
                   type="button"
                   onClick={() => { onChange(null); setOpen(false); }}
@@ -212,6 +230,7 @@ export default function FilterSidebar({
       assetType: [],
       artSource: [],
       tagFilter: "",
+      fileStatus: "",
     });
 
   const licensorOptions: ComboOption[] = licensors.map((l) => ({
@@ -251,6 +270,27 @@ export default function FilterSidebar({
               onChange={(e) => update({ tagFilter: e.target.value })}
               className="h-8 bg-background text-sm"
             />
+          </div>
+
+          <Separator />
+
+          {/* File Status */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">File Status</h4>
+            <div className="space-y-1.5">
+              {FILE_STATUS_OPTIONS.map((opt) => (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
+                  <Checkbox
+                    checked={filters.fileStatus === opt.value}
+                    onCheckedChange={(checked) =>
+                      update({ fileStatus: checked ? opt.value : "" })
+                    }
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="flex-1">{opt.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <Separator />
@@ -343,9 +383,10 @@ export default function FilterSidebar({
           {/* Asset Type */}
           <CheckboxGroup
             label="Asset Type"
-            options={Constants.public.Enums.asset_type}
+            options={ASSET_TYPE_OPTIONS}
             selected={filters.assetType}
             onChange={(v) => update({ assetType: v })}
+            labelMap={ASSET_TYPE_LABELS}
           />
 
           <Separator />

@@ -642,7 +642,12 @@ export type Database = {
         | "straight_style_guide"
         | "style_guide_composition"
       asset_status: "pending" | "processing" | "tagged" | "error"
-      asset_type: "art_piece" | "product"
+      asset_type:
+        | "art_piece"
+        | "product"
+        | "packaging"
+        | "tech_pack"
+        | "photography"
       file_type: "psd" | "ai"
       queue_status:
         | "pending"
@@ -794,7 +799,13 @@ export const Constants = {
         "style_guide_composition",
       ],
       asset_status: ["pending", "processing", "tagged", "error"],
-      asset_type: ["art_piece", "product"],
+      asset_type: [
+        "art_piece",
+        "product",
+        "packaging",
+        "tech_pack",
+        "photography",
+      ],
       file_type: ["psd", "ai"],
       queue_status: ["pending", "claimed", "processing", "completed", "failed"],
       workflow_status: [
