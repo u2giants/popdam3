@@ -132,9 +132,8 @@ async function processJob(job: api.RenderJob): Promise<void> {
   });
 
   const filename = path.basename(job.relative_path);
-  const ext = path.extname(job.relative_path).toLowerCase();
 
-  // Skip macOS metadata files (resource forks)
+  // Skip macOS resource forks
   if (filename.startsWith('._')) {
     logger.info("Skipping macOS resource fork", { relativePath: job.relative_path });
     await api.completeRender(job.job_id, false, undefined, "Skipped: macOS resource fork");
@@ -152,19 +151,14 @@ async function processJob(job: api.RenderJob): Promise<void> {
     await api.completeRender(job.job_id, false, undefined, "Skipped: Windows system file");
     return;
   }
-  // Skip non-AI files (should not be in render queue but guard anyway)
-  if (ext !== '.ai') {
-    logger.info("Skipping non-AI file", { relativePath: job.relative_path, ext });
-    await api.completeRender(job.job_id, false, undefined, `Skipped: not an AI file (${ext})`);
-    return;
-  }
   // Skip files in __MACOSX directories (macOS zip artifacts)
-  if (job.relative_path.includes('__MACOSX/') || job.relative_path.includes('__MACOSX\\')) {
+  if (job.relative_path.includes('__MACOSX/') ||
+      job.relative_path.includes('__MACOSX\\')) {
     logger.info("Skipping __MACOSX artifact", { relativePath: job.relative_path });
     await api.completeRender(job.job_id, false, undefined, "Skipped: __MACOSX artifact");
     return;
   }
-  // Skip files with ~ prefix (temp/autosave files)
+  // Skip temp/autosave files
   if (filename.startsWith('~')) {
     logger.info("Skipping temp file", { relativePath: job.relative_path });
     await api.completeRender(job.job_id, false, undefined, "Skipped: temp/autosave file");
