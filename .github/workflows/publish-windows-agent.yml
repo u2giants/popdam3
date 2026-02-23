@@ -93,6 +93,7 @@ jobs:
           cat > installer/setup.nsi << 'NSIS_EOF'
           !include "MUI2.nsh"
           !include "nsDialogs.nsh"
+          !include "WordFunc.nsh"
 
           Name "PopDAM Windows Render Agent"
           OutFile "popdam-windows-agent-setup.exe"
@@ -104,6 +105,10 @@ jobs:
           Var TokenLabel
           Var TokenInput
           Var TokenHelp
+          Var UserInput
+          Var PassInput
+          Var WinUser
+          Var WinPass
 
           !insertmacro MUI_PAGE_DIRECTORY
           Page custom TokenPageCreate TokenPageLeave
@@ -129,8 +134,21 @@ jobs:
             ${NSD_SetText} $TokenInput ""
             SendMessage $TokenInput ${EM_SETCUEBANNER} 1 "STR:XXXX-XXXX-XXXX-XXXX"
 
-            ${NSD_CreateLabel} 0 54u 100% 32u "Generate this token in PopDAM Settings → Windows Agent.$\r$\nIt expires in 5 minutes and can only be used once."
+            ${NSD_CreateLabel} 0 54u 100% 20u "Generate this token in PopDAM Settings → Windows Agent.$\r$\nIt expires in 5 minutes and can only be used once."
             Pop $TokenHelp
+
+            ${NSD_CreateLabel} 0 80u 100% 12u "Windows Username (for NAS access)"
+            Pop $0
+            ${NSD_CreateText} 0 94u 100% 14u "$USERNAME"
+            Pop $UserInput
+
+            ${NSD_CreateLabel} 0 112u 100% 12u "Windows Password"
+            Pop $0
+            ${NSD_CreatePassword} 0 126u 100% 14u ""
+            Pop $PassInput
+
+            ${NSD_CreateLabel} 0 146u 100% 20u "Enter your Windows login credentials so the agent can access network shares on your NAS."
+            Pop $0
 
             nsDialogs::Show
           FunctionEnd
@@ -140,6 +158,8 @@ jobs:
             StrCmp $BootstrapToken "" 0 +3
               MessageBox MB_OK|MB_ICONEXCLAMATION "Please enter the install token from PopDAM Settings."
               Abort
+            ${NSD_GetText} $UserInput $WinUser
+            ${NSD_GetText} $PassInput $WinPass
           FunctionEnd
 
           Section "Install"
@@ -184,6 +204,20 @@ jobs:
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateFiles 1'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateSeconds 86400'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateBytes 10485760'
+
+            ; Set service to run as specified Windows user (for NAS access)
+            StrCmp $WinUser "" skip_objectname
+              ; Check if username contains backslash (DOMAIN\user format)
+              ${WordFind} $WinUser "\" "E+1{" $0
+              IfErrors no_domain has_domain
+              no_domain:
+                StrCpy $3 ".\$WinUser"
+                Goto set_objectname
+              has_domain:
+                StrCpy $3 $WinUser
+              set_objectname:
+              ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent ObjectName "$3" "$WinPass"'
+            skip_objectname:
 
             ; Start the service
             ExecWait '"$INSTDIR\nssm.exe" start PopDAMWindowsAgent'
