@@ -4,8 +4,8 @@
  */
 
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { config } from "./config.js";
-import { logger } from "./logger.js";
+import { config } from "./config";
+import { logger } from "./logger";
 
 let s3Client: S3Client | null = null;
 

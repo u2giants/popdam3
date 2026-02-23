@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Windows Render Agent configuration — loaded from environment variables.
  * Supports bootstrap flow: agent-key.cfg is loaded automatically if present.
  * Fails fast only if no authentication method is available.
  */
 
-import "dotenv/config";
+require("dotenv").config();
 import { readFileSync } from "node:fs";
 import path from "node:path";
 

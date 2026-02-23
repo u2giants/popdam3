@@ -2,7 +2,6 @@
   "name": "@popdam/windows-agent",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "bin": "dist/index.js",
   "pkg": {
     "entrypoints": ["dist/index.js"],

@@ -16,8 +16,8 @@ import { promisify } from "node:util";
 import { writeFile, readFile, unlink, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { config } from "./config.js";
-import { logger } from "./logger.js";
+import { config } from "./config";
+import { logger } from "./logger";
 
 const execFileAsync = promisify(execFile);
 

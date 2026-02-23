@@ -12,11 +12,11 @@
  * thumbnailed reliably on NAS.
  */
 
-import { config } from "./config.js";
-import { logger } from "./logger.js";
-import * as api from "./api-client.js";
-import { renderWithIllustrator } from "./illustrator.js";
-import { uploadThumbnail } from "./uploader.js";
+import { config } from "./config";
+import { logger } from "./logger";
+import * as api from "./api-client";
+import { renderWithIllustrator } from "./illustrator";
+import { uploadThumbnail } from "./uploader";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
