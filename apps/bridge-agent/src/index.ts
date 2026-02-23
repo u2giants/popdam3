@@ -129,17 +129,21 @@ function startHeartbeat() {
 }
 
 interface CloudConfig {
-  do_spaces?: { key: string; secret: string; bucket: string; region: string; endpoint: string };
+  do_spaces?: { key?: string; secret?: string; bucket: string; region: string; endpoint: string };
   scanning?: { container_mount_root?: string; roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
   auto_scan?: { enabled: boolean; interval_hours: number };
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
-  // Hot-reload S3 client if DO Spaces config changed (bucket, region, endpoint)
-  // Key/secret are never sent from cloud — existing .env credentials are preserved
+  // Hot-reload S3 client if DO Spaces config changed (bucket, region, endpoint, key, secret)
   if (cfg.do_spaces) {
-    reinitializeS3Client(cfg.do_spaces);
+    reinitializeS3Client({
+      bucket: cfg.do_spaces.bucket,
+      region: cfg.do_spaces.region,
+      endpoint: cfg.do_spaces.endpoint,
+      ...(cfg.do_spaces.key && cfg.do_spaces.secret ? { key: cfg.do_spaces.key, secret: cfg.do_spaces.secret } : {}),
+    });
   }
 
   // Update scan roots and mount root from cloud
@@ -497,6 +501,11 @@ async function main() {
     thumbConcurrency: config.thumbConcurrency,
     batchSize: config.ingestBatchSize,
   });
+
+  // Warn about missing DO Spaces credentials (expected — will arrive via heartbeat)
+  if (!config.doSpacesKey || !config.doSpacesSecret) {
+    logger.warn("DO_SPACES_KEY/SECRET not set in .env — waiting for cloud config via heartbeat. Thumbnails will be skipped until credentials are received.");
+  }
 
   // 1. Register with cloud
   try {
