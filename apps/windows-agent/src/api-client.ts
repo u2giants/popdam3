@@ -54,8 +54,8 @@ export interface WindowsHeartbeatResponse {
     windows_agent?: {
       nas_host: string;
       nas_share: string;
-      nas_user?: string;
-      nas_pass?: string;
+      nas_username?: string;
+      nas_password?: string;
     };
   };
 }

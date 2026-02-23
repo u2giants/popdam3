@@ -31,7 +31,7 @@ const AGENT_TYPE_LABELS: Record<string, string> = {
   "windows-render": "Windows Render Agent",
 };
 
-const SENSITIVE_PATTERNS = /secret|key|password|token/i;
+const SENSITIVE_PATTERNS = /secret|key|password|token|_pass|nas_user/i;
 
 const SCAN_CONFIG_KEYS = new Set([
   "SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT", "SCAN_REQUEST",
