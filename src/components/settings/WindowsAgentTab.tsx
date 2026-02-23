@@ -202,8 +202,8 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
 
   useEffect(() => {
     if (configData && !initialized) {
-      setNasHost(getConfigVal("WINDOWS_AGENT_NAS_HOST"));
-      setNasShare(getConfigVal("WINDOWS_AGENT_NAS_SHARE"));
+      setNasHost(getConfigVal("WINDOWS_AGENT_NAS_HOST").replace(/^\\+/, ''));
+      setNasShare(getConfigVal("WINDOWS_AGENT_NAS_SHARE").replace(/^\\+/, '').replace(/^\/+/, ''));
       setNasUser(getConfigVal("WINDOWS_AGENT_NAS_USER"));
       setNasPass(getConfigVal("WINDOWS_AGENT_NAS_PASS"));
       setInitialized(true);
@@ -211,15 +211,18 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
   }, [configData, initialized]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      call("set-config", {
+    mutationFn: () => {
+      const cleanHost = nasHost.replace(/^\\+/, '');
+      const cleanShare = nasShare.replace(/^\\+/, '').replace(/^\/+/, '');
+      return call("set-config", {
         entries: {
-          WINDOWS_AGENT_NAS_HOST: nasHost,
-          WINDOWS_AGENT_NAS_SHARE: nasShare,
+          WINDOWS_AGENT_NAS_HOST: cleanHost,
+          WINDOWS_AGENT_NAS_SHARE: cleanShare,
           WINDOWS_AGENT_NAS_USER: nasUser,
           WINDOWS_AGENT_NAS_PASS: nasPass,
         },
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success("Windows Agent NAS config saved");
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
