@@ -83,7 +83,7 @@ jobs:
           $fileInfo = Get-Item $realNssm
           Write-Host "File size: $($fileInfo.Length) bytes"
           if ($fileInfo.Length -lt 100000) {
-            throw "nssm.exe is too small — this is a shim, not the real exe"
+            throw "nssm.exe is too small - this is a shim, not the real exe"
           }
           Copy-Item $realNssm -Destination "installer\nssm.exe"
 
