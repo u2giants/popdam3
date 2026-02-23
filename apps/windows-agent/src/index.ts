@@ -27,6 +27,14 @@ let lastError: string | undefined;
 let jobsCompleted = 0;
 let jobsFailed = 0;
 
+// ── Cloud config overrides (updated from heartbeat) ─────────────
+
+let cloudNasHost = config.nasHost;
+let cloudNasShare = config.nasShare;
+let cloudSpacesBucket = config.doSpacesBucket;
+let cloudSpacesRegion = config.doSpacesRegion;
+let cloudSpacesEndpoint = config.doSpacesEndpoint;
+
 // ── Path construction ───────────────────────────────────────────
 
 /**
@@ -41,15 +49,30 @@ let jobsFailed = 0;
  */
 function toUncPath(relativePath: string): string {
   const windowsPath = relativePath.replace(/\//g, "\\");
-  return `\\\\${config.nasHost}\\${config.nasShare}\\${windowsPath}`;
+  return `\\\\${cloudNasHost}\\${cloudNasShare}\\${windowsPath}`;
 }
 
 // ── Heartbeat ───────────────────────────────────────────────────
 
+async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
+  if (response.config?.windows_agent) {
+    const wa = response.config.windows_agent;
+    if (wa.nas_host) cloudNasHost = wa.nas_host;
+    if (wa.nas_share) cloudNasShare = wa.nas_share;
+  }
+  if (response.config?.do_spaces) {
+    const sp = response.config.do_spaces;
+    if (sp.bucket) cloudSpacesBucket = sp.bucket;
+    if (sp.region) cloudSpacesRegion = sp.region;
+    if (sp.endpoint) cloudSpacesEndpoint = sp.endpoint;
+  }
+}
+
 function startHeartbeat() {
   setInterval(async () => {
     try {
-      await api.heartbeat(agentId, lastError);
+      const response = await api.heartbeat(agentId, lastError);
+      applyCloudConfig(response);
       logger.debug("Heartbeat sent");
     } catch (e) {
       logger.error("Heartbeat failed", { error: (e as Error).message });
@@ -158,10 +181,32 @@ async function main() {
     process.exit(1);
   }
 
-  // 2. Start heartbeat
+  // 2. First heartbeat — fetch cloud config before processing
+  try {
+    const initialResponse = await api.heartbeat(agentId, undefined);
+    applyCloudConfig(initialResponse);
+    logger.info("Initial cloud config applied", {
+      nasHost: cloudNasHost,
+      nasShare: cloudNasShare,
+      spacesBucket: cloudSpacesBucket,
+    });
+  } catch (e) {
+    logger.warn("Initial heartbeat failed — will retry on timer", {
+      error: (e as Error).message,
+    });
+  }
+
+  if (!cloudNasHost) {
+    logger.warn(
+      "NAS_HOST not configured. Set it in PopDAM Settings → Windows Agent. " +
+        "Render jobs will be skipped until configured.",
+    );
+  }
+
+  // 3. Start heartbeat timer
   startHeartbeat();
 
-  // 3. Start polling for render jobs
+  // 4. Start polling for render jobs
   startPolling();
 
   logger.info("Windows Render Agent ready");
