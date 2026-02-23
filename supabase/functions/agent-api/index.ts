@@ -495,6 +495,18 @@ async function handleIngest(
 
   const relativePath = requireCanonicalRelativePath(body, "relative_path");
   const filename = requireString(body, "filename");
+
+  // ── Junk-file guard: skip system/temp files before any DB work ──
+  const JUNK_FILENAMES = new Set([".DS_Store", ".localized", "Thumbs.db", "desktop.ini"]);
+  if (
+    filename.startsWith("._") ||
+    filename.startsWith("~") ||
+    JUNK_FILENAMES.has(filename) ||
+    relativePath.includes("__MACOSX")
+  ) {
+    return json({ ok: true, action: "skipped", reason: "junk file" });
+  }
+
   const fileType = requireString(body, "file_type");
   const fileSize = optionalNumber(body, "file_size") ?? 0;
   const modifiedAt = requireString(body, "modified_at");
