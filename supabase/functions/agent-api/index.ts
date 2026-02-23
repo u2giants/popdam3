@@ -1117,6 +1117,60 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   return json({ ok: true, changed });
 }
 
+// ── Route: save-checkpoint ───────────────────────────────────────────
+
+async function handleSaveCheckpoint(body: Record<string, unknown>, agentId: string) {
+  const sessionId = requireString(body, "session_id");
+  const lastCompletedDir = requireString(body, "last_completed_dir");
+
+  const db = serviceClient();
+  const { error } = await db
+    .from("admin_config")
+    .upsert({
+      key: "SCAN_CHECKPOINT",
+      value: {
+        session_id: sessionId,
+        last_completed_dir: lastCompletedDir,
+        saved_at: new Date().toISOString(),
+        agent_id: agentId,
+      },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "key" });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
+// ── Route: get-checkpoint ───────────────────────────────────────────
+
+async function handleGetCheckpoint(agentId: string) {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "SCAN_CHECKPOINT")
+    .maybeSingle();
+
+  if (error) return err(error.message, 500);
+  if (!data) return json({ ok: true, checkpoint: null });
+
+  const checkpoint = data.value as Record<string, unknown>;
+  // Only return checkpoint if it belongs to this agent
+  if (checkpoint.agent_id !== agentId) {
+    return json({ ok: true, checkpoint: null });
+  }
+
+  return json({ ok: true, checkpoint });
+}
+
+// ── Route: clear-checkpoint ─────────────────────────────────────────
+
+async function handleClearCheckpoint() {
+  const db = serviceClient();
+  await db.from("admin_config").delete().eq("key", "SCAN_CHECKPOINT");
+  return json({ ok: true });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1189,6 +1243,12 @@ serve(async (req: Request) => {
         return await handleReportPathTest(body);
       case "check-changed":
         return await handleCheckChanged(body);
+      case "save-checkpoint":
+        return await handleSaveCheckpoint(body, agentId);
+      case "get-checkpoint":
+        return await handleGetCheckpoint(agentId);
+      case "clear-checkpoint":
+        return await handleClearCheckpoint();
       default:
         return err(`Unknown action: ${action}`, 404);
     }

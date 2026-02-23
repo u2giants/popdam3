@@ -82,11 +82,12 @@ export async function* scanFiles(
   counters: Counters,
   scanRoots?: string[],
   callbacks?: ScanCallbacks,
+  resumeFromDir?: string,
 ): AsyncGenerator<FileCandidate> {
   const roots = scanRoots ?? config.scanRoots;
   for (const root of roots) {
     if (callbacks?.shouldAbort?.()) return;
-    yield* scanDirectory(root, counters, callbacks);
+    yield* scanDirectory(root, counters, callbacks, root, resumeFromDir);
   }
 }
 
@@ -94,6 +95,8 @@ async function* scanDirectory(
   dirPath: string,
   counters: Counters,
   callbacks?: ScanCallbacks,
+  scanRoot?: string,
+  resumeFromDir?: string,
 ): AsyncGenerator<FileCandidate> {
   if (callbacks?.shouldAbort?.()) return;
   let entries;
@@ -126,7 +129,15 @@ async function* scanDirectory(
     }
 
     if (entry.isDirectory()) {
-      yield* scanDirectory(fullPath, counters, callbacks);
+      // Resume support: if resumeFromDir is set and this is a top-level
+      // subdirectory (one level below scan root), skip dirs that sort before it
+      if (resumeFromDir && scanRoot && dirPath === scanRoot) {
+        if (fullPath < resumeFromDir) {
+          logger.debug("Skipping already-checkpointed directory", { dir: fullPath, resumeFrom: resumeFromDir });
+          continue;
+        }
+      }
+      yield* scanDirectory(fullPath, counters, callbacks, scanRoot, resumeFromDir);
       continue;
     }
 
