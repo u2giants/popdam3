@@ -69,14 +69,13 @@ jobs:
       - name: Install NSIS
         run: choco install nsis -y --no-progress
 
-      - name: Download NSSM
+      - name: Install NSSM
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri "https://nssm.cc/release/nssm-2.24.zip" `
-            -OutFile "nssm.zip"
-          Expand-Archive -Path "nssm.zip" -DestinationPath "nssm-extracted"
-          Copy-Item "nssm-extracted\nssm-2.24\win64\nssm.exe" `
-            -Destination "installer\nssm.exe"
+          choco install nssm -y --no-progress
+          $nssmPath = (Get-Command nssm).Source
+          Write-Host "NSSM installed at: $nssmPath"
+          Copy-Item $nssmPath -Destination "installer\nssm.exe"
 
       - name: Create NSIS script
         shell: bash
