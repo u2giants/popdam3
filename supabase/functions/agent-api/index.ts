@@ -513,6 +513,27 @@ async function handleIngest(
     .maybeSingle();
 
   if (existingByPath) {
+    // Thumbnail update logic:
+    // - If incoming has a thumbnailUrl, ALWAYS overwrite (successful generation)
+    // - If incoming has only a thumbnailError, only set it if there's no existing working thumbnail
+    const thumbnailFields: Record<string, unknown> = {};
+    if (thumbnailUrl) {
+      // Always overwrite with a working thumbnail
+      thumbnailFields.thumbnail_url = thumbnailUrl;
+      thumbnailFields.thumbnail_error = null;
+    } else if (thumbnailError) {
+      // Only set error if asset doesn't already have a working thumbnail
+      // Fetch current thumbnail_url to check
+      const { data: currentAsset } = await db
+        .from("assets")
+        .select("thumbnail_url")
+        .eq("id", existingByPath.id)
+        .single();
+      if (!currentAsset?.thumbnail_url) {
+        thumbnailFields.thumbnail_error = thumbnailError;
+      }
+    }
+
     const { error: updateError } = await db
       .from("assets")
       .update({
@@ -526,12 +547,7 @@ async function handleIngest(
         quick_hash: quickHash,
         quick_hash_version: quickHashVersion,
         last_seen_at: new Date().toISOString(),
-        ...(thumbnailUrl
-          ? { thumbnail_url: thumbnailUrl, thumbnail_error: null }
-          : {}),
-        ...(!thumbnailUrl && thumbnailError
-          ? { thumbnail_error: thumbnailError }
-          : {}),
+        ...thumbnailFields,
       })
       .eq("id", existingByPath.id);
 
@@ -1073,48 +1089,64 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   const db = serviceClient();
   const relativePaths = files.map((f: Record<string, unknown>) => f.relative_path as string);
 
-  // Fetch existing assets by relative_path in one query
+  // Fetch existing assets by relative_path in one query (include thumbnail info for retry logic)
   const { data: existingAssets, error } = await db
     .from("assets")
-    .select("relative_path, modified_at, file_size")
+    .select("relative_path, modified_at, file_size, thumbnail_url, thumbnail_error")
     .in("relative_path", relativePaths)
     .eq("is_deleted", false);
 
   if (error) return err(error.message, 500);
 
-  // Build lookup map: relative_path -> { modified_at, file_size }
-  const existingMap = new Map<string, { modified_at: string; file_size: number | null }>();
+  // Build lookup map
+  const existingMap = new Map<string, {
+    modified_at: string;
+    file_size: number | null;
+    thumbnail_url: string | null;
+    thumbnail_error: string | null;
+  }>();
   for (const asset of existingAssets || []) {
     existingMap.set(asset.relative_path, {
       modified_at: asset.modified_at,
       file_size: asset.file_size,
+      thumbnail_url: asset.thumbnail_url,
+      thumbnail_error: asset.thumbnail_error,
     });
   }
 
   // Determine which files are new or changed
   const changed: string[] = [];
+  // Files that are unchanged but have retryable thumbnail failures
+  const needsThumbnail: string[] = [];
+  const PERMANENT_THUMB_ERRORS = ["no_pdf_compat", "no_preview_or_render_failed"];
+
   for (const file of files) {
     const f = file as Record<string, unknown>;
     const rp = f.relative_path as string;
     const existing = existingMap.get(rp);
 
     if (!existing) {
-      // New file — needs processing
       changed.push(rp);
       continue;
     }
 
-    // Compare modified_at (truncate to seconds for comparison)
     const incomingMod = new Date(f.modified_at as string).getTime();
     const existingMod = new Date(existing.modified_at).getTime();
     const incomingSize = f.file_size as number;
 
     if (incomingMod !== existingMod || incomingSize !== (existing.file_size ?? 0)) {
       changed.push(rp);
+    } else if (
+      !existing.thumbnail_url &&
+      existing.thumbnail_error &&
+      !PERMANENT_THUMB_ERRORS.includes(existing.thumbnail_error)
+    ) {
+      // Unchanged file but has a retryable thumbnail failure — retry it
+      needsThumbnail.push(rp);
     }
   }
 
-  return json({ ok: true, changed });
+  return json({ ok: true, changed, needs_thumbnail: needsThumbnail });
 }
 
 // ── Route: save-checkpoint ───────────────────────────────────────────

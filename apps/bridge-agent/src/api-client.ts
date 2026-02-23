@@ -143,9 +143,17 @@ export interface CheckChangedFile {
   file_size: number;
 }
 
-export async function checkChanged(files: CheckChangedFile[]): Promise<string[]> {
+export interface CheckChangedResult {
+  changed: string[];
+  needs_thumbnail: string[];
+}
+
+export async function checkChanged(files: CheckChangedFile[]): Promise<CheckChangedResult> {
   const data = await callApi("check-changed", { files });
-  return (data.changed as string[]) || [];
+  return {
+    changed: (data.changed as string[]) || [],
+    needs_thumbnail: (data.needs_thumbnail as string[]) || [],
+  };
 }
 
 export interface ScanCheckpoint {
