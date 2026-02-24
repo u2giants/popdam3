@@ -1459,6 +1459,90 @@ async function handleRunQuery(body: Record<string, unknown>) {
   return json({ ok: true, rows: data ?? [], count: Array.isArray(data) ? data.length : 0 });
 }
 
+// ── Route: purge-old-assets ──────────────────────────────────────────
+
+async function handlePurgeOldAssets(body: Record<string, unknown>) {
+  const cutoffDate = typeof body.cutoff_date === "string" ? body.cutoff_date : null;
+  if (!cutoffDate) return err("cutoff_date is required");
+
+  const db = serviceClient();
+
+  const { data: oldAssets, error: fetchErr } = await db
+    .from("assets")
+    .select("id, style_group_id, modified_at")
+    .eq("is_deleted", false)
+    .lt("modified_at", cutoffDate);
+
+  if (fetchErr) return err(fetchErr.message, 500);
+  if (!oldAssets || oldAssets.length === 0) {
+    return json({ ok: true, assets_purged: 0, groups_removed: 0, groups_updated: 0 });
+  }
+
+  const assetIds = oldAssets.map((a: any) => a.id);
+  const affectedGroupIds = [...new Set(
+    oldAssets.map((a: any) => a.style_group_id).filter(Boolean)
+  )] as string[];
+
+  // Soft-delete in chunks of 500
+  for (let i = 0; i < assetIds.length; i += 500) {
+    const chunk = assetIds.slice(i, i + 500);
+    const { error: deleteErr } = await db
+      .from("assets")
+      .update({ is_deleted: true })
+      .in("id", chunk);
+    if (deleteErr) return err(deleteErr.message, 500);
+  }
+
+  let groupsRemoved = 0;
+  let groupsUpdated = 0;
+
+  for (const groupId of affectedGroupIds) {
+    const { data: remaining } = await db
+      .from("assets")
+      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url")
+      .eq("style_group_id", groupId)
+      .eq("is_deleted", false);
+
+    if (!remaining || remaining.length === 0) {
+      await db.from("style_groups").delete().eq("id", groupId);
+      groupsRemoved++;
+    } else {
+      const primaryId = selectPrimaryAsset(remaining);
+      const latestFileDate = remaining.reduce((max: string, a: any) => {
+        const d = a.modified_at ?? a.created_at;
+        return d > max ? d : max;
+      }, "1970-01-01T00:00:00.000Z");
+
+      const statusPriority = ["licensor_approved", "customer_adopted",
+        "in_process", "in_development", "concept_approved",
+        "freelancer_art", "product_ideas"];
+      let bestStatus = "other";
+      for (const s of statusPriority) {
+        if (remaining.some((a: any) => a.workflow_status === s)) {
+          bestStatus = s;
+          break;
+        }
+      }
+
+      await db.from("style_groups").update({
+        asset_count: remaining.length,
+        primary_asset_id: primaryId,
+        workflow_status: bestStatus as any,
+        latest_file_date: latestFileDate,
+        updated_at: new Date().toISOString(),
+      }).eq("id", groupId);
+      groupsUpdated++;
+    }
+  }
+
+  return json({
+    ok: true,
+    assets_purged: assetIds.length,
+    groups_removed: groupsRemoved,
+    groups_updated: groupsUpdated,
+  });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1546,6 +1630,8 @@ serve(async (req: Request) => {
         return await handleRunQuery(body);
       case "rebuild-style-groups":
         return await handleRebuildStyleGroups(body);
+      case "purge-old-assets":
+        return await handlePurgeOldAssets(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

@@ -262,6 +262,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "DO_SPACES_KEY",
   "DO_SPACES_SECRET",
   "AGENT_UPDATE_REQUEST",
+  "SCAN_MIN_DATE",
 ];
 
 async function handleHeartbeat(
@@ -501,6 +502,7 @@ async function handleHeartbeat(
           (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
         roots: scanRoots,
         batch_size: pollingConfig.batch_size ?? 100,
+        scan_min_date: (configMap.SCAN_MIN_DATE as string) || null,
         adaptive_polling: {
           idle_seconds: pollingConfig.idle_seconds ?? 30,
           active_seconds: pollingConfig.active_seconds ?? 5,

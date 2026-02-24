@@ -69,6 +69,7 @@ let cloudScanRoots: string[] | null = null; // null = use env fallback
 let cloudMountRoot: string | null = null;
 let cloudBatchSize: number | null = null;
 let cloudConcurrency: number | null = null;
+let cloudScanMinDate: string | null = null;
 
 // Auto-scan state
 let autoScanEnabled = false;
@@ -148,7 +149,7 @@ function startHeartbeat() {
 
 interface CloudConfig {
   do_spaces?: { key?: string; secret?: string; bucket: string; region: string; endpoint: string };
-  scanning?: { container_mount_root?: string; roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
+  scanning?: { container_mount_root?: string; roots: string[]; batch_size: number; scan_min_date?: string | null; adaptive_polling: { idle_seconds: number; active_seconds: number } };
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
   auto_scan?: { enabled: boolean; interval_hours: number };
 }
@@ -174,6 +175,9 @@ function applyCloudConfig(cfg: CloudConfig) {
     }
     if (cfg.scanning.batch_size) {
       cloudBatchSize = cfg.scanning.batch_size;
+    }
+    if (cfg.scanning.scan_min_date) {
+      cloudScanMinDate = cfg.scanning.scan_min_date;
     }
   }
 
@@ -413,6 +417,12 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
 }
 
 async function processFile(file: FileCandidate) {
+  // Skip files older than the configured scan min date
+  if (cloudScanMinDate && file.modifiedAt < new Date(cloudScanMinDate)) {
+    counters.noop_unchanged++;
+    return;
+  }
+
   try {
     // 1. Quick hash
     const { quick_hash, quick_hash_version } = await computeQuickHash(file.absolutePath);
