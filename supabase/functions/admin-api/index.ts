@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { parseSku } from "../_shared/sku-parser.ts";
 
 // ── CORS ────────────────────────────────────────────────────────────
 
@@ -1191,7 +1192,7 @@ async function deriveMetadataFromPath(
 
 async function handleReprocessAssetMetadata() {
   const db = serviceClient();
-  const BATCH_SIZE = 500;
+  const BATCH_SIZE = 200;
   let offset = 0;
   let totalProcessed = 0;
   let totalUpdated = 0;
@@ -1199,7 +1200,7 @@ async function handleReprocessAssetMetadata() {
   while (true) {
     const { data: assets, error: fetchErr } = await db
       .from("assets")
-      .select("id, relative_path, is_licensed, workflow_status, licensor_id, property_id")
+      .select("id, relative_path, filename, is_licensed, workflow_status, licensor_id, property_id, sku")
       .eq("is_deleted", false)
       .range(offset, offset + BATCH_SIZE - 1)
       .order("created_at");
@@ -1209,24 +1210,46 @@ async function handleReprocessAssetMetadata() {
 
     for (const asset of assets) {
       totalProcessed++;
-      const derived = await deriveMetadataFromPath(asset.relative_path, db);
-
       const updates: Record<string, unknown> = {};
 
-      // Always update is_licensed and workflow_status (path-derived)
+      // Re-derive path-based metadata
+      const derived = await deriveMetadataFromPath(asset.relative_path, db);
+
       if (asset.is_licensed !== derived.is_licensed) {
         updates.is_licensed = derived.is_licensed;
       }
       if (asset.workflow_status !== derived.workflow_status) {
         updates.workflow_status = derived.workflow_status;
       }
-
-      // Only set licensor/property if not manually assigned already
       if (!asset.licensor_id && derived.licensor_id) {
         updates.licensor_id = derived.licensor_id;
       }
       if (!asset.property_id && derived.property_id) {
         updates.property_id = derived.property_id;
+      }
+
+      // Re-derive SKU metadata from filename
+      const parsed = await parseSku(asset.filename);
+      if (parsed) {
+        const skuFields: Record<string, string | boolean> = {
+          sku: parsed.sku,
+          mg01_code: parsed.mg01_code, mg01_name: parsed.mg01_name,
+          mg02_code: parsed.mg02_code, mg02_name: parsed.mg02_name,
+          mg03_code: parsed.mg03_code, mg03_name: parsed.mg03_name,
+          size_code: parsed.size_code, size_name: parsed.size_name,
+          licensor_code: parsed.licensor_code, licensor_name: parsed.licensor_name,
+          property_code: parsed.property_code, property_name: parsed.property_name,
+          sku_sequence: parsed.sku_sequence,
+          product_category: parsed.product_category,
+          division_code: parsed.division_code, division_name: parsed.division_name,
+          is_licensed: parsed.is_licensed,
+        };
+        for (const [k, v] of Object.entries(skuFields)) {
+          const current = (asset as Record<string, unknown>)[k];
+          if (current !== v) {
+            updates[k] = v;
+          }
+        }
       }
 
       if (Object.keys(updates).length > 0) {

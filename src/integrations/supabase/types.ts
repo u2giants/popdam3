@@ -137,6 +137,8 @@ export type Database = {
           created_at: string
           design_ref: string | null
           design_style: string | null
+          division_code: string | null
+          division_name: string | null
           file_created_at: string | null
           file_size: number | null
           file_type: Database["public"]["Enums"]["file_type"]
@@ -148,15 +150,30 @@ export type Database = {
           is_licensed: boolean | null
           last_scanned_at: string | null
           last_seen_at: string
+          licensor_code: string | null
           licensor_id: string | null
+          licensor_name: string | null
           little_theme: string | null
+          mg01_code: string | null
+          mg01_name: string | null
+          mg02_code: string | null
+          mg02_name: string | null
+          mg03_code: string | null
+          mg03_name: string | null
           modified_at: string
+          product_category: string | null
           product_subtype_id: string | null
+          property_code: string | null
           property_id: string | null
+          property_name: string | null
           quick_hash: string
           quick_hash_version: number
           relative_path: string
           scene_description: string | null
+          size_code: string | null
+          size_name: string | null
+          sku: string | null
+          sku_sequence: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
           tags: string[]
           thumbnail_error: string | null
@@ -173,6 +190,8 @@ export type Database = {
           created_at?: string
           design_ref?: string | null
           design_style?: string | null
+          division_code?: string | null
+          division_name?: string | null
           file_created_at?: string | null
           file_size?: number | null
           file_type: Database["public"]["Enums"]["file_type"]
@@ -184,15 +203,30 @@ export type Database = {
           is_licensed?: boolean | null
           last_scanned_at?: string | null
           last_seen_at?: string
+          licensor_code?: string | null
           licensor_id?: string | null
+          licensor_name?: string | null
           little_theme?: string | null
+          mg01_code?: string | null
+          mg01_name?: string | null
+          mg02_code?: string | null
+          mg02_name?: string | null
+          mg03_code?: string | null
+          mg03_name?: string | null
           modified_at: string
+          product_category?: string | null
           product_subtype_id?: string | null
+          property_code?: string | null
           property_id?: string | null
+          property_name?: string | null
           quick_hash: string
           quick_hash_version?: number
           relative_path: string
           scene_description?: string | null
+          size_code?: string | null
+          size_name?: string | null
+          sku?: string | null
+          sku_sequence?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
           tags?: string[]
           thumbnail_error?: string | null
@@ -211,6 +245,8 @@ export type Database = {
           created_at?: string
           design_ref?: string | null
           design_style?: string | null
+          division_code?: string | null
+          division_name?: string | null
           file_created_at?: string | null
           file_size?: number | null
           file_type?: Database["public"]["Enums"]["file_type"]
@@ -222,15 +258,30 @@ export type Database = {
           is_licensed?: boolean | null
           last_scanned_at?: string | null
           last_seen_at?: string
+          licensor_code?: string | null
           licensor_id?: string | null
+          licensor_name?: string | null
           little_theme?: string | null
+          mg01_code?: string | null
+          mg01_name?: string | null
+          mg02_code?: string | null
+          mg02_name?: string | null
+          mg03_code?: string | null
+          mg03_name?: string | null
           modified_at?: string
+          product_category?: string | null
           product_subtype_id?: string | null
+          property_code?: string | null
           property_id?: string | null
+          property_name?: string | null
           quick_hash?: string
           quick_hash_version?: number
           relative_path?: string
           scene_description?: string | null
+          size_code?: string | null
+          size_name?: string | null
+          sku?: string | null
+          sku_sequence?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
           tags?: string[]
           thumbnail_error?: string | null
