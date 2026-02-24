@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Asset } from "@/types/assets";
+import type { StyleGroup } from "@/hooks/useStyleGroups";
 import type { Enums } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import { Constants } from "@/integrations/supabase/types";
 import { toast } from "@/hooks/use-toast";
 
 interface BulkActionBarProps {
-  selectedAssets: Asset[];
+  selectedGroups: StyleGroup[];
   onClearSelection: () => void;
 }
 
@@ -29,16 +29,28 @@ interface TagProgress {
   inProgress: boolean;
 }
 
-export default function BulkActionBar({ selectedAssets, onClearSelection }: BulkActionBarProps) {
+export default function BulkActionBar({ selectedGroups, onClearSelection }: BulkActionBarProps) {
   const queryClient = useQueryClient();
   const [tagProgress, setTagProgress] = useState<TagProgress | null>(null);
   const [workflowValue, setWorkflowValue] = useState<string>("");
 
-  // Bulk AI tag — sequential to avoid rate limits
+  // Bulk AI tag — fetch all assets across selected groups, then tag sequentially
   const handleBulkAiTag = async () => {
-    const taggable = selectedAssets.filter((a) => a.thumbnail_url);
+    const groupIds = selectedGroups.map(g => g.id);
+    const { data: groupAssets, error } = await supabase
+      .from("assets")
+      .select("id, thumbnail_url")
+      .in("style_group_id", groupIds)
+      .eq("is_deleted", false);
+
+    if (error || !groupAssets) {
+      toast({ title: "Failed to fetch assets", description: error?.message, variant: "destructive" });
+      return;
+    }
+
+    const taggable = groupAssets.filter((a) => a.thumbnail_url);
     if (taggable.length === 0) {
-      toast({ title: "No taggable assets", description: "Selected assets have no thumbnails.", variant: "destructive" });
+      toast({ title: "No taggable assets", description: "Selected groups have no assets with thumbnails.", variant: "destructive" });
       return;
     }
 
@@ -61,10 +73,10 @@ export default function BulkActionBar({ selectedAssets, onClearSelection }: Bulk
     }
 
     setTagProgress({ total: taggable.length, completed, failed, inProgress: false });
-    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["style-groups"] });
 
     if (failed === 0) {
-      toast({ title: `AI tagged ${completed} asset${completed !== 1 ? "s" : ""}` });
+      toast({ title: `AI tagged ${completed} asset${completed !== 1 ? "s" : ""} across ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}` });
     } else {
       toast({
         title: `Tagged ${completed}, failed ${failed}`,
@@ -72,23 +84,22 @@ export default function BulkActionBar({ selectedAssets, onClearSelection }: Bulk
       });
     }
 
-    // Auto-dismiss progress after 3s
     setTimeout(() => setTagProgress(null), 3000);
   };
 
-  // Bulk workflow change
+  // Bulk workflow change — update style_groups directly
   const bulkWorkflow = useMutation({
     mutationFn: async (status: string) => {
-      const ids = selectedAssets.map((a) => a.id);
+      const ids = selectedGroups.map((g) => g.id);
       const { error } = await supabase
-        .from("assets")
+        .from("style_groups")
         .update({ workflow_status: status as Enums<"workflow_status"> })
         .in("id", ids);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      toast({ title: `Workflow updated for ${selectedAssets.length} assets` });
+      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+      toast({ title: `Workflow updated for ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}` });
       setWorkflowValue("");
     },
     onError: (e) => {
@@ -105,7 +116,7 @@ export default function BulkActionBar({ selectedAssets, onClearSelection }: Bulk
       {/* Selection count */}
       <div className="flex items-center gap-2">
         <Badge variant="default" className="text-xs">
-          {selectedAssets.length} selected
+          {selectedGroups.length} group{selectedGroups.length !== 1 ? "s" : ""} selected
         </Badge>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClearSelection}>
           <X className="h-3.5 w-3.5" />
@@ -125,8 +136,7 @@ export default function BulkActionBar({ selectedAssets, onClearSelection }: Bulk
         ) : (
           <Sparkles className="h-3.5 w-3.5" />
         )}
-        AI Tag{selectedAssets.filter((a) => a.thumbnail_url).length > 0 &&
-          ` (${selectedAssets.filter((a) => a.thumbnail_url).length})`}
+        AI Tag
       </Button>
 
       {/* Bulk workflow change */}
