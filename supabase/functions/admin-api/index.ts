@@ -1190,82 +1190,85 @@ async function deriveMetadataFromPath(
 
 // ── Route: reprocess-asset-metadata ─────────────────────────────────
 
-async function handleReprocessAssetMetadata() {
-  const db = serviceClient();
+async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
+  const offset = typeof body.offset === "number" ? body.offset : 0;
   const BATCH_SIZE = 200;
-  let offset = 0;
-  let totalProcessed = 0;
-  let totalUpdated = 0;
+  const db = serviceClient();
 
-  while (true) {
-    const { data: assets, error: fetchErr } = await db
-      .from("assets")
-      .select("id, relative_path, filename, is_licensed, workflow_status, licensor_id, property_id, sku")
-      .eq("is_deleted", false)
-      .range(offset, offset + BATCH_SIZE - 1)
-      .order("created_at");
+  const { data: assets, error: fetchErr } = await db
+    .from("assets")
+    .select("id, relative_path, filename, is_licensed, workflow_status, licensor_id, property_id, sku")
+    .eq("is_deleted", false)
+    .range(offset, offset + BATCH_SIZE - 1)
+    .order("created_at");
 
-    if (fetchErr) return err(fetchErr.message, 500);
-    if (!assets || assets.length === 0) break;
+  if (fetchErr) return err(fetchErr.message, 500);
+  if (!assets || assets.length === 0) {
+    return json({ ok: true, done: true, updated: 0, total: 0, nextOffset: null });
+  }
 
-    for (const asset of assets) {
-      totalProcessed++;
-      const updates: Record<string, unknown> = {};
+  let updated = 0;
 
-      // Re-derive path-based metadata
-      const derived = await deriveMetadataFromPath(asset.relative_path, db);
+  for (const asset of assets) {
+    const updates: Record<string, unknown> = {};
 
-      if (asset.is_licensed !== derived.is_licensed) {
-        updates.is_licensed = derived.is_licensed;
-      }
-      if (asset.workflow_status !== derived.workflow_status) {
-        updates.workflow_status = derived.workflow_status;
-      }
-      if (!asset.licensor_id && derived.licensor_id) {
-        updates.licensor_id = derived.licensor_id;
-      }
-      if (!asset.property_id && derived.property_id) {
-        updates.property_id = derived.property_id;
-      }
+    // Re-derive path-based metadata
+    const derived = await deriveMetadataFromPath(asset.relative_path, db);
 
-      // Re-derive SKU metadata from filename
-      const parsed = await parseSku(asset.filename);
-      if (parsed) {
-        const skuFields: Record<string, string | boolean> = {
-          sku: parsed.sku,
-          mg01_code: parsed.mg01_code, mg01_name: parsed.mg01_name,
-          mg02_code: parsed.mg02_code, mg02_name: parsed.mg02_name,
-          mg03_code: parsed.mg03_code, mg03_name: parsed.mg03_name,
-          size_code: parsed.size_code, size_name: parsed.size_name,
-          licensor_code: parsed.licensor_code, licensor_name: parsed.licensor_name,
-          property_code: parsed.property_code, property_name: parsed.property_name,
-          sku_sequence: parsed.sku_sequence,
-          product_category: parsed.product_category,
-          division_code: parsed.division_code, division_name: parsed.division_name,
-          is_licensed: parsed.is_licensed,
-        };
-        for (const [k, v] of Object.entries(skuFields)) {
-          const current = (asset as Record<string, unknown>)[k];
-          if (current !== v) {
-            updates[k] = v;
-          }
+    if (asset.is_licensed !== derived.is_licensed) {
+      updates.is_licensed = derived.is_licensed;
+    }
+    if (asset.workflow_status !== derived.workflow_status) {
+      updates.workflow_status = derived.workflow_status;
+    }
+    if (!asset.licensor_id && derived.licensor_id) {
+      updates.licensor_id = derived.licensor_id;
+    }
+    if (!asset.property_id && derived.property_id) {
+      updates.property_id = derived.property_id;
+    }
+
+    // Re-derive SKU metadata from filename
+    const parsed = await parseSku(asset.filename);
+    if (parsed) {
+      const skuFields: Record<string, string | boolean> = {
+        sku: parsed.sku,
+        mg01_code: parsed.mg01_code, mg01_name: parsed.mg01_name,
+        mg02_code: parsed.mg02_code, mg02_name: parsed.mg02_name,
+        mg03_code: parsed.mg03_code, mg03_name: parsed.mg03_name,
+        size_code: parsed.size_code, size_name: parsed.size_name,
+        licensor_code: parsed.licensor_code, licensor_name: parsed.licensor_name,
+        property_code: parsed.property_code, property_name: parsed.property_name,
+        sku_sequence: parsed.sku_sequence,
+        product_category: parsed.product_category,
+        division_code: parsed.division_code, division_name: parsed.division_name,
+        is_licensed: parsed.is_licensed,
+      };
+      for (const [k, v] of Object.entries(skuFields)) {
+        const current = (asset as Record<string, unknown>)[k];
+        if (current !== v) {
+          updates[k] = v;
         }
-      }
-
-      if (Object.keys(updates).length > 0) {
-        const { error: updateErr } = await db
-          .from("assets")
-          .update(updates)
-          .eq("id", asset.id);
-        if (!updateErr) totalUpdated++;
       }
     }
 
-    if (assets.length < BATCH_SIZE) break;
-    offset += BATCH_SIZE;
+    if (Object.keys(updates).length > 0) {
+      const { error: updateErr } = await db
+        .from("assets")
+        .update(updates)
+        .eq("id", asset.id);
+      if (!updateErr) updated++;
+    }
   }
 
-  return json({ ok: true, updated: totalUpdated, total: totalProcessed });
+  const done = assets.length < BATCH_SIZE;
+  return json({
+    ok: true,
+    done,
+    updated,
+    total: assets.length,
+    nextOffset: done ? null : offset + BATCH_SIZE,
+  });
 }
 
 // ── Main router ─────────────────────────────────────────────────────
@@ -1352,7 +1355,7 @@ serve(async (req: Request) => {
       case "get-update-status":
         return await handleGetUpdateStatus();
       case "reprocess-asset-metadata":
-        return await handleReprocessAssetMetadata();
+        return await handleReprocessAssetMetadata(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
