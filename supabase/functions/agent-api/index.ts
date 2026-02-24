@@ -125,21 +125,82 @@ const WORKFLOW_FOLDER_MAP: Record<string, string> = {
   "licensor approved": "licensor_approved",
 };
 
-function deriveMetadataFromPath(
+interface DerivedMetadata {
+  workflow_status: string;
+  is_licensed: boolean;
+  licensor_name: string | null;
+  property_name: string | null;
+  licensor_id: string | null;
+  property_id: string | null;
+}
+
+async function deriveMetadataFromPath(
   relativePath: string,
-): { workflow_status: string; is_licensed: boolean } {
-  const lowerPath = relativePath.toLowerCase();
+  db: ReturnType<typeof serviceClient>,
+): Promise<DerivedMetadata> {
+  const parts = relativePath.split("/");
+
+  // is_licensed: check TOP-LEVEL folder only
+  const topLevelFolder = parts[0].toLowerCase();
+  const is_licensed =
+    topLevelFolder.includes("character licensed") ||
+    topLevelFolder.includes("licensed");
+
+  // workflow_status: check only immediate parent and grandparent folders
+  const parentFolder =
+    parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : "";
+  const grandparentFolder =
+    parts.length >= 3 ? parts[parts.length - 3].toLowerCase() : "";
 
   let workflow_status = "other";
   for (const [folder, status] of Object.entries(WORKFLOW_FOLDER_MAP)) {
-    if (lowerPath.includes(folder)) {
+    if (parentFolder.includes(folder) || grandparentFolder.includes(folder)) {
       workflow_status = status;
       break;
     }
   }
 
-  const is_licensed = lowerPath.includes("character licensed");
-  return { workflow_status, is_licensed };
+  // licensor/property extraction from path for licensed files
+  let licensor_name: string | null = null;
+  let property_name: string | null = null;
+  if (is_licensed && parts.length >= 3) {
+    licensor_name = parts[1]; // second segment = licensor
+    if (parts.length >= 4) {
+      property_name = parts[2]; // third segment = property
+    }
+  }
+
+  // Look up licensor_id and property_id from DB
+  let licensor_id: string | null = null;
+  let property_id: string | null = null;
+
+  if (licensor_name) {
+    const { data: lic } = await db
+      .from("licensors")
+      .select("id")
+      .ilike("name", licensor_name)
+      .maybeSingle();
+    licensor_id = lic?.id || null;
+  }
+
+  if (licensor_id && property_name) {
+    const { data: prop } = await db
+      .from("properties")
+      .select("id")
+      .eq("licensor_id", licensor_id)
+      .ilike("name", property_name)
+      .maybeSingle();
+    property_id = prop?.id || null;
+  }
+
+  return {
+    workflow_status,
+    is_licensed,
+    licensor_name,
+    property_name,
+    licensor_id,
+    property_id,
+  };
 }
 
 // ── Route: register ─────────────────────────────────────────────────
@@ -522,7 +583,7 @@ async function handleIngest(
     return err("file_type must be 'psd' or 'ai'");
   }
 
-  const derived = deriveMetadataFromPath(relativePath);
+  const derived = await deriveMetadataFromPath(relativePath, db);
   const db = serviceClient();
 
   // ── 1) Move detection: same quick_hash, different path ──
@@ -537,7 +598,7 @@ async function handleIngest(
 
   if (existingByHash) {
     const oldPath = existingByHash.relative_path;
-    const reDerived = deriveMetadataFromPath(relativePath);
+    const reDerived = await deriveMetadataFromPath(relativePath, db);
 
     // Thumbnail logic: protect existing working thumbnails from being overwritten by errors
     const thumbMove: Record<string, unknown> = {};
@@ -555,9 +616,7 @@ async function handleIngest(
       }
     }
 
-    const { error: moveError } = await db
-      .from("assets")
-      .update({
+    const moveUpdates: Record<string, unknown> = {
         relative_path: relativePath,
         filename,
         modified_at: modifiedAt,
@@ -566,7 +625,13 @@ async function handleIngest(
         workflow_status: reDerived.workflow_status,
         is_licensed: reDerived.is_licensed,
         ...thumbMove,
-      })
+    };
+    if (reDerived.licensor_id) moveUpdates.licensor_id = reDerived.licensor_id;
+    if (reDerived.property_id) moveUpdates.property_id = reDerived.property_id;
+
+    const { error: moveError } = await db
+      .from("assets")
+      .update(moveUpdates)
       .eq("id", existingByHash.id);
 
     if (moveError) return err(moveError.message, 500);
@@ -650,9 +715,7 @@ async function handleIngest(
 
   // ── 3) New asset ──
 
-  const { data: newAsset, error: insertError } = await db
-    .from("assets")
-    .insert({
+  const newAssetRow: Record<string, unknown> = {
       relative_path: relativePath,
       filename,
       file_type: fileType,
@@ -668,7 +731,13 @@ async function handleIngest(
       thumbnail_error: thumbnailError,
       workflow_status: derived.workflow_status,
       is_licensed: derived.is_licensed,
-    })
+  };
+  if (derived.licensor_id) newAssetRow.licensor_id = derived.licensor_id;
+  if (derived.property_id) newAssetRow.property_id = derived.property_id;
+
+  const { data: newAsset, error: insertError } = await db
+    .from("assets")
+    .insert(newAssetRow)
     .select("id")
     .single();
 
@@ -762,17 +831,21 @@ async function handleMoveAsset(body: Record<string, unknown>) {
 
   if (fetchError || !asset) return err("Asset not found", 404);
 
-  const derived = deriveMetadataFromPath(newRelativePath);
+  const derived = await deriveMetadataFromPath(newRelativePath, db);
 
-  const { error: updateError } = await db
-    .from("assets")
-    .update({
+  const moveUpdates: Record<string, unknown> = {
       relative_path: newRelativePath,
       filename: newFilename || asset.filename,
       workflow_status: derived.workflow_status,
       is_licensed: derived.is_licensed,
       last_seen_at: new Date().toISOString(),
-    })
+  };
+  if (derived.licensor_id) moveUpdates.licensor_id = derived.licensor_id;
+  if (derived.property_id) moveUpdates.property_id = derived.property_id;
+
+  const { error: updateError } = await db
+    .from("assets")
+    .update(moveUpdates)
     .eq("id", assetId);
 
   if (updateError) return err(updateError.message, 500);
