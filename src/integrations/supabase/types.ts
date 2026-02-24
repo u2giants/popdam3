@@ -673,6 +673,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       has_role: {
         Args: {
