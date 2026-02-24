@@ -651,6 +651,7 @@ export type Database = {
           is_licensed: boolean | null
           latest_file_date: string | null
           licensor_code: string | null
+          licensor_id: string | null
           licensor_name: string | null
           mg01_code: string | null
           mg01_name: string | null
@@ -661,6 +662,7 @@ export type Database = {
           primary_asset_id: string | null
           product_category: string | null
           property_code: string | null
+          property_id: string | null
           property_name: string | null
           size_code: string | null
           size_name: string | null
@@ -678,6 +680,7 @@ export type Database = {
           is_licensed?: boolean | null
           latest_file_date?: string | null
           licensor_code?: string | null
+          licensor_id?: string | null
           licensor_name?: string | null
           mg01_code?: string | null
           mg01_name?: string | null
@@ -688,6 +691,7 @@ export type Database = {
           primary_asset_id?: string | null
           product_category?: string | null
           property_code?: string | null
+          property_id?: string | null
           property_name?: string | null
           size_code?: string | null
           size_name?: string | null
@@ -707,6 +711,7 @@ export type Database = {
           is_licensed?: boolean | null
           latest_file_date?: string | null
           licensor_code?: string | null
+          licensor_id?: string | null
           licensor_name?: string | null
           mg01_code?: string | null
           mg01_name?: string | null
@@ -717,6 +722,7 @@ export type Database = {
           primary_asset_id?: string | null
           product_category?: string | null
           property_code?: string | null
+          property_id?: string | null
           property_name?: string | null
           size_code?: string | null
           size_name?: string | null
@@ -728,10 +734,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "style_groups_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensors"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "style_groups_primary_asset_id_fkey"
             columns: ["primary_asset_id"]
             isOneToOne: false
             referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_groups_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
             referencedColumns: ["id"]
           },
         ]
