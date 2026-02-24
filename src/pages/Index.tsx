@@ -1,18 +1,19 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAssets, useAssetCount, useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
+import { useStyleGroups, useStyleGroupCount, useUngroupedCount, type StyleGroup } from "@/hooks/useStyleGroups";
+import { useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
 import FilterSidebar from "@/components/library/FilterSidebar";
-import AssetGrid from "@/components/library/AssetGrid";
-import AssetListView from "@/components/library/AssetListView";
-import AssetDetailPanel from "@/components/library/AssetDetailPanel";
+import StyleGroupGrid from "@/components/library/StyleGroupGrid";
+import StyleGroupDetailPanel from "@/components/library/StyleGroupDetailPanel";
 import BulkActionBar from "@/components/library/BulkActionBar";
 import PaginationBar from "@/components/library/PaginationBar";
 import { toast } from "@/hooks/use-toast";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { useScanProgress } from "@/hooks/useScanProgress";
+import { Badge } from "@/components/ui/badge";
 
 export default function LibraryPage() {
   const queryClient = useQueryClient();
@@ -23,7 +24,7 @@ export default function LibraryPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [detailAssetId, setDetailAssetId] = useState<string | null>(null);
+  const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
   const lastSelectedIndex = useRef<number | null>(null);
   const [pageSize, setPageSize] = useState(200);
   const [scanTriggered, setScanTriggered] = useState(false);
@@ -32,23 +33,22 @@ export default function LibraryPage() {
 
   const scanRunning = scanProgress.status === "running" || scanProgress.status === "stale";
 
-  // Clear pending state when scan actually starts, completes, or fails
   useEffect(() => {
     if (scanTriggered && scanProgress.status !== "idle") {
       setScanTriggered(false);
     }
   }, [scanTriggered, scanProgress.status]);
 
-  // Auto-refresh assets when scan completes
   const prevScanStatus = useRef(scanProgress.status);
   useEffect(() => {
     const prev = prevScanStatus.current;
     prevScanStatus.current = scanProgress.status;
 
     if (prev === "running" && scanProgress.status === "completed") {
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      queryClient.invalidateQueries({ queryKey: ["asset-count"] });
+      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
       queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
       toast({ title: "Scan completed", description: `${scanProgress.counters?.files_checked ?? 0} files checked, ${scanProgress.counters?.ingested_new ?? 0} new assets ingested.` });
     }
 
@@ -62,11 +62,7 @@ export default function LibraryPage() {
     }
 
     if (scanProgress.status === "stale" && prev !== "stale") {
-      toast({
-        title: "Scan appears stuck",
-        description: "No progress update for over 10 minutes. The agent may have stalled. Check the NAS logs before clicking Reset Scan State.",
-        variant: "destructive",
-      });
+      toast({ title: "Scan appears stuck", description: "No progress update for over 10 minutes.", variant: "destructive" });
     }
   }, [scanProgress.status, scanProgress.counters, scanProgress.current_path, queryClient]);
 
@@ -90,20 +86,20 @@ export default function LibraryPage() {
   }, []);
 
   const { data: visibilityDate } = useVisibilityDate();
-  const { data, isLoading, isFetching } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize);
-  const { data: totalCount } = useAssetCount(filters, visibilityDate);
+  const { data, isLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize);
+  const { data: totalCount } = useStyleGroupCount(filters);
+  const { data: ungroupedCount } = useUngroupedCount();
   const { licensors, properties } = useFilterOptions(filters.licensorId);
   const { data: facetCounts } = useFilterCounts(filters);
 
   const handleSelect = useCallback((id: string, event: React.MouseEvent) => {
-    const assets = data?.assets ?? [];
-    const clickedIndex = assets.findIndex((a) => a.id === id);
+    const groups = data?.groups ?? [];
+    const clickedIndex = groups.findIndex((g) => g.id === id);
 
-    // Shift+Click range select
     if (event.shiftKey && lastSelectedIndex.current !== null && clickedIndex >= 0) {
       const start = Math.min(lastSelectedIndex.current, clickedIndex);
       const end = Math.max(lastSelectedIndex.current, clickedIndex);
-      const rangeIds = assets.slice(start, end + 1).map((a) => a.id);
+      const rangeIds = groups.slice(start, end + 1).map((g) => g.id);
       setSelectedIds((prev) => {
         const next = new Set(prev);
         rangeIds.forEach((rid) => next.add(rid));
@@ -112,15 +108,13 @@ export default function LibraryPage() {
       return;
     }
 
-    // Single click opens detail panel
     if (!event.metaKey && !event.ctrlKey) {
-      setDetailAssetId((prev) => (prev === id ? null : id));
+      setDetailGroupId((prev) => (prev === id ? null : id));
       setSelectedIds(new Set([id]));
       lastSelectedIndex.current = clickedIndex;
       return;
     }
 
-    // Ctrl/Cmd+Click multi-select
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -128,7 +122,7 @@ export default function LibraryPage() {
       return next;
     });
     lastSelectedIndex.current = clickedIndex;
-  }, [data?.assets]);
+  }, [data?.groups]);
 
   const { call } = useAdminApi();
   const handleSync = async () => {
@@ -151,26 +145,20 @@ export default function LibraryPage() {
   };
 
   const handleRefresh = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["assets"] });
-    queryClient.invalidateQueries({ queryKey: ["asset-count"] });
+    queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+    queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
     queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
+    queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
   }, [queryClient]);
 
-  const assets = data?.assets ?? [];
+  const groups = data?.groups ?? [];
   const count = totalCount ?? data?.totalCount ?? 0;
   const activeFilterCount = countActiveFilters(filters);
 
-  const detailAsset = useMemo(
-    () => (detailAssetId ? assets.find((a) => a.id === detailAssetId) ?? null : null),
-    [detailAssetId, assets]
+  const detailGroup = useMemo(
+    () => (detailGroupId ? groups.find((g) => g.id === detailGroupId) ?? null : null),
+    [detailGroupId, groups]
   );
-
-  const selectedAssets = useMemo(
-    () => assets.filter((a) => selectedIds.has(a.id)),
-    [selectedIds, assets]
-  );
-
-  const showBulkBar = selectedIds.size > 1;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
@@ -194,14 +182,13 @@ export default function LibraryPage() {
         onStopScan={handleStopScan}
         onRefresh={handleRefresh}
       />
-      {showBulkBar && (
-        <BulkActionBar
-          selectedAssets={selectedAssets}
-          onClearSelection={() => {
-            setSelectedIds(new Set());
-            setDetailAssetId(null);
-          }}
-        />
+
+      {/* Ungrouped count indicator */}
+      {ungroupedCount != null && ungroupedCount > 0 && (
+        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
+          <Badge variant="secondary" className="text-[10px]">{ungroupedCount} ungrouped</Badge>
+          <span>assets not in any style group</span>
+        </div>
       )}
 
       <div className="flex flex-1 overflow-hidden">
@@ -217,21 +204,12 @@ export default function LibraryPage() {
         )}
 
         <div className="flex flex-1 flex-col overflow-auto">
-          {viewMode === "grid" ? (
-            <AssetGrid
-              assets={assets}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              isLoading={isLoading}
-            />
-          ) : (
-            <AssetListView
-              assets={assets}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              isLoading={isLoading}
-            />
-          )}
+          <StyleGroupGrid
+            groups={groups}
+            selectedIds={selectedIds}
+            onSelect={handleSelect}
+            isLoading={isLoading}
+          />
 
           <div className="mt-auto">
             <PaginationBar
@@ -244,10 +222,10 @@ export default function LibraryPage() {
           </div>
         </div>
 
-        {detailAsset && (
-          <AssetDetailPanel
-            asset={detailAsset}
-            onClose={() => setDetailAssetId(null)}
+        {detailGroup && (
+          <StyleGroupDetailPanel
+            group={detailGroup}
+            onClose={() => setDetailGroupId(null)}
           />
         )}
       </div>
