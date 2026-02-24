@@ -1282,7 +1282,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   // On first call, clear all existing style groups
   if (offset === 0) {
     // Clear style_group_id on all assets first
-    await db.from("assets").update({ style_group_id: null }).neq("is_deleted", true);
+    await db.from("assets").update({ style_group_id: null }).gte("created_at", "1970-01-01");
     // Delete all style_groups
     await db.from("style_groups").delete().gte("created_at", "1970-01-01");
   }
@@ -1318,7 +1318,12 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   let assetsAssigned = 0;
 
   for (const [sku, members] of skuMap) {
-    const first = members[0];
+    // Prefer the member whose filename contains the SKU string itself,
+    // as that's most likely the primary art file with complete metadata.
+    const sku_upper = sku.toUpperCase();
+    const first = members.find(m => 
+      m.filename.toUpperCase().includes(sku_upper)
+    ) ?? members[0];
     const folderPath = first.relative_path.split("/").slice(0, -1).join("/");
 
     // Upsert style group

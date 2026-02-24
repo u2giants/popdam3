@@ -568,7 +568,7 @@ async function assignToStyleGroup(
       };
       const { data: newGroup } = await db
         .from("style_groups")
-        .insert(groupFields)
+        .upsert(groupFields, { onConflict: "sku", ignoreDuplicates: false })
         .select("id")
         .single();
       group = newGroup;

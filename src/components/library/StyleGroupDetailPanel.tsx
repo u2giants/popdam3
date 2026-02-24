@@ -45,6 +45,7 @@ function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDetailPanelProps) {
   const queryClient = useQueryClient();
+  const [localPrimaryId, setLocalPrimaryId] = useState<string | null>(group.primary_asset_id);
 
   // Fetch all assets in this group
   const { data: groupAssets, isLoading: assetsLoading } = useQuery({
@@ -70,7 +71,8 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
         .eq("id", group.id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, assetId) => {
+      setLocalPrimaryId(assetId);
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
       toast({ title: "Cover image updated" });
@@ -82,8 +84,8 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
   // Derive thumbnail for display (optimistic from group assets if primary changes)
   const displayThumbnail = (() => {
-    if (setCover.variables && groupAssets) {
-      const found = groupAssets.find((a) => a.id === setCover.variables);
+    if (localPrimaryId && groupAssets) {
+      const found = groupAssets.find((a) => a.id === localPrimaryId);
       if (found?.thumbnail_url) return found.thumbnail_url;
     }
     return group.thumbnail_url;
@@ -149,7 +151,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
               ) : (
                 <div className="space-y-1">
                   {(groupAssets ?? []).map((asset) => {
-                    const isCover = asset.id === group.primary_asset_id;
+                    const isCover = asset.id === localPrimaryId;
                     const hasThumb = !!asset.thumbnail_url;
                     return (
                       <div
