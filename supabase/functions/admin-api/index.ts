@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseSku } from "../_shared/sku-parser.ts";
+import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 
 // ── CORS ────────────────────────────────────────────────────────────
 
@@ -1271,6 +1272,126 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
   });
 }
 
+// ── Route: rebuild-style-groups ──────────────────────────────────────
+
+async function handleRebuildStyleGroups(body: Record<string, unknown>) {
+  const offset = typeof body.offset === "number" ? body.offset : 0;
+  const BATCH_SIZE = 500;
+  const db = serviceClient();
+
+  // On first call, clear all existing style groups
+  if (offset === 0) {
+    // Clear style_group_id on all assets first
+    await db.from("assets").update({ style_group_id: null }).neq("is_deleted", true);
+    // Delete all style_groups
+    await db.from("style_groups").delete().gte("created_at", "1970-01-01");
+  }
+
+  // Fetch batch of assets
+  const { data: assets, error: fetchErr } = await db
+    .from("assets")
+    .select("id, relative_path, filename, file_type, created_at, workflow_status, is_licensed, licensor_code, licensor_name, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name")
+    .eq("is_deleted", false)
+    .order("id")
+    .range(offset, offset + BATCH_SIZE - 1);
+
+  if (fetchErr) return err(fetchErr.message, 500);
+  if (!assets || assets.length === 0) {
+    return json({ ok: true, groups_created: 0, assets_assigned: 0, assets_ungrouped: 0, done: true, nextOffset: offset });
+  }
+
+  // Group by SKU folder
+  const skuMap = new Map<string, typeof assets>();
+  let ungrouped = 0;
+
+  for (const asset of assets) {
+    const sku = extractSkuFolder(asset.relative_path);
+    if (!sku) {
+      ungrouped++;
+      continue;
+    }
+    if (!skuMap.has(sku)) skuMap.set(sku, []);
+    skuMap.get(sku)!.push(asset);
+  }
+
+  let groupsCreated = 0;
+  let assetsAssigned = 0;
+
+  for (const [sku, members] of skuMap) {
+    const first = members[0];
+    const folderPath = first.relative_path.split("/").slice(0, -1).join("/");
+
+    // Upsert style group
+    const { data: group, error: upsertErr } = await db
+      .from("style_groups")
+      .upsert({
+        sku,
+        folder_path: folderPath,
+        is_licensed: first.is_licensed ?? false,
+        licensor_code: first.licensor_code,
+        licensor_name: first.licensor_name,
+        property_code: first.property_code,
+        property_name: first.property_name,
+        product_category: first.product_category,
+        division_code: first.division_code,
+        division_name: first.division_name,
+        mg01_code: first.mg01_code,
+        mg01_name: first.mg01_name,
+        mg02_code: first.mg02_code,
+        mg02_name: first.mg02_name,
+        mg03_code: first.mg03_code,
+        mg03_name: first.mg03_name,
+        size_code: first.size_code,
+        size_name: first.size_name,
+      }, { onConflict: "sku" })
+      .select("id")
+      .single();
+
+    if (upsertErr || !group) continue;
+    groupsCreated++;
+
+    // Assign all member assets
+    const memberIds = members.map((m) => m.id);
+    await db.from("assets").update({ style_group_id: group.id }).in("id", memberIds);
+    assetsAssigned += memberIds.length;
+
+    // Set primary and count — need to query ALL assets for this group (might span batches)
+    const { data: allGroupAssets } = await db
+      .from("assets")
+      .select("id, filename, file_type, created_at, workflow_status")
+      .eq("style_group_id", group.id)
+      .eq("is_deleted", false);
+
+    if (allGroupAssets && allGroupAssets.length > 0) {
+      const primaryId = selectPrimaryAsset(allGroupAssets);
+      const statusPriority = ["licensor_approved", "customer_adopted", "in_process", "in_development", "concept_approved", "freelancer_art", "product_ideas"];
+      let bestStatus = "other";
+      for (const s of statusPriority) {
+        if (allGroupAssets.some((a: Record<string, unknown>) => a.workflow_status === s)) {
+          bestStatus = s;
+          break;
+        }
+      }
+      await db.from("style_groups").update({
+        asset_count: allGroupAssets.length,
+        primary_asset_id: primaryId,
+        workflow_status: bestStatus as any,
+        updated_at: new Date().toISOString(),
+      }).eq("id", group.id);
+    }
+  }
+
+  const done = assets.length < BATCH_SIZE;
+  return json({
+    ok: true,
+    groups_created: groupsCreated,
+    assets_assigned: assetsAssigned,
+    assets_ungrouped: ungrouped,
+    done,
+    nextOffset: done ? offset + assets.length : offset + BATCH_SIZE,
+  });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 // ── Route: run-query ─────────────────────────────────────────────────
@@ -1412,6 +1533,8 @@ serve(async (req: Request) => {
         return await handleReprocessAssetMetadata(body);
       case "run-query":
         return await handleRunQuery(body);
+      case "rebuild-style-groups":
+        return await handleRebuildStyleGroups(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

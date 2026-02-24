@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseSku } from "../_shared/sku-parser.ts";
+import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 
 // ── CORS ────────────────────────────────────────────────────────────
 
@@ -525,6 +526,88 @@ async function handleHeartbeat(
   });
 }
 
+// ── Style group assignment helper ────────────────────────────────────
+
+async function assignToStyleGroup(
+  relativePath: string,
+  assetId: string,
+  skuFields: Record<string, unknown>,
+  db: ReturnType<typeof serviceClient>,
+): Promise<void> {
+  try {
+    const sku = extractSkuFolder(relativePath);
+    if (!sku) return;
+    const folderPath = relativePath.split("/").slice(0, -1).join("/");
+
+    let { data: group } = await db
+      .from("style_groups")
+      .select("id")
+      .eq("sku", sku)
+      .maybeSingle();
+
+    if (!group) {
+      const groupFields: Record<string, unknown> = {
+        sku,
+        folder_path: folderPath,
+        is_licensed: skuFields.is_licensed ?? false,
+        licensor_code: skuFields.licensor_code ?? null,
+        licensor_name: skuFields.licensor_name ?? null,
+        property_code: skuFields.property_code ?? null,
+        property_name: skuFields.property_name ?? null,
+        product_category: skuFields.product_category ?? null,
+        division_code: skuFields.division_code ?? null,
+        division_name: skuFields.division_name ?? null,
+        mg01_code: skuFields.mg01_code ?? null,
+        mg01_name: skuFields.mg01_name ?? null,
+        mg02_code: skuFields.mg02_code ?? null,
+        mg02_name: skuFields.mg02_name ?? null,
+        mg03_code: skuFields.mg03_code ?? null,
+        mg03_name: skuFields.mg03_name ?? null,
+        size_code: skuFields.size_code ?? null,
+        size_name: skuFields.size_name ?? null,
+      };
+      const { data: newGroup } = await db
+        .from("style_groups")
+        .insert(groupFields)
+        .select("id")
+        .single();
+      group = newGroup;
+    }
+
+    if (!group) return;
+
+    await db.from("assets").update({ style_group_id: group.id }).eq("id", assetId);
+
+    const { data: groupAssets } = await db
+      .from("assets")
+      .select("id, filename, file_type, created_at, workflow_status, thumbnail_url")
+      .eq("style_group_id", group.id)
+      .eq("is_deleted", false);
+
+    if (!groupAssets || groupAssets.length === 0) return;
+
+    const primaryId = selectPrimaryAsset(groupAssets);
+
+    const statusPriority = ["licensor_approved", "customer_adopted", "in_process", "in_development", "concept_approved", "freelancer_art", "product_ideas"];
+    let bestStatus = "other";
+    for (const s of statusPriority) {
+      if (groupAssets.some((a: Record<string, unknown>) => a.workflow_status === s)) {
+        bestStatus = s;
+        break;
+      }
+    }
+
+    await db.from("style_groups").update({
+      asset_count: groupAssets.length,
+      primary_asset_id: primaryId,
+      workflow_status: bestStatus as any,
+      updated_at: new Date().toISOString(),
+    }).eq("id", group.id);
+  } catch (e) {
+    console.error("assignToStyleGroup error (non-fatal):", e);
+  }
+}
+
 // ── Route: ingest ───────────────────────────────────────────────────
 
 async function handleIngest(
@@ -676,6 +759,8 @@ async function handleIngest(
       new_relative_path: relativePath,
     });
 
+    assignToStyleGroup(relativePath, existingByHash.id, skuFields, db).catch(() => {});
+
     return json({
       ok: true,
       action: "moved",
@@ -741,6 +826,8 @@ async function handleIngest(
       }).then(() => {}).catch(() => {}); // best-effort, don't block ingest
     }
 
+    assignToStyleGroup(relativePath, existingByPath.id, skuFields, db).catch(() => {});
+
     return json({
       ok: true,
       action: "updated",
@@ -794,6 +881,8 @@ async function handleIngest(
       job_type: "ai-tag",
     });
   }
+
+  assignToStyleGroup(relativePath, newAsset.id, skuFields, db).catch(() => {});
 
   return json({ ok: true, action: "created", asset_id: newAsset.id });
 }

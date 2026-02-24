@@ -635,6 +635,89 @@ function DatabaseInspector() {
   );
 }
 
+// ── Section 8: Style Groups ─────────────────────────────────────────
+
+function StyleGroupsSection() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+  const [rebuildProgress, setRebuildProgress] = useState<{ assigned: number; groups: number; done: boolean } | null>(null);
+
+  const { data: stats } = useQuery({
+    queryKey: ["style-group-stats"],
+    queryFn: async () => {
+      const [groupRes, ungroupedRes] = await Promise.all([
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups" }),
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM assets WHERE style_group_id IS NULL AND is_deleted = false" }),
+      ]);
+      return {
+        groups: groupRes.rows?.[0]?.count ?? 0,
+        ungrouped: ungroupedRes.rows?.[0]?.count ?? 0,
+      };
+    },
+    staleTime: 15_000,
+  });
+
+  async function runRebuild() {
+    if (!confirm("This will delete all existing style groups and rebuild them from scratch. Continue?")) return;
+    setRebuildProgress({ assigned: 0, groups: 0, done: false });
+    let offset = 0;
+    let totalGroups = 0;
+    let totalAssigned = 0;
+
+    try {
+      while (true) {
+        const data = await call("rebuild-style-groups", { offset });
+        totalGroups += data.groups_created ?? 0;
+        totalAssigned += data.assets_assigned ?? 0;
+        setRebuildProgress({ assigned: totalAssigned, groups: totalGroups, done: false });
+        if (data.done) break;
+        offset = data.nextOffset;
+      }
+      setRebuildProgress({ assigned: totalAssigned, groups: totalGroups, done: true });
+      toast.success(`Created ${totalGroups} style groups, assigned ${totalAssigned} assets`);
+      queryClient.invalidateQueries({ queryKey: ["style-group-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
+    } catch (e: any) {
+      toast.error(e.message || "Rebuild failed");
+    } finally {
+      setTimeout(() => setRebuildProgress(null), 3000);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Database className="h-4 w-4" /> Style Groups
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {stats && (
+          <p className="text-sm text-muted-foreground">
+            <span className="text-foreground font-medium">{Number(stats.groups).toLocaleString()}</span> groups · <span className="text-foreground font-medium">{Number(stats.ungrouped).toLocaleString()}</span> ungrouped assets
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline" size="sm" className="gap-1.5"
+            onClick={runRebuild}
+            disabled={rebuildProgress !== null && !rebuildProgress.done}
+          >
+            {rebuildProgress !== null && !rebuildProgress.done ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Rebuild Style Groups
+          </Button>
+        </div>
+        {rebuildProgress && !rebuildProgress.done && (
+          <p className="text-xs text-muted-foreground">
+            {rebuildProgress.groups} groups created, {rebuildProgress.assigned} assets assigned…
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Tab ────────────────────────────────────────────────────────
 
 export default function DiagnosticsTab() {
@@ -689,6 +772,7 @@ export default function DiagnosticsTab() {
           <ConfigurationSection config={diag.config} />
           <ActionsSection onRefresh={handleRefresh} />
           <DatabaseInspector />
+          <StyleGroupsSection />
         </>
       ) : (
         <Card>

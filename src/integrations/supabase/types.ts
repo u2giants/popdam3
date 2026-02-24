@@ -175,6 +175,7 @@ export type Database = {
           sku: string | null
           sku_sequence: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
+          style_group_id: string | null
           tags: string[]
           thumbnail_error: string | null
           thumbnail_url: string | null
@@ -228,6 +229,7 @@ export type Database = {
           sku?: string | null
           sku_sequence?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
+          style_group_id?: string | null
           tags?: string[]
           thumbnail_error?: string | null
           thumbnail_url?: string | null
@@ -283,6 +285,7 @@ export type Database = {
           sku?: string | null
           sku_sequence?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
+          style_group_id?: string | null
           tags?: string[]
           thumbnail_error?: string | null
           thumbnail_url?: string | null
@@ -311,6 +314,13 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_style_group_id_fkey"
+            columns: ["style_group_id"]
+            isOneToOne: false
+            referencedRelation: "style_groups"
             referencedColumns: ["id"]
           },
         ]
@@ -624,6 +634,99 @@ export type Database = {
           {
             foreignKeyName: "render_queue_asset_id_fkey"
             columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_groups: {
+        Row: {
+          asset_count: number | null
+          created_at: string | null
+          division_code: string | null
+          division_name: string | null
+          folder_path: string
+          id: string
+          is_licensed: boolean | null
+          licensor_code: string | null
+          licensor_name: string | null
+          mg01_code: string | null
+          mg01_name: string | null
+          mg02_code: string | null
+          mg02_name: string | null
+          mg03_code: string | null
+          mg03_name: string | null
+          primary_asset_id: string | null
+          product_category: string | null
+          property_code: string | null
+          property_name: string | null
+          size_code: string | null
+          size_name: string | null
+          sku: string
+          updated_at: string | null
+          workflow_status: Database["public"]["Enums"]["workflow_status"] | null
+        }
+        Insert: {
+          asset_count?: number | null
+          created_at?: string | null
+          division_code?: string | null
+          division_name?: string | null
+          folder_path: string
+          id?: string
+          is_licensed?: boolean | null
+          licensor_code?: string | null
+          licensor_name?: string | null
+          mg01_code?: string | null
+          mg01_name?: string | null
+          mg02_code?: string | null
+          mg02_name?: string | null
+          mg03_code?: string | null
+          mg03_name?: string | null
+          primary_asset_id?: string | null
+          product_category?: string | null
+          property_code?: string | null
+          property_name?: string | null
+          size_code?: string | null
+          size_name?: string | null
+          sku: string
+          updated_at?: string | null
+          workflow_status?:
+            | Database["public"]["Enums"]["workflow_status"]
+            | null
+        }
+        Update: {
+          asset_count?: number | null
+          created_at?: string | null
+          division_code?: string | null
+          division_name?: string | null
+          folder_path?: string
+          id?: string
+          is_licensed?: boolean | null
+          licensor_code?: string | null
+          licensor_name?: string | null
+          mg01_code?: string | null
+          mg01_name?: string | null
+          mg02_code?: string | null
+          mg02_name?: string | null
+          mg03_code?: string | null
+          mg03_name?: string | null
+          primary_asset_id?: string | null
+          product_category?: string | null
+          property_code?: string | null
+          property_name?: string | null
+          size_code?: string | null
+          size_name?: string | null
+          sku?: string
+          updated_at?: string | null
+          workflow_status?:
+            | Database["public"]["Enums"]["workflow_status"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_groups_primary_asset_id_fkey"
+            columns: ["primary_asset_id"]
             isOneToOne: false
             referencedRelation: "assets"
             referencedColumns: ["id"]
