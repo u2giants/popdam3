@@ -333,32 +333,63 @@ function AgentStatusSection() {
 }
 
 function ScanCounters({ counters }: { counters: Record<string, number> }) {
-  const labels: Record<string, string> = {
-    files_checked: "Files Checked",
-    candidates_found: "Candidates Found",
-    ingested_new: "Ingested (New)",
-    moved_detected: "Moves Detected",
-    updated_existing: "Updated",
-    errors: "Errors",
-    roots_invalid: "Roots Invalid",
-    roots_unreadable: "Roots Unreadable",
-    dirs_skipped_permission: "Dirs Skipped (Permission)",
-    files_stat_failed: "Files Stat Failed",
-  };
+  const totalEncountered = counters.files_total_encountered ?? 0;
+  const supported = counters.files_checked ?? 0;
+  const rejectedWrongType = counters.rejected_wrong_type ?? 0;
+  const rejectedJunk = counters.rejected_junk_file ?? 0;
+  const totalRejected = rejectedWrongType + rejectedJunk;
+  const ingestedNew = counters.ingested_new ?? 0;
+  const updated = counters.updated_existing ?? 0;
+  const moved = counters.moved_detected ?? 0;
+  const unchanged = counters.noop_unchanged ?? 0;
+  const errors = counters.errors ?? 0;
+  const dirsSkipped = counters.dirs_skipped_permission ?? 0;
+  const statFailed = counters.files_stat_failed ?? 0;
+
+  const hasData = totalEncountered > 0 || supported > 0 || errors > 0;
+
+  if (!hasData) {
+    return <p className="text-xs text-muted-foreground mt-1">No scan data yet</p>;
+  }
+
+  const fmt = (n: number) => n.toLocaleString();
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 mt-1">
-      {Object.entries(labels).map(([key, label]) => {
-        const val = counters[key];
-        if (val === undefined) return null;
-        const isError = (key === "errors" || key === "roots_invalid" || key === "roots_unreadable") && val > 0;
-        return (
-          <div key={key} className="text-xs">
-            <span className="text-muted-foreground">{label}: </span>
-            <span className={isError ? "text-destructive font-semibold" : "text-foreground"}>{val}</span>
-          </div>
-        );
-      })}
+    <div className="mt-2 text-xs font-mono space-y-0.5">
+      <div className="font-semibold text-foreground">
+        Total files encountered: {fmt(totalEncountered)}
+      </div>
+
+      {/* Supported branch */}
+      <div className="pl-3 border-l border-border ml-1 space-y-0.5">
+        <div className="text-foreground">
+          Supported (.ai / .psd): <span className="font-semibold">{fmt(supported)}</span>
+        </div>
+        <div className="pl-3 border-l border-border ml-1 space-y-0.5">
+          <div>New: <span className="text-[hsl(var(--success))]">{fmt(ingestedNew)}</span></div>
+          <div>Updated: <span className="text-foreground">{fmt(updated)}</span></div>
+          <div>Moved: <span className="text-foreground">{fmt(moved)}</span></div>
+          <div>Unchanged: <span className="text-muted-foreground">{fmt(unchanged)}</span></div>
+          <div>Errors: <span className={errors > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>{fmt(errors)}</span></div>
+        </div>
+      </div>
+
+      {/* Rejected branch */}
+      <div className="pl-3 border-l border-border ml-1 space-y-0.5">
+        <div className="text-foreground">
+          Rejected: <span className="text-muted-foreground">{fmt(totalRejected)}</span>
+        </div>
+        <div className="pl-3 border-l border-border ml-1 space-y-0.5">
+          <div>Wrong type (jpg, png, etc): <span className="text-muted-foreground">{fmt(rejectedWrongType)}</span></div>
+          <div>Junk files (._*, __MACOSX): <span className="text-muted-foreground">{fmt(rejectedJunk)}</span></div>
+        </div>
+      </div>
+
+      {/* Footer stats */}
+      <div className="pt-1 space-y-0.5">
+        <div>Directories skipped (no permission): <span className={dirsSkipped > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}>{fmt(dirsSkipped)}</span></div>
+        <div>Files failed to stat: <span className={statFailed > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}>{fmt(statFailed)}</span></div>
+      </div>
     </div>
   );
 }

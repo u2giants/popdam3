@@ -143,8 +143,24 @@ async function* scanDirectory(
 
     if (!entry.isFile()) continue;
 
+    counters.files_total_encountered++;
+
     const ext = extname(entry.name).toLowerCase();
-    if (!SUPPORTED_EXTENSIONS.has(ext)) continue;
+    if (!SUPPORTED_EXTENSIONS.has(ext)) {
+      const name = entry.name;
+      const JUNK_FILENAMES = new Set([".DS_Store", ".localized", "Thumbs.db", "desktop.ini"]);
+      if (
+        name.startsWith("._") ||
+        name.startsWith("~") ||
+        JUNK_FILENAMES.has(name) ||
+        dirPath.includes("__MACOSX")
+      ) {
+        counters.rejected_junk_file++;
+      } else {
+        counters.rejected_wrong_type++;
+      }
+      continue;
+    }
 
     counters.files_checked++;
 
