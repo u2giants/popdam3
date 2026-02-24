@@ -492,13 +492,16 @@ async function handleTriggerScan(
 
 async function handleStopScan(_body: Record<string, unknown>) {
   const db = serviceClient();
-  const { data: agents } = await db
+  const now = new Date().toISOString();
+
+  const { data: agents, error: agentsErr } = await db
     .from("agent_registrations")
     .select("id, metadata");
+  if (agentsErr) return err(agentsErr.message, 500);
 
   for (const a of agents || []) {
     const metadata = (a.metadata as Record<string, unknown>) || {};
-    await db
+    const { error: updateErr } = await db
       .from("agent_registrations")
       .update({
         metadata: {
@@ -509,6 +512,63 @@ async function handleStopScan(_body: Record<string, unknown>) {
         },
       })
       .eq("id", a.id);
+
+    if (updateErr) return err(updateErr.message, 500);
+  }
+
+  // Force progress out of stale "running" state immediately
+  const { data: progressRow, error: progressFetchErr } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "SCAN_PROGRESS")
+    .maybeSingle();
+  if (progressFetchErr) return err(progressFetchErr.message, 500);
+
+  const progressVal = (progressRow?.value as Record<string, unknown>) || {};
+  const counters =
+    typeof progressVal.counters === "object" && progressVal.counters !== null
+      ? progressVal.counters
+      : {};
+
+  const { error: progressErr } = await db.from("admin_config").upsert({
+    key: "SCAN_PROGRESS",
+    value: {
+      ...(typeof progressVal.session_id === "string"
+        ? { session_id: progressVal.session_id }
+        : {}),
+      status: "failed",
+      counters,
+      current_path:
+        typeof progressVal.current_path === "string"
+          ? progressVal.current_path
+          : null,
+      updated_at: now,
+    },
+    updated_at: now,
+  });
+  if (progressErr) return err(progressErr.message, 500);
+
+  // Cancel any pending/claimed request so stale claims don't linger
+  const { data: reqRow, error: reqFetchErr } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "SCAN_REQUEST")
+    .maybeSingle();
+  if (reqFetchErr) return err(reqFetchErr.message, 500);
+
+  if (reqRow) {
+    const reqVal = (reqRow.value as Record<string, unknown>) || {};
+    if (reqVal.status === "pending" || reqVal.status === "claimed") {
+      const { error: reqUpdateErr } = await db
+        .from("admin_config")
+        .update({
+          value: { ...reqVal, status: "canceled", canceled_at: now },
+          updated_at: now,
+        })
+        .eq("key", "SCAN_REQUEST");
+
+      if (reqUpdateErr) return err(reqUpdateErr.message, 500);
+    }
   }
 
   return json({ ok: true });
@@ -543,40 +603,52 @@ async function handleResumeScanning() {
 
 async function handleResetScanState() {
   const db = serviceClient();
+  const now = new Date().toISOString();
 
   // 1. Set SCAN_PROGRESS to idle
-  await db.from("admin_config").upsert({
+  const { error: progressErr } = await db.from("admin_config").upsert({
     key: "SCAN_PROGRESS",
-    value: { status: "idle" },
-    updated_at: new Date().toISOString(),
+    value: { status: "idle", updated_at: now },
+    updated_at: now,
   });
+  if (progressErr) return err(progressErr.message, 500);
 
   // 2. Cancel any pending/claimed SCAN_REQUEST
-  const { data: reqRow } = await db
+  const { data: reqRow, error: reqFetchErr } = await db
     .from("admin_config")
     .select("value")
     .eq("key", "SCAN_REQUEST")
     .maybeSingle();
+  if (reqFetchErr) return err(reqFetchErr.message, 500);
 
   if (reqRow) {
     const reqVal = (reqRow.value as Record<string, unknown>) || {};
     if (reqVal.status === "pending" || reqVal.status === "claimed") {
-      await db.from("admin_config").update({
-        value: { ...reqVal, status: "canceled" },
-        updated_at: new Date().toISOString(),
+      const { error: reqUpdateErr } = await db.from("admin_config").update({
+        value: { ...reqVal, status: "canceled", canceled_at: now },
+        updated_at: now,
       }).eq("key", "SCAN_REQUEST");
+      if (reqUpdateErr) return err(reqUpdateErr.message, 500);
     }
   }
 
-  // 3. Clear legacy flags in agent_registrations metadata
-  const { data: agents } = await db
+  // 3. Clear resumable checkpoint to avoid reusing stale session state
+  const { error: checkpointErr } = await db
+    .from("admin_config")
+    .delete()
+    .eq("key", "SCAN_CHECKPOINT");
+  if (checkpointErr) return err(checkpointErr.message, 500);
+
+  // 4. Clear legacy flags in agent_registrations metadata
+  const { data: agents, error: agentsErr } = await db
     .from("agent_registrations")
     .select("id, metadata");
+  if (agentsErr) return err(agentsErr.message, 500);
 
   for (const a of agents || []) {
     const metadata = (a.metadata as Record<string, unknown>) || {};
     if (metadata.scan_abort || metadata.scan_requested || metadata.force_stop) {
-      await db
+      const { error: updateErr } = await db
         .from("agent_registrations")
         .update({
           metadata: {
@@ -587,6 +659,8 @@ async function handleResetScanState() {
           },
         })
         .eq("id", a.id);
+
+      if (updateErr) return err(updateErr.message, 500);
     }
   }
 
