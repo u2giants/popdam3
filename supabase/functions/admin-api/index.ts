@@ -1465,17 +1465,28 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
   const cutoffDate = typeof body.cutoff_date === "string" ? body.cutoff_date : null;
   if (!cutoffDate) return err("cutoff_date is required");
 
+  const offset = typeof body.offset === "number" ? body.offset : 0;
+  const BATCH_SIZE = 500;
   const db = serviceClient();
 
   const { data: oldAssets, error: fetchErr } = await db
     .from("assets")
     .select("id, style_group_id, modified_at")
     .eq("is_deleted", false)
-    .lt("modified_at", cutoffDate);
+    .lt("modified_at", cutoffDate)
+    .order("id")
+    .range(offset, offset + BATCH_SIZE - 1);
 
   if (fetchErr) return err(fetchErr.message, 500);
   if (!oldAssets || oldAssets.length === 0) {
-    return json({ ok: true, assets_purged: 0, groups_removed: 0, groups_updated: 0 });
+    return json({
+      ok: true,
+      assets_purged: 0,
+      groups_removed: 0,
+      groups_updated: 0,
+      done: true,
+      nextOffset: offset,
+    });
   }
 
   const assetIds = oldAssets.map((a: any) => a.id);
@@ -1483,15 +1494,11 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
     oldAssets.map((a: any) => a.style_group_id).filter(Boolean)
   )] as string[];
 
-  // Soft-delete in chunks of 500
-  for (let i = 0; i < assetIds.length; i += 500) {
-    const chunk = assetIds.slice(i, i + 500);
-    const { error: deleteErr } = await db
-      .from("assets")
-      .update({ is_deleted: true })
-      .in("id", chunk);
-    if (deleteErr) return err(deleteErr.message, 500);
-  }
+  const { error: deleteErr } = await db
+    .from("assets")
+    .update({ is_deleted: true })
+    .in("id", assetIds);
+  if (deleteErr) return err(deleteErr.message, 500);
 
   let groupsRemoved = 0;
   let groupsUpdated = 0;
@@ -1535,11 +1542,14 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
     }
   }
 
+  const done = oldAssets.length < BATCH_SIZE;
   return json({
     ok: true,
     assets_purged: assetIds.length,
     groups_removed: groupsRemoved,
     groups_updated: groupsUpdated,
+    done,
+    nextOffset: offset + oldAssets.length,
   });
 }
 

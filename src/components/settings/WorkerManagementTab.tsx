@@ -813,12 +813,26 @@ function DateCutoffSettings() {
       `This cannot be undone. Continue?`
     )) return;
     setIsPurging(true);
+    let totalPurged = 0;
+    let totalGroupsRemoved = 0;
+    let totalGroupsUpdated = 0;
+    let offset = 0;
     try {
-      const result = await call("purge-old-assets", { cutoff_date: thumbVal });
+      while (true) {
+        const result = await call("purge-old-assets", {
+          cutoff_date: thumbVal,
+          offset,
+        });
+        totalPurged += result.assets_purged ?? 0;
+        totalGroupsRemoved += result.groups_removed ?? 0;
+        totalGroupsUpdated += result.groups_updated ?? 0;
+        if (result.done) break;
+        offset = result.nextOffset;
+      }
       toast.success(
-        `Purged ${result.assets_purged.toLocaleString()} assets. ` +
-        `Removed ${result.groups_removed} empty groups, ` +
-        `updated ${result.groups_updated} groups.`
+        `Purged ${totalPurged.toLocaleString()} assets. ` +
+        `Removed ${totalGroupsRemoved} empty groups, ` +
+        `updated ${totalGroupsUpdated} groups.`
       );
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
       queryClient.invalidateQueries({ queryKey: ["purge-preview"] });
