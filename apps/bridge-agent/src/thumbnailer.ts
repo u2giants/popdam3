@@ -10,7 +10,7 @@
 import sharp from "sharp";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger.js";
@@ -42,7 +42,14 @@ async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
       height: outMeta.height || meta.height || 0,
     };
   } catch (e) {
-    logger.warn("Sharp PSD fallback failed", { filePath, error: (e as Error).message });
+  logger.warn("Sharp PSD fallback failed", { filePath, error: (e as Error).message });
+  }
+
+  // Fallback: Try sibling image in same directory
+  try {
+    return await thumbnailFromSibling(filePath);
+  } catch (e) {
+    logger.warn("No sibling image found for PSD", { filePath });
   }
 
   throw new Error("no_preview_or_render_failed");
@@ -52,6 +59,52 @@ async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
  * Generate a thumbnail for an AI file.
  * Many .ai files contain a PDF-compatible stream that sharp/poppler can read.
  */
+async function findSiblingImage(filePath: string): Promise<string | null> {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath, path.extname(filePath)).toLowerCase();
+  const IMAGE_EXTS = [".jpg", ".jpeg", ".png"];
+
+  let files: string[];
+  try {
+    files = await readdir(dir);
+  } catch {
+    return null;
+  }
+
+  // Priority 1: same base name + image extension
+  for (const ext of IMAGE_EXTS) {
+    const match = files.find(f => f.toLowerCase() === base + ext);
+    if (match) return path.join(dir, match);
+  }
+
+  // Priority 2: any image file in the same directory
+  const any = files.find(f => IMAGE_EXTS.includes(path.extname(f).toLowerCase()));
+  if (any) return path.join(dir, any);
+
+  return null;
+}
+
+async function thumbnailFromSibling(filePath: string): Promise<ThumbnailResult> {
+  const siblingPath = await findSiblingImage(filePath);
+  if (!siblingPath) throw new Error("no_sibling_image");
+
+  logger.info("Using sibling image as thumbnail fallback", {
+    filePath,
+    siblingUsed: path.basename(siblingPath),
+  });
+
+  const resized = sharp(siblingPath)
+    .flatten({ background: "#ffffff" })
+    .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
+  const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
+  const meta = await sharp(buffer).metadata();
+  return {
+    buffer,
+    width: meta.width || 0,
+    height: meta.height || 0,
+  };
+}
+
 async function thumbnailAiGhostscript(filePath: string): Promise<ThumbnailResult> {
   const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-gs-"));
   const outPath = path.join(tmpDir, "thumb.png");
@@ -101,6 +154,13 @@ async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
     return await thumbnailAiGhostscript(filePath);
   } catch (e) {
     logger.warn("AI Ghostscript rendering failed", { filePath, error: (e as Error).message });
+  }
+
+  // Step 3: Try sibling image in same directory
+  try {
+    return await thumbnailFromSibling(filePath);
+  } catch (e) {
+    logger.warn("No sibling image found", { filePath });
   }
 
   throw new Error("no_pdf_compat");

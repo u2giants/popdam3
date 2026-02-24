@@ -194,7 +194,7 @@ function WindowsAgentDownload() {
           </Button>
         </a>
         <p className="text-xs text-muted-foreground">
-          Requires Windows 10/11 and Adobe Illustrator (Creative Cloud). The agent runs as a background service.
+          Requires Windows 10/11 and Adobe Illustrator (Creative Cloud). The agent runs as a startup application.
         </p>
       </CardContent>
     </Card>
@@ -414,6 +414,9 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           <p className="text-sm text-muted-foreground">
             Run the downloaded installer on your Windows PC. When prompted, paste the install token from Step 1. The agent will authenticate itself automatically — no other configuration is needed during installation.
           </p>
+          <p className="text-xs text-muted-foreground mt-1.5 bg-muted/50 border border-border rounded-md px-3 py-2">
+            The installer places a shortcut in your Windows Startup folder (shell:startup) so the agent launches automatically when you log in. Adobe Illustrator must be installed and you must be logged in for rendering to work.
+          </p>
         </div>
 
         {/* Step 3: NAS Config */}
@@ -467,7 +470,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
             <li>Check that your firewall allows outbound HTTPS (port 443)</li>
             <li>Verify Adobe Illustrator is installed and licensed</li>
-            <li>Check the Windows Event Log for PopDAM Agent errors</li>
+            <li>To restart: open Task Manager, end the PopDAM Windows Agent process, then run the application again from C:\Program Files\PopDAM\WindowsAgent\PopDAMWindowsAgent.exe</li>
           </ul>
         </div>
 
