@@ -154,6 +154,7 @@ export default function LibraryPage() {
   const groups = data?.groups ?? [];
   const count = totalCount ?? data?.totalCount ?? 0;
   const activeFilterCount = countActiveFilters(filters);
+  const selectedGroups = groups.filter(g => selectedIds.has(g.id));
 
   const detailGroup = useMemo(
     () => (detailGroupId ? groups.find((g) => g.id === detailGroupId) ?? null : null),
@@ -182,6 +183,13 @@ export default function LibraryPage() {
         onStopScan={handleStopScan}
         onRefresh={handleRefresh}
       />
+
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          selectedGroups={selectedGroups}
+          onClearSelection={() => setSelectedIds(new Set())}
+        />
+      )}
 
       {/* Ungrouped count indicator */}
       {ungroupedCount != null && ungroupedCount > 0 && (
