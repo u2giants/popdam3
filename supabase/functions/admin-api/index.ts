@@ -1112,14 +1112,11 @@ async function handleGetUpdateStatus() {
 // ── Shared: metadata derivation (same logic as agent-api) ───────────
 
 const WORKFLOW_FOLDER_MAP: Record<string, string> = {
-  "product ideas": "product_ideas",
-  "concept approved": "concept_approved",
+  "concept approved designs": "concept_approved",
   "in development": "in_development",
   "freelancer art": "freelancer_art",
   "discontinued": "discontinued",
-  "in process": "in_process",
-  "customer adopted": "customer_adopted",
-  "licensor approved": "licensor_approved",
+  "product ideas": "product_ideas",
 };
 
 async function deriveMetadataFromPath(
@@ -1131,32 +1128,37 @@ async function deriveMetadataFromPath(
   licensor_id: string | null;
   property_id: string | null;
 }> {
-  const parts = relativePath.split("/");
+  const pathParts = relativePath.split("/");
 
-  const topLevelFolder = parts[0].toLowerCase();
-  const is_licensed =
-    topLevelFolder.includes("character licensed") ||
-    topLevelFolder.includes("licensed");
+  // is_licensed: find the "Decor" folder and check sub-folder
+  const decorIndex = pathParts.findIndex(
+    (p) => p.toLowerCase() === "decor",
+  );
+  const subFolder =
+    decorIndex >= 0 ? (pathParts[decorIndex + 1] || "").toLowerCase() : "";
+  const is_licensed = subFolder === "character licensed";
 
-  const parentFolder =
-    parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : "";
-  const grandparentFolder =
-    parts.length >= 3 ? parts[parts.length - 3].toLowerCase() : "";
-
+  // workflow_status: match exact folder names against each path segment
+  const lowerParts = pathParts.map((p) => p.toLowerCase());
   let workflow_status = "other";
   for (const [folder, status] of Object.entries(WORKFLOW_FOLDER_MAP)) {
-    if (parentFolder.includes(folder) || grandparentFolder.includes(folder)) {
+    if (lowerParts.some((p) => p === folder)) {
       workflow_status = status;
       break;
     }
   }
 
+  // licensor/property extraction for licensed files
+  // Structure: Decor/Character Licensed/[Licensor]/[Property]/...
   let licensor_name: string | null = null;
   let property_name: string | null = null;
-  if (is_licensed && parts.length >= 3) {
-    licensor_name = parts[1];
-    if (parts.length >= 4) {
-      property_name = parts[2];
+  if (is_licensed && decorIndex >= 0) {
+    const licIdx = decorIndex + 2; // skip "Decor" and "Character Licensed"
+    if (pathParts.length > licIdx) {
+      licensor_name = pathParts[licIdx];
+    }
+    if (pathParts.length > licIdx + 1) {
+      property_name = pathParts[licIdx + 1];
     }
   }
 

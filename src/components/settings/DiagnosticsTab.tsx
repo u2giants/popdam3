@@ -464,7 +464,7 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
           <Button
             variant="outline" size="sm" className="gap-1.5"
             onClick={() => {
-              if (confirm("This will re-derive is_licensed, workflow_status, licensor and property for all assets from their file paths. Manual assignments will be preserved. Continue?")) {
+              if (confirm("This will re-derive is_licensed and workflow_status for all assets from their file paths. Continue?")) {
                 reprocessMutation.mutate();
               }
             }}
