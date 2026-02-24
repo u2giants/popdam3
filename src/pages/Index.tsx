@@ -86,8 +86,8 @@ export default function LibraryPage() {
   }, []);
 
   const { data: visibilityDate } = useVisibilityDate();
-  const { data, isLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize);
-  const { data: totalCount } = useStyleGroupCount(filters);
+  const { data, isLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
+  const { data: totalCount } = useStyleGroupCount(filters, visibilityDate);
   const { data: ungroupedCount } = useUngroupedCount();
   const { licensors, properties } = useFilterOptions(filters.licensorId);
   const { data: facetCounts } = useFilterCounts(filters);
