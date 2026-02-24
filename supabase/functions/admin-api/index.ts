@@ -1290,7 +1290,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   // Fetch batch of assets
   const { data: assets, error: fetchErr } = await db
     .from("assets")
-    .select("id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_code, licensor_name, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name")
+    .select("id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_id, licensor_code, licensor_name, property_id, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name")
     .eq("is_deleted", false)
     .order("id")
     .range(offset, offset + BATCH_SIZE - 1);
@@ -1333,8 +1333,10 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         sku,
         folder_path: folderPath,
         is_licensed: first.is_licensed ?? false,
+        licensor_id: (first as any).licensor_id ?? null,
         licensor_code: first.licensor_code,
         licensor_name: first.licensor_name,
+        property_id: (first as any).property_id ?? null,
         property_code: first.property_code,
         property_name: first.property_name,
         product_category: first.product_category,

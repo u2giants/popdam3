@@ -16,6 +16,7 @@ interface FilterSidebarProps {
   licensors: { id: string; name: string; asset_count: number }[];
   properties: { id: string; name: string; licensor_id: string; asset_count: number }[];
   facetCounts: FacetCounts | null;
+  mode?: "groups" | "assets";
 }
 
 // ── Display name maps ───────────────────────────────────────────────
@@ -214,6 +215,7 @@ export default function FilterSidebar({
   licensors,
   properties,
   facetCounts,
+  mode = "groups",
 }: FilterSidebarProps) {
   const update = (partial: Partial<AssetFilters>) =>
     onFiltersChange({ ...filters, ...partial });
@@ -261,61 +263,73 @@ export default function FilterSidebar({
 
       <ScrollArea className="flex-1 px-4 py-3">
         <div className="space-y-5">
-          {/* Tag filter */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tag</h4>
-            <Input
-              placeholder="Filter by tag…"
-              value={filters.tagFilter}
-              onChange={(e) => update({ tagFilter: e.target.value })}
-              className="h-8 bg-background text-sm"
-            />
-          </div>
+          {/* Tag filter — assets only */}
+          {mode === "assets" && (
+            <>
+              <div className="space-y-2">
+                <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tag</h4>
+                <Input
+                  placeholder="Filter by tag…"
+                  value={filters.tagFilter}
+                  onChange={(e) => update({ tagFilter: e.target.value })}
+                  className="h-8 bg-background text-sm"
+                />
+              </div>
+              <Separator />
+            </>
+          )}
 
-          <Separator />
+          {/* File Status — assets only */}
+          {mode === "assets" && (
+            <>
+              <div className="space-y-2">
+                <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">File Status</h4>
+                <div className="space-y-1.5">
+                  {FILE_STATUS_OPTIONS.map((opt) => (
+                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
+                      <Checkbox
+                        checked={filters.fileStatus === opt.value}
+                        onCheckedChange={(checked) =>
+                          update({ fileStatus: checked ? opt.value : "" })
+                        }
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="flex-1">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Separator />
+            </>
+          )}
 
-          {/* File Status */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">File Status</h4>
-            <div className="space-y-1.5">
-              {FILE_STATUS_OPTIONS.map((opt) => (
-                <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
-                  <Checkbox
-                    checked={filters.fileStatus === opt.value}
-                    onCheckedChange={(checked) =>
-                      update({ fileStatus: checked ? opt.value : "" })
-                    }
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="flex-1">{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+          {/* File Type — assets only */}
+          {mode === "assets" && (
+            <>
+              <CheckboxGroup
+                label="File Type"
+                options={Constants.public.Enums.file_type}
+                selected={filters.fileType}
+                onChange={(v) => update({ fileType: v })}
+                counts={facetCounts?.fileType}
+              />
+              <Separator />
+            </>
+          )}
 
-          <Separator />
-
-          {/* File Type */}
-          <CheckboxGroup
-            label="File Type"
-            options={Constants.public.Enums.file_type}
-            selected={filters.fileType}
-            onChange={(v) => update({ fileType: v })}
-            counts={facetCounts?.fileType}
-          />
-
-          <Separator />
-
-          {/* Status */}
-          <CheckboxGroup
-            label="Status"
-            options={Constants.public.Enums.asset_status}
-            selected={filters.status}
-            onChange={(v) => update({ status: v })}
-            counts={facetCounts?.status}
-          />
-
-          <Separator />
+          {/* Status — assets only */}
+          {mode === "assets" && (
+            <>
+              <CheckboxGroup
+                label="Status"
+                options={Constants.public.Enums.asset_status}
+                selected={filters.status}
+                onChange={(v) => update({ status: v })}
+                counts={facetCounts?.status}
+              />
+              <Separator />
+            </>
+          )}
 
           {/* Workflow Status */}
           <CheckboxGroup
@@ -378,26 +392,32 @@ export default function FilterSidebar({
             placeholder="Search properties…"
           />
 
-          <Separator />
+          {/* Asset Type — assets only */}
+          {mode === "assets" && (
+            <>
+              <Separator />
+              <CheckboxGroup
+                label="Asset Type"
+                options={ASSET_TYPE_OPTIONS}
+                selected={filters.assetType}
+                onChange={(v) => update({ assetType: v })}
+                labelMap={ASSET_TYPE_LABELS}
+              />
+            </>
+          )}
 
-          {/* Asset Type */}
-          <CheckboxGroup
-            label="Asset Type"
-            options={ASSET_TYPE_OPTIONS}
-            selected={filters.assetType}
-            onChange={(v) => update({ assetType: v })}
-            labelMap={ASSET_TYPE_LABELS}
-          />
-
-          <Separator />
-
-          {/* Art Source */}
-          <CheckboxGroup
-            label="Art Source"
-            options={Constants.public.Enums.art_source}
-            selected={filters.artSource}
-            onChange={(v) => update({ artSource: v })}
-          />
+          {/* Art Source — assets only */}
+          {mode === "assets" && (
+            <>
+              <Separator />
+              <CheckboxGroup
+                label="Art Source"
+                options={Constants.public.Enums.art_source}
+                selected={filters.artSource}
+                onChange={(v) => update({ artSource: v })}
+              />
+            </>
+          )}
         </div>
       </ScrollArea>
     </div>

@@ -13,8 +13,10 @@ export interface StyleGroup {
   asset_count: number;
   workflow_status: string;
   is_licensed: boolean;
+  licensor_id: string | null;
   licensor_code: string | null;
   licensor_name: string | null;
+  property_id: string | null;
   property_code: string | null;
   property_name: string | null;
   product_category: string | null;
@@ -73,6 +75,12 @@ export function useStyleGroups(
       if (filters.workflowStatus.length > 0) {
         query = query.in("workflow_status", filters.workflowStatus as WorkflowStatus[]);
       }
+      if (filters.licensorId) {
+        query = query.eq("licensor_id", filters.licensorId);
+      }
+      if (filters.propertyId) {
+        query = query.eq("property_id", filters.propertyId);
+      }
 
       // Sort
       const sgSortField = sortField === "modified_at" ? "latest_file_date" : sortField === "filename" ? "sku" : "latest_file_date";
@@ -118,6 +126,12 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
       }
       if (filters.workflowStatus.length > 0) {
         query = query.in("workflow_status", filters.workflowStatus as WorkflowStatus[]);
+      }
+      if (filters.licensorId) {
+        query = query.eq("licensor_id", filters.licensorId);
+      }
+      if (filters.propertyId) {
+        query = query.eq("property_id", filters.propertyId);
       }
 
       const { count, error } = await query;

@@ -208,6 +208,7 @@ export default function LibraryPage() {
             licensors={licensors}
             properties={properties}
             facetCounts={facetCounts ?? null}
+            mode="groups"
           />
         )}
 
