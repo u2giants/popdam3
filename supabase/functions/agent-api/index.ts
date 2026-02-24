@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { parseSku } from "../_shared/sku-parser.ts";
 
 // ── CORS ────────────────────────────────────────────────────────────
 
@@ -602,6 +603,22 @@ async function handleIngest(
   const db = serviceClient();
   const derived = await deriveMetadataFromPath(relativePath, db);
 
+  // SKU parsing from filename
+  const parsed = await parseSku(filename);
+  const skuFields = parsed ? {
+    sku: parsed.sku,
+    mg01_code: parsed.mg01_code, mg01_name: parsed.mg01_name,
+    mg02_code: parsed.mg02_code, mg02_name: parsed.mg02_name,
+    mg03_code: parsed.mg03_code, mg03_name: parsed.mg03_name,
+    size_code: parsed.size_code, size_name: parsed.size_name,
+    licensor_code: parsed.licensor_code, licensor_name: parsed.licensor_name,
+    property_code: parsed.property_code, property_name: parsed.property_name,
+    sku_sequence: parsed.sku_sequence,
+    product_category: parsed.product_category,
+    division_code: parsed.division_code, division_name: parsed.division_name,
+    is_licensed: parsed.is_licensed,
+  } : {};
+
   // ── 1) Move detection: same quick_hash, different path ──
 
   const { data: existingByHash } = await db
@@ -641,6 +658,7 @@ async function handleIngest(
         workflow_status: reDerived.workflow_status,
         is_licensed: reDerived.is_licensed,
         ...thumbMove,
+        ...skuFields,
     };
     if (reDerived.licensor_id) moveUpdates.licensor_id = reDerived.licensor_id;
     if (reDerived.property_id) moveUpdates.property_id = reDerived.property_id;
@@ -709,6 +727,7 @@ async function handleIngest(
         quick_hash_version: quickHashVersion,
         last_seen_at: new Date().toISOString(),
         ...thumbnailFields,
+        ...skuFields,
       })
       .eq("id", existingByPath.id);
 
@@ -747,6 +766,7 @@ async function handleIngest(
       thumbnail_error: thumbnailError,
       workflow_status: derived.workflow_status,
       is_licensed: derived.is_licensed,
+      ...skuFields,
   };
   if (derived.licensor_id) newAssetRow.licensor_id = derived.licensor_id;
   if (derived.property_id) newAssetRow.property_id = derived.property_id;

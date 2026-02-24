@@ -415,7 +415,7 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
   const reprocessMutation = useMutation({
     mutationFn: () => call("reprocess-asset-metadata"),
     onSuccess: (data) => {
-      toast.success(`Reprocessed ${data.total ?? 0} assets, updated ${data.updated ?? 0}`);
+      toast.success(`Reprocessed ${data.updated ?? 0} of ${data.total ?? 0} assets`);
       onRefresh();
     },
     onError: (e) => toast.error(e.message),
@@ -464,14 +464,14 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
           <Button
             variant="outline" size="sm" className="gap-1.5"
             onClick={() => {
-              if (confirm("This will re-derive is_licensed and workflow_status for all assets from their file paths. Continue?")) {
+              if (confirm("Re-derive SKU metadata, licensor, division, and workflow_status for all assets. Continue?")) {
                 reprocessMutation.mutate();
               }
             }}
             disabled={reprocessMutation.isPending}
           >
             {reprocessMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
-            Reprocess Metadata
+            {reprocessMutation.isPending ? "Reprocessing…" : "Reprocess Metadata"}
           </Button>
         </div>
       </CardContent>
