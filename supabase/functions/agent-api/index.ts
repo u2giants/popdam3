@@ -115,14 +115,11 @@ function requireCanonicalRelativePath(
 // ── Metadata derivation from path ───────────────────────────────────
 
 const WORKFLOW_FOLDER_MAP: Record<string, string> = {
-  "product ideas": "product_ideas",
-  "concept approved": "concept_approved",
+  "concept approved designs": "concept_approved",
   "in development": "in_development",
   "freelancer art": "freelancer_art",
   "discontinued": "discontinued",
-  "in process": "in_process",
-  "customer adopted": "customer_adopted",
-  "licensor approved": "licensor_approved",
+  "product ideas": "product_ideas",
 };
 
 interface DerivedMetadata {
@@ -138,35 +135,37 @@ async function deriveMetadataFromPath(
   relativePath: string,
   db: ReturnType<typeof serviceClient>,
 ): Promise<DerivedMetadata> {
-  const parts = relativePath.split("/");
+  const pathParts = relativePath.split("/");
 
-  // is_licensed: check TOP-LEVEL folder only
-  const topLevelFolder = parts[0].toLowerCase();
-  const is_licensed =
-    topLevelFolder.includes("character licensed") ||
-    topLevelFolder.includes("licensed");
+  // is_licensed: find the "Decor" folder and check sub-folder
+  const decorIndex = pathParts.findIndex(
+    (p) => p.toLowerCase() === "decor",
+  );
+  const subFolder =
+    decorIndex >= 0 ? (pathParts[decorIndex + 1] || "").toLowerCase() : "";
+  const is_licensed = subFolder === "character licensed";
 
-  // workflow_status: check only immediate parent and grandparent folders
-  const parentFolder =
-    parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : "";
-  const grandparentFolder =
-    parts.length >= 3 ? parts[parts.length - 3].toLowerCase() : "";
-
+  // workflow_status: match exact folder names against each path segment
+  const lowerParts = pathParts.map((p) => p.toLowerCase());
   let workflow_status = "other";
   for (const [folder, status] of Object.entries(WORKFLOW_FOLDER_MAP)) {
-    if (parentFolder.includes(folder) || grandparentFolder.includes(folder)) {
+    if (lowerParts.some((p) => p === folder)) {
       workflow_status = status;
       break;
     }
   }
 
-  // licensor/property extraction from path for licensed files
+  // licensor/property extraction for licensed files
+  // Structure: Decor/Character Licensed/[Licensor]/[Property]/...
   let licensor_name: string | null = null;
   let property_name: string | null = null;
-  if (is_licensed && parts.length >= 3) {
-    licensor_name = parts[1]; // second segment = licensor
-    if (parts.length >= 4) {
-      property_name = parts[2]; // third segment = property
+  if (is_licensed && decorIndex >= 0) {
+    const licIdx = decorIndex + 2; // skip "Decor" and "Character Licensed"
+    if (pathParts.length > licIdx) {
+      licensor_name = pathParts[licIdx];
+    }
+    if (pathParts.length > licIdx + 1) {
+      property_name = pathParts[licIdx + 1];
     }
   }
 
@@ -568,6 +567,23 @@ async function handleIngest(
     return json({ ok: true, action: "skipped", reason: "junk file" });
   }
 
+  // ── Decor folder filter: only process files under Decor/Character Licensed or Decor/Generic Decor ──
+  const ingestParts = relativePath.split("/");
+  const ingestDecorIndex = ingestParts.findIndex(
+    (p) => p.toLowerCase() === "decor",
+  );
+
+  if (ingestDecorIndex === -1) {
+    return json({ ok: true, action: "noop", reason: "not under Decor" });
+  }
+
+  const ingestSubFolder = (ingestParts[ingestDecorIndex + 1] || "").toLowerCase();
+  const ALLOWED_SUBFOLDERS = ["character licensed", "generic decor"];
+
+  if (!ALLOWED_SUBFOLDERS.includes(ingestSubFolder)) {
+    return json({ ok: true, action: "noop", reason: "ignored folder" });
+  }
+
   const fileType = requireString(body, "file_type");
   const fileSize = optionalNumber(body, "file_size") ?? 0;
   const modifiedAt = requireString(body, "modified_at");
@@ -583,8 +599,8 @@ async function handleIngest(
     return err("file_type must be 'psd' or 'ai'");
   }
 
-  const derived = await deriveMetadataFromPath(relativePath, db);
   const db = serviceClient();
+  const derived = await deriveMetadataFromPath(relativePath, db);
 
   // ── 1) Move detection: same quick_hash, different path ──
 
