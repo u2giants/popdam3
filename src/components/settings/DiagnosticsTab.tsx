@@ -375,6 +375,7 @@ function ConfigurationSection({ config }: { config: Record<string, unknown> }) {
 function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
+  const [reprocessProgress, setReprocessProgress] = useState<{ updated: number; total: number } | null>(null);
 
   const resetScanMutation = useMutation({
     mutationFn: () => call("reset-scan-state"),
@@ -412,14 +413,33 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
     onError: (e) => toast.error(e.message),
   });
 
-  const reprocessMutation = useMutation({
-    mutationFn: () => call("reprocess-asset-metadata"),
-    onSuccess: (data) => {
-      toast.success(`Reprocessed ${data.updated ?? 0} of ${data.total ?? 0} assets`);
+  async function runReprocess() {
+    if (!confirm(
+      "Re-derive SKU metadata, licensor, division, and workflow_status for all assets. This may take several minutes. Continue?"
+    )) return;
+
+    setReprocessProgress({ updated: 0, total: 0 });
+    let offset = 0;
+    let totalUpdated = 0;
+    let totalProcessed = 0;
+
+    try {
+      while (true) {
+        const data = await call("reprocess-asset-metadata", { offset });
+        totalUpdated += data.updated ?? 0;
+        totalProcessed += data.total ?? 0;
+        setReprocessProgress({ updated: totalUpdated, total: totalProcessed });
+        if (data.done || !data.nextOffset) break;
+        offset = data.nextOffset;
+      }
+      toast.success(`Reprocessed ${totalUpdated} assets`);
       onRefresh();
-    },
-    onError: (e) => toast.error(e.message),
-  });
+    } catch (e: any) {
+      toast.error(e.message || "Reprocess failed");
+    } finally {
+      setReprocessProgress(null);
+    }
+  }
 
   return (
     <Card>
@@ -463,16 +483,17 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
           </Button>
           <Button
             variant="outline" size="sm" className="gap-1.5"
-            onClick={() => {
-              if (confirm("Re-derive SKU metadata, licensor, division, and workflow_status for all assets. Continue?")) {
-                reprocessMutation.mutate();
-              }
-            }}
-            disabled={reprocessMutation.isPending}
+            onClick={runReprocess}
+            disabled={reprocessProgress !== null}
           >
-            {reprocessMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
-            {reprocessMutation.isPending ? "Reprocessing…" : "Reprocess Metadata"}
+            {reprocessProgress !== null ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
+            {reprocessProgress !== null ? "Reprocessing…" : "Reprocess Metadata"}
           </Button>
+          {reprocessProgress && (
+            <span className="text-xs text-muted-foreground">
+              Updated {reprocessProgress.updated} / {reprocessProgress.total} so far…
+            </span>
+          )}
         </div>
       </CardContent>
     </Card>
