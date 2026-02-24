@@ -15,6 +15,13 @@ import type { Counters } from "./api-client.js";
 
 const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai"]);
 
+const EXCLUDED_DIR_PATTERNS = [
+  /^___old$/i,
+  /^__macosx$/i,
+  /^\..*$/,        // any hidden directory (starts with dot)
+  /^@eaDir$/,      // Synology metadata folder
+];
+
 export interface FileCandidate {
   absolutePath: string;
   relativePath: string; // POSIX canonical (no leading slash)
@@ -129,6 +136,14 @@ async function* scanDirectory(
     }
 
     if (entry.isDirectory()) {
+      // Skip excluded directories (___OLD, __MACOSX, hidden dirs, @eaDir)
+      const dirName = entry.name;
+      if (EXCLUDED_DIR_PATTERNS.some(p => p.test(dirName))) {
+        logger.debug("Skipping excluded directory", { dirPath: fullPath });
+        counters.dirs_skipped_permission++;
+        continue;
+      }
+
       // Resume support: if resumeFromDir is set and this is a top-level
       // subdirectory (one level below scan root), skip dirs that sort before it
       if (resumeFromDir && scanRoot && dirPath === scanRoot) {
@@ -178,8 +193,11 @@ async function* scanDirectory(
         filename: basename(entry.name),
         fileType: ext === ".psd" ? "psd" : "ai",
         fileSize: s.size,
+        // modifiedAt = mtime (last content modification, NOT access time)
+        // fileCreatedAt = birthtime (original creation time, may be null on Linux)
+        // We intentionally do NOT use atime (last access time) as it changes on read
         modifiedAt: s.mtime,
-        fileCreatedAt: s.birthtime || null,
+        fileCreatedAt: s.birthtime?.getFullYear() > 1970 ? s.birthtime : null,
       };
 
       counters.candidates_found++;

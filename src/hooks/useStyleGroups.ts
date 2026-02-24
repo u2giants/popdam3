@@ -41,11 +41,12 @@ export function useStyleGroups(
   sortDirection: "asc" | "desc",
   page: number,
   customPageSize?: number,
+  visibilityDate?: string,
 ) {
   const effectivePageSize = customPageSize ?? PAGE_SIZE;
 
   return useQuery({
-    queryKey: ["style-groups", filters, sortField, sortDirection, page, effectivePageSize],
+    queryKey: ["style-groups", filters, sortField, sortDirection, page, effectivePageSize, visibilityDate],
     queryFn: async () => {
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
@@ -56,6 +57,10 @@ export function useStyleGroups(
           `*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url)`,
           { count: "exact" },
         );
+
+      // Visibility date filter
+      const minDate = visibilityDate ?? "2020-01-01";
+      query = query.gte("updated_at", minDate);
 
       // Filters
       if (filters.search) {
@@ -93,13 +98,16 @@ export function useStyleGroups(
   });
 }
 
-export function useStyleGroupCount(filters: AssetFilters) {
+export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: string) {
   return useQuery({
-    queryKey: ["style-group-count", filters],
+    queryKey: ["style-group-count", filters, visibilityDate],
     queryFn: async () => {
       let query = supabase
         .from("style_groups")
         .select("*", { count: "exact", head: true });
+
+      const minDate = visibilityDate ?? "2020-01-01";
+      query = query.gte("updated_at", minDate);
 
       if (filters.search) {
         query = query.ilike("sku", `%${filters.search}%`);

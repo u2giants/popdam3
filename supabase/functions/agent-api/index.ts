@@ -668,6 +668,12 @@ async function handleIngest(
     return json({ ok: true, action: "noop", reason: "ignored folder" });
   }
 
+  // Defense in depth: reject files inside ___OLD folders
+  const hasOldFolder = ingestParts.some(p => p.toLowerCase() === "___old");
+  if (hasOldFolder) {
+    return json({ ok: true, action: "noop", reason: "excluded ___old folder" });
+  }
+
   const fileType = requireString(body, "file_type");
   const fileSize = optionalNumber(body, "file_size") ?? 0;
   const modifiedAt = requireString(body, "modified_at");
