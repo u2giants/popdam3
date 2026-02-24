@@ -359,9 +359,18 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
   let changedSet: Set<string>;
   let needsThumbnailSet: Set<string>;
   try {
-    const result = await api.checkChanged(checkPayload);
-    changedSet = new Set(result.changed);
-    needsThumbnailSet = new Set(result.needs_thumbnail);
+    // Chunk check-changed calls into groups of 20 to avoid URL length limits
+    const CHECK_CHUNK_SIZE = 20;
+    const allChanged: string[] = [];
+    const allNeedsThumbnail: string[] = [];
+    for (let ci = 0; ci < checkPayload.length; ci += CHECK_CHUNK_SIZE) {
+      const chunk = checkPayload.slice(ci, ci + CHECK_CHUNK_SIZE);
+      const result = await api.checkChanged(chunk);
+      allChanged.push(...result.changed);
+      allNeedsThumbnail.push(...result.needs_thumbnail);
+    }
+    changedSet = new Set(allChanged);
+    needsThumbnailSet = new Set(allNeedsThumbnail);
   } catch (e) {
     // If check-changed fails, fall back to processing everything
     logger.warn("check-changed failed, processing entire batch", { error: (e as Error).message });
