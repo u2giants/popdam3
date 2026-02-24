@@ -580,7 +580,7 @@ async function assignToStyleGroup(
 
     const { data: groupAssets } = await db
       .from("assets")
-      .select("id, filename, file_type, created_at, workflow_status, thumbnail_url")
+      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url")
       .eq("style_group_id", group.id)
       .eq("is_deleted", false);
 
@@ -597,10 +597,16 @@ async function assignToStyleGroup(
       }
     }
 
+    const latestFileDate = groupAssets.reduce((max: string, a: any) => {
+      const d = a.modified_at ?? a.created_at;
+      return d > max ? d : max;
+    }, "1970-01-01T00:00:00.000Z");
+
     await db.from("style_groups").update({
       asset_count: groupAssets.length,
       primary_asset_id: primaryId,
       workflow_status: bestStatus as any,
+      latest_file_date: latestFileDate,
       updated_at: new Date().toISOString(),
     }).eq("id", group.id);
   } catch (e) {

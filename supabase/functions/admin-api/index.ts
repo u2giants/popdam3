@@ -1290,7 +1290,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   // Fetch batch of assets
   const { data: assets, error: fetchErr } = await db
     .from("assets")
-    .select("id, relative_path, filename, file_type, created_at, workflow_status, is_licensed, licensor_code, licensor_name, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name")
+    .select("id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_code, licensor_name, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name")
     .eq("is_deleted", false)
     .order("id")
     .range(offset, offset + BATCH_SIZE - 1);
@@ -1363,7 +1363,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     // Set primary and count — need to query ALL assets for this group (might span batches)
     const { data: allGroupAssets } = await db
       .from("assets")
-      .select("id, filename, file_type, created_at, workflow_status")
+      .select("id, filename, file_type, created_at, modified_at, workflow_status")
       .eq("style_group_id", group.id)
       .eq("is_deleted", false);
 
@@ -1377,10 +1377,16 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           break;
         }
       }
+      const latestFileDate = allGroupAssets.reduce((max: string, a: any) => {
+        const d = a.modified_at ?? a.created_at;
+        return d > max ? d : max;
+      }, "1970-01-01T00:00:00.000Z");
+
       await db.from("style_groups").update({
         asset_count: allGroupAssets.length,
         primary_asset_id: primaryId,
         workflow_status: bestStatus as any,
+        latest_file_date: latestFileDate,
         updated_at: new Date().toISOString(),
       }).eq("id", group.id);
     }

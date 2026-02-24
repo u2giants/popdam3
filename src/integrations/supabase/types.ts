@@ -649,6 +649,7 @@ export type Database = {
           folder_path: string
           id: string
           is_licensed: boolean | null
+          latest_file_date: string | null
           licensor_code: string | null
           licensor_name: string | null
           mg01_code: string | null
@@ -675,6 +676,7 @@ export type Database = {
           folder_path: string
           id?: string
           is_licensed?: boolean | null
+          latest_file_date?: string | null
           licensor_code?: string | null
           licensor_name?: string | null
           mg01_code?: string | null
@@ -703,6 +705,7 @@ export type Database = {
           folder_path?: string
           id?: string
           is_licensed?: boolean | null
+          latest_file_date?: string | null
           licensor_code?: string | null
           licensor_name?: string | null
           mg01_code?: string | null
