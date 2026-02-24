@@ -29,6 +29,7 @@ export interface StyleGroup {
   size_code: string | null;
   size_name: string | null;
   thumbnail_url: string | null;
+  latest_file_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,9 +59,9 @@ export function useStyleGroups(
           { count: "exact" },
         );
 
-      // Visibility date filter
+      // Visibility date filter — use latest_file_date (max modified_at of member files)
       const minDate = visibilityDate ?? "2020-01-01";
-      query = query.gte("updated_at", minDate);
+      query = query.gte("latest_file_date", minDate);
 
       // Filters
       if (filters.search) {
@@ -74,7 +75,7 @@ export function useStyleGroups(
       }
 
       // Sort
-      const sgSortField = sortField === "modified_at" ? "updated_at" : sortField === "filename" ? "sku" : "updated_at";
+      const sgSortField = sortField === "modified_at" ? "latest_file_date" : sortField === "filename" ? "sku" : "latest_file_date";
       query = query.order(sgSortField, { ascending: sortDirection === "asc" });
       query = query.range(from, to);
 
@@ -107,7 +108,7 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
         .select("*", { count: "exact", head: true });
 
       const minDate = visibilityDate ?? "2020-01-01";
-      query = query.gte("updated_at", minDate);
+      query = query.gte("latest_file_date", minDate);
 
       if (filters.search) {
         query = query.ilike("sku", `%${filters.search}%`);
