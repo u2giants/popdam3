@@ -40,6 +40,10 @@ const counters: api.Counters = {
   roots_unreadable: 0,
   dirs_skipped_permission: 0,
   files_stat_failed: 0,
+  files_total_encountered: 0,
+  rejected_wrong_type: 0,
+  rejected_junk_file: 0,
+  noop_unchanged: 0,
 };
 
 function resetCounters() {
@@ -53,6 +57,10 @@ function resetCounters() {
   counters.roots_unreadable = 0;
   counters.dirs_skipped_permission = 0;
   counters.files_stat_failed = 0;
+  counters.files_total_encountered = 0;
+  counters.rejected_wrong_type = 0;
+  counters.rejected_junk_file = 0;
+  counters.noop_unchanged = 0;
 }
 
 // ── Cloud Config State (overridden by heartbeat config sync) ────────
@@ -436,6 +444,9 @@ async function processFile(file: FileCandidate) {
         break;
       case "updated":
         counters.updated_existing++;
+        break;
+      case "noop":
+        counters.noop_unchanged++;
         break;
     }
 

@@ -14,6 +14,10 @@ export interface ScanCounters {
   roots_unreadable: number;
   dirs_skipped_permission: number;
   files_stat_failed: number;
+  files_total_encountered?: number;
+  rejected_wrong_type?: number;
+  rejected_junk_file?: number;
+  noop_unchanged?: number;
 }
 
 export interface AgentRecord {
@@ -50,7 +54,8 @@ const emptyCounters: ScanCounters = {
   files_checked: 0, candidates_found: 0, ingested_new: 0,
   moved_detected: 0, updated_existing: 0, errors: 0,
   roots_invalid: 0, roots_unreadable: 0, dirs_skipped_permission: 0,
-  files_stat_failed: 0,
+  files_stat_failed: 0, files_total_encountered: 0,
+  rejected_wrong_type: 0, rejected_junk_file: 0, noop_unchanged: 0,
 };
 
 function parseCounters(raw: unknown): ScanCounters | null {
@@ -67,6 +72,10 @@ function parseCounters(raw: unknown): ScanCounters | null {
     roots_unreadable: Number(r.roots_unreadable ?? 0),
     dirs_skipped_permission: Number(r.dirs_skipped_permission ?? 0),
     files_stat_failed: Number(r.files_stat_failed ?? 0),
+    files_total_encountered: Number(r.files_total_encountered ?? 0),
+    rejected_wrong_type: Number(r.rejected_wrong_type ?? 0),
+    rejected_junk_file: Number(r.rejected_junk_file ?? 0),
+    noop_unchanged: Number(r.noop_unchanged ?? 0),
   };
 }
 

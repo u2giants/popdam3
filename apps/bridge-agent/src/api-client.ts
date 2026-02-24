@@ -52,6 +52,10 @@ export interface Counters {
   roots_unreadable: number;
   dirs_skipped_permission: number;
   files_stat_failed: number;
+  files_total_encountered: number;
+  rejected_wrong_type: number;
+  rejected_junk_file: number;
+  noop_unchanged: number;
 }
 
 export interface HeartbeatResponse {
