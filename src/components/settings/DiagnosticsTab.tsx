@@ -502,6 +502,24 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
 
 // ── Section 7: Database Inspector ───────────────────────────────────
 
+function formatCellValue(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "string") {
+    if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
+      try {
+        return new Date(val).toLocaleDateString("en-US", {
+          year: "numeric", month: "short", day: "numeric",
+        });
+      } catch { return val; }
+    }
+    return val;
+  }
+  if (typeof val === "number") return val.toLocaleString();
+  if (typeof val === "boolean") return val ? "true" : "false";
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+}
+
 const QUICK_QUERIES = [
   { label: "Asset count by is_licensed", sql: "SELECT is_licensed, COUNT(*) as count FROM assets GROUP BY is_licensed" },
   { label: "Asset count by workflow_status", sql: "SELECT workflow_status, COUNT(*) as count FROM assets GROUP BY workflow_status ORDER BY count DESC" },
@@ -603,7 +621,7 @@ function DatabaseInspector() {
 
         {/* Results table */}
         {rows && rows.length > 0 && (
-          <div className="border border-border rounded-md overflow-auto max-h-[400px]">
+          <div className="border border-border rounded-md overflow-x-auto max-h-[400px] overflow-y-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -617,7 +635,10 @@ function DatabaseInspector() {
                   <TableRow key={i}>
                     {columns.map((col) => (
                       <TableCell key={col} className="text-xs font-mono max-w-[300px] truncate">
-                        {row[col] === null ? <span className="text-muted-foreground italic">null</span> : typeof row[col] === "object" ? JSON.stringify(row[col]) : String(row[col])}
+                        {row[col] === null
+                          ? <span className="text-muted-foreground italic">null</span>
+                          : formatCellValue(row[col])
+                        }
                       </TableCell>
                     ))}
                   </TableRow>

@@ -793,6 +793,44 @@ function DateCutoffSettings() {
     onError: (e) => toast.error(e.message),
   });
 
+  const [isPurging, setIsPurging] = useState(false);
+
+  const { data: purgePreview } = useQuery({
+    queryKey: ["purge-preview", thumbVal],
+    queryFn: async () => {
+      const result = await call("run-query", {
+        sql: `SELECT COUNT(*) as count FROM assets WHERE is_deleted = false AND modified_at < '${thumbVal}'`,
+      });
+      return Number(result.rows?.[0]?.count ?? 0);
+    },
+    enabled: !!thumbVal,
+  });
+
+  async function handlePurge() {
+    if (!window.confirm(
+      `This will permanently remove ${purgePreview?.toLocaleString()} assets ` +
+      `with a file date before ${thumbVal} from the library. ` +
+      `This cannot be undone. Continue?`
+    )) return;
+    setIsPurging(true);
+    try {
+      const result = await call("purge-old-assets", { cutoff_date: thumbVal });
+      toast.success(
+        `Purged ${result.assets_purged.toLocaleString()} assets. ` +
+        `Removed ${result.groups_removed} empty groups, ` +
+        `updated ${result.groups_updated} groups.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["purge-preview"] });
+      queryClient.invalidateQueries({ queryKey: ["style-group-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
+    } catch (e: any) {
+      toast.error(e.message || "Purge failed");
+    } finally {
+      setIsPurging(false);
+    }
+  }
+
   if (isLoading) return <Card><CardContent className="py-6"><p className="text-sm text-muted-foreground">Loading...</p></CardContent></Card>;
 
   return (
@@ -825,13 +863,29 @@ function DateCutoffSettings() {
               value={thumbVal}
               onChange={(e) => setThumbDate(e.target.value)}
             />
+            {purgePreview != null && purgePreview > 0 && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {purgePreview.toLocaleString()} assets older than this date are currently in the library
+              </p>
+            )}
           </div>
         </div>
-        {dirty && (
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            <Save className="h-3.5 w-3.5 mr-1.5" /> Save Date Cutoffs
+        <div className="flex flex-wrap gap-2">
+          {dirty && (
+            <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              <Save className="h-3.5 w-3.5 mr-1.5" /> Save Date Cutoffs
+            </Button>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handlePurge}
+            disabled={isPurging || !thumbVal || !purgePreview}
+          >
+            {isPurging ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
+            Purge {purgePreview?.toLocaleString() ?? "…"} assets older than {thumbVal}
           </Button>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
