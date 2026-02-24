@@ -48,11 +48,21 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch, isRefetching, dataUpdatedAt } = useQuery({
     queryKey: ["admin-agents"],
     queryFn: () => call("list-agents"),
-    refetchInterval: pollFast ? 10_000 : undefined,
+    refetchInterval: 10_000,
   });
+
+  // "Last updated X seconds ago" live counter
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  useEffect(() => {
+    if (!dataUpdatedAt) return;
+    const tick = () => setSecondsAgo(Math.floor((Date.now() - dataUpdatedAt) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [dataUpdatedAt]);
 
   const { data: renderData } = useQuery({
     queryKey: ["render-queue-pending-count"],
@@ -87,6 +97,10 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Monitor className="h-4 w-4" /> Windows Agent Status
+          <Badge variant="outline" className="ml-1 gap-1 text-[10px] font-medium text-[hsl(var(--success))]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--success))] animate-pulse" />
+            Live
+          </Badge>
         </CardTitle>
         <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
           <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
@@ -147,6 +161,11 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
               </div>
             )}
           </div>
+        )}
+        {dataUpdatedAt > 0 && (
+          <p className="text-[10px] text-muted-foreground mt-3">
+            Last updated: {secondsAgo < 5 ? "just now" : `${secondsAgo}s ago`}
+          </p>
         )}
       </CardContent>
     </Card>
