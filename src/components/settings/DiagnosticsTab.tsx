@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
   Database, Clock, Monitor, AlertTriangle, RefreshCw,
   Activity, Loader2, CheckCircle2, XCircle, ChevronDown,
-  RotateCcw, Play, Trash2, Wrench, Stethoscope,
+  RotateCcw, Play, Trash2, Wrench, Stethoscope, FileSearch,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -412,6 +412,15 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
     onError: (e) => toast.error(e.message),
   });
 
+  const reprocessMutation = useMutation({
+    mutationFn: () => call("reprocess-asset-metadata"),
+    onSuccess: (data) => {
+      toast.success(`Reprocessed ${data.total ?? 0} assets, updated ${data.updated ?? 0}`);
+      onRefresh();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -451,6 +460,18 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
             disabled={clearCompletedMutation.isPending}
           >
             <Trash2 className="h-3.5 w-3.5" /> Clear Old Completed Jobs
+          </Button>
+          <Button
+            variant="outline" size="sm" className="gap-1.5"
+            onClick={() => {
+              if (confirm("This will re-derive is_licensed, workflow_status, licensor and property for all assets from their file paths. Manual assignments will be preserved. Continue?")) {
+                reprocessMutation.mutate();
+              }
+            }}
+            disabled={reprocessMutation.isPending}
+          >
+            {reprocessMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
+            Reprocess Metadata
           </Button>
         </div>
       </CardContent>

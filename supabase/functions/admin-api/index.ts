@@ -1109,6 +1109,140 @@ async function handleGetUpdateStatus() {
   return json({ ok: true, status: data?.value ?? null });
 }
 
+// ── Shared: metadata derivation (same logic as agent-api) ───────────
+
+const WORKFLOW_FOLDER_MAP: Record<string, string> = {
+  "product ideas": "product_ideas",
+  "concept approved": "concept_approved",
+  "in development": "in_development",
+  "freelancer art": "freelancer_art",
+  "discontinued": "discontinued",
+  "in process": "in_process",
+  "customer adopted": "customer_adopted",
+  "licensor approved": "licensor_approved",
+};
+
+async function deriveMetadataFromPath(
+  relativePath: string,
+  db: ReturnType<typeof serviceClient>,
+): Promise<{
+  workflow_status: string;
+  is_licensed: boolean;
+  licensor_id: string | null;
+  property_id: string | null;
+}> {
+  const parts = relativePath.split("/");
+
+  const topLevelFolder = parts[0].toLowerCase();
+  const is_licensed =
+    topLevelFolder.includes("character licensed") ||
+    topLevelFolder.includes("licensed");
+
+  const parentFolder =
+    parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : "";
+  const grandparentFolder =
+    parts.length >= 3 ? parts[parts.length - 3].toLowerCase() : "";
+
+  let workflow_status = "other";
+  for (const [folder, status] of Object.entries(WORKFLOW_FOLDER_MAP)) {
+    if (parentFolder.includes(folder) || grandparentFolder.includes(folder)) {
+      workflow_status = status;
+      break;
+    }
+  }
+
+  let licensor_name: string | null = null;
+  let property_name: string | null = null;
+  if (is_licensed && parts.length >= 3) {
+    licensor_name = parts[1];
+    if (parts.length >= 4) {
+      property_name = parts[2];
+    }
+  }
+
+  let licensor_id: string | null = null;
+  let property_id: string | null = null;
+
+  if (licensor_name) {
+    const { data: lic } = await db
+      .from("licensors")
+      .select("id")
+      .ilike("name", licensor_name)
+      .maybeSingle();
+    licensor_id = lic?.id || null;
+  }
+
+  if (licensor_id && property_name) {
+    const { data: prop } = await db
+      .from("properties")
+      .select("id")
+      .eq("licensor_id", licensor_id)
+      .ilike("name", property_name)
+      .maybeSingle();
+    property_id = prop?.id || null;
+  }
+
+  return { workflow_status, is_licensed, licensor_id, property_id };
+}
+
+// ── Route: reprocess-asset-metadata ─────────────────────────────────
+
+async function handleReprocessAssetMetadata() {
+  const db = serviceClient();
+  const BATCH_SIZE = 500;
+  let offset = 0;
+  let totalProcessed = 0;
+  let totalUpdated = 0;
+
+  while (true) {
+    const { data: assets, error: fetchErr } = await db
+      .from("assets")
+      .select("id, relative_path, is_licensed, workflow_status, licensor_id, property_id")
+      .eq("is_deleted", false)
+      .range(offset, offset + BATCH_SIZE - 1)
+      .order("created_at");
+
+    if (fetchErr) return err(fetchErr.message, 500);
+    if (!assets || assets.length === 0) break;
+
+    for (const asset of assets) {
+      totalProcessed++;
+      const derived = await deriveMetadataFromPath(asset.relative_path, db);
+
+      const updates: Record<string, unknown> = {};
+
+      // Always update is_licensed and workflow_status (path-derived)
+      if (asset.is_licensed !== derived.is_licensed) {
+        updates.is_licensed = derived.is_licensed;
+      }
+      if (asset.workflow_status !== derived.workflow_status) {
+        updates.workflow_status = derived.workflow_status;
+      }
+
+      // Only set licensor/property if not manually assigned already
+      if (!asset.licensor_id && derived.licensor_id) {
+        updates.licensor_id = derived.licensor_id;
+      }
+      if (!asset.property_id && derived.property_id) {
+        updates.property_id = derived.property_id;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const { error: updateErr } = await db
+          .from("assets")
+          .update(updates)
+          .eq("id", asset.id);
+        if (!updateErr) totalUpdated++;
+      }
+    }
+
+    if (assets.length < BATCH_SIZE) break;
+    offset += BATCH_SIZE;
+  }
+
+  return json({ ok: true, updated: totalUpdated, total: totalProcessed });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -1192,6 +1326,8 @@ serve(async (req: Request) => {
         return await handleTriggerAgentUpdate(body, userId);
       case "get-update-status":
         return await handleGetUpdateStatus();
+      case "reprocess-asset-metadata":
+        return await handleReprocessAssetMetadata();
       default:
         return err(`Unknown action: ${action}`, 404);
     }
