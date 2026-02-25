@@ -1,63 +1,94 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-  Removes the legacy PopDAM Windows Agent NSSM service.
+  Removes the PopDAM Windows Agent (both legacy service and scheduled task).
 
 .DESCRIPTION
-  Stops and removes the "PopDAMWindowsAgent" Windows Service
-  that was previously installed via NSSM. This is necessary
-  because Illustrator COM automation does not work in
-  non-interactive service sessions.
+  Stops and removes:
+  1. The "PopDAM Windows Render Agent" Scheduled Task (current install method)
+  2. The "PopDAMWindowsAgent" Windows Service via NSSM (legacy install method)
 
-  After running this script, install the agent as a Scheduled
-  Task using install-scheduled-task.ps1.
+  Optionally removes configuration from %ProgramData%\PopDAM.
+
+.PARAMETER RemoveConfig
+  If specified, also removes agent configuration and logs from
+  %ProgramData%\PopDAM. Without this flag, config is preserved
+  for future reinstalls.
 
 .EXAMPLE
   .\uninstall-service.ps1
+  .\uninstall-service.ps1 -RemoveConfig
 #>
+
+param(
+    [switch]$RemoveConfig
+)
 
 $ErrorActionPreference = "Stop"
 $ServiceName = "PopDAMWindowsAgent"
+$TaskName = "PopDAM Windows Render Agent"
 
-# ── Check if service exists ─────────────────────────────────────
+# ── Remove Scheduled Task (current method) ──────────────────────
+
+$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($task) {
+    Write-Host "Stopping scheduled task '$TaskName'..." -ForegroundColor Yellow
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    Write-Host "Removing scheduled task '$TaskName'..." -ForegroundColor Yellow
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    Write-Host "Scheduled task removed." -ForegroundColor Green
+} else {
+    Write-Host "Scheduled task '$TaskName' not found." -ForegroundColor DarkGray
+}
+
+# ── Remove legacy NSSM service ──────────────────────────────────
 
 $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if (-not $svc) {
-    Write-Host "Service '$ServiceName' not found — nothing to remove." -ForegroundColor Green
-    exit 0
-}
+if ($svc) {
+    if ($svc.Status -eq "Running") {
+        Write-Host "Stopping legacy service '$ServiceName'..." -ForegroundColor Yellow
+        Stop-Service -Name $ServiceName -Force
+        Start-Sleep -Seconds 2
+    }
 
-# ── Stop service if running ─────────────────────────────────────
+    $nssm = Get-Command nssm -ErrorAction SilentlyContinue
+    if ($nssm) {
+        Write-Host "Removing legacy service via NSSM..." -ForegroundColor Yellow
+        & nssm remove $ServiceName confirm
+    } else {
+        Write-Host "Removing legacy service via sc.exe..." -ForegroundColor Yellow
+        & sc.exe delete $ServiceName
+    }
 
-if ($svc.Status -eq "Running") {
-    Write-Host "Stopping service '$ServiceName'..." -ForegroundColor Yellow
-    Stop-Service -Name $ServiceName -Force
-    Start-Sleep -Seconds 2
-}
-
-# ── Try NSSM removal first ──────────────────────────────────────
-
-$nssm = Get-Command nssm -ErrorAction SilentlyContinue
-if ($nssm) {
-    Write-Host "Removing service via NSSM..." -ForegroundColor Yellow
-    & nssm remove $ServiceName confirm
+    Start-Sleep -Seconds 1
+    $check = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($check) {
+        Write-Warning "Legacy service may still be registered (pending reboot)."
+    } else {
+        Write-Host "Legacy service removed." -ForegroundColor Green
+    }
 } else {
-    # Fallback: sc.exe
-    Write-Host "NSSM not found — removing via sc.exe..." -ForegroundColor Yellow
-    & sc.exe delete $ServiceName
+    Write-Host "Legacy service '$ServiceName' not found." -ForegroundColor DarkGray
 }
 
-Start-Sleep -Seconds 1
+# ── Optionally remove config ────────────────────────────────────
 
-# ── Verify ──────────────────────────────────────────────────────
-
-$check = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($check) {
-    Write-Warning "Service may still be registered (pending reboot). Check manually."
+$ConfigDir = Join-Path $env:ProgramData "PopDAM"
+if ($RemoveConfig) {
+    if (Test-Path $ConfigDir) {
+        Write-Host "Removing configuration at $ConfigDir..." -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $ConfigDir
+        Write-Host "Configuration removed." -ForegroundColor Green
+    }
 } else {
-    Write-Host ""
-    Write-Host "SUCCESS: Service '$ServiceName' removed." -ForegroundColor Green
-    Write-Host "Now install the Scheduled Task instead:"
-    Write-Host "  .\install-scheduled-task.ps1" -ForegroundColor Cyan
-    Write-Host ""
+    if (Test-Path $ConfigDir) {
+        Write-Host ""
+        Write-Host "Configuration preserved at $ConfigDir" -ForegroundColor Cyan
+        Write-Host "To remove it too, run: .\uninstall-service.ps1 -RemoveConfig" -ForegroundColor DarkGray
+    }
 }
+
+Write-Host ""
+Write-Host "SUCCESS: PopDAM Windows Agent uninstalled." -ForegroundColor Green
+Write-Host ""
