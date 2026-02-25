@@ -11,8 +11,9 @@ import { toast } from "sonner";
 import {
   Monitor, Download, ListChecks, ClipboardList, Copy, Check,
   Eye, EyeOff, RefreshCw, AlertTriangle, Trash2, Play, Timer, KeyRound,
-  RotateCcw, X, Image as ImageIcon,
+  RotateCcw, X, Image as ImageIcon, Settings2,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ── Copy Button ─────────────────────────────────────────────────────
 
@@ -757,6 +758,78 @@ function RenderJobsTable() {
   );
 }
 
+// ── Section 5: Render Mode ───────────────────────────────────────────
+
+function RenderModeSelector() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+
+  const { data: configData, isLoading } = useQuery({
+    queryKey: ["admin-config"],
+    queryFn: () => call("get-config"),
+  });
+
+  const currentMode: string = (() => {
+    const entry = configData?.config?.WINDOWS_RENDER_MODE;
+    const val = entry?.value ?? entry;
+    return typeof val === "string" ? val : "fallback_only";
+  })();
+
+  const saveMutation = useMutation({
+    mutationFn: (mode: string) => call("set-config", { entries: { WINDOWS_RENDER_MODE: mode } }),
+    onSuccess: () => {
+      toast.success("Render mode saved — takes effect on next heartbeat");
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Settings2 className="h-4 w-4" /> Render Mode
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Controls how thumbnails are generated for design files.
+        </p>
+        <Select
+          value={isLoading ? undefined : currentMode}
+          onValueChange={(v) => saveMutation.mutate(v)}
+          disabled={saveMutation.isPending}
+        >
+          <SelectTrigger className="w-full max-w-xs">
+            <SelectValue placeholder="Select mode..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fallback_only">
+              Fallback Only (default)
+            </SelectItem>
+            <SelectItem value="primary">
+              Windows Primary
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="text-xs text-muted-foreground space-y-1">
+          {currentMode === "primary" ? (
+            <>
+              <p className="font-medium text-foreground">Windows Primary</p>
+              <p>Bridge Agent skips local thumbnail generation. All eligible files (PSD + AI) are queued for the Windows Render Agent.</p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-foreground">Fallback Only</p>
+              <p>Bridge Agent generates thumbnails locally. Windows Agent is only used when local generation fails (e.g. AI files without PDF compatibility).</p>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Exported Tab ────────────────────────────────────────────────────
 
 export default function WindowsAgentTab() {
@@ -765,6 +838,7 @@ export default function WindowsAgentTab() {
   return (
     <div className="space-y-4">
       <WindowsAgentStatus pollFast={pollFast} />
+      <RenderModeSelector />
       <WindowsAgentDownload />
       <WindowsAgentSetup onTokenGenerated={() => setPollFast(true)} />
       <RenderJobsTable />

@@ -265,6 +265,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "DO_SPACES_SECRET",
   "AGENT_UPDATE_REQUEST",
   "SCAN_MIN_DATE",
+  "WINDOWS_RENDER_MODE",
 ];
 
 async function handleHeartbeat(
@@ -522,6 +523,7 @@ async function handleHeartbeat(
       },
       resource_guard: resourceDirectives,
       auto_scan: autoScanConfig,
+      windows_render_mode: (configMap.WINDOWS_RENDER_MODE as string) || "fallback_only",
       windows_agent: {
         nas_host: ((configMap.WINDOWS_AGENT_NAS_HOST as string) || ""),
         nas_share: ((configMap.WINDOWS_AGENT_NAS_SHARE as string) || ""),

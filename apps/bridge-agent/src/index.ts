@@ -78,6 +78,9 @@ let autoScanEnabled = false;
 let autoScanIntervalHours = 6;
 let lastScanCompletedAt: number = Date.now(); // init to now so auto-scan waits one full interval after startup
 
+// Windows render mode: "fallback_only" (default) or "primary"
+let windowsRenderMode: "fallback_only" | "primary" = "fallback_only";
+
 function getEffectiveScanRoots(): string[] {
   return (cloudScanRoots && cloudScanRoots.length > 0) ? cloudScanRoots : config.scanRoots;
 }
@@ -160,6 +163,7 @@ interface CloudConfig {
   scanning?: { container_mount_root?: string; roots: string[]; batch_size: number; scan_min_date?: string | null; adaptive_polling: { idle_seconds: number; active_seconds: number } };
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
   auto_scan?: { enabled: boolean; interval_hours: number };
+  windows_render_mode?: "fallback_only" | "primary";
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
@@ -202,6 +206,11 @@ function applyCloudConfig(cfg: CloudConfig) {
     if (cfg.auto_scan.interval_hours && cfg.auto_scan.interval_hours > 0) {
       autoScanIntervalHours = cfg.auto_scan.interval_hours;
     }
+  }
+
+  // Update windows render mode
+  if (cfg.windows_render_mode === "primary" || cfg.windows_render_mode === "fallback_only") {
+    windowsRenderMode = cfg.windows_render_mode;
   }
 }
 
@@ -435,14 +444,19 @@ async function processFile(file: FileCandidate) {
     // 1. Quick hash
     const { quick_hash, quick_hash_version } = await computeQuickHash(file.absolutePath);
 
-    // 2. Generate a temporary ID for thumbnail upload naming
-    // The actual asset_id will come from the API response
-    const tempId = randomUUID();
+    // 2. Thumbnail strategy depends on windows_render_mode
+    let thumb: { thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number } = {};
 
-    // 3. Thumbnail
-    const thumb = await processThumbnail(file, tempId);
+    if (windowsRenderMode === "primary") {
+      // Primary mode: skip local thumbnail entirely, will queue render job after ingest
+      thumb = { thumbnailError: "deferred_to_windows_agent" };
+    } else {
+      // Fallback mode (default): generate locally
+      const tempId = randomUUID();
+      thumb = await processThumbnail(file, tempId);
+    }
 
-    // 4. Ingest to cloud
+    // 3. Ingest to cloud
     const result = await api.ingest({
       relative_path: file.relativePath,
       filename: file.filename,
@@ -457,9 +471,6 @@ async function processFile(file: FileCandidate) {
       width: thumb.width,
       height: thumb.height,
     });
-
-    // If thumbnail was uploaded with temp ID but asset got a different ID,
-    // that's fine — the URL is stored in the DB row regardless.
 
     // Update counters based on API response
     switch (result.action) {
@@ -482,12 +493,24 @@ async function processFile(file: FileCandidate) {
         break; // junk files
     }
 
-    // Queue for render if thumbnail failed on AI files
-    if (thumb.thumbnailError === "no_pdf_compat" && file.fileType === "ai") {
-      try {
-        await api.queueRender(result.asset_id, "no_pdf_compat");
-      } catch (e) {
-        logger.warn("Failed to queue render job", { assetId: result.asset_id, error: (e as Error).message });
+    // Queue for Windows render agent
+    if (windowsRenderMode === "primary") {
+      // Primary mode: queue render job for every eligible asset
+      if (result.action === "created" || result.action === "updated" || result.action === "moved") {
+        try {
+          await api.queueRender(result.asset_id, "primary_mode");
+        } catch (e) {
+          logger.warn("Failed to queue render job (primary)", { assetId: result.asset_id, error: (e as Error).message });
+        }
+      }
+    } else {
+      // Fallback mode: only queue when local thumbnail failed on AI files
+      if (thumb.thumbnailError === "no_pdf_compat" && file.fileType === "ai") {
+        try {
+          await api.queueRender(result.asset_id, "no_pdf_compat");
+        } catch (e) {
+          logger.warn("Failed to queue render job", { assetId: result.asset_id, error: (e as Error).message });
+        }
       }
     }
 
