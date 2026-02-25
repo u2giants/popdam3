@@ -70,8 +70,9 @@ export const config = {
   illustratorDpi: optionalInt("ILLUSTRATOR_DPI", 150),
   illustratorTimeoutMs: optionalInt("ILLUSTRATOR_TIMEOUT_MS", 120_000),
 
-  // Polling
-  pollIntervalMs: optionalInt("POLL_INTERVAL_MS", 30_000),
+  // Concurrency + Polling
+  renderConcurrency: optionalInt("RENDER_CONCURRENCY", 6),
+  pollIntervalMs: optionalInt("POLL_INTERVAL_MS", 3_000),
 
   // Derived
   get agentApiUrl() {

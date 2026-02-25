@@ -5,8 +5,8 @@
  *   1. Check for agent key — if missing, bootstrap with one-time token
  *   2. Register with cloud API as agent_type = 'windows-render'
  *   3. Start heartbeat timer (every 30s)
- *   4. Poll render_queue for pending jobs (every 30s)
- *   5. For each job: construct UNC path → Illustrator render → upload to Spaces → complete-render
+ *   4. Poll render_queue for pending jobs (every 3s, up to N concurrent)
+ *   5. For each job: Sharp → Ghostscript → Sibling → Illustrator COM
  *
  * Per PROJECT_BIBLE §1C: Optional Muscle #2 for AI files that can't be
  * thumbnailed reliably on NAS.
@@ -15,7 +15,7 @@
 import { config } from "./config";
 import { logger } from "./logger";
 import * as api from "./api-client";
-import { renderWithIllustrator } from "./illustrator";
+import { renderFile } from "./renderer";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
@@ -23,7 +23,7 @@ import { writeFile } from "node:fs/promises";
 // ── State ───────────────────────────────────────────────────────
 
 let agentId: string = "";
-let isProcessing = false;
+let activeJobs = 0;
 let lastError: string | undefined;
 let jobsCompleted = 0;
 let jobsFailed = 0;
@@ -166,7 +166,8 @@ async function processJob(job: api.RenderJob): Promise<void> {
   }
 
   try {
-    const result = await renderWithIllustrator(uncPath, {
+    const fileType = (job.file_type === "psd") ? "psd" : "ai" as const;
+    const result = await renderFile(uncPath, fileType, {
       host: cloudNasHost,
       share: cloudNasShare,
       username: cloudNasUsername,
@@ -189,32 +190,48 @@ async function processJob(job: api.RenderJob): Promise<void> {
   }
 }
 
-// ── Polling loop ────────────────────────────────────────────────
+// ── Concurrent polling loop ─────────────────────────────────────
 
 function startPolling() {
+  const maxConcurrency = config.renderConcurrency;
+
   setInterval(async () => {
-    if (isProcessing) return;
     if (!configReceived) {
       logger.debug("Skipping poll — waiting for cloud config (NAS host + Spaces credentials)");
       return;
     }
-    try {
-      isProcessing = true;
-      const job = await api.claimRender(agentId);
-      if (!job) { logger.debug("No render jobs available"); return; }
-      if (!job.relative_path) {
-        logger.error("Claimed job missing relative_path", { jobId: job.job_id });
-        await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
-        return;
+
+    // Fill all available slots
+    while (activeJobs < maxConcurrency) {
+      try {
+        const job = await api.claimRender(agentId);
+        if (!job) {
+          // No more jobs available
+          if (activeJobs === 0) logger.debug("No render jobs available");
+          break;
+        }
+        if (!job.relative_path) {
+          logger.error("Claimed job missing relative_path", { jobId: job.job_id });
+          await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
+          continue;
+        }
+
+        activeJobs++;
+        // Fire and forget — don't await, let it run concurrently
+        processJob(job)
+          .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
+          .finally(() => { activeJobs--; });
+      } catch (e) {
+        logger.error("Polling error", { error: (e as Error).message });
+        break;
       }
-      await processJob(job);
-    } catch (e) {
-      logger.error("Polling error", { error: (e as Error).message });
-    } finally {
-      isProcessing = false;
     }
   }, config.pollIntervalMs);
-  logger.info("Polling started", { intervalMs: config.pollIntervalMs });
+
+  logger.info("Polling started", {
+    intervalMs: config.pollIntervalMs,
+    maxConcurrency,
+  });
 }
 
 // ── Main ────────────────────────────────────────────────────────
@@ -223,8 +240,8 @@ async function main() {
   logger.info("PopDAM Windows Render Agent starting", {
     nasHost: config.nasHost,
     nasShare: config.nasShare,
-    dpi: config.illustratorDpi,
-    timeoutMs: config.illustratorTimeoutMs,
+    renderConcurrency: config.renderConcurrency,
+    pollIntervalMs: config.pollIntervalMs,
   });
 
   // 1. Bootstrap if no agent key
@@ -292,7 +309,9 @@ async function main() {
   // 5. Start polling for render jobs
   startPolling();
 
-  logger.info("Windows Render Agent ready");
+  logger.info("Windows Render Agent ready", {
+    concurrency: config.renderConcurrency,
+  });
 }
 
 main().catch((e) => {
