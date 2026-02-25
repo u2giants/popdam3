@@ -67,7 +67,12 @@ export function useStyleGroups(
 
       // Filters
       if (filters.search) {
-        query = query.ilike("sku", `%${filters.search}%`);
+        query = query.or(
+          `sku.ilike.%${filters.search}%,` +
+          `licensor_name.ilike.%${filters.search}%,` +
+          `property_name.ilike.%${filters.search}%,` +
+          `product_category.ilike.%${filters.search}%`
+        );
       }
       if (filters.isLicensed !== null) {
         query = query.eq("is_licensed", filters.isLicensed);
@@ -119,7 +124,12 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
       query = query.gte("latest_file_date", minDate);
 
       if (filters.search) {
-        query = query.ilike("sku", `%${filters.search}%`);
+        query = query.or(
+          `sku.ilike.%${filters.search}%,` +
+          `licensor_name.ilike.%${filters.search}%,` +
+          `property_name.ilike.%${filters.search}%,` +
+          `product_category.ilike.%${filters.search}%`
+        );
       }
       if (filters.isLicensed !== null) {
         query = query.eq("is_licensed", filters.isLicensed);
