@@ -6,6 +6,7 @@ import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, 
 import LibraryTopBar from "@/components/library/LibraryTopBar";
 import FilterSidebar from "@/components/library/FilterSidebar";
 import StyleGroupGrid from "@/components/library/StyleGroupGrid";
+import StyleGroupListView from "@/components/library/StyleGroupListView";
 import StyleGroupDetailPanel from "@/components/library/StyleGroupDetailPanel";
 import BulkActionBar from "@/components/library/BulkActionBar";
 import PaginationBar from "@/components/library/PaginationBar";
@@ -213,12 +214,21 @@ export default function LibraryPage() {
         )}
 
         <div className="flex flex-1 flex-col overflow-auto">
-          <StyleGroupGrid
-            groups={groups}
-            selectedIds={selectedIds}
-            onSelect={handleSelect}
-            isLoading={isLoading}
-          />
+          {viewMode === "grid" ? (
+            <StyleGroupGrid
+              groups={groups}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+              isLoading={isLoading}
+            />
+          ) : (
+            <StyleGroupListView
+              groups={groups}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+              isLoading={isLoading}
+            />
+          )}
 
           <div className="mt-auto">
             <PaginationBar
