@@ -35,6 +35,19 @@ On push to main:
 
 ---
 
+## 4) Updating the Bridge Agent on Synology
+Any time Lovable pushes changes to `apps/bridge-agent/`, GitHub Actions automatically builds a new Docker image and publishes it to `ghcr.io/u2giants/popdam-bridge:latest`.
+
+To apply the update on the NAS, run the convenience script:
+
+```bash
+ssh admin@nas "bash /volume1/docker/popdam/update.sh"
+```
+
+Or copy `deploy/synology/update.sh` to the NAS and run it locally. The script pulls the latest image, restarts the container, and verifies the agent is running.
+
+---
+
 ## 4) Secrets Handling
 - Never commit secrets to git.
 - `.env.example` is required for all components.
