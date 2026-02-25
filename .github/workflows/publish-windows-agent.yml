@@ -79,26 +79,46 @@ jobs:
           Copy-Item "apps\windows-agent\package.json" -Destination "installer\package.json"
           Write-Host "package.json copied"
 
+      - name: Create launcher script
+        shell: bash
+        run: |
+          cat > installer/popdam-launcher.bat << 'BAT_EOF'
+          @echo off
+          REM PopDAM Windows Agent Launcher
+          REM Ensures drive mapping exists before starting the agent.
+
+          set "CONFIG_DIR=%ProgramData%\PopDAM"
+          set "CONFIG_FILE=%CONFIG_DIR%\agent-config.json"
+          set "LOG_DIR=%CONFIG_DIR%\logs"
+
+          if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+
+          REM --- Drive mapping from agent-config.json ---
+          REM Parse drive_letter and nas_unc from config using PowerShell one-liner
+          for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "try { $c = Get-Content '%CONFIG_FILE%' -Raw | ConvertFrom-Json; if ($c.drive_letter -and $c.nas_unc) { Write-Output ('{0}:|{1}' -f $c.drive_letter, $c.nas_unc) } } catch {}"`) do (
+              for /f "tokens=1,2 delims=|" %%A in ("%%D") do (
+                  if not exist "%%A\" (
+                      echo [launcher] Mapping %%A to %%B ...
+                      net use %%A %%B /persistent:yes 2>>"%LOG_DIR%\drive-map.log"
+                      if errorlevel 1 (
+                          echo [launcher] WARNING: Drive mapping failed. Agent may not find NAS files.
+                      ) else (
+                          echo [launcher] Drive %%A mapped successfully.
+                      )
+                  ) else (
+                      echo [launcher] Drive %%A already mapped.
+                  )
+              )
+          )
+
+          REM --- Start agent ---
+          echo [launcher] Starting PopDAM Windows Agent...
+          cd /d "%~dp0"
+          "%~dp0node.exe" "%~dp0dist\index.js" >> "%LOG_DIR%\agent.log" 2>> "%LOG_DIR%\agent-error.log"
+          BAT_EOF
+
       - name: Install NSIS
         run: choco install nsis -y --no-progress
-
-      - name: Install NSSM
-        shell: powershell
-        run: |
-          choco install nssm -y --no-progress
-          $realNssm = Get-ChildItem "C:\ProgramData\chocolatey\lib\NSSM" -Recurse -Filter "nssm.exe" |
-            Where-Object { $_.DirectoryName -notlike "*x86*" } |
-            Select-Object -First 1 -ExpandProperty FullName
-          if (!$realNssm) {
-            Write-Error "Could not find nssm.exe"
-            exit 1
-          }
-          Write-Host "NSSM found at: $realNssm (size: $((Get-Item $realNssm).Length) bytes)"
-          if ((Get-Item $realNssm).Length -lt 100000) {
-            throw "nssm.exe is too small - this is a shim, not the real exe"
-          }
-          Copy-Item $realNssm -Destination "installer\nssm.exe"
-          Write-Host "nssm.exe copied to installer/"
 
       - name: Create NSIS script
         shell: bash
@@ -106,27 +126,29 @@ jobs:
           cat > installer/setup.nsi << 'NSIS_EOF'
           !include "MUI2.nsh"
           !include "nsDialogs.nsh"
-          !include "WordFunc.nsh"
 
           Name "PopDAM Windows Render Agent"
           OutFile "popdam-windows-agent-setup.exe"
           InstallDir "$PROGRAMFILES64\PopDAM\WindowsAgent"
           RequestExecutionLevel admin
 
-          Var BootstrapToken
-          Var TokenDialog
-          Var TokenLabel
-          Var TokenInput
-          Var TokenHelp
-          Var UserInput
-          Var PassInput
-          Var WinUser
-          Var WinPass
+          ; ── Variables ──
+          Var PairingCode
+          Var ServerUrl
+          Var DriveLetter
+          Var NasUNC
 
+          Var ConfigDialog
+          Var PairingInput
+          Var ServerInput
+          Var DriveInput
+          Var NasUNCInput
+
+          !insertmacro MUI_PAGE_WELCOME
           !insertmacro MUI_PAGE_DIRECTORY
-          Page custom TokenPageCreate TokenPageLeave
+          Page custom ConfigPageCreate ConfigPageLeave
           !insertmacro MUI_PAGE_INSTFILES
-          !define MUI_FINISHPAGE_TEXT "PopDAM Windows Render Agent has been installed and started as a Windows Service.$\r$\n$\r$\nIt will automatically authenticate using your install token and receive its full configuration from PopDAM cloud settings. The agent should appear as Online in PopDAM Settings -> Windows Agent within 60 seconds."
+          !define MUI_FINISHPAGE_TEXT "PopDAM Windows Render Agent has been installed.$\r$\n$\r$\nThe agent is registered as a Scheduled Task and will start automatically when you log in. It has been started now.$\r$\n$\r$\nThe agent should appear as Online in PopDAM Settings within 60 seconds.$\r$\n$\r$\nLogs: %ProgramData%\PopDAM\logs\"
           !insertmacro MUI_PAGE_FINISH
 
           !insertmacro MUI_UNPAGE_CONFIRM
@@ -134,121 +156,167 @@ jobs:
 
           !insertmacro MUI_LANGUAGE "English"
 
-          Function TokenPageCreate
+          ; ══════════════════════════════════════════════════════
+          ; Configuration Page
+          ; ══════════════════════════════════════════════════════
+
+          Function ConfigPageCreate
             nsDialogs::Create 1018
-            Pop $TokenDialog
+            Pop $ConfigDialog
 
-            ${NSD_CreateLabel} 0 0 100% 24u "PopDAM Install Token"
-            Pop $TokenLabel
-
-            ${NSD_CreateText} 0 30u 100% 16u ""
-            Pop $TokenInput
-            SendMessage $TokenInput ${EM_SETCUEBANNER} 1 "STR:XXXX-XXXX-XXXX-XXXX"
-
-            ${NSD_CreateLabel} 0 54u 100% 20u "Generate this token in PopDAM Settings -> Windows Agent.$\r$\nIt expires in 5 minutes and can only be used once."
-            Pop $TokenHelp
-
-            ${NSD_CreateLabel} 0 80u 100% 12u "Windows Username (for NAS access)"
+            ${NSD_CreateLabel} 0 0 100% 14u "PopDAM Server URL"
             Pop $0
-            ${NSD_CreateText} 0 94u 100% 14u "$USERNAME"
-            Pop $UserInput
+            ${NSD_CreateText} 0 16u 100% 14u "https://vklanxwmaeqjbwtmnygj.supabase.co"
+            Pop $ServerInput
 
-            ${NSD_CreateLabel} 0 112u 100% 12u "Windows Password"
+            ${NSD_CreateLabel} 0 40u 100% 14u "Pairing Code (from PopDAM Settings)"
             Pop $0
-            ${NSD_CreatePassword} 0 126u 100% 14u ""
-            Pop $PassInput
+            ${NSD_CreateText} 0 56u 100% 14u ""
+            Pop $PairingInput
+            SendMessage $PairingInput ${EM_SETCUEBANNER} 1 "STR:XXXX-XXXX-XXXX-XXXX"
 
-            ${NSD_CreateLabel} 0 146u 100% 20u "Enter your Windows login credentials so the agent can access network shares on your NAS."
+            ${NSD_CreateLabel} 0 78u 100% 14u "Generate this code in PopDAM Settings → Windows Agent → Pairing."
+            Pop $0
+
+            ${NSD_CreateGroupBox} 0 100u 100% 72u "NAS Drive Mapping (optional)"
+            Pop $0
+
+            ${NSD_CreateLabel} 10u 116u 80u 14u "Drive Letter:"
+            Pop $0
+            ${NSD_CreateText} 94u 114u 24u 14u ""
+            Pop $DriveInput
+
+            ${NSD_CreateLabel} 130u 116u 14u 14u ":"
+            Pop $0
+
+            ${NSD_CreateLabel} 10u 140u 80u 14u "NAS UNC Path:"
+            Pop $0
+            ${NSD_CreateText} 94u 138u 200u 14u ""
+            Pop $NasUNCInput
+            SendMessage $NasUNCInput ${EM_SETCUEBANNER} 1 "STR:\\server\share"
+
+            ${NSD_CreateLabel} 10u 158u 280u 12u "Maps a drive letter to a NAS share so the agent can find design files."
             Pop $0
 
             nsDialogs::Show
           FunctionEnd
 
-          Function TokenPageLeave
-            ${NSD_GetText} $TokenInput $BootstrapToken
-            StrCmp $BootstrapToken "" 0 +3
-              MessageBox MB_OK|MB_ICONEXCLAMATION "Please enter the install token from PopDAM Settings."
+          Function ConfigPageLeave
+            ${NSD_GetText} $PairingInput $PairingCode
+            ${NSD_GetText} $ServerInput $ServerUrl
+            ${NSD_GetText} $DriveInput $DriveLetter
+            ${NSD_GetText} $NasUNCInput $NasUNC
+
+            StrCmp $PairingCode "" 0 +3
+              MessageBox MB_OK|MB_ICONEXCLAMATION "Please enter the pairing code from PopDAM Settings."
               Abort
-            ${NSD_GetText} $UserInput $WinUser
-            ${NSD_GetText} $PassInput $WinPass
+            StrCmp $ServerUrl "" 0 +3
+              MessageBox MB_OK|MB_ICONEXCLAMATION "Server URL is required."
+              Abort
           FunctionEnd
 
-          Section "Install"
-            ; Handle reinstall - stop and remove existing service first
-            ExecWait '"$INSTDIR\nssm.exe" stop PopDAMWindowsAgent'
-            ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
-            Sleep 2000
+          ; ══════════════════════════════════════════════════════
+          ; Install Section
+          ; ══════════════════════════════════════════════════════
 
-            ; Install node.exe and nssm.exe
+          Section "Install"
+            ; ── Remove existing scheduled task if reinstalling ──
+            nsExec::ExecToLog 'schtasks /delete /tn "PopDAM Windows Render Agent" /f'
+            Sleep 1000
+
+            ; ── Remove legacy NSSM service if present ──
+            nsExec::ExecToLog 'sc query PopDAMWindowsAgent'
+            Pop $0
+            StrCmp $0 "0" 0 skip_legacy
+              nsExec::ExecToLog 'sc stop PopDAMWindowsAgent'
+              Sleep 2000
+              nsExec::ExecToLog 'sc delete PopDAMWindowsAgent'
+            skip_legacy:
+
+            ; ── Install program files ──
             SetOutPath "$INSTDIR"
             File "node.exe"
-            File "nssm.exe"
             File "package.json"
+            File "popdam-launcher.bat"
 
-            ; Install compiled JS
             SetOutPath "$INSTDIR\dist"
             File /r "dist\*.*"
 
-            ; Install node_modules (includes Sharp native binaries)
             SetOutPath "$INSTDIR\node_modules"
             File /r "node_modules\*.*"
 
-            ; Back to install root
             SetOutPath "$INSTDIR"
 
-            ; Write .env
+            ; ── Write .env (minimal — just for dotenv compat) ──
             FileOpen $0 "$INSTDIR\.env" w
-            FileWrite $0 "SUPABASE_URL=https://vklanxwmaeqjbwtmnygj.supabase.co$\r$\n"
-            FileWrite $0 "BOOTSTRAP_TOKEN=$BootstrapToken$\r$\n"
+            FileWrite $0 "SUPABASE_URL=$ServerUrl$\r$\n"
+            FileWrite $0 "POPDAM_PAIRING_CODE=$PairingCode$\r$\n"
             FileWrite $0 "AGENT_NAME=windows-render-agent$\r$\n"
-            FileWrite $0 "# AGENT_KEY is written automatically on first startup$\r$\n"
             FileClose $0
 
-            ; Install service: node.exe runs dist/index.js
-            ExecWait '"$INSTDIR\nssm.exe" install PopDAMWindowsAgent "$INSTDIR\node.exe"' $0
-            IntCmp $0 0 +3
-              MessageBox MB_OK|MB_ICONEXCLAMATION "Failed to register Windows Service (error $0). Try running as Administrator."
-              Abort
+            ; ── Create ProgramData directories ──
+            CreateDirectory "$COMMONAPPDATA\PopDAM"
+            CreateDirectory "$COMMONAPPDATA\PopDAM\logs"
 
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppParameters "dist\index.js"'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppDirectory "$INSTDIR"'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent DisplayName "PopDAM Windows Render Agent"'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Description "Renders AI/PSD files using Ghostscript + Sharp for PopDAM"'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Start SERVICE_AUTO_START'
+            ; ── Write agent-config.json (persistent across reinstalls) ──
+            ; Only write if not already present (preserve existing config on upgrade)
+            IfFileExists "$COMMONAPPDATA\PopDAM\agent-config.json" skip_config
+              FileOpen $0 "$COMMONAPPDATA\PopDAM\agent-config.json" w
+              FileWrite $0 '{$\r$\n'
+              FileWrite $0 '  "server_url": "$ServerUrl",$\r$\n'
+              FileWrite $0 '  "pairing_code": "$PairingCode",$\r$\n'
+              FileWrite $0 '  "drive_letter": "$DriveLetter",$\r$\n'
+              FileWrite $0 '  "nas_unc": "$NasUNC"$\r$\n'
+              FileWrite $0 '}$\r$\n'
+              FileClose $0
+            skip_config:
 
-            ; Log rotation
-            CreateDirectory "$INSTDIR\logs"
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppStdout "$INSTDIR\logs\agent.log"'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppStderr "$INSTDIR\logs\agent-error.log"'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateFiles 1'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateSeconds 86400'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateBytes 10485760'
+            ; ── Register Scheduled Task (interactive session) ──
+            ; Uses PowerShell to create a task that:
+            ;   - Triggers at logon
+            ;   - Runs only when user is logged on (interactive)
+            ;   - Runs the launcher.bat wrapper (handles drive mapping)
+            ;   - Restarts on failure (3 times, 60s delay)
+            nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -Command "\
+              $$action = New-ScheduledTaskAction \
+                -Execute \"$INSTDIR\popdam-launcher.bat\" \
+                -WorkingDirectory \"$INSTDIR\"; \
+              $$trigger = New-ScheduledTaskTrigger -AtLogOn; \
+              $$settings = New-ScheduledTaskSettingsSet \
+                -AllowStartIfOnBatteries \
+                -DontStopIfGoingOnBatteries \
+                -DontStopOnIdleEnd \
+                -RestartCount 3 \
+                -RestartInterval (New-TimeSpan -Seconds 60) \
+                -ExecutionTimeLimit (New-TimeSpan -Days 0) \
+                -StartWhenAvailable \
+                -MultipleInstances IgnoreNew; \
+              $$principal = New-ScheduledTaskPrincipal \
+                -UserId $env:USERNAME \
+                -LogonType Interactive \
+                -RunLevel Highest; \
+              Register-ScheduledTask \
+                -TaskName \"PopDAM Windows Render Agent\" \
+                -Action $$action \
+                -Trigger $$trigger \
+                -Settings $$settings \
+                -Principal $$principal \
+                -Description \"PopDAM Windows Render Agent — renders AI/PSD thumbnails. Requires interactive desktop session.\" \
+                -Force"'
 
-            ; Set service to run as Windows user (for NAS share access)
-            StrCmp $WinUser "" skip_objectname
-              ${WordFind} $WinUser "\" "E+1{" $0
-              IfErrors no_domain has_domain
-              no_domain:
-                StrCpy $3 ".\$WinUser"
-                Goto set_objectname
-              has_domain:
-                StrCpy $3 $WinUser
-              set_objectname:
-              ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent ObjectName "$3" "$WinPass"'
-            skip_objectname:
+            ; ── Start the task immediately ──
+            nsExec::ExecToLog 'schtasks /run /tn "PopDAM Windows Render Agent"'
 
-            ; Start the service
-            ExecWait '"$INSTDIR\nssm.exe" start PopDAMWindowsAgent'
-
-            ; Start Menu shortcuts
+            ; ── Start Menu shortcuts ──
             CreateDirectory "$SMPROGRAMS\PopDAM"
-            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent Logs.lnk" "$INSTDIR\logs"
+            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent.lnk" "$INSTDIR\popdam-launcher.bat" "" "$INSTDIR\node.exe" 0
+            CreateShortcut "$SMPROGRAMS\PopDAM\View Logs.lnk" "$COMMONAPPDATA\PopDAM\logs"
             CreateShortcut "$SMPROGRAMS\PopDAM\Uninstall Windows Agent.lnk" "$INSTDIR\uninstall.exe"
 
-            ; Create uninstaller
+            ; ── Create uninstaller ──
             WriteUninstaller "$INSTDIR\uninstall.exe"
 
-            ; Register in Add/Remove Programs
+            ; ── Register in Add/Remove Programs ──
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayName" "PopDAM Windows Render Agent"
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "UninstallString" '"$INSTDIR\uninstall.exe"'
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
@@ -260,25 +328,42 @@ jobs:
             WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "EstimatedSize" 150000
           SectionEnd
 
-          Section "Uninstall"
-            ExecWait '"$INSTDIR\nssm.exe" stop PopDAMWindowsAgent'
-            Sleep 2000
-            ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
+          ; ══════════════════════════════════════════════════════
+          ; Uninstall Section
+          ; ══════════════════════════════════════════════════════
 
+          Section "Uninstall"
+            ; Stop and remove the scheduled task
+            nsExec::ExecToLog 'schtasks /end /tn "PopDAM Windows Render Agent"'
+            Sleep 2000
+            nsExec::ExecToLog 'schtasks /delete /tn "PopDAM Windows Render Agent" /f'
+
+            ; Remove legacy NSSM service if still present
+            nsExec::ExecToLog 'sc stop PopDAMWindowsAgent'
+            nsExec::ExecToLog 'sc delete PopDAMWindowsAgent'
+
+            ; Remove program files
             Delete "$INSTDIR\node.exe"
-            Delete "$INSTDIR\nssm.exe"
             Delete "$INSTDIR\package.json"
+            Delete "$INSTDIR\popdam-launcher.bat"
             Delete "$INSTDIR\.env"
-            Delete "$INSTDIR\agent-key.cfg"
             Delete "$INSTDIR\uninstall.exe"
             RMDir /r "$INSTDIR\dist"
             RMDir /r "$INSTDIR\node_modules"
-            RMDir /r "$INSTDIR\logs"
             RMDir "$INSTDIR"
             RMDir "$PROGRAMFILES64\PopDAM"
 
+            ; Remove Start Menu
             RMDir /r "$SMPROGRAMS\PopDAM"
+
+            ; Remove registry
             DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent"
+
+            ; Ask about config removal
+            MessageBox MB_YESNO "Remove agent configuration and logs from %ProgramData%\PopDAM?$\r$\n$\r$\nSelect 'No' to preserve your agent key and settings for a future reinstall." IDYES remove_config IDNO skip_config_remove
+            remove_config:
+              RMDir /r "$COMMONAPPDATA\PopDAM"
+            skip_config_remove:
           SectionEnd
           NSIS_EOF
 
@@ -311,7 +396,7 @@ jobs:
           gh release delete windows-agent-latest --yes 2>/dev/null || true
           gh release create windows-agent-latest installer/popdam-windows-agent-setup.exe \
             --title "Windows Render Agent (Latest)" \
-            --notes "Latest build of the PopDAM Windows Render Agent (Node.js + Sharp + Ghostscript)" \
+            --notes "Latest build of the PopDAM Windows Render Agent. Uses Scheduled Task (interactive session) for Adobe Illustrator COM automation." \
             --latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
