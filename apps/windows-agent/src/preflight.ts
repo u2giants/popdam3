@@ -21,6 +21,7 @@ export interface HealthStatus {
   healthy: boolean;
   nasHealthy: boolean;
   illustratorHealthy: boolean;
+  illustratorCrashDialog: boolean;
   lastPreflightError: string | null;
   lastPreflightAt: string | null;
 }
@@ -46,7 +47,34 @@ WScript.StdOut.Write "OK"
 WScript.Quit 0
 `.trim();
 
-async function checkIllustratorReady(): Promise<{ ok: boolean; error?: string }> {
+async function getIllustratorProcessDiagnostics(): Promise<{ raw: string; crashDialogDetected: boolean }> {
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", [
+      "-NoProfile",
+      "-Command",
+      'Get-Process Illustrator -ErrorAction SilentlyContinue | Select-Object Id,Responding,MainWindowTitle | Format-List',
+    ], { timeout: 10_000, windowsHide: true });
+
+    const trimmed = stdout.trim();
+    if (!trimmed) return { raw: "No Illustrator process found.", crashDialogDetected: false };
+
+    const lc = trimmed.toLowerCase();
+    const crashDialogDetected =
+      lc.includes("quit unexpectedly") ||
+      lc.includes("crash") ||
+      lc.includes("recovery") ||
+      lc.includes("safe mode") ||
+      lc.includes("not responding") ||
+      // Responding : False indicates a hung/blocked process
+      /responding\s*:\s*false/i.test(trimmed);
+
+    return { raw: trimmed, crashDialogDetected };
+  } catch {
+    return { raw: "Diagnostics unavailable (powershell failed).", crashDialogDetected: false };
+  }
+}
+
+async function checkIllustratorReady(): Promise<{ ok: boolean; error?: string; crashDialogDetected?: boolean }> {
   let tmpDir: string | undefined;
   try {
     tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-preflight-"));
@@ -65,6 +93,15 @@ async function checkIllustratorReady(): Promise<{ ok: boolean; error?: string }>
     await unlink(vbsPath).catch(() => {});
 
     if (stderr && stderr.includes("COM_ERROR")) {
+      // COM failed — run diagnostics to check for crash dialog
+      const diag = await getIllustratorProcessDiagnostics();
+      if (diag.crashDialogDetected) {
+        return {
+          ok: false,
+          crashDialogDetected: true,
+          error: "Illustrator crash recovery dialog blocking automation. Open Illustrator manually, dismiss the crash recovery / safe mode dialog, then restart the agent.",
+        };
+      }
       return { ok: false, error: stderr.trim() };
     }
     if (!stdout.includes("OK")) {
@@ -73,6 +110,17 @@ async function checkIllustratorReady(): Promise<{ ok: boolean; error?: string }>
     return { ok: true };
   } catch (e) {
     const msg = (e as Error).message;
+
+    // On any failure, run diagnostics to detect crash dialog
+    const diag = await getIllustratorProcessDiagnostics();
+    if (diag.crashDialogDetected) {
+      return {
+        ok: false,
+        crashDialogDetected: true,
+        error: "Illustrator crash recovery dialog blocking automation. Open Illustrator manually, dismiss the crash recovery / safe mode dialog, then restart the agent.",
+      };
+    }
+
     if (msg.includes("ETIMEDOUT") || msg.includes("timed out")) {
       return {
         ok: false,
@@ -128,6 +176,7 @@ export async function runPreflight(opts: {
     healthy,
     nasHealthy: nasResult.ok,
     illustratorHealthy: aiResult.ok,
+    illustratorCrashDialog: aiResult.crashDialogDetected === true,
     lastPreflightError: errors.length > 0 ? errors.join("; ") : null,
     lastPreflightAt: new Date().toISOString(),
   };

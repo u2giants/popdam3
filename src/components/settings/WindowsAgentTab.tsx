@@ -130,6 +130,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
               const nasHealthy = health?.nas_healthy === true;
               const illustratorHealthy = health?.illustrator_healthy === true;
               const preflightError = health?.last_preflight_error as string | null;
+              const crashDialog = health?.illustrator_crash_dialog === true;
               const hasHealth = health !== undefined;
 
               return (
@@ -178,7 +179,18 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                           Illustrator COM
                         </span>
                       </div>
-                      {!isHealthy && preflightError && (
+                      {crashDialog && (
+                        <div className="flex items-start gap-2 bg-[hsl(var(--warning)/0.15)] border border-[hsl(var(--warning)/0.4)] rounded-md px-3 py-2 mt-1.5">
+                          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-[hsl(var(--warning))]" />
+                          <div>
+                            <p className="font-semibold text-[hsl(var(--warning))]">Illustrator blocked by crash recovery dialog</p>
+                            <p className="text-muted-foreground mt-0.5">
+                              Open Illustrator manually on the Windows machine, dismiss the crash recovery or safe mode dialog, then restart the agent. Rendering is paused until this is resolved.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {!isHealthy && preflightError && !crashDialog && (
                         <div className="flex items-start gap-1.5 text-destructive bg-destructive/10 rounded px-2 py-1.5 mt-1">
                           <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
                           <span className="break-all">{preflightError}</span>

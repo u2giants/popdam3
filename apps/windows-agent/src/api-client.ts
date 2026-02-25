@@ -65,6 +65,7 @@ export interface AgentHealthPayload {
   healthy: boolean;
   nasHealthy: boolean;
   illustratorHealthy: boolean;
+  illustratorCrashDialog: boolean;
   lastPreflightError: string | null;
   lastPreflightAt: string | null;
 }

@@ -303,6 +303,7 @@ async function handleHeartbeat(
       healthy: health.healthy ?? false,
       nas_healthy: health.nasHealthy ?? false,
       illustrator_healthy: health.illustratorHealthy ?? false,
+      illustrator_crash_dialog: health.illustratorCrashDialog ?? false,
       last_preflight_error: health.lastPreflightError ?? null,
       last_preflight_at: health.lastPreflightAt ?? null,
     } : metadata.health,
