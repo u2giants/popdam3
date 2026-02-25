@@ -82,6 +82,7 @@ let healthStatus: HealthStatus = {
   healthy: false,
   nasHealthy: false,
   illustratorHealthy: false,
+  illustratorCrashDialog: false,
   lastPreflightError: "Preflight not yet run",
   lastPreflightAt: null,
 };
@@ -377,6 +378,7 @@ async function main() {
       healthy: false,
       nasHealthy: false,
       illustratorHealthy: false,
+      illustratorCrashDialog: false,
       lastPreflightError: "NON_INTERACTIVE_SESSION: Illustrator COM requires interactive desktop session. Reinstall as Scheduled Task.",
       lastPreflightAt: new Date().toISOString(),
     };
