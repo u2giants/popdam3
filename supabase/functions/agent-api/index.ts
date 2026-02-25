@@ -1245,9 +1245,11 @@ async function handleCompleteRender(body: Record<string, unknown>) {
 
   const db = serviceClient();
 
+  const MAX_RENDER_ATTEMPTS = 5;
+
   const { data: job } = await db
     .from("render_queue")
-    .select("asset_id")
+    .select("asset_id, attempts")
     .eq("id", jobId)
     .single();
 
@@ -1293,6 +1295,12 @@ async function handleCompleteRender(body: Record<string, unknown>) {
         }
       }
     }
+  } else if (!success && job.attempts >= MAX_RENDER_ATTEMPTS) {
+    // Exhausted all attempts — mark asset with permanent thumbnail failure
+    await db
+      .from("assets")
+      .update({ thumbnail_error: "no_preview_or_render_failed" })
+      .eq("id", job.asset_id);
   }
 
   return json({ ok: true });
