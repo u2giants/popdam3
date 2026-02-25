@@ -1063,6 +1063,28 @@ async function handleQueueRender(body: Record<string, unknown>) {
   const _reason = optionalString(body, "reason") ?? "no_pdf_compat";
 
   const db = serviceClient();
+
+  // Guard: reject junk files before inserting into render queue
+  const { data: asset } = await db
+    .from("assets")
+    .select("filename")
+    .eq("id", assetId)
+    .single();
+
+  if (asset) {
+    const f = asset.filename;
+    if (
+      f.startsWith("._") ||
+      f.startsWith("~") ||
+      f === ".DS_Store" ||
+      f === ".localized" ||
+      f === "Thumbs.db" ||
+      f === "desktop.ini"
+    ) {
+      return json({ ok: true, job_id: null, skipped: true, reason: "junk file" });
+    }
+  }
+
   const { data, error } = await db
     .from("render_queue")
     .insert({ asset_id: assetId, status: "pending" })
