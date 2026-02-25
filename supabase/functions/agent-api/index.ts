@@ -260,6 +260,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "WINDOWS_AGENT_NAS_SHARE",
   "WINDOWS_AGENT_NAS_USER",
   "WINDOWS_AGENT_NAS_PASS",
+  "WINDOWS_AGENT_NAS_MOUNT_PATH",
   "DO_SPACES_KEY",
   "DO_SPACES_SECRET",
   "AGENT_UPDATE_REQUEST",
@@ -517,6 +518,7 @@ async function handleHeartbeat(
         nas_share: ((configMap.WINDOWS_AGENT_NAS_SHARE as string) || ""),
         nas_username: ((configMap.WINDOWS_AGENT_NAS_USER as string) || ""),
         nas_password: ((configMap.WINDOWS_AGENT_NAS_PASS as string) || ""),
+        nas_mount_path: ((configMap.WINDOWS_AGENT_NAS_MOUNT_PATH as string) || ""),
       },
     },
     commands: {

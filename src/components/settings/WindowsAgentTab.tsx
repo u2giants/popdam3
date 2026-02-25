@@ -261,6 +261,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
 
   const [nasHost, setNasHost] = useState("");
   const [nasShare, setNasShare] = useState("");
+  const [nasMountPath, setNasMountPath] = useState("");
   const [nasUser, setNasUser] = useState("");
   const [nasPass, setNasPass] = useState("");
   const [showNasPass, setShowNasPass] = useState(false);
@@ -270,6 +271,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
     if (configData && !initialized) {
       setNasHost(getConfigVal("WINDOWS_AGENT_NAS_HOST").replace(/^\\+/, ''));
       setNasShare(getConfigVal("WINDOWS_AGENT_NAS_SHARE").replace(/^\\+/, '').replace(/^\/+/, ''));
+      setNasMountPath(getConfigVal("WINDOWS_AGENT_NAS_MOUNT_PATH"));
       setNasUser(getConfigVal("WINDOWS_AGENT_NAS_USER"));
       setNasPass(getConfigVal("WINDOWS_AGENT_NAS_PASS"));
       setInitialized(true);
@@ -284,6 +286,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
         entries: {
           WINDOWS_AGENT_NAS_HOST: cleanHost,
           WINDOWS_AGENT_NAS_SHARE: cleanShare,
+          WINDOWS_AGENT_NAS_MOUNT_PATH: nasMountPath.trim().replace(/\\+$/, ''),
           WINDOWS_AGENT_NAS_USER: nasUser,
           WINDOWS_AGENT_NAS_PASS: nasPass,
         },
@@ -435,6 +438,11 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Share</label>
             <Input placeholder="\mac\Decor" value={nasShare} onChange={(e) => setNasShare(e.target.value)} className="font-mono text-xs" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground font-medium">NAS Mount Path <span className="text-muted-foreground/60">(optional)</span></label>
+            <Input placeholder="Z:\mac\Decor" value={nasMountPath} onChange={(e) => setNasMountPath(e.target.value)} className="font-mono text-xs" />
+            <p className="text-xs text-muted-foreground">If the NAS share is mapped to a drive letter (e.g. Z:), set it here. Sharp and Ghostscript cannot read UNC paths — a mapped drive is required for reliable rendering.</p>
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Username</label>

@@ -56,6 +56,7 @@ export interface WindowsHeartbeatResponse {
       nas_share: string;
       nas_username?: string;
       nas_password?: string;
+      nas_mount_path?: string;
     };
   };
 }
