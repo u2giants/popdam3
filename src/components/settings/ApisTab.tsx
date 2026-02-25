@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save, Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save, Plus, Trash2, Eye, EyeOff, BarChart3 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -505,12 +505,88 @@ function AiTaggingInstructionsSection() {
   );
 }
 
+// ── Character Stats Section ──────────────────────────────────────────
+
+function CharacterStatsSection() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+  const [threshold, setThreshold] = useState(3);
+
+  const { data: charStats } = useQuery({
+    queryKey: ["character-stats"],
+    queryFn: async () => {
+      const [{ count: total }, { count: priority }] = await Promise.all([
+        supabase.from("characters").select("*", { count: "exact", head: true }),
+        supabase.from("characters").select("*", { count: "exact", head: true }).eq("is_priority", true),
+      ]);
+      return { total: total ?? 0, priority: priority ?? 0 };
+    },
+  });
+
+  const rebuildMutation = useMutation({
+    mutationFn: () => call("rebuild-character-stats", { threshold }),
+    onSuccess: (data) => {
+      toast.success(`${data.priority_characters} priority characters flagged (threshold: ${data.threshold}+ assets)`);
+      queryClient.invalidateQueries({ queryKey: ["character-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["taxonomy-data"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <BarChart3 className="h-4 w-4" /> Character Priority Stats
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Characters appearing frequently in tagged assets are flagged as "priority" and sent to the AI first for more accurate matching. Run this after a full scan + AI tag pass.
+        </p>
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="font-mono text-xs">
+            {charStats?.priority ?? "—"} priority
+          </Badge>
+          <span className="text-xs text-muted-foreground">out of</span>
+          <Badge variant="outline" className="font-mono text-xs">
+            {charStats?.total ?? "—"} total characters
+          </Badge>
+        </div>
+        <div className="flex items-center gap-3">
+          <Label className="text-xs whitespace-nowrap">Flag characters appearing in</Label>
+          <Input
+            type="number"
+            min={1}
+            max={20}
+            value={threshold}
+            onChange={(e) => setThreshold(Math.max(1, Math.min(20, parseInt(e.target.value) || 3)))}
+            className="w-16 h-8 text-sm text-center font-mono"
+          />
+          <Label className="text-xs whitespace-nowrap">or more assets as priority</Label>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          onClick={() => rebuildMutation.mutate()}
+          disabled={rebuildMutation.isPending}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${rebuildMutation.isPending ? "animate-spin" : ""}`} />
+          {rebuildMutation.isPending ? "Rebuilding…" : "Rebuild Stats"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Export ───────────────────────────────────────────────────────────
 
 export default function ApisTab() {
   return (
     <div className="space-y-4">
       <TaxonomyApiSection />
+      <CharacterStatsSection />
       <AiTaggingInstructionsSection />
     </div>
   );

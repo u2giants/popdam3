@@ -1741,6 +1741,8 @@ serve(async (req: Request) => {
         return await handleRebuildStyleGroups(body);
       case "purge-old-assets":
         return await handlePurgeOldAssets(body);
+      case "rebuild-character-stats":
+        return await handleRebuildCharacterStats(body);
       case "bulk-ai-tag":
         return await handleBulkAiTag(body, false);
       case "bulk-ai-tag-all":
@@ -1758,3 +1760,51 @@ serve(async (req: Request) => {
     );
   }
 });
+
+// ── rebuild-character-stats ─────────────────────────────────────────
+
+async function handleRebuildCharacterStats(body: Record<string, unknown>) {
+  const threshold = typeof body.threshold === "number" ? body.threshold : 3;
+  const db = serviceClient();
+
+  // Fetch all asset_characters links, joining to exclude deleted assets
+  const { data: counts, error } = await db
+    .from("asset_characters")
+    .select("character_id, assets!inner(is_deleted)")
+    .eq("assets.is_deleted", false);
+
+  if (error) return err(error.message, 500);
+
+  // Tally counts in memory
+  const tally = new Map<string, number>();
+  for (const row of counts ?? []) {
+    const cid = row.character_id;
+    tally.set(cid, (tally.get(cid) ?? 0) + 1);
+  }
+
+  // Reset all characters first
+  await db.from("characters").update({
+    usage_count: 0,
+    is_priority: false,
+  }).gte("usage_count", 0);
+
+  // Update each character that has usage
+  let priorityCount = 0;
+  const entries = [...tally.entries()];
+  for (const [characterId, count] of entries) {
+    const isPriority = count >= threshold;
+    if (isPriority) priorityCount++;
+    await db.from("characters").update({
+      usage_count: count,
+      is_priority: isPriority,
+    }).eq("id", characterId);
+  }
+
+  return json({
+    ok: true,
+    total_characters_with_assets: tally.size,
+    priority_characters: priorityCount,
+    threshold,
+    message: `${priorityCount} priority characters (appearing in ${threshold}+ assets) out of ${tally.size} characters with any asset links`,
+  });
+}

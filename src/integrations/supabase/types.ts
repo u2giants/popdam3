@@ -333,25 +333,31 @@ export type Database = {
           created_at: string
           external_id: string | null
           id: string
+          is_priority: boolean
           name: string
           property_id: string
           updated_at: string
+          usage_count: number
         }
         Insert: {
           created_at?: string
           external_id?: string | null
           id?: string
+          is_priority?: boolean
           name: string
           property_id: string
           updated_at?: string
+          usage_count?: number
         }
         Update: {
           created_at?: string
           external_id?: string | null
           id?: string
+          is_priority?: boolean
           name?: string
           property_id?: string
           updated_at?: string
+          usage_count?: number
         }
         Relationships: [
           {
