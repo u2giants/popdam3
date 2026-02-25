@@ -202,11 +202,22 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     // nas_mount_path can be empty string (meaning "use UNC"), so always apply if present
     if (wa.nas_mount_path !== undefined) cloudNasMountPath = wa.nas_mount_path;
 
+    // Log what we received for diagnostics
+    logger.debug("Cloud config received for windows_agent", {
+      nas_host: wa.nas_host || "(empty)",
+      nas_share: wa.nas_share || "(empty)",
+      nas_mount_path: wa.nas_mount_path ?? "(not set)",
+      nas_username: wa.nas_username ? "(set)" : "(empty)",
+      nas_password: wa.nas_password ? "(set)" : "(empty)",
+    });
+
     // If NAS config changed, re-run preflight
     if (cloudNasMountPath !== oldMountPath || cloudNasHost !== oldHost || cloudNasShare !== oldShare) {
       logger.info("NAS config changed via heartbeat — re-running preflight");
       await runHealthCheck();
     }
+  } else {
+    logger.debug("Heartbeat response did not contain windows_agent config block");
   }
   if (response.config?.do_spaces) {
     const sp = response.config.do_spaces;
@@ -226,8 +237,22 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
   }
 
   // Mark config as received when all required values are present
+  const wasConfigReceived = configReceived;
   if (cloudNasHost && cloudSpacesKey && cloudSpacesSecret) {
     configReceived = true;
+    if (!wasConfigReceived) {
+      logger.info("All required cloud config received — agent will begin claiming jobs", {
+        nasHost: cloudNasHost,
+        nasShare: cloudNasShare,
+        nasMountPath: cloudNasMountPath || "(UNC mode)",
+      });
+    }
+  } else if (!configReceived) {
+    logger.warn("Still waiting for cloud config", {
+      nasHost: cloudNasHost || "(missing)",
+      spacesKey: cloudSpacesKey ? "(set)" : "(missing)",
+      spacesSecret: cloudSpacesSecret ? "(set)" : "(missing)",
+    });
   }
 }
 
