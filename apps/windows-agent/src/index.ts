@@ -68,9 +68,19 @@ async function bootstrap() {
  * to a Windows UNC path using NAS_HOST and NAS_SHARE config.
  */
 function toUncPath(relativePath: string): string {
+  const windowsPath = relativePath.replace(/\//g, "\\");
+
+  // If a local mount path is configured (e.g. Z:), use it
+  // directly — Sharp and Ghostscript can't read UNC paths
+  const mountPath = (config.nasMountPath || "").trim()
+    .replace(/\\+$/, ""); // strip trailing backslash
+  if (mountPath) {
+    return `${mountPath}\\${windowsPath}`;
+  }
+
+  // Fall back to UNC path
   const host = cloudNasHost.replace(/^\\+/, '');
   const share = cloudNasShare.replace(/^\\+/, '').replace(/^\/+/, '');
-  const windowsPath = relativePath.replace(/\//g, "\\");
   return `\\\\${host}\\${share}\\${windowsPath}`;
 }
 
@@ -240,6 +250,7 @@ async function main() {
   logger.info("PopDAM Windows Render Agent starting", {
     nasHost: config.nasHost,
     nasShare: config.nasShare,
+    nasMountPath: config.nasMountPath || null,
     renderConcurrency: config.renderConcurrency,
     pollIntervalMs: config.pollIntervalMs,
   });
