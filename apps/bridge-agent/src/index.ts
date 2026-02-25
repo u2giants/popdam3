@@ -76,7 +76,7 @@ let cloudScanMinDate: string | null = null;
 // Auto-scan state
 let autoScanEnabled = false;
 let autoScanIntervalHours = 6;
-let lastScanCompletedAt: number = 0; // epoch ms
+let lastScanCompletedAt: number = Date.now(); // init to now so auto-scan waits one full interval after startup
 
 function getEffectiveScanRoots(): string[] {
   return (cloudScanRoots && cloudScanRoots.length > 0) ? cloudScanRoots : config.scanRoots;

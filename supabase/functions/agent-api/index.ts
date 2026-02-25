@@ -704,6 +704,7 @@ async function handleIngest(
     .from("assets")
     .select("id, relative_path")
     .eq("quick_hash", quickHash)
+    .eq("is_deleted", false)
     .neq("relative_path", relativePath)
     .limit(1)
     .maybeSingle();
