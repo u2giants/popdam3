@@ -4,9 +4,10 @@
  * Lifecycle:
  *   1. Check for agent key — if missing, bootstrap with one-time token
  *   2. Register with cloud API as agent_type = 'windows-render'
- *   3. Start heartbeat timer (every 30s)
- *   4. Poll render_queue for pending jobs (every 3s, up to N concurrent)
- *   5. For each job: Sharp → Ghostscript → Sibling → Illustrator COM
+ *   3. Run preflight health checks (NAS + Illustrator)
+ *   4. Start heartbeat timer (every 30s)
+ *   5. Poll render_queue for pending jobs (every 3s, up to N concurrent)
+ *      — only if healthy
  *
  * Per PROJECT_BIBLE §1C: Optional Muscle #2 for AI files that can't be
  * thumbnailed reliably on NAS.
@@ -17,6 +18,7 @@ import { logger } from "./logger";
 import * as api from "./api-client";
 import { renderFile } from "./renderer";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader";
+import { runPreflight, type HealthStatus } from "./preflight";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
@@ -28,6 +30,18 @@ let lastError: string | undefined;
 let jobsCompleted = 0;
 let jobsFailed = 0;
 let configReceived = false;
+
+// ── Health state ────────────────────────────────────────────────
+
+let healthStatus: HealthStatus = {
+  healthy: false,
+  nasHealthy: false,
+  illustratorHealthy: false,
+  lastPreflightError: "Preflight not yet run",
+  lastPreflightAt: null,
+};
+
+const PREFLIGHT_RECHECK_MS = 60_000; // Re-check every 60s if unhealthy
 
 // ── Cloud config overrides (updated from heartbeat) ─────────────
 
@@ -85,17 +99,46 @@ function toUncPath(relativePath: string): string {
   return `\\\\${host}\\${share}\\${windowsPath}`;
 }
 
+// ── Preflight ───────────────────────────────────────────────────
+
+async function runHealthCheck() {
+  healthStatus = await runPreflight({
+    mountPath: cloudNasMountPath,
+    nasHost: cloudNasHost,
+    nasShare: cloudNasShare,
+  });
+}
+
+function startPreflightRecheck() {
+  setInterval(async () => {
+    if (!healthStatus.healthy) {
+      logger.info("Re-running preflight (currently unhealthy)...");
+      await runHealthCheck();
+    }
+  }, PREFLIGHT_RECHECK_MS);
+}
+
 // ── Heartbeat ───────────────────────────────────────────────────
 
 async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
   if (response.config?.windows_agent) {
     const wa = response.config.windows_agent;
+    const oldMountPath = cloudNasMountPath;
+    const oldHost = cloudNasHost;
+    const oldShare = cloudNasShare;
+
     if (wa.nas_host) cloudNasHost = wa.nas_host;
     if (wa.nas_share) cloudNasShare = wa.nas_share;
     if (wa.nas_username) cloudNasUsername = wa.nas_username;
     if (wa.nas_password) cloudNasPassword = wa.nas_password;
     // nas_mount_path can be empty string (meaning "use UNC"), so always apply if present
     if (wa.nas_mount_path !== undefined) cloudNasMountPath = wa.nas_mount_path;
+
+    // If NAS config changed, re-run preflight
+    if (cloudNasMountPath !== oldMountPath || cloudNasHost !== oldHost || cloudNasShare !== oldShare) {
+      logger.info("NAS config changed via heartbeat — re-running preflight");
+      await runHealthCheck();
+    }
   }
   if (response.config?.do_spaces) {
     const sp = response.config.do_spaces;
@@ -123,7 +166,7 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
 function startHeartbeat() {
   setInterval(async () => {
     try {
-      const response = await api.heartbeat(agentId, lastError);
+      const response = await api.heartbeat(agentId, lastError, healthStatus);
       applyCloudConfig(response);
       logger.debug("Heartbeat sent");
     } catch (e) {
@@ -214,6 +257,14 @@ function startPolling() {
       return;
     }
 
+    if (!healthStatus.healthy) {
+      logger.debug("Skipping poll — agent is unhealthy", {
+        nasHealthy: healthStatus.nasHealthy,
+        illustratorHealthy: healthStatus.illustratorHealthy,
+      });
+      return;
+    }
+
     // Fill all available slots
     while (activeJobs < maxConcurrency) {
       try {
@@ -299,7 +350,7 @@ async function main() {
 
   // 3. First heartbeat — fetch cloud config before processing
   try {
-    const initialResponse = await api.heartbeat(agentId, undefined);
+    const initialResponse = await api.heartbeat(agentId, undefined, healthStatus);
     applyCloudConfig(initialResponse);
     logger.info("Initial cloud config applied", {
       nasHost: cloudNasHost,
@@ -317,13 +368,20 @@ async function main() {
     );
   }
 
-  // 4. Start heartbeat timer
+  // 4. Run preflight health checks
+  await runHealthCheck();
+
+  // 5. Start heartbeat timer
   startHeartbeat();
 
-  // 5. Start polling for render jobs
+  // 6. Start polling for render jobs (guarded by health check)
   startPolling();
 
+  // 7. Start periodic preflight re-check for unhealthy agents
+  startPreflightRecheck();
+
   logger.info("Windows Render Agent ready", {
+    healthy: healthStatus.healthy,
     concurrency: config.renderConcurrency,
   });
 }

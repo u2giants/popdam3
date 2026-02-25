@@ -273,6 +273,7 @@ async function handleHeartbeat(
 ) {
   const counters = body.counters as Record<string, unknown> | undefined;
   const lastError = optionalString(body, "last_error");
+  const health = body.health as Record<string, unknown> | undefined;
   const db = serviceClient();
 
   // ── Update agent metadata ──
@@ -296,6 +297,14 @@ async function handleHeartbeat(
     last_counters: counters || {},
     last_error: lastError,
     counter_history: history,
+    // Structured health payload from Windows agent preflight
+    health: health ? {
+      healthy: health.healthy ?? false,
+      nas_healthy: health.nasHealthy ?? false,
+      illustrator_healthy: health.illustratorHealthy ?? false,
+      last_preflight_error: health.lastPreflightError ?? null,
+      last_preflight_at: health.lastPreflightAt ?? null,
+    } : metadata.health,
   };
 
   const { error: updateErr } = await db

@@ -61,11 +61,24 @@ export interface WindowsHeartbeatResponse {
   };
 }
 
-export async function heartbeat(agentId: string, lastError?: string): Promise<WindowsHeartbeatResponse> {
+export interface AgentHealthPayload {
+  healthy: boolean;
+  nasHealthy: boolean;
+  illustratorHealthy: boolean;
+  lastPreflightError: string | null;
+  lastPreflightAt: string | null;
+}
+
+export async function heartbeat(
+  agentId: string,
+  lastError?: string,
+  health?: AgentHealthPayload,
+): Promise<WindowsHeartbeatResponse> {
   const data = await callApi("heartbeat", {
     agent_id: agentId,
     counters: {},
     last_error: lastError,
+    health: health ?? undefined,
   });
   return data as unknown as WindowsHeartbeatResponse;
 }
