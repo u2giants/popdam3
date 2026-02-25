@@ -108,7 +108,6 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [editingTags, setEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [aiTagging, setAiTagging] = useState(false);
 
@@ -243,9 +242,8 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     updateAsset.mutate({ tags: detailAsset.tags.filter((t) => t !== tag) });
   };
 
-  // Reset tag editing when asset changes
+  // Reset tag input when asset changes
   useEffect(() => {
-    setEditingTags(false);
     setTagInput("");
   }, [detailAsset?.id]);
 
@@ -406,14 +404,9 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
               <>
                 <Separator />
                 <section className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      <Tag className="h-3.5 w-3.5" /> Tags
-                    </h4>
-                    <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setEditingTags(!editingTags)}>
-                      {editingTags ? "Done" : "Edit"}
-                    </Button>
-                  </div>
+                  <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <Tag className="h-3.5 w-3.5" /> Tags
+                  </h4>
                   <div className="flex flex-wrap gap-1.5">
                     {detailAsset.tags.length === 0 && (
                       <span className="text-xs text-muted-foreground/50">No tags</span>
@@ -421,20 +414,16 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                     {detailAsset.tags.map((tag) => (
                       <Badge key={tag} variant="secondary" className="text-xs bg-tag text-tag-foreground gap-1">
                         {tag}
-                        {editingTags && (
-                          <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        )}
+                        <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
                       </Badge>
                     ))}
                   </div>
-                  {editingTags && (
-                    <form onSubmit={(e) => { e.preventDefault(); addTag(); }} className="flex gap-1.5">
-                      <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Add tag…" className="h-7 text-xs bg-background" />
-                      <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
-                    </form>
-                  )}
+                  <form onSubmit={(e) => { e.preventDefault(); addTag(); }} className="flex gap-1.5">
+                    <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Add tag…" className="h-7 text-xs bg-background" />
+                    <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
+                  </form>
                 </section>
               </>
             )}

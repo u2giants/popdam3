@@ -1,12 +1,15 @@
-import { useState } from "react";
-import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+
+// ... keep existing code (API_BASE, interfaces, LICENSORS, TaxonomyApiSection - lines 11-248)
 
 const API_BASE = "https://api.sandbox.designflow.app/api/autofill/properties-and-characters";
 
@@ -44,11 +47,9 @@ function TaxonomyApiSection() {
   const [expandedLicensor, setExpandedLicensor] = useState<string | null>(null);
   const [expandedProperty, setExpandedProperty] = useState<string | null>(null);
 
-  // Fetch taxonomy data from DB — single parallel fetch, no N+1
   const { data: taxonomyData, isLoading } = useQuery({
     queryKey: ["taxonomy-data"],
     queryFn: async () => {
-      // Helper to fetch ALL rows with pagination (Supabase caps at 1000 per request)
       async function fetchAll(table: string, select: string, orderCol: string) {
         const PAGE = 1000;
         const all: Record<string, unknown>[] = [];
@@ -74,7 +75,6 @@ function TaxonomyApiSection() {
         fetchAll("characters", "id, name, property_id", "name"),
       ]);
 
-      // Group characters by property_id
       const charsByProp = new Map<string, { id: string; name: string }[]>();
       for (const c of characters) {
         const pid = c.property_id as string;
@@ -83,7 +83,6 @@ function TaxonomyApiSection() {
         charsByProp.set(pid, list);
       }
 
-      // Group properties by licensor_id
       const propsByLic = new Map<string, PropertyRow[]>();
       for (const p of properties) {
         const lid = p.licensor_id as string;
@@ -148,14 +147,12 @@ function TaxonomyApiSection() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Summary */}
         <div className="flex items-center gap-3 text-xs">
           <Badge variant="secondary" className="font-mono">{licensors.length} Licensors</Badge>
           <Badge variant="secondary" className="font-mono">{totalProps} Properties</Badge>
           <Badge variant="secondary" className="font-mono">{totalChars} Characters</Badge>
         </div>
 
-        {/* API Endpoints */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Source Endpoints</p>
           {LICENSORS.map((lic) => (
@@ -180,7 +177,6 @@ function TaxonomyApiSection() {
           ))}
         </div>
 
-        {/* Fetched Data Tree */}
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading taxonomy data...</p>
         ) : licensors.length === 0 ? (
@@ -247,12 +243,94 @@ function TaxonomyApiSection() {
   );
 }
 
+// ── AI Tagging Instructions Section ─────────────────────────────────
+
+const MAX_INSTRUCTIONS_LENGTH = 2000;
+
+function AiTaggingInstructionsSection() {
+  const { call } = useAdminApi();
+  const [instructions, setInstructions] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const { data: savedValue } = useQuery({
+    queryKey: ["tagging-instructions"],
+    queryFn: async () => {
+      const result = await call("get-config", { keys: ["TAGGING_INSTRUCTIONS"] });
+      const raw = result?.config?.TAGGING_INSTRUCTIONS?.value;
+      return typeof raw === "string" ? raw : "";
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (savedValue !== undefined && !loaded) {
+      setInstructions(savedValue);
+      setLoaded(true);
+    }
+  }, [savedValue, loaded]);
+
+  const isDirty = loaded && instructions !== (savedValue ?? "");
+
+  async function save() {
+    setSaving(true);
+    try {
+      await call("set-config", { entries: { TAGGING_INSTRUCTIONS: instructions } });
+      toast.success("Tagging instructions saved");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Sparkles className="h-4 w-4" /> AI Tagging Instructions
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          These instructions are sent to the AI on every tag operation. Use them to teach the AI about your products, naming conventions, and tagging preferences.
+        </p>
+        <Textarea
+          value={instructions}
+          onChange={(e) => {
+            if (e.target.value.length <= MAX_INSTRUCTIONS_LENGTH) {
+              setInstructions(e.target.value);
+            }
+          }}
+          placeholder={`Enter custom tagging instructions for your organization.\n\nExamples:\n- Files with 'BGM' in the SKU are bedroom decor items\n- 'foam wall decor' should always be tagged: foam, wall-decor, 3d\n- When you see Snoopy lying on his doghouse, tag as: snoopy-sleeping\n- Products showing a room scene should be tagged: lifestyle\n- Art files showing characters only (no background) tag as: character-only`}
+          className="min-h-[160px] text-sm font-mono bg-background"
+        />
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {instructions.length} / {MAX_INSTRUCTIONS_LENGTH}
+          </span>
+          <Button
+            size="sm"
+            className="gap-1.5"
+            onClick={save}
+            disabled={saving || !isDirty}
+          >
+            <Save className="h-3.5 w-3.5" />
+            {saving ? "Saving…" : "Save Instructions"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Export ───────────────────────────────────────────────────────────
 
 export default function ApisTab() {
   return (
     <div className="space-y-4">
       <TaxonomyApiSection />
+      <AiTaggingInstructionsSection />
     </div>
   );
 }
