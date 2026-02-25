@@ -73,6 +73,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
   const { data: renderData } = useQuery({
     queryKey: ["render-queue-pending-count"],
     queryFn: () => call("render-queue-stats"),
+    refetchInterval: 5_000,
   });
 
   const removeAgentMutation = useMutation({
@@ -618,6 +619,7 @@ function RenderJobsTable() {
     queryFn: () => call("list-render-jobs", {
       status_filter: statusFilter === "all" ? undefined : statusFilter,
     }),
+    refetchInterval: 5_000,
   });
 
   const clearFailedMutation = useMutation({
