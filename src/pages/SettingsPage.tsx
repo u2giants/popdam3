@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { NasStorageTab, ImageOutputTab, ScanningTab } from "@/components/settings/WorkerManagementTab";
+import { NasStorageTab, ImageOutputTab, ScanningTab, LiveScanMonitor, UpdateAgentButton } from "@/components/settings/WorkerManagementTab";
 import ApisTab from "@/components/settings/ApisTab";
 import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
 import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
@@ -783,7 +783,7 @@ export default function SettingsPage() {
           <TabsTrigger value="scanning">Scanning</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
           <TabsTrigger value="windows-agent">Windows Agent</TabsTrigger>
-          <TabsTrigger value="taxonomy">Taxonomy</TabsTrigger>
+          <TabsTrigger value="taxonomy">APIs & Tagging</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         </TabsList>
@@ -804,6 +804,8 @@ export default function SettingsPage() {
           <AgentKeySection />
           <AgentStatusSection />
           <AgentThroughputChart />
+          <LiveScanMonitor />
+          <UpdateAgentButton />
         </TabsContent>
 
         <TabsContent value="windows-agent" className="space-y-4">
