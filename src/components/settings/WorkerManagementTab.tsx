@@ -818,18 +818,15 @@ function DateCutoffSettings() {
     let totalPurged = 0;
     let totalGroupsRemoved = 0;
     let totalGroupsUpdated = 0;
-    let offset = 0;
     try {
       while (true) {
         const result = await call("purge-old-assets", {
           cutoff_date: thumbVal,
-          offset,
         });
         totalPurged += result.assets_purged ?? 0;
         totalGroupsRemoved += result.groups_removed ?? 0;
         totalGroupsUpdated += result.groups_updated ?? 0;
         if (result.done) break;
-        offset = result.nextOffset;
       }
       toast.success(
         `Purged ${totalPurged.toLocaleString()} assets. ` +

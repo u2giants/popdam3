@@ -1467,17 +1467,17 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
   const cutoffDate = typeof body.cutoff_date === "string" ? body.cutoff_date : null;
   if (!cutoffDate) return err("cutoff_date is required");
 
-  const offset = typeof body.offset === "number" ? body.offset : 0;
-  const BATCH_SIZE = 500;
+  const BATCH_SIZE = 200;
   const db = serviceClient();
 
+  // Always query from 0 — deleted rows disappear from results
   const { data: oldAssets, error: fetchErr } = await db
     .from("assets")
     .select("id, style_group_id, modified_at")
     .eq("is_deleted", false)
     .lt("modified_at", cutoffDate)
     .order("id")
-    .range(offset, offset + BATCH_SIZE - 1);
+    .range(0, BATCH_SIZE - 1);
 
   if (fetchErr) return err(fetchErr.message, 500);
   if (!oldAssets || oldAssets.length === 0) {
@@ -1487,7 +1487,6 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
       groups_removed: 0,
       groups_updated: 0,
       done: true,
-      nextOffset: offset,
     });
   }
 
@@ -1505,42 +1504,55 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
   let groupsRemoved = 0;
   let groupsUpdated = 0;
 
-  for (const groupId of affectedGroupIds) {
-    const { data: remaining } = await db
+  if (affectedGroupIds.length > 0) {
+    // Batch query: fetch all remaining assets for affected groups at once
+    const { data: allRemaining } = await db
       .from("assets")
-      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
-      .eq("style_group_id", groupId)
+      .select("id, style_group_id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
+      .in("style_group_id", affectedGroupIds)
       .eq("is_deleted", false);
 
-    if (!remaining || remaining.length === 0) {
-      await db.from("style_groups").delete().eq("id", groupId);
-      groupsRemoved++;
-    } else {
-      const primaryId = selectPrimaryAsset(remaining);
-      const latestFileDate = remaining.reduce((max: string, a: any) => {
-        const d = a.modified_at ?? a.created_at;
-        return d > max ? d : max;
-      }, "1970-01-01T00:00:00.000Z");
+    // Group by style_group_id in memory
+    const byGroup = new Map<string, typeof allRemaining>();
+    for (const asset of allRemaining ?? []) {
+      const gid = asset.style_group_id!;
+      if (!byGroup.has(gid)) byGroup.set(gid, []);
+      byGroup.get(gid)!.push(asset);
+    }
 
-      const statusPriority = ["licensor_approved", "customer_adopted",
-        "in_process", "in_development", "concept_approved",
-        "freelancer_art", "product_ideas"];
-      let bestStatus = "other";
-      for (const s of statusPriority) {
-        if (remaining.some((a: any) => a.workflow_status === s)) {
-          bestStatus = s;
-          break;
+    for (const groupId of affectedGroupIds) {
+      const remaining = byGroup.get(groupId) ?? [];
+
+      if (remaining.length === 0) {
+        await db.from("style_groups").delete().eq("id", groupId);
+        groupsRemoved++;
+      } else {
+        const primaryId = selectPrimaryAsset(remaining);
+        const latestFileDate = remaining.reduce((max: string, a: any) => {
+          const d = a.modified_at ?? a.created_at;
+          return d > max ? d : max;
+        }, "1970-01-01T00:00:00.000Z");
+
+        const statusPriority = ["licensor_approved", "customer_adopted",
+          "in_process", "in_development", "concept_approved",
+          "freelancer_art", "product_ideas"];
+        let bestStatus = "other";
+        for (const s of statusPriority) {
+          if (remaining.some((a: any) => a.workflow_status === s)) {
+            bestStatus = s;
+            break;
+          }
         }
-      }
 
-      await db.from("style_groups").update({
-        asset_count: remaining.length,
-        primary_asset_id: primaryId,
-        workflow_status: bestStatus as any,
-        latest_file_date: latestFileDate,
-        updated_at: new Date().toISOString(),
-      }).eq("id", groupId);
-      groupsUpdated++;
+        await db.from("style_groups").update({
+          asset_count: remaining.length,
+          primary_asset_id: primaryId,
+          workflow_status: bestStatus as any,
+          latest_file_date: latestFileDate,
+          updated_at: new Date().toISOString(),
+        }).eq("id", groupId);
+        groupsUpdated++;
+      }
     }
   }
 
@@ -1551,7 +1563,6 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
     groups_removed: groupsRemoved,
     groups_updated: groupsUpdated,
     done,
-    nextOffset: offset + oldAssets.length,
   });
 }
 
