@@ -20,8 +20,52 @@ import { renderFile } from "./renderer";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { getCircuitBreakerStatus } from "./circuit-breaker";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
+
+const execFileAsync = promisify(execFile);
+
+// ── Session detection ───────────────────────────────────────────
+
+/**
+ * Detect whether this process is running in a non-interactive session
+ * (e.g. a Windows Service via NSSM). Illustrator COM requires an
+ * interactive desktop session to function.
+ *
+ * Detection heuristics:
+ *   1. Session 0 isolation: services run in session 0 on Vista+
+ *   2. No explorer.exe in current session (no desktop shell)
+ */
+async function isNonInteractiveSession(): Promise<boolean> {
+  try {
+    // Query current session ID via environment or process info
+    const sessionId = process.env.SESSIONNAME;
+    // Services typically have SESSIONNAME unset or "Services"
+    if (sessionId === "Services" || sessionId === "") {
+      return true;
+    }
+
+    // Check if we're in session 0 (services session on Vista+)
+    const { stdout } = await execFileAsync("powershell.exe", [
+      "-NoProfile",
+      "-Command",
+      "[System.Diagnostics.Process]::GetCurrentProcess().SessionId",
+    ], { timeout: 5_000, windowsHide: true });
+
+    const sid = parseInt(stdout.trim(), 10);
+    if (sid === 0) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    // If we can't determine, assume interactive (don't block on detection failure)
+    logger.warn("Could not detect session type — assuming interactive");
+    return false;
+  }
+}
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -311,12 +355,40 @@ function startPolling() {
 // ── Main ────────────────────────────────────────────────────────
 
 async function main() {
+  // 0. Detect non-interactive session (Service mode)
+  const nonInteractive = await isNonInteractiveSession();
+  if (nonInteractive) {
+    logger.error(
+      "╔══════════════════════════════════════════════════════════════╗\n" +
+      "║  FATAL: Non-interactive session detected (Windows Service)  ║\n" +
+      "║                                                              ║\n" +
+      "║  Adobe Illustrator COM automation requires an interactive    ║\n" +
+      "║  desktop session. The agent CANNOT render files in service   ║\n" +
+      "║  mode (Session 0).                                           ║\n" +
+      "║                                                              ║\n" +
+      "║  FIX: Install as a Scheduled Task instead:                   ║\n" +
+      "║    1. Run: scripts\\uninstall-service.ps1                     ║\n" +
+      "║    2. Run: scripts\\install-scheduled-task.ps1                ║\n" +
+      "║                                                              ║\n" +
+      "║  The agent will continue running but will NOT claim jobs.    ║\n" +
+      "╚══════════════════════════════════════════════════════════════╝"
+    );
+    healthStatus = {
+      healthy: false,
+      nasHealthy: false,
+      illustratorHealthy: false,
+      lastPreflightError: "NON_INTERACTIVE_SESSION: Illustrator COM requires interactive desktop session. Reinstall as Scheduled Task.",
+      lastPreflightAt: new Date().toISOString(),
+    };
+  }
+
   logger.info("PopDAM Windows Render Agent starting", {
     nasHost: config.nasHost,
     nasShare: config.nasShare,
     nasMountPath: config.nasMountPath || null,
     renderConcurrency: config.renderConcurrency,
     pollIntervalMs: config.pollIntervalMs,
+    interactiveSession: !nonInteractive,
   });
 
   // 1. Bootstrap if no agent key
@@ -338,7 +410,7 @@ async function main() {
           "Go to PopDAM Settings → Windows Agent and generate " +
           "a new Install Token, then update BOOTSTRAP_TOKEN in " +
           "C:\\Program Files\\PopDAM\\WindowsAgent\\.env and " +
-          "restart the PopDAMWindowsAgent service."
+          "restart the PopDAM Windows Agent scheduled task."
         );
       } else {
         logger.error("Bootstrap failed — exiting", { error: msg });
@@ -371,6 +443,16 @@ async function main() {
     logger.warn("Initial heartbeat failed — will retry on timer", { error: (e as Error).message });
   }
 
+  // Start heartbeat early so cloud sees session error even if we skip preflight
+  startHeartbeat();
+
+  // If non-interactive, skip preflight/polling — heartbeat keeps reporting the error
+  if (nonInteractive) {
+    logger.warn("Agent will idle in non-interactive mode — heartbeat active, no jobs claimed.");
+    startPreflightRecheck(); // will keep retrying but session won't change
+    return;
+  }
+
   if (!cloudNasHost) {
     logger.warn(
       "NAS_HOST not configured. Set it in PopDAM Settings → Windows Agent. " +
@@ -381,13 +463,10 @@ async function main() {
   // 4. Run preflight health checks
   await runHealthCheck();
 
-  // 5. Start heartbeat timer
-  startHeartbeat();
-
-  // 6. Start polling for render jobs (guarded by health check)
+  // 5. Start polling for render jobs (guarded by health check)
   startPolling();
 
-  // 7. Start periodic preflight re-check for unhealthy agents
+  // 6. Start periodic preflight re-check for unhealthy agents
   startPreflightRecheck();
 
   logger.info("Windows Render Agent ready", {
