@@ -509,6 +509,7 @@ function ResourceGuardSettings() {
   const [cpuLimit, setCpuLimit] = useState<number>((guardConfig.default_cpu_shares as number) || 50);
   const [memLimit, setMemLimit] = useState<number>((guardConfig.default_memory_limit_mb as number) || 512);
   const [concurrency, setConcurrency] = useState<number>((guardConfig.default_thumb_concurrency as number) || 2);
+  const [batchSize, setBatchSize] = useState<number>((guardConfig.batch_size as number) || 100);
   const [schedules, setSchedules] = useState<Schedule[]>((guardConfig.schedules as Schedule[]) || []);
   const [dirty, setDirty] = useState(false);
 
@@ -519,6 +520,7 @@ function ResourceGuardSettings() {
       setCpuLimit((guardConfig.default_cpu_shares as number) || 50);
       setMemLimit((guardConfig.default_memory_limit_mb as number) || 512);
       setConcurrency((guardConfig.default_thumb_concurrency as number) || 2);
+      setBatchSize((guardConfig.batch_size as number) || 100);
       setSchedules((guardConfig.schedules as Schedule[]) || []);
     }
   });
@@ -530,6 +532,7 @@ function ResourceGuardSettings() {
           default_cpu_shares: cpuLimit,
           default_memory_limit_mb: memLimit,
           default_thumb_concurrency: concurrency,
+          batch_size: batchSize,
           schedules,
         }
       }
@@ -604,6 +607,14 @@ function ResourceGuardSettings() {
                 <Badge variant="secondary" className="font-mono text-xs">{concurrency}</Badge>
               </div>
               <Slider value={[concurrency]} onValueChange={(v) => { setConcurrency(v[0]); setDirty(true); }} min={1} max={8} step={1} />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Files per Ingest Batch</Label>
+                <Badge variant="secondary" className="font-mono text-xs">{batchSize}</Badge>
+              </div>
+              <Slider value={[batchSize]} onValueChange={(v) => { setBatchSize(v[0]); setDirty(true); }} min={50} max={1000} step={50} />
+              <p className="text-[11px] text-muted-foreground">Higher = faster scans, more memory per batch. Recommended: 200–500.</p>
             </div>
           </div>
         </div>

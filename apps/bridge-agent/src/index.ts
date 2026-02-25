@@ -81,11 +81,17 @@ function getEffectiveScanRoots(): string[] {
 }
 
 function getEffectiveBatchSize(): number {
-  return cloudBatchSize ?? config.ingestBatchSize;
+  // Cloud config (admin panel) wins → .env fallback → hard default
+  if (cloudBatchSize && cloudBatchSize > 0) return cloudBatchSize;
+  if (config.ingestBatchSize > 0) return config.ingestBatchSize;
+  return 100;
 }
 
 function getEffectiveConcurrency(): number {
-  return cloudConcurrency ?? config.thumbConcurrency;
+  // Cloud config (admin panel) wins → .env fallback → hard default
+  if (cloudConcurrency && cloudConcurrency > 0) return cloudConcurrency;
+  if (config.thumbConcurrency > 0) return config.thumbConcurrency;
+  return 2;
 }
 
 // ── Heartbeat (runs on its own timer, never blocked by scanning) ──

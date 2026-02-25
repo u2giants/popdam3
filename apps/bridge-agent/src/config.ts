@@ -43,8 +43,9 @@ export const config = {
     .filter(Boolean),
 
   // Performance
-  thumbConcurrency: optionalInt("THUMB_CONCURRENCY", 2),
-  ingestBatchSize: optionalInt("INGEST_BATCH_SIZE", 100),
+  // 0 = "not set by env" — cloud config (Resource Guard) takes priority
+  thumbConcurrency: optionalInt("THUMB_CONCURRENCY", 0),
+  ingestBatchSize: optionalInt("INGEST_BATCH_SIZE", 0),
 
   // Derived
   get agentApiUrl() {
