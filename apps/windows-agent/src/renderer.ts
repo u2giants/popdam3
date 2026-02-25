@@ -5,9 +5,9 @@
  *   1. Sharp        — fast, handles PDF-compat .ai and most .psd
  *   2. Ghostscript  — complex .ai that Sharp can't read
  *   3. Sibling image — any .jpg/.png in same folder with matching name
- *   4. Illustrator COM — last resort, only for .ai files
  *
- * Per PROJECT_BIBLE §1C: Windows agent is Optional Muscle #2.
+ * No Illustrator COM — this agent uses the same rendering tools
+ * as the Bridge Agent (Sharp + Ghostscript).
  */
 
 import sharp from "sharp";
@@ -18,12 +18,6 @@ import { readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger";
-import { renderWithIllustrator } from "./illustrator";
-import {
-  isIllustratorAvailable,
-  recordIllustratorSuccess,
-  recordIllustratorFailure,
-} from "./circuit-breaker";
 
 const execFileAsync = promisify(execFile);
 
@@ -185,9 +179,6 @@ export async function renderFile(
   uncPath: string,
   fileType: "ai" | "psd",
 ): Promise<RenderResult> {
-  // NAS mapping is handled centrally by ensureNasMapped() in preflight/startup.
-  // All paths (drive-letter or UNC) are already accessible when we get here.
-
   // Step 1: Sharp
   try {
     const result = await renderWithSharp(uncPath, fileType);
@@ -217,29 +208,5 @@ export async function renderFile(
     logger.warn("Sibling not found", { uncPath });
   }
 
-  // Step 4: Illustrator COM (AI only, last resort — guarded by circuit breaker)
-  if (fileType === "ai") {
-    if (!isIllustratorAvailable()) {
-      logger.warn(
-        "Illustrator circuit breaker is OPEN — skipping COM fallback",
-        { uncPath },
-      );
-      throw new Error("render_failed: all non-Illustrator methods exhausted (Illustrator circuit breaker open)");
-    }
-
-    logger.info(
-      "Falling back to Illustrator COM — Sharp and Ghostscript both failed",
-      { uncPath },
-    );
-    try {
-      const result = await renderWithIllustrator(uncPath);
-      recordIllustratorSuccess();
-      return result;
-    } catch (e) {
-      recordIllustratorFailure();
-      throw e;
-    }
-  }
-
-  throw new Error("render_failed: all methods exhausted");
+  throw new Error("render_failed: all methods exhausted (Sharp + Ghostscript + sibling)");
 }

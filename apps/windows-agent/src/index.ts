@@ -4,13 +4,12 @@
  * Lifecycle:
  *   1. Check for agent key — if missing, bootstrap with one-time token
  *   2. Register with cloud API as agent_type = 'windows-render'
- *   3. Run preflight health checks (NAS + Illustrator)
+ *   3. Run preflight health checks (NAS access)
  *   4. Start heartbeat timer (every 30s)
  *   5. Poll render_queue for pending jobs (every 3s, up to N concurrent)
  *      — only if healthy
  *
- * Per PROJECT_BIBLE §1C: Optional Muscle #2 for AI files that can't be
- * thumbnailed reliably on NAS.
+ * Rendering uses Sharp + Ghostscript (no Illustrator dependency).
  */
 
 import { config } from "./config";
@@ -19,54 +18,9 @@ import * as api from "./api-client";
 import { renderFile } from "./renderer";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
-import { getCircuitBreakerStatus } from "./circuit-breaker";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
-
-const execFileAsync = promisify(execFile);
-
-// ── Session detection ───────────────────────────────────────────
-
-/**
- * Detect whether this process is running in a non-interactive session
- * (e.g. a Windows Service via NSSM). Illustrator COM requires an
- * interactive desktop session to function.
- *
- * Detection heuristics:
- *   1. Session 0 isolation: services run in session 0 on Vista+
- *   2. No explorer.exe in current session (no desktop shell)
- */
-async function isNonInteractiveSession(): Promise<boolean> {
-  try {
-    // Query current session ID via environment or process info
-    const sessionId = process.env.SESSIONNAME;
-    // Services typically have SESSIONNAME unset or "Services"
-    if (sessionId === "Services" || sessionId === "") {
-      return true;
-    }
-
-    // Check if we're in session 0 (services session on Vista+)
-    const { stdout } = await execFileAsync("powershell.exe", [
-      "-NoProfile",
-      "-Command",
-      "[System.Diagnostics.Process]::GetCurrentProcess().SessionId",
-    ], { timeout: 5_000, windowsHide: true });
-
-    const sid = parseInt(stdout.trim(), 10);
-    if (sid === 0) {
-      return true;
-    }
-
-    return false;
-  } catch {
-    // If we can't determine, assume interactive (don't block on detection failure)
-    logger.warn("Could not detect session type — assuming interactive");
-    return false;
-  }
-}
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -82,8 +36,6 @@ let configReceived = false;
 let healthStatus: HealthStatus = {
   healthy: false,
   nasHealthy: false,
-  illustratorHealthy: false,
-  illustratorCrashDialog: false,
   lastPreflightError: "Preflight not yet run",
   lastPreflightAt: null,
 };
@@ -152,7 +104,6 @@ function toUncPath(relativePath: string): string {
   const windowsPath = relativePath.replace(/\//g, "\\");
 
   // If a local mount path is configured (e.g. Z:), use it
-  // directly — Sharp and Ghostscript can't read UNC paths
   const mountPath = (cloudNasMountPath || "").trim()
     .replace(/\\+$/, ""); // strip trailing backslash
   if (mountPath) {
@@ -199,10 +150,8 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (wa.nas_share) cloudNasShare = wa.nas_share;
     if (wa.nas_username) cloudNasUsername = wa.nas_username;
     if (wa.nas_password) cloudNasPassword = wa.nas_password;
-    // nas_mount_path can be empty string (meaning "use UNC"), so always apply if present
     if (wa.nas_mount_path !== undefined) cloudNasMountPath = wa.nas_mount_path;
 
-    // Log what we received for diagnostics
     logger.debug("Cloud config received for windows_agent", {
       nas_host: wa.nas_host || "(empty)",
       nas_share: wa.nas_share || "(empty)",
@@ -259,20 +208,8 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
 function startHeartbeat() {
   setInterval(async () => {
     try {
-      const cbStatus = getCircuitBreakerStatus();
       const updateState = getUpdateState();
-      const enrichedHealth: api.AgentHealthPayload = {
-        ...healthStatus,
-        ...(cbStatus.illustratorCircuitBreaker === "open"
-          ? {
-              lastPreflightError: [
-                healthStatus.lastPreflightError,
-                `Illustrator circuit breaker OPEN — cooldown active until ${cbStatus.cooldownUntil} (${cbStatus.consecutiveFailures} consecutive failures)`,
-              ].filter(Boolean).join("; "),
-            }
-          : {}),
-      };
-      const response = await api.heartbeat(agentId, lastError, enrichedHealth, {
+      const response = await api.heartbeat(agentId, lastError, healthStatus, {
         version: config.version,
         update_available: updateState.updateAvailable,
         latest_version: updateState.latestVersion,
@@ -290,7 +227,7 @@ function startHeartbeat() {
         );
       }
 
-      logger.debug("Heartbeat sent", { circuitBreaker: cbStatus.illustratorCircuitBreaker });
+      logger.debug("Heartbeat sent");
     } catch (e) {
       logger.error("Heartbeat failed", { error: (e as Error).message });
     }
@@ -329,7 +266,7 @@ async function processJob(job: api.RenderJob): Promise<void> {
     await api.completeRender(job.job_id, false, undefined, "Skipped: Windows system file");
     return;
   }
-  // Skip files in __MACOSX directories (macOS zip artifacts)
+  // Skip files in __MACOSX directories
   if (job.relative_path.includes('__MACOSX/') ||
       job.relative_path.includes('__MACOSX\\')) {
     logger.info("Skipping __MACOSX artifact", { relativePath: job.relative_path });
@@ -377,7 +314,6 @@ function startPolling() {
     if (!healthStatus.healthy) {
       logger.debug("Skipping poll — agent is unhealthy", {
         nasHealthy: healthStatus.nasHealthy,
-        illustratorHealthy: healthStatus.illustratorHealthy,
       });
       return;
     }
@@ -387,7 +323,6 @@ function startPolling() {
       try {
         const job = await api.claimRender(agentId);
         if (!job) {
-          // No more jobs available
           if (activeJobs === 0) logger.debug("No render jobs available");
           break;
         }
@@ -398,7 +333,6 @@ function startPolling() {
         }
 
         activeJobs++;
-        // Fire and forget — don't await, let it run concurrently
         processJob(job)
           .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
           .finally(() => { activeJobs--; });
@@ -418,42 +352,14 @@ function startPolling() {
 // ── Main ────────────────────────────────────────────────────────
 
 async function main() {
-  // 0. Detect non-interactive session (Service mode)
-  const nonInteractive = await isNonInteractiveSession();
-  if (nonInteractive) {
-    logger.error(
-      "╔══════════════════════════════════════════════════════════════╗\n" +
-      "║  FATAL: Non-interactive session detected (Windows Service)  ║\n" +
-      "║                                                              ║\n" +
-      "║  Adobe Illustrator COM automation requires an interactive    ║\n" +
-      "║  desktop session. The agent CANNOT render files in service   ║\n" +
-      "║  mode (Session 0).                                           ║\n" +
-      "║                                                              ║\n" +
-      "║  FIX: Install as a Scheduled Task instead:                   ║\n" +
-      "║    1. Run: scripts\\uninstall-service.ps1                     ║\n" +
-      "║    2. Run: scripts\\install-scheduled-task.ps1                ║\n" +
-      "║                                                              ║\n" +
-      "║  The agent will continue running but will NOT claim jobs.    ║\n" +
-      "╚══════════════════════════════════════════════════════════════╝"
-    );
-    healthStatus = {
-      healthy: false,
-      nasHealthy: false,
-      illustratorHealthy: false,
-      illustratorCrashDialog: false,
-      lastPreflightError: "NON_INTERACTIVE_SESSION: Illustrator COM requires interactive desktop session. Reinstall as Scheduled Task.",
-      lastPreflightAt: new Date().toISOString(),
-    };
-  }
-
   logger.info("PopDAM Windows Render Agent starting", {
     nasHost: config.nasHost,
     nasShare: config.nasShare,
     nasMountPath: config.nasMountPath || null,
     renderConcurrency: config.renderConcurrency,
     pollIntervalMs: config.pollIntervalMs,
-    interactiveSession: !nonInteractive,
     paired: config.isPaired,
+    rendering: "Sharp + Ghostscript (no Illustrator)",
   });
 
   // 1. Pair if no agent key
@@ -512,15 +418,8 @@ async function main() {
     logger.warn("Initial heartbeat failed — will retry on timer", { error: (e as Error).message });
   }
 
-  // Start heartbeat early so cloud sees session error even if we skip preflight
+  // Start heartbeat early
   startHeartbeat();
-
-  // If non-interactive, skip preflight/polling — heartbeat keeps reporting the error
-  if (nonInteractive) {
-    logger.warn("Agent will idle in non-interactive mode — heartbeat active, no jobs claimed.");
-    startPreflightRecheck(); // will keep retrying but session won't change
-    return;
-  }
 
   if (!cloudNasHost) {
     logger.warn(

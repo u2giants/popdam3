@@ -126,7 +126,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
         ) : agents.length === 0 ? (
           <div className="flex items-start gap-2 text-sm text-warning">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <p>No Windows Render Agent registered. AI files saved without PDF compatibility cannot be thumbnailed until this agent is running.</p>
+            <p>No Windows Render Agent registered. Files that can't be thumbnailed by the Bridge Agent will be queued here.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -141,9 +141,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
               const health = meta?.health as Record<string, unknown> | undefined;
               const isHealthy = health?.healthy === true;
               const nasHealthy = health?.nas_healthy === true;
-              const illustratorHealthy = health?.illustrator_healthy === true;
               const preflightError = health?.last_preflight_error as string | null;
-              const crashDialog = health?.illustrator_crash_dialog === true;
               const hasHealth = health !== undefined;
 
               // Version info
@@ -234,22 +232,11 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                           NAS Access
                         </span>
                         <span className="flex items-center gap-1">
-                          <span className={`inline-block h-1.5 w-1.5 rounded-full ${illustratorHealthy ? "bg-[hsl(var(--success))]" : "bg-destructive"}`} />
-                          Illustrator COM
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                          Renderer: Sharp + Ghostscript
                         </span>
                       </div>
-                      {crashDialog && (
-                        <div className="flex items-start gap-2 bg-[hsl(var(--warning)/0.15)] border border-[hsl(var(--warning)/0.4)] rounded-md px-3 py-2 mt-1.5">
-                          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-[hsl(var(--warning))]" />
-                          <div>
-                            <p className="font-semibold text-[hsl(var(--warning))]">Illustrator blocked by crash recovery dialog</p>
-                            <p className="text-muted-foreground mt-0.5">
-                              Open Illustrator manually on the Windows machine, dismiss the crash recovery or safe mode dialog, then restart the agent. Rendering is paused until this is resolved.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      {!isHealthy && preflightError && !crashDialog && (
+                      {!isHealthy && preflightError && (
                         <div className="flex items-start gap-1.5 text-destructive bg-destructive/10 rounded px-2 py-1.5 mt-1">
                           <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
                           <span className="break-all">{preflightError}</span>
@@ -263,7 +250,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
             {onlineAgents.length === 0 && agents.length > 0 && (
               <div className="flex items-start gap-2 text-sm text-warning mt-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <p>No Windows Render Agent connected. AI files saved without PDF compatibility cannot be thumbnailed until this agent is running.</p>
+                <p>No Windows Render Agent connected. Files that can't be thumbnailed by the Bridge Agent will be queued here.</p>
               </div>
             )}
           </div>
@@ -299,9 +286,9 @@ function WindowsAgentDownload() {
             Download Windows Agent Installer
           </Button>
         </a>
-        <p className="text-xs text-muted-foreground">
-          Requires Windows 10/11 and Adobe Illustrator (Creative Cloud). The agent runs as a startup application.
-        </p>
+         <p className="text-xs text-muted-foreground">
+           Requires Windows 10/11 with Ghostscript installed. The agent runs as a startup application and uses Sharp + Ghostscript for rendering (no Illustrator required).
+         </p>
       </CardContent>
     </Card>
   );
@@ -523,9 +510,9 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           <p className="text-sm text-muted-foreground">
             Run the downloaded installer on your Windows PC. When prompted, paste the install token from Step 1. The agent will authenticate itself automatically — no other configuration is needed during installation.
           </p>
-          <p className="text-xs text-muted-foreground mt-1.5 bg-muted/50 border border-border rounded-md px-3 py-2">
-            The installer places a shortcut in your Windows Startup folder (shell:startup) so the agent launches automatically when you log in. Adobe Illustrator must be installed and you must be logged in for rendering to work.
-          </p>
+           <p className="text-xs text-muted-foreground mt-1.5 bg-muted/50 border border-border rounded-md px-3 py-2">
+             The installer places a shortcut in your Windows Startup folder (shell:startup) so the agent launches automatically when you log in. Ghostscript should be installed for best results.
+           </p>
         </div>
 
         {/* Step 3: NAS Config */}
@@ -581,11 +568,11 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           <p className="text-sm text-muted-foreground">
             After installation, the agent should appear as Online in the Status section above within 60 seconds. If it doesn't:
           </p>
-          <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
-            <li>Check that your firewall allows outbound HTTPS (port 443)</li>
-            <li>Verify Adobe Illustrator is installed and licensed</li>
-            <li>To restart: open Task Manager, end the PopDAM Windows Agent process, then run the application again from C:\Program Files\PopDAM\WindowsAgent\PopDAMWindowsAgent.exe</li>
-          </ul>
+           <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+             <li>Check that your firewall allows outbound HTTPS (port 443)</li>
+             <li>Verify Ghostscript is installed (download from ghostscript.com)</li>
+             <li>To restart: open Task Manager, end the PopDAM Windows Agent process, then run the application again from C:\Program Files\PopDAM\WindowsAgent\PopDAMWindowsAgent.exe</li>
+           </ul>
         </div>
 
         {/* Step 5: Test */}
