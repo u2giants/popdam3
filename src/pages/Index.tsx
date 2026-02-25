@@ -34,12 +34,22 @@ export default function LibraryPage() {
   const scanProgress = useScanProgress();
 
   const scanRunning = scanProgress.status === "running" || scanProgress.status === "stale";
+  const scanQueued = scanProgress.status === "queued";
 
   useEffect(() => {
     if (scanTriggered && scanProgress.status !== "idle") {
       setScanTriggered(false);
     }
   }, [scanTriggered, scanProgress.status]);
+
+  // Safety-net timeout: clear scanTriggered after 120s regardless
+  useEffect(() => {
+    if (!scanTriggered) return;
+    const timer = setTimeout(() => {
+      setScanTriggered(false);
+    }, 120_000);
+    return () => clearTimeout(timer);
+  }, [scanTriggered]);
 
   const prevScanStatus = useRef(scanProgress.status);
   useEffect(() => {
@@ -180,7 +190,8 @@ export default function LibraryPage() {
         totalCount={count}
         scanRunning={scanRunning}
         scanStale={scanProgress.status === "stale"}
-        scanPending={scanTriggered && !scanRunning}
+        scanQueued={scanQueued}
+        scanPending={scanTriggered && !scanRunning && !scanQueued}
         onSync={handleSync}
         onStopScan={handleStopScan}
         onRefresh={handleRefresh}
