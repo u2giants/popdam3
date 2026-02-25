@@ -1163,7 +1163,7 @@ export function ScanningTab() {
 
 // ── Update Bridge Agent ─────────────────────────────────────────────
 
-function UpdateAgentButton() {
+export function UpdateAgentButton() {
   const { call } = useAdminApi();
   const [isPending, setIsPending] = useState(false);
 
@@ -1253,7 +1253,7 @@ function CounterCell({ label, value, variant }: { label: string; value: number; 
   );
 }
 
-function LiveScanMonitor() {
+export function LiveScanMonitor() {
   const scanProgress = useScanProgress();
   const { call } = useAdminApi();
   const [lastCompleted, setLastCompleted] = useState<ScanProgress | null>(null);
