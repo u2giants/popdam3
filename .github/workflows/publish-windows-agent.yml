@@ -38,18 +38,34 @@ jobs:
           }
           Write-Host 'dist/index.js found, proceeding with packaging'
 
-      - name: Install pkg
-        run: npm install -g pkg
+      - name: Download Node.js runtime for bundling
+        shell: powershell
+        run: |
+          $nodeVersion = "v20.19.0"
+          $nodeUrl = "https://nodejs.org/dist/$nodeVersion/node-v20.19.0-win-x64.zip"
+          Invoke-WebRequest -Uri $nodeUrl -OutFile node-win.zip
+          Expand-Archive node-win.zip -DestinationPath node-extracted
+          Copy-Item "node-extracted\node-v20.19.0-win-x64\node.exe" -Destination "installer\node.exe"
 
-      - name: Bundle into Windows exe
+      - name: Prepare distribution files
         working-directory: apps/windows-agent
-        run: pkg . --target node18-win-x64 --output popdam-windows-agent.exe --compress GZip
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "..\..\installer\dist"
+          Copy-Item -Recurse "dist\*" -Destination "..\..\installer\dist\"
+          New-Item -ItemType Directory -Force -Path "..\..\installer\node_modules"
+          Copy-Item -Recurse "node_modules\*" -Destination "..\..\installer\node_modules\"
+          Copy-Item "package.json" -Destination "..\..\installer\"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-agent-exe
-          path: apps/windows-agent/popdam-windows-agent.exe
+          name: windows-agent-dist
+          path: |
+            installer/node.exe
+            installer/dist/
+            installer/node_modules/
+            installer/package.json
 
   package-installer:
     runs-on: windows-latest
@@ -63,7 +79,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: windows-agent-exe
+          name: windows-agent-dist
           path: installer/
 
       - name: Install NSIS
@@ -170,8 +186,14 @@ jobs:
               Sleep 3000
 
             SetOutPath "$INSTDIR"
-            File "popdam-windows-agent.exe"
+            File "node.exe"
+            File "package.json"
             File "nssm.exe"
+            SetOutPath "$INSTDIR\dist"
+            File /r "dist\*.*"
+            SetOutPath "$INSTDIR\node_modules"
+            File /r "node_modules\*.*"
+            SetOutPath "$INSTDIR"
 
             ; Write .env with hardcoded Supabase URL and bootstrap token
             FileOpen $0 "$INSTDIR\.env" w
@@ -187,13 +209,14 @@ jobs:
             Sleep 2000
 
             ; Install via nssm
-            ExecWait '"$INSTDIR\nssm.exe" install PopDAMWindowsAgent "$INSTDIR\popdam-windows-agent.exe"' $0
+            ExecWait '"$INSTDIR\nssm.exe" install PopDAMWindowsAgent "$INSTDIR\node.exe"' $0
             IntCmp $0 0 +3
               MessageBox MB_OK|MB_ICONEXCLAMATION "Failed to register Windows Service (error $0). Try running the installer as Administrator."
               Abort
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppParameters "dist\index.js"'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppDirectory "$INSTDIR"'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent DisplayName "PopDAM Windows Render Agent"'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Description "Renders AI files using Adobe Illustrator for PopDAM"'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Description "PopDAM Windows Render Agent (Ghostscript + Sharp thumbnail renderer)"'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Start SERVICE_AUTO_START'
 
             ; Create logs directory before configuring log paths
@@ -224,7 +247,7 @@ jobs:
 
             ; Start Menu shortcuts
             CreateDirectory "$SMPROGRAMS\PopDAM"
-            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent.lnk" "$INSTDIR\popdam-windows-agent.exe"
+            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent.lnk" "$INSTDIR\node.exe" "dist\index.js"
             CreateShortcut "$SMPROGRAMS\PopDAM\Uninstall Windows Agent.lnk" "$INSTDIR\uninstall.exe"
 
             ; Create uninstaller
@@ -237,10 +260,10 @@ jobs:
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "InstallLocation" "$INSTDIR"
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayVersion" "1.0.0"
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "Publisher" "PopDAM"
-            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayIcon" "$INSTDIR\popdam-windows-agent.exe"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayIcon" "$INSTDIR\node.exe"
             WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "NoModify" 1
             WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "NoRepair" 1
-            WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "EstimatedSize" 60000
+            WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "EstimatedSize" 80000
           SectionEnd
 
           Section "Uninstall"
@@ -250,12 +273,15 @@ jobs:
             ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
 
             ; Remove installed files
-            Delete "$INSTDIR\popdam-windows-agent.exe"
+            Delete "$INSTDIR\node.exe"
+            Delete "$INSTDIR\package.json"
             Delete "$INSTDIR\nssm.exe"
             Delete "$INSTDIR\.env"
             Delete "$INSTDIR\agent-key.cfg"
             Delete "$INSTDIR\.env.example"
             Delete "$INSTDIR\uninstall.exe"
+            RMDir /r "$INSTDIR\dist"
+            RMDir /r "$INSTDIR\node_modules"
             RMDir /r "$INSTDIR\logs"
 
             ; Remove directories if empty
