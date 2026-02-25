@@ -611,32 +611,38 @@ export type Database = {
       render_queue: {
         Row: {
           asset_id: string
+          attempts: number
           claimed_at: string | null
           claimed_by: string | null
           completed_at: string | null
           created_at: string
           error_message: string | null
           id: string
+          lease_expires_at: string | null
           status: Database["public"]["Enums"]["queue_status"] | null
         }
         Insert: {
           asset_id: string
+          attempts?: number
           claimed_at?: string | null
           claimed_by?: string | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
+          lease_expires_at?: string | null
           status?: Database["public"]["Enums"]["queue_status"] | null
         }
         Update: {
           asset_id?: string
+          attempts?: number
           claimed_at?: string | null
           claimed_by?: string | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
+          lease_expires_at?: string | null
           status?: Database["public"]["Enums"]["queue_status"] | null
         }
         Relationships: [
@@ -807,6 +813,20 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      claim_render_jobs: {
+        Args: {
+          p_agent_id: string
+          p_batch_size?: number
+          p_lease_minutes?: number
+          p_max_attempts?: number
+        }
+        Returns: {
+          asset_id: string
+          attempts: number
+          id: string
+          lease_expires_at: string
+        }[]
       }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
