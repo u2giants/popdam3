@@ -50,7 +50,21 @@ export async function ensureNasMapped(
   const { host, share, username, password } = creds;
 
   if (!host) {
-    return { ok: false, error: "NAS host not configured" };
+    return {
+      ok: false,
+      error: "NAS host not configured — the cloud has not delivered NAS credentials to this agent yet. " +
+        "Verify that WINDOWS_AGENT_NAS_HOST is saved in PopDAM Settings → Windows Agent → NAS Access, " +
+        "then wait for the next heartbeat (≤30s). " +
+        `Current values received: host="${host || "(empty)}", share="${share || "(empty)}", ` +
+        `mount_path="${mountPath || "(empty)}", username="${username ? "(set)" : "(empty)"}".`,
+    };
+  }
+  if (!share) {
+    return {
+      ok: false,
+      error: `NAS share not configured — host="${host}" was received but share is empty. ` +
+        "Set WINDOWS_AGENT_NAS_SHARE in PopDAM Settings → Windows Agent → NAS Access.",
+    };
   }
 
   const cleanHost = host.replace(/^\\+/, "");
