@@ -31,7 +31,7 @@ serve(async (req: Request) => {
     }
 
     // Build a simple HTML invitation email
-    const appUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "") || "PopDAM";
+    const appUrl = Deno.env.get("POPDAM_APP_URL") || "https://dam.designflow.app";
     const subject = "You've been invited to PopDAM";
     const htmlContent = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 32px; background: #1a1d23; color: #e4e4e7; border-radius: 12px;">
