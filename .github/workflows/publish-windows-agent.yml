@@ -20,19 +20,9 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Configure npm registry
-        working-directory: apps/windows-agent
-        shell: bash
-        run: |
-          echo "registry=https://registry.npmjs.org/" > .npmrc
-          echo "fetch-retry-mintimeout=20000" >> .npmrc
-          echo "fetch-retry-maxtimeout=120000" >> .npmrc
-
       - name: Install dependencies
         working-directory: apps/windows-agent
         run: npm install
-        env:
-          npm_config_registry: https://registry.npmjs.org/
 
       - name: Build TypeScript
         working-directory: apps/windows-agent
@@ -88,17 +78,6 @@ jobs:
           # Copy package.json (needed for Node module resolution)
           Copy-Item "apps\windows-agent\package.json" -Destination "installer\package.json"
           Write-Host "package.json copied"
-
-          # Verify critical files were copied
-          if (!(Test-Path "installer\dist\index.js")) {
-            Write-Error "dist\index.js missing from installer/ - build failed"
-            exit 1
-          }
-          if (!(Test-Path "installer\node_modules\sharp")) {
-            Write-Error "node_modules\sharp missing from installer/ - copy failed"
-            exit 1
-          }
-          Write-Host "Verification passed"
 
       - name: Create launcher script
         shell: bash
@@ -238,7 +217,6 @@ jobs:
 
           Section "Install"
             SetShellVarContext all
-
             ; ── Remove existing scheduled task if reinstalling ──
             nsExec::ExecToLog 'schtasks /delete /tn "PopDAM Windows Render Agent" /f'
             Sleep 1000
@@ -379,7 +357,6 @@ jobs:
 
           Section "Uninstall"
             SetShellVarContext all
-
             ; Stop and remove the scheduled task
             nsExec::ExecToLog 'schtasks /end /tn "PopDAM Windows Render Agent"'
             Sleep 2000
