@@ -65,6 +65,15 @@ serve(async (req: Request) => {
 
     
 
+    // Fetch custom tagging instructions
+    const { data: instrRow } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", "TAGGING_INSTRUCTIONS")
+      .maybeSingle();
+    const customInstructions = typeof instrRow?.value === "string"
+      ? instrRow.value.trim() : null;
+
     // Fetch taxonomy context
     const { data: licensors } = await db.from("licensors").select("id, name").limit(50);
     const { data: properties } = await db.from("properties").select("id, name, licensor_id").limit(200);
@@ -96,7 +105,7 @@ Based on the image and metadata, identify:
 5. Any style numbers or design references visible
 6. Asset type: art_piece or product
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
-8. Suggested licensor_id and property_id from the taxonomy (if identifiable)`;
+8. Suggested licensor_id and property_id from the taxonomy (if identifiable)${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
