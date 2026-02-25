@@ -390,8 +390,19 @@ async function handleRevokeAgent(body: Record<string, unknown>) {
 
 // ── Route: doctor ───────────────────────────────────────────────────
 
+interface DoctorIssue {
+  severity: "critical" | "warn" | "info";
+  code: string;
+  title: string;
+  details: string;
+  recommended_fix: string;
+  fix_action?: string; // admin-api action name to call
+  fix_payload?: Record<string, unknown>;
+}
+
 async function handleDoctor() {
   const db = serviceClient();
+  const issues: DoctorIssue[] = [];
 
   // 1) Effective config
   const { data: configRows } = await db
@@ -411,19 +422,21 @@ async function handleDoctor() {
     );
 
   const now = Date.now();
-  const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000;
+  const BRIDGE_OFFLINE_MS = 2 * 60 * 1000;
+  const WINDOWS_OFFLINE_MS = 5 * 60 * 1000;
 
   const agentStatuses = (agents || []).map((a) => {
     const lastHb = a.last_heartbeat
       ? new Date(a.last_heartbeat).getTime()
       : 0;
     const metadata = (a.metadata as Record<string, unknown>) || {};
+    const thresholdMs = a.agent_type === "windows-render" ? WINDOWS_OFFLINE_MS : BRIDGE_OFFLINE_MS;
     return {
       id: a.id,
       name: a.agent_name,
       type: a.agent_type,
       status:
-        lastHb > 0 && now - lastHb < OFFLINE_THRESHOLD_MS
+        lastHb > 0 && now - lastHb < thresholdMs
           ? "online"
           : "offline",
       last_heartbeat: a.last_heartbeat,
@@ -431,11 +444,13 @@ async function handleDoctor() {
       last_error: metadata.last_error || null,
       scan_roots: metadata.scan_roots || [],
       created_at: a.created_at,
+      metadata,
     };
   });
 
-  // 3) Scan progress
-  const scanProgress = config.SCAN_PROGRESS || null;
+  // 3) Scan progress + request
+  const scanProgress = config.SCAN_PROGRESS as Record<string, unknown> | null;
+  const scanRequest = config.SCAN_REQUEST as Record<string, unknown> | null;
 
   // 4) Recent errors
   const { data: recentErrors } = await db
@@ -473,8 +488,290 @@ async function handleDoctor() {
     .select("*", { count: "exact", head: true })
     .eq("status", "pending");
 
+  const { count: failedRenders } = await db
+    .from("render_queue")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "failed");
+
+  // ── Issue detection ──
+
+  // No bridge agent registered
+  const bridgeAgents = agentStatuses.filter((a) => a.type === "bridge");
+  const windowsAgents = agentStatuses.filter((a) => a.type === "windows-render");
+
+  if (bridgeAgents.length === 0) {
+    issues.push({
+      severity: "critical",
+      code: "NO_BRIDGE_AGENT",
+      title: "No Bridge Agent registered",
+      details: "No NAS Bridge Agent has been paired with the system. File scanning and thumbnail generation cannot operate.",
+      recommended_fix: "Generate an install bundle and deploy the Bridge Agent on your Synology NAS.",
+    });
+  }
+
+  // Bridge agent offline
+  for (const agent of bridgeAgents) {
+    if (agent.status === "offline") {
+      issues.push({
+        severity: "critical",
+        code: "BRIDGE_OFFLINE",
+        title: `Bridge Agent "${agent.name}" is offline`,
+        details: `Last heartbeat: ${agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}. The agent is not sending heartbeats.`,
+        recommended_fix: "Check that the Docker container is running on the Synology NAS. View logs with 'docker compose logs bridge'.",
+      });
+    }
+
+    // Check force_stop / scan_abort flags
+    const meta = agent.metadata;
+    if (meta.force_stop === true || meta.scan_abort === true) {
+      issues.push({
+        severity: "warn",
+        code: "STOP_FLAG_STUCK",
+        title: `Agent "${agent.name}" has stop flags enabled`,
+        details: `force_stop=${meta.force_stop}, scan_abort=${meta.scan_abort}. The agent will not accept scan jobs or ingest files.`,
+        recommended_fix: "Click 'Clear Stop Flags' to resume normal operation.",
+        fix_action: "resume-scanning",
+      });
+    }
+
+    // Check last error
+    if (agent.last_error) {
+      issues.push({
+        severity: "warn",
+        code: "BRIDGE_LAST_ERROR",
+        title: `Bridge Agent "${agent.name}" reported an error`,
+        details: agent.last_error as string,
+        recommended_fix: "Check the agent logs for more context. The error may have been transient.",
+      });
+    }
+
+    // Check scan roots configuration
+    const agentDiag = meta.diagnostics as Record<string, unknown> | undefined;
+    if (agentDiag) {
+      if (agentDiag.mount_root_exists === false) {
+        issues.push({
+          severity: "critical",
+          code: "MOUNT_ROOT_MISSING",
+          title: `Mount root not accessible on "${agent.name}"`,
+          details: `The configured container mount root (${agentDiag.mount_root_path || "unknown"}) does not exist inside the Docker container.`,
+          recommended_fix: "Check the Docker volume mount in docker-compose.yml. The NAS share must be mounted at the configured path.",
+        });
+      }
+      if (Array.isArray(agentDiag.unreadable_roots) && (agentDiag.unreadable_roots as string[]).length > 0) {
+        issues.push({
+          severity: "critical",
+          code: "SCAN_ROOTS_UNREADABLE",
+          title: `Scan roots not readable on "${agent.name}"`,
+          details: `The following scan roots are not accessible: ${(agentDiag.unreadable_roots as string[]).join(", ")}`,
+          recommended_fix: "Verify the scan root paths match directories inside the container mount. Use 'Request Path Test' to validate.",
+          fix_action: "request-path-test",
+        });
+      }
+    }
+  }
+
+  // Windows agent checks
+  for (const agent of windowsAgents) {
+    if (agent.status === "offline") {
+      issues.push({
+        severity: "warn",
+        code: "WINDOWS_OFFLINE",
+        title: `Windows Agent "${agent.name}" is offline`,
+        details: `Last heartbeat: ${agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}.`,
+        recommended_fix: "Ensure the Windows Render Agent is running on the desktop machine with Adobe Illustrator.",
+      });
+    }
+
+    const health = agent.metadata.health as Record<string, unknown> | undefined;
+    if (health && agent.status === "online") {
+      if (health.healthy === false) {
+        if (health.illustrator_crash_dialog === true) {
+          issues.push({
+            severity: "critical",
+            code: "ILLUSTRATOR_CRASH_DIALOG",
+            title: `Illustrator blocked by crash dialog on "${agent.name}"`,
+            details: "Adobe Illustrator is showing a crash recovery or safe mode dialog, preventing COM automation.",
+            recommended_fix: "Open Illustrator on the Windows machine, dismiss the dialog, then restart the agent.",
+          });
+        } else if (health.nas_healthy === false) {
+          issues.push({
+            severity: "critical",
+            code: "WINDOWS_NAS_UNREACHABLE",
+            title: `NAS not accessible from Windows Agent "${agent.name}"`,
+            details: health.last_preflight_error as string || "The configured NAS path is not reachable from the Windows machine.",
+            recommended_fix: "Check the NAS host/share settings and network connectivity. Verify the drive letter mapping if configured.",
+          });
+        } else if (health.illustrator_healthy === false) {
+          issues.push({
+            severity: "critical",
+            code: "ILLUSTRATOR_COM_FAILED",
+            title: `Illustrator COM not working on "${agent.name}"`,
+            details: health.last_preflight_error as string || "Illustrator COM automation test failed.",
+            recommended_fix: "Ensure Adobe Illustrator is installed and not in a crashed state. The agent requires an interactive desktop session.",
+          });
+        }
+      }
+
+      // Check for non-interactive session
+      if (typeof health.last_preflight_error === "string" && 
+          (health.last_preflight_error as string).includes("NON_INTERACTIVE_SESSION")) {
+        issues.push({
+          severity: "critical",
+          code: "NON_INTERACTIVE_SESSION",
+          title: `Windows Agent "${agent.name}" running as a service`,
+          details: "The agent is running in Session 0 (Windows Service mode). Illustrator COM requires an interactive desktop session.",
+          recommended_fix: "Reinstall the agent as a Scheduled Task instead of a Windows Service. Run the install script from the install bundle.",
+        });
+      }
+    }
+
+    // Circuit breaker
+    const versionInfo = agent.metadata.version_info as Record<string, unknown> | undefined;
+    if (versionInfo?.update_error) {
+      issues.push({
+        severity: "warn",
+        code: "WINDOWS_UPDATE_FAILED",
+        title: `Self-update failed on "${agent.name}"`,
+        details: versionInfo.update_error as string,
+        recommended_fix: "Check agent logs. The update may need to be downloaded manually.",
+      });
+    }
+  }
+
+  // Scan state issues
+  if (scanProgress) {
+    const progressStatus = scanProgress.status as string;
+    const progressUpdatedAt = scanProgress.updated_at as string | undefined;
+
+    // Stale running scan (no update in 10+ minutes)
+    if ((progressStatus === "running" || progressStatus === "scanning") && progressUpdatedAt) {
+      const staleMs = now - new Date(progressUpdatedAt).getTime();
+      if (staleMs > 10 * 60 * 1000) {
+        issues.push({
+          severity: "warn",
+          code: "SCAN_STALE",
+          title: "Scan appears stuck",
+          details: `Scan status is "${progressStatus}" but hasn't updated in ${Math.floor(staleMs / 60000)} minutes. The agent may have crashed mid-scan.`,
+          recommended_fix: "Click 'Reset Scan State' to clear the stale scan and allow a new scan to start.",
+          fix_action: "reset-scan-state",
+        });
+      }
+    }
+
+    // Failed scan
+    if (progressStatus === "failed") {
+      issues.push({
+        severity: "warn",
+        code: "SCAN_FAILED",
+        title: "Last scan failed",
+        details: (scanProgress.error as string) || "The most recent scan ended with an error.",
+        recommended_fix: "Check the agent logs for details. Reset the scan state and try again.",
+        fix_action: "reset-scan-state",
+      });
+    }
+  }
+
+  // Stale scan request
+  if (scanRequest) {
+    const reqStatus = scanRequest.status as string;
+    if (reqStatus === "pending" || reqStatus === "claimed") {
+      const reqAt = scanRequest.requested_at as string | undefined;
+      if (reqAt) {
+        const reqAge = now - new Date(reqAt).getTime();
+        if (reqAge > 5 * 60 * 1000) {
+          issues.push({
+            severity: "warn",
+            code: "SCAN_REQUEST_STALE",
+            title: "Scan request not being processed",
+            details: `A scan request has been "${reqStatus}" for ${Math.floor(reqAge / 60000)} minutes without progress.`,
+            recommended_fix: "The Bridge Agent may be offline or stuck. Reset the scan state.",
+            fix_action: "reset-scan-state",
+          });
+        }
+      }
+    }
+  }
+
+  // Config issues
+  const scanRoots = config.SCAN_ROOTS as string[] | undefined;
+  const mountRoot = config.NAS_CONTAINER_MOUNT_ROOT as string | undefined;
+
+  if (!scanRoots || scanRoots.length === 0) {
+    issues.push({
+      severity: "warn",
+      code: "NO_SCAN_ROOTS",
+      title: "No scan roots configured",
+      details: "No directories are configured for scanning. The Bridge Agent won't know where to look for files.",
+      recommended_fix: "Go to Settings → Scanning and configure at least one scan root.",
+    });
+  }
+
+  if (scanRoots && mountRoot) {
+    const mismatched = scanRoots.filter((r) => !r.startsWith(mountRoot));
+    if (mismatched.length > 0) {
+      issues.push({
+        severity: "critical",
+        code: "ROOTS_MISMATCH_MOUNT",
+        title: "Scan roots don't match mount root",
+        details: `These scan roots don't start with the container mount root "${mountRoot}": ${mismatched.join(", ")}`,
+        recommended_fix: "Update the scan roots to be subdirectories of the container mount root, or update the mount root.",
+      });
+    }
+  }
+
+  // Spaces config
+  const spacesConfig = config.SPACES_CONFIG as Record<string, string> | undefined;
+  if (!spacesConfig || !spacesConfig.bucket_name) {
+    issues.push({
+      severity: "warn",
+      code: "NO_SPACES_CONFIG",
+      title: "DigitalOcean Spaces not configured",
+      details: "Thumbnail storage is not configured. Thumbnails won't be uploaded.",
+      recommended_fix: "Go to Settings → NAS & Storage and configure DigitalOcean Spaces.",
+    });
+  }
+
+  // Failed render jobs
+  if ((failedRenders ?? 0) > 0) {
+    issues.push({
+      severity: "warn",
+      code: "FAILED_RENDERS",
+      title: `${failedRenders} failed render jobs`,
+      details: "Some .ai files failed to render on the Windows Agent. They may need to be retried or investigated.",
+      recommended_fix: "Click 'Requeue Failed Renders' to retry them, or check the Windows Agent tab for details.",
+      fix_action: "retry-failed-renders",
+    });
+  }
+
+  // Pending renders with no windows agent
+  if ((pendingRenders ?? 0) > 5 && windowsAgents.every((a) => a.status === "offline")) {
+    issues.push({
+      severity: "warn",
+      code: "RENDERS_NO_AGENT",
+      title: `${pendingRenders} render jobs waiting with no Windows Agent online`,
+      details: "AI files that require Illustrator rendering are queued but no Windows Render Agent is connected to process them.",
+      recommended_fix: "Start the Windows Render Agent or deploy one from Settings → Install Bundles.",
+    });
+  }
+
+  // All clear
+  if (issues.length === 0) {
+    issues.push({
+      severity: "info",
+      code: "ALL_CLEAR",
+      title: "System is healthy",
+      details: "No issues detected. All agents are online and scanning is operating normally.",
+      recommended_fix: "No action needed.",
+    });
+  }
+
+  // Sort: critical first, then warn, then info
+  const severityOrder: Record<string, number> = { critical: 0, warn: 1, info: 2 };
+  issues.sort((a, b) => (severityOrder[a.severity] ?? 2) - (severityOrder[b.severity] ?? 2));
+
   return json({
     ok: true,
+    issues,
     diagnostic: {
       timestamp: new Date().toISOString(),
       config,
@@ -487,6 +784,7 @@ async function handleDoctor() {
         error_assets: errorAssets ?? 0,
         pending_jobs: pendingJobs ?? 0,
         pending_renders: pendingRenders ?? 0,
+        failed_renders: failedRenders ?? 0,
       },
     },
   });
@@ -2176,6 +2474,10 @@ serve(async (req: Request) => {
         return await handleGetLatestAgentBuild(body);
       case "trigger-windows-update":
         return await handleTriggerWindowsUpdate(body, userId);
+      case "retry-failed-renders":
+        return await handleRetryFailedRenders();
+      case "request-path-test":
+        return await handleRequestPathTest(userId);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
@@ -2331,4 +2633,40 @@ async function handleTriggerWindowsUpdate(
   }
 
   return json({ ok: true });
+}
+
+// ── retry-failed-renders ────────────────────────────────────────────
+
+async function handleRetryFailedRenders() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("render_queue")
+    .update({ status: "pending", claimed_by: null, claimed_at: null, error_message: null })
+    .eq("status", "failed")
+    .select("id");
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, requeued_count: data?.length ?? 0 });
+}
+
+// ── request-path-test ───────────────────────────────────────────────
+
+async function handleRequestPathTest(userId: string) {
+  const db = serviceClient();
+  const requestId = crypto.randomUUID();
+
+  const { error } = await db.from("admin_config").upsert({
+    key: "PATH_TEST_REQUEST",
+    value: {
+      request_id: requestId,
+      status: "pending",
+      requested_at: new Date().toISOString(),
+      requested_by: userId,
+    },
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, request_id: requestId });
 }

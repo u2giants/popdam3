@@ -107,12 +107,14 @@ export async function heartbeat(
   counters: Counters,
   lastError?: string,
   versionInfo?: { image_tag?: string; version?: string; build_sha?: string },
+  diagnostics?: Record<string, unknown>,
 ): Promise<HeartbeatResponse> {
   const data = await callApi("heartbeat", {
     agent_id: agentId,
     counters,
     last_error: lastError,
     version_info: versionInfo,
+    diagnostics,
   });
   return data as unknown as HeartbeatResponse;
 }

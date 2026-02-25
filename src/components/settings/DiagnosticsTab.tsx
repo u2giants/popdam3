@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import DoctorDiagnostics from "@/components/settings/DoctorDiagnostics";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -906,6 +907,7 @@ export default function DiagnosticsTab() {
         </Card>
       ) : diag ? (
         <>
+          <DoctorDiagnostics />
           <OverviewCards counts={diag.counts} />
           <ConnectedAgents agents={diag.agents} />
           <ScanStatusCard progress={diag.scan_progress} />

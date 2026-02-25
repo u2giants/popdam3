@@ -276,6 +276,7 @@ async function handleHeartbeat(
   const lastError = optionalString(body, "last_error");
   const health = body.health as Record<string, unknown> | undefined;
   const versionInfo = body.version_info as Record<string, unknown> | undefined;
+  const diagnostics = body.diagnostics as Record<string, unknown> | undefined;
   const db = serviceClient();
 
   // ── Update agent metadata ──
@@ -320,6 +321,11 @@ async function handleHeartbeat(
       last_preflight_error: health.lastPreflightError ?? null,
       last_preflight_at: health.lastPreflightAt ?? null,
     } : metadata.health,
+    // Diagnostics from bridge agent (mount root, scan roots, etc.)
+    diagnostics: diagnostics ? {
+      ...diagnostics,
+      last_reported_at: new Date().toISOString(),
+    } : metadata.diagnostics,
     // Clear trigger_update flag once delivered (below)
   };
 
