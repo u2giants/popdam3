@@ -27,6 +27,7 @@ interface LibraryTopBarProps {
   totalCount: number;
   scanRunning: boolean;
   scanStale?: boolean;
+  scanQueued?: boolean;
   scanPending: boolean;
   onSync: () => void;
   onStopScan: () => void;
@@ -63,6 +64,7 @@ export default function LibraryTopBar({
   totalCount,
   scanRunning,
   scanStale,
+  scanQueued,
   scanPending,
   onSync,
   onStopScan,
@@ -149,15 +151,21 @@ export default function LibraryTopBar({
         size="sm"
         className="h-9 gap-1.5 relative"
         onClick={onSync}
-        disabled={scanPending || scanRunning}
-        title={scanStale ? "Scan appears stuck — use Reset Scan State in Settings" : scanRunning ? "Scanning…" : scanPending ? "Waiting for agent…" : "Trigger scan"}
+        disabled={scanPending || scanRunning || scanQueued}
+        title={scanStale ? "Scan appears stuck — use Reset Scan State in Settings" : scanRunning ? "Scanning…" : scanQueued ? "Queued, waiting for agent…" : scanPending ? "Waiting for agent…" : "Trigger scan"}
       >
         <RefreshCw className={cn("h-4 w-4", scanRunning && !scanStale && "animate-spin")} />
-        {scanStale ? "Scan stuck" : scanRunning ? truncatePath(scanCurrentPath) : "Sync"}
+        {scanStale ? "Scan stuck" : scanRunning ? truncatePath(scanCurrentPath) : scanQueued ? "Queued…" : "Sync"}
       </Button>
-      {scanPending && !scanRunning && (
-        <Badge variant="outline" className="gap-1 text-[10px] border-orange-500/50 text-orange-400 animate-pulse">
-          <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+      {scanQueued && (
+        <Badge variant="outline" className="gap-1 text-[10px] border-[hsl(var(--warning))]/50 text-[hsl(var(--warning))] animate-pulse">
+          <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--warning))]" />
+          Waiting for agent
+        </Badge>
+      )}
+      {scanPending && !scanRunning && !scanQueued && (
+        <Badge variant="outline" className="gap-1 text-[10px] border-[hsl(var(--warning))]/50 text-[hsl(var(--warning))] animate-pulse">
+          <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--warning))]" />
           Sync queued
         </Badge>
       )}
