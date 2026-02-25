@@ -84,38 +84,84 @@ serve(async (req: Request) => {
     const customInstructions = typeof instrRow?.value === "string"
       ? instrRow.value.trim() : null;
 
-    // Fetch taxonomy context — scoped to asset's licensor when known
+    // Fetch taxonomy context
     const { data: licensors } = await db.from("licensors").select("id, name").limit(50);
     const { data: properties } = await db.from("properties").select("id, name, licensor_id").limit(200);
 
-    // Scope characters to the asset's licensor for focused, accurate results
-    let characters: { id: string; name: string; property_id: string }[] | null = null;
-    if (asset.licensor_id) {
+    // Two-tier character matching: priority characters first, full list as fallback
+    let characters: { id: string; name: string }[] = [];
+    let usingPriorityOnly = false;
+
+    if (asset.property_id) {
+      // Tier 1: priority characters for this property
+      const { data: priorityChars } = await db
+        .from("characters")
+        .select("id, name")
+        .eq("property_id", asset.property_id)
+        .eq("is_priority", true)
+        .order("usage_count", { ascending: false });
+
+      if (priorityChars && priorityChars.length > 0) {
+        characters = priorityChars;
+        usingPriorityOnly = true;
+      } else {
+        // Tier 2: all characters for this property
+        const { data: allChars } = await db
+          .from("characters")
+          .select("id, name")
+          .eq("property_id", asset.property_id)
+          .order("name");
+        characters = allChars ?? [];
+      }
+    } else if (asset.licensor_id) {
       const { data: propIds } = await db
         .from("properties")
         .select("id")
         .eq("licensor_id", asset.licensor_id);
       const ids = (propIds ?? []).map((p: { id: string }) => p.id);
+
       if (ids.length > 0) {
-        const { data } = await db
+        // Tier 1: priority chars across all licensor properties
+        const { data: priorityChars } = await db
           .from("characters")
-          .select("id, name, property_id")
+          .select("id, name")
           .in("property_id", ids)
-          .limit(300);
-        characters = data;
-      } else {
-        characters = [];
+          .eq("is_priority", true)
+          .order("usage_count", { ascending: false })
+          .limit(200);
+
+        if (priorityChars && priorityChars.length > 0) {
+          characters = priorityChars;
+          usingPriorityOnly = true;
+        } else {
+          // Tier 2: all chars for licensor, capped
+          const { data: allChars } = await db
+            .from("characters")
+            .select("id, name")
+            .in("property_id", ids)
+            .limit(300);
+          characters = allChars ?? [];
+        }
       }
     } else {
-      // No licensor known — fetch a broader set
-      const { data } = await db.from("characters").select("id, name, property_id").limit(300);
-      characters = data;
+      // No licensor known — priority chars globally
+      const { data: priorityChars } = await db
+        .from("characters")
+        .select("id, name")
+        .eq("is_priority", true)
+        .order("usage_count", { ascending: false })
+        .limit(150);
+      characters = priorityChars ?? [];
     }
+
+    const charContext = usingPriorityOnly
+      ? `Priority characters for this property/licensor (match from this list first):\n`
+      : `Characters (full list for this property):\n`;
 
     const taxonomyContext = [
       `Licensors: ${(licensors || []).map((l) => `${l.name} (${l.id})`).join(", ")}`,
       `Properties: ${(properties || []).map((p) => `${p.name} (${p.id})`).join(", ")}`,
-      `Characters: ${(characters || []).map((c) => `${c.name} (${c.id})`).join(", ")}`,
+      `${charContext}${(characters || []).map((c) => `${c.name} (${c.id})`).join(", ")}`,
     ].join("\n");
 
     const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
@@ -138,15 +184,16 @@ Based on the image and metadata, identify:
 5. Any style numbers or design references visible
 6. Asset type: art_piece or product
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
-8. Suggested licensor_id and property_id from the taxonomy (if identifiable)${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
+8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
+${usingPriorityOnly ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array." : ""}${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
 
     console.log("ai-tag START", {
       assetId,
       force,
       currentStatus: asset.status,
       alreadyTagged: !!asset.ai_tagged_at,
-      charactersScopedToLicensor: !!asset.licensor_id,
-      characterCount: (characters || []).length,
+      usingPriorityOnly,
+      characterCount: characters.length,
     });
 
     const response = await fetch(
