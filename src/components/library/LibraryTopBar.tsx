@@ -25,6 +25,7 @@ interface LibraryTopBarProps {
   onToggleFilters: () => void;
   activeFilterCount: number;
   totalCount: number;
+  totalAssets: number;
   scanRunning: boolean;
   scanStale?: boolean;
   scanQueued?: boolean;
@@ -62,6 +63,7 @@ export default function LibraryTopBar({
   onToggleFilters,
   activeFilterCount,
   totalCount,
+  totalAssets,
   scanRunning,
   scanStale,
   scanQueued,
@@ -175,9 +177,13 @@ export default function LibraryTopBar({
         </Button>
       )}
 
-      {/* Count */}
+      {/* Counts */}
       <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-        {totalCount.toLocaleString()} asset{totalCount !== 1 ? "s" : ""}
+        <span className="font-semibold tabular-nums">{totalCount.toLocaleString()}</span>
+        {" "}groups
+        <span className="mx-1">·</span>
+        <span className="font-semibold tabular-nums">{totalAssets.toLocaleString()}</span>
+        {" "}files
       </span>
     </div>
   );

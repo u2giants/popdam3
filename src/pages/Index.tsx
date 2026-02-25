@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useStyleGroups, useStyleGroupCount, useUngroupedCount, type StyleGroup } from "@/hooks/useStyleGroups";
+import { useStyleGroups, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
 import { useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
@@ -101,6 +101,7 @@ export default function LibraryPage() {
   const { data, isLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
   const { data: totalCount } = useStyleGroupCount(filters, visibilityDate);
   const { data: ungroupedCount } = useUngroupedCount();
+  const { data: totalAssets } = useTotalAssetCount();
   const { licensors, properties } = useFilterOptions(filters.licensorId);
   const { data: facetCounts } = useFilterCounts(filters);
 
@@ -188,6 +189,7 @@ export default function LibraryPage() {
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
         activeFilterCount={activeFilterCount}
         totalCount={count}
+        totalAssets={totalAssets ?? 0}
         scanRunning={scanRunning}
         scanStale={scanProgress.status === "stale"}
         scanQueued={scanQueued}

@@ -166,3 +166,18 @@ export function useUngroupedCount() {
     staleTime: 30_000,
   });
 }
+
+export function useTotalAssetCount() {
+  return useQuery({
+    queryKey: ["total-asset-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("assets")
+        .select("*", { count: "exact", head: true })
+        .eq("is_deleted", false);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+}
