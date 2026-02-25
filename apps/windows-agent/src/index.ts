@@ -106,6 +106,8 @@ async function runHealthCheck() {
     mountPath: cloudNasMountPath,
     nasHost: cloudNasHost,
     nasShare: cloudNasShare,
+    nasUsername: cloudNasUsername,
+    nasPassword: cloudNasPassword,
   });
 }
 
@@ -223,12 +225,7 @@ async function processJob(job: api.RenderJob): Promise<void> {
 
   try {
     const fileType = (job.file_type === "psd") ? "psd" : "ai" as const;
-    const result = await renderFile(uncPath, fileType, {
-      host: cloudNasHost,
-      share: cloudNasShare,
-      username: cloudNasUsername,
-      password: cloudNasPassword,
-    });
+    const result = await renderFile(uncPath, fileType);
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
     await api.completeRender(job.job_id, true, thumbnailUrl);
     jobsCompleted++;

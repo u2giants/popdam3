@@ -179,13 +179,10 @@ async function renderFromSibling(
 export async function renderFile(
   uncPath: string,
   fileType: "ai" | "psd",
-  nasCredentials: {
-    host: string;
-    share: string;
-    username: string;
-    password: string;
-  },
 ): Promise<RenderResult> {
+  // NAS mapping is handled centrally by ensureNasMapped() in preflight/startup.
+  // All paths (drive-letter or UNC) are already accessible when we get here.
+
   // Step 1: Sharp
   try {
     const result = await renderWithSharp(uncPath, fileType);
@@ -221,7 +218,7 @@ export async function renderFile(
       "Falling back to Illustrator COM — Sharp and Ghostscript both failed",
       { uncPath },
     );
-    return await renderWithIllustrator(uncPath, nasCredentials);
+    return await renderWithIllustrator(uncPath);
   }
 
   throw new Error("render_failed: all methods exhausted");
