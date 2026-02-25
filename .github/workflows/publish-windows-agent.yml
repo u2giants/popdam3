@@ -8,7 +8,7 @@ on:
       - ".github/workflows/publish-windows-agent.yml"
 
 jobs:
-  build:
+  build-and-release:
     runs-on: windows-latest
     permissions:
       contents: write
@@ -38,49 +38,46 @@ jobs:
           }
           Write-Host 'dist/index.js found, proceeding with packaging'
 
-      - name: Download Node.js runtime for bundling
+      - name: Create installer staging directory
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "installer" | Out-Null
+          Write-Host "installer/ directory created"
+
+      - name: Download Node.js runtime
         shell: powershell
         run: |
           $nodeVersion = "v20.19.0"
           $nodeUrl = "https://nodejs.org/dist/$nodeVersion/node-v20.19.0-win-x64.zip"
-          Invoke-WebRequest -Uri $nodeUrl -OutFile node-win.zip
-          Expand-Archive node-win.zip -DestinationPath node-extracted
-          Copy-Item "node-extracted\node-v20.19.0-win-x64\node.exe" -Destination "installer\node.exe"
+          Write-Host "Downloading Node.js $nodeVersion..."
+          Invoke-WebRequest -Uri $nodeUrl -OutFile "node-win.zip"
+          Write-Host "Extracting..."
+          Expand-Archive "node-win.zip" -DestinationPath "node-extracted" -Force
+          $nodePath = "node-extracted\node-v20.19.0-win-x64\node.exe"
+          if (!(Test-Path $nodePath)) {
+            Write-Error "node.exe not found at expected path: $nodePath"
+            Get-ChildItem "node-extracted" -Recurse -Filter "node.exe" | Select-Object FullName
+            exit 1
+          }
+          Copy-Item $nodePath -Destination "installer\node.exe"
+          Write-Host "node.exe copied to installer/"
 
-      - name: Prepare distribution files
-        working-directory: apps/windows-agent
+      - name: Copy dist and node_modules to installer
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force -Path "..\..\installer\dist"
-          Copy-Item -Recurse "dist\*" -Destination "..\..\installer\dist\"
-          New-Item -ItemType Directory -Force -Path "..\..\installer\node_modules"
-          Copy-Item -Recurse "node_modules\*" -Destination "..\..\installer\node_modules\"
-          Copy-Item "package.json" -Destination "..\..\installer\"
+          # Copy compiled JS output
+          New-Item -ItemType Directory -Force -Path "installer\dist" | Out-Null
+          Copy-Item -Recurse "apps\windows-agent\dist\*" -Destination "installer\dist\"
+          Write-Host "dist/ copied"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-agent-dist
-          path: |
-            installer/node.exe
-            installer/dist/
-            installer/node_modules/
-            installer/package.json
+          # Copy node_modules (includes Sharp with native binaries)
+          New-Item -ItemType Directory -Force -Path "installer\node_modules" | Out-Null
+          Copy-Item -Recurse "apps\windows-agent\node_modules\*" -Destination "installer\node_modules\"
+          Write-Host "node_modules/ copied"
 
-  package-installer:
-    runs-on: windows-latest
-    needs: build
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-agent-dist
-          path: installer/
+          # Copy package.json (needed for Node module resolution)
+          Copy-Item "apps\windows-agent\package.json" -Destination "installer\package.json"
+          Write-Host "package.json copied"
 
       - name: Install NSIS
         run: choco install nsis -y --no-progress
@@ -89,19 +86,19 @@ jobs:
         shell: powershell
         run: |
           choco install nssm -y --no-progress
-          $realNssm = "C:\ProgramData\chocolatey\lib\NSSM\tools\nssm.exe"
-          if (!(Test-Path $realNssm)) {
-            $realNssm = Get-ChildItem "C:\ProgramData\chocolatey\lib\NSSM" -Recurse -Filter "nssm.exe" |
-              Where-Object { $_.DirectoryName -notlike "*x86*" } |
-              Select-Object -First 1 -ExpandProperty FullName
+          $realNssm = Get-ChildItem "C:\ProgramData\chocolatey\lib\NSSM" -Recurse -Filter "nssm.exe" |
+            Where-Object { $_.DirectoryName -notlike "*x86*" } |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (!$realNssm) {
+            Write-Error "Could not find nssm.exe"
+            exit 1
           }
-          Write-Host "Real NSSM found at: $realNssm"
-          $fileInfo = Get-Item $realNssm
-          Write-Host "File size: $($fileInfo.Length) bytes"
-          if ($fileInfo.Length -lt 100000) {
-            throw "nssm.exe is too small - this is a shim, not the real exe"
+          Write-Host "NSSM found at: $realNssm (size: $((Get-Item $realNssm).Length) bytes)"
+          if ((Get-Item $realNssm).Length -lt 100000) {
+            throw "nssm.exe is too small — this is a shim, not the real exe"
           }
           Copy-Item $realNssm -Destination "installer\nssm.exe"
+          Write-Host "nssm.exe copied to installer/"
 
       - name: Create NSIS script
         shell: bash
@@ -143,11 +140,9 @@ jobs:
 
             ${NSD_CreateLabel} 0 0 100% 24u "PopDAM Install Token"
             Pop $TokenLabel
-            SendMessage $TokenLabel ${WM_SETFONT} 0 0
 
             ${NSD_CreateText} 0 30u 100% 16u ""
             Pop $TokenInput
-            ${NSD_SetText} $TokenInput ""
             SendMessage $TokenInput ${EM_SETCUEBANNER} 1 "STR:XXXX-XXXX-XXXX-XXXX"
 
             ${NSD_CreateLabel} 0 54u 100% 20u "Generate this token in PopDAM Settings → Windows Agent.$\r$\nIt expires in 5 minutes and can only be used once."
@@ -179,23 +174,29 @@ jobs:
           FunctionEnd
 
           Section "Install"
-            ; Handle reinstall cleanly
-            IfFileExists "$INSTDIR\uninstall.exe" 0 +4
-              MessageBox MB_YESNO "PopDAM Windows Render Agent is already installed. Uninstall the existing version first?" IDNO +2
-              ExecWait '"$INSTDIR\uninstall.exe" /S'
-              Sleep 3000
+            ; Handle reinstall — stop and remove existing service first
+            ExecWait '"$INSTDIR\nssm.exe" stop PopDAMWindowsAgent'
+            ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
+            Sleep 2000
 
+            ; Install node.exe and nssm.exe
             SetOutPath "$INSTDIR"
             File "node.exe"
-            File "package.json"
             File "nssm.exe"
+            File "package.json"
+
+            ; Install compiled JS
             SetOutPath "$INSTDIR\dist"
             File /r "dist\*.*"
+
+            ; Install node_modules (includes Sharp native binaries)
             SetOutPath "$INSTDIR\node_modules"
             File /r "node_modules\*.*"
+
+            ; Back to install root
             SetOutPath "$INSTDIR"
 
-            ; Write .env with hardcoded Supabase URL and bootstrap token
+            ; Write .env
             FileOpen $0 "$INSTDIR\.env" w
             FileWrite $0 "SUPABASE_URL=https://vklanxwmaeqjbwtmnygj.supabase.co$\r$\n"
             FileWrite $0 "BOOTSTRAP_TOKEN=$BootstrapToken$\r$\n"
@@ -203,34 +204,28 @@ jobs:
             FileWrite $0 "# AGENT_KEY is written automatically on first startup$\r$\n"
             FileClose $0
 
-            ; Remove existing service if present
-            ExecWait '"$INSTDIR\nssm.exe" stop PopDAMWindowsAgent'
-            ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
-            Sleep 2000
-
-            ; Install via nssm
+            ; Install service: node.exe runs dist/index.js
             ExecWait '"$INSTDIR\nssm.exe" install PopDAMWindowsAgent "$INSTDIR\node.exe"' $0
             IntCmp $0 0 +3
-              MessageBox MB_OK|MB_ICONEXCLAMATION "Failed to register Windows Service (error $0). Try running the installer as Administrator."
+              MessageBox MB_OK|MB_ICONEXCLAMATION "Failed to register Windows Service (error $0). Try running as Administrator."
               Abort
+
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppParameters "dist\index.js"'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppDirectory "$INSTDIR"'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent DisplayName "PopDAM Windows Render Agent"'
-            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Description "PopDAM Windows Render Agent (Ghostscript + Sharp thumbnail renderer)"'
+            ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Description "Renders AI/PSD files using Ghostscript + Sharp for PopDAM"'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent Start SERVICE_AUTO_START'
 
-            ; Create logs directory before configuring log paths
+            ; Log rotation
             CreateDirectory "$INSTDIR\logs"
-
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppStdout "$INSTDIR\logs\agent.log"'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppStderr "$INSTDIR\logs\agent-error.log"'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateFiles 1'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateSeconds 86400'
             ExecWait '"$INSTDIR\nssm.exe" set PopDAMWindowsAgent AppRotateBytes 10485760'
 
-            ; Set service to run as specified Windows user (for NAS access)
+            ; Set service to run as Windows user (for NAS share access)
             StrCmp $WinUser "" skip_objectname
-              ; Check if username contains backslash (DOMAIN\user format)
               ${WordFind} $WinUser "\" "E+1{" $0
               IfErrors no_domain has_domain
               no_domain:
@@ -247,7 +242,7 @@ jobs:
 
             ; Start Menu shortcuts
             CreateDirectory "$SMPROGRAMS\PopDAM"
-            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent.lnk" "$INSTDIR\node.exe" "dist\index.js"
+            CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent Logs.lnk" "$INSTDIR\logs"
             CreateShortcut "$SMPROGRAMS\PopDAM\Uninstall Windows Agent.lnk" "$INSTDIR\uninstall.exe"
 
             ; Create uninstaller
@@ -258,49 +253,46 @@ jobs:
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "UninstallString" '"$INSTDIR\uninstall.exe"'
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "InstallLocation" "$INSTDIR"
-            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayVersion" "1.0.0"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayVersion" "2.0.0"
             WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "Publisher" "PopDAM"
-            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "DisplayIcon" "$INSTDIR\node.exe"
             WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "NoModify" 1
             WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "NoRepair" 1
-            WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "EstimatedSize" 80000
+            WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent" "EstimatedSize" 150000
           SectionEnd
 
           Section "Uninstall"
-            ; Stop and remove service via nssm
             ExecWait '"$INSTDIR\nssm.exe" stop PopDAMWindowsAgent'
             Sleep 2000
             ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
 
-            ; Remove installed files
             Delete "$INSTDIR\node.exe"
-            Delete "$INSTDIR\package.json"
             Delete "$INSTDIR\nssm.exe"
+            Delete "$INSTDIR\package.json"
             Delete "$INSTDIR\.env"
             Delete "$INSTDIR\agent-key.cfg"
-            Delete "$INSTDIR\.env.example"
             Delete "$INSTDIR\uninstall.exe"
             RMDir /r "$INSTDIR\dist"
             RMDir /r "$INSTDIR\node_modules"
             RMDir /r "$INSTDIR\logs"
-
-            ; Remove directories if empty
             RMDir "$INSTDIR"
             RMDir "$PROGRAMFILES64\PopDAM"
 
-            ; Remove Start Menu shortcuts
             RMDir /r "$SMPROGRAMS\PopDAM"
-
-            ; Remove registry uninstall entry
             DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\PopDAMWindowsAgent"
           SectionEnd
           NSIS_EOF
 
       - name: Build installer
-        run: |
-          $env:PATH += ";C:/Program Files (x86)/NSIS"
-          makensis installer/setup.nsi
         shell: powershell
+        working-directory: installer
+        run: |
+          $env:PATH += ";C:\Program Files (x86)\NSIS"
+          makensis setup.nsi
+          if (!(Test-Path "popdam-windows-agent-setup.exe")) {
+            Write-Error "Installer was not created"
+            exit 1
+          }
+          Write-Host "Installer built successfully: $((Get-Item 'popdam-windows-agent-setup.exe').Length / 1MB) MB"
 
       - name: Create versioned GitHub Release
         uses: softprops/action-gh-release@v2
@@ -314,8 +306,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update latest release
+        shell: bash
         run: |
-          gh release delete windows-agent-latest --yes 2>$null
-          gh release create windows-agent-latest installer/popdam-windows-agent-setup.exe --title "Windows Render Agent (Latest)" --notes "Latest build of the PopDAM Windows Render Agent" --latest
+          gh release delete windows-agent-latest --yes 2>/dev/null || true
+          gh release create windows-agent-latest installer/popdam-windows-agent-setup.exe \
+            --title "Windows Render Agent (Latest)" \
+            --notes "Latest build of the PopDAM Windows Render Agent (Node.js + Sharp + Ghostscript)" \
+            --latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
