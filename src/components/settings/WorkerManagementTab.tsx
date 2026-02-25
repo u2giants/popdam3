@@ -295,10 +295,11 @@ function FolderManager() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [newFolder, setNewFolder] = useState("");
+  const [newSubfilter, setNewSubfilter] = useState("");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-config", "SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH"],
-    queryFn: () => call("get-config", { keys: ["SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH"] }),
+    queryKey: ["admin-config", "SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH", "SCAN_ALLOWED_SUBFOLDERS"],
+    queryFn: () => call("get-config", { keys: ["SCAN_ROOTS", "NAS_CONTAINER_MOUNT_ROOT", "NAS_HOST_PATH", "SCAN_ALLOWED_SUBFOLDERS"] }),
   });
 
   const mountRoot: string = (() => {
@@ -313,6 +314,11 @@ function FolderManager() {
 
   const roots: string[] = (() => {
     const val = data?.config?.SCAN_ROOTS?.value ?? data?.config?.SCAN_ROOTS;
+    return Array.isArray(val) ? val : [];
+  })();
+
+  const allowedSubfolders: string[] = (() => {
+    const val = data?.config?.SCAN_ALLOWED_SUBFOLDERS?.value ?? data?.config?.SCAN_ALLOWED_SUBFOLDERS;
     return Array.isArray(val) ? val : [];
   })();
 
@@ -347,6 +353,15 @@ function FolderManager() {
     onError: (e) => toast.error(e.message),
   });
 
+  const saveSubfolderMutation = useMutation({
+    mutationFn: (newSubs: string[]) => call("set-config", { entries: { SCAN_ALLOWED_SUBFOLDERS: newSubs } }),
+    onSuccess: () => {
+      toast.success("Subfolder filter updated");
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   // Convert a subfolder name to a full container path
   const toContainerPath = (subfolder: string) => {
     const mr = mountRootValue.replace(/\/+$/, "");
@@ -376,6 +391,21 @@ function FolderManager() {
 
   const removeRoot = (path: string) => {
     saveMutation.mutate(roots.filter((r) => r !== path));
+  };
+
+  const addSubfilter = () => {
+    const trimmed = newSubfilter.trim().toLowerCase();
+    if (!trimmed) return;
+    if (allowedSubfolders.includes(trimmed)) {
+      toast.error("This subfolder is already in the filter");
+      return;
+    }
+    saveSubfolderMutation.mutate([...allowedSubfolders, trimmed]);
+    setNewSubfilter("");
+  };
+
+  const removeSubfilter = (name: string) => {
+    saveSubfolderMutation.mutate(allowedSubfolders.filter((s) => s !== name));
   };
 
   if (isLoading) return <Card><CardContent className="py-6"><p className="text-sm text-muted-foreground">Loading...</p></CardContent></Card>;
@@ -471,6 +501,46 @@ function FolderManager() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        <Separator />
+
+        {/* Subfolder Filter */}
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Subfolder Filter</Label>
+          <p className="text-xs text-muted-foreground">
+            If set, only files under these subfolders of <code>Decor/</code> will be ingested.
+            Leave empty to ingest <strong>all files</strong> in your scan roots.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            className="font-mono text-xs"
+            value={newSubfilter}
+            onChange={(e) => setNewSubfilter(e.target.value)}
+            placeholder="Character Licensed"
+            onKeyDown={(e) => e.key === "Enter" && addSubfilter()}
+          />
+          <Button size="sm" onClick={addSubfilter} disabled={!newSubfilter.trim()}>
+            Add
+          </Button>
+        </div>
+        {allowedSubfolders.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">No filter — all files in scan roots will be ingested.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {allowedSubfolders.map((sub) => (
+              <Badge key={sub} variant="secondary" className="gap-1 font-mono text-xs">
+                {sub}
+                <button
+                  className="ml-0.5 hover:text-destructive"
+                  onClick={() => removeSubfilter(sub)}
+                >
+                  ×
+                </button>
+              </Badge>
+            ))}
           </div>
         )}
       </CardContent>
@@ -1250,11 +1320,15 @@ function formatTimeAgo(ts: string | undefined): string {
   return `${hr}h ${min % 60}m ago`;
 }
 
-function CounterCell({ label, value, variant }: { label: string; value: number; variant?: "error" }) {
+function CounterCell({ label, value, variant }: { label: string; value: number; variant?: "error" | "warning" }) {
   return (
     <div className="flex justify-between items-baseline">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={cn("text-sm font-semibold tabular-nums", variant === "error" && value > 0 && "text-destructive")}>
+      <span className={cn(
+        "text-sm font-semibold tabular-nums",
+        variant === "error" && value > 0 && "text-destructive",
+        variant === "warning" && value > 0 && "text-[hsl(var(--warning))]",
+      )}>
         {value.toLocaleString()}
       </span>
     </div>
@@ -1354,6 +1428,7 @@ export function LiveScanMonitor() {
             <CounterCell label="Updated" value={c.updated_existing} />
             <CounterCell label="Moved" value={c.moved_detected} />
             <CounterCell label="Unchanged" value={c.noop_unchanged ?? 0} />
+            <CounterCell label="Rejected (subfolder)" value={c.rejected_subfolder ?? 0} />
             <CounterCell label="Errors" value={c.errors} variant="error" />
             <CounterCell label="Skipped dirs" value={c.dirs_skipped_permission} />
           </div>
