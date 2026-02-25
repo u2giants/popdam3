@@ -14,6 +14,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveCo
 import { NasStorageTab, ImageOutputTab, ScanningTab, LiveScanMonitor, UpdateAgentButton } from "@/components/settings/WorkerManagementTab";
 import ApisTab from "@/components/settings/ApisTab";
 import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
+import InstallBundleTab from "@/components/settings/InstallBundleTab";
 import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
 
 function CopyButton({ text }: { text: string }) {
@@ -782,6 +783,7 @@ export default function SettingsPage() {
           <TabsTrigger value="image-output">Image Output</TabsTrigger>
           <TabsTrigger value="scanning">Scanning</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="install-bundles">Install Bundles</TabsTrigger>
           <TabsTrigger value="windows-agent">Windows Agent</TabsTrigger>
           <TabsTrigger value="taxonomy">APIs & Tagging</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
@@ -806,6 +808,10 @@ export default function SettingsPage() {
           <AgentThroughputChart />
           <LiveScanMonitor />
           <UpdateAgentButton />
+        </TabsContent>
+
+        <TabsContent value="install-bundles" className="space-y-4">
+          <InstallBundleTab />
         </TabsContent>
 
         <TabsContent value="windows-agent" className="space-y-4">
