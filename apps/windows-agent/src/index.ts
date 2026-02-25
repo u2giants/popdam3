@@ -33,6 +33,7 @@ let configReceived = false;
 
 let cloudNasHost = config.nasHost;
 let cloudNasShare = config.nasShare;
+let cloudNasMountPath = config.nasMountPath;
 let cloudSpacesBucket = config.doSpacesBucket;
 let cloudSpacesRegion = config.doSpacesRegion;
 let cloudSpacesEndpoint = config.doSpacesEndpoint;
@@ -72,7 +73,7 @@ function toUncPath(relativePath: string): string {
 
   // If a local mount path is configured (e.g. Z:), use it
   // directly — Sharp and Ghostscript can't read UNC paths
-  const mountPath = (config.nasMountPath || "").trim()
+  const mountPath = (cloudNasMountPath || "").trim()
     .replace(/\\+$/, ""); // strip trailing backslash
   if (mountPath) {
     return `${mountPath}\\${windowsPath}`;
@@ -93,6 +94,8 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (wa.nas_share) cloudNasShare = wa.nas_share;
     if (wa.nas_username) cloudNasUsername = wa.nas_username;
     if (wa.nas_password) cloudNasPassword = wa.nas_password;
+    // nas_mount_path can be empty string (meaning "use UNC"), so always apply if present
+    if (wa.nas_mount_path !== undefined) cloudNasMountPath = wa.nas_mount_path;
   }
   if (response.config?.do_spaces) {
     const sp = response.config.do_spaces;
