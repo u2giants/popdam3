@@ -1365,7 +1365,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     // Set primary and count — need to query ALL assets for this group (might span batches)
     const { data: allGroupAssets } = await db
       .from("assets")
-      .select("id, filename, file_type, created_at, modified_at, workflow_status")
+      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
       .eq("style_group_id", group.id)
       .eq("is_deleted", false);
 
@@ -1508,7 +1508,7 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
   for (const groupId of affectedGroupIds) {
     const { data: remaining } = await db
       .from("assets")
-      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url")
+      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
       .eq("style_group_id", groupId)
       .eq("is_deleted", false);
 

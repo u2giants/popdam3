@@ -584,7 +584,7 @@ async function assignToStyleGroup(
 
     const { data: groupAssets } = await db
       .from("assets")
-      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url")
+      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
       .eq("style_group_id", group.id)
       .eq("is_deleted", false);
 
