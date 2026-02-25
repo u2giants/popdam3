@@ -1,17 +1,17 @@
 /**
  * Preflight health checks for the Windows Render Agent.
  *
- * Checks NAS accessibility and Illustrator COM readiness before
- * allowing the agent to claim render jobs.
+ * Checks NAS accessibility (with drive mapping) and Illustrator COM
+ * readiness before allowing the agent to claim render jobs.
  */
 
+import { writeFile, unlink, mkdtemp } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { access, writeFile, unlink, mkdtemp } from "node:fs/promises";
-import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger";
+import { ensureNasMapped } from "./nas-mapper";
 
 const execFileAsync = promisify(execFile);
 
@@ -23,38 +23,6 @@ export interface HealthStatus {
   illustratorHealthy: boolean;
   lastPreflightError: string | null;
   lastPreflightAt: string | null;
-}
-
-// ── NAS check ───────────────────────────────────────────────────
-
-async function checkNasAccess(
-  mountPath: string | undefined,
-  nasHost: string,
-  nasShare: string,
-): Promise<{ ok: boolean; error?: string }> {
-  let targetPath: string;
-
-  if (mountPath && mountPath.trim()) {
-    // Mapped drive mode — check the root of the mount
-    targetPath = mountPath.trim().replace(/\\+$/, "") + "\\";
-  } else if (nasHost) {
-    // UNC mode
-    const host = nasHost.replace(/^\\+/, "");
-    const share = nasShare.replace(/^\\+/, "").replace(/^\/+/, "");
-    targetPath = `\\\\${host}\\${share}`;
-  } else {
-    return { ok: false, error: "No NAS path configured (neither mount path nor UNC host)" };
-  }
-
-  try {
-    await access(targetPath, constants.R_OK);
-    return { ok: true };
-  } catch (e) {
-    return {
-      ok: false,
-      error: `Cannot read NAS path "${targetPath}": ${(e as Error).message}`,
-    };
-  }
 }
 
 // ── Illustrator COM smoke test ──────────────────────────────────
@@ -90,11 +58,10 @@ async function checkIllustratorReady(): Promise<{ ok: boolean; error?: string }>
       "//E:VBScript",
       vbsPath,
     ], {
-      timeout: 30_000, // 30s — Illustrator can be slow to start
+      timeout: 30_000,
       windowsHide: true,
     });
 
-    // Cleanup
     await unlink(vbsPath).catch(() => {});
 
     if (stderr && stderr.includes("COM_ERROR")) {
@@ -127,10 +94,18 @@ export async function runPreflight(opts: {
   mountPath?: string;
   nasHost: string;
   nasShare: string;
+  nasUsername: string;
+  nasPassword: string;
 }): Promise<HealthStatus> {
   logger.info("Running preflight health checks...");
 
-  const nasResult = await checkNasAccess(opts.mountPath, opts.nasHost, opts.nasShare);
+  // NAS check — map drive (or authenticate UNC) then verify
+  const nasResult = await ensureNasMapped(opts.mountPath, {
+    host: opts.nasHost,
+    share: opts.nasShare,
+    username: opts.nasUsername,
+    password: opts.nasPassword,
+  });
   if (nasResult.ok) {
     logger.info("  ✓ NAS access OK");
   } else {

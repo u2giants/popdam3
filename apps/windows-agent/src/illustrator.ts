@@ -11,40 +11,15 @@
  *   - Node.js running on Windows with access to cscript.exe
  */
 
+import { writeFile, readFile, unlink, mkdtemp } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { writeFile, readFile, unlink, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { config } from "./config";
 import { logger } from "./logger";
 
 const execFileAsync = promisify(execFile);
-
-const THUMB_MAX_DIM = 800; // px — match bridge-agent output
-
-/**
- * Mount a NAS share using net use before rendering.
- */
-async function mountNasShare(
-  host: string,
-  share: string,
-  username: string,
-  password: string,
-): Promise<void> {
-  if (!host || !username || !password) return;
-  try {
-    await execFileAsync("net", [
-      "use", `\\\\${host}\\${share}`, "/delete", "/yes",
-    ]).catch(() => {});
-    await execFileAsync("net", [
-      "use", `\\\\${host}\\${share}`,
-      `/user:${username}`, password,
-    ]);
-  } catch (e) {
-    console.warn("net use warning:", (e as Error).message);
-  }
-}
 
 /**
  * Generate a VBScript that opens an AI file in Illustrator,
@@ -149,21 +124,9 @@ export interface RenderResult {
  */
 export async function renderWithIllustrator(
   filePath: string,
-  nasCredentials?: {
-    host: string;
-    share: string;
-    username: string;
-    password: string;
-  },
 ): Promise<RenderResult> {
-  if (nasCredentials?.host && nasCredentials?.username) {
-    await mountNasShare(
-      nasCredentials.host,
-      nasCredentials.share,
-      nasCredentials.username,
-      nasCredentials.password,
-    );
-  }
+  // NAS mapping is now handled centrally by ensureNasMapped() in preflight.
+  // No per-job mount needed here.
 
   const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-ai-render-"));
   const vbsPath = path.join(tmpDir, "render.vbs");
