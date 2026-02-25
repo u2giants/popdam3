@@ -90,26 +90,26 @@ export default function DownloadsPage() {
               <Monitor className="h-5 w-5 text-primary" />
               <CardTitle className="text-lg">Windows Render Agent</CardTitle>
             </div>
-            <CardDescription>
-              Optional. Runs on a Windows PC with Adobe Illustrator installed.
-              Renders <code>.ai</code> files that can't be thumbnailed on the NAS.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">Windows</Badge>
-              <Badge variant="outline">Adobe Illustrator</Badge>
-            </div>
+             <CardDescription>
+               Optional. Runs on a Windows PC to share the rendering workload with the Bridge Agent.
+               Uses Sharp + Ghostscript to thumbnail <code>.ai</code> and <code>.psd</code> files.
+             </CardDescription>
+           </CardHeader>
+           <CardContent className="space-y-4">
+             <div className="flex items-center gap-2">
+               <Badge variant="secondary">Windows</Badge>
+               <Badge variant="outline">Ghostscript</Badge>
+             </div>
 
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">How it works:</p>
-              <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-                <li>Claims render jobs from the cloud queue</li>
-                <li>Opens <code>.ai</code> files via Illustrator ExtendScript API</li>
-                <li>Renders to JPEG and uploads to DigitalOcean Spaces</li>
-                <li>Reports completion back to the cloud</li>
-              </ol>
-            </div>
+             <div className="space-y-1">
+               <p className="text-xs text-muted-foreground">How it works:</p>
+               <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                 <li>Claims render jobs from the cloud queue</li>
+                 <li>Renders thumbnails using Sharp and Ghostscript</li>
+                 <li>Uploads to DigitalOcean Spaces</li>
+                 <li>Reports completion back to the cloud</li>
+               </ol>
+             </div>
 
             <Button variant="outline" size="sm" asChild>
               <a
