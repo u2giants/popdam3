@@ -5,6 +5,8 @@
  * - Does NOT follow symlinks
  * - Tracks counters for all error conditions
  * - Yields file candidates (.psd, .ai) with stat info
+ *
+ * Last reviewed: 2026-02-24
  */
 
 import { readdir, stat, lstat } from "node:fs/promises";
