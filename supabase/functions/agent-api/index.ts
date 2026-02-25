@@ -394,9 +394,9 @@ async function handleHeartbeat(
     memory_limit_mb: guard.default_memory_limit_mb ?? 512,
     concurrency: guard.default_thumb_concurrency ?? 2,
   };
+  const now = new Date();
 
   if (schedules && schedules.length > 0) {
-    const now = new Date();
     const dayOfWeek = now.getUTCDay();
     const hour = now.getUTCHours();
 
@@ -528,7 +528,7 @@ async function handleHeartbeat(
     const WINDOWS_OFFLINE_MS = 5 * 60 * 1000;
     windowsHealthy = windowsAgents.some((wa) => {
       const lastHb = wa.last_heartbeat ? new Date(wa.last_heartbeat).getTime() : 0;
-      if (lastHb === 0 || now - lastHb > WINDOWS_OFFLINE_MS) return false;
+      if (lastHb === 0 || now.getTime() - lastHb > WINDOWS_OFFLINE_MS) return false;
       const wMeta = (wa.metadata as Record<string, unknown>) || {};
       const wHealth = wMeta.health as Record<string, unknown> | undefined;
       return wHealth?.healthy === true;
