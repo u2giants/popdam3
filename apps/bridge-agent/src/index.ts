@@ -121,11 +121,42 @@ function startHeartbeat() {
   const INTERVAL_MS = 30_000;
   setInterval(async () => {
     try {
+      // Build diagnostics payload for Doctor
+      const effectiveRoots = getEffectiveScanRoots();
+      const effectiveMountRoot = cloudMountRoot || config.nasContainerMountRoot;
+      const diagnostics: Record<string, unknown> = {
+        mount_root_path: effectiveMountRoot,
+        scan_roots: effectiveRoots,
+      };
+
+      // Validate mount root exists
+      try {
+        await stat(effectiveMountRoot);
+        diagnostics.mount_root_exists = true;
+      } catch {
+        diagnostics.mount_root_exists = false;
+      }
+
+      // Check each scan root
+      const unreadableRoots: string[] = [];
+      const readableRoots: string[] = [];
+      for (const root of effectiveRoots) {
+        try {
+          await stat(root);
+          readableRoots.push(root);
+        } catch {
+          unreadableRoots.push(root);
+        }
+      }
+      diagnostics.readable_roots = readableRoots;
+      diagnostics.unreadable_roots = unreadableRoots;
+      diagnostics.scan_roots_readable = unreadableRoots.length === 0;
+
       const response = await api.heartbeat(agentId, { ...counters }, lastError, {
         image_tag: imageTag,
         version: packageVersion,
         build_sha: buildSha,
-      });
+      }, diagnostics);
       logger.debug("Heartbeat sent");
 
       // Process config sync from heartbeat response
