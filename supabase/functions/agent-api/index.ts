@@ -261,6 +261,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "WINDOWS_AGENT_NAS_USER",
   "WINDOWS_AGENT_NAS_PASS",
   "WINDOWS_AGENT_NAS_MOUNT_PATH",
+  "WINDOWS_AGENT_RENDER_CONCURRENCY",
   "DO_SPACES_KEY",
   "DO_SPACES_SECRET",
   "AGENT_UPDATE_REQUEST",
@@ -317,8 +318,6 @@ async function handleHeartbeat(
     health: health ? {
       healthy: health.healthy ?? false,
       nas_healthy: health.nasHealthy ?? false,
-      illustrator_healthy: health.illustratorHealthy ?? false,
-      illustrator_crash_dialog: health.illustratorCrashDialog ?? false,
       last_preflight_error: health.lastPreflightError ?? null,
       last_preflight_at: health.lastPreflightAt ?? null,
     } : metadata.health,
@@ -579,6 +578,7 @@ async function handleHeartbeat(
         nas_username: ((configMap.WINDOWS_AGENT_NAS_USER as string) || ""),
         nas_password: ((configMap.WINDOWS_AGENT_NAS_PASS as string) || ""),
         nas_mount_path: ((configMap.WINDOWS_AGENT_NAS_MOUNT_PATH as string) || ""),
+        render_concurrency: parseInt((configMap.WINDOWS_AGENT_RENDER_CONCURRENCY as string) || "0") || 0,
       },
     },
     commands: {

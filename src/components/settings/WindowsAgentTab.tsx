@@ -360,6 +360,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
   const [nasUser, setNasUser] = useState("");
   const [nasPass, setNasPass] = useState("");
   const [showNasPass, setShowNasPass] = useState(false);
+  const [renderConcurrency, setRenderConcurrency] = useState("6");
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -369,6 +370,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
       setNasMountPath(getConfigVal("WINDOWS_AGENT_NAS_MOUNT_PATH"));
       setNasUser(getConfigVal("WINDOWS_AGENT_NAS_USER"));
       setNasPass(getConfigVal("WINDOWS_AGENT_NAS_PASS"));
+      setRenderConcurrency(getConfigVal("WINDOWS_AGENT_RENDER_CONCURRENCY") || "6");
       setInitialized(true);
     }
   }, [configData, initialized]);
@@ -384,6 +386,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           WINDOWS_AGENT_NAS_MOUNT_PATH: nasMountPath.trim().replace(/\\+$/, ''),
           WINDOWS_AGENT_NAS_USER: nasUser,
           WINDOWS_AGENT_NAS_PASS: nasPass,
+          WINDOWS_AGENT_RENDER_CONCURRENCY: String(Math.min(32, Math.max(1, parseInt(renderConcurrency) || 6))),
         },
       });
     },
@@ -538,6 +541,19 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
             <label className="text-xs text-muted-foreground font-medium">NAS Mount Path <span className="text-muted-foreground/60">(optional)</span></label>
             <Input placeholder="Z:\mac\Decor" value={nasMountPath} onChange={(e) => setNasMountPath(e.target.value)} className="font-mono text-xs" />
             <p className="text-xs text-muted-foreground">If the NAS share is mapped to a drive letter (e.g. Z:), set it here. Sharp and Ghostscript cannot read UNC paths — a mapped drive is required for reliable rendering.</p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground font-medium">Render Concurrency</label>
+            <Input
+              type="number"
+              min={1}
+              max={32}
+              placeholder="6"
+              value={renderConcurrency}
+              onChange={(e) => setRenderConcurrency(e.target.value)}
+              className="font-mono text-xs max-w-[120px]"
+            />
+            <p className="text-xs text-muted-foreground">Number of parallel render jobs (1–32). Default: 6.</p>
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">NAS Username</label>
