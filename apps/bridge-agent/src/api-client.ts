@@ -56,6 +56,7 @@ export interface Counters {
   rejected_wrong_type: number;
   rejected_junk_file: number;
   noop_unchanged: number;
+  rejected_subfolder: number;
 }
 
 export interface HeartbeatResponse {
@@ -100,7 +101,7 @@ export interface IngestPayload {
 }
 
 export interface IngestResult {
-  action: "created" | "updated" | "moved" | "noop";
+  action: "created" | "updated" | "moved" | "noop" | "rejected_subfolder" | "skipped";
   asset_id: string;
 }
 

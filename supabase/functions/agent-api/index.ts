@@ -255,6 +255,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "PATH_TEST_REQUEST",
   "AUTO_SCAN_CONFIG",
   "SCAN_REQUEST",
+  "SCAN_ALLOWED_SUBFOLDERS",
   "WINDOWS_AGENT_NAS_HOST",
   "WINDOWS_AGENT_NAS_SHARE",
   "WINDOWS_AGENT_NAS_USER",
@@ -503,6 +504,7 @@ async function handleHeartbeat(
         roots: scanRoots,
         batch_size: (guard.batch_size as number) || pollingConfig.batch_size || 100,
         scan_min_date: (configMap.SCAN_MIN_DATE as string) || null,
+        allowed_subfolders: (configMap.SCAN_ALLOWED_SUBFOLDERS as string[]) || [],
         adaptive_polling: {
           idle_seconds: pollingConfig.idle_seconds ?? 30,
           active_seconds: pollingConfig.active_seconds ?? 5,
@@ -527,6 +529,8 @@ async function handleHeartbeat(
     },
   });
 }
+
+// ── Style group assignment helper ────────────────────────────────────
 
 // ── Style group assignment helper ────────────────────────────────────
 
@@ -580,39 +584,9 @@ async function assignToStyleGroup(
 
     if (!group) return;
 
+    // Only assign group ID — skip stats update during ingest for performance.
+    // Run "Rebuild Style Groups" after scan completes to update primary_asset_id, asset_count, etc.
     await db.from("assets").update({ style_group_id: group.id }).eq("id", assetId);
-
-    const { data: groupAssets } = await db
-      .from("assets")
-      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
-      .eq("style_group_id", group.id)
-      .eq("is_deleted", false);
-
-    if (!groupAssets || groupAssets.length === 0) return;
-
-    const primaryId = selectPrimaryAsset(groupAssets);
-
-    const statusPriority = ["licensor_approved", "customer_adopted", "in_process", "in_development", "concept_approved", "freelancer_art", "product_ideas"];
-    let bestStatus = "other";
-    for (const s of statusPriority) {
-      if (groupAssets.some((a: Record<string, unknown>) => a.workflow_status === s)) {
-        bestStatus = s;
-        break;
-      }
-    }
-
-    const latestFileDate = groupAssets.reduce((max: string, a: any) => {
-      const d = a.modified_at ?? a.created_at;
-      return d > max ? d : max;
-    }, "1970-01-01T00:00:00.000Z");
-
-    await db.from("style_groups").update({
-      asset_count: groupAssets.length,
-      primary_asset_id: primaryId,
-      workflow_status: bestStatus as any,
-      latest_file_date: latestFileDate,
-      updated_at: new Date().toISOString(),
-    }).eq("id", group.id);
   } catch (e) {
     console.error("assignToStyleGroup error (non-fatal):", e);
   }
@@ -661,21 +635,27 @@ async function handleIngest(
     return json({ ok: true, action: "skipped", reason: "junk file" });
   }
 
-  // ── Decor folder filter: only process files under Decor/Character Licensed or Decor/Generic Decor ──
+  // ── Configurable subfolder filter ──
+  // If SCAN_ALLOWED_SUBFOLDERS is set and non-empty, only allow files under those subfolders of "Decor/"
+  // If not set or empty, allow all files through (no filter)
   const ingestParts = relativePath.split("/");
-  const ingestDecorIndex = ingestParts.findIndex(
-    (p) => p.toLowerCase() === "decor",
-  );
-
-  if (ingestDecorIndex === -1) {
-    return json({ ok: true, action: "noop", reason: "not under Decor" });
-  }
-
-  const ingestSubFolder = (ingestParts[ingestDecorIndex + 1] || "").toLowerCase();
-  const ALLOWED_SUBFOLDERS = ["character licensed", "generic decor"];
-
-  if (!ALLOWED_SUBFOLDERS.includes(ingestSubFolder)) {
-    return json({ ok: true, action: "noop", reason: "ignored folder" });
+  const db0 = serviceClient();
+  const { data: subfolderConfig } = await db0
+    .from("admin_config")
+    .select("value")
+    .eq("key", "SCAN_ALLOWED_SUBFOLDERS")
+    .maybeSingle();
+  const allowedSubfolders = Array.isArray(subfolderConfig?.value) ? subfolderConfig.value as string[] : [];
+  if (allowedSubfolders.length > 0) {
+    const ingestDecorIndex = ingestParts.findIndex(
+      (p) => p.toLowerCase() === "decor",
+    );
+    if (ingestDecorIndex !== -1) {
+      const ingestSubFolder = (ingestParts[ingestDecorIndex + 1] || "").toLowerCase();
+      if (!allowedSubfolders.includes(ingestSubFolder)) {
+        return json({ ok: true, action: "rejected_subfolder", reason: "ignored folder" });
+      }
+    }
   }
 
   // Defense in depth: reject files inside ___OLD folders
@@ -900,7 +880,7 @@ async function handleIngest(
 
   assignToStyleGroup(relativePath, newAsset.id, skuFields, db).catch(() => {});
 
-  return json({ ok: true, action: "created", asset_id: newAsset.id });
+  return json({ ok: true, action: "created", asset_id: newAsset.id, needs_group_rebuild: true });
 }
 
 // ── Route: update-asset ─────────────────────────────────────────────

@@ -18,6 +18,7 @@ export interface ScanCounters {
   rejected_wrong_type?: number;
   rejected_junk_file?: number;
   noop_unchanged?: number;
+  rejected_subfolder?: number;
 }
 
 export interface AgentRecord {
@@ -56,6 +57,7 @@ const emptyCounters: ScanCounters = {
   roots_invalid: 0, roots_unreadable: 0, dirs_skipped_permission: 0,
   files_stat_failed: 0, files_total_encountered: 0,
   rejected_wrong_type: 0, rejected_junk_file: 0, noop_unchanged: 0,
+  rejected_subfolder: 0,
 };
 
 function parseCounters(raw: unknown): ScanCounters | null {
