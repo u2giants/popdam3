@@ -52,18 +52,21 @@ export async function ensureNasMapped(
   if (!host) {
     return {
       ok: false,
-      error: "NAS host not configured — the cloud has not delivered NAS credentials to this agent yet. " +
-        "Verify that WINDOWS_AGENT_NAS_HOST is saved in PopDAM Settings → Windows Agent → NAS Access, " +
-        "then wait for the next heartbeat (≤30s). " +
-        `Current values received: host="${host || "(empty)}", share="${share || "(empty)}", ` +
-        `mount_path="${mountPath || "(empty)}", username="${username ? "(set)" : "(empty)"}".`,
+      error: "NAS host not configured. The cloud has not delivered NAS credentials to this agent yet. " +
+        "Verify that WINDOWS_AGENT_NAS_HOST is saved in PopDAM Settings > Windows Agent > NAS Access, " +
+        "then wait for the next heartbeat (30s). " +
+        "Current values received: host=" + JSON.stringify(host || "(empty)") +
+        ", share=" + JSON.stringify(share || "(empty)") +
+        ", mount_path=" + JSON.stringify(mountPath || "(empty)") +
+        ", username=" + JSON.stringify(username ? "(set)" : "(empty)") + ".",
     };
   }
   if (!share) {
     return {
       ok: false,
-      error: `NAS share not configured — host="${host}" was received but share is empty. ` +
-        "Set WINDOWS_AGENT_NAS_SHARE in PopDAM Settings → Windows Agent → NAS Access.",
+      error: "NAS share not configured. host=" + JSON.stringify(host) +
+        " was received but share is empty. " +
+        "Set WINDOWS_AGENT_NAS_SHARE in PopDAM Settings > Windows Agent > NAS Access.",
     };
   }
 
