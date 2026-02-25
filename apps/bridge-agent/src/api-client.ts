@@ -80,6 +80,16 @@ export interface Counters {
   rejected_subfolder: number;
 }
 
+export interface WindowsRenderPolicy {
+  mode: "fallback_only" | "shared" | "primary";
+  shared_percent: number;
+  shared_types: ("psd" | "ai")[];
+  shared_min_mb: number;
+  require_windows_healthy: boolean;
+  max_pending_jobs: number;
+  final_fallback_on_local_failure: boolean;
+}
+
 export interface HeartbeatResponse {
   ok: boolean;
   config?: {
@@ -87,6 +97,7 @@ export interface HeartbeatResponse {
     scanning?: { container_mount_root: string; roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
     resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
     windows_render_mode?: "fallback_only" | "primary";
+    windows_render_policy?: WindowsRenderPolicy | null;
   };
   commands?: {
     force_scan: boolean;

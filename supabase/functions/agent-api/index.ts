@@ -266,6 +266,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "AGENT_UPDATE_REQUEST",
   "SCAN_MIN_DATE",
   "WINDOWS_RENDER_MODE",
+  "WINDOWS_RENDER_POLICY",
 ];
 
 async function handleHeartbeat(
@@ -545,6 +546,7 @@ async function handleHeartbeat(
       resource_guard: resourceDirectives,
       auto_scan: autoScanConfig,
       windows_render_mode: (configMap.WINDOWS_RENDER_MODE as string) || "fallback_only",
+      windows_render_policy: (configMap.WINDOWS_RENDER_POLICY as Record<string, unknown>) || null,
       windows_agent: {
         nas_host: ((configMap.WINDOWS_AGENT_NAS_HOST as string) || ""),
         nas_share: ((configMap.WINDOWS_AGENT_NAS_SHARE as string) || ""),
@@ -1129,6 +1131,18 @@ async function handleQueueRender(body: Record<string, unknown>) {
     ) {
       return json({ ok: true, job_id: null, skipped: true, reason: "junk file" });
     }
+  }
+
+  // Idempotent: check for existing pending/claimed/processing job for this asset
+  const { data: existing } = await db
+    .from("render_queue")
+    .select("id, status")
+    .eq("asset_id", assetId)
+    .in("status", ["pending", "claimed", "processing"])
+    .maybeSingle();
+
+  if (existing) {
+    return json({ ok: true, job_id: existing.id, already_queued: true });
   }
 
   const { data, error } = await db
