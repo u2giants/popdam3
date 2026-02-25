@@ -164,38 +164,34 @@ jobs:
             nsDialogs::Create 1018
             Pop $ConfigDialog
 
-            ${NSD_CreateLabel} 0 0 100% 14u "PopDAM Server URL"
+            ${NSD_CreateLabel} 0 0 100% 12u "PopDAM Server URL"
             Pop $0
-            ${NSD_CreateText} 0 16u 100% 14u "https://vklanxwmaeqjbwtmnygj.supabase.co"
+            ${NSD_CreateText} 0 12u 100% 13u "https://vklanxwmaeqjbwtmnygj.supabase.co"
             Pop $ServerInput
 
-            ${NSD_CreateLabel} 0 40u 100% 14u "Pairing Code (from PopDAM Settings)"
+            ${NSD_CreateLabel} 0 30u 100% 12u "Pairing Code (from PopDAM Settings → Windows Agent → Pairing)"
             Pop $0
-            ${NSD_CreateText} 0 56u 100% 14u ""
+            ${NSD_CreateText} 0 42u 100% 13u ""
             Pop $PairingInput
             SendMessage $PairingInput ${EM_SETCUEBANNER} 1 "STR:XXXX-XXXX-XXXX-XXXX"
 
-            ${NSD_CreateLabel} 0 78u 100% 14u "Generate this code in PopDAM Settings → Windows Agent → Pairing."
+            ${NSD_CreateGroupBox} 0 62u 100% 58u "NAS Drive Mapping (optional)"
             Pop $0
 
-            ${NSD_CreateGroupBox} 0 100u 100% 72u "NAS Drive Mapping (optional)"
+            ${NSD_CreateLabel} 10u 76u 80u 12u "Drive Letter:"
             Pop $0
-
-            ${NSD_CreateLabel} 10u 116u 80u 14u "Drive Letter:"
-            Pop $0
-            ${NSD_CreateText} 94u 114u 24u 14u ""
+            ${NSD_CreateText} 94u 74u 24u 13u ""
             Pop $DriveInput
-
-            ${NSD_CreateLabel} 130u 116u 14u 14u ":"
+            ${NSD_CreateLabel} 120u 76u 14u 12u ":"
             Pop $0
 
-            ${NSD_CreateLabel} 10u 140u 80u 14u "NAS UNC Path:"
+            ${NSD_CreateLabel} 10u 93u 80u 12u "NAS UNC Path:"
             Pop $0
-            ${NSD_CreateText} 94u 138u 200u 14u ""
+            ${NSD_CreateText} 94u 91u 200u 13u ""
             Pop $NasUNCInput
             SendMessage $NasUNCInput ${EM_SETCUEBANNER} 1 "STR:\\server\share"
 
-            ${NSD_CreateLabel} 10u 158u 280u 12u "Maps a drive letter to a NAS share so the agent can find design files."
+            ${NSD_CreateLabel} 10u 108u 280u 10u "Maps a drive letter so the agent can find design files on the NAS."
             Pop $0
 
             nsDialogs::Show
