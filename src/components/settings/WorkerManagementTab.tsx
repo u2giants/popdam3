@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight, FlaskConical, CheckCircle2, XCircle, Loader2, RefreshCw } from "lucide-react";
+import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight, FlaskConical, CheckCircle2, XCircle, Loader2, RefreshCw, Square, FolderOpen, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useScanProgress, type ScanProgress } from "@/hooks/useScanProgress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 // ── DigitalOcean Spaces ──────────────────────────────────────────────
 
@@ -1207,9 +1209,171 @@ function UpdateAgentButton() {
   );
 }
 
+// ── Live Scan Monitor ────────────────────────────────────────────────
+
+function useElapsed(updatedAt: string | undefined, active: boolean): string {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  if (!updatedAt) return "0:00";
+  const elapsed = Math.max(0, now - new Date(updatedAt).getTime());
+  const totalSec = Math.floor(elapsed / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min >= 60) {
+    const hr = Math.floor(min / 60);
+    const rm = min % 60;
+    return `${hr}:${String(rm).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
+  return `${min}:${String(sec).padStart(2, "0")}`;
+}
+
+function formatTimeAgo(ts: string | undefined): string {
+  if (!ts) return "—";
+  const ms = Date.now() - new Date(ts).getTime();
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  return `${hr}h ${min % 60}m ago`;
+}
+
+function CounterCell({ label, value, variant }: { label: string; value: number; variant?: "error" }) {
+  return (
+    <div className="flex justify-between items-baseline">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={cn("text-sm font-semibold tabular-nums", variant === "error" && value > 0 && "text-destructive")}>
+        {value.toLocaleString()}
+      </span>
+    </div>
+  );
+}
+
+function LiveScanMonitor() {
+  const scanProgress = useScanProgress();
+  const { call } = useAdminApi();
+  const [lastCompleted, setLastCompleted] = useState<ScanProgress | null>(null);
+
+  // Store last completed/failed scan
+  useEffect(() => {
+    if (scanProgress.status === "completed" || scanProgress.status === "failed") {
+      setLastCompleted(scanProgress);
+    }
+  }, [scanProgress.status]);
+
+  const isRunning = scanProgress.status === "running";
+  const isStale = scanProgress.status === "stale";
+  const isActive = isRunning || isStale;
+  const elapsed = useElapsed(scanProgress.updated_at, isActive);
+
+  const displayProgress = isActive ? scanProgress : (lastCompleted ?? scanProgress);
+  const c = displayProgress.counters;
+
+  const handleStop = async () => {
+    try {
+      await call("stop-scan");
+      toast.success("Stop requested — agent will abort shortly.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to stop scan");
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      await call("reset-scan-state");
+      toast.success("Scan state reset.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to reset scan state");
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Gauge className="h-4 w-4" /> Live Scan Monitor
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Status indicator */}
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              "h-2.5 w-2.5 rounded-full shrink-0",
+              isRunning && "bg-[hsl(var(--success))] animate-pulse",
+              isStale && "bg-[hsl(var(--warning))]",
+              scanProgress.status === "completed" && "bg-[hsl(var(--success))]",
+              scanProgress.status === "failed" && "bg-destructive",
+              scanProgress.status === "idle" && "bg-muted-foreground/40",
+            )}
+          />
+          <span className="text-sm font-medium">
+            {isRunning && "Scanning"}
+            {isStale && "Scan appears stuck"}
+            {scanProgress.status === "completed" && "Last scan completed"}
+            {scanProgress.status === "failed" && "Last scan failed"}
+            {scanProgress.status === "idle" && "No scan in progress"}
+          </span>
+          {isActive && (
+            <span className="text-xs text-muted-foreground tabular-nums">{elapsed} elapsed</span>
+          )}
+          {!isActive && displayProgress.updated_at && (
+            <span className="text-xs text-muted-foreground">{formatTimeAgo(displayProgress.updated_at)}</span>
+          )}
+        </div>
+
+        {/* Stale warning */}
+        {isStale && (
+          <div className="flex items-center gap-2 rounded-md border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.08)] px-3 py-2 text-xs">
+            <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))] shrink-0" />
+            <span>No progress update for over 3 minutes.</span>
+            <Button variant="outline" size="sm" className="ml-auto h-6 text-[10px]" onClick={handleReset}>
+              Reset Scan State
+            </Button>
+          </div>
+        )}
+
+        {/* Counters grid */}
+        {c && (
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-md border border-border bg-muted/30 px-4 py-3">
+            <CounterCell label="Total encountered" value={c.files_total_encountered ?? 0} />
+            <CounterCell label="Candidates (.ai/.psd)" value={c.candidates_found} />
+            <CounterCell label="New assets" value={c.ingested_new} />
+            <CounterCell label="Updated" value={c.updated_existing} />
+            <CounterCell label="Moved" value={c.moved_detected} />
+            <CounterCell label="Unchanged" value={c.noop_unchanged ?? 0} />
+            <CounterCell label="Errors" value={c.errors} variant="error" />
+            <CounterCell label="Skipped dirs" value={c.dirs_skipped_permission} />
+          </div>
+        )}
+
+        {/* Current path */}
+        {isActive && displayProgress.current_path && (
+          <div className="flex items-center gap-2 rounded-md bg-muted/30 px-3 py-2">
+            <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+            <code className="text-xs font-mono text-muted-foreground truncate">{displayProgress.current_path}</code>
+          </div>
+        )}
+
+        {/* Actions */}
+        {isActive && (
+          <Button variant="outline" size="sm" onClick={handleStop} className="gap-1.5 text-destructive hover:text-destructive">
+            <Square className="h-3.5 w-3.5" /> Stop Scan
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function WorkerManagementTab() {
   return (
     <div className="space-y-4">
+      <LiveScanMonitor />
       <UpdateAgentButton />
       <DateCutoffSettings />
       <SpacesConfigSettings />

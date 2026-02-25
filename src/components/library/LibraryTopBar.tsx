@@ -31,6 +31,14 @@ interface LibraryTopBarProps {
   onSync: () => void;
   onStopScan: () => void;
   onRefresh: () => void;
+  scanCurrentPath?: string;
+}
+
+function truncatePath(p: string | undefined): string {
+  if (!p) return "Scanning…";
+  const parts = p.split("/").filter(Boolean);
+  if (parts.length <= 2) return parts.join("/");
+  return "…/" + parts.slice(-2).join("/");
 }
 
 const sortOptions: { value: SortField; label: string }[] = [
@@ -59,6 +67,7 @@ export default function LibraryTopBar({
   onSync,
   onStopScan,
   onRefresh,
+  scanCurrentPath,
 }: LibraryTopBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-overlay px-4 py-3">
@@ -144,7 +153,7 @@ export default function LibraryTopBar({
         title={scanStale ? "Scan appears stuck — use Reset Scan State in Settings" : scanRunning ? "Scanning…" : scanPending ? "Waiting for agent…" : "Trigger scan"}
       >
         <RefreshCw className={cn("h-4 w-4", scanRunning && !scanStale && "animate-spin")} />
-        {scanStale ? "Scan stuck" : scanRunning ? "Scanning…" : "Sync"}
+        {scanStale ? "Scan stuck" : scanRunning ? truncatePath(scanCurrentPath) : "Sync"}
       </Button>
       {scanPending && !scanRunning && (
         <Badge variant="outline" className="gap-1 text-[10px] border-orange-500/50 text-orange-400 animate-pulse">

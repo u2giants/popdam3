@@ -4,6 +4,7 @@ import { useStyleGroups, useStyleGroupCount, useUngroupedCount, type StyleGroup 
 import { useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
+import ScanMonitorBanner from "@/components/library/ScanMonitorBanner";
 import FilterSidebar from "@/components/library/FilterSidebar";
 import StyleGroupGrid from "@/components/library/StyleGroupGrid";
 import StyleGroupListView from "@/components/library/StyleGroupListView";
@@ -183,7 +184,10 @@ export default function LibraryPage() {
         onSync={handleSync}
         onStopScan={handleStopScan}
         onRefresh={handleRefresh}
+        scanCurrentPath={scanProgress.current_path}
       />
+
+      <ScanMonitorBanner scanProgress={scanProgress} onStopScan={handleStopScan} />
 
       {selectedIds.size > 0 && (
         <BulkActionBar
