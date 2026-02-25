@@ -200,7 +200,7 @@ export default function LibraryPage() {
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         {filtersOpen && (
           <FilterSidebar
             filters={filters}
@@ -241,11 +241,14 @@ export default function LibraryPage() {
           </div>
         </div>
 
+        {/* Detail panel: overlay on < 1400px, push on wider screens */}
         {detailGroup && (
-          <StyleGroupDetailPanel
-            group={detailGroup}
-            onClose={() => setDetailGroupId(null)}
-          />
+          <div className="max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
+            <StyleGroupDetailPanel
+              group={detailGroup}
+              onClose={() => setDetailGroupId(null)}
+            />
+          </div>
         )}
       </div>
     </div>

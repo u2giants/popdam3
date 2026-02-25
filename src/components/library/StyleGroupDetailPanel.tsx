@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
 import AssetDetailPanel from "@/components/library/AssetDetailPanel";
@@ -14,6 +15,7 @@ import {
   X, ImageOff, Copy, Check, Star, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 interface StyleGroupDetailPanelProps {
   group: StyleGroup;
@@ -75,6 +77,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(group.thumbnail_url);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const isNarrow = useMediaQuery("(max-width: 1023px)");
 
   // Fetch all assets in this group (full data for AssetDetailPanel)
   const { data: groupAssets, isLoading: assetsLoading } = useQuery({
@@ -136,6 +139,25 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const thumbStrip = (groupAssets ?? []).filter((a) => !!a.thumbnail_url);
 
   const selectedAsset = groupAssets?.find((a) => a.id === selectedAssetId) ?? null;
+
+  // Render the asset detail either side-by-side or as a bottom sheet
+  const assetDetailContent = selectedAsset ? (
+    isNarrow ? (
+      <Sheet open={!!selectedAsset} onOpenChange={(open) => { if (!open) setSelectedAssetId(null); }}>
+        <SheetContent side="bottom" className="h-[70vh] p-0 overflow-auto">
+          <AssetDetailPanel
+            asset={selectedAsset}
+            onClose={() => setSelectedAssetId(null)}
+          />
+        </SheetContent>
+      </Sheet>
+    ) : (
+      <AssetDetailPanel
+        asset={selectedAsset}
+        onClose={() => setSelectedAssetId(null)}
+      />
+    )
+  ) : null;
 
   return (
     <TooltipProvider>
@@ -303,14 +325,12 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
           </ScrollArea>
         </div>
 
-        {/* Asset detail panel (opens to the right when a file is selected) */}
-        {selectedAsset && (
-          <AssetDetailPanel
-            asset={selectedAsset}
-            onClose={() => setSelectedAssetId(null)}
-          />
-        )}
+        {/* Asset detail panel: side-by-side on wide screens, Sheet on narrow */}
+        {!isNarrow && assetDetailContent}
       </div>
+
+      {/* Sheet-based asset detail for narrow screens */}
+      {isNarrow && assetDetailContent}
 
       {/* Lightbox */}
       {lightboxUrl && (
