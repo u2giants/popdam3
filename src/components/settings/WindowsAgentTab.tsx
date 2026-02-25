@@ -122,6 +122,15 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
               const offlineMs = lastHb > 0 ? Date.now() - lastHb : Infinity;
               const canRemove = !isOn && offlineMs > ONE_HOUR;
 
+              // Health payload from preflight
+              const meta = agent.metadata as Record<string, unknown> | undefined;
+              const health = meta?.health as Record<string, unknown> | undefined;
+              const isHealthy = health?.healthy === true;
+              const nasHealthy = health?.nas_healthy === true;
+              const illustratorHealthy = health?.illustrator_healthy === true;
+              const preflightError = health?.last_preflight_error as string | null;
+              const hasHealth = health !== undefined;
+
               return (
                 <div key={agent.id as string} className="border border-border rounded-md p-3 space-y-2">
                   <div className="flex items-center gap-2">
@@ -130,6 +139,11 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     <Badge variant={isOn ? "default" : "destructive"}>
                       {isOn ? "Online" : "Offline"}
                     </Badge>
+                    {isOn && hasHealth && (
+                      <Badge variant={isHealthy ? "default" : "destructive"} className={isHealthy ? "bg-[hsl(var(--success))] text-[hsl(var(--success-foreground,0_0%_100%))]" : ""}>
+                        {isHealthy ? "Healthy" : "Unhealthy"}
+                      </Badge>
+                    )}
                     {canRemove && (
                       <Button
                         variant="ghost"
@@ -151,6 +165,26 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     <div>Last heartbeat: {agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}</div>
                     <div>Pending render jobs: <span className="text-foreground font-semibold">{pendingRenders}</span></div>
                   </div>
+                  {isOn && hasHealth && (
+                    <div className="text-xs space-y-1 mt-1">
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1">
+                          <span className={`inline-block h-1.5 w-1.5 rounded-full ${nasHealthy ? "bg-[hsl(var(--success))]" : "bg-destructive"}`} />
+                          NAS Access
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className={`inline-block h-1.5 w-1.5 rounded-full ${illustratorHealthy ? "bg-[hsl(var(--success))]" : "bg-destructive"}`} />
+                          Illustrator COM
+                        </span>
+                      </div>
+                      {!isHealthy && preflightError && (
+                        <div className="flex items-start gap-1.5 text-destructive bg-destructive/10 rounded px-2 py-1.5 mt-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                          <span className="break-all">{preflightError}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
