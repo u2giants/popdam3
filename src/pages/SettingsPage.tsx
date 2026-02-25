@@ -318,6 +318,35 @@ function AgentStatusSection() {
                   {agent.last_error && <div className="text-destructive">Last error: {agent.last_error as string}</div>}
                   {agent.key_preview && <div>Key hash: {agent.key_preview as string}</div>}
                 </div>
+                {/* Version info for bridge agents */}
+                {(() => {
+                  const vi = agent.version_info as Record<string, unknown> | null;
+                  if (!vi) return null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
+                      {vi.version && (
+                        <Badge variant="outline" className="text-[10px] font-mono gap-1">
+                          v{vi.version as string}
+                        </Badge>
+                      )}
+                      {vi.image_tag && (
+                        <Badge variant="secondary" className="text-[10px] font-mono gap-1">
+                          {vi.image_tag as string}
+                        </Badge>
+                      )}
+                      {vi.build_sha && (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          sha:{(vi.build_sha as string).slice(0, 7)}
+                        </span>
+                      )}
+                      {vi.last_reported_at && (
+                        <span className="text-[10px] text-muted-foreground">
+                          reported {new Date(vi.last_reported_at as string).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
                 {agent.last_counters && (
                   <ScanCounters counters={agent.last_counters as Record<string, number>} />
                 )}

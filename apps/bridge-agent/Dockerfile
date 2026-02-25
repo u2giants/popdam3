@@ -35,6 +35,10 @@ RUN npm prune --production
 # ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM node:20-bookworm-slim AS runtime
 
+# Build args for version injection
+ARG POPDAM_IMAGE_TAG=latest
+ARG POPDAM_BUILD_SHA=unknown
+
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -50,6 +54,10 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
+
+# Inject version info as environment variables
+ENV POPDAM_IMAGE_TAG=${POPDAM_IMAGE_TAG}
+ENV POPDAM_BUILD_SHA=${POPDAM_BUILD_SHA}
 
 # Non-root user for security
 RUN groupadd --system popdam && useradd --system --gid popdam popdam

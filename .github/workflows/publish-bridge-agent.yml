@@ -6,6 +6,8 @@ on:
     paths:
       - "apps/bridge-agent/**"
       - ".github/workflows/publish-bridge-agent.yml"
+    tags:
+      - "bridge-v*"
 
 env:
   REGISTRY: ghcr.io
@@ -39,6 +41,34 @@ jobs:
           git commit -m "chore(bridge-agent): generate package-lock.json [skip ci]"
           git push
 
+      - name: Extract version from package.json
+        id: pkg
+        working-directory: apps/bridge-agent
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Bridge Agent version: ${VERSION}"
+
+      - name: Determine image tags
+        id: tags
+        run: |
+          TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)"
+          TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:v${{ steps.pkg.outputs.version }}"
+
+          # On main branch pushes, also tag as :stable
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:stable"
+          fi
+
+          # On beta tags, also tag as :beta
+          if [[ "${{ github.ref }}" == refs/tags/bridge-v*-beta* ]]; then
+            TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:beta"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Image tags: ${TAGS}"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -51,9 +81,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -61,5 +88,8 @@ jobs:
           context: apps/bridge-agent
           file: apps/bridge-agent/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            POPDAM_IMAGE_TAG=v${{ steps.pkg.outputs.version }}
+            POPDAM_BUILD_SHA=${{ github.sha }}
