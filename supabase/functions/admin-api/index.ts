@@ -1555,6 +1555,82 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
   });
 }
 
+// ── Route: bulk-ai-tag / bulk-ai-tag-all ────────────────────────────
+
+async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
+  const offset = typeof body.offset === "number" ? body.offset : 0;
+  const BATCH_SIZE = 10;
+  const db = serviceClient();
+
+  let query = db
+    .from("assets")
+    .select("id, thumbnail_url")
+    .eq("is_deleted", false)
+    .not("thumbnail_url", "is", null);
+
+  if (!tagAll) {
+    query = query.is("ai_description", null);
+  }
+
+  const { data: assets, error } = await query
+    .order("id")
+    .range(offset, offset + BATCH_SIZE - 1);
+
+  if (error) return err(error.message, 500);
+  if (!assets || assets.length === 0) {
+    return json({ ok: true, tagged: 0, failed: 0, done: true, nextOffset: offset });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+  let tagged = 0;
+  let failed = 0;
+
+  for (const asset of assets) {
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/ai-tag`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({ asset_id: asset.id }),
+      });
+      if (res.ok) tagged++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+    // Small delay to avoid rate limiting
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  const done = assets.length < BATCH_SIZE;
+  return json({ ok: true, tagged, failed, done, nextOffset: offset + assets.length });
+}
+
+// ── Route: count-untagged-assets ────────────────────────────────────
+
+async function handleCountUntaggedAssets() {
+  const db = serviceClient();
+
+  const { count: untaggedCount } = await db
+    .from("assets")
+    .select("*", { count: "exact", head: true })
+    .eq("is_deleted", false)
+    .not("thumbnail_url", "is", null)
+    .is("ai_description", null);
+
+  const { count: totalWithThumb } = await db
+    .from("assets")
+    .select("*", { count: "exact", head: true })
+    .eq("is_deleted", false)
+    .not("thumbnail_url", "is", null);
+
+  return json({ ok: true, count: untaggedCount ?? 0, totalWithThumbnails: totalWithThumb ?? 0 });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1644,6 +1720,12 @@ serve(async (req: Request) => {
         return await handleRebuildStyleGroups(body);
       case "purge-old-assets":
         return await handlePurgeOldAssets(body);
+      case "bulk-ai-tag":
+        return await handleBulkAiTag(body, false);
+      case "bulk-ai-tag-all":
+        return await handleBulkAiTag(body, true);
+      case "count-untagged-assets":
+        return await handleCountUntaggedAssets();
       default:
         return err(`Unknown action: ${action}`, 404);
     }

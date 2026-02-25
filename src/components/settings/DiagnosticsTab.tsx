@@ -11,6 +11,7 @@ import {
   Database, Clock, Monitor, AlertTriangle, RefreshCw,
   Activity, Loader2, CheckCircle2, XCircle, ChevronDown,
   RotateCcw, Play, Trash2, Wrench, Stethoscope, FileSearch,
+  Sparkles,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -656,6 +657,120 @@ function DatabaseInspector() {
   );
 }
 
+// ── Section 7b: AI Tagging ──────────────────────────────────────────
+
+function AiTaggingSection() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+  const [tagProgress, setTagProgress] = useState<{ tagged: number; failed: number; total: number } | null>(null);
+
+  const { data: tagCounts } = useQuery({
+    queryKey: ["untagged-asset-count"],
+    queryFn: async () => {
+      const r = await call("count-untagged-assets");
+      return { untagged: r.count as number, totalWithThumbnails: r.totalWithThumbnails as number };
+    },
+  });
+
+  const untaggedCount = tagCounts?.untagged ?? 0;
+  const totalWithThumb = tagCounts?.totalWithThumbnails ?? 0;
+
+  async function runBulkTag(mode: "untagged" | "all") {
+    const total = mode === "all" ? totalWithThumb : untaggedCount;
+    const confirmed = window.confirm(
+      mode === "all"
+        ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
+        : `AI tag ${total.toLocaleString()} untagged assets? Continue?`
+    );
+    if (!confirmed) return;
+
+    setTagProgress({ tagged: 0, failed: 0, total });
+    let totalTagged = 0;
+    let totalFailed = 0;
+    let offset = 0;
+    const route = mode === "all" ? "bulk-ai-tag-all" : "bulk-ai-tag";
+
+    try {
+      while (true) {
+        const result = await call(route, { offset });
+        totalTagged += result.tagged ?? 0;
+        totalFailed += result.failed ?? 0;
+        setTagProgress({ tagged: totalTagged, failed: totalFailed, total });
+        if (result.done) break;
+        offset = result.nextOffset;
+      }
+      toast.success(`Tagged ${totalTagged} assets. ${totalFailed} failed.`);
+      queryClient.invalidateQueries({ queryKey: ["untagged-asset-count"] });
+    } catch (e: any) {
+      toast.error(e.message || "Bulk tag failed");
+    } finally {
+      setTagProgress(null);
+    }
+  }
+
+  const isRunning = tagProgress !== null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Sparkles className="h-4 w-4" /> AI Tagging
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          <span className="text-foreground font-semibold">{untaggedCount.toLocaleString()}</span> assets with thumbnails have not been AI tagged
+          <span className="text-muted-foreground ml-1">({totalWithThumb.toLocaleString()} total with thumbnails)</span>
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => runBulkTag("untagged")}
+            disabled={isRunning || untaggedCount === 0}
+          >
+            {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Tag All Untagged
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-[hsl(var(--warning))]"
+            onClick={() => runBulkTag("all")}
+            disabled={isRunning || totalWithThumb === 0}
+          >
+            {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Re-tag Everything
+          </Button>
+        </div>
+
+        {tagProgress && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              <span>
+                Tagged <span className="font-semibold text-foreground">{tagProgress.tagged.toLocaleString()}</span>
+                {" / "}{tagProgress.total.toLocaleString()}
+                {tagProgress.failed > 0 && (
+                  <span className="text-destructive ml-1">({tagProgress.failed} failed)</span>
+                )}
+              </span>
+            </div>
+            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-300"
+                style={{ width: `${tagProgress.total > 0 ? Math.round(((tagProgress.tagged + tagProgress.failed) / tagProgress.total) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Section 8: Style Groups ─────────────────────────────────────────
 
 function StyleGroupsSection() {
@@ -792,6 +907,7 @@ export default function DiagnosticsTab() {
           <RecentErrors errors={diag.recent_errors} />
           <ConfigurationSection config={diag.config} />
           <ActionsSection onRefresh={handleRefresh} />
+          <AiTaggingSection />
           <DatabaseInspector />
           <StyleGroupsSection />
         </>
