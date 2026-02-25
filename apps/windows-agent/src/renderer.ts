@@ -19,6 +19,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger";
 import { renderWithIllustrator } from "./illustrator";
+import {
+  isIllustratorAvailable,
+  recordIllustratorSuccess,
+  recordIllustratorFailure,
+} from "./circuit-breaker";
 
 const execFileAsync = promisify(execFile);
 
@@ -212,13 +217,28 @@ export async function renderFile(
     logger.warn("Sibling not found", { uncPath });
   }
 
-  // Step 4: Illustrator COM (AI only, last resort)
+  // Step 4: Illustrator COM (AI only, last resort — guarded by circuit breaker)
   if (fileType === "ai") {
+    if (!isIllustratorAvailable()) {
+      logger.warn(
+        "Illustrator circuit breaker is OPEN — skipping COM fallback",
+        { uncPath },
+      );
+      throw new Error("render_failed: all non-Illustrator methods exhausted (Illustrator circuit breaker open)");
+    }
+
     logger.info(
       "Falling back to Illustrator COM — Sharp and Ghostscript both failed",
       { uncPath },
     );
-    return await renderWithIllustrator(uncPath);
+    try {
+      const result = await renderWithIllustrator(uncPath);
+      recordIllustratorSuccess();
+      return result;
+    } catch (e) {
+      recordIllustratorFailure();
+      throw e;
+    }
   }
 
   throw new Error("render_failed: all methods exhausted");
