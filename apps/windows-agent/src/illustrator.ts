@@ -11,7 +11,7 @@
  *   - Node.js running on Windows with access to cscript.exe
  */
 
-import { writeFile, readFile, unlink, mkdtemp } from "node:fs/promises";
+import { writeFile, readFile, unlink, mkdtemp, access } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
@@ -21,12 +21,88 @@ import { logger } from "./logger";
 
 const execFileAsync = promisify(execFile);
 
-/**
- * Generate a VBScript that opens an AI file in Illustrator,
- * exports as JPEG, and closes.
- */
-function generateVbScript(inputPath: string, outputPath: string, dpi: number): string {
-  // Escape backslashes for VBScript string literals
+// ── Stable error codes ──────────────────────────────────────────
+
+export const IllustratorErrorCode = {
+  COM_CREATE_FAILED: "ILLUSTRATOR_COM_CREATE_FAILED",
+  OPEN_FAILED: "ILLUSTRATOR_OPEN_FAILED",
+  EXPORT_FAILED: "ILLUSTRATOR_EXPORT_FAILED",
+  TIMEOUT: "ILLUSTRATOR_TIMEOUT",
+  EMPTY_OUTPUT: "ILLUSTRATOR_EMPTY_OUTPUT",
+  UNEXPECTED: "ILLUSTRATOR_UNEXPECTED_ERROR",
+} as const;
+
+type IllustratorErrorCodeValue = typeof IllustratorErrorCode[keyof typeof IllustratorErrorCode];
+
+const EXIT_CODE_MAP: Record<number, { code: IllustratorErrorCodeValue; hint: string }> = {
+  1: { code: IllustratorErrorCode.COM_CREATE_FAILED, hint: "Could not create Illustrator.Application COM object. Is Illustrator installed and licensed?" },
+  2: { code: IllustratorErrorCode.OPEN_FAILED, hint: "Illustrator could not open the file. It may be corrupted, password-protected, or created with an incompatible version." },
+  3: { code: IllustratorErrorCode.EXPORT_FAILED, hint: "JPEG export failed. Possible disk-full or permission issue in temp directory." },
+};
+
+// ── cscript.exe path resolution ─────────────────────────────────
+
+let resolvedCscriptPath: string | null = null;
+
+async function resolveCscriptPath(): Promise<string> {
+  if (resolvedCscriptPath) return resolvedCscriptPath;
+
+  // Prefer Sysnative to escape WoW64 redirection (32-bit Node on 64-bit Windows)
+  const sysnative = "C:\\Windows\\Sysnative\\cscript.exe";
+  const system32 = "C:\\Windows\\System32\\cscript.exe";
+
+  for (const candidate of [sysnative, system32]) {
+    try {
+      await access(candidate);
+      resolvedCscriptPath = candidate;
+      logger.info("Resolved cscript.exe path", { path: candidate });
+      return candidate;
+    } catch {
+      // not available, try next
+    }
+  }
+
+  // Final fallback: rely on PATH
+  logger.warn("Could not find cscript.exe at known paths, falling back to PATH lookup");
+  resolvedCscriptPath = "cscript.exe";
+  return "cscript.exe";
+}
+
+// ── Post-failure diagnostics ────────────────────────────────────
+
+async function getIllustratorDiagnostics(): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", [
+      "-NoProfile",
+      "-Command",
+      'Get-Process Illustrator -ErrorAction SilentlyContinue | Select-Object Id,Responding,MainWindowTitle | Format-List',
+    ], { timeout: 10_000, windowsHide: true });
+
+    const trimmed = stdout.trim();
+    if (!trimmed) return "No Illustrator process found.";
+    return trimmed;
+  } catch {
+    return "Diagnostics unavailable (powershell failed).";
+  }
+}
+
+function buildErrorMessage(
+  code: IllustratorErrorCodeValue,
+  hint: string,
+  diagnostics: string,
+  rawDetail?: string,
+): string {
+  const parts = [`[${code}] ${hint}`];
+  if (rawDetail) parts.push(`Detail: ${rawDetail}`);
+  parts.push(`Illustrator process state:\n${diagnostics}`);
+  return parts.join("\n");
+}
+
+// ── VBScript generation ─────────────────────────────────────────
+
+const THUMB_MAX_DIM = 1200;
+
+function generateVbScript(inputPath: string, outputPath: string, _dpi: number): string {
   const escapedInput = inputPath.replace(/\\/g, "\\\\");
   const escapedOutput = outputPath.replace(/\\/g, "\\\\");
 
@@ -125,57 +201,122 @@ export interface RenderResult {
 export async function renderWithIllustrator(
   filePath: string,
 ): Promise<RenderResult> {
-  // NAS mapping is now handled centrally by ensureNasMapped() in preflight.
-  // No per-job mount needed here.
-
+  const cscriptPath = await resolveCscriptPath();
   const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-ai-render-"));
   const vbsPath = path.join(tmpDir, "render.vbs");
   const jpgPath = path.join(tmpDir, "output.jpg");
 
   try {
-    // Write VBScript
     const script = generateVbScript(filePath, jpgPath, config.illustratorDpi);
     await writeFile(vbsPath, script, "utf-8");
 
-    logger.info("Starting Illustrator render", { filePath, timeout: config.illustratorTimeoutMs });
+    logger.info("Starting Illustrator render", { filePath, cscriptPath, timeout: config.illustratorTimeoutMs });
 
-    // Execute via cscript.exe (Windows Script Host)
-    const { stdout, stderr } = await execFileAsync("cscript.exe", [
-      "//Nologo",
-      "//E:VBScript",
-      vbsPath,
-    ], {
-      timeout: config.illustratorTimeoutMs,
-      windowsHide: true,
-    });
+    let stdout = "";
+    let stderr = "";
+    let exitCode: number | null = null;
 
+    try {
+      const result = await execFileAsync(cscriptPath, [
+        "//Nologo",
+        "//E:VBScript",
+        vbsPath,
+      ], {
+        timeout: config.illustratorTimeoutMs,
+        windowsHide: true,
+      });
+      stdout = result.stdout;
+      stderr = result.stderr;
+      exitCode = 0;
+    } catch (execErr: unknown) {
+      const e = execErr as { code?: string; killed?: boolean; signal?: string; stderr?: string; stdout?: string };
+
+      // Timeout detection
+      if (e.killed || e.code === "ETIMEDOUT" || e.signal === "SIGTERM") {
+        const diagnostics = await getIllustratorDiagnostics();
+        throw new Error(buildErrorMessage(
+          IllustratorErrorCode.TIMEOUT,
+          `Illustrator did not respond within ${config.illustratorTimeoutMs}ms. It may be blocked by a crash-recovery or licensing dialog.`,
+          diagnostics,
+        ));
+      }
+
+      // Non-zero exit code
+      stderr = e.stderr || "";
+      stdout = e.stdout || "";
+      // Extract exit code from the error object
+      const exitMatch = String(execErr).match(/exit code (\d+)/i);
+      exitCode = exitMatch ? parseInt(exitMatch[1], 10) : null;
+
+      // Also check for the 'code' property being a number
+      if (exitCode === null && typeof (execErr as { code?: unknown }).code === "number") {
+        exitCode = (execErr as { code: number }).code;
+      }
+    }
+
+    // Map exit code to structured error
+    if (exitCode !== 0) {
+      const diagnostics = await getIllustratorDiagnostics();
+      const mapped = exitCode !== null ? EXIT_CODE_MAP[exitCode] : undefined;
+
+      if (mapped) {
+        throw new Error(buildErrorMessage(
+          mapped.code,
+          mapped.hint,
+          diagnostics,
+          stderr.trim() || undefined,
+        ));
+      }
+
+      // Unknown exit code
+      throw new Error(buildErrorMessage(
+        IllustratorErrorCode.UNEXPECTED,
+        `VBScript exited with code ${exitCode}.`,
+        diagnostics,
+        stderr.trim() || stdout.trim() || undefined,
+      ));
+    }
+
+    // Verify stderr for ERROR markers even on exit 0
     if (stderr && stderr.includes("ERROR:")) {
-      throw new Error(stderr.trim());
+      const diagnostics = await getIllustratorDiagnostics();
+      throw new Error(buildErrorMessage(
+        IllustratorErrorCode.UNEXPECTED,
+        "VBScript reported an error on stderr despite exit code 0.",
+        diagnostics,
+        stderr.trim(),
+      ));
     }
 
     if (!stdout.includes("OK")) {
-      throw new Error(`Illustrator script returned unexpected output: ${stdout}`);
+      const diagnostics = await getIllustratorDiagnostics();
+      throw new Error(buildErrorMessage(
+        IllustratorErrorCode.UNEXPECTED,
+        "VBScript did not output 'OK'.",
+        diagnostics,
+        stdout.substring(0, 300),
+      ));
     }
 
     // Read the exported JPEG
     const buffer = await readFile(jpgPath);
 
     if (buffer.length === 0) {
-      throw new Error("Illustrator export produced an empty file");
+      throw new Error(buildErrorMessage(
+        IllustratorErrorCode.EMPTY_OUTPUT,
+        "Illustrator export produced an empty file.",
+        await getIllustratorDiagnostics(),
+      ));
     }
 
-    // We don't have easy access to dimensions without sharp on Windows,
-    // but the cloud will accept width=0/height=0 and the thumbnail will display fine.
-    // If sharp is available, we could read metadata here.
     logger.info("Illustrator render completed", { filePath, size: buffer.length });
 
     return {
       buffer,
-      width: 0,  // Dimensions not critical for thumbnail display
+      width: 0,
       height: 0,
     };
   } finally {
-    // Cleanup temp files
     await unlink(vbsPath).catch(() => {});
     await unlink(jpgPath).catch(() => {});
     const { rmdir } = await import("node:fs/promises");
