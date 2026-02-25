@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   Monitor, Download, ListChecks, ClipboardList, Copy, Check,
   Eye, EyeOff, RefreshCw, AlertTriangle, Trash2, Play, Timer, KeyRound,
-  RotateCcw, X, Image as ImageIcon, Settings2,
+  RotateCcw, X, Image as ImageIcon, Settings2, ArrowUpCircle,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -79,6 +79,15 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
     onError: (e) => toast.error(e.message),
   });
 
+  const triggerUpdateMutation = useMutation({
+    mutationFn: (agentId: string) => call("trigger-windows-update", { agent_id: agentId }),
+    onSuccess: () => {
+      toast.success("Update check triggered — agent will check and update if available");
+      queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const agents = (data?.agents || []).filter(
     (a: Record<string, unknown>) => a.type === "windows-render"
   );
@@ -133,6 +142,15 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
               const crashDialog = health?.illustrator_crash_dialog === true;
               const hasHealth = health !== undefined;
 
+              // Version info
+              const versionInfo = meta?.version_info as Record<string, unknown> | undefined;
+              const currentVersion = versionInfo?.version as string | null;
+              const updateAvailable = versionInfo?.update_available === true;
+              const latestVersion = versionInfo?.latest_version as string | null;
+              const lastUpdateCheck = versionInfo?.last_update_check as string | null;
+              const isUpdating = versionInfo?.updating === true;
+              const updateError = versionInfo?.update_error as string | null;
+
               return (
                 <div key={agent.id as string} className="border border-border rounded-md p-3 space-y-2">
                   <div className="flex items-center gap-2">
@@ -146,26 +164,63 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                         {isHealthy ? "Healthy" : "Unhealthy"}
                       </Badge>
                     )}
-                    {canRemove && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-auto gap-1 text-destructive hover:text-destructive h-7 text-xs"
-                        onClick={() => {
-                          if (window.confirm("Remove this offline agent? This cannot be undone.")) {
-                            removeAgentMutation.mutate(agent.id as string);
-                          }
-                        }}
-                        disabled={removeAgentMutation.isPending}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        Remove
-                      </Button>
-                    )}
+                    <div className="ml-auto flex items-center gap-1">
+                      {isOn && updateAvailable && !isUpdating && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 h-7 text-xs"
+                          onClick={() => triggerUpdateMutation.mutate(agent.id as string)}
+                          disabled={triggerUpdateMutation.isPending}
+                        >
+                          <ArrowUpCircle className="h-3 w-3" />
+                          Update Now
+                        </Button>
+                      )}
+                      {canRemove && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1 text-destructive hover:text-destructive h-7 text-xs"
+                          onClick={() => {
+                            if (window.confirm("Remove this offline agent? This cannot be undone.")) {
+                              removeAgentMutation.mutate(agent.id as string);
+                            }
+                          }}
+                          disabled={removeAgentMutation.isPending}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Remove
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground font-mono space-y-0.5">
                     <div>Last heartbeat: {agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}</div>
                     <div>Pending render jobs: <span className="text-foreground font-semibold">{pendingRenders}</span></div>
+                    {currentVersion && (
+                      <div className="flex items-center gap-2">
+                        Version: <Badge variant="outline" className="text-[10px] h-5">{currentVersion}</Badge>
+                        {updateAvailable && latestVersion && (
+                          <Badge variant="secondary" className="text-[10px] h-5 gap-1 text-[hsl(var(--warning))]">
+                            <ArrowUpCircle className="h-3 w-3" />
+                            {latestVersion} available
+                          </Badge>
+                        )}
+                        {isUpdating && (
+                          <Badge variant="secondary" className="text-[10px] h-5 gap-1 animate-pulse">
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                            Updating...
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                    {lastUpdateCheck && (
+                      <div>Last update check: {new Date(lastUpdateCheck).toLocaleString()}</div>
+                    )}
+                    {updateError && (
+                      <div className="text-destructive">Update error: {updateError}</div>
+                    )}
                   </div>
                   {isOn && hasHealth && (
                     <div className="text-xs space-y-1 mt-1">

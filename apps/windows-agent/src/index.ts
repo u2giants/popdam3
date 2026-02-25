@@ -20,6 +20,7 @@ import { renderFile } from "./renderer";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { getCircuitBreakerStatus } from "./circuit-breaker";
+import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
@@ -234,6 +235,7 @@ function startHeartbeat() {
   setInterval(async () => {
     try {
       const cbStatus = getCircuitBreakerStatus();
+      const updateState = getUpdateState();
       const enrichedHealth: api.AgentHealthPayload = {
         ...healthStatus,
         ...(cbStatus.illustratorCircuitBreaker === "open"
@@ -245,8 +247,24 @@ function startHeartbeat() {
             }
           : {}),
       };
-      const response = await api.heartbeat(agentId, lastError, enrichedHealth);
+      const response = await api.heartbeat(agentId, lastError, enrichedHealth, {
+        version: config.version,
+        update_available: updateState.updateAvailable,
+        latest_version: updateState.latestVersion,
+        last_update_check: updateState.lastCheckAt,
+        updating: updateState.updating,
+        update_error: updateState.lastError,
+      });
       applyCloudConfig(response);
+
+      // Check if cloud requests immediate update
+      if (response.commands?.trigger_update) {
+        logger.info("Cloud requested immediate update check");
+        triggerImmediateUpdate(agentId).catch((e) =>
+          logger.error("Triggered update failed", { error: (e as Error).message })
+        );
+      }
+
       logger.debug("Heartbeat sent", { circuitBreaker: cbStatus.illustratorCircuitBreaker });
     } catch (e) {
       logger.error("Heartbeat failed", { error: (e as Error).message });
@@ -486,18 +504,28 @@ async function main() {
     );
   }
 
-  // 4. Run preflight health checks
+  // 4. Post-restart health check (handles rollback if update failed)
+  await postRestartHealthCheck(agentId);
+
+  // 5. Run preflight health checks
   await runHealthCheck();
 
-  // 5. Start polling for render jobs (guarded by health check)
+  // 6. Start polling for render jobs (guarded by health check)
   startPolling();
 
-  // 6. Start periodic preflight re-check for unhealthy agents
+  // 7. Start periodic preflight re-check for unhealthy agents
   startPreflightRecheck();
+
+  // 8. Initialize self-updater
+  initUpdater({
+    getActiveJobs: () => activeJobs,
+    agentId,
+  });
 
   logger.info("Windows Render Agent ready", {
     healthy: healthStatus.healthy,
     concurrency: config.renderConcurrency,
+    version: config.version,
   });
 }
 

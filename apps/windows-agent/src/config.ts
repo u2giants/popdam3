@@ -116,6 +116,14 @@ export const config = {
   // Saved agent ID from previous pairing
   savedAgentId: optional("_SAVED_AGENT_ID", ""),
 
+  // Version (from package.json, injected at build time)
+  version: (() => {
+    try {
+      const pkg = require(require("path").join(__dirname, "..", "package.json"));
+      return pkg.version || "0.0.0";
+    } catch { return "0.0.0"; }
+  })(),
+
   // Derived
   get agentApiUrl() {
     return `${this.supabaseUrl}/functions/v1/agent-api`;

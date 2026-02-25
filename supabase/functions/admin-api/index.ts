@@ -2172,6 +2172,10 @@ serve(async (req: Request) => {
         return await handleCountUntaggedAssets();
       case "generate-install-bundle":
         return await handleGenerateInstallBundle(body, userId);
+      case "get-latest-agent-build":
+        return await handleGetLatestAgentBuild(body);
+      case "trigger-windows-update":
+        return await handleTriggerWindowsUpdate(body, userId);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
@@ -2187,10 +2191,10 @@ serve(async (req: Request) => {
 // ── rebuild-character-stats ─────────────────────────────────────────
 
 async function handleRebuildCharacterStats(body: Record<string, unknown>) {
+  // ... keep existing code
   const threshold = typeof body.threshold === "number" ? body.threshold : 3;
   const db = serviceClient();
 
-  // Fetch all asset_characters links, joining to exclude deleted assets
   const { data: counts, error } = await db
     .from("asset_characters")
     .select("character_id, assets!inner(is_deleted)")
@@ -2198,20 +2202,17 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
 
   if (error) return err(error.message, 500);
 
-  // Tally counts in memory
   const tally = new Map<string, number>();
   for (const row of counts ?? []) {
     const cid = row.character_id;
     tally.set(cid, (tally.get(cid) ?? 0) + 1);
   }
 
-  // Reset all characters first
   await db.from("characters").update({
     usage_count: 0,
     is_priority: false,
   }).gte("usage_count", 0);
 
-  // Update each character that has usage
   let priorityCount = 0;
   const entries = [...tally.entries()];
   for (const [characterId, count] of entries) {
@@ -2230,4 +2231,104 @@ async function handleRebuildCharacterStats(body: Record<string, unknown>) {
     threshold,
     message: `${priorityCount} priority characters (appearing in ${threshold}+ assets) out of ${tally.size} characters with any asset links`,
   });
+}
+
+// ── get-latest-agent-build ──────────────────────────────────────────
+
+async function handleGetLatestAgentBuild(body: Record<string, unknown>) {
+  const agentType = optionalString(body, "agent_type") ?? "windows-render";
+  const db = serviceClient();
+
+  // Look up the latest build info from admin_config
+  const configKey = agentType === "bridge"
+    ? "BRIDGE_LATEST_BUILD"
+    : "WINDOWS_LATEST_BUILD";
+
+  const { data: row } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", configKey)
+    .maybeSingle();
+
+  if (!row?.value) {
+    // Fallback: return GitHub releases URL pattern
+    const repoBase = "https://github.com/u2giants/popdam3/releases";
+    return json({
+      ok: true,
+      latest_version: "0.0.0",
+      download_url: agentType === "bridge"
+        ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz`
+        : `${repoBase}/latest/download/popdam-windows-agent.zip`,
+      checksum_sha256: "",
+      release_notes: "",
+      published_at: null,
+    });
+  }
+
+  const val = row.value as Record<string, unknown>;
+  return json({
+    ok: true,
+    latest_version: val.version || "0.0.0",
+    download_url: val.download_url || "",
+    checksum_sha256: val.checksum_sha256 || "",
+    release_notes: val.release_notes || "",
+    published_at: val.published_at || null,
+  });
+}
+
+// ── trigger-windows-update ──────────────────────────────────────────
+
+async function handleTriggerWindowsUpdate(
+  body: Record<string, unknown>,
+  userId: string,
+) {
+  const agentId = optionalString(body, "agent_id");
+  const db = serviceClient();
+
+  if (agentId) {
+    // Signal specific agent via metadata flag
+    const { data: agent } = await db
+      .from("agent_registrations")
+      .select("metadata")
+      .eq("id", agentId)
+      .maybeSingle();
+
+    if (!agent) return err("Agent not found", 404);
+
+    const metadata = (agent.metadata as Record<string, unknown>) || {};
+    await db
+      .from("agent_registrations")
+      .update({
+        metadata: {
+          ...metadata,
+          trigger_update: true,
+          update_requested_by: userId,
+          update_requested_at: new Date().toISOString(),
+        },
+      })
+      .eq("id", agentId);
+  } else {
+    // Signal all windows agents
+    const { data: agents } = await db
+      .from("agent_registrations")
+      .select("id, metadata")
+      .eq("agent_type", "windows-render");
+
+    for (const a of agents || []) {
+      const metadata = (a.metadata as Record<string, unknown>) || {};
+      await db
+        .from("agent_registrations")
+        .update({
+          metadata: {
+            ...metadata,
+            trigger_update: true,
+            update_requested_by: userId,
+            update_requested_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", a.id);
+    }
+  }
+
+  return json({ ok: true });
 }
