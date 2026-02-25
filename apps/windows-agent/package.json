@@ -2,17 +2,7 @@
   "name": "@popdam/windows-agent",
   "version": "0.2.0",
   "private": true,
-  "bin": "dist/index.js",
-  "pkg": {
-    "entrypoints": ["dist/index.js"],
-    "outputPath": ".",
-    "targets": ["node18-win-x64"],
-    "assets": [
-      "dist/**/*",
-      "node_modules/sharp/build/Release/**/*.node",
-      "node_modules/sharp/vendor/**/*"
-    ]
-  },
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
