@@ -1,27 +1,31 @@
 /**
- * Windows Render Agent — Self-updater with atomic swap + rollback.
+ * Windows Render Agent — Self-updater with dist/ hot-swap + restart.
  *
  * Lifecycle:
- *   1. On startup + every 6h, call admin-api get-latest-agent-build
- *   2. If newer version, download to temp, verify checksum
- *   3. Atomic swap: rename current → .old, move new → current
- *   4. Restart: spawn new process and exit
- *   5. If new process fails health within 60s, rollback .old → current
+ *   1. On startup + every 6h, call agent-api get-latest-build
+ *   2. If newer version, download dist.zip to temp
+ *   3. Hot-swap: rename dist/ → dist.old/, extract dist.zip → dist/
+ *   4. Restart: re-run the scheduled task (or spawn new process) and exit
+ *   5. If new process fails health within 60s, rollback dist.old/ → dist/
  *
  * Constraints:
  *   - Never updates while rendering (waits for idle)
  *   - Does not require admin interaction
+ *   - Only replaces dist/ (compiled JS) — node.exe + node_modules stay
  */
 
 import { config } from "./config";
 import { logger } from "./logger";
 import * as api from "./api-client";
-import { createWriteStream, existsSync, renameSync, unlinkSync, statSync } from "node:fs";
+import {
+  existsSync, renameSync, unlinkSync, mkdirSync,
+  rmSync, createWriteStream, statSync,
+} from "node:fs";
 import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import path from "node:path";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -101,6 +105,17 @@ function isNewer(remote: string, local: string): boolean {
   return false;
 }
 
+// ── Install directory detection ─────────────────────────────────────
+
+/**
+ * The agent is installed at: $INSTDIR/dist/index.js run by $INSTDIR/node.exe
+ * So the install root is two levels up from __dirname (dist/).
+ */
+function getInstallDir(): string {
+  // __dirname = .../WindowsAgent/dist
+  return path.dirname(__dirname);
+}
+
 // ── Check + download + swap ─────────────────────────────────────────
 
 async function checkForUpdate(agentId: string, forceApply = false): Promise<void> {
@@ -141,7 +156,6 @@ async function checkForUpdate(agentId: string, forceApply = false): Promise<void
       logger.info("Deferring update — render jobs active", {
         activeJobs: activeJobsRef(),
       });
-      // Schedule retry in 30s
       setTimeout(() => checkForUpdate(agentId, forceApply), 30_000);
       return;
     }
@@ -158,29 +172,31 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
   state.updating = true;
   state.lastError = null;
 
-  const exePath = process.execPath;
-  const exeDir = path.dirname(exePath);
-  const exeName = path.basename(exePath);
-  const tempPath = path.join(exeDir, `${exeName}.new`);
-  const oldPath = path.join(exeDir, `${exeName}.old`);
+  const installDir = getInstallDir();
+  const distDir = path.join(installDir, "dist");
+  const distOldDir = path.join(installDir, "dist.old");
+  const distNewDir = path.join(installDir, "dist.new");
+  const zipPath = path.join(installDir, "dist-update.zip");
 
   try {
-    // 1. Download to temp
+    // 1. Download dist.zip
     logger.info("Downloading update...", { url: info.download_url });
     const res = await fetch(info.download_url);
     if (!res.ok || !res.body) {
       throw new Error(`Download failed: ${res.status} ${res.statusText}`);
     }
 
-    const ws = createWriteStream(tempPath);
-    // Convert web ReadableStream to Node stream
+    const ws = createWriteStream(zipPath);
     const nodeStream = Readable.fromWeb(res.body as import("stream/web").ReadableStream);
     await pipeline(nodeStream, ws);
 
-    // 2. Verify checksum
+    const zipSize = statSync(zipPath).size;
+    logger.info("Download complete", { size: `${(zipSize / 1024).toFixed(0)} KB` });
+
+    // 2. Verify checksum (if provided)
     if (info.checksum_sha256) {
       logger.info("Verifying checksum...");
-      const fileBuffer = await readFile(tempPath);
+      const fileBuffer = await readFile(zipPath);
       const hash = createHash("sha256").update(fileBuffer).digest("hex");
       if (hash !== info.checksum_sha256) {
         throw new Error(
@@ -190,25 +206,62 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
       logger.info("Checksum verified");
     }
 
-    // 3. Atomic swap
-    logger.info("Performing atomic swap...");
+    // 3. Extract to dist.new/
+    logger.info("Extracting update...");
+    if (existsSync(distNewDir)) rmSync(distNewDir, { recursive: true });
+    mkdirSync(distNewDir, { recursive: true });
 
-    // Remove stale .old if exists
-    if (existsSync(oldPath)) {
-      try { unlinkSync(oldPath); } catch { /* ok */ }
+    // Use PowerShell to extract (available on all Windows)
+    execSync(
+      `powershell -NoProfile -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${distNewDir}' -Force"`,
+      { timeout: 30_000 }
+    );
+
+    // Verify extraction produced files
+    const extractedIndex = path.join(distNewDir, "index.js");
+    if (!existsSync(extractedIndex)) {
+      // Maybe extracted into a subdirectory — check one level down
+      const { readdirSync } = await import("node:fs");
+      const entries = readdirSync(distNewDir);
+      if (entries.length === 1 && statSync(path.join(distNewDir, entries[0])).isDirectory()) {
+        // Move contents up
+        const subDir = path.join(distNewDir, entries[0]);
+        const tempDir = distNewDir + ".tmp";
+        renameSync(distNewDir, tempDir);
+        renameSync(subDir, distNewDir);
+        rmSync(tempDir, { recursive: true });
+      }
     }
 
-    // Rename current → .old
-    renameSync(exePath, oldPath);
+    if (!existsSync(path.join(distNewDir, "index.js"))) {
+      throw new Error("Extracted dist.zip does not contain index.js — aborting");
+    }
 
-    // Move new → current
-    renameSync(tempPath, exePath);
+    // 4. Atomic swap: dist → dist.old, dist.new → dist
+    logger.info("Performing dist/ swap...");
 
-    logger.info("Swap complete, saving update state...");
+    if (existsSync(distOldDir)) {
+      rmSync(distOldDir, { recursive: true });
+    }
 
-    // 4. Save rollback info
+    renameSync(distDir, distOldDir);
+    renameSync(distNewDir, distDir);
+
+    logger.info("Swap complete");
+
+    // 5. Update package.json version
+    try {
+      const pkgPath = path.join(installDir, "package.json");
+      const pkg = JSON.parse(await readFile(pkgPath, "utf-8"));
+      pkg.version = info.latest_version.replace(/^v/, "");
+      await writeFile(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
+    } catch (e) {
+      logger.warn("Could not update package.json version", { error: (e as Error).message });
+    }
+
+    // 6. Save rollback info
     const rollbackInfo = {
-      old_path: oldPath,
+      old_dist_path: distOldDir,
       new_version: info.latest_version,
       old_version: config.version,
       swapped_at: new Date().toISOString(),
@@ -221,7 +274,7 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
       "utf-8"
     );
 
-    // 5. Report to cloud
+    // 7. Report to cloud
     try {
       await api.reportUpdateStatus({
         agent_id: agentId,
@@ -231,31 +284,48 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
       });
     } catch { /* best effort */ }
 
-    // 6. Spawn new process and exit
-    logger.info("Restarting with new version...");
-    const child = spawn(exePath, process.argv.slice(1), {
-      detached: true,
-      stdio: "ignore",
-      env: {
-        ...process.env,
-        POPDAM_PREVIOUS_VERSION: config.version,
-        POPDAM_ROLLBACK_PATH: oldPath,
-      },
-    });
-    child.unref();
+    // 8. Clean up zip
+    try { unlinkSync(zipPath); } catch { /* ok */ }
 
-    // Give the new process a moment to start
-    setTimeout(() => process.exit(0), 2_000);
+    // 9. Restart via scheduled task (cleanest method)
+    logger.info("Restarting agent with new code...");
+    try {
+      execSync('schtasks /end /tn "PopDAM Windows Render Agent"', { timeout: 5_000 });
+    } catch { /* may not be running via task */ }
+
+    // Small delay, then restart
+    setTimeout(() => {
+      try {
+        execSync('schtasks /run /tn "PopDAM Windows Render Agent"', { timeout: 5_000 });
+      } catch {
+        // Fallback: spawn directly
+        const nodePath = path.join(installDir, "node.exe");
+        const indexPath = path.join(installDir, "dist", "index.js");
+        const child = spawn(nodePath, [indexPath], {
+          detached: true,
+          stdio: "ignore",
+          cwd: installDir,
+          env: {
+            ...process.env,
+            POPDAM_PREVIOUS_VERSION: config.version,
+            POPDAM_ROLLBACK_DIST: distOldDir,
+          },
+        });
+        child.unref();
+      }
+      process.exit(0);
+    }, 2_000);
   } catch (e) {
     const msg = (e as Error).message;
     state.lastError = msg;
     state.updating = false;
     logger.error("Update failed", { error: msg });
 
-    // Cleanup temp file
-    try { if (existsSync(tempPath)) unlinkSync(tempPath); } catch { /* ok */ }
+    // Cleanup
+    try { if (existsSync(zipPath)) unlinkSync(zipPath); } catch { /* ok */ }
+    try { if (existsSync(distNewDir)) rmSync(distNewDir, { recursive: true }); } catch { /* ok */ }
 
-    // Report failure to cloud
+    // Report failure
     try {
       await api.reportUpdateStatus({
         agent_id: agentId,
@@ -272,26 +342,23 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
 
 export async function postRestartHealthCheck(agentId: string): Promise<void> {
   const previousVersion = process.env.POPDAM_PREVIOUS_VERSION;
-  const rollbackPath = process.env.POPDAM_ROLLBACK_PATH;
+  const rollbackDist = process.env.POPDAM_ROLLBACK_DIST;
 
-  if (!previousVersion || !rollbackPath) {
-    // Not a post-update restart
-    return;
+  if (!previousVersion || !rollbackDist) {
+    return; // Not a post-update restart
   }
 
   logger.info("Post-update restart detected", {
     previousVersion,
     currentVersion: config.version,
-    rollbackPath,
+    rollbackDist,
   });
 
-  // Wait for health check to pass
   const startTime = Date.now();
   let healthy = false;
 
   while (Date.now() - startTime < HEALTH_CHECK_TIMEOUT_MS) {
     try {
-      // Basic health: can we talk to the API?
       await api.heartbeat(agentId);
       healthy = true;
       break;
@@ -305,12 +372,11 @@ export async function postRestartHealthCheck(agentId: string): Promise<void> {
       newVersion: config.version,
     });
 
-    // Clean up .old binary
+    // Clean up old dist
     try {
-      if (existsSync(rollbackPath)) unlinkSync(rollbackPath);
+      if (existsSync(rollbackDist)) rmSync(rollbackDist, { recursive: true });
     } catch { /* ok */ }
 
-    // Report success
     try {
       await api.reportUpdateStatus({
         agent_id: agentId,
@@ -321,39 +387,42 @@ export async function postRestartHealthCheck(agentId: string): Promise<void> {
     } catch { /* best effort */ }
   } else {
     logger.error("Post-update health check FAILED — rolling back!", {
-      rollbackPath,
+      rollbackDist,
     });
 
-    // Rollback: swap .old back to current
     try {
-      const exePath = process.execPath;
-      const failedPath = exePath + ".failed";
+      const installDir = getInstallDir();
+      const distDir = path.join(installDir, "dist");
+      const failedDir = path.join(installDir, "dist.failed");
 
-      if (existsSync(rollbackPath)) {
-        renameSync(exePath, failedPath);
-        renameSync(rollbackPath, exePath);
+      if (existsSync(rollbackDist)) {
+        if (existsSync(failedDir)) rmSync(failedDir, { recursive: true });
+        renameSync(distDir, failedDir);
+        renameSync(rollbackDist, distDir);
 
-        // Report rollback
         try {
           await api.reportUpdateStatus({
             agent_id: agentId,
             status: "rolled_back",
             old_version: previousVersion,
             new_version: config.version,
-            error: "Health check failed within 60s — rolled back to previous version",
+            error: "Health check failed within 60s — rolled back",
           });
         } catch { /* best effort */ }
 
-        // Restart with old binary
+        // Restart with old code
         logger.info("Rollback complete — restarting with previous version");
-        const child = spawn(exePath, process.argv.slice(1), {
-          detached: true,
-          stdio: "ignore",
-        });
-        child.unref();
-        setTimeout(() => process.exit(1), 2_000);
+        try {
+          execSync('schtasks /end /tn "PopDAM Windows Render Agent"', { timeout: 5_000 });
+        } catch { /* ok */ }
+        setTimeout(() => {
+          try {
+            execSync('schtasks /run /tn "PopDAM Windows Render Agent"', { timeout: 5_000 });
+          } catch { /* ok */ }
+          process.exit(1);
+        }, 2_000);
       } else {
-        logger.error("Rollback file not found — cannot rollback", { rollbackPath });
+        logger.error("Rollback dist not found — cannot rollback", { rollbackDist });
       }
     } catch (e) {
       logger.error("Rollback failed", { error: (e as Error).message });
