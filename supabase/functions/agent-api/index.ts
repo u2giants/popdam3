@@ -516,6 +516,30 @@ async function handleHeartbeat(
     }
   }
 
+  // ── Windows agent health + pending render jobs (for bridge policy decisions) ──
+  const { data: allAgents } = await db
+    .from("agent_registrations")
+    .select("agent_type, last_heartbeat, metadata")
+    .eq("agent_type", "windows-render");
+
+  const windowsAgents = allAgents || [];
+  let windowsHealthy = false;
+  if (windowsAgents.length > 0) {
+    const WINDOWS_OFFLINE_MS = 5 * 60 * 1000;
+    windowsHealthy = windowsAgents.some((wa) => {
+      const lastHb = wa.last_heartbeat ? new Date(wa.last_heartbeat).getTime() : 0;
+      if (lastHb === 0 || now - lastHb > WINDOWS_OFFLINE_MS) return false;
+      const wMeta = (wa.metadata as Record<string, unknown>) || {};
+      const wHealth = wMeta.health as Record<string, unknown> | undefined;
+      return wHealth?.healthy === true;
+    });
+  }
+
+  const { count: pendingRenderJobs } = await db
+    .from("render_queue")
+    .select("*", { count: "exact", head: true })
+    .in("status", ["pending", "claimed", "processing"]);
+
   // ── Response ──
   return json({
     ok: true,
@@ -547,6 +571,8 @@ async function handleHeartbeat(
       auto_scan: autoScanConfig,
       windows_render_mode: (configMap.WINDOWS_RENDER_MODE as string) || "fallback_only",
       windows_render_policy: (configMap.WINDOWS_RENDER_POLICY as Record<string, unknown>) || null,
+      windows_healthy: windowsHealthy,
+      pending_render_jobs: pendingRenderJobs ?? 0,
       windows_agent: {
         nas_host: ((configMap.WINDOWS_AGENT_NAS_HOST as string) || ""),
         nas_share: ((configMap.WINDOWS_AGENT_NAS_SHARE as string) || ""),

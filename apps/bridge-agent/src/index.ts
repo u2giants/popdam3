@@ -101,6 +101,10 @@ let windowsRenderMode: "fallback_only" | "primary" = "fallback_only";
 import type { WindowsRenderPolicy } from "./api-client.js";
 let windowsRenderPolicy: WindowsRenderPolicy | null = null;
 
+// Windows agent health context (updated each heartbeat)
+let windowsAgentHealthy = false;
+let pendingRenderJobs = 0;
+
 function getEffectiveScanRoots(): string[] {
   return (cloudScanRoots && cloudScanRoots.length > 0) ? cloudScanRoots : config.scanRoots;
 }
@@ -220,6 +224,8 @@ interface CloudConfig {
   auto_scan?: { enabled: boolean; interval_hours: number };
   windows_render_mode?: "fallback_only" | "primary";
   windows_render_policy?: WindowsRenderPolicy | null;
+  windows_healthy?: boolean;
+  pending_render_jobs?: number;
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
@@ -273,6 +279,14 @@ function applyCloudConfig(cfg: CloudConfig) {
   if (cfg.windows_render_policy) {
     windowsRenderPolicy = cfg.windows_render_policy;
     logger.info("Windows render policy updated", { mode: cfg.windows_render_policy.mode });
+  }
+
+  // Update windows agent health context
+  if (cfg.windows_healthy !== undefined) {
+    windowsAgentHealthy = cfg.windows_healthy === true;
+  }
+  if (cfg.pending_render_jobs !== undefined) {
+    pendingRenderJobs = typeof cfg.pending_render_jobs === "number" ? cfg.pending_render_jobs : 0;
   }
 }
 
@@ -509,23 +523,43 @@ async function processFile(file: FileCandidate) {
     // 2. Thumbnail strategy — uses new policy if set, else legacy mode
     let thumb: { thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number } = {};
     const effectiveMode = windowsRenderPolicy?.mode ?? windowsRenderMode;
+    const policy = windowsRenderPolicy;
 
-    const shouldOffloadToWindows = (() => {
+    // ── Step 2a: Determine if we should defer to Windows BEFORE local thumbnailing ──
+    const shouldDeferToWindows = (() => {
       if (effectiveMode === "primary") return true;
       if (effectiveMode === "fallback_only") return false;
-      // "shared" mode: offload a percentage of eligible files
-      if (effectiveMode === "shared" && windowsRenderPolicy) {
-        const p = windowsRenderPolicy;
-        if (!p.shared_types.includes(file.fileType)) return false;
-        if (p.shared_min_mb > 0 && file.fileSize < p.shared_min_mb * 1024 * 1024) return false;
-        // Deterministic offload based on hash to avoid re-randomizing on rescan
+
+      // "shared" mode
+      if (effectiveMode === "shared" && policy) {
+        // File type must be eligible
+        if (!policy.shared_types.includes(file.fileType)) return false;
+
+        // Health guard: if require_windows_healthy, check the flag
+        if (policy.require_windows_healthy && !windowsAgentHealthy) {
+          logger.debug("Shared mode: Windows unhealthy, doing local", { file: file.relativePath });
+          return false;
+        }
+
+        // Queue depth guard
+        if (pendingRenderJobs >= policy.max_pending_jobs) {
+          logger.debug("Shared mode: render queue full, doing local", { pending: pendingRenderJobs, max: policy.max_pending_jobs });
+          return false;
+        }
+
+        // Offload decision: file_size >= shared_min_mb OR hash-deterministic percent
+        const meetsMinSize = policy.shared_min_mb > 0 && file.fileSize >= policy.shared_min_mb * 1024 * 1024;
+        // Deterministic: use quick_hash so re-scans produce same decision
         const hashNum = parseInt(quick_hash.slice(0, 8), 16);
-        return (hashNum % 100) < p.shared_percent;
+        const meetsPercent = (hashNum % 100) < policy.shared_percent;
+
+        return meetsMinSize || meetsPercent;
       }
       return false;
     })();
 
-    if (shouldOffloadToWindows) {
+    // ── Step 2b: Either defer or attempt local thumbnail ──
+    if (shouldDeferToWindows) {
       thumb = { thumbnailError: "deferred_to_windows_agent" };
     } else {
       const tempId = randomUUID();
@@ -569,28 +603,37 @@ async function processFile(file: FileCandidate) {
         break; // junk files
     }
 
-    // Queue for Windows render agent
-    const shouldQueueRender = (() => {
-      if (shouldOffloadToWindows && (result.action === "created" || result.action === "updated" || result.action === "moved")) {
-        return "offloaded";
+    // ── Step 4: Queue for Windows render agent ──
+    const isNewOrChanged = result.action === "created" || result.action === "updated" || result.action === "moved";
+    const localThumbFailed = !thumb.thumbnailUrl && !!thumb.thumbnailError && thumb.thumbnailError !== "deferred_to_windows_agent";
+
+    const queueReason = (() => {
+      // A) Deferred (primary or shared offload) — queue after successful ingest
+      if (shouldDeferToWindows && isNewOrChanged) {
+        return effectiveMode === "primary" ? "primary_mode" : "shared_offload";
       }
-      // Final-fallback: if local thumbnail failed, queue to Windows regardless of mode
-      if (thumb.thumbnailError && !thumb.thumbnailUrl) {
-        const policy = windowsRenderPolicy;
-        if (policy?.final_fallback_on_local_failure) return "final_fallback";
-        // Legacy behavior: only queue ai/no_pdf_compat in fallback_only mode
-        if (effectiveMode === "fallback_only" && thumb.thumbnailError === "no_pdf_compat" && file.fileType === "ai") {
+
+      // B) Local thumbnail failed — evaluate fallback options
+      if (localThumbFailed) {
+        // B1) New policy: final_fallback_on_local_failure covers both PSD and AI
+        if (policy?.final_fallback_on_local_failure) {
+          return "local_thumb_failed";
+        }
+        // B2) Legacy fallback: AI no_pdf_compat only (backward compat when no policy set)
+        if (thumb.thumbnailError === "no_pdf_compat" && file.fileType === "ai") {
           return "no_pdf_compat";
         }
       }
+
       return null;
     })();
 
-    if (shouldQueueRender) {
+    if (queueReason) {
       try {
-        await api.queueRender(result.asset_id, shouldQueueRender);
+        await api.queueRender(result.asset_id, queueReason);
+        if (shouldDeferToWindows) pendingRenderJobs++; // local estimate for queue depth guard
       } catch (e) {
-        logger.warn("Failed to queue render job", { assetId: result.asset_id, reason: shouldQueueRender, error: (e as Error).message });
+        logger.warn("Failed to queue render job", { assetId: result.asset_id, reason: queueReason, error: (e as Error).message });
       }
     }
 
