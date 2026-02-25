@@ -1112,50 +1112,53 @@ async function handleQueueRender(body: Record<string, unknown>) {
 
 async function handleClaimRender(body: Record<string, unknown>) {
   const agentId = requireString(body, "agent_id");
+  const batchSize = Math.min((body.batch_size as number) || 1, 5);
   const db = serviceClient();
 
-  const { data: jobs } = await db
-    .from("render_queue")
-    .select("id, asset_id")
-    .eq("status", "pending")
-    .order("created_at", { ascending: true })
-    .limit(1);
+  const LEASE_DURATION_MINUTES = 5;
+  const MAX_ATTEMPTS = 5;
+  const now = new Date().toISOString();
 
-  if (!jobs || jobs.length === 0) {
-    return json({ ok: true, job: null });
+  // Use raw SQL via rpc for FOR UPDATE SKIP LOCKED — not available in PostgREST
+  // Select pending jobs OR expired-lease claimed jobs, atomically claim them
+  const { data: claimedJobs, error: claimErr } = await db.rpc("claim_render_jobs", {
+    p_agent_id: agentId,
+    p_batch_size: batchSize,
+    p_lease_minutes: LEASE_DURATION_MINUTES,
+    p_max_attempts: MAX_ATTEMPTS,
+  });
+
+  if (claimErr || !claimedJobs || claimedJobs.length === 0) {
+    return json({ ok: true, job: null, jobs: [] });
   }
 
-  const job = jobs[0];
-  const { error } = await db
-    .from("render_queue")
-    .update({
-      status: "claimed",
-      claimed_by: agentId,
-      claimed_at: new Date().toISOString(),
-    })
-    .eq("id", job.id)
-    .eq("status", "pending"); // optimistic lock
-
-  if (error) {
-    return json({ ok: true, job: null }); // someone else claimed it
-  }
-
-  // Fetch asset details so agent knows what file to render
-  const { data: asset } = await db
+  // Fetch asset details for all claimed jobs
+  const assetIds = claimedJobs.map((j: Record<string, unknown>) => j.asset_id);
+  const { data: assets } = await db
     .from("assets")
-    .select("relative_path, file_type, filename")
-    .eq("id", job.asset_id)
-    .single();
+    .select("id, relative_path, file_type, filename")
+    .in("id", assetIds);
 
-  return json({
-    ok: true,
-    job: {
-      job_id: job.id,
-      asset_id: job.asset_id,
+  const assetMap = new Map((assets || []).map((a: Record<string, unknown>) => [a.id, a]));
+
+  const jobResults = claimedJobs.map((j: Record<string, unknown>) => {
+    const asset = assetMap.get(j.asset_id) as Record<string, unknown> | undefined;
+    return {
+      job_id: j.id,
+      asset_id: j.asset_id,
       relative_path: asset?.relative_path || null,
       file_type: asset?.file_type || null,
       filename: asset?.filename || null,
-    },
+      attempts: j.attempts,
+      lease_expires_at: j.lease_expires_at,
+    };
+  });
+
+  // Backward compat: single job in `job` field
+  return json({
+    ok: true,
+    job: jobResults[0] || null,
+    jobs: jobResults,
   });
 }
 
@@ -1183,6 +1186,7 @@ async function handleCompleteRender(body: Record<string, unknown>) {
       status: success ? "completed" : "failed",
       completed_at: new Date().toISOString(),
       error_message: errorMsg,
+      lease_expires_at: null, // clear lease on completion
     })
     .eq("id", jobId);
 
