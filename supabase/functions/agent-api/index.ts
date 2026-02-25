@@ -1178,6 +1178,31 @@ async function handleCompleteRender(body: Record<string, unknown>) {
       .from("assets")
       .update({ thumbnail_url: thumbnailUrl, thumbnail_error: null })
       .eq("id", job.asset_id);
+
+    // Re-evaluate style group primary now that this asset has a working thumbnail
+    const { data: asset } = await db
+      .from("assets")
+      .select("style_group_id")
+      .eq("id", job.asset_id)
+      .single();
+
+    if (asset?.style_group_id) {
+      const { data: groupAssets } = await db
+        .from("assets")
+        .select("id, filename, file_type, created_at, thumbnail_url, thumbnail_error")
+        .eq("style_group_id", asset.style_group_id)
+        .eq("is_deleted", false);
+
+      if (groupAssets && groupAssets.length > 0) {
+        const primaryId = selectPrimaryAsset(groupAssets);
+        if (primaryId) {
+          await db
+            .from("style_groups")
+            .update({ primary_asset_id: primaryId })
+            .eq("id", asset.style_group_id);
+        }
+      }
+    }
   }
 
   return json({ ok: true });
