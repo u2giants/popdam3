@@ -65,6 +65,7 @@ export interface HeartbeatResponse {
     do_spaces?: { key: string; secret: string; bucket: string; region: string; endpoint: string };
     scanning?: { container_mount_root: string; roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
     resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
+    windows_render_mode?: "fallback_only" | "primary";
   };
   commands?: {
     force_scan: boolean;
