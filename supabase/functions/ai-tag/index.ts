@@ -23,7 +23,6 @@ serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Auth: require valid JWT
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return err("Missing Authorization header", 401);
@@ -36,7 +35,6 @@ serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    // Accept both "asset_id" and "assetId" for compatibility
     const assetId = body.asset_id || body.assetId;
     const force = body.force === true;
 
@@ -44,7 +42,6 @@ serve(async (req: Request) => {
       return err("asset_id is required");
     }
 
-    // Fetch asset metadata for context
     const db = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -58,7 +55,6 @@ serve(async (req: Request) => {
 
     if (fetchErr || !asset) return err("Asset not found", 404);
 
-    // Skip guard: don't re-tag if already tagged (unless force=true)
     if (asset.status === "tagged" && asset.ai_tagged_at && !force) {
       console.log("ai-tag SKIP", {
         assetId,
@@ -74,13 +70,10 @@ serve(async (req: Request) => {
       });
     }
 
-    // Use provided thumbnail_url or fall back to the one stored on the asset
     const thumbnailUrl = body.thumbnail_url || asset.thumbnail_url;
     if (!thumbnailUrl) {
       return err("Asset has no thumbnail_url — cannot analyze without an image");
     }
-
-    
 
     // Fetch custom tagging instructions
     const { data: instrRow } = await db
@@ -91,10 +84,33 @@ serve(async (req: Request) => {
     const customInstructions = typeof instrRow?.value === "string"
       ? instrRow.value.trim() : null;
 
-    // Fetch taxonomy context
+    // Fetch taxonomy context — scoped to asset's licensor when known
     const { data: licensors } = await db.from("licensors").select("id, name").limit(50);
     const { data: properties } = await db.from("properties").select("id, name, licensor_id").limit(200);
-    const { data: characters } = await db.from("characters").select("id, name, property_id").limit(500);
+
+    // Scope characters to the asset's licensor for focused, accurate results
+    let characters: { id: string; name: string; property_id: string }[] | null = null;
+    if (asset.licensor_id) {
+      const { data: propIds } = await db
+        .from("properties")
+        .select("id")
+        .eq("licensor_id", asset.licensor_id);
+      const ids = (propIds ?? []).map((p: { id: string }) => p.id);
+      if (ids.length > 0) {
+        const { data } = await db
+          .from("characters")
+          .select("id, name, property_id")
+          .in("property_id", ids)
+          .limit(300);
+        characters = data;
+      } else {
+        characters = [];
+      }
+    } else {
+      // No licensor known — fetch a broader set
+      const { data } = await db.from("characters").select("id, name, property_id").limit(300);
+      characters = data;
+    }
 
     const taxonomyContext = [
       `Licensors: ${(licensors || []).map((l) => `${l.name} (${l.id})`).join(", ")}`,
@@ -124,12 +140,13 @@ Based on the image and metadata, identify:
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
 
-    // Log before calling AI
     console.log("ai-tag START", {
       assetId,
       force,
       currentStatus: asset.status,
       alreadyTagged: !!asset.ai_tagged_at,
+      charactersScopedToLicensor: !!asset.licensor_id,
+      characterCount: (characters || []).length,
     });
 
     const response = await fetch(
@@ -262,7 +279,6 @@ Based on the image and metadata, identify:
       return err("Failed to parse AI tag response", 500);
     }
 
-    // Apply tags to asset
     const updates: Record<string, unknown> = {
       status: "tagged",
       ai_tagged_at: new Date().toISOString(),
@@ -293,7 +309,6 @@ Based on the image and metadata, identify:
       hasDescription: !!tagData.ai_description,
     });
 
-    // Link characters if identified
     if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
       const charLinks = (tagData.character_ids as string[]).map((cid) => ({
         asset_id: assetId,

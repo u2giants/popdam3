@@ -63,21 +63,25 @@ async function authenticateAdmin(req: Request): Promise<{ userId: string } | Res
   return { userId };
 }
 
-// ── Licensor config: code → name + API slug ─────────────────────────
-
-interface LicensorConfig {
-  code: string;
-  name: string;
-  apiSlug: string;
-}
-
-const LICENSORS: LicensorConfig[] = [
-  { code: "DS", name: "Disney", apiSlug: "DS" },
-  { code: "MV", name: "Marvel", apiSlug: "MV" },
-  { code: "WWE", name: "WWE", apiSlug: "WWE" },
-];
+// ── Hardcoded fallback (legacy) ─────────────────────────────────────
 
 const API_BASE = "https://api.sandbox.designflow.app/api/autofill/properties-and-characters";
+
+const DEFAULT_SOURCES = [
+  { code: "DS", name: "Disney", apiUrl: `${API_BASE}/DS`, enabled: true },
+  { code: "MV", name: "Marvel", apiUrl: `${API_BASE}/MV`, enabled: true },
+  { code: "WWE", name: "WWE", apiUrl: `${API_BASE}/WWE`, enabled: true },
+];
+
+// ── Source config type ──────────────────────────────────────────────
+
+interface SyncSource {
+  code: string;
+  name: string;
+  apiUrl: string;
+  apiKey?: string;
+  enabled: boolean;
+}
 
 // ── Sync logic ──────────────────────────────────────────────────────
 
@@ -101,7 +105,7 @@ interface SyncResult {
 
 async function syncLicensor(
   db: ReturnType<typeof serviceClient>,
-  config: LicensorConfig,
+  config: SyncSource,
 ): Promise<SyncResult> {
   const result: SyncResult = {
     licensor: config.name,
@@ -125,23 +129,25 @@ async function syncLicensor(
     return result;
   }
 
-  // 2) Fetch from DesignFlow API
+  // 2) Fetch from API
   let apiData: ApiProperty[];
   try {
-    const resp = await fetch(`${API_BASE}/${config.apiSlug}`);
+    const headers: Record<string, string> = {};
+    if (config.apiKey) headers["X-API-Key"] = config.apiKey;
+    const resp = await fetch(config.apiUrl, { headers });
     if (!resp.ok) {
       const text = await resp.text();
-      result.errors.push(`API returned ${resp.status} for ${config.apiSlug}: ${text.substring(0, 200)}`);
+      result.errors.push(`API returned ${resp.status} for ${config.code}: ${text.substring(0, 200)}`);
       return result;
     }
     const body: ApiResponse = await resp.json();
     if (!body.success || !Array.isArray(body.data)) {
-      result.errors.push(`API returned success=false or missing data for ${config.apiSlug}`);
+      result.errors.push(`API returned success=false or missing data for ${config.code}`);
       return result;
     }
     apiData = body.data;
   } catch (e) {
-    result.errors.push(`Fetch failed for ${config.apiSlug}: ${e instanceof Error ? e.message : String(e)}`);
+    result.errors.push(`Fetch failed for ${config.code}: ${e instanceof Error ? e.message : String(e)}`);
     return result;
   }
 
@@ -156,8 +162,7 @@ async function syncLicensor(
     updated_at: now,
   }));
 
-  // Upsert properties in batches
-  const propIdMap = new Map<string, string>(); // external_id → uuid
+  const propIdMap = new Map<string, string>();
   for (let i = 0; i < propRows.length; i += BATCH) {
     const batch = propRows.slice(i, i + BATCH);
     const { data: upserted, error: propErr } = await db
@@ -207,6 +212,21 @@ async function syncLicensor(
   return result;
 }
 
+// ── Load sources from admin_config or fallback ──────────────────────
+
+async function loadSources(db: ReturnType<typeof serviceClient>): Promise<SyncSource[]> {
+  const { data: configRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "TAXONOMY_SYNC_CONFIG")
+    .maybeSingle();
+
+  if (configRow?.value && Array.isArray(configRow.value)) {
+    return configRow.value as SyncSource[];
+  }
+  return DEFAULT_SOURCES;
+}
+
 // ── Main handler ────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -218,7 +238,6 @@ serve(async (req: Request) => {
     return err("Method not allowed", 405);
   }
 
-  // Authenticate admin
   const authResult = await authenticateAdmin(req);
   if (authResult instanceof Response) return authResult;
 
@@ -232,14 +251,17 @@ serve(async (req: Request) => {
   const action = (body.action as string) || "sync-all";
 
   try {
+    const db = serviceClient();
+    const allSources = await loadSources(db);
+
     switch (action) {
       case "sync-all": {
-        const db = serviceClient();
+        const activeSources = allSources.filter((s) => s.enabled);
         const results: SyncResult[] = [];
 
-        for (const lic of LICENSORS) {
-          console.log(`Syncing ${lic.name} (${lic.apiSlug})...`);
-          const r = await syncLicensor(db, lic);
+        for (const src of activeSources) {
+          console.log(`Syncing ${src.name} (${src.code})...`);
+          const r = await syncLicensor(db, src);
           results.push(r);
           console.log(`  → ${r.propertiesUpserted} properties, ${r.charactersUpserted} characters, ${r.errors.length} errors`);
         }
@@ -259,13 +281,12 @@ serve(async (req: Request) => {
 
       case "sync-one": {
         const code = (body.licensor_code as string)?.toUpperCase();
-        const licConfig = LICENSORS.find((l) => l.code === code);
-        if (!licConfig) {
-          return err(`Unknown licensor code: ${code}. Valid codes: ${LICENSORS.map((l) => l.code).join(", ")}`);
+        const srcConfig = allSources.find((s) => s.code === code);
+        if (!srcConfig) {
+          return err(`Unknown licensor code: ${code}. Valid codes: ${allSources.map((s) => s.code).join(", ")}`);
         }
 
-        const db = serviceClient();
-        const r = await syncLicensor(db, licConfig);
+        const r = await syncLicensor(db, srcConfig);
         return json({ ok: r.errors.length === 0, result: r });
       }
 
