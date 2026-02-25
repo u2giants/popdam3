@@ -501,7 +501,7 @@ async function handleHeartbeat(
         container_mount_root:
           (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
         roots: scanRoots,
-        batch_size: pollingConfig.batch_size ?? 100,
+        batch_size: (guard.batch_size as number) || pollingConfig.batch_size || 100,
         scan_min_date: (configMap.SCAN_MIN_DATE as string) || null,
         adaptive_polling: {
           idle_seconds: pollingConfig.idle_seconds ?? 30,
