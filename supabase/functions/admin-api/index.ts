@@ -93,18 +93,45 @@ async function authenticateAdmin(
   return { userId };
 }
 
+// ── Retry helper for transient connection resets ────────────────────
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  delayMs = 200,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const msg = (e as Error).message || "";
+      const isTransient = msg.includes("connection reset") ||
+        msg.includes("connection error") ||
+        msg.includes("SendRequest");
+      if (!isTransient || attempt === maxAttempts) throw e;
+      console.warn(`Transient error (attempt ${attempt}/${maxAttempts}):`, msg);
+      await new Promise((r) => setTimeout(r, delayMs * attempt));
+    }
+  }
+  throw new Error("withRetry: unreachable");
+}
+
 // ── Route: get-config ───────────────────────────────────────────────
 
 async function handleGetConfig(body: Record<string, unknown>) {
   const keys = body.keys;
   const db = serviceClient();
 
-  let query = db.from("admin_config").select("key, value, updated_at");
-  if (Array.isArray(keys) && keys.length > 0) {
-    query = query.in("key", keys as string[]);
-  }
+  const { data, error } = await withRetry(async () => {
+    let query = db.from("admin_config").select("key, value, updated_at");
+    if (Array.isArray(keys) && keys.length > 0) {
+      query = query.in("key", keys as string[]);
+    }
+    const result = await query;
+    if (result.error) throw new Error(result.error.message);
+    return result;
+  });
 
-  const { data, error } = await query;
   if (error) return err(error.message, 500);
 
   const config: Record<string, unknown> = {};
