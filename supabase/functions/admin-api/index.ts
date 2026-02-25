@@ -1177,6 +1177,13 @@ async function handleSendTestRender() {
 
   const assetId = assets[0].id;
 
+  // Remove any existing active job for this asset to avoid unique constraint violation
+  await db
+    .from("render_queue")
+    .delete()
+    .eq("asset_id", assetId)
+    .in("status", ["pending", "claimed"]);
+
   const { data: job, error: jErr } = await db
     .from("render_queue")
     .insert({ asset_id: assetId, status: "pending" })
@@ -2649,10 +2656,37 @@ async function handleTriggerWindowsUpdate(
 
 async function handleRetryFailedRenders() {
   const db = serviceClient();
+  // First get failed jobs that DON'T already have an active (pending/claimed) sibling
+  const { data: failedJobs } = await db
+    .from("render_queue")
+    .select("id, asset_id")
+    .eq("status", "failed");
+
+  if (!failedJobs || failedJobs.length === 0) {
+    return json({ ok: true, requeued_count: 0 });
+  }
+
+  // Find which assets already have an active job
+  const assetIds = failedJobs.map(j => j.asset_id);
+  const { data: activeJobs } = await db
+    .from("render_queue")
+    .select("asset_id")
+    .in("asset_id", assetIds)
+    .in("status", ["pending", "claimed"]);
+
+  const activeAssetIds = new Set((activeJobs ?? []).map(j => j.asset_id));
+  const safeToRetry = failedJobs.filter(j => !activeAssetIds.has(j.asset_id)).map(j => j.id);
+
+  if (safeToRetry.length === 0) {
+    // Just delete the duplicates
+    await db.from("render_queue").delete().eq("status", "failed").in("asset_id", [...activeAssetIds]);
+    return json({ ok: true, requeued_count: 0, skipped_duplicates: activeAssetIds.size });
+  }
+
   const { data, error } = await db
     .from("render_queue")
     .update({ status: "pending", claimed_by: null, claimed_at: null, error_message: null })
-    .eq("status", "failed")
+    .in("id", safeToRetry)
     .select("id");
 
   if (error) return err(error.message, 500);
