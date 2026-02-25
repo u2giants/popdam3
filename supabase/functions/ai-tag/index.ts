@@ -38,6 +38,7 @@ serve(async (req: Request) => {
     const body = await req.json();
     // Accept both "asset_id" and "assetId" for compatibility
     const assetId = body.asset_id || body.assetId;
+    const force = body.force === true;
 
     if (!assetId) {
       return err("asset_id is required");
@@ -51,11 +52,27 @@ serve(async (req: Request) => {
 
     const { data: asset, error: fetchErr } = await db
       .from("assets")
-      .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url")
+      .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at")
       .eq("id", assetId)
       .single();
 
     if (fetchErr || !asset) return err("Asset not found", 404);
+
+    // Skip guard: don't re-tag if already tagged (unless force=true)
+    if (asset.status === "tagged" && asset.ai_tagged_at && !force) {
+      console.log("ai-tag SKIP", {
+        assetId,
+        reason: "already_tagged",
+        ai_tagged_at: asset.ai_tagged_at,
+      });
+      return json({
+        ok: true,
+        skipped: true,
+        reason: "already_tagged",
+        asset_id: assetId,
+        ai_tagged_at: asset.ai_tagged_at,
+      });
+    }
 
     // Use provided thumbnail_url or fall back to the one stored on the asset
     const thumbnailUrl = body.thumbnail_url || asset.thumbnail_url;
@@ -106,6 +123,14 @@ Based on the image and metadata, identify:
 6. Asset type: art_piece or product
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
+
+    // Log before calling AI
+    console.log("ai-tag START", {
+      assetId,
+      force,
+      currentStatus: asset.status,
+      alreadyTagged: !!asset.ai_tagged_at,
+    });
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -240,6 +265,7 @@ Based on the image and metadata, identify:
     // Apply tags to asset
     const updates: Record<string, unknown> = {
       status: "tagged",
+      ai_tagged_at: new Date().toISOString(),
     };
     if (tagData.tags) updates.tags = tagData.tags;
     if (tagData.ai_description) updates.ai_description = tagData.ai_description;
@@ -260,6 +286,12 @@ Based on the image and metadata, identify:
       console.error("Failed to update asset:", updateErr);
       return err("Failed to save tags", 500);
     }
+
+    console.log("ai-tag SUCCESS", {
+      assetId,
+      tagsCount: (tagData.tags as string[])?.length ?? 0,
+      hasDescription: !!tagData.ai_description,
+    });
 
     // Link characters if identified
     if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {

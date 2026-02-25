@@ -1569,7 +1569,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
     .not("thumbnail_url", "is", null);
 
   if (!tagAll) {
-    query = query.is("ai_description", null);
+    query = query.neq("status", "tagged");
   }
 
   const { data: assets, error } = await query
@@ -1585,6 +1585,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
   let tagged = 0;
+  let skipped = 0;
   let failed = 0;
 
   for (const asset of assets) {
@@ -1595,10 +1596,19 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${anonKey}`,
         },
-        body: JSON.stringify({ asset_id: asset.id }),
+        body: JSON.stringify({ asset_id: asset.id, force: tagAll }),
       });
-      if (res.ok) tagged++;
-      else failed++;
+      if (res.ok) {
+        const result = await res.json();
+        if (result.skipped) skipped++;
+        else tagged++;
+      } else {
+        failed++;
+        console.error("bulk-ai-tag asset failed", {
+          assetId: asset.id,
+          httpStatus: res.status,
+        });
+      }
     } catch {
       failed++;
     }
@@ -1607,7 +1617,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   }
 
   const done = assets.length < BATCH_SIZE;
-  return json({ ok: true, tagged, failed, done, nextOffset: offset + assets.length });
+  return json({ ok: true, tagged, skipped, failed, done, nextOffset: offset + assets.length });
 }
 
 // ── Route: count-untagged-assets ────────────────────────────────────
@@ -1620,7 +1630,7 @@ async function handleCountUntaggedAssets() {
     .select("*", { count: "exact", head: true })
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null)
-    .is("ai_description", null);
+    .neq("status", "tagged");
 
   const { count: totalWithThumb } = await db
     .from("assets")
