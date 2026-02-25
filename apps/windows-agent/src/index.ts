@@ -19,6 +19,7 @@ import * as api from "./api-client";
 import { renderFile } from "./renderer";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
+import { getCircuitBreakerStatus } from "./circuit-breaker";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
@@ -168,9 +169,21 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
 function startHeartbeat() {
   setInterval(async () => {
     try {
-      const response = await api.heartbeat(agentId, lastError, healthStatus);
+      const cbStatus = getCircuitBreakerStatus();
+      const enrichedHealth: api.AgentHealthPayload = {
+        ...healthStatus,
+        ...(cbStatus.illustratorCircuitBreaker === "open"
+          ? {
+              lastPreflightError: [
+                healthStatus.lastPreflightError,
+                `Illustrator circuit breaker OPEN — cooldown active until ${cbStatus.cooldownUntil} (${cbStatus.consecutiveFailures} consecutive failures)`,
+              ].filter(Boolean).join("; "),
+            }
+          : {}),
+      };
+      const response = await api.heartbeat(agentId, lastError, enrichedHealth);
       applyCloudConfig(response);
-      logger.debug("Heartbeat sent");
+      logger.debug("Heartbeat sent", { circuitBreaker: cbStatus.illustratorCircuitBreaker });
     } catch (e) {
       logger.error("Heartbeat failed", { error: (e as Error).message });
     }

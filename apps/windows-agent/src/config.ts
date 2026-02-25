@@ -69,7 +69,14 @@ export const config = {
 
   // Illustrator
   illustratorDpi: optionalInt("ILLUSTRATOR_DPI", 150),
-  illustratorTimeoutMs: optionalInt("ILLUSTRATOR_TIMEOUT_MS", 120_000),
+  illustratorTimeoutMs: Math.min(
+    optionalInt("ILLUSTRATOR_TIMEOUT_MS", 120_000),
+    5 * 60_000, // hard cap: 5 minutes
+  ),
+
+  // Circuit breaker — Illustrator
+  illustratorFailureLimit: optionalInt("ILLUSTRATOR_FAILURE_LIMIT", 3),
+  illustratorCooldownMs: optionalInt("ILLUSTRATOR_COOLDOWN_MS", 15 * 60_000),
 
   // Concurrency + Polling
   renderConcurrency: optionalInt("RENDER_CONCURRENCY", 6),
