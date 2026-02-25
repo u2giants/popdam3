@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
+import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -327,7 +328,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
               <>
                 <section className="space-y-2">
                   <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5" /> {detailAsset.filename}
+                    <FileText className="h-3.5 w-3.5" /> <span title={detailAsset.filename}>{formatFilename(detailAsset.filename, 30)}</span>
                   </h4>
                   <div className="space-y-1.5">
                     <MetaRow label="Type" value={<Badge variant="secondary" className="text-[10px] uppercase">{detailAsset.file_type}</Badge>} />
@@ -537,7 +538,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
                         {/* Info */}
                         <div className="flex-1 min-w-0 space-y-0.5">
-                          <p className="text-xs font-medium truncate" title={asset.filename}>{asset.filename}</p>
+                          <p className="text-xs font-medium" title={asset.filename}>{formatFilename(asset.filename, 24)}</p>
                           <div className="flex items-center gap-1">
                             <Badge variant="secondary" className="text-[9px] uppercase px-1 py-0">{asset.file_type}</Badge>
                             {asset.workflow_status && asset.workflow_status !== "other" && (
