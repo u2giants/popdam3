@@ -68,9 +68,19 @@ async function authenticateAdmin(
     { global: { headers: { Authorization: authHeader } } },
   );
 
-  const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
-  if (userError || !user) {
-    console.error("Token validation error:", userError);
+  let user;
+  try {
+    const result = await withRetry(async () => {
+      const r = await anonClient.auth.getUser(token);
+      if (r.error) throw r.error;
+      return r;
+    }, 3, 300);
+    user = result.data.user;
+  } catch (e) {
+    console.error("Token validation error:", e);
+    return err("Invalid or expired token", 401);
+  }
+  if (!user) {
     return err("Invalid or expired token", 401);
   }
 
