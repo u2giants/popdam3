@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
-  Download, Server, Monitor, Plus, Trash2, Package,
+  Download, Server, Plus, Trash2, Package,
   Loader2, AlertTriangle, FolderPlus,
 } from "lucide-react";
 
@@ -246,110 +246,6 @@ function BridgeAgentBundle() {
   );
 }
 
-// ── Windows Agent Bundle ────────────────────────────────────────────
-
-function WindowsAgentBundle() {
-  const [agentName, setAgentName] = useState("windows-render-agent");
-  const [nasHost, setNasHost] = useState("");
-  const [nasShare, setNasShare] = useState("");
-  const [driveLetter, setDriveLetter] = useState("");
-
-  const downloadMutation = useMutation({
-    mutationFn: () =>
-      downloadBundle({
-        agent_type: "windows-render",
-        agent_name: agentName,
-        nas_host: nasHost,
-        nas_share: nasShare,
-        desired_drive_letter: driveLetter,
-      }),
-    onSuccess: () => toast.success("Windows Agent bundle downloaded!"),
-    onError: (e) => toast.error(e.message),
-  });
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Monitor className="h-4 w-4" />
-          Add Windows Render Agent
-          <Badge variant="secondary" className="text-[10px]">Windows 10/11</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Generate install scripts for a Windows machine with Adobe Illustrator. Includes install.ps1 and setup instructions.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Agent Name</Label>
-            <Input
-              className="font-mono text-xs"
-              value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
-              placeholder="windows-render-agent"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">NAS Hostname (optional)</Label>
-            <Input
-              className="font-mono text-xs"
-              value={nasHost}
-              onChange={(e) => setNasHost(e.target.value)}
-              placeholder="synology-nas"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">NAS Share Name (optional)</Label>
-            <Input
-              className="font-mono text-xs"
-              value={nasShare}
-              onChange={(e) => setNasShare(e.target.value)}
-              placeholder="nas-share"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Map Drive Letter (optional)</Label>
-            <Input
-              className="font-mono text-xs"
-              value={driveLetter}
-              onChange={(e) => setDriveLetter(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1))}
-              placeholder="Z"
-              maxLength={1}
-            />
-            <p className="text-[10px] text-muted-foreground">
-              If set, the installer will map this drive letter to \\NAS_HOST\NAS_SHARE
-            </p>
-          </div>
-        </div>
-
-        <Separator />
-
-        <div className="flex items-center gap-3">
-          <Button
-            size="lg"
-            className="gap-2"
-            onClick={() => downloadMutation.mutate()}
-            disabled={downloadMutation.isPending || !agentName.trim()}
-          >
-            {downloadMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Download Install Bundle
-          </Button>
-          <div className="flex items-start gap-1.5 text-xs text-[hsl(var(--warning))]">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>Pairing code in the bundle expires in 15 minutes.</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 // ── Main Tab ────────────────────────────────────────────────────────
 
 export default function InstallBundleTab() {
@@ -365,7 +261,6 @@ export default function InstallBundleTab() {
         </p>
       </div>
       <BridgeAgentBundle />
-      <WindowsAgentBundle />
     </div>
   );
 }
