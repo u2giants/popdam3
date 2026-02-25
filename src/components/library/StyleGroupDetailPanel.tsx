@@ -481,10 +481,11 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                     <MetaRow label="File Modified" value={format(new Date(detailAsset.modified_at), "MMM d, yyyy HH:mm")} />
                     <MetaRow label="File Created" value={detailAsset.file_created_at ? format(new Date(detailAsset.file_created_at), "MMM d, yyyy HH:mm") : null} />
                   </div>
-                  <div className="mt-2 pt-2 border-t border-border/50 space-y-1.5">
+                   <div className="mt-2 pt-2 border-t border-border/50 space-y-1.5">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60">DAM Internal</p>
                     <MetaRow label="Ingested" value={detailAsset.ingested_at ? format(new Date(detailAsset.ingested_at), "MMM d, yyyy HH:mm") : null} />
                     <MetaRow label="Last Scanned" value={detailAsset.last_seen_at ? format(new Date(detailAsset.last_seen_at), "MMM d, yyyy HH:mm") : null} />
+                    <MetaRow label="AI Tagged" value={(detailAsset as any).ai_tagged_at ? format(new Date((detailAsset as any).ai_tagged_at), "MMM d, yyyy HH:mm") : "Not tagged"} />
                   </div>
                 </section>
               </>

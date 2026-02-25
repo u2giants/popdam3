@@ -662,7 +662,7 @@ function DatabaseInspector() {
 function AiTaggingSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
-  const [tagProgress, setTagProgress] = useState<{ tagged: number; failed: number; total: number } | null>(null);
+  const [tagProgress, setTagProgress] = useState<{ tagged: number; skipped: number; failed: number; total: number } | null>(null);
 
   const { data: tagCounts } = useQuery({
     queryKey: ["untagged-asset-count"],
@@ -684,8 +684,9 @@ function AiTaggingSection() {
     );
     if (!confirmed) return;
 
-    setTagProgress({ tagged: 0, failed: 0, total });
+    setTagProgress({ tagged: 0, skipped: 0, failed: 0, total });
     let totalTagged = 0;
+    let totalSkipped = 0;
     let totalFailed = 0;
     let offset = 0;
     const route = mode === "all" ? "bulk-ai-tag-all" : "bulk-ai-tag";
@@ -694,12 +695,13 @@ function AiTaggingSection() {
       while (true) {
         const result = await call(route, { offset });
         totalTagged += result.tagged ?? 0;
+        totalSkipped += result.skipped ?? 0;
         totalFailed += result.failed ?? 0;
-        setTagProgress({ tagged: totalTagged, failed: totalFailed, total });
+        setTagProgress({ tagged: totalTagged, skipped: totalSkipped, failed: totalFailed, total });
         if (result.done) break;
         offset = result.nextOffset;
       }
-      toast.success(`Tagged ${totalTagged} assets. ${totalFailed} failed.`);
+      toast.success(`Tagged ${totalTagged} assets. ${totalSkipped} skipped. ${totalFailed} failed.`);
       queryClient.invalidateQueries({ queryKey: ["untagged-asset-count"] });
     } catch (e: any) {
       toast.error(e.message || "Bulk tag failed");
@@ -753,15 +755,18 @@ function AiTaggingSection() {
               <span>
                 Tagged <span className="font-semibold text-foreground">{tagProgress.tagged.toLocaleString()}</span>
                 {" / "}{tagProgress.total.toLocaleString()}
+                {tagProgress.skipped > 0 && (
+                  <span className="text-muted-foreground ml-1">· {tagProgress.skipped} skipped</span>
+                )}
                 {tagProgress.failed > 0 && (
-                  <span className="text-destructive ml-1">({tagProgress.failed} failed)</span>
+                  <span className="text-destructive ml-1">· {tagProgress.failed} failed</span>
                 )}
               </span>
             </div>
             <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full transition-all duration-300"
-                style={{ width: `${tagProgress.total > 0 ? Math.round(((tagProgress.tagged + tagProgress.failed) / tagProgress.total) * 100) : 0}%` }}
+                style={{ width: `${tagProgress.total > 0 ? Math.round(((tagProgress.tagged + tagProgress.skipped + tagProgress.failed) / tagProgress.total) * 100) : 0}%` }}
               />
             </div>
           </div>
