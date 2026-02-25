@@ -97,6 +97,10 @@ let lastScanCompletedAt: number = Date.now(); // init to now so auto-scan waits 
 // Windows render mode: "fallback_only" (default) or "primary"
 let windowsRenderMode: "fallback_only" | "primary" = "fallback_only";
 
+// Windows render policy (new — overrides windowsRenderMode when present)
+import type { WindowsRenderPolicy } from "./api-client.js";
+let windowsRenderPolicy: WindowsRenderPolicy | null = null;
+
 function getEffectiveScanRoots(): string[] {
   return (cloudScanRoots && cloudScanRoots.length > 0) ? cloudScanRoots : config.scanRoots;
 }
@@ -215,6 +219,7 @@ interface CloudConfig {
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
   auto_scan?: { enabled: boolean; interval_hours: number };
   windows_render_mode?: "fallback_only" | "primary";
+  windows_render_policy?: WindowsRenderPolicy | null;
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
@@ -259,9 +264,15 @@ function applyCloudConfig(cfg: CloudConfig) {
     }
   }
 
-  // Update windows render mode
+  // Update windows render mode (legacy)
   if (cfg.windows_render_mode === "primary" || cfg.windows_render_mode === "fallback_only") {
     windowsRenderMode = cfg.windows_render_mode;
+  }
+
+  // Update windows render policy (new — takes precedence)
+  if (cfg.windows_render_policy) {
+    windowsRenderPolicy = cfg.windows_render_policy;
+    logger.info("Windows render policy updated", { mode: cfg.windows_render_policy.mode });
   }
 }
 
@@ -495,14 +506,28 @@ async function processFile(file: FileCandidate) {
     // 1. Quick hash
     const { quick_hash, quick_hash_version } = await computeQuickHash(file.absolutePath);
 
-    // 2. Thumbnail strategy depends on windows_render_mode
+    // 2. Thumbnail strategy — uses new policy if set, else legacy mode
     let thumb: { thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number } = {};
+    const effectiveMode = windowsRenderPolicy?.mode ?? windowsRenderMode;
 
-    if (windowsRenderMode === "primary") {
-      // Primary mode: skip local thumbnail entirely, will queue render job after ingest
+    const shouldOffloadToWindows = (() => {
+      if (effectiveMode === "primary") return true;
+      if (effectiveMode === "fallback_only") return false;
+      // "shared" mode: offload a percentage of eligible files
+      if (effectiveMode === "shared" && windowsRenderPolicy) {
+        const p = windowsRenderPolicy;
+        if (!p.shared_types.includes(file.fileType)) return false;
+        if (p.shared_min_mb > 0 && file.fileSize < p.shared_min_mb * 1024 * 1024) return false;
+        // Deterministic offload based on hash to avoid re-randomizing on rescan
+        const hashNum = parseInt(quick_hash.slice(0, 8), 16);
+        return (hashNum % 100) < p.shared_percent;
+      }
+      return false;
+    })();
+
+    if (shouldOffloadToWindows) {
       thumb = { thumbnailError: "deferred_to_windows_agent" };
     } else {
-      // Fallback mode (default): generate locally
       const tempId = randomUUID();
       thumb = await processThumbnail(file, tempId);
     }
@@ -545,23 +570,27 @@ async function processFile(file: FileCandidate) {
     }
 
     // Queue for Windows render agent
-    if (windowsRenderMode === "primary") {
-      // Primary mode: queue render job for every eligible asset
-      if (result.action === "created" || result.action === "updated" || result.action === "moved") {
-        try {
-          await api.queueRender(result.asset_id, "primary_mode");
-        } catch (e) {
-          logger.warn("Failed to queue render job (primary)", { assetId: result.asset_id, error: (e as Error).message });
+    const shouldQueueRender = (() => {
+      if (shouldOffloadToWindows && (result.action === "created" || result.action === "updated" || result.action === "moved")) {
+        return "offloaded";
+      }
+      // Final-fallback: if local thumbnail failed, queue to Windows regardless of mode
+      if (thumb.thumbnailError && !thumb.thumbnailUrl) {
+        const policy = windowsRenderPolicy;
+        if (policy?.final_fallback_on_local_failure) return "final_fallback";
+        // Legacy behavior: only queue ai/no_pdf_compat in fallback_only mode
+        if (effectiveMode === "fallback_only" && thumb.thumbnailError === "no_pdf_compat" && file.fileType === "ai") {
+          return "no_pdf_compat";
         }
       }
-    } else {
-      // Fallback mode: only queue when local thumbnail failed on AI files
-      if (thumb.thumbnailError === "no_pdf_compat" && file.fileType === "ai") {
-        try {
-          await api.queueRender(result.asset_id, "no_pdf_compat");
-        } catch (e) {
-          logger.warn("Failed to queue render job", { assetId: result.asset_id, error: (e as Error).message });
-        }
+      return null;
+    })();
+
+    if (shouldQueueRender) {
+      try {
+        await api.queueRender(result.asset_id, shouldQueueRender);
+      } catch (e) {
+        logger.warn("Failed to queue render job", { assetId: result.asset_id, reason: shouldQueueRender, error: (e as Error).message });
       }
     }
 
