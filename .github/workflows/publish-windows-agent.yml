@@ -79,6 +79,17 @@ jobs:
           Copy-Item "apps\windows-agent\package.json" -Destination "installer\package.json"
           Write-Host "package.json copied"
 
+          # Verify critical files were copied
+          if (!(Test-Path "installer\dist\index.js")) {
+            Write-Error "dist\index.js missing from installer/ - build failed"
+            exit 1
+          }
+          if (!(Test-Path "installer\node_modules\sharp")) {
+            Write-Error "node_modules\sharp missing from installer/ - copy failed"
+            exit 1
+          }
+          Write-Host "Verification passed"
+
       - name: Create launcher script
         shell: bash
         run: |
@@ -216,6 +227,8 @@ jobs:
           ; ══════════════════════════════════════════════════════
 
           Section "Install"
+            SetShellVarContext all
+
             ; ── Remove existing scheduled task if reinstalling ──
             nsExec::ExecToLog 'schtasks /delete /tn "PopDAM Windows Render Agent" /f'
             Sleep 1000
@@ -355,6 +368,8 @@ jobs:
           ; ══════════════════════════════════════════════════════
 
           Section "Uninstall"
+            SetShellVarContext all
+
             ; Stop and remove the scheduled task
             nsExec::ExecToLog 'schtasks /end /tn "PopDAM Windows Render Agent"'
             Sleep 2000
