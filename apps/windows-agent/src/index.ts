@@ -151,6 +151,9 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (wa.nas_username) cloudNasUsername = wa.nas_username;
     if (wa.nas_password) cloudNasPassword = wa.nas_password;
     if (wa.nas_mount_path !== undefined) cloudNasMountPath = wa.nas_mount_path;
+    if (wa.render_concurrency && wa.render_concurrency > 0) {
+      (config as { renderConcurrency: number }).renderConcurrency = wa.render_concurrency;
+    }
 
     logger.debug("Cloud config received for windows_agent", {
       nas_host: wa.nas_host || "(empty)",
