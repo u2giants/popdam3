@@ -102,8 +102,18 @@ export interface HeartbeatResponse {
   };
 }
 
-export async function heartbeat(agentId: string, counters: Counters, lastError?: string): Promise<HeartbeatResponse> {
-  const data = await callApi("heartbeat", { agent_id: agentId, counters, last_error: lastError });
+export async function heartbeat(
+  agentId: string,
+  counters: Counters,
+  lastError?: string,
+  versionInfo?: { image_tag?: string; version?: string; build_sha?: string },
+): Promise<HeartbeatResponse> {
+  const data = await callApi("heartbeat", {
+    agent_id: agentId,
+    counters,
+    last_error: lastError,
+    version_info: versionInfo,
+  });
   return data as unknown as HeartbeatResponse;
 }
 

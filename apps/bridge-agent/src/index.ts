@@ -15,6 +15,7 @@
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
+import { readFileSync } from "node:fs";
 import { stat, readdir, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
@@ -29,6 +30,20 @@ let agentId: string = "";
 let isScanning = false;
 let abortRequested = false;
 let lastError: string | undefined;
+
+// ── Version info (injected via Docker build args or package.json) ──
+const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
+const buildSha = process.env.POPDAM_BUILD_SHA || "unknown";
+let packageVersion = "unknown";
+try {
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8"));
+  packageVersion = pkg.version || "unknown";
+} catch { /* running from dist — try relative */ 
+  try {
+    const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
+    packageVersion = pkg.version || "unknown";
+  } catch { /* leave as unknown */ }
+}
 
 const counters: api.Counters = {
   files_checked: 0,
@@ -106,7 +121,11 @@ function startHeartbeat() {
   const INTERVAL_MS = 30_000;
   setInterval(async () => {
     try {
-      const response = await api.heartbeat(agentId, { ...counters }, lastError);
+      const response = await api.heartbeat(agentId, { ...counters }, lastError, {
+        image_tag: imageTag,
+        version: packageVersion,
+        build_sha: buildSha,
+      });
       logger.debug("Heartbeat sent");
 
       // Process config sync from heartbeat response
@@ -573,14 +592,18 @@ async function handleCheckUpdate() {
   const { promisify } = await import("node:util");
   const execFileAsync = promisify(execFile);
 
+  // Use the tag the container was built with, falling back to "stable"
+  const tag = imageTag !== "unknown" ? imageTag : "stable";
+  const pullImage = `ghcr.io/u2giants/popdam-bridge:${tag}`;
+
   try {
-    await execFileAsync("docker", ["pull", "ghcr.io/u2giants/popdam-bridge:latest", "--quiet"]);
+    await execFileAsync("docker", ["pull", pullImage, "--quiet"]);
 
     const { stdout: currentDigest } = await execFileAsync(
       "docker", ["inspect", "popdam-bridge", "--format={{.Image}}"]
     );
     const { stdout: latestDigest } = await execFileAsync(
-      "docker", ["inspect", "ghcr.io/u2giants/popdam-bridge:latest", "--format={{.Id}}"]
+      "docker", ["inspect", pullImage, "--format={{.Id}}"]
     );
 
     const updateAvailable = currentDigest.trim() !== latestDigest.trim();
@@ -589,24 +612,29 @@ async function handleCheckUpdate() {
       current_digest: currentDigest.trim(),
       latest_digest: latestDigest.trim(),
       update_available: updateAvailable,
+      checked_tag: tag,
+      checked_at: new Date().toISOString(),
     });
 
-    logger.info("Update check complete", { updateAvailable, currentDigest: currentDigest.trim(), latestDigest: latestDigest.trim() });
+    logger.info("Update check complete", { updateAvailable, tag, currentDigest: currentDigest.trim(), latestDigest: latestDigest.trim() });
   } catch (e) {
     logger.error("Update check failed", { error: (e as Error).message });
     await api.reportUpdateStatus({
       error: (e as Error).message,
       update_available: false,
+      checked_at: new Date().toISOString(),
     }).catch(() => {});
   }
 }
 
 function handleApplyUpdate() {
   logger.info("Self-update requested — pulling and restarting container");
+  const tag = imageTag !== "unknown" ? imageTag : "stable";
+  const pullImage = `ghcr.io/u2giants/popdam-bridge:${tag}`;
   const { exec } = require("node:child_process");
   // Fire and forget — container will stop mid-execution
   exec([
-    "docker pull ghcr.io/u2giants/popdam-bridge:latest",
+    `docker pull ${pullImage}`,
     "docker stop popdam-bridge",
     "docker rm popdam-bridge",
     "docker compose -f /volume1/docker/popdam/docker-compose.yml up -d",
@@ -658,6 +686,9 @@ async function doPairing(): Promise<void> {
 
 async function main() {
   logger.info("PopDAM Bridge Agent starting", {
+    version: packageVersion,
+    imageTag,
+    buildSha,
     scanRoots: config.scanRoots,
     mountRoot: config.nasContainerMountRoot,
     thumbConcurrency: config.thumbConcurrency,

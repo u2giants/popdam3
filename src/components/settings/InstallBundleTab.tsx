@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   Download, Server, Monitor, Plus, Trash2, Package,
@@ -69,6 +70,7 @@ function BridgeAgentBundle() {
   const [scanRoots, setScanRoots] = useState<string[]>([]);
   const [newRoot, setNewRoot] = useState("");
   const [enableWatchtower, setEnableWatchtower] = useState(false);
+  const [updateChannel, setUpdateChannel] = useState("stable");
 
   const downloadMutation = useMutation({
     mutationFn: () =>
@@ -79,6 +81,7 @@ function BridgeAgentBundle() {
         container_mount_root: containerMountRoot,
         scan_roots: scanRoots,
         enable_watchtower: enableWatchtower,
+        update_channel: updateChannel,
       }),
     onSuccess: () => toast.success("Bridge Agent bundle downloaded!"),
     onError: (e) => toast.error(e.message),
@@ -193,6 +196,28 @@ function BridgeAgentBundle() {
             </p>
           </div>
           <Switch checked={enableWatchtower} onCheckedChange={setEnableWatchtower} />
+        </div>
+
+        {/* Update Channel */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-xs">Update Channel</Label>
+            <p className="text-[10px] text-muted-foreground">
+              {updateChannel === "stable" ? "Recommended — tested releases only" :
+               updateChannel === "beta" ? "Early access — may contain experimental features" :
+               "Always pulls the most recent build"}
+            </p>
+          </div>
+          <Select value={updateChannel} onValueChange={setUpdateChannel}>
+            <SelectTrigger className="w-[120px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="stable">Stable</SelectItem>
+              <SelectItem value="beta">Beta</SelectItem>
+              <SelectItem value="latest">Latest</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <Separator />

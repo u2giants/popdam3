@@ -351,6 +351,8 @@ async function handleListAgents() {
       last_counters: metadata.last_counters || null,
       last_error: metadata.last_error || null,
       heartbeat_history: metadata.heartbeat_history || [],
+      version_info: metadata.version_info || null,
+      metadata,
       key_preview: a.agent_key_hash
         ? `${a.agent_key_hash.substring(0, 8)}...`
         : null,
@@ -1518,6 +1520,7 @@ async function handleGenerateInstallBundle(
   const agentName = optionalString(body, "agent_name") ||
     (agentType === "bridge" ? "bridge-agent" : "windows-render-agent");
   const enableWatchtower = body.enable_watchtower === true;
+  const updateChannel = optionalString(body, "update_channel") || "stable";
 
   // Bridge-specific options
   const nasHostPath = optionalString(body, "nas_host_path") || "/volume1/nas-share";
@@ -1581,7 +1584,7 @@ async function handleGenerateInstallBundle(
       'version: "3.8"',
       "services:",
       "  bridge-agent:",
-      "    image: ghcr.io/u2giants/popdam-bridge:latest",
+      "    image: ghcr.io/u2giants/popdam-bridge:" + updateChannel,
       "    container_name: popdam-bridge",
       "    restart: unless-stopped",
       "    env_file: .env",

@@ -275,6 +275,7 @@ async function handleHeartbeat(
   const counters = body.counters as Record<string, unknown> | undefined;
   const lastError = optionalString(body, "last_error");
   const health = body.health as Record<string, unknown> | undefined;
+  const versionInfo = body.version_info as Record<string, unknown> | undefined;
   const db = serviceClient();
 
   // ── Update agent metadata ──
@@ -298,6 +299,13 @@ async function handleHeartbeat(
     last_counters: counters || {},
     last_error: lastError,
     counter_history: history,
+    // Version info from bridge agent
+    version_info: versionInfo ? {
+      image_tag: versionInfo.image_tag ?? null,
+      version: versionInfo.version ?? null,
+      build_sha: versionInfo.build_sha ?? null,
+      last_reported_at: new Date().toISOString(),
+    } : metadata.version_info,
     // Structured health payload from Windows agent preflight
     health: health ? {
       healthy: health.healthy ?? false,
