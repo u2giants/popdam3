@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import { formatFilename } from "@/lib/format-filename";
 import {
   Monitor, Download, ListChecks, ClipboardList, Copy, Check,
   Eye, EyeOff, RefreshCw, AlertTriangle, Trash2, Play, Timer, KeyRound,
@@ -752,7 +753,7 @@ function RenderJobsTable() {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="font-mono text-xs max-w-[200px] truncate">{job.filename as string || "—"}</TableCell>
+                        <TableCell className="font-mono text-xs max-w-[200px]" title={job.filename as string || ""}>{formatFilename(job.filename as string || "—", 24)}</TableCell>
                         <TableCell>
                           <Badge
                             variant={

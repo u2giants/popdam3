@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
+import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -196,7 +197,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
     <div className="flex h-full w-[384px] flex-col border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium truncate pr-2">{asset.filename}</h3>
+        <h3 className="text-sm font-medium pr-2" title={asset.filename}>{formatFilename(asset.filename, 32)}</h3>
         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
