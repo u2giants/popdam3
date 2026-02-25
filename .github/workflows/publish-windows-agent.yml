@@ -380,12 +380,36 @@ jobs:
           }
           Write-Host "Installer built successfully: $((Get-Item 'popdam-windows-agent-setup.exe').Length / 1MB) MB"
 
+      - name: Read version from package.json
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./apps/windows-agent/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Create dist.zip (for OTA updates)
+        shell: powershell
+        run: |
+          Compress-Archive -Path "apps\windows-agent\dist\*" -DestinationPath "installer\popdam-windows-agent-dist.zip" -Force
+          Write-Host "dist.zip created: $((Get-Item 'installer\popdam-windows-agent-dist.zip').Length / 1KB) KB"
+
+      - name: Compute dist.zip checksum
+        id: checksum
+        shell: bash
+        run: |
+          SHA=$(sha256sum installer/popdam-windows-agent-dist.zip | cut -d' ' -f1)
+          echo "sha256=$SHA" >> $GITHUB_OUTPUT
+          echo "SHA256: $SHA"
+
       - name: Create versioned GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: windows-agent-${{ github.sha }}
-          name: Windows Render Agent (${{ github.sha }})
-          files: installer/popdam-windows-agent-setup.exe
+          tag_name: windows-agent-v${{ steps.version.outputs.version }}-${{ github.sha }}
+          name: Windows Render Agent v${{ steps.version.outputs.version }}
+          files: |
+            installer/popdam-windows-agent-setup.exe
+            installer/popdam-windows-agent-dist.zip
           generate_release_notes: false
           make_latest: false
         env:
@@ -395,9 +419,31 @@ jobs:
         shell: bash
         run: |
           gh release delete windows-agent-latest --yes 2>/dev/null || true
-          gh release create windows-agent-latest installer/popdam-windows-agent-setup.exe \
-            --title "Windows Render Agent (Latest)" \
-            --notes "Latest build of the PopDAM Windows Render Agent. Uses Scheduled Task (interactive session) for Adobe Illustrator COM automation." \
+          gh release create windows-agent-latest \
+            installer/popdam-windows-agent-setup.exe \
+            installer/popdam-windows-agent-dist.zip \
+            --title "Windows Render Agent v${{ steps.version.outputs.version }} (Latest)" \
+            --notes "Latest build of the PopDAM Windows Render Agent (Sharp + Ghostscript)." \
             --latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify cloud of new version
+        shell: bash
+        continue-on-error: true
+        run: |
+          DOWNLOAD_URL="https://github.com/u2giants/popdam3/releases/download/windows-agent-latest/popdam-windows-agent-dist.zip"
+          INSTALLER_URL="https://github.com/u2giants/popdam3/releases/download/windows-agent-latest/popdam-windows-agent-setup.exe"
+          curl -sS -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/agent-api" \
+            -H "Content-Type: application/json" \
+            -H "x-deploy-key: ${{ secrets.DEPLOY_WEBHOOK_KEY }}" \
+            -d '{
+              "action": "notify-build",
+              "agent_type": "windows-render",
+              "version": "${{ steps.version.outputs.version }}",
+              "download_url": "'"$DOWNLOAD_URL"'",
+              "installer_url": "'"$INSTALLER_URL"'",
+              "checksum_sha256": "${{ steps.checksum.outputs.sha256 }}",
+              "commit_sha": "${{ github.sha }}"
+            }'

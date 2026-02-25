@@ -1795,6 +1795,56 @@ async function handleBootstrap(body: Record<string, unknown>) {
   });
 }
 
+// ── Route: notify-build (called by CI/CD after publishing a release) ──
+
+async function handleNotifyBuild(
+  body: Record<string, unknown>,
+  req: Request,
+): Promise<Response> {
+  // Auth: compare x-deploy-key header against DEPLOY_WEBHOOK_KEY secret
+  const deployKey = req.headers.get("x-deploy-key");
+  const expectedKey = Deno.env.get("DEPLOY_WEBHOOK_KEY");
+
+  if (!expectedKey) {
+    return err("DEPLOY_WEBHOOK_KEY secret not configured", 500);
+  }
+  if (!deployKey || deployKey !== expectedKey) {
+    return err("Invalid deploy key", 401);
+  }
+
+  const agentType = optionalString(body, "agent_type") ?? "windows-render";
+  const version = requireString(body, "version");
+  const downloadUrl = requireString(body, "download_url");
+  const checksum = optionalString(body, "checksum_sha256") || "";
+  const installerUrl = optionalString(body, "installer_url") || "";
+  const commitSha = optionalString(body, "commit_sha") || "";
+
+  const configKey = agentType === "bridge"
+    ? "BRIDGE_LATEST_BUILD"
+    : "WINDOWS_LATEST_BUILD";
+
+  const db = serviceClient();
+  const { error: upsertErr } = await db
+    .from("admin_config")
+    .upsert({
+      key: configKey,
+      value: {
+        version,
+        download_url: downloadUrl,
+        installer_url: installerUrl,
+        checksum_sha256: checksum,
+        commit_sha: commitSha,
+        published_at: new Date().toISOString(),
+      },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "key" });
+
+  if (upsertErr) return err(upsertErr.message, 500);
+
+  console.log(`[notify-build] Updated ${configKey}: v${version} (${commitSha.slice(0, 7)})`);
+  return json({ ok: true, config_key: configKey, version });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1829,6 +1879,11 @@ serve(async (req: Request) => {
     }
     if (action === "pair") {
       return await handlePair(body);
+    }
+
+    // Deploy webhook — authenticated via x-deploy-key header
+    if (action === "notify-build") {
+      return await handleNotifyBuild(body, req);
     }
 
     // All other routes require agent authentication
