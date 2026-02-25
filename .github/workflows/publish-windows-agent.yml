@@ -282,37 +282,7 @@ jobs:
             config_ok:
 
             ; ── Register Scheduled Task (interactive session) ──
-            ; Uses PowerShell to create a task that:
-            ;   - Triggers at logon
-            ;   - Runs only when user is logged on (interactive)
-            ;   - Runs the launcher.bat wrapper (handles drive mapping)
-            ;   - Restarts on failure (3 times, 60s delay)
-            nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -Command "\
-              $$action = New-ScheduledTaskAction \
-                -Execute \"$INSTDIR\popdam-launcher.bat\" \
-                -WorkingDirectory \"$INSTDIR\"; \
-              $$trigger = New-ScheduledTaskTrigger -AtLogOn; \
-              $$settings = New-ScheduledTaskSettingsSet \
-                -AllowStartIfOnBatteries \
-                -DontStopIfGoingOnBatteries \
-                -DontStopOnIdleEnd \
-                -RestartCount 3 \
-                -RestartInterval (New-TimeSpan -Seconds 60) \
-                -ExecutionTimeLimit (New-TimeSpan -Days 0) \
-                -StartWhenAvailable \
-                -MultipleInstances IgnoreNew; \
-              $$principal = New-ScheduledTaskPrincipal \
-                -UserId $$env:USERNAME \
-                -LogonType Interactive \
-                -RunLevel Highest; \
-              Register-ScheduledTask \
-                -TaskName \"PopDAM Windows Render Agent\" \
-                -Action $$action \
-                -Trigger $$trigger \
-                -Settings $$settings \
-                -Principal $$principal \
-                -Description \"PopDAM Windows Render Agent — renders AI/PSD thumbnails. Requires interactive desktop session.\" \
-                -Force"'
+            nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -Command "$$action = New-ScheduledTaskAction -Execute \"$INSTDIR\popdam-launcher.bat\" -WorkingDirectory \"$INSTDIR\"; $$trigger = New-ScheduledTaskTrigger -AtLogOn; $$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DontStopOnIdleEnd -RestartCount 3 -RestartInterval (New-TimeSpan -Seconds 60) -ExecutionTimeLimit (New-TimeSpan -Days 0) -StartWhenAvailable -MultipleInstances IgnoreNew; $$principal = New-ScheduledTaskPrincipal -UserId $$env:USERNAME -LogonType Interactive -RunLevel Highest; Register-ScheduledTask -TaskName \"PopDAM Windows Render Agent\" -Action $$action -Trigger $$trigger -Settings $$settings -Principal $$principal -Description \"PopDAM Windows Render Agent\" -Force"'
             Pop $0  ; exit code
             Pop $1  ; output
             StrCmp $0 "0" task_registered
