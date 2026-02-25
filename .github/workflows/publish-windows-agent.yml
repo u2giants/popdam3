@@ -33,7 +33,7 @@ jobs:
         shell: powershell
         run: |
           if (!(Test-Path 'dist/index.js')) {
-            Write-Error 'dist/index.js not found — TypeScript build failed'
+            Write-Error 'dist/index.js not found - TypeScript build failed'
             exit 1
           }
           Write-Host 'dist/index.js found, proceeding with packaging'
@@ -95,7 +95,7 @@ jobs:
           }
           Write-Host "NSSM found at: $realNssm (size: $((Get-Item $realNssm).Length) bytes)"
           if ((Get-Item $realNssm).Length -lt 100000) {
-            throw "nssm.exe is too small — this is a shim, not the real exe"
+            throw "nssm.exe is too small - this is a shim, not the real exe"
           }
           Copy-Item $realNssm -Destination "installer\nssm.exe"
           Write-Host "nssm.exe copied to installer/"
@@ -126,7 +126,7 @@ jobs:
           !insertmacro MUI_PAGE_DIRECTORY
           Page custom TokenPageCreate TokenPageLeave
           !insertmacro MUI_PAGE_INSTFILES
-          !define MUI_FINISHPAGE_TEXT "PopDAM Windows Render Agent has been installed and started as a Windows Service.$\r$\n$\r$\nIt will automatically authenticate using your install token and receive its full configuration from PopDAM cloud settings. The agent should appear as Online in PopDAM Settings → Windows Agent within 60 seconds."
+          !define MUI_FINISHPAGE_TEXT "PopDAM Windows Render Agent has been installed and started as a Windows Service.$\r$\n$\r$\nIt will automatically authenticate using your install token and receive its full configuration from PopDAM cloud settings. The agent should appear as Online in PopDAM Settings -> Windows Agent within 60 seconds."
           !insertmacro MUI_PAGE_FINISH
 
           !insertmacro MUI_UNPAGE_CONFIRM
@@ -145,7 +145,7 @@ jobs:
             Pop $TokenInput
             SendMessage $TokenInput ${EM_SETCUEBANNER} 1 "STR:XXXX-XXXX-XXXX-XXXX"
 
-            ${NSD_CreateLabel} 0 54u 100% 20u "Generate this token in PopDAM Settings → Windows Agent.$\r$\nIt expires in 5 minutes and can only be used once."
+            ${NSD_CreateLabel} 0 54u 100% 20u "Generate this token in PopDAM Settings -> Windows Agent.$\r$\nIt expires in 5 minutes and can only be used once."
             Pop $TokenHelp
 
             ${NSD_CreateLabel} 0 80u 100% 12u "Windows Username (for NAS access)"
@@ -174,7 +174,7 @@ jobs:
           FunctionEnd
 
           Section "Install"
-            ; Handle reinstall — stop and remove existing service first
+            ; Handle reinstall - stop and remove existing service first
             ExecWait '"$INSTDIR\nssm.exe" stop PopDAMWindowsAgent'
             ExecWait '"$INSTDIR\nssm.exe" remove PopDAMWindowsAgent confirm'
             Sleep 2000
