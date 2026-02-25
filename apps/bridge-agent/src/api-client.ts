@@ -41,6 +41,27 @@ export async function register(agentName: string): Promise<string> {
   return data.agent_id as string;
 }
 
+// ── Pairing (unauthenticated — uses one-time pairing code) ─────
+
+export async function pair(
+  pairingCode: string,
+  agentName: string,
+): Promise<{ agent_id: string; agent_key: string }> {
+  const res = await fetch(config.agentApiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "pair",
+      pairing_code: pairingCode,
+      agent_name: agentName,
+    }),
+  });
+
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "Pairing failed");
+  return { agent_id: data.agent_id, agent_key: data.agent_key };
+}
+
 export interface Counters {
   files_checked: number;
   candidates_found: number;

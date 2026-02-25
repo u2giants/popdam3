@@ -1035,36 +1035,41 @@ async function handleRequeueRenderJob(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-// ── Route: generate-bootstrap-token ─────────────────────────────────
+// ── Route: create-pairing-code ───────────────────────────────────────
 
-async function handleGenerateBootstrapToken(userId: string) {
+async function handleCreatePairingCode(
+  body: Record<string, unknown>,
+  userId: string,
+) {
+  const agentType = requireString(body, "agent_type");
+  if (!["bridge", "windows-render"].includes(agentType)) {
+    return err("agent_type must be 'bridge' or 'windows-render'");
+  }
+  const agentName = optionalString(body, "agent_name") || (agentType === "bridge" ? "bridge-agent" : "windows-render-agent");
+
   const db = serviceClient();
 
-  // Check for an existing valid, unused token — return it instead of generating a new one
-  const { data: existingRow } = await db
-    .from("admin_config")
-    .select("value")
-    .eq("key", "WINDOWS_BOOTSTRAP_TOKEN")
+  // Check for an existing valid, unused pairing code for this agent type
+  const { data: existing } = await db
+    .from("agent_pairings")
+    .select("id, pairing_code, expires_at")
+    .eq("agent_type", agentType)
+    .eq("status", "pending")
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
-  if (existingRow) {
-    const existing = existingRow.value as Record<string, unknown>;
-    if (
-      existing &&
-      existing.used !== true &&
-      existing.expires_at &&
-      new Date(existing.expires_at as string).getTime() > Date.now()
-    ) {
-      // Return the existing valid token with its original expiry
-      return json({
-        ok: true,
-        token: existing.token,
-        expires_at: existing.expires_at,
-      });
-    }
+  if (existing) {
+    return json({
+      ok: true,
+      pairing_code: existing.pairing_code,
+      expires_at: existing.expires_at,
+      reused: true,
+    });
   }
 
-  // Generate 16-char token formatted as XXXX-XXXX-XXXX-XXXX
+  // Generate 16-char pairing code formatted as XXXX-XXXX-XXXX-XXXX
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 for readability
   let raw = "";
   const bytes = new Uint8Array(16);
@@ -1072,26 +1077,91 @@ async function handleGenerateBootstrapToken(userId: string) {
   for (let i = 0; i < 16; i++) {
     raw += chars[bytes[i] % chars.length];
   }
-  const token = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+  const pairingCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
+  const expiresAt = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutes
 
-  const { error } = await db.from("admin_config").upsert({
-    key: "WINDOWS_BOOTSTRAP_TOKEN",
-    value: {
-      token,
-      created_at: now.toISOString(),
-      expires_at: expiresAt.toISOString(),
-      used: false,
-      created_by: userId,
-    },
-    updated_at: now.toISOString(),
-    updated_by: userId,
+  const { error } = await db.from("agent_pairings").insert({
+    pairing_code: pairingCode,
+    agent_type: agentType,
+    agent_name: agentName,
+    status: "pending",
+    created_by: userId,
+    expires_at: expiresAt.toISOString(),
   });
 
   if (error) return err(error.message, 500);
-  return json({ ok: true, token, expires_at: expiresAt.toISOString() });
+  return json({
+    ok: true,
+    pairing_code: pairingCode,
+    expires_at: expiresAt.toISOString(),
+    reused: false,
+  });
+}
+
+// ── Route: list-pairing-codes ───────────────────────────────────────
+
+async function handleListPairingCodes() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("agent_pairings")
+    .select("id, pairing_code, agent_type, agent_name, status, created_at, expires_at, consumed_at")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, pairings: data });
+}
+
+// ── Route: generate-bootstrap-token (legacy — redirects to create-pairing-code) ──
+
+async function handleGenerateBootstrapToken(userId: string) {
+  // Legacy compat: create a windows-render pairing code with 5-min expiry
+  const db = serviceClient();
+
+  // Check for an existing valid pairing code
+  const { data: existing } = await db
+    .from("agent_pairings")
+    .select("pairing_code, expires_at")
+    .eq("agent_type", "windows-render")
+    .eq("status", "pending")
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    return json({
+      ok: true,
+      token: existing.pairing_code,
+      expires_at: existing.expires_at,
+    });
+  }
+
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let raw = "";
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  for (let i = 0; i < 16; i++) {
+    raw += chars[bytes[i] % chars.length];
+  }
+  const pairingCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
+
+  const { error } = await db.from("agent_pairings").insert({
+    pairing_code: pairingCode,
+    agent_type: "windows-render",
+    agent_name: "windows-render-agent",
+    status: "pending",
+    created_by: userId,
+    expires_at: expiresAt.toISOString(),
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, token: pairingCode, expires_at: expiresAt.toISOString() });
 }
 
 // ── Route: trigger-agent-update ──────────────────────────────────────
@@ -1756,6 +1826,10 @@ serve(async (req: Request) => {
         return await handleClearCompletedJobs();
       case "generate-bootstrap-token":
         return await handleGenerateBootstrapToken(userId);
+      case "create-pairing-code":
+        return await handleCreatePairingCode(body, userId);
+      case "list-pairing-codes":
+        return await handleListPairingCodes();
       case "trigger-agent-update":
         return await handleTriggerAgentUpdate(body, userId);
       case "get-update-status":

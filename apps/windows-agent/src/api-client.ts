@@ -113,23 +113,32 @@ export async function completeRender(
   });
 }
 
-// ── Bootstrap (unauthenticated — uses one-time token) ──────────────
+// ── Pairing (unauthenticated — uses one-time pairing code) ─────────
 
-export async function bootstrap(
-  bootstrapToken: string,
+export async function pair(
+  pairingCode: string,
   agentName: string,
 ): Promise<{ agent_id: string; agent_key: string }> {
   const res = await fetch(config.agentApiUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      action: "bootstrap",
-      bootstrap_token: bootstrapToken,
+      action: "pair",
+      pairing_code: pairingCode,
       agent_name: agentName,
     }),
   });
 
   const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "Bootstrap failed");
+  if (!data.ok) throw new Error(data.error || "Pairing failed");
   return { agent_id: data.agent_id, agent_key: data.agent_key };
+}
+
+// ── Legacy bootstrap compat ────────────────────────────────────────
+
+export async function bootstrap(
+  bootstrapToken: string,
+  agentName: string,
+): Promise<{ agent_id: string; agent_key: string }> {
+  return pair(bootstrapToken, agentName);
 }
