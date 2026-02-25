@@ -267,13 +267,19 @@ jobs:
               FileClose $0
             skip_config:
 
+            ; ── Verify config file was written ──
+            IfFileExists "$COMMONAPPDATA\PopDAM\agent-config.json" config_ok
+              MessageBox MB_OK|MB_ICONSTOP "FATAL: Failed to create agent-config.json in $COMMONAPPDATA\PopDAM\.$\r$\n$\r$\nCheck that this installer is running as Administrator."
+              Abort
+            config_ok:
+
             ; ── Register Scheduled Task (interactive session) ──
             ; Uses PowerShell to create a task that:
             ;   - Triggers at logon
             ;   - Runs only when user is logged on (interactive)
             ;   - Runs the launcher.bat wrapper (handles drive mapping)
             ;   - Restarts on failure (3 times, 60s delay)
-            nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -Command "\
+            nsExec::ExecToStack 'powershell -NoProfile -ExecutionPolicy Bypass -Command "\
               $$action = New-ScheduledTaskAction \
                 -Execute \"$INSTDIR\popdam-launcher.bat\" \
                 -WorkingDirectory \"$INSTDIR\"; \
@@ -288,7 +294,7 @@ jobs:
                 -StartWhenAvailable \
                 -MultipleInstances IgnoreNew; \
               $$principal = New-ScheduledTaskPrincipal \
-                -UserId $env:USERNAME \
+                -UserId $$env:USERNAME \
                 -LogonType Interactive \
                 -RunLevel Highest; \
               Register-ScheduledTask \
@@ -299,9 +305,29 @@ jobs:
                 -Principal $$principal \
                 -Description \"PopDAM Windows Render Agent — renders AI/PSD thumbnails. Requires interactive desktop session.\" \
                 -Force"'
+            Pop $0  ; exit code
+            Pop $1  ; output
+            StrCmp $0 "0" task_registered
+              MessageBox MB_OK|MB_ICONSTOP "FATAL: Failed to register Scheduled Task.$\r$\n$\r$\nExit code: $0$\r$\nOutput: $1"
+              Abort
+            task_registered:
+
+            ; ── Verify the task actually exists ──
+            nsExec::ExecToStack 'schtasks /query /tn "PopDAM Windows Render Agent"'
+            Pop $0
+            Pop $1
+            StrCmp $0 "0" task_verified
+              MessageBox MB_OK|MB_ICONSTOP "FATAL: Scheduled Task was not found after registration.$\r$\n$\r$\nschtasks /query exit code: $0$\r$\nOutput: $1"
+              Abort
+            task_verified:
 
             ; ── Start the task immediately ──
-            nsExec::ExecToLog 'schtasks /run /tn "PopDAM Windows Render Agent"'
+            nsExec::ExecToStack 'schtasks /run /tn "PopDAM Windows Render Agent"'
+            Pop $0
+            Pop $1
+            StrCmp $0 "0" task_started
+              MessageBox MB_OK|MB_ICONEXCLAMATION "WARNING: Task registered but could not be started immediately.$\r$\n$\r$\nExit code: $0$\r$\nOutput: $1$\r$\n$\r$\nThe agent will start at next logon."
+            task_started:
 
             ; ── Start Menu shortcuts ──
             CreateDirectory "$SMPROGRAMS\PopDAM"
