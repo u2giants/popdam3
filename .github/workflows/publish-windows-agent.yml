@@ -217,17 +217,24 @@ jobs:
 
           Section "Install"
             SetShellVarContext all
-            ; ── Remove existing scheduled task if reinstalling ──
-            nsExec::ExecToLog 'schtasks /delete /tn "PopDAM Windows Render Agent" /f'
-            Sleep 1000
-
-            ; ── Remove legacy NSSM service if present ──
-            nsExec::ExecToLog 'sc query PopDAMWindowsAgent'
+            ; ── Remove existing scheduled task if reinstalling (ignore if not found) ──
+            nsExec::ExecToStack 'schtasks /delete /tn "PopDAM Windows Render Agent" /f'
             Pop $0
+            Pop $1
+            Sleep 500
+
+            ; ── Remove legacy NSSM service if present (ignore if not found) ──
+            nsExec::ExecToStack 'sc query PopDAMWindowsAgent'
+            Pop $0
+            Pop $1
             StrCmp $0 "0" 0 skip_legacy
-              nsExec::ExecToLog 'sc stop PopDAMWindowsAgent'
+              nsExec::ExecToStack 'sc stop PopDAMWindowsAgent'
+              Pop $0
+              Pop $1
               Sleep 2000
-              nsExec::ExecToLog 'sc delete PopDAMWindowsAgent'
+              nsExec::ExecToStack 'sc delete PopDAMWindowsAgent'
+              Pop $0
+              Pop $1
             skip_legacy:
 
             ; ── Install program files ──
@@ -252,13 +259,13 @@ jobs:
             FileClose $0
 
             ; ── Create ProgramData directories ──
-            CreateDirectory "$COMMONAPPDATA\PopDAM"
-            CreateDirectory "$COMMONAPPDATA\PopDAM\logs"
+            CreateDirectory "$APPDATA\PopDAM"
+            CreateDirectory "$APPDATA\PopDAM\logs"
 
             ; ── Write agent-config.json (persistent across reinstalls) ──
             ; Only write if not already present (preserve existing config on upgrade)
-            IfFileExists "$COMMONAPPDATA\PopDAM\agent-config.json" skip_config
-              FileOpen $0 "$COMMONAPPDATA\PopDAM\agent-config.json" w
+            IfFileExists "$APPDATA\PopDAM\agent-config.json" skip_config
+              FileOpen $0 "$APPDATA\PopDAM\agent-config.json" w
               FileWrite $0 '{$\r$\n'
               FileWrite $0 '  "server_url": "$ServerUrl",$\r$\n'
               FileWrite $0 '  "pairing_code": "$PairingCode",$\r$\n'
@@ -269,8 +276,8 @@ jobs:
             skip_config:
 
             ; ── Verify config file was written ──
-            IfFileExists "$COMMONAPPDATA\PopDAM\agent-config.json" config_ok
-              MessageBox MB_OK|MB_ICONSTOP "FATAL: Failed to create agent-config.json in $COMMONAPPDATA\PopDAM\.$\r$\n$\r$\nCheck that this installer is running as Administrator."
+            IfFileExists "$APPDATA\PopDAM\agent-config.json" config_ok
+              MessageBox MB_OK|MB_ICONSTOP "FATAL: Failed to create agent-config.json in $APPDATA\PopDAM\.$\r$\n$\r$\nCheck that this installer is running as Administrator."
               Abort
             config_ok:
 
@@ -333,7 +340,7 @@ jobs:
             ; ── Start Menu shortcuts ──
             CreateDirectory "$SMPROGRAMS\PopDAM"
             CreateShortcut "$SMPROGRAMS\PopDAM\PopDAM Windows Agent.lnk" "$INSTDIR\popdam-launcher.bat" "" "$INSTDIR\node.exe" 0
-            CreateShortcut "$SMPROGRAMS\PopDAM\View Logs.lnk" "$COMMONAPPDATA\PopDAM\logs"
+            CreateShortcut "$SMPROGRAMS\PopDAM\View Logs.lnk" "$APPDATA\PopDAM\logs"
             CreateShortcut "$SMPROGRAMS\PopDAM\Uninstall Windows Agent.lnk" "$INSTDIR\uninstall.exe"
 
             ; ── Create uninstaller ──
@@ -386,7 +393,7 @@ jobs:
             ; Ask about config removal
             MessageBox MB_YESNO "Remove agent configuration and logs from %ProgramData%\PopDAM?$\r$\n$\r$\nSelect 'No' to preserve your agent key and settings for a future reinstall." IDYES remove_config IDNO skip_config_remove
             remove_config:
-              RMDir /r "$COMMONAPPDATA\PopDAM"
+              RMDir /r "$APPDATA\PopDAM"
             skip_config_remove:
           SectionEnd
           NSIS_EOF
