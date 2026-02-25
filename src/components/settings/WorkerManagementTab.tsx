@@ -1159,9 +1159,58 @@ export function ScanningTab() {
   );
 }
 
+// ── Update Bridge Agent ─────────────────────────────────────────────
+
+function UpdateAgentButton() {
+  const { call } = useAdminApi();
+  const [isPending, setIsPending] = useState(false);
+
+  const handleUpdate = async () => {
+    setIsPending(true);
+    try {
+      await call("trigger-agent-update", { action: "apply" });
+      toast.success("Update requested — agent will restart in ~60 seconds");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to trigger update");
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" /> Bridge Agent Update
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Pull the latest Docker image from GHCR and restart the bridge agent container.
+          The agent will be unavailable for ~60 seconds during the restart.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleUpdate}
+          disabled={isPending}
+          className="gap-1.5"
+        >
+          {isPending ? (
+            <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Requesting...</>
+          ) : (
+            <><RefreshCw className="h-3.5 w-3.5" /> Update to Latest</>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function WorkerManagementTab() {
   return (
     <div className="space-y-4">
+      <UpdateAgentButton />
       <DateCutoffSettings />
       <SpacesConfigSettings />
       <FolderManager />
