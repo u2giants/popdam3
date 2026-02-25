@@ -20,9 +20,19 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Configure npm registry
+        working-directory: apps/windows-agent
+        shell: bash
+        run: |
+          echo "registry=https://registry.npmjs.org/" > .npmrc
+          echo "fetch-retry-mintimeout=20000" >> .npmrc
+          echo "fetch-retry-maxtimeout=120000" >> .npmrc
+
       - name: Install dependencies
         working-directory: apps/windows-agent
         run: npm install
+        env:
+          npm_config_registry: https://registry.npmjs.org/
 
       - name: Build TypeScript
         working-directory: apps/windows-agent
