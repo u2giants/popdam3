@@ -65,6 +65,7 @@ export const config = {
   // NAS file access (optional — delivered via cloud config sync)
   nasHost: optional("NAS_HOST", ""),
   nasShare: optional("NAS_SHARE", ""),
+  nasMountPath: optional("NAS_MOUNT_PATH", ""),
 
   // Illustrator
   illustratorDpi: optionalInt("ILLUSTRATOR_DPI", 150),
