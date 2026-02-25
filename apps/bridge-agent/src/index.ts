@@ -15,12 +15,13 @@
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
-import { stat, readdir } from "node:fs/promises";
+import { stat, readdir, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail } from "./thumbnailer.js";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
+import { dirname } from "node:path";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -620,6 +621,39 @@ function handleApplyUpdate() {
 // All scan commands (force_scan, abort_scan, test_paths) are now
 // delivered exclusively via heartbeat config sync (see startHeartbeat).
 
+// ── Pairing ─────────────────────────────────────────────────────
+
+async function doPairing(): Promise<void> {
+  logger.info("No agent key found — pairing with cloud using pairing code");
+
+  const result = await api.pair(config.pairingCode, config.agentName);
+
+  // Persist agent config to data volume
+  const configData = {
+    agent_id: result.agent_id,
+    agent_key: result.agent_key,
+    paired_at: new Date().toISOString(),
+  };
+
+  try {
+    await mkdir(dirname(config.agentConfigPath), { recursive: true });
+    await writeFile(config.agentConfigPath, JSON.stringify(configData, null, 2), "utf-8");
+  } catch (e) {
+    logger.error("Failed to persist agent config — key will be lost on restart", {
+      path: config.agentConfigPath,
+      error: (e as Error).message,
+    });
+  }
+
+  // Apply to runtime
+  (config as { agentKey: string }).agentKey = result.agent_key;
+  agentId = result.agent_id;
+  logger.info("Pairing complete — agent key saved", {
+    agentId,
+    configPath: config.agentConfigPath,
+  });
+}
+
 // ── Bootstrap ───────────────────────────────────────────────────
 
 async function main() {
@@ -628,20 +662,55 @@ async function main() {
     mountRoot: config.nasContainerMountRoot,
     thumbConcurrency: config.thumbConcurrency,
     batchSize: config.ingestBatchSize,
+    paired: config.isPaired,
   });
 
   // Warn about missing DO Spaces credentials (expected — will arrive via heartbeat)
   if (!config.doSpacesKey || !config.doSpacesSecret) {
-    logger.warn("DO_SPACES_KEY/SECRET not set in .env — waiting for cloud config via heartbeat. Thumbnails will be skipped until credentials are received.");
+    logger.warn("DO_SPACES_KEY/SECRET not set — waiting for cloud config via heartbeat.");
   }
 
-  // 1. Register with cloud
-  try {
-    agentId = await api.register(config.agentName);
-    logger.info("Registered with cloud API", { agentId });
-  } catch (e) {
-    logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
-    process.exit(1);
+  // 0. Pairing flow: if no agent key, pair with cloud using pairing code
+  if (!config.agentKey) {
+    if (!config.pairingCode) {
+      logger.error(
+        "No agent key and no pairing code. Cannot start.\n" +
+        "Set POPDAM_SERVER_URL and POPDAM_PAIRING_CODE in your .env or docker-compose.yml.\n" +
+        "Generate a pairing code from PopDAM Settings → Agents."
+      );
+      process.exit(1);
+    }
+    try {
+      await doPairing();
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg.includes("Invalid or expired")) {
+        logger.error(
+          "Pairing code is invalid or expired.\n" +
+          "Generate a new pairing code from PopDAM Settings → Agents and update POPDAM_PAIRING_CODE."
+        );
+      } else {
+        logger.error("Pairing failed — exiting", { error: msg });
+      }
+      process.exit(1);
+    }
+  }
+
+  // 1. Register with cloud (if not already registered via pairing)
+  if (!agentId) {
+    // Try to use saved agent ID first
+    if (config.savedAgentId) {
+      agentId = config.savedAgentId;
+      logger.info("Using saved agent ID", { agentId });
+    } else {
+      try {
+        agentId = await api.register(config.agentName);
+        logger.info("Registered with cloud API", { agentId });
+      } catch (e) {
+        logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
+        process.exit(1);
+      }
+    }
   }
 
   // 2. Start heartbeat (independent timer)

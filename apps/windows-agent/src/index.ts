@@ -102,24 +102,43 @@ let cloudSpacesSecret = config.doSpacesSecret;
 let cloudNasUsername = "";
 let cloudNasPassword = "";
 
-// ── Bootstrap ───────────────────────────────────────────────────
+// ── Pairing ─────────────────────────────────────────────────────
 
-async function bootstrap() {
-  logger.info("No agent key found — bootstrapping with install token");
+async function doPairing() {
+  logger.info("No agent key found — pairing with cloud using pairing code");
 
-  const result = await api.bootstrap(config.bootstrapToken, config.agentName);
+  const result = await api.pair(config.pairingCode, config.agentName);
 
-  // Write the returned agent_key to agent-key.cfg next to the executable
-  const keyFilePath = path.join(path.dirname(process.execPath), "agent-key.cfg");
-  await writeFile(keyFilePath, result.agent_key, "utf-8");
+  // Persist agent config to %ProgramData%\PopDAM\agent-config.json
+  const configData = {
+    agent_id: result.agent_id,
+    agent_key: result.agent_key,
+    paired_at: new Date().toISOString(),
+  };
 
-  // Apply to runtime so the rest of startup uses it
-  process.env.AGENT_KEY = result.agent_key;
-  // Update config object (it reads from env via optional())
+  try {
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(config.agentConfigDir, { recursive: true });
+    await writeFile(config.agentConfigPath, JSON.stringify(configData, null, 2), "utf-8");
+  } catch (e) {
+    logger.error("Failed to persist agent config — key will be lost on restart", {
+      path: config.agentConfigPath,
+      error: (e as Error).message,
+    });
+    // Fallback: also write to legacy location
+    try {
+      const legacyPath = path.join(path.dirname(process.execPath), "agent-key.cfg");
+      await writeFile(legacyPath, result.agent_key, "utf-8");
+    } catch { /* best effort */ }
+  }
+
+  // Apply to runtime
   (config as { agentKey: string }).agentKey = result.agent_key;
-
   agentId = result.agent_id;
-  logger.info("Bootstrap complete — agent key saved", { agentId, keyFile: keyFilePath });
+  logger.info("Pairing complete — agent key saved", {
+    agentId,
+    configPath: config.agentConfigPath,
+  });
 }
 
 // ── Path construction ───────────────────────────────────────────
@@ -391,44 +410,49 @@ async function main() {
     renderConcurrency: config.renderConcurrency,
     pollIntervalMs: config.pollIntervalMs,
     interactiveSession: !nonInteractive,
+    paired: config.isPaired,
   });
 
-  // 1. Bootstrap if no agent key
+  // 1. Pair if no agent key
   if (!config.agentKey) {
-    if (!config.bootstrapToken) {
+    if (!config.pairingCode) {
       logger.error(
-        "No AGENT_KEY and no BOOTSTRAP_TOKEN set. Cannot start. " +
-        "Please reinstall and provide a bootstrap token from PopDAM Settings → Windows Agent."
+        "No agent key and no pairing code. Cannot start.\n" +
+        "Set POPDAM_SERVER_URL and POPDAM_PAIRING_CODE in your .env.\n" +
+        "Generate a pairing code from PopDAM Settings → Agents."
       );
       process.exit(1);
     }
     try {
-      await bootstrap();
+      await doPairing();
     } catch (e) {
       const msg = (e as Error).message;
       if (msg.includes("Invalid or expired")) {
         logger.error(
-          "Bootstrap token is invalid or expired. " +
-          "Go to PopDAM Settings → Windows Agent and generate " +
-          "a new Install Token, then update BOOTSTRAP_TOKEN in " +
-          "C:\\Program Files\\PopDAM\\WindowsAgent\\.env and " +
-          "restart the PopDAM Windows Agent scheduled task."
+          "Pairing code is invalid or expired.\n" +
+          "Generate a new pairing code from PopDAM Settings → Agents\n" +
+          "and update POPDAM_PAIRING_CODE in your .env."
         );
       } else {
-        logger.error("Bootstrap failed — exiting", { error: msg });
+        logger.error("Pairing failed — exiting", { error: msg });
       }
       process.exit(1);
     }
   }
 
-  // 2. Register with cloud (if not already registered via bootstrap)
+  // 2. Register with cloud (if not already registered via pairing)
   if (!agentId) {
-    try {
-      agentId = await api.register(config.agentName);
-      logger.info("Registered with cloud API", { agentId });
-    } catch (e) {
-      logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
-      process.exit(1);
+    if (config.savedAgentId) {
+      agentId = config.savedAgentId;
+      logger.info("Using saved agent ID", { agentId });
+    } else {
+      try {
+        agentId = await api.register(config.agentName);
+        logger.info("Registered with cloud API", { agentId });
+      } catch (e) {
+        logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
+        process.exit(1);
+      }
     }
   }
 

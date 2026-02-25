@@ -1573,54 +1573,56 @@ async function handleReportUpdateStatus(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-// ── Route: bootstrap ─────────────────────────────────────────────────
+// ── Route: pair (unified pairing code flow for bridge + windows) ────
 
-async function handleBootstrap(body: Record<string, unknown>) {
-  const bootstrapToken = requireString(body, "bootstrap_token");
-  const agentName = optionalString(body, "agent_name") || "windows-render-agent";
+async function handlePair(body: Record<string, unknown>) {
+  const pairingCode = requireString(body, "pairing_code");
+  const agentName = optionalString(body, "agent_name") || "agent";
 
   const db = serviceClient();
 
-  // Read the stored bootstrap token
-  const { data: tokenRow } = await db
-    .from("admin_config")
-    .select("value")
-    .eq("key", "WINDOWS_BOOTSTRAP_TOKEN")
+  // Look up pairing code
+  const { data: pairing, error: lookupErr } = await db
+    .from("agent_pairings")
+    .select("id, agent_type, agent_name, status, expires_at")
+    .eq("pairing_code", pairingCode)
+    .eq("status", "pending")
     .maybeSingle();
 
-  if (!tokenRow) return err("Invalid or expired token", 401);
-
-  const stored = tokenRow.value as Record<string, unknown>;
-  if (!stored || stored.token !== bootstrapToken) {
-    return err("Invalid or expired token", 401);
-  }
-  if (stored.used === true) {
-    return err("Invalid or expired token", 401);
-  }
-  if (new Date(stored.expires_at as string).getTime() < Date.now()) {
-    return err("Invalid or expired token", 401);
+  if (lookupErr || !pairing) {
+    return err("Invalid or expired pairing code", 401);
   }
 
-  // Generate a new secure agent key (32 hex chars = 64 hex string)
+  // Check expiry
+  if (new Date(pairing.expires_at).getTime() < Date.now()) {
+    // Mark as expired
+    await db.from("agent_pairings").update({ status: "expired" }).eq("id", pairing.id);
+    return err("Invalid or expired pairing code", 401);
+  }
+
+  // Generate a permanent agent key
   const keyBytes = new Uint8Array(32);
   crypto.getRandomValues(keyBytes);
   const rawKey = Array.from(keyBytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
-  // Hash for storage
+  // Hash for DB storage
   const encoder = new TextEncoder();
   const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(rawKey));
   const hashHex = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 
+  // Use the agent name from the pairing code or the request
+  const finalName = agentName !== "agent" ? agentName : (pairing.agent_name || pairing.agent_type);
+
   // Register the agent
   const { data: agentData, error: regError } = await db
     .from("agent_registrations")
     .insert({
-      agent_name: agentName,
-      agent_type: "windows-render",
+      agent_name: finalName,
+      agent_type: pairing.agent_type,
       agent_key_hash: hashHex,
       last_heartbeat: new Date().toISOString(),
     })
@@ -1629,28 +1631,43 @@ async function handleBootstrap(body: Record<string, unknown>) {
 
   if (regError) return err(regError.message, 500);
 
-  // Store the agent key hash in admin_config for reference
-  await db.from("admin_config").upsert({
-    key: "WINDOWS_AGENT_KEY",
-    value: hashHex,
-    updated_at: new Date().toISOString(),
-  });
+  // Mark pairing code as consumed (atomically with status check)
+  const { error: consumeErr } = await db
+    .from("agent_pairings")
+    .update({
+      status: "consumed",
+      consumed_at: new Date().toISOString(),
+      consumed_by_agent_id: agentData.id,
+      agent_registration_id: agentData.id,
+    })
+    .eq("id", pairing.id)
+    .eq("status", "pending"); // optimistic lock
 
-  // Mark the bootstrap token as used BEFORE returning the response (atomic)
-  const { error: markUsedErr } = await db.from("admin_config").update({
-    value: { ...stored, used: true, used_at: new Date().toISOString() },
-    updated_at: new Date().toISOString(),
-  }).eq("key", "WINDOWS_BOOTSTRAP_TOKEN");
-
-  if (markUsedErr) {
-    // If we can't mark it used, abort — don't hand out a key with a reusable token
-    return err("Failed to finalize bootstrap — please retry", 500);
+  if (consumeErr) {
+    // Rollback agent registration
+    await db.from("agent_registrations").delete().eq("id", agentData.id);
+    return err("Failed to finalize pairing — please retry", 500);
   }
 
   return json({
     ok: true,
     agent_id: agentData.id,
     agent_key: rawKey,
+    agent_type: pairing.agent_type,
+  });
+}
+
+// ── Route: bootstrap (legacy compat — delegates to pair) ─────────────
+
+async function handleBootstrap(body: Record<string, unknown>) {
+  // Legacy Windows agents send bootstrap_token — map to pairing_code
+  const token = requireString(body, "bootstrap_token");
+  const agentName = optionalString(body, "agent_name") || "windows-render-agent";
+
+  return handlePair({
+    action: "pair",
+    pairing_code: token,
+    agent_name: agentName,
   });
 }
 
@@ -1682,9 +1699,12 @@ serve(async (req: Request) => {
       return await handleRegister(body);
     }
 
-    // Bootstrap doesn't require x-agent-key (it's the unauthenticated bootstrap route)
+    // Bootstrap / pair don't require x-agent-key (unauthenticated pairing routes)
     if (action === "bootstrap") {
       return await handleBootstrap(body);
+    }
+    if (action === "pair") {
+      return await handlePair(body);
     }
 
     // All other routes require agent authentication

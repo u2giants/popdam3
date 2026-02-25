@@ -35,6 +35,56 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_pairings: {
+        Row: {
+          agent_name: string
+          agent_registration_id: string | null
+          agent_type: string
+          consumed_at: string | null
+          consumed_by_agent_id: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          pairing_code: string
+          status: string
+        }
+        Insert: {
+          agent_name?: string
+          agent_registration_id?: string | null
+          agent_type: string
+          consumed_at?: string | null
+          consumed_by_agent_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          pairing_code: string
+          status?: string
+        }
+        Update: {
+          agent_name?: string
+          agent_registration_id?: string | null
+          agent_type?: string
+          consumed_at?: string | null
+          consumed_by_agent_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          pairing_code?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_pairings_agent_registration_id_fkey"
+            columns: ["agent_registration_id"]
+            isOneToOne: false
+            referencedRelation: "agent_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_registrations: {
         Row: {
           agent_key_hash: string
