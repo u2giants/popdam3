@@ -299,11 +299,16 @@ async function handleHeartbeat(
     last_counters: counters || {},
     last_error: lastError,
     counter_history: history,
-    // Version info from bridge agent
+    // Version info — works for both bridge and windows agents
     version_info: versionInfo ? {
       image_tag: versionInfo.image_tag ?? null,
       version: versionInfo.version ?? null,
       build_sha: versionInfo.build_sha ?? null,
+      update_available: versionInfo.update_available ?? null,
+      latest_version: versionInfo.latest_version ?? null,
+      last_update_check: versionInfo.last_update_check ?? null,
+      updating: versionInfo.updating ?? false,
+      update_error: versionInfo.update_error ?? null,
       last_reported_at: new Date().toISOString(),
     } : metadata.version_info,
     // Structured health payload from Windows agent preflight
@@ -315,6 +320,7 @@ async function handleHeartbeat(
       last_preflight_error: health.lastPreflightError ?? null,
       last_preflight_at: health.lastPreflightAt ?? null,
     } : metadata.health,
+    // Clear trigger_update flag once delivered (below)
   };
 
   const { error: updateErr } = await db
@@ -548,8 +554,20 @@ async function handleHeartbeat(
       test_paths: testPaths,
       check_update: checkUpdate,
       apply_update: applyUpdate,
+      trigger_update: newMetadata.trigger_update === true,
     },
   });
+
+  // Clear trigger_update flag after delivering
+  if (newMetadata.trigger_update === true) {
+    const cleanMeta = { ...newMetadata, trigger_update: false };
+    delete cleanMeta.update_requested_by;
+    delete cleanMeta.update_requested_at;
+    await db
+      .from("agent_registrations")
+      .update({ metadata: cleanMeta })
+      .eq("id", agentId);
+  }
 }
 
 // ── Style group assignment helper ────────────────────────────────────
@@ -1581,6 +1599,50 @@ async function handleReportUpdateStatus(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: get-latest-build (for self-update) ───────────────────────
+
+async function handleGetLatestBuild(
+  body: Record<string, unknown>,
+  _agentId: string,
+) {
+  const agentType = optionalString(body, "agent_type") ?? "windows-render";
+  const db = serviceClient();
+
+  const configKey = agentType === "bridge"
+    ? "BRIDGE_LATEST_BUILD"
+    : "WINDOWS_LATEST_BUILD";
+
+  const { data: row } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", configKey)
+    .maybeSingle();
+
+  if (!row?.value) {
+    const repoBase = "https://github.com/u2giants/popdam3/releases";
+    return json({
+      ok: true,
+      latest_version: "0.0.0",
+      download_url: agentType === "bridge"
+        ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz`
+        : `${repoBase}/latest/download/popdam-windows-agent.zip`,
+      checksum_sha256: "",
+      release_notes: "",
+      published_at: null,
+    });
+  }
+
+  const val = row.value as Record<string, unknown>;
+  return json({
+    ok: true,
+    latest_version: val.version || "0.0.0",
+    download_url: val.download_url || "",
+    checksum_sha256: val.checksum_sha256 || "",
+    release_notes: val.release_notes || "",
+    published_at: val.published_at || null,
+  });
+}
+
 // ── Route: pair (unified pairing code flow for bridge + windows) ────
 
 async function handlePair(body: Record<string, unknown>) {
@@ -1767,6 +1829,8 @@ serve(async (req: Request) => {
         return await handleClearCheckpoint();
       case "report-update-status":
         return await handleReportUpdateStatus(body);
+      case "get-latest-build":
+        return await handleGetLatestBuild(body, agentId);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

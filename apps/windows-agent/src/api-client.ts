@@ -59,6 +59,9 @@ export interface WindowsHeartbeatResponse {
       nas_mount_path?: string;
     };
   };
+  commands?: {
+    trigger_update?: boolean;
+  };
 }
 
 export interface AgentHealthPayload {
@@ -70,16 +73,27 @@ export interface AgentHealthPayload {
   lastPreflightAt: string | null;
 }
 
+export interface WindowsVersionInfo {
+  version: string;
+  update_available: boolean;
+  latest_version: string | null;
+  last_update_check: string | null;
+  updating: boolean;
+  update_error: string | null;
+}
+
 export async function heartbeat(
   agentId: string,
   lastError?: string,
   health?: AgentHealthPayload,
+  versionInfo?: WindowsVersionInfo,
 ): Promise<WindowsHeartbeatResponse> {
   const data = await callApi("heartbeat", {
     agent_id: agentId,
     counters: {},
     last_error: lastError,
     health: health ?? undefined,
+    version_info: versionInfo ?? undefined,
   });
   return data as unknown as WindowsHeartbeatResponse;
 }
@@ -132,6 +146,33 @@ export async function pair(
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "Pairing failed");
   return { agent_id: data.agent_id, agent_key: data.agent_key };
+}
+
+// ── Self-update API ────────────────────────────────────────────────
+
+export interface LatestBuildInfo {
+  latest_version: string;
+  download_url: string;
+  checksum_sha256: string;
+  release_notes?: string;
+  published_at?: string;
+}
+
+export async function getLatestBuild(): Promise<LatestBuildInfo> {
+  const data = await callApi("get-latest-build", { agent_type: "windows-render" });
+  return data as unknown as LatestBuildInfo;
+}
+
+export interface UpdateStatusPayload {
+  agent_id: string;
+  status: "restarting" | "completed" | "failed" | "rolled_back";
+  old_version: string;
+  new_version: string;
+  error?: string;
+}
+
+export async function reportUpdateStatus(payload: UpdateStatusPayload): Promise<void> {
+  await callApi("report-update-status", payload as unknown as Record<string, unknown>);
 }
 
 // ── Legacy bootstrap compat ────────────────────────────────────────
