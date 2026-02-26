@@ -116,12 +116,15 @@ function requireCanonicalRelativePath(
 
 // ── Metadata derivation from path ───────────────────────────────────
 
-const WORKFLOW_FOLDER_MAP: Record<string, string> = {
+const DEFAULT_WORKFLOW_FOLDER_MAP: Record<string, string> = {
   "concept approved designs": "concept_approved",
   "in development": "in_development",
   "freelancer art": "freelancer_art",
   "discontinued": "discontinued",
   "product ideas": "product_ideas",
+  "in process": "in_process",
+  "customer adopted": "customer_adopted",
+  "licensor approved": "licensor_approved",
 };
 
 interface DerivedMetadata {
@@ -147,13 +150,45 @@ async function deriveMetadataFromPath(
     decorIndex >= 0 ? (pathParts[decorIndex + 1] || "").toLowerCase() : "";
   const is_licensed = subFolder === "character licensed";
 
-  // workflow_status: match exact folder names against each path segment
+  // Load configurable workflow folder map from admin_config (fallback to defaults)
+  let workflowFolderMap = DEFAULT_WORKFLOW_FOLDER_MAP;
+  try {
+    const { data: wfConfig } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", "WORKFLOW_FOLDER_MAP")
+      .maybeSingle();
+    if (wfConfig?.value && typeof wfConfig.value === "object" && !Array.isArray(wfConfig.value)) {
+      workflowFolderMap = wfConfig.value as Record<string, string>;
+    }
+  } catch (_) { /* use defaults */ }
+
+  // workflow_status: match folder names against each path segment
+  // Skip structural folders that don't indicate actual workflow
+  // (e.g., "Concept Approved Designs" under "____New Structure" is structural, not workflow)
+  const hasNewStructure = pathParts.some((p) => p.startsWith("____New Structure"));
   const lowerParts = pathParts.map((p) => p.toLowerCase());
   let workflow_status = "other";
-  for (const [folder, status] of Object.entries(WORKFLOW_FOLDER_MAP)) {
-    if (lowerParts.some((p) => p === folder)) {
-      workflow_status = status;
-      break;
+  
+  if (hasNewStructure) {
+    // In the new folder structure, "Concept Approved Designs" is structural.
+    // Look for workflow signals BELOW the product-type folder instead.
+    // For now, default to "other" and let workflow be set via admin/tagging.
+    // If there are OTHER workflow folders nested deeper, match those.
+    for (const [folder, status] of Object.entries(workflowFolderMap)) {
+      // Skip "concept approved designs" when under ____New Structure (it's structural)
+      if (hasNewStructure && folder === "concept approved designs") continue;
+      if (lowerParts.some((p) => p === folder)) {
+        workflow_status = status;
+        break;
+      }
+    }
+  } else {
+    for (const [folder, status] of Object.entries(workflowFolderMap)) {
+      if (lowerParts.some((p) => p === folder)) {
+        workflow_status = status;
+        break;
+      }
     }
   }
 
@@ -769,7 +804,9 @@ async function handleIngest(
     sku_sequence: parsed.sku_sequence,
     product_category: parsed.product_category,
     division_code: parsed.division_code, division_name: parsed.division_name,
-    is_licensed: parsed.is_licensed,
+    // NOTE: is_licensed is intentionally EXCLUDED here.
+    // Path-derived is_licensed (from folder structure) is the authoritative source.
+    // SKU parser's is_licensed (from ColdLion licensor lookup) is unreliable for this purpose.
   } : {};
 
   // ── 1) Move detection: same quick_hash, different path ──
@@ -882,10 +919,20 @@ async function handleIngest(
         quick_hash: quickHash,
         quick_hash_version: quickHashVersion,
         last_seen_at: new Date().toISOString(),
+        workflow_status: derived.workflow_status,
+        is_licensed: derived.is_licensed,
         ...thumbnailFields,
         ...skuFields,
       })
       .eq("id", existingByPath.id);
+    
+    // Update licensor/property IDs from path derivation (if found)
+    if (derived.licensor_id || derived.property_id) {
+      const pathIds: Record<string, unknown> = {};
+      if (derived.licensor_id) pathIds.licensor_id = derived.licensor_id;
+      if (derived.property_id) pathIds.property_id = derived.property_id;
+      await db.from("assets").update(pathIds).eq("id", existingByPath.id);
+    }
 
     if (updateError) return err(updateError.message, 500);
 

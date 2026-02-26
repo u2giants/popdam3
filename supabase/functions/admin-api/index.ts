@@ -1527,12 +1527,15 @@ async function handleGetUpdateStatus() {
 
 // ── Shared: metadata derivation (same logic as agent-api) ───────────
 
-const WORKFLOW_FOLDER_MAP: Record<string, string> = {
+const DEFAULT_WORKFLOW_FOLDER_MAP: Record<string, string> = {
   "concept approved designs": "concept_approved",
   "in development": "in_development",
   "freelancer art": "freelancer_art",
   "discontinued": "discontinued",
   "product ideas": "product_ideas",
+  "in process": "in_process",
+  "customer adopted": "customer_adopted",
+  "licensor approved": "licensor_approved",
 };
 
 async function deriveMetadataFromPath(
@@ -1554,10 +1557,25 @@ async function deriveMetadataFromPath(
     decorIndex >= 0 ? (pathParts[decorIndex + 1] || "").toLowerCase() : "";
   const is_licensed = subFolder === "character licensed";
 
-  // workflow_status: match exact folder names against each path segment
+  // Load configurable workflow folder map from admin_config (fallback to defaults)
+  let workflowFolderMap = DEFAULT_WORKFLOW_FOLDER_MAP;
+  try {
+    const { data: wfConfig } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", "WORKFLOW_FOLDER_MAP")
+      .maybeSingle();
+    if (wfConfig?.value && typeof wfConfig.value === "object" && !Array.isArray(wfConfig.value)) {
+      workflowFolderMap = wfConfig.value as Record<string, string>;
+    }
+  } catch (_) { /* use defaults */ }
+
+  // Skip "Concept Approved Designs" as a workflow signal when under ____New Structure (it's structural)
+  const hasNewStructure = pathParts.some((p) => p.startsWith("____New Structure"));
   const lowerParts = pathParts.map((p) => p.toLowerCase());
   let workflow_status = "other";
-  for (const [folder, status] of Object.entries(WORKFLOW_FOLDER_MAP)) {
+  for (const [folder, status] of Object.entries(workflowFolderMap)) {
+    if (hasNewStructure && folder === "concept approved designs") continue;
     if (lowerParts.some((p) => p === folder)) {
       workflow_status = status;
       break;
@@ -1646,7 +1664,7 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
     // Re-derive SKU metadata from filename
     const parsed = await parseSku(asset.filename);
     if (parsed) {
-      const skuFields: Record<string, string | boolean> = {
+      const skuFields: Record<string, string> = {
         sku: parsed.sku,
         mg01_code: parsed.mg01_code, mg01_name: parsed.mg01_name,
         mg02_code: parsed.mg02_code, mg02_name: parsed.mg02_name,
@@ -1657,7 +1675,7 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
         sku_sequence: parsed.sku_sequence,
         product_category: parsed.product_category,
         division_code: parsed.division_code, division_name: parsed.division_name,
-        is_licensed: parsed.is_licensed,
+        // NOTE: is_licensed intentionally excluded — path-derived is authoritative
       };
       for (const [k, v] of Object.entries(skuFields)) {
         const current = (asset as Record<string, unknown>)[k];
