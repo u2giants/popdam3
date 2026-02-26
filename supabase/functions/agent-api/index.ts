@@ -1117,18 +1117,21 @@ async function handleScanProgress(body: Record<string, unknown>) {
     current_path: currentPath,
     updated_at: new Date().toISOString(),
   };
-  // Always include skipped_dirs if present in this update;
-  // if not present, preserve existing value from DB to avoid upsert wiping it
+  // Include skipped_dirs if present in this update
   if (skippedDirs && skippedDirs.length > 0) {
     progressValue.skipped_dirs = skippedDirs;
   } else {
     // Preserve existing skipped_dirs from previous progress update
-    const { data: existing } = await db.from("admin_config").select("value").eq("key", "SCAN_PROGRESS").maybeSingle();
-    if (existing) {
-      const prev = existing.value as Record<string, unknown>;
-      if (prev?.session_id === sessionId && Array.isArray(prev?.skipped_dirs)) {
-        progressValue.skipped_dirs = prev.skipped_dirs;
+    try {
+      const { data: existing } = await db.from("admin_config").select("value").eq("key", "SCAN_PROGRESS").maybeSingle();
+      if (existing && existing.value) {
+        const prev = existing.value as Record<string, unknown>;
+        if (prev.session_id === sessionId && Array.isArray(prev.skipped_dirs)) {
+          progressValue.skipped_dirs = prev.skipped_dirs;
+        }
       }
+    } catch (_e) {
+      // Silently continue — losing skipped_dirs is acceptable vs failing the whole call
     }
   }
 
