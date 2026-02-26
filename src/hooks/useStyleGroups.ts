@@ -57,7 +57,7 @@ export function useStyleGroups(
       let query = supabase
         .from("style_groups")
         .select(
-          `*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url)`,
+          `*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error, asset_type)`,
           { count: "exact" },
         );
 
@@ -85,6 +85,22 @@ export function useStyleGroups(
       }
       if (filters.propertyId) {
         query = query.eq("property_id", filters.propertyId);
+      }
+
+      // File status filter — filter via joined primary_asset
+      if (filters.fileStatus === "has_preview") {
+        query = query.not("primary_asset.thumbnail_url", "is", null);
+      } else if (filters.fileStatus === "no_preview_renderable") {
+        query = query.is("primary_asset.thumbnail_url", null).is("primary_asset.thumbnail_error", null);
+      } else if (filters.fileStatus === "no_pdf_compat") {
+        query = query.is("primary_asset.thumbnail_url", null).eq("primary_asset.thumbnail_error", "no_pdf_compat");
+      } else if (filters.fileStatus === "no_preview_unsupported") {
+        query = query.is("primary_asset.thumbnail_url", null).not("primary_asset.thumbnail_error", "is", null).neq("primary_asset.thumbnail_error", "no_pdf_compat");
+      }
+
+      // Asset type (Image Type) filter — filter via joined primary_asset
+      if (filters.assetType.length > 0) {
+        query = query.in("primary_asset.asset_type", filters.assetType);
       }
 
       // Sort

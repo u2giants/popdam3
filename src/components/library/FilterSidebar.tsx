@@ -22,7 +22,7 @@ interface FilterSidebarProps {
 // ── Display name maps ───────────────────────────────────────────────
 
 const ASSET_TYPE_LABELS: Record<string, string> = {
-  art_piece: "Art Piece",
+  art_piece: "Design Art",
   product: "Product",
   packaging: "Packaging",
   tech_pack: "Tech Pack",
@@ -279,29 +279,25 @@ export default function FilterSidebar({
             </>
           )}
 
-          {/* File Status — assets only */}
-          {mode === "assets" && (
-            <>
-              <div className="space-y-2">
-                <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">File Status</h4>
-                <div className="space-y-1.5">
-                  {FILE_STATUS_OPTIONS.map((opt) => (
-                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
-                      <Checkbox
-                        checked={filters.fileStatus === opt.value}
-                        onCheckedChange={(checked) =>
-                          update({ fileStatus: checked ? opt.value : "" })
-                        }
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className="flex-1">{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <Separator />
-            </>
-          )}
+          {/* File Status */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">File Status</h4>
+            <div className="space-y-1.5">
+              {FILE_STATUS_OPTIONS.map((opt) => (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
+                  <Checkbox
+                    checked={filters.fileStatus === opt.value}
+                    onCheckedChange={(checked) =>
+                      update({ fileStatus: checked ? opt.value : "" })
+                    }
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="flex-1">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <Separator />
 
           {/* File Type — assets only */}
           {mode === "assets" && (
@@ -392,19 +388,15 @@ export default function FilterSidebar({
             placeholder="Search properties…"
           />
 
-          {/* Asset Type — assets only */}
-          {mode === "assets" && (
-            <>
-              <Separator />
-              <CheckboxGroup
-                label="Asset Type"
-                options={ASSET_TYPE_OPTIONS}
-                selected={filters.assetType}
-                onChange={(v) => update({ assetType: v })}
-                labelMap={ASSET_TYPE_LABELS}
-              />
-            </>
-          )}
+          {/* Image Type */}
+          <Separator />
+          <CheckboxGroup
+            label="Image Type"
+            options={ASSET_TYPE_OPTIONS}
+            selected={filters.assetType}
+            onChange={(v) => update({ assetType: v })}
+            labelMap={ASSET_TYPE_LABELS}
+          />
 
           {/* Art Source — assets only */}
           {mode === "assets" && (
