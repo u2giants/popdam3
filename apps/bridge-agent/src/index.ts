@@ -30,6 +30,8 @@ let agentId: string = "";
 let isScanning = false;
 let abortRequested = false;
 let lastError: string | undefined;
+const MAX_SKIPPED_DIRS = 500;
+let skippedDirs: string[] = [];
 
 // ── Version info (injected via Docker build args or package.json) ──
 const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
@@ -358,15 +360,14 @@ async function runScan(providedSessionId?: string) {
       return;
     }
 
-    await api.scanProgress(sessionId, "running", counters);
+    await api.scanProgress(sessionId, "running", counters, undefined, skippedDirs);
 
     // Collect files and process in batches
     let batch: FileCandidate[] = [];
     let currentTopLevelDir: string | null = null;
 
-    // Track skipped directories (capped to avoid payload bloat)
-    const MAX_SKIPPED_DIRS = 500;
-    const skippedDirs: string[] = [];
+    // Reset skipped directories for this scan (module-level so processBatch can access)
+    skippedDirs = [];
 
     // Throttled progress reporter for directory walking
     let lastProgressAt = 0;
@@ -453,7 +454,7 @@ async function runScan(providedSessionId?: string) {
   } catch (e) {
     lastError = (e as Error).message;
     logger.error("Scan failed with exception", { error: lastError });
-    await api.scanProgress(sessionId, "failed", counters).catch(() => {});
+    await api.scanProgress(sessionId, "failed", counters, undefined, skippedDirs).catch(() => {});
     // Don't clear checkpoint on failure — allows resume on restart
   } finally {
     isScanning = false;
@@ -508,7 +509,7 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
   const allToProcess = [...filesToProcess, ...thumbRetryFiles];
   if (allToProcess.length === 0) {
     // Report progress even if nothing to process
-    await api.scanProgress(sessionId, "running", counters, batch[batch.length - 1]?.relativePath);
+    await api.scanProgress(sessionId, "running", counters, batch[batch.length - 1]?.relativePath, skippedDirs);
     return;
   }
 
@@ -522,7 +523,7 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
     i += concurrency;
 
     // Report progress
-    await api.scanProgress(sessionId, "running", counters, allToProcess[Math.min(i, allToProcess.length) - 1]?.relativePath);
+    await api.scanProgress(sessionId, "running", counters, allToProcess[Math.min(i, allToProcess.length) - 1]?.relativePath, skippedDirs);
   }
 }
 
