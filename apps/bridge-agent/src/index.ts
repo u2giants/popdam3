@@ -330,10 +330,13 @@ async function runScan(providedSessionId?: string) {
   // ── Check for resumable checkpoint ──
   try {
     const checkpoint = await api.getCheckpoint();
-    if (checkpoint && checkpoint.session_id !== sessionId) {
-      // Different session — this checkpoint is from a crashed previous scan
-      logger.info("Found checkpoint from crashed scan, resuming", {
+    if (checkpoint && checkpoint.last_completed_dir) {
+      // Resume from last completed directory regardless of session match.
+      // Same session = crashed mid-scan and restarted.
+      // Different session = previous scan crashed, new one requested.
+      logger.info("Found checkpoint, resuming scan", {
         checkpointSession: checkpoint.session_id,
+        currentSession: sessionId,
         lastCompletedDir: checkpoint.last_completed_dir,
         savedAt: checkpoint.saved_at,
       });
