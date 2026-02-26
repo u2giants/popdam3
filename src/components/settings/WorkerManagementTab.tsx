@@ -1330,7 +1330,7 @@ function CounterCell({ label, value, variant }: { label: string; value: number; 
         variant === "error" && value > 0 && "text-destructive",
         variant === "warning" && value > 0 && "text-[hsl(var(--warning))]",
       )}>
-        {value.toLocaleString()}
+        {(value ?? 0).toLocaleString()}
       </span>
     </div>
   );
