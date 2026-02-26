@@ -141,14 +141,15 @@ async function deriveMetadataFromPath(
   db: ReturnType<typeof serviceClient>,
 ): Promise<DerivedMetadata> {
   const pathParts = relativePath.split("/");
+  const normalizedParts = pathParts.map((p) => p.trim().toLowerCase());
 
-  // is_licensed: find the "Decor" folder and check sub-folder
-  const decorIndex = pathParts.findIndex(
-    (p) => p.toLowerCase() === "decor",
-  );
-  const subFolder =
-    decorIndex >= 0 ? (pathParts[decorIndex + 1] || "").toLowerCase() : "";
+  // is_licensed is path-authoritative:
+  // - Decor/Character Licensed/** => true
+  // - Decor/Generic Decor/**      => false
+  const decorIndex = normalizedParts.findIndex((p) => p === "decor");
+  const subFolder = decorIndex >= 0 ? (normalizedParts[decorIndex + 1] || "") : "";
   const is_licensed = subFolder === "character licensed";
+
 
   // Load configurable workflow folder map from admin_config (fallback to defaults)
   let workflowFolderMap = DEFAULT_WORKFLOW_FOLDER_MAP;
@@ -167,7 +168,7 @@ async function deriveMetadataFromPath(
   // Skip structural folders that don't indicate actual workflow
   // (e.g., "Concept Approved Designs" under "____New Structure" is structural, not workflow)
   const hasNewStructure = pathParts.some((p) => p.startsWith("____New Structure"));
-  const lowerParts = pathParts.map((p) => p.toLowerCase());
+  const lowerParts = normalizedParts;
   let workflow_status = "other";
   
   if (hasNewStructure) {
@@ -647,49 +648,44 @@ async function assignToStyleGroup(
   relativePath: string,
   assetId: string,
   skuFields: Record<string, unknown>,
+  derived: Pick<DerivedMetadata, "is_licensed">,
   db: ReturnType<typeof serviceClient>,
 ): Promise<void> {
   try {
     const sku = extractSkuFolder(relativePath);
     if (!sku) return;
+
     const folderPath = relativePath.split("/").slice(0, -1).join("/");
 
-    let { data: group } = await db
-      .from("style_groups")
-      .select("id")
-      .eq("sku", sku)
-      .maybeSingle();
+    // Keep style_groups licensing aligned with path-authoritative rule
+    const groupFields: Record<string, unknown> = {
+      sku,
+      folder_path: folderPath,
+      is_licensed: derived.is_licensed,
+      licensor_id: skuFields.licensor_id ?? null,
+      licensor_code: skuFields.licensor_code ?? null,
+      licensor_name: skuFields.licensor_name ?? null,
+      property_id: skuFields.property_id ?? null,
+      property_code: skuFields.property_code ?? null,
+      property_name: skuFields.property_name ?? null,
+      product_category: skuFields.product_category ?? null,
+      division_code: skuFields.division_code ?? null,
+      division_name: skuFields.division_name ?? null,
+      mg01_code: skuFields.mg01_code ?? null,
+      mg01_name: skuFields.mg01_name ?? null,
+      mg02_code: skuFields.mg02_code ?? null,
+      mg02_name: skuFields.mg02_name ?? null,
+      mg03_code: skuFields.mg03_code ?? null,
+      mg03_name: skuFields.mg03_name ?? null,
+      size_code: skuFields.size_code ?? null,
+      size_name: skuFields.size_name ?? null,
+    };
 
-    if (!group) {
-      const groupFields: Record<string, unknown> = {
-        sku,
-        folder_path: folderPath,
-        is_licensed: skuFields.is_licensed ?? false,
-        licensor_id: skuFields.licensor_id ?? null,
-        licensor_code: skuFields.licensor_code ?? null,
-        licensor_name: skuFields.licensor_name ?? null,
-        property_id: skuFields.property_id ?? null,
-        property_code: skuFields.property_code ?? null,
-        property_name: skuFields.property_name ?? null,
-        product_category: skuFields.product_category ?? null,
-        division_code: skuFields.division_code ?? null,
-        division_name: skuFields.division_name ?? null,
-        mg01_code: skuFields.mg01_code ?? null,
-        mg01_name: skuFields.mg01_name ?? null,
-        mg02_code: skuFields.mg02_code ?? null,
-        mg02_name: skuFields.mg02_name ?? null,
-        mg03_code: skuFields.mg03_code ?? null,
-        mg03_name: skuFields.mg03_name ?? null,
-        size_code: skuFields.size_code ?? null,
-        size_name: skuFields.size_name ?? null,
-      };
-      const { data: newGroup } = await db
-        .from("style_groups")
-        .upsert(groupFields, { onConflict: "sku", ignoreDuplicates: false })
-        .select("id")
-        .single();
-      group = newGroup;
-    }
+    const { data: group } = await db
+      .from("style_groups")
+      .upsert(groupFields, { onConflict: "sku", ignoreDuplicates: false })
+      .select("id")
+      .single();
 
     if (!group) return;
 
@@ -867,7 +863,7 @@ async function handleIngest(
       new_relative_path: relativePath,
     });
 
-    assignToStyleGroup(relativePath, existingByHash.id, skuFields, db).catch(() => {});
+    assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, db).catch(() => {});
 
     return json({
       ok: true,
@@ -944,7 +940,7 @@ async function handleIngest(
       }).then(() => {}).catch(() => {}); // best-effort, don't block ingest
     }
 
-    assignToStyleGroup(relativePath, existingByPath.id, skuFields, db).catch(() => {});
+    assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, db).catch(() => {});
 
     return json({
       ok: true,
@@ -1000,7 +996,7 @@ async function handleIngest(
     });
   }
 
-  assignToStyleGroup(relativePath, newAsset.id, skuFields, db).catch(() => {});
+  assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, db).catch(() => {});
 
   return json({ ok: true, action: "created", asset_id: newAsset.id, needs_group_rebuild: true });
 }

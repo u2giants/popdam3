@@ -1548,13 +1548,13 @@ async function deriveMetadataFromPath(
   property_id: string | null;
 }> {
   const pathParts = relativePath.split("/");
+  const normalizedParts = pathParts.map((p) => p.trim().toLowerCase());
 
-  // is_licensed: find the "Decor" folder and check sub-folder
-  const decorIndex = pathParts.findIndex(
-    (p) => p.toLowerCase() === "decor",
-  );
-  const subFolder =
-    decorIndex >= 0 ? (pathParts[decorIndex + 1] || "").toLowerCase() : "";
+  // is_licensed is path-authoritative:
+  // - Decor/Character Licensed/** => true
+  // - Decor/Generic Decor/**      => false
+  const decorIndex = normalizedParts.findIndex((p) => p === "decor");
+  const subFolder = decorIndex >= 0 ? (normalizedParts[decorIndex + 1] || "") : "";
   const is_licensed = subFolder === "character licensed";
 
   // Load configurable workflow folder map from admin_config (fallback to defaults)
@@ -1572,7 +1572,7 @@ async function deriveMetadataFromPath(
 
   // Skip "Concept Approved Designs" as a workflow signal when under ____New Structure (it's structural)
   const hasNewStructure = pathParts.some((p) => p.startsWith("____New Structure"));
-  const lowerParts = pathParts.map((p) => p.toLowerCase());
+  const lowerParts = normalizedParts;
   let workflow_status = "other";
   for (const [folder, status] of Object.entries(workflowFolderMap)) {
     if (hasNewStructure && folder === "concept approved designs") continue;
