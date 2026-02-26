@@ -85,6 +85,7 @@ export async function validateScanRoots(counters: Counters, scanRoots?: string[]
 export interface ScanCallbacks {
   shouldAbort?: () => boolean;
   onDir?: (dirPath: string) => void;
+  onSkippedDir?: (dirPath: string, reason: string) => void;
 }
 
 export async function* scanFiles(
@@ -117,8 +118,10 @@ async function* scanDirectory(
     if (code === "EACCES") {
       counters.dirs_skipped_permission++;
       logger.warn("Directory not readable, skipping", { dirPath });
+      callbacks?.onSkippedDir?.(dirPath, "EACCES");
     } else {
       logger.warn("Failed to read directory", { dirPath, error: (e as Error).message });
+      callbacks?.onSkippedDir?.(dirPath, code || "unknown");
     }
     return;
   }
