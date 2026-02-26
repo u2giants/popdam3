@@ -585,15 +585,16 @@ function ResourceGuardSettings() {
 
   // Sync from fetched data
   const loaded = !isLoading && data;
-  useState(() => {
+  useEffect(() => {
     if (loaded) {
       setCpuLimit((guardConfig.default_cpu_shares as number) || 50);
       setMemLimit((guardConfig.default_memory_limit_mb as number) || 512);
       setConcurrency((guardConfig.default_thumb_concurrency as number) || 2);
       setBatchSize((guardConfig.batch_size as number) || 100);
       setSchedules((guardConfig.schedules as Schedule[]) || []);
+      setDirty(false);
     }
-  });
+  }, [loaded]);
 
   const saveMutation = useMutation({
     mutationFn: () => call("set-config", {
