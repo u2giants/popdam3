@@ -233,7 +233,7 @@ export default function LibraryPage() {
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
         activeFilterCount={activeFilterCount}
-        totalCount={isGroupsMode ? (totalGroupCount ?? 0) : (assetData?.totalCount ?? 0)}
+        totalCount={isGroupsMode ? ((totalGroupCount ?? 0) + (ungroupedCount ?? 0)) : (assetData?.totalCount ?? 0)}
         totalAssets={totalAssets ?? 0}
         scanRunning={scanRunning}
         scanStale={scanProgress.status === "stale"}
