@@ -1105,19 +1105,26 @@ async function handleScanProgress(body: Record<string, unknown>) {
   const status = requireString(body, "status");
   const counters = body.counters as Record<string, unknown> | undefined;
   const currentPath = optionalString(body, "current_path");
+  const skippedDirs = Array.isArray(body.skipped_dirs) ? body.skipped_dirs as string[] : undefined;
 
   const db = serviceClient();
 
   // Store progress in admin_config for UI consumption
+  const progressValue: Record<string, unknown> = {
+    session_id: sessionId,
+    status,
+    counters: counters || {},
+    current_path: currentPath,
+    updated_at: new Date().toISOString(),
+  };
+  // Only include skipped_dirs when present to avoid bloating every heartbeat update
+  if (skippedDirs && skippedDirs.length > 0) {
+    progressValue.skipped_dirs = skippedDirs;
+  }
+
   const { error } = await db.from("admin_config").upsert({
     key: "SCAN_PROGRESS",
-    value: {
-      session_id: sessionId,
-      status,
-      counters: counters || {},
-      current_path: currentPath,
-      updated_at: new Date().toISOString(),
-    },
+    value: progressValue,
     updated_at: new Date().toISOString(),
   });
 

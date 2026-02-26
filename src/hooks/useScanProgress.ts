@@ -10,6 +10,7 @@ export interface ScanProgress {
   counters?: ScanCounters;
   current_path?: string;
   updated_at?: string;
+  skipped_dirs?: string[];
 }
 
 const STALE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
@@ -71,6 +72,7 @@ export function useScanProgress(): ScanProgress {
             counters: sp.counters as ScanCounters | undefined,
             current_path: sp.current_path as string | undefined,
             updated_at: updatedAt,
+            skipped_dirs: Array.isArray(sp.skipped_dirs) ? sp.skipped_dirs as string[] : undefined,
           });
           prevStatusRef.current = status;
         } else {

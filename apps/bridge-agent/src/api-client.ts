@@ -162,12 +162,14 @@ export async function scanProgress(
   status: "running" | "completed" | "failed",
   counters: Counters,
   currentPath?: string,
+  skippedDirs?: string[],
 ): Promise<void> {
   await callApi("scan-progress", {
     session_id: sessionId,
     status,
     counters,
     current_path: currentPath,
+    ...(skippedDirs && skippedDirs.length > 0 ? { skipped_dirs: skippedDirs } : {}),
   });
 }
 

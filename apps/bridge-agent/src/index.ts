@@ -361,6 +361,10 @@ async function runScan(providedSessionId?: string) {
     let batch: FileCandidate[] = [];
     let currentTopLevelDir: string | null = null;
 
+    // Track skipped directories (capped to avoid payload bloat)
+    const MAX_SKIPPED_DIRS = 500;
+    const skippedDirs: string[] = [];
+
     // Throttled progress reporter for directory walking
     let lastProgressAt = 0;
     const PROGRESS_INTERVAL_MS = 2000;
@@ -389,7 +393,17 @@ async function runScan(providedSessionId?: string) {
         const now = Date.now();
         if (now - lastProgressAt >= PROGRESS_INTERVAL_MS) {
           lastProgressAt = now;
-          api.scanProgress(sessionId, "running", counters, dirPath).catch(() => {});
+          api.scanProgress(sessionId, "running", counters, dirPath, skippedDirs).catch(() => {});
+        }
+      },
+      onSkippedDir: (dirPath, _reason) => {
+        if (skippedDirs.length < MAX_SKIPPED_DIRS) {
+          // Store path relative to mount root for readability
+          const effectiveMountRoot = cloudMountRoot || config.nasContainerMountRoot;
+          const displayPath = dirPath.startsWith(effectiveMountRoot)
+            ? dirPath.slice(effectiveMountRoot.length).replace(/^\//, "")
+            : dirPath;
+          skippedDirs.push(displayPath);
         }
       },
     };
@@ -397,7 +411,7 @@ async function runScan(providedSessionId?: string) {
     for await (const file of scanFiles(counters, effectiveRoots, callbacks, resumeFromDir)) {
       if (abortRequested) {
         logger.info("Scan aborted by cloud request");
-        await api.scanProgress(sessionId, "failed", counters, "Aborted by user");
+        await api.scanProgress(sessionId, "failed", counters, "Aborted by user", skippedDirs);
         return;
       }
 
@@ -417,7 +431,7 @@ async function runScan(providedSessionId?: string) {
     // Check abort after scan loop completes
     if (abortRequested) {
       logger.info("Scan aborted by cloud request (post-loop)");
-      await api.scanProgress(sessionId, "failed", counters, "Aborted by user");
+      await api.scanProgress(sessionId, "failed", counters, "Aborted by user", skippedDirs);
       return;
     }
 
@@ -425,12 +439,12 @@ async function runScan(providedSessionId?: string) {
     if (counters.files_checked === 0 && !resumeFromDir) {
       logger.error("Scan completed with 0 files checked — treating as error");
       counters.errors++;
-      await api.scanProgress(sessionId, "failed", counters);
+        await api.scanProgress(sessionId, "failed", counters, undefined, skippedDirs);
       return;
     }
 
-    logger.info("Scan completed", { counters, resumed: !!resumeFromDir });
-    await api.scanProgress(sessionId, "completed", counters);
+    logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length });
+    await api.scanProgress(sessionId, "completed", counters, undefined, skippedDirs);
     // Clear checkpoint on successful completion
     await api.clearCheckpoint().catch(() => {});
   } catch (e) {

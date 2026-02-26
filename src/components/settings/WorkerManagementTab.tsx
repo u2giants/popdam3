@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight, FlaskConical, CheckCircle2, XCircle, Loader2, RefreshCw, Square, FolderOpen, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight, FlaskConical, CheckCircle2, XCircle, Loader2, RefreshCw, Square, FolderOpen, AlertTriangle, FolderX } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -12,6 +12,8 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -1321,25 +1323,28 @@ function formatTimeAgo(ts: string | undefined): string {
   return `${hr}h ${min % 60}m ago`;
 }
 
-function CounterCell({ label, value, variant }: { label: string; value: number; variant?: "error" | "warning" }) {
-  return (
-    <div className="flex justify-between items-baseline">
+function CounterCell({ label, value, variant, onClick }: { label: string; value: number; variant?: "error" | "warning"; onClick?: () => void }) {
+  const content = (
+    <div className={cn("flex justify-between items-baseline", onClick && "cursor-pointer hover:bg-muted/50 -mx-1 px-1 rounded")}>
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className={cn(
         "text-sm font-semibold tabular-nums",
         variant === "error" && value > 0 && "text-destructive",
         variant === "warning" && value > 0 && "text-[hsl(var(--warning))]",
+        onClick && value > 0 && "underline decoration-dotted underline-offset-2",
       )}>
         {(value ?? 0).toLocaleString()}
       </span>
     </div>
   );
+  return onClick ? <button type="button" onClick={onClick} className="text-left">{content}</button> : content;
 }
 
 export function LiveScanMonitor() {
   const scanProgress = useScanProgress();
   const { call } = useAdminApi();
   const [lastCompleted, setLastCompleted] = useState<ScanProgress | null>(null);
+  const [showSkippedDirs, setShowSkippedDirs] = useState(false);
 
   // Store last completed/failed scan
   useEffect(() => {
@@ -1431,9 +1436,42 @@ export function LiveScanMonitor() {
             <CounterCell label="Unchanged" value={c.noop_unchanged ?? 0} />
             <CounterCell label="Rejected (subfolder)" value={c.rejected_subfolder ?? 0} />
             <CounterCell label="Errors" value={c.errors} variant="error" />
-            <CounterCell label="Skipped dirs" value={c.dirs_skipped_permission} />
+            <CounterCell label="Skipped dirs" value={c.dirs_skipped_permission} variant="warning" onClick={c.dirs_skipped_permission > 0 ? () => setShowSkippedDirs(true) : undefined} />
           </div>
         )}
+
+        {/* Skipped directories dialog */}
+        <Dialog open={showSkippedDirs} onOpenChange={setShowSkippedDirs}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <FolderX className="h-4 w-4 text-[hsl(var(--warning))]" />
+                Skipped Directories ({displayProgress.skipped_dirs?.length ?? 0})
+              </DialogTitle>
+            </DialogHeader>
+            {displayProgress.skipped_dirs && displayProgress.skipped_dirs.length > 0 ? (
+              <ScrollArea className="max-h-[400px]">
+                <div className="space-y-1 pr-4">
+                  {displayProgress.skipped_dirs.map((dir, i) => (
+                    <div key={i} className="flex items-start gap-2 rounded-md bg-muted/40 px-3 py-1.5">
+                      <XCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+                      <code className="text-xs font-mono text-foreground break-all">{dir}</code>
+                    </div>
+                  ))}
+                  {(c?.dirs_skipped_permission ?? 0) > (displayProgress.skipped_dirs?.length ?? 0) && (
+                    <p className="text-xs text-muted-foreground px-3 py-2">
+                      …and {(c?.dirs_skipped_permission ?? 0) - displayProgress.skipped_dirs.length} more (capped at 500)
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">
+                Skipped directory paths will appear here after the next scan. The Bridge Agent needs to be updated to collect this data.
+              </p>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Current path */}
         {isActive && displayProgress.current_path && (
