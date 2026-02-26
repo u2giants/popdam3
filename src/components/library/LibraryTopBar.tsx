@@ -1,4 +1,4 @@
-import { Search, LayoutGrid, List, SlidersHorizontal, RefreshCw, Square, RotateCcw } from "lucide-react";
+import { Search, LayoutGrid, List, SlidersHorizontal, RefreshCw, Square, RotateCcw, Layers, File } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { ViewMode, SortField, SortDirection } from "@/types/assets";
+import type { ViewMode, SortField, SortDirection, LibraryMode } from "@/types/assets";
 import { cn } from "@/lib/utils";
 
 interface LibraryTopBarProps {
@@ -17,6 +17,8 @@ interface LibraryTopBarProps {
   onSearchChange: (v: string) => void;
   viewMode: ViewMode;
   onViewModeChange: (v: ViewMode) => void;
+  libraryMode: LibraryMode;
+  onLibraryModeChange: (v: LibraryMode) => void;
   sortField: SortField;
   onSortFieldChange: (v: SortField) => void;
   sortDirection: SortDirection;
@@ -55,6 +57,8 @@ export default function LibraryTopBar({
   onSearchChange,
   viewMode,
   onViewModeChange,
+  libraryMode,
+  onLibraryModeChange,
   sortField,
   onSortFieldChange,
   sortDirection,
@@ -91,7 +95,28 @@ export default function LibraryTopBar({
         )}
       </Button>
 
-      {/* Search */}
+      {/* Library mode toggle — Groups / Assets */}
+      <div className="flex rounded-md border border-border">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("h-9 rounded-r-none gap-1.5 text-xs px-2.5", libraryMode === "groups" && "bg-accent")}
+          onClick={() => onLibraryModeChange("groups")}
+        >
+          <Layers className="h-3.5 w-3.5" />
+          Groups
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("h-9 rounded-l-none border-l border-border gap-1.5 text-xs px-2.5", libraryMode === "assets" && "bg-accent")}
+          onClick={() => onLibraryModeChange("assets")}
+        >
+          <File className="h-3.5 w-3.5" />
+          Assets
+        </Button>
+      </div>
+
       <div className="relative flex-1 min-w-[200px] max-w-sm">
         <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input

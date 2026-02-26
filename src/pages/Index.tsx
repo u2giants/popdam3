@@ -1,14 +1,18 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
-import { useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
-import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode } from "@/types/assets";
+import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
+import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
+import type { Asset } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
 import ScanMonitorBanner from "@/components/library/ScanMonitorBanner";
 import FilterSidebar from "@/components/library/FilterSidebar";
 import StyleGroupGrid from "@/components/library/StyleGroupGrid";
 import StyleGroupListView from "@/components/library/StyleGroupListView";
 import StyleGroupDetailPanel from "@/components/library/StyleGroupDetailPanel";
+import AssetGrid from "@/components/library/AssetGrid";
+import AssetListView from "@/components/library/AssetListView";
+import AssetDetailPanel from "@/components/library/AssetDetailPanel";
 import BulkActionBar from "@/components/library/BulkActionBar";
 import PaginationBar from "@/components/library/PaginationBar";
 import { toast } from "@/hooks/use-toast";
@@ -23,10 +27,12 @@ export default function LibraryPage() {
   const [sortField, setSortField] = useState<SortField>("modified_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [libraryMode, setLibraryMode] = useState<LibraryMode>("groups");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
+  const [detailAssetId, setDetailAssetId] = useState<string | null>(null);
   const lastSelectedIndex = useRef<number | null>(null);
   const [pageSize, setPageSize] = useState(200);
   const [scanTriggered, setScanTriggered] = useState(false);
@@ -36,13 +42,22 @@ export default function LibraryPage() {
   const scanRunning = scanProgress.status === "running" || scanProgress.status === "stale";
   const scanQueued = scanProgress.status === "queued";
 
+  // Reset selection & detail when switching modes
+  const handleLibraryModeChange = useCallback((mode: LibraryMode) => {
+    setLibraryMode(mode);
+    setSelectedIds(new Set());
+    setDetailGroupId(null);
+    setDetailAssetId(null);
+    setPage(0);
+    lastSelectedIndex.current = null;
+  }, []);
+
   useEffect(() => {
     if (scanTriggered && scanProgress.status !== "idle") {
       setScanTriggered(false);
     }
   }, [scanTriggered, scanProgress.status]);
 
-  // Safety-net timeout: clear scanTriggered after 120s regardless
   useEffect(() => {
     if (!scanTriggered) return;
     const timer = setTimeout(() => {
@@ -61,6 +76,7 @@ export default function LibraryPage() {
       queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
       queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
       queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
       toast({ title: "Scan completed", description: `${scanProgress.counters?.files_checked ?? 0} files checked, ${scanProgress.counters?.ingested_new ?? 0} new assets ingested.` });
     }
 
@@ -98,21 +114,38 @@ export default function LibraryPage() {
   }, []);
 
   const { data: visibilityDate } = useVisibilityDate();
-  const { data, isLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
-  const { data: totalCount } = useStyleGroupCount(filters, visibilityDate);
+
+  // Style groups data (always fetch for counts in top bar)
+  const { data: sgData, isLoading: sgLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
+  const { data: totalGroupCount } = useStyleGroupCount(filters, visibilityDate);
   const { data: ungroupedCount } = useUngroupedCount();
   const { data: totalAssets } = useTotalAssetCount();
+
+  // Individual assets data (only fetch when in assets mode)
+  const { data: assetData, isLoading: assetLoading } = useAssets(
+    filters, sortField, sortDirection, page, visibilityDate, pageSize,
+  );
+
   const { licensors, properties } = useFilterOptions(filters.licensorId);
   const { data: facetCounts } = useFilterCounts(filters);
 
+  // Determine active data based on library mode
+  const isGroupsMode = libraryMode === "groups";
+  const groups = sgData?.groups ?? [];
+  const assets = assetData?.assets ?? [];
+  const isLoading = isGroupsMode ? sgLoading : assetLoading;
+  const count = isGroupsMode
+    ? (totalGroupCount ?? sgData?.totalCount ?? 0)
+    : (assetData?.totalCount ?? 0);
+
   const handleSelect = useCallback((id: string, event: React.MouseEvent) => {
-    const groups = data?.groups ?? [];
-    const clickedIndex = groups.findIndex((g) => g.id === id);
+    const items = isGroupsMode ? groups : assets;
+    const clickedIndex = items.findIndex((item) => item.id === id);
 
     if (event.shiftKey && lastSelectedIndex.current !== null && clickedIndex >= 0) {
       const start = Math.min(lastSelectedIndex.current, clickedIndex);
       const end = Math.max(lastSelectedIndex.current, clickedIndex);
-      const rangeIds = groups.slice(start, end + 1).map((g) => g.id);
+      const rangeIds = items.slice(start, end + 1).map((item) => item.id);
       setSelectedIds((prev) => {
         const next = new Set(prev);
         rangeIds.forEach((rid) => next.add(rid));
@@ -122,7 +155,13 @@ export default function LibraryPage() {
     }
 
     if (!event.metaKey && !event.ctrlKey) {
-      setDetailGroupId((prev) => (prev === id ? null : id));
+      if (isGroupsMode) {
+        setDetailGroupId((prev) => (prev === id ? null : id));
+        setDetailAssetId(null);
+      } else {
+        setDetailAssetId((prev) => (prev === id ? null : id));
+        setDetailGroupId(null);
+      }
       setSelectedIds(new Set([id]));
       lastSelectedIndex.current = clickedIndex;
       return;
@@ -135,7 +174,7 @@ export default function LibraryPage() {
       return next;
     });
     lastSelectedIndex.current = clickedIndex;
-  }, [data?.groups]);
+  }, [isGroupsMode, groups, assets]);
 
   const { call } = useAdminApi();
   const handleSync = async () => {
@@ -162,16 +201,20 @@ export default function LibraryPage() {
     queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
     queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
     queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
   }, [queryClient]);
 
-  const groups = data?.groups ?? [];
-  const count = totalCount ?? data?.totalCount ?? 0;
   const activeFilterCount = countActiveFilters(filters);
   const selectedGroups = groups.filter(g => selectedIds.has(g.id));
 
   const detailGroup = useMemo(
     () => (detailGroupId ? groups.find((g) => g.id === detailGroupId) ?? null : null),
     [detailGroupId, groups]
+  );
+
+  const detailAsset = useMemo(
+    () => (detailAssetId ? assets.find((a) => a.id === detailAssetId) ?? null : null),
+    [detailAssetId, assets]
   );
 
   return (
@@ -181,6 +224,8 @@ export default function LibraryPage() {
         onSearchChange={handleSearchChange}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        libraryMode={libraryMode}
+        onLibraryModeChange={handleLibraryModeChange}
         sortField={sortField}
         onSortFieldChange={(f) => { setSortField(f); setPage(0); }}
         sortDirection={sortDirection}
@@ -188,7 +233,7 @@ export default function LibraryPage() {
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
         activeFilterCount={activeFilterCount}
-        totalCount={count}
+        totalCount={isGroupsMode ? (totalGroupCount ?? 0) : (assetData?.totalCount ?? 0)}
         totalAssets={totalAssets ?? 0}
         scanRunning={scanRunning}
         scanStale={scanProgress.status === "stale"}
@@ -202,15 +247,15 @@ export default function LibraryPage() {
 
       <ScanMonitorBanner scanProgress={scanProgress} onStopScan={handleStopScan} />
 
-      {selectedIds.size > 0 && (
+      {isGroupsMode && selectedIds.size > 0 && (
         <BulkActionBar
           selectedGroups={selectedGroups}
           onClearSelection={() => setSelectedIds(new Set())}
         />
       )}
 
-      {/* Ungrouped count indicator */}
-      {ungroupedCount != null && ungroupedCount > 0 && (
+      {/* Ungrouped count indicator — groups mode only */}
+      {isGroupsMode && ungroupedCount != null && ungroupedCount > 0 && (
         <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
           <Badge variant="secondary" className="text-[10px]">{ungroupedCount} ungrouped</Badge>
           <span>assets not in any style group</span>
@@ -226,25 +271,43 @@ export default function LibraryPage() {
             licensors={licensors}
             properties={properties}
             facetCounts={facetCounts ?? null}
-            mode="groups"
+            mode={libraryMode === "assets" ? "assets" : "groups"}
           />
         )}
 
         <div className="flex flex-1 flex-col overflow-auto">
-          {viewMode === "grid" ? (
-            <StyleGroupGrid
-              groups={groups}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              isLoading={isLoading}
-            />
+          {isGroupsMode ? (
+            viewMode === "grid" ? (
+              <StyleGroupGrid
+                groups={groups}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                isLoading={isLoading}
+              />
+            ) : (
+              <StyleGroupListView
+                groups={groups}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                isLoading={isLoading}
+              />
+            )
           ) : (
-            <StyleGroupListView
-              groups={groups}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              isLoading={isLoading}
-            />
+            viewMode === "grid" ? (
+              <AssetGrid
+                assets={assets}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                isLoading={isLoading}
+              />
+            ) : (
+              <AssetListView
+                assets={assets}
+                selectedIds={selectedIds}
+                onSelect={handleSelect}
+                isLoading={isLoading}
+              />
+            )
           )}
 
           <div className="mt-auto">
@@ -258,12 +321,22 @@ export default function LibraryPage() {
           </div>
         </div>
 
-        {/* Detail panel: overlay on < 1400px, push on wider screens */}
-        {detailGroup && (
+        {/* Detail panel: style group */}
+        {isGroupsMode && detailGroup && (
           <div className="max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
             <StyleGroupDetailPanel
               group={detailGroup}
               onClose={() => setDetailGroupId(null)}
+            />
+          </div>
+        )}
+
+        {/* Detail panel: individual asset */}
+        {!isGroupsMode && detailAsset && (
+          <div className="max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
+            <AssetDetailPanel
+              asset={detailAsset}
+              onClose={() => setDetailAssetId(null)}
             />
           </div>
         )}

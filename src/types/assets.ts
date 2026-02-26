@@ -5,6 +5,7 @@ export type Asset = Tables<"assets">;
 export type SortField = "modified_at" | "file_created_at" | "filename" | "file_size";
 export type SortDirection = "asc" | "desc";
 export type ViewMode = "grid" | "list";
+export type LibraryMode = "groups" | "assets";
 
 export type FileStatusFilter = "" | "has_preview" | "no_preview_renderable" | "no_pdf_compat" | "no_preview_unsupported";
 
