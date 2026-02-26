@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Stethoscope, RefreshCw, AlertCircle, AlertTriangle, Info,
-  CheckCircle2, Loader2, ChevronRight, Zap,
+  CheckCircle2, Loader2, ChevronRight, Zap, Clock,
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -20,6 +20,7 @@ interface DoctorIssue {
   recommended_fix: string;
   fix_action?: string;
   fix_payload?: Record<string, unknown>;
+  detected_at?: string;
 }
 
 // ── Severity config ─────────────────────────────────────────────────
@@ -47,6 +48,21 @@ const SEVERITY_CONFIG = {
     label: "Info",
   },
 } as const;
+
+// ── Time formatting ─────────────────────────────────────────────────
+
+function formatRelativeTime(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return "just now";
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const days = Math.floor(hr / 24);
+  return `${days}d ago`;
+}
 
 // ── Fix action labels ───────────────────────────────────────────────
 
@@ -82,9 +98,17 @@ function IssueCard({
               {sev.label}
             </Badge>
             <span className="font-semibold text-sm">{issue.title}</span>
-            <code className="text-[10px] text-muted-foreground font-mono ml-auto hidden sm:block">
-              {issue.code}
-            </code>
+            <div className="ml-auto flex items-center gap-2">
+              {issue.detected_at && (
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {formatRelativeTime(issue.detected_at)}
+                </span>
+              )}
+              <code className="text-[10px] text-muted-foreground font-mono hidden sm:block">
+                {issue.code}
+              </code>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
             {issue.details}
