@@ -408,6 +408,7 @@ interface DoctorIssue {
   recommended_fix: string;
   fix_action?: string; // admin-api action name to call
   fix_payload?: Record<string, unknown>;
+  detected_at?: string; // ISO timestamp of when the underlying condition was observed
 }
 
 async function handleDoctor() {
@@ -528,6 +529,7 @@ async function handleDoctor() {
         title: `Bridge Agent "${agent.name}" is offline`,
         details: `Last heartbeat: ${agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}. The agent is not sending heartbeats.`,
         recommended_fix: "Check that the Docker container is running on the Synology NAS. View logs with 'docker compose logs bridge'.",
+        detected_at: agent.last_heartbeat as string || undefined,
       });
     }
 
@@ -541,6 +543,7 @@ async function handleDoctor() {
         details: `force_stop=${meta.force_stop}, scan_abort=${meta.scan_abort}. The agent will not accept scan jobs or ingest files.`,
         recommended_fix: "Click 'Clear Stop Flags' to resume normal operation.",
         fix_action: "resume-scanning",
+        detected_at: agent.last_heartbeat as string || undefined,
       });
     }
 
@@ -552,6 +555,7 @@ async function handleDoctor() {
         title: `Bridge Agent "${agent.name}" reported an error`,
         details: agent.last_error as string,
         recommended_fix: "Check the agent logs for more context. The error may have been transient.",
+        detected_at: agent.last_heartbeat as string || undefined,
       });
     }
 
@@ -589,6 +593,7 @@ async function handleDoctor() {
         title: `Windows Agent "${agent.name}" is offline`,
         details: `Last heartbeat: ${agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}.`,
         recommended_fix: "Ensure the Windows Render Agent is running on the desktop machine with Adobe Illustrator.",
+        detected_at: agent.last_heartbeat as string || undefined,
       });
     }
 
@@ -664,6 +669,7 @@ async function handleDoctor() {
           details: `Scan status is "${progressStatus}" but hasn't updated in ${Math.floor(staleMs / 60000)} minutes. The agent may have crashed mid-scan.`,
           recommended_fix: "Click 'Reset Scan State' to clear the stale scan and allow a new scan to start.",
           fix_action: "reset-scan-state",
+          detected_at: progressUpdatedAt,
         });
       }
     }
@@ -677,6 +683,7 @@ async function handleDoctor() {
         details: (scanProgress.error as string) || "The most recent scan ended with an error.",
         recommended_fix: "Check the agent logs for details. Reset the scan state and try again.",
         fix_action: "reset-scan-state",
+        detected_at: scanProgress.updated_at as string || undefined,
       });
     }
   }
