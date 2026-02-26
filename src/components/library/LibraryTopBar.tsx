@@ -204,11 +204,20 @@ export default function LibraryTopBar({
 
       {/* Counts */}
       <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-        <span className="font-semibold tabular-nums">{totalCount.toLocaleString()}</span>
-        {" "}groups
-        <span className="mx-1">·</span>
-        <span className="font-semibold tabular-nums">{totalAssets.toLocaleString()}</span>
-        {" "}files
+        {libraryMode === "groups" ? (
+          <>
+            <span className="font-semibold tabular-nums">{totalCount.toLocaleString()}</span>
+            {" "}SKUs
+            <span className="mx-1">·</span>
+            <span className="font-semibold tabular-nums">{totalAssets.toLocaleString()}</span>
+            {" "}files
+          </>
+        ) : (
+          <>
+            <span className="font-semibold tabular-nums">{totalCount.toLocaleString()}</span>
+            {" "}files
+          </>
+        )}
       </span>
     </div>
   );

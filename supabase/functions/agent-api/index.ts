@@ -689,9 +689,22 @@ async function assignToStyleGroup(
 
     if (!group) return;
 
-    // Only assign group ID — skip stats update during ingest for performance.
-    // Run "Rebuild Style Groups" after scan completes to update primary_asset_id, asset_count, etc.
+    // Assign group ID to the asset
     await db.from("assets").update({ style_group_id: group.id }).eq("id", assetId);
+
+    // Incrementally update asset_count for this group
+    const { count: memberCount } = await db
+      .from("assets")
+      .select("*", { count: "exact", head: true })
+      .eq("style_group_id", group.id)
+      .eq("is_deleted", false);
+
+    if (memberCount !== null) {
+      await db
+        .from("style_groups")
+        .update({ asset_count: memberCount })
+        .eq("id", group.id);
+    }
   } catch (e) {
     console.error("assignToStyleGroup error (non-fatal):", e);
   }
