@@ -2147,7 +2147,7 @@ async function handleRunQuery(body: Record<string, unknown>) {
     return err("Missing required field: sql");
   }
 
-  const trimmed = sql.trim();
+  const trimmed = sql.trim().replace(/;+\s*$/, "");
   if (!/^select\s/i.test(trimmed)) {
     return err("Only SELECT queries are allowed");
   }
