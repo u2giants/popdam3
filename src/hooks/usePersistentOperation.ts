@@ -80,8 +80,7 @@ export function usePersistentOperation(operationKey: string) {
       const data = await call("get-config", { keys: [CONFIG_KEY] });
       const existing = (data?.config?.[CONFIG_KEY]?.value as Record<string, unknown>) ?? {};
       await call("set-config", {
-        key: CONFIG_KEY,
-        value: { ...existing, [operationKey]: opState },
+        entries: { [CONFIG_KEY]: { ...existing, [operationKey]: opState } },
       });
     } catch {
       // best-effort
