@@ -11,7 +11,7 @@
  */
 
 import sharp from "sharp";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { readdirSync, existsSync } from "node:fs";
@@ -60,6 +60,39 @@ function findGhostscript(): string {
 }
 
 const GS_EXE = findGhostscript();
+
+// ── ImageMagick path discovery ──────────────────────────────────
+
+function findImageMagick(): string | null {
+  if (process.env.IM_PATH) return process.env.IM_PATH;
+
+  const candidates = [
+    "C:\\Program Files\\ImageMagick-7.1.1-Q16-HDRI\\magick.exe",
+    "C:\\Program Files\\ImageMagick-7.1.0-Q16-HDRI\\magick.exe",
+    "C:\\Program Files\\ImageMagick-7.1.0-Q16\\magick.exe",
+  ];
+
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      logger.info("Found ImageMagick", { path: c });
+      return c;
+    }
+  }
+
+  try {
+    execFileSync("magick", ["--version"], { timeout: 5000 });
+    logger.info("Found ImageMagick on PATH");
+    return "magick";
+  } catch {
+    logger.warn(
+      "ImageMagick not found. Install from imagemagick.org " +
+      "or set IM_PATH env var. PSD fallback will be unavailable."
+    );
+    return null;
+  }
+}
+
+const IM_EXE = findImageMagick();
 
 // ── Step 1: Sharp ───────────────────────────────────────────────
 
@@ -127,6 +160,44 @@ async function renderWithGhostscript(
   }
 }
 
+// ── Step 2b: ImageMagick (PSD) ──────────────────────────────────
+
+async function renderWithImageMagick(
+  filePath: string,
+): Promise<RenderResult> {
+  if (!IM_EXE) throw new Error("ImageMagick not installed");
+
+  const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-im-"));
+  const outPath = path.join(tmpDir, "thumb.jpg");
+
+  try {
+    // [0] = first/merged layer, -flatten removes transparency
+    await execFileAsync(IM_EXE, [
+      "-flatten",
+      "-background", "white",
+      `${filePath}[0]`,
+      "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
+      "-quality", "85",
+      outPath,
+    ], { timeout: 120_000 }); // PSDs can be slow
+
+    if (!existsSync(outPath)) {
+      throw new Error("ImageMagick produced no output");
+    }
+
+    const buffer = await sharp(outPath).jpeg({ quality: 85 }).toBuffer();
+    const meta = await sharp(buffer).metadata();
+
+    return {
+      buffer,
+      width: meta.width || 0,
+      height: meta.height || 0,
+    };
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 // ── Step 3: Sibling image ───────────────────────────────────────
 
 async function renderFromSibling(
@@ -179,7 +250,7 @@ export async function renderFile(
   uncPath: string,
   fileType: "ai" | "psd",
 ): Promise<RenderResult> {
-  // Step 1: Sharp
+  // Step 1: Sharp (both AI and PSD)
   try {
     const result = await renderWithSharp(uncPath, fileType);
     logger.info("Sharp render succeeded", { uncPath });
@@ -188,7 +259,7 @@ export async function renderFile(
     logger.warn("Sharp failed", { uncPath, error: (e as Error).message });
   }
 
-  // Step 2: Ghostscript (AI only — GS doesn't handle PSD)
+  // Step 2a: Ghostscript (AI only — GS doesn't handle PSD)
   if (fileType === "ai") {
     try {
       const result = await renderWithGhostscript(uncPath);
@@ -199,7 +270,18 @@ export async function renderFile(
     }
   }
 
-  // Step 3: Sibling image
+  // Step 2b: ImageMagick (PSD only — handles 16-bit, smart objects, complex layers)
+  if (fileType === "psd") {
+    try {
+      const result = await renderWithImageMagick(uncPath);
+      logger.info("ImageMagick render succeeded", { uncPath });
+      return result;
+    } catch (e) {
+      logger.warn("ImageMagick failed", { uncPath, error: (e as Error).message });
+    }
+  }
+
+  // Step 3: Sibling image (both AI and PSD)
   try {
     const result = await renderFromSibling(uncPath);
     logger.info("Sibling render succeeded", { uncPath });
@@ -208,5 +290,5 @@ export async function renderFile(
     logger.warn("Sibling not found", { uncPath });
   }
 
-  throw new Error("render_failed: all methods exhausted (Sharp + Ghostscript + sibling)");
+  throw new Error("render_failed: all methods exhausted (Sharp + Ghostscript/ImageMagick + sibling)");
 }
