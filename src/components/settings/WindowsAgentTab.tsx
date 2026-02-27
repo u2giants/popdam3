@@ -270,6 +270,17 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
 // ── Section 2: Download ─────────────────────────────────────────────
 
 function WindowsAgentDownload() {
+  const { call } = useAdminApi();
+  const { data: buildData, isLoading } = useQuery({
+    queryKey: ["windows-latest-build"],
+    queryFn: () => call("get-config", { keys: ["WINDOWS_LATEST_BUILD"] }),
+  });
+
+  const val = buildData?.config?.WINDOWS_LATEST_BUILD?.value as Record<string, string> | undefined;
+  const installerUrl = val?.installer_url || "https://github.com/u2giants/popdam3/releases/latest/download/popdam-windows-agent-setup.exe";
+  const version = val?.version;
+  const publishedAt = val?.published_at;
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -278,19 +289,21 @@ function WindowsAgentDownload() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <a
-          href="https://github.com/u2giants/popdam3/releases/latest/download/popdam-windows-agent-setup.exe"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={installerUrl} target="_blank" rel="noopener noreferrer">
           <Button size="lg" className="w-full gap-2">
             <Download className="h-4 w-4" />
             Download Windows Agent Installer
+            {version && <Badge variant="secondary" className="ml-1 text-[10px]">v{version}</Badge>}
           </Button>
         </a>
-         <p className="text-xs text-muted-foreground">
-           Requires Windows 10/11 with Ghostscript installed. The agent runs as a startup application and uses Sharp + Ghostscript for rendering (no Illustrator required).
-         </p>
+        {publishedAt && (
+          <p className="text-[10px] text-muted-foreground">
+            Published: {new Date(publishedAt).toLocaleString()}
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Requires Windows 10/11 with Ghostscript installed. The agent runs as a startup application and uses Sharp + Ghostscript + ImageMagick for rendering (no Illustrator required).
+        </p>
       </CardContent>
     </Card>
   );
