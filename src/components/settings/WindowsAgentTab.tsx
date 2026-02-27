@@ -651,12 +651,29 @@ function RenderJobsTable() {
     refetchInterval: 5_000,
   });
 
+  // Fetch counts for tab badges
+  const { data: countData } = useQuery({
+    queryKey: ["render-queue-tab-counts"],
+    queryFn: () => call("run-query", {
+      sql: `SELECT
+        COUNT(*) FILTER (WHERE status IN ('pending','claimed')) as pending,
+        COUNT(*) FILTER (WHERE status = 'completed' AND completed_at >= now() - interval '24 hours') as completed_24h,
+        COUNT(*) FILTER (WHERE status = 'failed' AND completed_at >= now() - interval '24 hours') as failed_24h,
+        COUNT(*) as total
+      FROM render_queue`,
+    }),
+    refetchInterval: 10_000,
+  });
+
+  const tabCounts = countData?.rows?.[0] as Record<string, number> | undefined;
+
   const clearFailedMutation = useMutation({
     mutationFn: () => call("clear-failed-renders"),
     onSuccess: (data) => {
       toast.success(`Cleared ${data.deleted_count ?? 0} failed jobs`);
       queryClient.invalidateQueries({ queryKey: ["render-queue-recent"] });
       queryClient.invalidateQueries({ queryKey: ["render-queue-pending-count"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-tab-counts"] });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -667,6 +684,7 @@ function RenderJobsTable() {
       toast.success(`Cleared ${(data.cleared ?? 0).toLocaleString()} junk files from queue`);
       queryClient.invalidateQueries({ queryKey: ["render-queue-recent"] });
       queryClient.invalidateQueries({ queryKey: ["render-queue-pending-count"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-tab-counts"] });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -677,6 +695,7 @@ function RenderJobsTable() {
       toast.success("Job requeued");
       queryClient.invalidateQueries({ queryKey: ["render-queue-recent"] });
       queryClient.invalidateQueries({ queryKey: ["render-queue-pending-count"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-tab-counts"] });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -687,16 +706,23 @@ function RenderJobsTable() {
       toast.success(`Queued ${data.queued ?? 0} assets for re-rendering${data.skipped ? ` (${data.skipped} already queued)` : ""}`);
       queryClient.invalidateQueries({ queryKey: ["render-queue-recent"] });
       queryClient.invalidateQueries({ queryKey: ["render-queue-pending-count"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-tab-counts"] });
     },
     onError: (e) => toast.error(e.message),
   });
 
   const jobs = data?.jobs || [];
-  const tabs: { key: StatusFilter; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "pending", label: "Pending" },
-    { key: "completed", label: "Completed" },
-    { key: "failed", label: "Failed" },
+
+  const pendingCount = Number(tabCounts?.pending ?? 0);
+  const completed24h = Number(tabCounts?.completed_24h ?? 0);
+  const failed24h = Number(tabCounts?.failed_24h ?? 0);
+  const totalCount = Number(tabCounts?.total ?? 0);
+
+  const tabs: { key: StatusFilter; label: string; count?: number }[] = [
+    { key: "all", label: "All", count: totalCount },
+    { key: "pending", label: "Pending", count: pendingCount },
+    { key: "completed", label: "Completed (24h)", count: completed24h },
+    { key: "failed", label: "Failed (24h)", count: failed24h },
   ];
 
   return (
@@ -752,10 +778,20 @@ function RenderJobsTable() {
               key={tab.key}
               variant={statusFilter === tab.key ? "default" : "ghost"}
               size="sm"
-              className="h-7 text-xs"
+              className="h-7 text-xs gap-1.5"
               onClick={() => setStatusFilter(tab.key)}
             >
               {tab.label}
+              {tab.count !== undefined && (
+                <Badge
+                  variant={statusFilter === tab.key ? "secondary" : "outline"}
+                  className={`text-[10px] h-4 min-w-[1.5rem] px-1 justify-center ${
+                    tab.key === "failed" && tab.count > 0 ? "text-destructive border-destructive/30" : ""
+                  }`}
+                >
+                  {tab.count.toLocaleString()}
+                </Badge>
+              )}
             </Button>
           ))}
         </div>
