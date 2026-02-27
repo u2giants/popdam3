@@ -2754,21 +2754,33 @@ async function handleRequestPathTest(userId: string) {
 async function handleRequeueAllNoPreview() {
   const db = serviceClient();
 
-  // Find all assets with no thumbnail that don't already have an active render job
-  const { data: assets, error: fetchErr } = await db
-    .from("assets")
-    .select("id")
-    .is("thumbnail_url", null)
-    .eq("is_deleted", false)
-    .not("thumbnail_error", "is", null);
+  // Paginate to fetch ALL assets with no thumbnail (bypass 1000-row default limit)
+  const PAGE = 1000;
+  const allAssetIds: string[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error: fetchErr } = await db
+      .from("assets")
+      .select("id")
+      .is("thumbnail_url", null)
+      .eq("is_deleted", false)
+      .not("thumbnail_error", "is", null)
+      .order("id")
+      .range(from, from + PAGE - 1);
 
-  if (fetchErr) return err(fetchErr.message, 500);
-  if (!assets || assets.length === 0) {
+    if (fetchErr) return err(fetchErr.message, 500);
+    if (!page || page.length === 0) break;
+    for (const a of page) allAssetIds.push(a.id);
+    if (page.length < PAGE) break;
+    from += PAGE;
+  }
+
+  if (allAssetIds.length === 0) {
     return json({ ok: true, queued: 0, skipped: 0 });
   }
 
   // Get assets that already have active render jobs
-  const assetIds = assets.map((a) => a.id);
+  const assetIds = allAssetIds;
 
   // Batch in chunks of 500 to avoid query limits
   const CHUNK = 500;
