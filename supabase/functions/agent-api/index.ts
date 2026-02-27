@@ -648,7 +648,7 @@ async function assignToStyleGroup(
   relativePath: string,
   assetId: string,
   skuFields: Record<string, unknown>,
-  derived: Pick<DerivedMetadata, "is_licensed">,
+  derived: Pick<DerivedMetadata, "is_licensed" | "licensor_name" | "property_name" | "licensor_id" | "property_id">,
   db: ReturnType<typeof serviceClient>,
 ): Promise<void> {
   try {
@@ -667,12 +667,12 @@ async function assignToStyleGroup(
       sku,
       folder_path: folderPath,
       is_licensed: derived.is_licensed,
-      licensor_id: skuFields.licensor_id ?? null,
+      licensor_id: skuFields.licensor_id ?? derived.licensor_id ?? null,
       licensor_code: skuFields.licensor_code ?? null,
-      licensor_name: skuFields.licensor_name ?? null,
-      property_id: skuFields.property_id ?? null,
+      licensor_name: skuFields.licensor_name ?? derived.licensor_name ?? null,
+      property_id: skuFields.property_id ?? derived.property_id ?? null,
       property_code: skuFields.property_code ?? null,
-      property_name: skuFields.property_name ?? null,
+      property_name: skuFields.property_name ?? derived.property_name ?? null,
       product_category: skuFields.product_category ?? null,
       division_code: skuFields.division_code ?? null,
       division_name: skuFields.division_name ?? null,
@@ -807,21 +807,28 @@ async function handleIngest(
 
   // SKU parsing from filename
   const parsed = await parseSku(filename);
-  const skuFields = parsed ? {
+  const skuFields: Record<string, unknown> = parsed ? {
     sku: parsed.sku,
     mg01_code: parsed.mg01_code, mg01_name: parsed.mg01_name,
     mg02_code: parsed.mg02_code, mg02_name: parsed.mg02_name,
     mg03_code: parsed.mg03_code, mg03_name: parsed.mg03_name,
     size_code: parsed.size_code, size_name: parsed.size_name,
-    licensor_code: parsed.licensor_code, licensor_name: parsed.licensor_name,
-    property_code: parsed.property_code, property_name: parsed.property_name,
+    licensor_code: parsed.licensor_code,
+    property_code: parsed.property_code,
     sku_sequence: parsed.sku_sequence,
     product_category: parsed.product_category,
     division_code: parsed.division_code, division_name: parsed.division_name,
     // NOTE: is_licensed is intentionally EXCLUDED here.
     // Path-derived is_licensed (from folder structure) is the authoritative source.
-    // SKU parser's is_licensed (from ColdLion licensor lookup) is unreliable for this purpose.
   } : {};
+
+  // Licensor/property names: prefer ColdLion (SKU parser), fall back to path-derived
+  if (parsed?.licensor_name) {
+    skuFields.licensor_name = parsed.licensor_name;
+  }
+  if (parsed?.property_name) {
+    skuFields.property_name = parsed.property_name;
+  }
 
   // ── 1) Move detection: same quick_hash, different path ──
 
@@ -865,6 +872,9 @@ async function handleIngest(
         ...thumbMove,
         ...skuFields,
     };
+    // Path-derived names fill in when ColdLion didn't resolve
+    if (!moveUpdates.licensor_name && reDerived.licensor_name) moveUpdates.licensor_name = reDerived.licensor_name;
+    if (!moveUpdates.property_name && reDerived.property_name) moveUpdates.property_name = reDerived.property_name;
     if (reDerived.licensor_id) moveUpdates.licensor_id = reDerived.licensor_id;
     if (reDerived.property_id) moveUpdates.property_id = reDerived.property_id;
 
@@ -920,9 +930,7 @@ async function handleIngest(
       }
     }
 
-    const { error: updateError } = await db
-      .from("assets")
-      .update({
+    const updateFields: Record<string, unknown> = {
         filename,
         file_type: fileType,
         file_size: fileSize,
@@ -937,16 +945,17 @@ async function handleIngest(
         is_licensed: derived.is_licensed,
         ...thumbnailFields,
         ...skuFields,
-      })
+    };
+    // Path-derived names fill in when ColdLion didn't resolve
+    if (!updateFields.licensor_name && derived.licensor_name) updateFields.licensor_name = derived.licensor_name;
+    if (!updateFields.property_name && derived.property_name) updateFields.property_name = derived.property_name;
+    if (derived.licensor_id) updateFields.licensor_id = derived.licensor_id;
+    if (derived.property_id) updateFields.property_id = derived.property_id;
+
+    const { error: updateError } = await db
+      .from("assets")
+      .update(updateFields)
       .eq("id", existingByPath.id);
-    
-    // Update licensor/property IDs from path derivation (if found)
-    if (derived.licensor_id || derived.property_id) {
-      const pathIds: Record<string, unknown> = {};
-      if (derived.licensor_id) pathIds.licensor_id = derived.licensor_id;
-      if (derived.property_id) pathIds.property_id = derived.property_id;
-      await db.from("assets").update(pathIds).eq("id", existingByPath.id);
-    }
 
     if (updateError) return err(updateError.message, 500);
 
@@ -987,6 +996,9 @@ async function handleIngest(
       is_licensed: derived.is_licensed,
       ...skuFields,
   };
+  // Path-derived names fill in when ColdLion didn't resolve
+  if (!newAssetRow.licensor_name && derived.licensor_name) newAssetRow.licensor_name = derived.licensor_name;
+  if (!newAssetRow.property_name && derived.property_name) newAssetRow.property_name = derived.property_name;
   if (derived.licensor_id) newAssetRow.licensor_id = derived.licensor_id;
   if (derived.property_id) newAssetRow.property_id = derived.property_id;
 
