@@ -1,4 +1,4 @@
-import { Search, LayoutGrid, List, SlidersHorizontal, RefreshCw, Square, RotateCcw, Layers, File } from "lucide-react";
+import { Search, LayoutGrid, List, SlidersHorizontal, RefreshCw, Square, RotateCcw, Layers, File, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -123,8 +123,17 @@ export default function LibraryTopBar({
           placeholder="Search filenames…"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 h-9 bg-background"
+          className="pl-9 pr-8 h-9 bg-background"
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => onSearchChange("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* View toggle */}
