@@ -59,21 +59,23 @@ function applyFilters(query: any, filters: AssetFilters) {
     query = query.contains("tags", [filters.tagFilter]);
   }
 
-  // File Status filter
-  if (filters.fileStatus === "has_preview") {
-    query = query.not("thumbnail_url", "is", null);
-  } else if (filters.fileStatus === "no_preview_renderable") {
-    query = query
-      .is("thumbnail_url", null)
-      .is("thumbnail_error", null);
-  } else if (filters.fileStatus === "no_pdf_compat") {
-    query = query
-      .is("thumbnail_url", null)
-      .eq("thumbnail_error", "no_pdf_compat");
-  } else if (filters.fileStatus === "no_preview_unsupported") {
-    query = query
-      .is("thumbnail_url", null)
-      .eq("thumbnail_error", "no_preview_or_render_failed");
+  // File Status filter (supports multi-select via OR)
+  if (filters.fileStatus.length > 0) {
+    const orClauses: string[] = [];
+    for (const fs of filters.fileStatus) {
+      if (fs === "has_preview") {
+        orClauses.push("thumbnail_url.not.is.null");
+      } else if (fs === "no_preview_renderable") {
+        orClauses.push("and(thumbnail_url.is.null,thumbnail_error.is.null)");
+      } else if (fs === "no_pdf_compat") {
+        orClauses.push("and(thumbnail_url.is.null,thumbnail_error.eq.no_pdf_compat)");
+      } else if (fs === "no_preview_unsupported") {
+        orClauses.push("and(thumbnail_url.is.null,thumbnail_error.eq.no_preview_or_render_failed)");
+      }
+    }
+    if (orClauses.length > 0) {
+      query = query.or(orClauses.join(","));
+    }
   }
 
   return query;

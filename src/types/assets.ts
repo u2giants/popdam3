@@ -7,7 +7,7 @@ export type SortDirection = "asc" | "desc";
 export type ViewMode = "grid" | "list";
 export type LibraryMode = "groups" | "assets";
 
-export type FileStatusFilter = "" | "has_preview" | "no_preview_renderable" | "no_pdf_compat" | "no_preview_unsupported";
+export type FileStatusFilter = "has_preview" | "no_preview_renderable" | "no_pdf_compat" | "no_preview_unsupported";
 
 export interface AssetFilters {
   search: string;
@@ -20,7 +20,7 @@ export interface AssetFilters {
   assetType: string[];
   artSource: string[];
   tagFilter: string;
-  fileStatus: FileStatusFilter;
+  fileStatus: FileStatusFilter[];
 }
 
 export const defaultFilters: AssetFilters = {
@@ -34,7 +34,7 @@ export const defaultFilters: AssetFilters = {
   assetType: [],
   artSource: [],
   tagFilter: "",
-  fileStatus: "",
+  fileStatus: [],
 };
 
 export interface FacetCounts {
@@ -56,7 +56,7 @@ export function hasActiveFilters(filters: AssetFilters): boolean {
     filters.assetType.length > 0 ||
     filters.artSource.length > 0 ||
     filters.tagFilter !== "" ||
-    filters.fileStatus !== ""
+    filters.fileStatus.length > 0
   );
 }
 
@@ -71,6 +71,6 @@ export function countActiveFilters(filters: AssetFilters): number {
   if (filters.assetType.length > 0) count++;
   if (filters.artSource.length > 0) count++;
   if (filters.tagFilter) count++;
-  if (filters.fileStatus) count++;
+  if (filters.fileStatus.length > 0) count++;
   return count;
 }
