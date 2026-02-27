@@ -54,7 +54,9 @@ export async function getMgLookup(
 
     const data = await res.json();
     const map: Record<string, string> = {};
-    for (const item of data.value ?? []) {
+    // API returns a plain array (not wrapped in { value: [...] })
+    const items = Array.isArray(data) ? data : (data.value ?? []);
+    for (const item of items) {
       map[item.mgCode] = item.mgDesc;
     }
     cache[cacheKey] = map;

@@ -125,8 +125,8 @@ export interface ParsedSku {
   mg02_code: string; mg02_name: string;
   mg03_code: string; mg03_name: string;
   size_code: string; size_name: string;
-  licensor_code: string; licensor_name: string;
-  property_code: string; property_name: string;
+  licensor_code: string; licensor_name: string | null;
+  property_code: string; property_name: string | null;
   sku_sequence: string;
   product_category: string;
   division_code: string; division_name: string;
@@ -167,14 +167,15 @@ export async function parseSku(filename: string): Promise<ParsedSku | null> {
   // Fetch licensor/theme lookup from ColdLion
   const { licensors, themes } = await getLicensorLookup();
   const is_licensed = licensor_code in licensors;
+  // Return null (not code) when ColdLion has no mapping — path-derived names are preferred
   const licensor_name = licensors[licensor_code]
     ?? themes[licensor_code]
-    ?? licensor_code;
+    ?? null;
 
   // Fetch property name from ColdLion MG06
   const division_for_lookup = is_licensed ? "CW001" : "EH001";
   const properties = await getPropertyLookup(division_for_lookup);
-  const property_name = properties[property_code] ?? property_code;
+  const property_name = properties[property_code] ?? null;
 
   // Product category
   let product_category = "Other";
