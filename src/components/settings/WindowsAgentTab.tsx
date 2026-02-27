@@ -668,6 +668,16 @@ function RenderJobsTable() {
     onError: (e) => toast.error(e.message),
   });
 
+  const requeueAllMutation = useMutation({
+    mutationFn: () => call("requeue-all-no-preview"),
+    onSuccess: (data) => {
+      toast.success(`Queued ${data.queued ?? 0} assets for re-rendering${data.skipped ? ` (${data.skipped} already queued)` : ""}`);
+      queryClient.invalidateQueries({ queryKey: ["render-queue-recent"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-pending-count"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const jobs = data?.jobs || [];
   const tabs: { key: StatusFilter; label: string }[] = [
     { key: "all", label: "All" },
@@ -682,7 +692,21 @@ function RenderJobsTable() {
         <CardTitle className="text-base flex items-center gap-2">
           <ClipboardList className="h-4 w-4" /> Render Jobs
         </CardTitle>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              if (window.confirm("This will re-queue every asset that has no preview for the Windows Agent to retry. Continue?")) {
+                requeueAllMutation.mutate();
+              }
+            }}
+            disabled={requeueAllMutation.isPending}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {requeueAllMutation.isPending ? "Queueing..." : "Requeue All No-Preview"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
