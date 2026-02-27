@@ -172,11 +172,11 @@ async function renderWithImageMagick(
   const outPath = path.join(tmpDir, "thumb.jpg");
 
   try {
-    // [0] = first/merged layer, -flatten removes transparency
+    // Put input first so ImageMagick has an image list before -flatten
     await execFileAsync(IM_EXE, [
-      "-flatten",
-      "-background", "white",
       `${filePath}[0]`,
+      "-background", "white",
+      "-flatten",
       "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
       "-quality", "85",
       outPath,
@@ -251,13 +251,17 @@ export async function renderFile(
   uncPath: string,
   fileType: "ai" | "psd",
 ): Promise<RenderResult> {
+  const failures: string[] = [];
+
   // Step 1: Sharp (both AI and PSD)
   try {
     const result = await renderWithSharp(uncPath, fileType);
     logger.info("Sharp render succeeded", { uncPath });
     return result;
   } catch (e) {
-    logger.warn("Sharp failed", { uncPath, error: (e as Error).message });
+    const msg = (e as Error).message;
+    failures.push(`sharp: ${msg}`);
+    logger.warn("Sharp failed", { uncPath, error: msg });
   }
 
   // Step 2a: Ghostscript (AI only — GS doesn't handle PSD)
@@ -267,7 +271,9 @@ export async function renderFile(
       logger.info("Ghostscript render succeeded", { uncPath });
       return result;
     } catch (e) {
-      logger.warn("Ghostscript failed", { uncPath, error: (e as Error).message });
+      const msg = (e as Error).message;
+      failures.push(`ghostscript: ${msg}`);
+      logger.warn("Ghostscript failed", { uncPath, error: msg });
     }
   }
 
@@ -278,7 +284,9 @@ export async function renderFile(
       logger.info("ImageMagick render succeeded", { uncPath });
       return result;
     } catch (e) {
-      logger.warn("ImageMagick failed", { uncPath, error: (e as Error).message });
+      const msg = (e as Error).message;
+      failures.push(`imagemagick: ${msg}`);
+      logger.warn("ImageMagick failed", { uncPath, error: msg });
     }
   }
 
@@ -288,8 +296,10 @@ export async function renderFile(
     logger.info("Sibling render succeeded", { uncPath });
     return result;
   } catch (e) {
+    const msg = (e as Error).message;
+    failures.push(`sibling: ${msg}`);
     logger.warn("Sibling not found", { uncPath });
   }
 
-  throw new Error("render_failed: all methods exhausted (Sharp + Ghostscript/ImageMagick + sibling)");
+  throw new Error(`render_failed: ${failures.join(" | ")}`);
 }
