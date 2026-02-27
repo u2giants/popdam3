@@ -34,15 +34,17 @@ export function extractSkuFolder(relativePath: string): string | null {
 
 /**
  * Select the primary asset from a list of assets in the same group.
- * Key invariant: an asset with a usable thumbnail ALWAYS beats one without.
- * Priority:
- *  1. "ART" in filename + .ai/.psd + usable thumbnail  (best)
- *  2. any .ai/.psd + usable thumbnail
- *  3. any asset with usable thumbnail
- *  4. "ART" + .ai/.psd, no thumbnail error (pending render)
- *  5. "ART" + .ai/.psd (even if broken)
- *  6. any .ai/.psd
- *  7. first asset by created_at
+ *
+ * Priority tiers (highest → lowest):
+ *  1. "mockup" in filename + usable thumbnail
+ *  2. "art" in filename + usable thumbnail
+ *  3. other files (not mockup/art/packaging) + usable thumbnail
+ *  4. "packaging" in filename + usable thumbnail
+ *  5. "mockup" in filename, no usable thumbnail
+ *  6. "art" in filename, no usable thumbnail
+ *  7. other files, no usable thumbnail
+ *  8. "packaging" in filename, no usable thumbnail
+ *  9. first asset by created_at (fallback)
  */
 export function selectPrimaryAsset(
   assets: Array<{
@@ -56,35 +58,46 @@ export function selectPrimaryAsset(
 ): string | null {
   if (assets.length === 0) return null;
 
-  const hasArt = (f: string) => f.toLowerCase().includes("art");
-  const isAiOrPsd = (t: string) => t === "ai" || t === "psd";
+  const fn = (a: typeof assets[0]) => a.filename.toLowerCase();
+  const hasMockup = (a: typeof assets[0]) => fn(a).includes("mockup");
+  const hasArt = (a: typeof assets[0]) => fn(a).includes("art");
+  const hasPackaging = (a: typeof assets[0]) => fn(a).includes("packaging");
   const hasUsableThumbnail = (a: typeof assets[0]) =>
     !!a.thumbnail_url && !a.thumbnail_error;
+  const isOther = (a: typeof assets[0]) => !hasMockup(a) && !hasArt(a) && !hasPackaging(a);
 
-  // Priority 1: ART + ai/psd + usable thumbnail (best)
-  const p1 = assets.find((a) => hasArt(a.filename) && isAiOrPsd(a.file_type) && hasUsableThumbnail(a));
+  // Tier 1: mockup + usable thumbnail (best)
+  const p1 = assets.find((a) => hasMockup(a) && hasUsableThumbnail(a));
   if (p1) return p1.id;
 
-  // Priority 2: any ai/psd + usable thumbnail
-  const p2 = assets.find((a) => isAiOrPsd(a.file_type) && hasUsableThumbnail(a));
+  // Tier 2: art + usable thumbnail
+  const p2 = assets.find((a) => hasArt(a) && hasUsableThumbnail(a));
   if (p2) return p2.id;
 
-  // Priority 3: any usable thumbnail regardless of file type
-  const p3 = assets.find((a) => hasUsableThumbnail(a));
+  // Tier 3: other (not mockup/art/packaging) + usable thumbnail
+  const p3 = assets.find((a) => isOther(a) && hasUsableThumbnail(a));
   if (p3) return p3.id;
 
-  // Priority 4: ART + ai/psd, no thumbnail error (not yet thumbnailed, not broken)
-  const p4 = assets.find((a) => hasArt(a.filename) && isAiOrPsd(a.file_type) && !a.thumbnail_error);
+  // Tier 4: packaging + usable thumbnail
+  const p4 = assets.find((a) => hasPackaging(a) && hasUsableThumbnail(a));
   if (p4) return p4.id;
 
-  // Priority 5: ART + ai/psd (even if broken — best metadata)
-  const p5 = assets.find((a) => hasArt(a.filename) && isAiOrPsd(a.file_type));
+  // Tier 5: mockup, no usable thumbnail
+  const p5 = assets.find((a) => hasMockup(a));
   if (p5) return p5.id;
 
-  // Priority 6: any ai/psd
-  const p6 = assets.find((a) => isAiOrPsd(a.file_type));
+  // Tier 6: art, no usable thumbnail
+  const p6 = assets.find((a) => hasArt(a));
   if (p6) return p6.id;
 
-  // Priority 7: first by created_at
+  // Tier 7: other, no usable thumbnail
+  const p7 = assets.find((a) => isOther(a));
+  if (p7) return p7.id;
+
+  // Tier 8: packaging, no usable thumbnail
+  const p8 = assets.find((a) => hasPackaging(a));
+  if (p8) return p8.id;
+
+  // Tier 9: fallback — first by created_at
   return assets.sort((a, b) => a.created_at.localeCompare(b.created_at))[0].id;
 }
