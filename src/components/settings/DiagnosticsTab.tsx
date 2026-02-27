@@ -378,6 +378,7 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [reprocessProgress, setReprocessProgress] = useState<{ updated: number; total: number } | null>(null);
+  const [backfillProgress, setBackfillProgress] = useState<string | null>(null);
 
   const resetScanMutation = useMutation({
     mutationFn: () => call("reset-scan-state"),
@@ -443,6 +444,20 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
     }
   }
 
+  async function runBackfillSkuNames() {
+    if (!confirm("Re-resolve licensor/property names from ColdLion API for all assets where name equals code. Continue?")) return;
+    setBackfillProgress("Starting…");
+    try {
+      const data = await call("backfill-sku-names");
+      toast.success(`Backfilled ${data.assets_updated ?? 0} assets, ${data.groups_updated ?? 0} groups (checked ${data.assets_checked ?? 0})`);
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e.message || "Backfill failed");
+    } finally {
+      setBackfillProgress(null);
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -491,9 +506,22 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
             {reprocessProgress !== null ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
             {reprocessProgress !== null ? "Reprocessing…" : "Reprocess Metadata"}
           </Button>
+          <Button
+            variant="outline" size="sm" className="gap-1.5"
+            onClick={runBackfillSkuNames}
+            disabled={backfillProgress !== null}
+          >
+            {backfillProgress !== null ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {backfillProgress !== null ? "Backfilling…" : "Backfill SKU Names"}
+          </Button>
           {reprocessProgress && (
             <span className="text-xs text-muted-foreground">
               Updated {reprocessProgress.updated} / {reprocessProgress.total} so far…
+            </span>
+          )}
+          {backfillProgress && (
+            <span className="text-xs text-muted-foreground">
+              {backfillProgress}
             </span>
           )}
         </div>
