@@ -686,6 +686,58 @@ function DatabaseInspector() {
   );
 }
 
+// ── Section 7a: Render Job Stats ────────────────────────────────────
+
+function RenderJobStats() {
+  const { call } = useAdminApi();
+
+  const { data: stats } = useQuery({
+    queryKey: ["render-job-stats"],
+    queryFn: async () => {
+      const [pendingRes, completed24hRes, failed24hRes] = await Promise.all([
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM render_queue WHERE status IN ('pending', 'claimed')" }),
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM render_queue WHERE status = 'completed' AND completed_at >= now() - interval '24 hours'" }),
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM render_queue WHERE status = 'failed' AND completed_at >= now() - interval '24 hours'" }),
+      ]);
+      return {
+        pending: Number(pendingRes.rows?.[0]?.count ?? 0),
+        completed24h: Number(completed24hRes.rows?.[0]?.count ?? 0),
+        failed24h: Number(failed24hRes.rows?.[0]?.count ?? 0),
+      };
+    },
+    refetchInterval: 15_000,
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Monitor className="h-4 w-4" /> Render Jobs
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-6 text-sm">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-[hsl(var(--info))]" />
+            <span className="text-muted-foreground">Pending:</span>
+            <span className="font-semibold text-foreground">{(stats?.pending ?? 0).toLocaleString()}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />
+            <span className="text-muted-foreground">Completed (24h):</span>
+            <span className="font-semibold text-foreground">{(stats?.completed24h ?? 0).toLocaleString()}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <XCircle className={`h-4 w-4 ${(stats?.failed24h ?? 0) > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+            <span className="text-muted-foreground">Failed (24h):</span>
+            <span className={`font-semibold ${(stats?.failed24h ?? 0) > 0 ? "text-destructive" : "text-foreground"}`}>{(stats?.failed24h ?? 0).toLocaleString()}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Section 7b: AI Tagging ──────────────────────────────────────────
 
 function AiTaggingSection() {
@@ -937,6 +989,7 @@ export default function DiagnosticsTab() {
         <>
           <DoctorDiagnostics />
           <OverviewCards counts={diag.counts} />
+          <RenderJobStats />
           <ConnectedAgents agents={diag.agents} />
           <ScanStatusCard progress={diag.scan_progress} />
           <RecentErrors errors={diag.recent_errors} />
