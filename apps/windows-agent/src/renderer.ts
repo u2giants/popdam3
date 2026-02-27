@@ -67,6 +67,7 @@ function findImageMagick(): string | null {
   if (process.env.IM_PATH) return process.env.IM_PATH;
 
   const candidates = [
+    "C:\\Program Files\\ImageMagick-7.1.2-Q16-HDRI\\magick.exe",
     "C:\\Program Files\\ImageMagick-7.1.1-Q16-HDRI\\magick.exe",
     "C:\\Program Files\\ImageMagick-7.1.0-Q16-HDRI\\magick.exe",
     "C:\\Program Files\\ImageMagick-7.1.0-Q16\\magick.exe",

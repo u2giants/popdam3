@@ -2518,6 +2518,8 @@ serve(async (req: Request) => {
         return await handleTriggerWindowsUpdate(body, userId);
       case "retry-failed-renders":
         return await handleRetryFailedRenders();
+      case "requeue-all-no-preview":
+        return await handleRequeueAllNoPreview();
       case "request-path-test":
         return await handleRequestPathTest(userId);
       default:
@@ -2738,4 +2740,71 @@ async function handleRequestPathTest(userId: string) {
 
   if (error) return err(error.message, 500);
   return json({ ok: true, request_id: requestId });
+}
+
+// ── requeue-all-no-preview ──────────────────────────────────────────
+
+async function handleRequeueAllNoPreview() {
+  const db = serviceClient();
+
+  // Find all assets with no thumbnail that don't already have an active render job
+  const { data: assets, error: fetchErr } = await db
+    .from("assets")
+    .select("id")
+    .is("thumbnail_url", null)
+    .eq("is_deleted", false)
+    .not("thumbnail_error", "is", null);
+
+  if (fetchErr) return err(fetchErr.message, 500);
+  if (!assets || assets.length === 0) {
+    return json({ ok: true, queued: 0, skipped: 0 });
+  }
+
+  // Get assets that already have active render jobs
+  const assetIds = assets.map((a) => a.id);
+
+  // Batch in chunks of 500 to avoid query limits
+  const CHUNK = 500;
+  const activeSet = new Set<string>();
+  for (let i = 0; i < assetIds.length; i += CHUNK) {
+    const chunk = assetIds.slice(i, i + CHUNK);
+    const { data: active } = await db
+      .from("render_queue")
+      .select("asset_id")
+      .in("asset_id", chunk)
+      .in("status", ["pending", "claimed"]);
+    (active ?? []).forEach((j) => activeSet.add(j.asset_id));
+  }
+
+  const toQueue = assetIds.filter((id) => !activeSet.has(id));
+  if (toQueue.length === 0) {
+    return json({ ok: true, queued: 0, skipped: assetIds.length });
+  }
+
+  // Clear old failed jobs for these assets first
+  for (let i = 0; i < toQueue.length; i += CHUNK) {
+    const chunk = toQueue.slice(i, i + CHUNK);
+    await db.from("render_queue").delete().in("asset_id", chunk).eq("status", "failed");
+  }
+
+  // Also reset thumbnail_error so the auto_queue_render trigger can fire,
+  // or insert directly into render_queue
+  let queued = 0;
+  for (let i = 0; i < toQueue.length; i += CHUNK) {
+    const chunk = toQueue.slice(i, i + CHUNK);
+    const rows = chunk.map((id) => ({ asset_id: id, status: "pending" as const }));
+    const { data: inserted } = await db
+      .from("render_queue")
+      .upsert(rows, { onConflict: "id", ignoreDuplicates: true })
+      .select("id");
+    queued += inserted?.length ?? chunk.length;
+  }
+
+  // Clear thumbnail_error so they show as "renderable" until re-attempted
+  for (let i = 0; i < toQueue.length; i += CHUNK) {
+    const chunk = toQueue.slice(i, i + CHUNK);
+    await db.from("assets").update({ thumbnail_error: null }).in("id", chunk);
+  }
+
+  return json({ ok: true, queued, skipped: activeSet.size });
 }
