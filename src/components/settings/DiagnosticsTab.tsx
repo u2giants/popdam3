@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import DoctorDiagnostics from "@/components/settings/DoctorDiagnostics";
+import { usePersistentOperation } from "@/hooks/usePersistentOperation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -377,86 +378,88 @@ function ConfigurationSection({ config }: { config: Record<string, unknown> }) {
 function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
-  const [reprocessProgress, setReprocessProgress] = useState<{ updated: number; total: number } | null>(null);
-  const [backfillProgress, setBackfillProgress] = useState<string | null>(null);
+
+  // Persistent operations
+  const reprocessOp = usePersistentOperation("reprocess-metadata");
+  const backfillOp = usePersistentOperation("backfill-sku-names");
 
   const resetScanMutation = useMutation({
     mutationFn: () => call("reset-scan-state"),
-    onSuccess: () => {
-      toast.success("Scan state reset to idle");
-      onRefresh();
-    },
+    onSuccess: () => { toast.success("Scan state reset to idle"); onRefresh(); },
     onError: (e) => toast.error(e.message),
   });
 
   const resumeMutation = useMutation({
     mutationFn: () => call("resume-scanning"),
-    onSuccess: () => {
-      toast.success("Scanning resumed");
-      onRefresh();
-    },
+    onSuccess: () => { toast.success("Scanning resumed"); onRefresh(); },
     onError: (e) => toast.error(e.message),
   });
 
   const retryFailedMutation = useMutation({
     mutationFn: () => call("retry-failed-jobs"),
-    onSuccess: (data) => {
-      toast.success(`${data.retried_count ?? 0} failed jobs reset to pending`);
-      onRefresh();
-    },
+    onSuccess: (data) => { toast.success(`${data.retried_count ?? 0} failed jobs reset to pending`); onRefresh(); },
     onError: (e) => toast.error(e.message),
   });
 
   const clearCompletedMutation = useMutation({
     mutationFn: () => call("clear-completed-jobs"),
-    onSuccess: (data) => {
-      toast.success(`${data.deleted_count ?? 0} old completed jobs cleared`);
-      onRefresh();
-    },
+    onSuccess: (data) => { toast.success(`${data.deleted_count ?? 0} old completed jobs cleared`); onRefresh(); },
     onError: (e) => toast.error(e.message),
   });
 
-  async function runReprocess() {
-    if (!confirm(
-      "Re-derive SKU metadata, licensor, division, and workflow_status for all assets. This may take several minutes. Continue?"
-    )) return;
-
-    setReprocessProgress({ updated: 0, total: 0 });
-    let offset = 0;
-    let totalUpdated = 0;
-    let totalProcessed = 0;
-
-    try {
-      while (true) {
+  function runReprocess() {
+    reprocessOp.run(
+      async (offset) => {
         const data = await call("reprocess-asset-metadata", { offset });
-        totalUpdated += data.updated ?? 0;
-        totalProcessed += data.total ?? 0;
-        setReprocessProgress({ updated: totalUpdated, total: totalProcessed });
-        if (data.done || !data.nextOffset) break;
-        offset = data.nextOffset;
+        return { done: !!data.done, nextOffset: data.nextOffset, updated: data.updated ?? 0, total: data.total ?? 0 };
+      },
+      {
+        confirmMessage: "Re-derive SKU metadata for all assets. This may take several minutes. Continue?",
+        buildProgress: (batch, prev) => ({
+          updated: ((prev.updated as number) || 0) + (batch.updated as number),
+          total: ((prev.total as number) || 0) + (batch.total as number),
+        }),
+        buildResultMessage: (p) => `Reprocessed ${p.updated} assets`,
+      },
+    ).then(() => {
+      if (reprocessOp.state.status === "completed") {
+        toast.success(reprocessOp.state.result_message || "Reprocess complete");
+        onRefresh();
+      } else if (reprocessOp.state.status === "failed") {
+        toast.error(reprocessOp.state.error || "Reprocess failed");
       }
-      toast.success(`Reprocessed ${totalUpdated} assets`);
-      onRefresh();
-    } catch (e: any) {
-      toast.error(e.message || "Reprocess failed");
-    } finally {
-      setReprocessProgress(null);
-    }
+    });
   }
 
-  async function runBackfillSkuNames() {
-    if (!confirm("Re-resolve licensor/property names from ColdLion API for all assets where name equals code. Continue?")) return;
-    setBackfillProgress("Starting…");
-    try {
-      const data = await call("backfill-sku-names");
-      toast.success(`Backfilled ${data.assets_updated ?? 0} assets, ${data.groups_updated ?? 0} groups (checked ${data.assets_checked ?? 0})`);
-      onRefresh();
-    } catch (e: any) {
-      toast.error(e.message || "Backfill failed");
-    } finally {
-      setBackfillProgress(null);
-    }
+  function runBackfill() {
+    backfillOp.run(
+      async (_offset) => {
+        const data = await call("backfill-sku-names");
+        return { done: true, assets_updated: data.assets_updated ?? 0, groups_updated: data.groups_updated ?? 0, assets_checked: data.assets_checked ?? 0 };
+      },
+      {
+        confirmMessage: "Re-resolve licensor/property names from ColdLion API for all assets where name equals code. Continue?",
+        buildProgress: (_batch, _prev) => ({
+          assets_updated: _batch.assets_updated as number,
+          groups_updated: _batch.groups_updated as number,
+          assets_checked: _batch.assets_checked as number,
+        }),
+        buildResultMessage: (p) => `Backfilled ${p.assets_updated} assets, ${p.groups_updated} groups (checked ${p.assets_checked})`,
+      },
+    ).then(() => {
+      if (backfillOp.state.status === "completed") {
+        toast.success(backfillOp.state.result_message || "Backfill complete");
+        onRefresh();
+      } else if (backfillOp.state.status === "failed") {
+        toast.error(backfillOp.state.error || "Backfill failed");
+      }
+    });
   }
+
+  const reprocessActive = reprocessOp.isActive;
+  const backfillActive = backfillOp.isActive;
+  const rp = reprocessOp.state.progress;
+  const bp = backfillOp.state;
 
   return (
     <Card>
@@ -466,7 +469,7 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={onRefresh}>
             <RefreshCw className="h-3.5 w-3.5" /> Run Diagnostics
           </Button>
@@ -501,30 +504,45 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
           <Button
             variant="outline" size="sm" className="gap-1.5"
             onClick={runReprocess}
-            disabled={reprocessProgress !== null}
+            disabled={reprocessActive}
           >
-            {reprocessProgress !== null ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
-            {reprocessProgress !== null ? "Reprocessing…" : "Reprocess Metadata"}
+            {reprocessActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
+            {reprocessActive ? "Reprocessing…" : reprocessOp.isInterrupted ? "Reprocess (interrupted)" : "Reprocess Metadata"}
           </Button>
           <Button
             variant="outline" size="sm" className="gap-1.5"
-            onClick={runBackfillSkuNames}
-            disabled={backfillProgress !== null}
+            onClick={runBackfill}
+            disabled={backfillActive}
           >
-            {backfillProgress !== null ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {backfillProgress !== null ? "Backfilling…" : "Backfill SKU Names"}
+            {backfillActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {backfillActive ? "Backfilling…" : backfillOp.isInterrupted ? "Backfill (interrupted)" : "Backfill SKU Names"}
           </Button>
-          {reprocessProgress && (
-            <span className="text-xs text-muted-foreground">
-              Updated {reprocessProgress.updated} / {reprocessProgress.total} so far…
-            </span>
+          {reprocessOp.isInterrupted && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => reprocessOp.reset()}>Dismiss</Button>
           )}
-          {backfillProgress && (
-            <span className="text-xs text-muted-foreground">
-              {backfillProgress}
-            </span>
+          {backfillOp.isInterrupted && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => backfillOp.reset()}>Dismiss</Button>
           )}
         </div>
+        {/* Progress indicators */}
+        {(reprocessActive || reprocessOp.state.status === "completed") && rp && (
+          <p className="text-xs text-muted-foreground mt-2">
+            {reprocessActive ? "Reprocessing: " : "✓ Reprocessed: "}
+            {(rp.updated as number)?.toLocaleString()} / {(rp.total as number)?.toLocaleString()}
+          </p>
+        )}
+        {(backfillActive || bp.status === "completed") && bp.progress && (
+          <p className="text-xs text-muted-foreground mt-2">
+            {backfillActive ? "Backfilling… " : "✓ "}
+            {(bp.progress.assets_updated as number)?.toLocaleString()} assets, {(bp.progress.groups_updated as number)?.toLocaleString()} groups updated
+          </p>
+        )}
+        {reprocessOp.state.status === "failed" && (
+          <p className="text-xs text-destructive mt-2">Reprocess failed: {reprocessOp.state.error}</p>
+        )}
+        {backfillOp.state.status === "failed" && (
+          <p className="text-xs text-destructive mt-2">Backfill failed: {backfillOp.state.error}</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -743,7 +761,9 @@ function RenderJobStats() {
 function AiTaggingSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
-  const [tagProgress, setTagProgress] = useState<{ tagged: number; skipped: number; failed: number; total: number } | null>(null);
+
+  const tagUntaggedOp = usePersistentOperation("ai-tag-untagged");
+  const tagAllOp = usePersistentOperation("ai-tag-all");
 
   const { data: tagCounts } = useQuery({
     queryKey: ["untagged-asset-count"],
@@ -756,42 +776,49 @@ function AiTaggingSection() {
   const untaggedCount = tagCounts?.untagged ?? 0;
   const totalWithThumb = tagCounts?.totalWithThumbnails ?? 0;
 
-  async function runBulkTag(mode: "untagged" | "all") {
+  function runBulkTag(mode: "untagged" | "all") {
+    const op = mode === "all" ? tagAllOp : tagUntaggedOp;
     const total = mode === "all" ? totalWithThumb : untaggedCount;
-    const confirmed = window.confirm(
-      mode === "all"
-        ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
-        : `AI tag ${total.toLocaleString()} untagged assets? Continue?`
-    );
-    if (!confirmed) return;
-
-    setTagProgress({ tagged: 0, skipped: 0, failed: 0, total });
-    let totalTagged = 0;
-    let totalSkipped = 0;
-    let totalFailed = 0;
-    let offset = 0;
     const route = mode === "all" ? "bulk-ai-tag-all" : "bulk-ai-tag";
 
-    try {
-      while (true) {
+    op.run(
+      async (offset) => {
         const result = await call(route, { offset });
-        totalTagged += result.tagged ?? 0;
-        totalSkipped += result.skipped ?? 0;
-        totalFailed += result.failed ?? 0;
-        setTagProgress({ tagged: totalTagged, skipped: totalSkipped, failed: totalFailed, total });
-        if (result.done) break;
-        offset = result.nextOffset;
+        return {
+          done: !!result.done,
+          nextOffset: result.nextOffset,
+          tagged: result.tagged ?? 0,
+          skipped: result.skipped ?? 0,
+          failed: result.failed ?? 0,
+        };
+      },
+      {
+        confirmMessage: mode === "all"
+          ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
+          : `AI tag ${total.toLocaleString()} untagged assets? Continue?`,
+        buildProgress: (batch, prev) => ({
+          tagged: ((prev.tagged as number) || 0) + (batch.tagged as number),
+          skipped: ((prev.skipped as number) || 0) + (batch.skipped as number),
+          failed: ((prev.failed as number) || 0) + (batch.failed as number),
+          total,
+        }),
+        buildResultMessage: (p) => `Tagged ${p.tagged} assets. ${p.skipped} skipped. ${p.failed} failed.`,
+      },
+    ).then(() => {
+      if (op.state.status === "completed") {
+        toast.success(op.state.result_message || "Tagging complete");
+        queryClient.invalidateQueries({ queryKey: ["untagged-asset-count"] });
+      } else if (op.state.status === "failed") {
+        toast.error(op.state.error || "Bulk tag failed");
       }
-      toast.success(`Tagged ${totalTagged} assets. ${totalSkipped} skipped. ${totalFailed} failed.`);
-      queryClient.invalidateQueries({ queryKey: ["untagged-asset-count"] });
-    } catch (e: any) {
-      toast.error(e.message || "Bulk tag failed");
-    } finally {
-      setTagProgress(null);
-    }
+    });
   }
 
-  const isRunning = tagProgress !== null;
+  const activeOp = tagUntaggedOp.isActive ? tagUntaggedOp : tagAllOp.isActive ? tagAllOp : null;
+  const anyActive = !!activeOp;
+  const displayOp = activeOp ?? (tagUntaggedOp.state.status !== "idle" ? tagUntaggedOp : tagAllOp);
+  const p = displayOp.state.progress;
+  const showProgress = (displayOp.isActive || displayOp.isInterrupted || displayOp.state.status === "completed" || displayOp.state.status === "failed") && p;
 
   return (
     <Card>
@@ -806,51 +833,56 @@ function AiTaggingSection() {
           <span className="text-muted-foreground ml-1">({totalWithThumb.toLocaleString()} total with thumbnails)</span>
         </p>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
+            variant="outline" size="sm" className="gap-1.5"
             onClick={() => runBulkTag("untagged")}
-            disabled={isRunning || untaggedCount === 0}
+            disabled={anyActive || untaggedCount === 0}
           >
-            {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            Tag All Untagged
+            {tagUntaggedOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {tagUntaggedOp.isInterrupted ? "Tag Untagged (interrupted)" : "Tag All Untagged"}
           </Button>
           <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-[hsl(var(--warning))]"
+            variant="outline" size="sm" className="gap-1.5 text-[hsl(var(--warning))]"
             onClick={() => runBulkTag("all")}
-            disabled={isRunning || totalWithThumb === 0}
+            disabled={anyActive || totalWithThumb === 0}
           >
-            {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            Re-tag Everything
+            {tagAllOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {tagAllOp.isInterrupted ? "Re-tag (interrupted)" : "Re-tag Everything"}
           </Button>
+          {(tagUntaggedOp.isInterrupted || tagAllOp.isInterrupted) && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => { tagUntaggedOp.reset(); tagAllOp.reset(); }}>
+              Dismiss
+            </Button>
+          )}
         </div>
 
-        {tagProgress && (
+        {showProgress && (
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 text-sm">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              {displayOp.isActive && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
               <span>
-                Tagged <span className="font-semibold text-foreground">{tagProgress.tagged.toLocaleString()}</span>
-                {" / "}{tagProgress.total.toLocaleString()}
-                {tagProgress.skipped > 0 && (
-                  <span className="text-muted-foreground ml-1">· {tagProgress.skipped} skipped</span>
+                {displayOp.isActive ? "" : displayOp.state.status === "completed" ? "✓ " : displayOp.isInterrupted ? "⏸ " : "✗ "}
+                Tagged <span className="font-semibold text-foreground">{((p.tagged as number) || 0).toLocaleString()}</span>
+                {" / "}{((p.total as number) || 0).toLocaleString()}
+                {(p.skipped as number) > 0 && (
+                  <span className="text-muted-foreground ml-1">· {(p.skipped as number)} skipped</span>
                 )}
-                {tagProgress.failed > 0 && (
-                  <span className="text-destructive ml-1">· {tagProgress.failed} failed</span>
+                {(p.failed as number) > 0 && (
+                  <span className="text-destructive ml-1">· {(p.failed as number)} failed</span>
                 )}
               </span>
             </div>
             <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full transition-all duration-300"
-                style={{ width: `${tagProgress.total > 0 ? Math.round(((tagProgress.tagged + tagProgress.skipped + tagProgress.failed) / tagProgress.total) * 100) : 0}%` }}
+                style={{ width: `${(p.total as number) > 0 ? Math.round((((p.tagged as number) + (p.skipped as number) + (p.failed as number)) / (p.total as number)) * 100) : 0}%` }}
               />
             </div>
           </div>
+        )}
+        {displayOp.state.status === "failed" && (
+          <p className="text-xs text-destructive">Error: {displayOp.state.error}</p>
         )}
       </CardContent>
     </Card>
@@ -862,7 +894,8 @@ function AiTaggingSection() {
 function StyleGroupsSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
-  const [rebuildProgress, setRebuildProgress] = useState<{ assigned: number; groups: number; done: boolean } | null>(null);
+
+  const rebuildOp = usePersistentOperation("rebuild-style-groups");
 
   const { data: stats } = useQuery({
     queryKey: ["style-group-stats"],
@@ -879,33 +912,38 @@ function StyleGroupsSection() {
     staleTime: 15_000,
   });
 
-  async function runRebuild() {
-    if (!confirm("This will delete all existing style groups and rebuild them from scratch. Continue?")) return;
-    setRebuildProgress({ assigned: 0, groups: 0, done: false });
-    let offset = 0;
-    let totalGroups = 0;
-    let totalAssigned = 0;
-
-    try {
-      while (true) {
+  function runRebuild() {
+    rebuildOp.run(
+      async (offset) => {
         const data = await call("rebuild-style-groups", { offset });
-        totalGroups += data.groups_created ?? 0;
-        totalAssigned += data.assets_assigned ?? 0;
-        setRebuildProgress({ assigned: totalAssigned, groups: totalGroups, done: false });
-        if (data.done) break;
-        offset = data.nextOffset;
+        return {
+          done: !!data.done,
+          nextOffset: data.nextOffset,
+          groups_created: data.groups_created ?? 0,
+          assets_assigned: data.assets_assigned ?? 0,
+        };
+      },
+      {
+        confirmMessage: "This will delete all existing style groups and rebuild them from scratch. Continue?",
+        buildProgress: (batch, prev) => ({
+          groups: ((prev.groups as number) || 0) + (batch.groups_created as number),
+          assigned: ((prev.assigned as number) || 0) + (batch.assets_assigned as number),
+        }),
+        buildResultMessage: (p) => `Created ${p.groups} style groups, assigned ${p.assigned} assets`,
+      },
+    ).then(() => {
+      if (rebuildOp.state.status === "completed") {
+        toast.success(rebuildOp.state.result_message || "Rebuild complete");
+        queryClient.invalidateQueries({ queryKey: ["style-group-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+        queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
+      } else if (rebuildOp.state.status === "failed") {
+        toast.error(rebuildOp.state.error || "Rebuild failed");
       }
-      setRebuildProgress({ assigned: totalAssigned, groups: totalGroups, done: true });
-      toast.success(`Created ${totalGroups} style groups, assigned ${totalAssigned} assets`);
-      queryClient.invalidateQueries({ queryKey: ["style-group-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
-    } catch (e: any) {
-      toast.error(e.message || "Rebuild failed");
-    } finally {
-      setTimeout(() => setRebuildProgress(null), 3000);
-    }
+    });
   }
+
+  const p = rebuildOp.state.progress;
 
   return (
     <Card>
@@ -920,20 +958,26 @@ function StyleGroupsSection() {
             <span className="text-foreground font-medium">{Number(stats.groups).toLocaleString()}</span> groups · <span className="text-foreground font-medium">{Number(stats.ungrouped).toLocaleString()}</span> ungrouped assets
           </p>
         )}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <Button
             variant="outline" size="sm" className="gap-1.5"
             onClick={runRebuild}
-            disabled={rebuildProgress !== null && !rebuildProgress.done}
+            disabled={rebuildOp.isActive}
           >
-            {rebuildProgress !== null && !rebuildProgress.done ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            Rebuild Style Groups
+            {rebuildOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {rebuildOp.isInterrupted ? "Rebuild (interrupted)" : "Rebuild Style Groups"}
           </Button>
+          {rebuildOp.isInterrupted && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => rebuildOp.reset()}>Dismiss</Button>
+          )}
         </div>
-        {rebuildProgress && !rebuildProgress.done && (
+        {(rebuildOp.isActive || rebuildOp.state.status === "completed") && p && (
           <p className="text-xs text-muted-foreground">
-            {rebuildProgress.groups} groups created, {rebuildProgress.assigned} assets assigned…
+            {rebuildOp.isActive ? "" : "✓ "}{(p.groups as number)?.toLocaleString()} groups created, {(p.assigned as number)?.toLocaleString()} assets assigned
           </p>
+        )}
+        {rebuildOp.state.status === "failed" && (
+          <p className="text-xs text-destructive">Rebuild failed: {rebuildOp.state.error}</p>
         )}
       </CardContent>
     </Card>
