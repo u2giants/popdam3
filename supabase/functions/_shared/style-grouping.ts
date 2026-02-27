@@ -6,24 +6,30 @@
 
 /**
  * Extract the SKU folder name from a relative path.
- * The SKU folder is the immediate parent of the file.
- * Returns null if the parent folder doesn't look like a SKU
+ * Walks up the directory tree (starting from immediate parent) to find
+ * the nearest ancestor that looks like a SKU folder.
+ * Returns null if no ancestor matches the SKU pattern
  * (must start with 1-6 letters followed by a digit).
  *
  * Examples:
- *   "Decor/Character Licensed/____New Structure/Concept Approved Designs/Disney/Frames/CSG10DYMU02/CSG10DYMU02_ART FILE.ai"
+ *   "Decor/.../CSG10DYMU02/CSG10DYMU02_ART FILE.ai"
  *   → "CSG10DYMU02"
  *
- *   "Decor/Generic Decor/_New structure/DA/62/GDC6201/GDC6201_art.ai"
+ *   "Decor/.../AA021FPFRA03/ART/file.psd"
+ *   → "AA021FPFRA03"  (walks past "ART" to find the SKU)
+ *
+ *   "Decor/.../GDC6201/GDC6201_art.ai"
  *   → "GDC6201"
  */
 export function extractSkuFolder(relativePath: string): string | null {
   const parts = relativePath.split("/");
   if (parts.length < 2) return null;
-  const parentFolder = parts[parts.length - 2];
-  // Must start with 1-6 letters then a digit (loose SKU check)
-  if (!/^[A-Za-z]{1,6}\d/i.test(parentFolder)) return null;
-  return parentFolder;
+  const SKU_PATTERN = /^[A-Za-z]{1,6}\d/;
+  // Walk from immediate parent upward
+  for (let i = parts.length - 2; i >= 0; i--) {
+    if (SKU_PATTERN.test(parts[i])) return parts[i];
+  }
+  return null;
 }
 
 /**

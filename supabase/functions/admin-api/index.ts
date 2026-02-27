@@ -1763,7 +1763,12 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     const first = members.find(m => 
       m.filename.toUpperCase().includes(sku_upper)
     ) ?? members[0];
-    const folderPath = first.relative_path.split("/").slice(0, -1).join("/");
+    // Derive folder_path up to the SKU folder, not the immediate parent
+    const pathParts = first.relative_path.split("/");
+    const skuIdx = pathParts.lastIndexOf(sku);
+    const folderPath = skuIdx >= 0
+      ? pathParts.slice(0, skuIdx + 1).join("/")
+      : pathParts.slice(0, -1).join("/");
 
     // Upsert style group
     const { data: group, error: upsertErr } = await db

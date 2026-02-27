@@ -655,7 +655,12 @@ async function assignToStyleGroup(
     const sku = extractSkuFolder(relativePath);
     if (!sku) return;
 
-    const folderPath = relativePath.split("/").slice(0, -1).join("/");
+    // Derive folder_path as the path up to and including the SKU folder
+    const parts = relativePath.split("/");
+    const skuIdx = parts.lastIndexOf(sku);
+    const folderPath = skuIdx >= 0
+      ? parts.slice(0, skuIdx + 1).join("/")
+      : parts.slice(0, -1).join("/");
 
     // Keep style_groups licensing aligned with path-authoritative rule
     const groupFields: Record<string, unknown> = {
