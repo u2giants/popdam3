@@ -2053,7 +2053,9 @@ async function handleCompleteTiffJob(body: Record<string, unknown>) {
 
 // ── Route: bootstrap (legacy compat) ────────────────────────────────
 
-async function handleBootstrap(body: Record<string, unknown>) {
+async function handleBootstrap(_body: Record<string, unknown>) {
+  return json({ ok: true, message: "bootstrap is a no-op; use register + heartbeat" });
+}
 
 async function handleNotifyBuild(
   body: Record<string, unknown>,
