@@ -97,8 +97,9 @@ export default function TiffHygieneTab() {
   });
 
   // Derive scan state from cloud config
-  const scanReqConfig = scanReqData?.config?.TIFF_SCAN_REQUEST as { value?: { status?: string } } | undefined;
+  const scanReqConfig = scanReqData?.config?.TIFF_SCAN_REQUEST as { value?: { status?: string; error?: string; total_files?: number } } | undefined;
   const scanReqStatus = scanReqConfig?.value?.status;
+  const scanReqError = scanReqConfig?.value?.error;
   const isAgentScanning = scanPending || scanReqStatus === "pending" || scanReqStatus === "claimed";
 
   // Auto-poll for results while scan is pending/claimed
@@ -339,6 +340,12 @@ export default function TiffHygieneTab() {
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <p>Waiting for Windows Agent to scan the filesystem...</p>
                 <p className="text-[10px]">The agent will pick up the request on its next heartbeat (~30s). Results will appear automatically.</p>
+              </div>
+            ) : scanReqStatus === "error" && scanReqError ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-sm">
+                <p className="text-destructive font-medium">TIFF scan failed</p>
+                <p className="text-muted-foreground text-xs max-w-md text-center">{scanReqError}</p>
+                <p className="text-[10px] text-muted-foreground">Fix the issue above and try again.</p>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">

@@ -20,6 +20,7 @@ import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
 import { scanTiffFiles, compressTiff, deleteOriginalBackup, type TiffScanResult } from "./tiff-optimizer";
+import { ensureNasMapped } from "./nas-mapper";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
@@ -482,15 +483,53 @@ function startTiffScanChecker() {
       const sessionId = reqValue.request_id || crypto.randomUUID();
       logger.info("Starting TIFF filesystem scan", { sessionId });
 
+      // Ensure NAS is mapped/authenticated before scanning
+      const nasMapResult = await ensureNasMapped(cloudNasMountPath, {
+        host: cloudNasHost,
+        share: cloudNasShare,
+        username: cloudNasUsername,
+        password: cloudNasPassword,
+      });
+
+      if (!nasMapResult.ok) {
+        logger.error("TIFF scan aborted — NAS not accessible", {
+          error: nasMapResult.error,
+          mountPath: cloudNasMountPath || "(UNC mode)",
+          nasHost: cloudNasHost,
+          nasShare: cloudNasShare,
+        });
+        // Report failure back to cloud so UI shows the error
+        await api.callApi("report-tiff-scan", {
+          files: [],
+          session_id: sessionId,
+          done: true,
+          error: nasMapResult.error,
+        });
+        return;
+      }
+
       // Build mount root path
       const mountPath = (cloudNasMountPath || "").trim().replace(/\\+$/, "");
       const scanRoot = mountPath || `\\\\${cloudNasHost}\\${cloudNasShare}`;
 
+      logger.info("TIFF scan root resolved", { scanRoot, sessionId });
+
+      // Mark scan as claimed so UI shows progress
+      await api.callApi("report-tiff-scan", {
+        files: [],
+        session_id: sessionId,
+        done: false,
+        status: "claimed",
+      });
+
       const batch: TiffScanResult[] = [];
       const BATCH_SIZE = 100;
       let totalFound = 0;
+      let dirsScanned = 0;
 
-      for await (const file of scanTiffFiles(scanRoot, scanRoot)) {
+      for await (const file of scanTiffFiles(scanRoot, scanRoot, {
+        onProgress: () => { dirsScanned++; },
+      })) {
         batch.push(file);
         totalFound++;
 
@@ -511,7 +550,7 @@ function startTiffScanChecker() {
         done: true,
       });
 
-      logger.info("TIFF scan complete", { totalFound, sessionId });
+      logger.info("TIFF scan complete", { totalFound, dirsScanned, sessionId });
     } catch (e) {
       logger.error("TIFF scan failed", { error: (e as Error).message });
     } finally {
