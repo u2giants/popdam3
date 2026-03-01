@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Search, RefreshCw, Trash2, TestTube, Play, Loader2, FileImage, CheckCircle2, XCircle, Clock,
+  Search, RefreshCw, Trash2, TestTube, Play, Loader2, FileImage, CheckCircle2, XCircle, Clock, X,
 } from "lucide-react";
 
 interface TiffFile {
@@ -340,6 +340,21 @@ export default function TiffHygieneTab() {
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <p>Waiting for Windows Agent to scan the filesystem...</p>
                 <p className="text-[10px]">The agent will pick up the request on its next heartbeat (~30s). Results will appear automatically.</p>
+                <Button
+                  variant="ghost" size="sm" className="text-xs text-destructive mt-2"
+                  onClick={async () => {
+                    try {
+                      await call("set-config", { key: "TIFF_SCAN_REQUEST", value: { status: "cancelled" } });
+                      setScanPending(false);
+                      queryClient.invalidateQueries({ queryKey: ["tiff-scan-request"] });
+                      toast.info("Scan request cancelled");
+                    } catch (e) {
+                      toast.error((e as Error).message);
+                    }
+                  }}
+                >
+                  <X className="h-3 w-3 mr-1" /> Cancel Scan
+                </Button>
               </div>
             ) : scanReqStatus === "error" && scanReqError ? (
               <div className="flex flex-col items-center gap-2 py-8 text-sm">
