@@ -1542,6 +1542,8 @@ const DEFAULT_WORKFLOW_FOLDER_MAP: Record<string, string> = {
 async function deriveMetadataFromPath(
   relativePath: string,
   db: ReturnType<typeof serviceClient>,
+  licensorMap?: Map<string, string>,
+  propertyMap?: Map<string, string>,
 ): Promise<{
   workflow_status: string;
   is_licensed: boolean;
@@ -1575,10 +1577,12 @@ async function deriveMetadataFromPath(
   const hasNewStructure = pathParts.some((p) => p.startsWith("____New Structure"));
   const lowerParts = normalizedParts;
   let workflow_status = "other";
-  for (const [folder, status] of Object.entries(workflowFolderMap)) {
-    if (hasNewStructure && folder === "concept approved designs") continue;
-    if (lowerParts.some((p) => p === folder)) {
-      workflow_status = status;
+  for (let i = lowerParts.length - 1; i >= 0; i--) {
+    const segment = lowerParts[i];
+    if (hasNewStructure && segment === "concept approved designs") continue;
+    const matched = workflowFolderMap[segment];
+    if (matched) {
+      workflow_status = matched;
       break;
     }
   }
@@ -1600,23 +1604,12 @@ async function deriveMetadataFromPath(
   let licensor_id: string | null = null;
   let property_id: string | null = null;
 
-  if (licensor_name) {
-    const { data: lic } = await db
-      .from("licensors")
-      .select("id")
-      .ilike("name", licensor_name)
-      .maybeSingle();
-    licensor_id = lic?.id || null;
+  if (licensor_name && licensorMap) {
+    licensor_id = licensorMap.get(licensor_name.toLowerCase()) ?? null;
   }
 
-  if (licensor_id && property_name) {
-    const { data: prop } = await db
-      .from("properties")
-      .select("id")
-      .eq("licensor_id", licensor_id)
-      .ilike("name", property_name)
-      .maybeSingle();
-    property_id = prop?.id || null;
+  if (licensor_id && property_name && propertyMap) {
+    property_id = propertyMap.get(`${licensor_id}:${property_name.toLowerCase()}`) ?? null;
   }
 
   return { workflow_status, is_licensed, licensor_id, property_id };
@@ -1628,6 +1621,20 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
   const BATCH_SIZE = 200;
   const db = serviceClient();
+
+  const { data: allLicensors } = await db
+    .from("licensors")
+    .select("id, name");
+  const { data: allProperties } = await db
+    .from("properties")
+    .select("id, name, licensor_id");
+
+  const licensorMap = new Map(
+    (allLicensors ?? []).map((l) => [l.name.toLowerCase(), l.id]),
+  );
+  const propertyMap = new Map(
+    (allProperties ?? []).map((p) => [`${p.licensor_id}:${p.name.toLowerCase()}`, p.id]),
+  );
 
   const { data: assets, error: fetchErr } = await db
     .from("assets")
@@ -1647,7 +1654,7 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
     const updates: Record<string, unknown> = {};
 
     // Re-derive path-based metadata
-    const derived = await deriveMetadataFromPath(asset.relative_path, db);
+    const derived = await deriveMetadataFromPath(asset.relative_path, db, licensorMap, propertyMap);
 
     if (asset.is_licensed !== derived.is_licensed) {
       updates.is_licensed = derived.is_licensed;
@@ -1950,12 +1957,13 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
     const { data: allGroupAssets } = await db
       .from("assets")
-      .select("id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
+      .select("id, filename, file_type, asset_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
       .eq("style_group_id", group.id)
       .eq("is_deleted", false);
 
     if (allGroupAssets && allGroupAssets.length > 0) {
       const primaryId = selectPrimaryAsset(allGroupAssets);
+      const primaryAsset = allGroupAssets.find((a: Record<string, unknown>) => a.id === primaryId) as Record<string, unknown> | undefined;
       const statusPriority = ["licensor_approved", "customer_adopted", "in_process", "in_development", "concept_approved", "freelancer_art", "product_ideas"];
       let bestStatus = "other";
       for (const s of statusPriority) {
@@ -1972,6 +1980,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       await db.from("style_groups").update({
         asset_count: allGroupAssets.length,
         primary_asset_id: primaryId,
+        primary_asset_type: (primaryAsset?.asset_type as string | null) ?? null,
         workflow_status: bestStatus as any,
         latest_file_date: latestFileDate,
         updated_at: new Date().toISOString(),
