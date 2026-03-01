@@ -1889,6 +1889,49 @@ async function handleBootstrap(body: Record<string, unknown>) {
   });
 }
 
+// ── Route: claim-tiff-scan ──────────────────────────────────────────
+
+async function handleClaimTiffScan(_body: Record<string, unknown>, agentId: string) {
+  const db = serviceClient();
+
+  const { data: row, error } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "TIFF_SCAN_REQUEST")
+    .maybeSingle();
+
+  if (error) return err(error.message, 500);
+
+  const req = (row?.value as Record<string, unknown> | undefined) ?? undefined;
+  if (!req || req.status !== "pending") {
+    return json({ ok: true, request: null });
+  }
+
+  if (req.target_agent_id && req.target_agent_id !== agentId) {
+    return json({ ok: true, request: null });
+  }
+
+  const claimed = {
+    ...req,
+    status: "claimed",
+    claimed_by: agentId,
+    claimed_at: new Date().toISOString(),
+  };
+
+  const { error: claimErr } = await db.from("admin_config").upsert(
+    {
+      key: "TIFF_SCAN_REQUEST",
+      value: claimed,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "key" },
+  );
+
+  if (claimErr) return err(claimErr.message, 500);
+
+  return json({ ok: true, request: claimed });
+}
+
 // ── Route: report-tiff-scan ─────────────────────────────────────────
 
 async function handleReportTiffScan(body: Record<string, unknown>) {
@@ -2155,6 +2198,8 @@ serve(async (req: Request) => {
         return await handleReportUpdateStatus(body);
       case "get-latest-build":
         return await handleGetLatestBuild(body, agentId);
+      case "claim-tiff-scan":
+        return await handleClaimTiffScan(body, agentId);
       case "report-tiff-scan":
         return await handleReportTiffScan(body);
       case "claim-tiff-job":
