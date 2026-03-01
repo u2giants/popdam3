@@ -380,13 +380,15 @@ jobs:
           }
           Write-Host "Installer built successfully: $((Get-Item 'popdam-windows-agent-setup.exe').Length / 1MB) MB"
 
-      - name: Read version from package.json
+      - name: Compute auto-incrementing version
         id: version
         shell: bash
         run: |
-          VERSION=$(node -p "require('./apps/windows-agent/package.json').version")
+          BASE_VERSION=$(node -p "require('./apps/windows-agent/package.json').version")
+          # Use the GitHub run number as an auto-incrementing build suffix
+          VERSION="${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          echo "Version: $VERSION (base=$BASE_VERSION, run=$GITHUB_RUN_NUMBER)"
 
       - name: Create dist.zip (for OTA updates)
         shell: powershell
