@@ -206,7 +206,7 @@ export async function compressTiff(
         new_file_size: newSize,
         new_filename: path.basename(filePath),
         new_file_modified_at: targetMtime.toISOString(),
-        new_file_created_at: originalCreatedAt?.toISOString() || null,
+        new_file_created_at: originalCreatedAt?.toISOString() ?? undefined,
         original_backed_up: true,
         original_deleted: false,
       };
@@ -220,7 +220,7 @@ export async function compressTiff(
           new_file_size: origSize,
           new_filename: path.basename(filePath),
           new_file_modified_at: targetMtime.toISOString(),
-          new_file_created_at: originalCreatedAt?.toISOString() || null,
+          new_file_created_at: originalCreatedAt?.toISOString() ?? undefined,
           original_backed_up: false,
           original_deleted: false,
           error: "Compressed file not smaller than original — skipped",
@@ -248,7 +248,7 @@ export async function compressTiff(
         new_file_size: newSize,
         new_filename: path.basename(filePath),
         new_file_modified_at: targetMtime.toISOString(),
-        new_file_created_at: originalCreatedAt?.toISOString() || null,
+        new_file_created_at: originalCreatedAt?.toISOString() ?? undefined,
         original_backed_up: false,
         original_deleted: true,
       };
