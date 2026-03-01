@@ -222,6 +222,9 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     {lastUpdateCheck && (
                       <div>Last update check: {new Date(lastUpdateCheck).toLocaleString()}</div>
                     )}
+                    {(meta?.last_updated_at || meta?.started_at) && (
+                      <div>Last updated: {new Date((meta?.last_updated_at ?? meta?.started_at) as string).toLocaleString()}</div>
+                    )}
                     {updateError && (
                       <div className="text-destructive">Update error: {updateError}</div>
                     )}
