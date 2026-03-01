@@ -75,6 +75,8 @@ export default function TiffHygieneTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
   const [filter, setFilter] = useState<"all" | "uncompressed" | "compressed">("all");
+  const [scanPending, setScanPending] = useState(false);
+  const scanPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["tiff-files", filter],
@@ -87,11 +89,42 @@ export default function TiffHygieneTab() {
   const files: TiffFile[] = data?.files || [];
   const summary = data?.summary || {};
 
+  // Check TIFF_SCAN_REQUEST status to show pending state
+  const { data: scanReqData } = useQuery({
+    queryKey: ["tiff-scan-request"],
+    queryFn: () => call("get-config", { keys: ["TIFF_SCAN_REQUEST"] }),
+    refetchInterval: scanPending ? 5000 : false,
+  });
+
+  // Derive scan state from cloud config
+  const scanReqConfig = scanReqData?.config?.TIFF_SCAN_REQUEST as { value?: { status?: string } } | undefined;
+  const scanReqStatus = scanReqConfig?.value?.status;
+  const isAgentScanning = scanPending || scanReqStatus === "pending" || scanReqStatus === "claimed";
+
+  // Auto-poll for results while scan is pending/claimed
+  useEffect(() => {
+    if (isAgentScanning) {
+      setScanPending(true);
+      scanPollRef.current = setInterval(() => {
+        refetch();
+        queryClient.invalidateQueries({ queryKey: ["tiff-scan-request"] });
+      }, 5000);
+    } else if (scanPending) {
+      // Scan finished — stop polling and do a final refresh
+      setScanPending(false);
+      refetch();
+    }
+    return () => {
+      if (scanPollRef.current) clearInterval(scanPollRef.current);
+    };
+  }, [isAgentScanning]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const scanMutation = useMutation({
     mutationFn: () => call("trigger-tiff-scan"),
     onSuccess: () => {
-      toast.success("TIFF scan triggered — Windows Agent will crawl the filesystem");
-      queryClient.invalidateQueries({ queryKey: ["tiff-files"] });
+      toast.success("TIFF scan triggered — Windows Agent will pick it up on next heartbeat (~30s)");
+      setScanPending(true);
+      queryClient.invalidateQueries({ queryKey: ["tiff-scan-request"] });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -198,11 +231,11 @@ export default function TiffHygieneTab() {
             <Button
               variant="default" size="sm"
               onClick={() => scanMutation.mutate()}
-              disabled={scanMutation.isPending}
+              disabled={scanMutation.isPending || isAgentScanning}
               className="gap-1.5"
             >
-              {scanMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-              Scan for TIFFs
+              {(scanMutation.isPending || isAgentScanning) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+              {isAgentScanning ? "Scanning..." : "Scan for TIFFs"}
             </Button>
             {files.length > 0 && (
               <Button variant="ghost" size="sm" onClick={() => {
@@ -301,9 +334,17 @@ export default function TiffHygieneTab() {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading...
             </div>
           ) : files.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No TIFF files found. Click "Scan for TIFFs" to crawl the filesystem.
-            </p>
+            isAgentScanning ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <p>Waiting for Windows Agent to scan the filesystem...</p>
+                <p className="text-[10px]">The agent will pick up the request on its next heartbeat (~30s). Results will appear automatically.</p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No TIFF files found. Click "Scan for TIFFs" to crawl the filesystem.
+              </p>
+            )
           ) : (
             <div className="border border-border rounded-md overflow-hidden">
               <Table>
