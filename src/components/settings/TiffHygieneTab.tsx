@@ -344,7 +344,7 @@ export default function TiffHygieneTab() {
                   variant="ghost" size="sm" className="text-xs text-destructive mt-2"
                   onClick={async () => {
                     try {
-                      await call("set-config", { key: "TIFF_SCAN_REQUEST", value: { status: "cancelled" } });
+                      await call("set-config", { entries: { TIFF_SCAN_REQUEST: { status: "cancelled" } } });
                       setScanPending(false);
                       queryClient.invalidateQueries({ queryKey: ["tiff-scan-request"] });
                       toast.info("Scan request cancelled");
