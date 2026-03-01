@@ -1,13 +1,20 @@
 /**
  * Multi-strategy renderer for the Windows Render Agent.
  *
- * Fallback chain:
- *   1. Sharp        — fast, handles PDF-compat .ai and most .psd
+ * Fallback chain for AI files:
+ *   1. Sharp        — fast, handles PDF-compat .ai
  *   2. Ghostscript  — complex .ai that Sharp can't read
+ *   3. Inkscape     — independent engine (no GS dependency), handles Adobe-specific .ai
+ *   4. Sibling image — any .jpg/.png in same folder with matching name
+ *
+ * Fallback chain for PSD files:
+ *   1. Sharp        — fast, handles most .psd
+ *   2. ImageMagick  — 16-bit, smart objects, complex layers
  *   3. Sibling image — any .jpg/.png in same folder with matching name
  *
- * No Illustrator COM — this agent uses the same rendering tools
- * as the Bridge Agent (Sharp + Ghostscript).
+ * Inkscape is NOT used for PSD (it doesn't read PSD natively).
+ * ImageMagick is NOT used for AI (it delegates to Ghostscript internally,
+ * so it would fail on the same files GS already failed on).
  */
 
 import sharp from "sharp";
@@ -95,6 +102,39 @@ function findImageMagick(): string | null {
 
 const IM_EXE = findImageMagick();
 
+// ── Inkscape path discovery ─────────────────────────────────────
+
+function findInkscape(): string | null {
+  if (process.env.INKSCAPE_PATH) return process.env.INKSCAPE_PATH;
+
+  const candidates = [
+    "C:\\Program Files\\Inkscape\\bin\\inkscape.exe",
+    "C:\\Program Files\\Inkscape\\inkscape.exe",
+    "C:\\Program Files (x86)\\Inkscape\\bin\\inkscape.exe",
+  ];
+
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      logger.info("Found Inkscape", { path: c });
+      return c;
+    }
+  }
+
+  try {
+    execFileSync("inkscape", ["--version"], { timeout: 10000 });
+    logger.info("Found Inkscape on PATH");
+    return "inkscape";
+  } catch {
+    logger.warn(
+      "Inkscape not found. Install from inkscape.org " +
+      "or set INKSCAPE_PATH env var. AI fallback rendering will be limited."
+    );
+    return null;
+  }
+}
+
+const INKSCAPE_EXE = findInkscape();
+
 // ── Step 1: Sharp ───────────────────────────────────────────────
 
 async function renderWithSharp(
@@ -123,7 +163,7 @@ async function renderWithSharp(
   };
 }
 
-// ── Step 2: Ghostscript ─────────────────────────────────────────
+// ── Step 2a: Ghostscript ────────────────────────────────────────
 
 async function renderWithGhostscript(
   filePath: string,
@@ -161,7 +201,53 @@ async function renderWithGhostscript(
   }
 }
 
-// ── Step 2b: ImageMagick (PSD) ──────────────────────────────────
+// ── Step 2b: Inkscape (AI only — independent engine, no GS dependency) ──
+
+async function renderWithInkscape(
+  filePath: string,
+): Promise<RenderResult> {
+  if (!INKSCAPE_EXE) throw new Error("Inkscape not installed");
+
+  const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-ink-"));
+  const outPath = path.join(tmpDir, "thumb.png");
+
+  try {
+    // Inkscape 1.x CLI: export to PNG
+    // --export-area-drawing = crop to content (no whitespace)
+    // --export-dpi=150 = matches our GS resolution
+    await execFileAsync(INKSCAPE_EXE, [
+      filePath,
+      "--export-type=png",
+      `--export-filename=${outPath}`,
+      "--export-area-drawing",
+      "--export-dpi=150",
+    ], { timeout: 90_000 }); // Inkscape can be slow on first launch
+
+    if (!existsSync(outPath)) {
+      throw new Error("Inkscape produced no output");
+    }
+
+    const resized = sharp(outPath)
+      .flatten({ background: "#ffffff" })
+      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
+        fit: "inside",
+        withoutEnlargement: true,
+      });
+
+    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
+    const meta = await sharp(buffer).metadata();
+
+    return {
+      buffer,
+      width: meta.width || 0,
+      height: meta.height || 0,
+    };
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// ── Step 2c: ImageMagick (PSD) ──────────────────────────────────
 
 async function renderWithImageMagick(
   filePath: string,
@@ -277,7 +363,22 @@ export async function renderFile(
     }
   }
 
-  // Step 2b: ImageMagick (PSD only — handles 16-bit, smart objects, complex layers)
+  // Step 2b: Inkscape (AI only — independent engine, does NOT use Ghostscript)
+  if (fileType === "ai") {
+    try {
+      const result = await renderWithInkscape(uncPath);
+      logger.info("Inkscape render succeeded", { uncPath });
+      return result;
+    } catch (e) {
+      const msg = (e as Error).message;
+      failures.push(`inkscape: ${msg}`);
+      logger.warn("Inkscape failed", { uncPath, error: msg });
+    }
+  }
+
+  // Step 2c: ImageMagick (PSD only — handles 16-bit, smart objects, complex layers)
+  // NOTE: ImageMagick is NOT used for .ai because it delegates to Ghostscript
+  // internally, so it would fail on the same files GS already failed on.
   if (fileType === "psd") {
     try {
       const result = await renderWithImageMagick(uncPath);
