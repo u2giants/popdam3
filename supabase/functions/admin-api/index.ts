@@ -68,24 +68,18 @@ async function authenticateAdmin(
     { global: { headers: { Authorization: authHeader } } },
   );
 
-  let user;
+  let userId: string;
   try {
-    const result = await withRetry(async () => {
-      const r = await anonClient.auth.getUser(token);
-      if (r.error) throw r.error;
-      return r;
-    }, 3, 300);
-    user = result.data.user;
+    const { data, error: claimsError } = await anonClient.auth.getClaims(token);
+    if (claimsError || !data?.claims?.sub) {
+      console.error("Token validation error:", claimsError);
+      return err("Invalid or expired token", 401);
+    }
+    userId = data.claims.sub as string;
   } catch (e) {
     console.error("Token validation error:", e);
     return err("Invalid or expired token", 401);
   }
-  if (!user) {
-    return err("Invalid or expired token", 401);
-  }
-
-  const userId = user.id;
-  if (!userId) return err("Invalid token: no subject", 401);
 
   // Check admin role using service client (bypasses RLS)
   const db = serviceClient();
