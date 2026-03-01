@@ -821,6 +821,78 @@ export type Database = {
           },
         ]
       }
+      tiff_optimization_queue: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          compression_type: string | null
+          created_at: string
+          error_message: string | null
+          file_created_at: string | null
+          file_modified_at: string
+          file_size: number
+          filename: string
+          id: string
+          mode: string | null
+          new_file_created_at: string | null
+          new_file_modified_at: string | null
+          new_file_size: number | null
+          new_filename: string | null
+          original_backed_up: boolean | null
+          original_deleted: boolean | null
+          processed_at: string | null
+          relative_path: string
+          scan_session_id: string | null
+          status: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          compression_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_created_at?: string | null
+          file_modified_at: string
+          file_size: number
+          filename: string
+          id?: string
+          mode?: string | null
+          new_file_created_at?: string | null
+          new_file_modified_at?: string | null
+          new_file_size?: number | null
+          new_filename?: string | null
+          original_backed_up?: boolean | null
+          original_deleted?: boolean | null
+          processed_at?: string | null
+          relative_path: string
+          scan_session_id?: string | null
+          status?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          compression_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_created_at?: string | null
+          file_modified_at?: string
+          file_size?: number
+          filename?: string
+          id?: string
+          mode?: string | null
+          new_file_created_at?: string | null
+          new_file_modified_at?: string | null
+          new_file_size?: number | null
+          new_filename?: string | null
+          original_backed_up?: boolean | null
+          original_deleted?: boolean | null
+          processed_at?: string | null
+          relative_path?: string
+          scan_session_id?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -876,6 +948,22 @@ export type Database = {
           attempts: number
           id: string
           lease_expires_at: string
+        }[]
+      }
+      claim_tiff_jobs: {
+        Args: {
+          p_agent_id: string
+          p_batch_size?: number
+          p_lease_minutes?: number
+        }
+        Returns: {
+          file_created_at: string
+          file_modified_at: string
+          file_size: number
+          filename: string
+          id: string
+          mode: string
+          relative_path: string
         }[]
       }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }

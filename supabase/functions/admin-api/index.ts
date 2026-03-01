@@ -2686,6 +2686,16 @@ serve(async (req: Request) => {
         return await handleRequestPathTest(userId);
       case "backfill-sku-names":
         return await handleBackfillSkuNames();
+      case "trigger-tiff-scan":
+        return await handleTriggerTiffScan(userId);
+      case "list-tiff-files":
+        return await handleListTiffFiles(body);
+      case "queue-tiff-jobs":
+        return await handleQueueTiffJobs(body);
+      case "delete-tiff-originals":
+        return await handleDeleteTiffOriginals(body);
+      case "clear-tiff-scan":
+        return await handleClearTiffScan();
       default:
         return err(`Unknown action: ${action}`, 404);
     }
@@ -3039,4 +3049,105 @@ async function handleBackfillSkuNames() {
   }
 
   return json({ ok: true, assets_updated: updated, groups_updated: groupsUpdated, assets_checked: offset });
+}
+
+// ── TIFF Hygiene Actions ────────────────────────────────────────────
+
+async function handleTriggerTiffScan(userId: string) {
+  const db = serviceClient();
+  const requestId = crypto.randomUUID();
+  
+  const { error } = await db.from("admin_config").upsert({
+    key: "TIFF_SCAN_REQUEST",
+    value: {
+      status: "pending",
+      request_id: requestId,
+      requested_by: userId,
+      requested_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, request_id: requestId });
+}
+
+async function handleListTiffFiles(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const status = optionalString(body, "status");
+  const compressionFilter = optionalString(body, "compression");
+  const limit = typeof body.limit === "number" ? body.limit : 500;
+  const offset = typeof body.offset === "number" ? body.offset : 0;
+
+  let query = db.from("tiff_optimization_queue")
+    .select("*", { count: "exact" })
+    .order("relative_path", { ascending: true })
+    .range(offset, offset + limit - 1);
+
+  if (status) query = query.eq("status", status);
+  if (compressionFilter === "none") query = query.eq("compression_type", "none");
+  if (compressionFilter === "compressed") query = query.neq("compression_type", "none");
+
+  const { data, error, count } = await query;
+  if (error) return err(error.message, 500);
+
+  // Also get summary counts
+  const { data: counts } = await db.rpc("execute_readonly_query", {
+    query_text: `SELECT 
+      count(*) as total,
+      count(*) FILTER (WHERE compression_type = 'none') as uncompressed,
+      count(*) FILTER (WHERE compression_type != 'none' AND compression_type IS NOT NULL) as compressed,
+      count(*) FILTER (WHERE status = 'completed') as processed,
+      count(*) FILTER (WHERE status = 'failed') as failed,
+      count(*) FILTER (WHERE status IN ('queued_test','queued_process','processing')) as pending
+    FROM tiff_optimization_queue`
+  });
+
+  return json({ ok: true, files: data, total: count, summary: counts?.[0] || {} });
+}
+
+async function handleQueueTiffJobs(body: Record<string, unknown>) {
+  const ids = body.ids as string[];
+  const mode = requireString(body, "mode"); // 'test' or 'process'
+  if (!["test", "process"].includes(mode)) return err("mode must be 'test' or 'process'");
+  if (!Array.isArray(ids) || ids.length === 0) return err("ids must be a non-empty array");
+
+  const db = serviceClient();
+  const newStatus = mode === "test" ? "queued_test" : "queued_process";
+
+  const { error } = await db.from("tiff_optimization_queue")
+    .update({ status: newStatus, mode, error_message: null, claimed_by: null, claimed_at: null })
+    .in("id", ids)
+    .in("status", ["scanned", "failed", "completed"]); // allow re-queue
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, queued: ids.length, mode });
+}
+
+async function handleDeleteTiffOriginals(body: Record<string, unknown>) {
+  const ids = body.ids as string[];
+  if (!Array.isArray(ids) || ids.length === 0) return err("ids must be a non-empty array");
+
+  const db = serviceClient();
+  
+  // Mark these for deletion — the Windows Agent will pick up the request
+  const { error } = await db.from("tiff_optimization_queue")
+    .update({ status: "queued_delete", error_message: null })
+    .in("id", ids)
+    .eq("original_backed_up", true)
+    .eq("original_deleted", false);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, queued: ids.length });
+}
+
+async function handleClearTiffScan() {
+  const db = serviceClient();
+  const { error } = await db.from("tiff_optimization_queue").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (error) return err(error.message, 500);
+
+  // Also clear scan request
+  await db.from("admin_config").delete().eq("key", "TIFF_SCAN_REQUEST");
+  return json({ ok: true });
 }

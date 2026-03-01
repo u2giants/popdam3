@@ -19,6 +19,7 @@ import { renderFile } from "./renderer";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
+import { scanTiffFiles, compressTiff, deleteOriginalBackup, type TiffScanResult } from "./tiff-optimizer";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
@@ -449,11 +450,140 @@ async function main() {
     agentId,
   });
 
+  // 9. Start TIFF job polling
+  startTiffPolling();
+
+  // 10. Check for TIFF scan requests periodically
+  startTiffScanChecker();
+
   logger.info("Windows Render Agent ready", {
     healthy: healthStatus.healthy,
     concurrency: config.renderConcurrency,
     version: config.version,
   });
+}
+
+// ── TIFF Scan Request Checker ───────────────────────────────────
+
+let tiffScanRunning = false;
+
+function startTiffScanChecker() {
+  // Check every heartbeat (30s) if there's a pending TIFF scan request
+  setInterval(async () => {
+    if (!configReceived || !healthStatus.healthy || tiffScanRunning) return;
+
+    try {
+      const resp = await api.callApi("get-config", { keys: ["TIFF_SCAN_REQUEST"] });
+      const scanReq = resp?.config?.TIFF_SCAN_REQUEST;
+      const reqValue = scanReq?.value ?? scanReq;
+      if (!reqValue || reqValue.status !== "pending") return;
+
+      tiffScanRunning = true;
+      const sessionId = reqValue.request_id || crypto.randomUUID();
+      logger.info("Starting TIFF filesystem scan", { sessionId });
+
+      // Build mount root path
+      const mountPath = (cloudNasMountPath || "").trim().replace(/\\+$/, "");
+      const scanRoot = mountPath || `\\\\${cloudNasHost}\\${cloudNasShare}`;
+
+      const batch: TiffScanResult[] = [];
+      const BATCH_SIZE = 100;
+      let totalFound = 0;
+
+      for await (const file of scanTiffFiles(scanRoot, scanRoot)) {
+        batch.push(file);
+        totalFound++;
+
+        if (batch.length >= BATCH_SIZE) {
+          await api.callApi("report-tiff-scan", {
+            files: batch,
+            session_id: sessionId,
+            done: false,
+          });
+          batch.length = 0;
+        }
+      }
+
+      // Send remaining + mark done
+      await api.callApi("report-tiff-scan", {
+        files: batch,
+        session_id: sessionId,
+        done: true,
+      });
+
+      logger.info("TIFF scan complete", { totalFound, sessionId });
+    } catch (e) {
+      logger.error("TIFF scan failed", { error: (e as Error).message });
+    } finally {
+      tiffScanRunning = false;
+    }
+  }, 30_000);
+}
+
+// ── TIFF Job Polling ────────────────────────────────────────────
+
+function startTiffPolling() {
+  setInterval(async () => {
+    if (!configReceived || !healthStatus.healthy || tiffScanRunning) return;
+
+    try {
+      const resp = await api.callApi("claim-tiff-job", {
+        agent_id: agentId,
+        batch_size: 1,
+      });
+
+      const jobs = resp?.jobs as Array<Record<string, unknown>>;
+      if (!jobs || jobs.length === 0) return;
+
+      for (const job of jobs) {
+        const jobId = job.id as string;
+        const relativePath = job.relative_path as string;
+        const mode = job.mode as "test" | "process";
+        const fileModifiedAt = new Date(job.file_modified_at as string);
+        const fileCreatedAt = job.file_created_at ? new Date(job.file_created_at as string) : null;
+
+        logger.info("Processing TIFF job", { jobId, relativePath, mode });
+
+        const filePath = toUncPath(relativePath);
+
+        try {
+          const result = await compressTiff(filePath, mode, fileModifiedAt, fileCreatedAt);
+
+          await api.callApi("complete-tiff-job", {
+            job_id: jobId,
+            success: result.success,
+            error: result.error,
+            new_file_size: result.new_file_size,
+            new_filename: result.new_filename,
+            new_file_modified_at: result.new_file_modified_at,
+            new_file_created_at: result.new_file_created_at,
+            original_backed_up: result.original_backed_up,
+            original_deleted: result.original_deleted,
+          });
+
+          if (result.success) {
+            logger.info("TIFF job completed", { jobId, mode, newSize: result.new_file_size });
+          } else {
+            logger.warn("TIFF job failed", { jobId, error: result.error });
+          }
+        } catch (e) {
+          logger.error("TIFF job error", { jobId, error: (e as Error).message });
+          await api.callApi("complete-tiff-job", {
+            job_id: jobId,
+            success: false,
+            error: (e as Error).message,
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      // Silently skip — no jobs available or API error
+      if (!(e as Error).message?.includes("Unknown action")) {
+        logger.debug("TIFF poll error", { error: (e as Error).message });
+      }
+    }
+  }, 5_000); // poll every 5s
+
+  logger.info("TIFF job polling started (5s interval)");
 }
 
 main().catch((e) => {

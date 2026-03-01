@@ -304,6 +304,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "SCAN_MIN_DATE",
   "WINDOWS_RENDER_MODE",
   "WINDOWS_RENDER_POLICY",
+  "TIFF_SCAN_REQUEST",
 ];
 
 async function handleHeartbeat(
@@ -1888,7 +1889,111 @@ async function handleBootstrap(body: Record<string, unknown>) {
   });
 }
 
-// ── Route: notify-build (called by CI/CD after publishing a release) ──
+// ── Route: report-tiff-scan ─────────────────────────────────────────
+
+async function handleReportTiffScan(body: Record<string, unknown>) {
+  const files = body.files as Array<Record<string, unknown>>;
+  const sessionId = optionalString(body, "session_id");
+  const done = body.done === true;
+
+  if (!Array.isArray(files)) return err("files must be an array");
+
+  const db = serviceClient();
+
+  // Upsert files in batches
+  const CHUNK = 200;
+  let inserted = 0;
+  for (let i = 0; i < files.length; i += CHUNK) {
+    const chunk = files.slice(i, i + CHUNK);
+    const rows = chunk.map((f) => ({
+      relative_path: f.relative_path as string,
+      filename: f.filename as string,
+      file_size: f.file_size as number,
+      file_modified_at: f.file_modified_at as string,
+      file_created_at: (f.file_created_at as string) || null,
+      compression_type: (f.compression_type as string) || "unknown",
+      status: "scanned",
+      scan_session_id: sessionId,
+    }));
+
+    const { error } = await db.from("tiff_optimization_queue")
+      .upsert(rows, { onConflict: "relative_path", ignoreDuplicates: false });
+    if (error) {
+      console.error("report-tiff-scan upsert error:", error);
+    } else {
+      inserted += chunk.length;
+    }
+  }
+
+  // If done, mark scan request as completed
+  if (done && sessionId) {
+    await db.from("admin_config").upsert({
+      key: "TIFF_SCAN_REQUEST",
+      value: {
+        status: "completed",
+        request_id: sessionId,
+        completed_at: new Date().toISOString(),
+        total_files: inserted,
+      },
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  return json({ ok: true, inserted });
+}
+
+// ── Route: claim-tiff-job ───────────────────────────────────────────
+
+async function handleClaimTiffJob(body: Record<string, unknown>, agentId: string) {
+  const db = serviceClient();
+  const batchSize = typeof body.batch_size === "number" ? body.batch_size : 1;
+
+  const { data, error } = await db.rpc("claim_tiff_jobs", {
+    p_agent_id: agentId,
+    p_batch_size: batchSize,
+  });
+
+  if (error) return err(error.message, 500);
+  if (!data || data.length === 0) return json({ ok: true, jobs: [] });
+
+  return json({ ok: true, jobs: data });
+}
+
+// ── Route: complete-tiff-job ────────────────────────────────────────
+
+async function handleCompleteTiffJob(body: Record<string, unknown>) {
+  const jobId = requireString(body, "job_id");
+  const success = body.success === true;
+  const errorMsg = optionalString(body, "error");
+  const db = serviceClient();
+
+  const updates: Record<string, unknown> = {
+    status: success ? "completed" : "failed",
+    processed_at: new Date().toISOString(),
+    error_message: errorMsg || null,
+  };
+
+  if (success) {
+    if (body.new_file_size !== undefined) updates.new_file_size = body.new_file_size;
+    if (body.new_filename !== undefined) updates.new_filename = body.new_filename;
+    if (body.new_file_modified_at !== undefined) updates.new_file_modified_at = body.new_file_modified_at;
+    if (body.new_file_created_at !== undefined) updates.new_file_created_at = body.new_file_created_at;
+    if (body.original_backed_up !== undefined) updates.original_backed_up = body.original_backed_up;
+    if (body.original_deleted !== undefined) updates.original_deleted = body.original_deleted;
+    if (body.file_size !== undefined) updates.file_size = body.file_size; // update original size if changed
+  }
+
+  const { error } = await db.from("tiff_optimization_queue")
+    .update(updates)
+    .eq("id", jobId);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
+// ── Route: bootstrap (legacy compat) ────────────────────────────────
+
+async function handleBootstrap(body: Record<string, unknown>) {
 
 async function handleNotifyBuild(
   body: Record<string, unknown>,
@@ -2033,6 +2138,12 @@ serve(async (req: Request) => {
         return await handleReportUpdateStatus(body);
       case "get-latest-build":
         return await handleGetLatestBuild(body, agentId);
+      case "report-tiff-scan":
+        return await handleReportTiffScan(body);
+      case "claim-tiff-job":
+        return await handleClaimTiffJob(body, agentId);
+      case "complete-tiff-job":
+        return await handleCompleteTiffJob(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

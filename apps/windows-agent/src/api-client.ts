@@ -6,7 +6,7 @@
 import { config } from "./config";
 import { logger } from "./logger";
 
-async function callApi(action: string, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+export async function callApi(action: string, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
   const body = JSON.stringify({ action, ...payload });
 
   const res = await fetch(config.agentApiUrl, {

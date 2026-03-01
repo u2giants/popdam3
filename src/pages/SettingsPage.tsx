@@ -16,6 +16,7 @@ import ApisTab from "@/components/settings/ApisTab";
 import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
 import InstallBundleTab from "@/components/settings/InstallBundleTab";
 import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
+import TiffHygieneTab from "@/components/settings/TiffHygieneTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -815,6 +816,7 @@ export default function SettingsPage() {
           <TabsTrigger value="install-bundles">Install Bundles</TabsTrigger>
           <TabsTrigger value="windows-agent">Windows Agent</TabsTrigger>
           <TabsTrigger value="taxonomy">APIs & Tagging</TabsTrigger>
+          <TabsTrigger value="tiff-hygiene">TIFF Hygiene</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         </TabsList>
@@ -853,6 +855,10 @@ export default function SettingsPage() {
 
         <TabsContent value="users">
           <InvitationSection />
+        </TabsContent>
+
+        <TabsContent value="tiff-hygiene" className="space-y-4">
+          <TiffHygieneTab />
         </TabsContent>
 
         <TabsContent value="diagnostics" className="space-y-4">
