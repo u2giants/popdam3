@@ -474,8 +474,8 @@ function startTiffScanChecker() {
 
     try {
       const resp = await api.callApi("get-config", { keys: ["TIFF_SCAN_REQUEST"] });
-      const scanReq = (resp?.config as Record<string, unknown>)?.TIFF_SCAN_REQUEST;
-      const reqValue = scanReq?.value ?? scanReq;
+      const scanReq = (resp?.config as Record<string, unknown>)?.TIFF_SCAN_REQUEST as Record<string, unknown> | undefined;
+      const reqValue = (scanReq?.value ?? scanReq) as Record<string, unknown> | undefined;
       if (!reqValue || reqValue.status !== "pending") return;
 
       tiffScanRunning = true;
