@@ -390,6 +390,14 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION (base=$BASE_VERSION, run=$GITHUB_RUN_NUMBER)"
 
+      - name: Stamp version into package.json
+        shell: powershell
+        run: |
+          $pkg = Get-Content apps\windows-agent\package.json | ConvertFrom-Json
+          $pkg.version = "${{ steps.version.outputs.version }}"
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content apps\windows-agent\package.json
+          Write-Host "Stamped version ${{ steps.version.outputs.version }}"
+
       - name: Create dist.zip (for OTA updates)
         shell: powershell
         run: |

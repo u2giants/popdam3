@@ -97,9 +97,9 @@ export default function TiffHygieneTab() {
   });
 
   // Derive scan state from cloud config
-  const scanReqConfig = scanReqData?.config?.TIFF_SCAN_REQUEST as { value?: { status?: string; error?: string; total_files?: number } } | undefined;
-  const scanReqStatus = scanReqConfig?.value?.status;
-  const scanReqError = scanReqConfig?.value?.error;
+  const scanReqValue = scanReqData?.config?.TIFF_SCAN_REQUEST as { status?: string; error?: string; total_files?: number } | undefined;
+  const scanReqStatus = scanReqValue?.status;
+  const scanReqError = scanReqValue?.error;
   const isAgentScanning = scanPending || scanReqStatus === "pending" || scanReqStatus === "claimed";
 
   // Auto-poll for results while scan is pending/claimed
