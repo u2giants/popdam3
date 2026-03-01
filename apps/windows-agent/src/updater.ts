@@ -220,16 +220,18 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
     // Verify extraction produced files
     const extractedIndex = path.join(distNewDir, "index.js");
     if (!existsSync(extractedIndex)) {
-      // Maybe extracted into a subdirectory — check one level down
+      // Maybe extracted into a single subdirectory — flatten it
       const { readdirSync } = await import("node:fs");
       const entries = readdirSync(distNewDir);
-      if (entries.length === 1 && statSync(path.join(distNewDir, entries[0])).isDirectory()) {
-        // Move contents up
-        const subDir = path.join(distNewDir, entries[0]);
-        const tempDir = distNewDir + ".tmp";
-        renameSync(distNewDir, tempDir);
-        renameSync(subDir, distNewDir);
-        rmSync(tempDir, { recursive: true });
+      if (entries.length === 1) {
+        const nestedDir = path.join(distNewDir, entries[0]);
+        if (statSync(nestedDir).isDirectory() && existsSync(path.join(nestedDir, "index.js"))) {
+          const flatDir = `${distNewDir}.flat`;
+          if (existsSync(flatDir)) rmSync(flatDir, { recursive: true });
+          renameSync(nestedDir, flatDir);
+          rmSync(distNewDir, { recursive: true });
+          renameSync(flatDir, distNewDir);
+        }
       }
     }
 
@@ -341,8 +343,35 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
 // ── Post-restart health check + rollback ────────────────────────────
 
 export async function postRestartHealthCheck(agentId: string): Promise<void> {
-  const previousVersion = process.env.POPDAM_PREVIOUS_VERSION;
-  const rollbackDist = process.env.POPDAM_ROLLBACK_DIST;
+  const rollbackInfoPath = path.join(config.agentConfigDir, "rollback-info.json");
+
+  let previousVersion = process.env.POPDAM_PREVIOUS_VERSION || "";
+  let rollbackDist = process.env.POPDAM_ROLLBACK_DIST || "";
+
+  // Scheduled-task restarts do not preserve env vars; recover rollback context from disk.
+  if (!previousVersion || !rollbackDist) {
+    try {
+      if (existsSync(rollbackInfoPath)) {
+        const raw = await readFile(rollbackInfoPath, "utf-8");
+        const info = JSON.parse(raw) as {
+          old_version?: string;
+          old_dist_path?: string;
+          new_version?: string;
+        };
+
+        if (
+          typeof info.old_version === "string" &&
+          typeof info.old_dist_path === "string" &&
+          info.new_version?.replace(/^v/, "") === config.version.replace(/^v/, "")
+        ) {
+          previousVersion = info.old_version;
+          rollbackDist = info.old_dist_path;
+        }
+      }
+    } catch (e) {
+      logger.warn("Failed to read rollback-info.json", { error: (e as Error).message });
+    }
+  }
 
   if (!previousVersion || !rollbackDist) {
     return; // Not a post-update restart
@@ -372,9 +401,12 @@ export async function postRestartHealthCheck(agentId: string): Promise<void> {
       newVersion: config.version,
     });
 
-    // Clean up old dist
+    // Clean up old dist + rollback marker
     try {
       if (existsSync(rollbackDist)) rmSync(rollbackDist, { recursive: true });
+    } catch { /* ok */ }
+    try {
+      if (existsSync(rollbackInfoPath)) unlinkSync(rollbackInfoPath);
     } catch { /* ok */ }
 
     try {
@@ -399,6 +431,10 @@ export async function postRestartHealthCheck(agentId: string): Promise<void> {
         if (existsSync(failedDir)) rmSync(failedDir, { recursive: true });
         renameSync(distDir, failedDir);
         renameSync(rollbackDist, distDir);
+
+        try {
+          if (existsSync(rollbackInfoPath)) unlinkSync(rollbackInfoPath);
+        } catch { /* ok */ }
 
         try {
           await api.reportUpdateStatus({
