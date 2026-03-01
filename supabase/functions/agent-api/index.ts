@@ -139,6 +139,8 @@ interface DerivedMetadata {
 async function deriveMetadataFromPath(
   relativePath: string,
   db: ReturnType<typeof serviceClient>,
+  licensorMap?: Map<string, string>,
+  propertyMap?: Map<string, string>,
 ): Promise<DerivedMetadata> {
   const pathParts = relativePath.split("/");
   const normalizedParts = pathParts.map((p) => p.trim().toLowerCase());
@@ -207,27 +209,35 @@ async function deriveMetadataFromPath(
     }
   }
 
-  // Look up licensor_id and property_id from DB
+  // Look up licensor_id and property_id (use in-memory maps if provided, else DB)
   let licensor_id: string | null = null;
   let property_id: string | null = null;
 
   if (licensor_name) {
-    const { data: lic } = await db
-      .from("licensors")
-      .select("id")
-      .ilike("name", licensor_name)
-      .maybeSingle();
-    licensor_id = lic?.id || null;
+    if (licensorMap) {
+      licensor_id = licensorMap.get(licensor_name.toLowerCase()) ?? null;
+    } else {
+      const { data: lic } = await db
+        .from("licensors")
+        .select("id")
+        .ilike("name", licensor_name)
+        .maybeSingle();
+      licensor_id = lic?.id || null;
+    }
   }
 
   if (licensor_id && property_name) {
-    const { data: prop } = await db
-      .from("properties")
-      .select("id")
-      .eq("licensor_id", licensor_id)
-      .ilike("name", property_name)
-      .maybeSingle();
-    property_id = prop?.id || null;
+    if (propertyMap) {
+      property_id = propertyMap.get(`${licensor_id}:${property_name.toLowerCase()}`) ?? null;
+    } else {
+      const { data: prop } = await db
+        .from("properties")
+        .select("id")
+        .eq("licensor_id", licensor_id)
+        .ilike("name", property_name)
+        .maybeSingle();
+      property_id = prop?.id || null;
+    }
   }
 
   return {
@@ -576,8 +586,8 @@ async function handleHeartbeat(
     .select("*", { count: "exact", head: true })
     .in("status", ["pending", "claimed", "processing"]);
 
-  // ── Response ──
-  return json({
+  // ── Build response ──
+  const responsePayload = {
     ok: true,
     config: {
       do_spaces: {
@@ -627,9 +637,9 @@ async function handleHeartbeat(
       apply_update: applyUpdate,
       trigger_update: newMetadata.trigger_update === true,
     },
-  });
+  };
 
-  // Clear trigger_update flag after delivering
+  // Clear trigger_update flag BEFORE returning (so it only fires once)
   if (newMetadata.trigger_update === true) {
     const cleanMeta = { ...newMetadata, trigger_update: false };
     delete cleanMeta.update_requested_by;
@@ -639,9 +649,9 @@ async function handleHeartbeat(
       .update({ metadata: cleanMeta })
       .eq("id", agentId);
   }
-}
 
-// ── Style group assignment helper ────────────────────────────────────
+  return json(responsePayload);
+}
 
 // ── Style group assignment helper ────────────────────────────────────
 
@@ -1413,44 +1423,6 @@ async function handleTriggerScan(_body: Record<string, unknown>) {
   });
 }
 
-// ── Route: check-scan-request ───────────────────────────────────────
-
-async function handleCheckScanRequest(
-  _body: Record<string, unknown>,
-  agentId: string,
-) {
-  const db = serviceClient();
-  const { data: agent } = await db
-    .from("agent_registrations")
-    .select("metadata")
-    .eq("id", agentId)
-    .single();
-
-  if (!agent) return err("Agent not found", 404);
-
-  const metadata = (agent.metadata as Record<string, unknown>) || {};
-  const scanRequested = metadata.scan_requested === true;
-  const scanAbort = metadata.scan_abort === true;
-
-  if (scanRequested || scanAbort) {
-    await db
-      .from("agent_registrations")
-      .update({
-        metadata: {
-          ...metadata,
-          scan_requested: false,
-          scan_abort: false,
-        },
-      })
-      .eq("id", agentId);
-  }
-
-  return json({
-    ok: true,
-    scan_requested: scanRequested,
-    scan_abort: scanAbort,
-  });
-}
 
 // ── Route: claim ────────────────────────────────────────────────────
 
@@ -2204,8 +2176,6 @@ serve(async (req: Request) => {
         return await handleCompleteRender(body);
       case "trigger-scan":
         return await handleTriggerScan(body);
-      case "check-scan-request":
-        return await handleCheckScanRequest(body, agentId);
       case "claim":
         return await handleClaim(body);
       case "complete":
