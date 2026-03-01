@@ -1895,10 +1895,26 @@ async function handleReportTiffScan(body: Record<string, unknown>) {
   const files = body.files as Array<Record<string, unknown>>;
   const sessionId = optionalString(body, "session_id");
   const done = body.done === true;
+  const scanError = optionalString(body, "error");
+  const scanStatus = optionalString(body, "status");
 
   if (!Array.isArray(files)) return err("files must be an array");
 
   const db = serviceClient();
+
+  // If agent is just reporting status (claimed / error), update config
+  if (scanStatus === "claimed" && sessionId) {
+    await db.from("admin_config").upsert({
+      key: "TIFF_SCAN_REQUEST",
+      value: {
+        status: "claimed",
+        request_id: sessionId,
+        claimed_at: new Date().toISOString(),
+      },
+      updated_at: new Date().toISOString(),
+    });
+    return json({ ok: true, status: "claimed" });
+  }
 
   // Upsert files in batches
   const CHUNK = 200;
@@ -1925,15 +1941,16 @@ async function handleReportTiffScan(body: Record<string, unknown>) {
     }
   }
 
-  // If done, mark scan request as completed
+  // If done, mark scan request as completed (or failed)
   if (done && sessionId) {
     await db.from("admin_config").upsert({
       key: "TIFF_SCAN_REQUEST",
       value: {
-        status: "completed",
+        status: scanError ? "error" : "completed",
         request_id: sessionId,
         completed_at: new Date().toISOString(),
         total_files: inserted,
+        ...(scanError ? { error: scanError } : {}),
       },
       updated_at: new Date().toISOString(),
     });
