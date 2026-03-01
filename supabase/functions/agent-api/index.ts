@@ -1375,16 +1375,20 @@ async function handleCompleteRender(body: Record<string, unknown>) {
     if (asset?.style_group_id) {
       const { data: groupAssets } = await db
         .from("assets")
-        .select("id, filename, file_type, created_at, thumbnail_url, thumbnail_error")
+        .select("id, filename, file_type, asset_type, created_at, thumbnail_url, thumbnail_error")
         .eq("style_group_id", asset.style_group_id)
         .eq("is_deleted", false);
 
       if (groupAssets && groupAssets.length > 0) {
         const primaryId = selectPrimaryAsset(groupAssets);
         if (primaryId) {
+          const primaryAsset = groupAssets.find((ga) => ga.id === primaryId);
           await db
             .from("style_groups")
-            .update({ primary_asset_id: primaryId })
+            .update({
+              primary_asset_id: primaryId,
+              primary_asset_type: primaryAsset?.asset_type ?? null,
+            })
             .eq("id", asset.style_group_id);
         }
       }
@@ -1645,7 +1649,9 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   const changed: string[] = [];
   // Files that are unchanged but have retryable thumbnail failures
   const needsThumbnail: string[] = [];
-  const PERMANENT_THUMB_ERRORS = ["no_pdf_compat", "no_preview_or_render_failed"];
+  // Files that are unchanged and require Windows render retry
+  const needsRender: string[] = [];
+  const PERMANENT_THUMB_ERRORS = ["no_preview_or_render_failed"];
 
   for (const file of files) {
     const f = file as Record<string, unknown>;
@@ -1670,6 +1676,32 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     ) {
       // Unchanged file but has a retryable thumbnail failure — retry it
       needsThumbnail.push(rp);
+    } else if (
+      !existing.thumbnail_url &&
+      existing.thumbnail_error === "no_pdf_compat"
+    ) {
+      needsRender.push(rp);
+    }
+  }
+
+  if (needsRender.length > 0) {
+    const { data: renderAssets } = await db
+      .from("assets")
+      .select("id")
+      .in("relative_path", needsRender)
+      .eq("is_deleted", false);
+
+    for (const asset of renderAssets ?? []) {
+      const { data: existing } = await db
+        .from("render_queue")
+        .select("id")
+        .eq("asset_id", asset.id)
+        .in("status", ["pending", "claimed"])
+        .maybeSingle();
+
+      if (!existing) {
+        await db.from("render_queue").insert({ asset_id: asset.id, status: "pending" });
+      }
     }
   }
 

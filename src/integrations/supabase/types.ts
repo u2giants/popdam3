@@ -725,6 +725,7 @@ export type Database = {
           mg03_code: string | null
           mg03_name: string | null
           primary_asset_id: string | null
+          primary_asset_type: string | null
           product_category: string | null
           property_code: string | null
           property_id: string | null
@@ -754,6 +755,7 @@ export type Database = {
           mg03_code?: string | null
           mg03_name?: string | null
           primary_asset_id?: string | null
+          primary_asset_type?: string | null
           product_category?: string | null
           property_code?: string | null
           property_id?: string | null
@@ -785,6 +787,7 @@ export type Database = {
           mg03_code?: string | null
           mg03_name?: string | null
           primary_asset_id?: string | null
+          primary_asset_type?: string | null
           product_category?: string | null
           property_code?: string | null
           property_id?: string | null

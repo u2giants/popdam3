@@ -39,7 +39,9 @@ export function usePersistentOperation(operationKey: string) {
       try {
         const data = await call("get-config", { keys: [CONFIG_KEY] });
         if (!mounted) return;
-        const ops = data?.config?.[CONFIG_KEY]?.value as Record<string, OperationState> | undefined;
+        const ops = (
+          data?.config?.[CONFIG_KEY]?.value ?? data?.config?.[CONFIG_KEY]
+        ) as Record<string, OperationState> | undefined;
         const saved = ops?.[operationKey];
         if (!saved || saved.status === "idle" || saved.status === "completed" || saved.status === "failed") {
           setState(saved ?? { status: "idle" });
@@ -78,7 +80,7 @@ export function usePersistentOperation(operationKey: string) {
     try {
       // Read current BULK_OPERATIONS, merge our key, write back
       const data = await call("get-config", { keys: [CONFIG_KEY] });
-      const existing = (data?.config?.[CONFIG_KEY]?.value as Record<string, unknown>) ?? {};
+      const existing = ((data?.config?.[CONFIG_KEY]?.value ?? data?.config?.[CONFIG_KEY]) as Record<string, unknown>) ?? {};
       await call("set-config", {
         entries: { [CONFIG_KEY]: { ...existing, [operationKey]: opState } },
       });

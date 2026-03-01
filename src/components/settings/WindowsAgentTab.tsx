@@ -279,7 +279,7 @@ function WindowsAgentDownload() {
     queryFn: () => call("get-config", { keys: ["WINDOWS_LATEST_BUILD"] }),
   });
 
-  const val = buildData?.config?.WINDOWS_LATEST_BUILD as Record<string, string> | undefined;
+  const val = (buildData?.config?.WINDOWS_LATEST_BUILD?.value ?? buildData?.config?.WINDOWS_LATEST_BUILD) as Record<string, string> | undefined;
   const installerUrl = val?.installer_url || "https://github.com/u2giants/popdam3/releases/latest/download/popdam-windows-agent-setup.exe";
   const version = val?.version;
   const publishedAt = val?.published_at;
@@ -365,8 +365,9 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
   });
 
   const getConfigVal = (key: string): string => {
-    const entry = configData?.config?.[key];
-    return typeof entry === "string" ? entry : "";
+    const entry = configData?.config?.[key] as { value?: unknown } | string | undefined;
+    const val = typeof entry === "object" && entry !== null && "value" in entry ? entry.value : entry;
+    return typeof val === "string" ? val : "";
   };
 
   const [nasHost, setNasHost] = useState("");
@@ -942,7 +943,9 @@ function RenderPolicyEditor() {
   });
 
   const savedPolicy: RenderPolicy = (() => {
-    const entry = configData?.config?.WINDOWS_RENDER_POLICY as RenderPolicy | null;
+    const entry = (
+      configData?.config?.WINDOWS_RENDER_POLICY?.value ?? configData?.config?.WINDOWS_RENDER_POLICY
+    ) as RenderPolicy | null;
     return entry && typeof entry === "object" ? { ...DEFAULT_POLICY, ...entry } : DEFAULT_POLICY;
   })();
 

@@ -50,7 +50,7 @@ function TaxonomySourceEditor() {
     queryKey: ["taxonomy-sync-config"],
     queryFn: async () => {
       const result = await call("get-config", { keys: ["TAXONOMY_SYNC_CONFIG"] });
-      const raw = result?.config?.TAXONOMY_SYNC_CONFIG?.value;
+      const raw = result?.config?.TAXONOMY_SYNC_CONFIG?.value ?? result?.config?.TAXONOMY_SYNC_CONFIG;
       return Array.isArray(raw) ? (raw as SyncSource[]) : DEFAULT_SOURCES;
     },
     staleTime: 30_000,
@@ -438,7 +438,7 @@ function AiTaggingInstructionsSection() {
     queryKey: ["tagging-instructions"],
     queryFn: async () => {
       const result = await call("get-config", { keys: ["TAGGING_INSTRUCTIONS"] });
-      const raw = result?.config?.TAGGING_INSTRUCTIONS?.value;
+      const raw = result?.config?.TAGGING_INSTRUCTIONS?.value ?? result?.config?.TAGGING_INSTRUCTIONS;
       return typeof raw === "string" ? raw : "";
     },
     staleTime: 5 * 60 * 1000,

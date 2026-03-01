@@ -129,14 +129,25 @@ Hard constraints:
 - `completed_at timestamptz NULL`
 - `error_message text NULL`
 
-### 2.10 agent_registrations
+### 2.10 style_groups
+- `id uuid PK`
+- `sku text NOT NULL`
+- `folder_path text NOT NULL`
+- `primary_asset_id uuid FK NULL`
+- `primary_asset_type text NULL` (mirrors selected primary asset `asset_type` for direct filtering)
+- `asset_count int DEFAULT 0`
+- `latest_file_date timestamptz NULL`
+- `workflow_status workflow_status DEFAULT 'other'`
+- licensing + taxonomy summary fields (licensor/property/category/division/MG/size)
+
+### 2.11 agent_registrations
 - `id uuid PK`
 - `agent_name text NOT NULL`
 - `agent_key_hash text UNIQUE NOT NULL`
 - `last_heartbeat timestamptz`
 - `metadata jsonb NOT NULL DEFAULT '{}'`
 
-### 2.11 profiles / user_roles / invitations
+### 2.12 profiles / user_roles / invitations
 Invitation-only access model:
 - profiles: `user_id uuid UNIQUE`, `email text`, `full_name text`, timestamps
 - user_roles: `user_id uuid`, `role text`, `UNIQUE(user_id, role)`

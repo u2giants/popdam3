@@ -38,8 +38,8 @@ export function useScanProgress(): ScanProgress {
         const data = await call("get-config", { keys: ["SCAN_PROGRESS", "SCAN_REQUEST"] });
         if (!mounted) return;
 
-        const raw = data?.config?.SCAN_PROGRESS?.value;
-        const rawRequest = data?.config?.SCAN_REQUEST?.value;
+        const raw = data?.config?.SCAN_PROGRESS?.value ?? data?.config?.SCAN_PROGRESS;
+        const rawRequest = data?.config?.SCAN_REQUEST?.value ?? data?.config?.SCAN_REQUEST;
 
         if (raw && typeof raw === "object") {
           const sp = raw as Record<string, unknown>;

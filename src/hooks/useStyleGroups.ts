@@ -106,9 +106,9 @@ export function useStyleGroups(
         }
       }
 
-      // Asset type (Image Type) filter — filter via joined primary_asset
+      // Asset type (Image Type) filter — use computed style_groups.primary_asset_type
       if (filters.assetType.length > 0) {
-        query = query.in("primary_asset.asset_type", filters.assetType);
+        query = query.in("primary_asset_type", filters.assetType);
       }
 
       // Sort
