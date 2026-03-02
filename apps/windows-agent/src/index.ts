@@ -367,7 +367,7 @@ async function main() {
     rendering: "Sharp + Ghostscript (no Illustrator)",
   });
 
-  // 1. Pair if no agent key
+  // 1. Pair if no agent key — retry with exponential backoff
   if (!config.agentKey) {
     if (!config.pairingCode) {
       logger.error(
@@ -377,20 +377,52 @@ async function main() {
       );
       process.exit(1);
     }
-    try {
-      await doPairing();
-    } catch (e) {
-      const msg = (e as Error).message;
-      if (msg.includes("Invalid or expired")) {
-        logger.error(
-          "Pairing code is invalid or expired.\n" +
-          "Generate a new pairing code from PopDAM Settings → Agents\n" +
-          "and update POPDAM_PAIRING_CODE in your .env."
-        );
-      } else {
-        logger.error("Pairing failed — exiting", { error: msg });
+
+    const MAX_PAIRING_RETRIES = 5;
+    const BASE_DELAY_MS = 3_000; // 3s, 6s, 12s, 24s, 48s
+
+    for (let attempt = 1; attempt <= MAX_PAIRING_RETRIES; attempt++) {
+      try {
+        logger.info(`Pairing attempt ${attempt}/${MAX_PAIRING_RETRIES}`);
+        await doPairing();
+        break; // success
+      } catch (e) {
+        const msg = (e as Error).message;
+        const stack = (e as Error).stack;
+
+        if (msg.includes("Invalid or expired")) {
+          logger.error(
+            "Pairing code is invalid or expired.\n" +
+            "Generate a new pairing code from PopDAM Settings → Agents\n" +
+            "and update POPDAM_PAIRING_CODE in your .env.",
+            { error: msg }
+          );
+          process.exit(1); // No point retrying an invalid code
+        }
+
+        logger.error(`Pairing attempt ${attempt} failed`, {
+          error: msg,
+          stack,
+          attempt,
+          maxRetries: MAX_PAIRING_RETRIES,
+        });
+
+        if (attempt === MAX_PAIRING_RETRIES) {
+          logger.error(
+            `Pairing failed after ${MAX_PAIRING_RETRIES} attempts — exiting.\n` +
+            "Check the error details above. Common causes:\n" +
+            "  - SUPABASE_URL is incorrect or unreachable\n" +
+            "  - The edge function is not deployed\n" +
+            "  - The pairing code has expired (15 min lifetime)\n" +
+            "  - Network/firewall blocking outbound HTTPS"
+          );
+          process.exit(1);
+        }
+
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        logger.info(`Retrying pairing in ${delay / 1000}s...`);
+        await new Promise((r) => setTimeout(r, delay));
       }
-      process.exit(1);
     }
   }
 
