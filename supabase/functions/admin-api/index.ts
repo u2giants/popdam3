@@ -2109,27 +2109,86 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
   }
 
-  // Stage 4: finalize stats using optimized aggregate update
+  // Stage 4: finalize stats — two-phase: counts first, then primary assets in batches
   if (state.stage === "finalize_stats") {
     try {
-      const { error: refreshErr } = await withRetry(async () => {
-        const res = await db.rpc("refresh_style_group_stats");
-        if (res.error) throw new Error(formatPostgrestError(res.error));
-        return res;
-      });
+      const PRIMARIES_BATCH = 200;
+      const subStage = state.finalize_sub ?? "counts";
 
-      if (refreshErr) return err(refreshErr.message, 500);
+      if (subStage === "counts") {
+        // Phase A: aggregate counts + latest_file_date (no LATERAL, fast)
+        const { error: countErr } = await withRetry(async () => {
+          const res = await db.rpc("refresh_style_group_counts");
+          if (res.error) throw new Error(formatPostgrestError(res.error));
+          return res;
+        });
+        if (countErr) return err(countErr.message, 500);
 
-      await clearState();
-      return json({
-        ok: true,
-        stage: "finalize_stats",
-        total_processed: state.total_processed ?? 0,
-        total_assets: state.total_assets ?? 0,
-        done: true,
-        nextOffset: offset + 1,
-        resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
-      });
+        // Move to primaries sub-stage
+        state.finalize_sub = "primaries";
+        state.finalize_cursor = 0;
+        await saveState(state);
+
+        return json({
+          ok: true,
+          stage: "finalize_stats",
+          sub: "counts_done",
+          total_processed: state.total_processed ?? 0,
+          total_assets: state.total_assets ?? 0,
+          done: false,
+          nextOffset: offset + 1,
+        });
+      }
+
+      if (subStage === "primaries") {
+        // Phase B: update primary_asset_id in batches of group IDs
+        const primariesOffset = state.finalize_cursor ?? 0;
+        const { data: groupIds, error: fetchErr } = await db
+          .from("style_groups")
+          .select("id")
+          .order("id")
+          .range(primariesOffset, primariesOffset + PRIMARIES_BATCH - 1);
+
+        if (fetchErr) return err(formatPostgrestError(fetchErr), 500);
+
+        if (!groupIds || groupIds.length === 0) {
+          // All done — clear state
+          await clearState();
+          return json({
+            ok: true,
+            stage: "finalize_stats",
+            sub: "complete",
+            total_processed: state.total_processed ?? 0,
+            total_assets: state.total_assets ?? 0,
+            done: true,
+            nextOffset: offset + 1,
+          });
+        }
+
+        const ids = groupIds.map((g: { id: string }) => g.id);
+        const { error: primErr } = await withRetry(async () => {
+          const res = await db.rpc("refresh_style_group_primaries", { p_group_ids: ids });
+          if (res.error) throw new Error(formatPostgrestError(res.error));
+          return res;
+        });
+        if (primErr) return err(primErr.message, 500);
+
+        state.finalize_cursor = primariesOffset + groupIds.length;
+        await saveState(state);
+
+        return json({
+          ok: true,
+          stage: "finalize_stats",
+          sub: "primaries",
+          primaries_processed: state.finalize_cursor,
+          total_processed: state.total_processed ?? 0,
+          total_assets: state.total_assets ?? 0,
+          done: false,
+          nextOffset: offset + 1,
+        });
+      }
+
+      return err("Unknown finalize sub-stage", 500);
     } catch (e) {
       const msg = (e as Error).message || "Unknown error in rebuild stage 4";
       console.error("rebuild-style-groups stage 4 error:", msg);

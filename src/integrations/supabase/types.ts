@@ -982,7 +982,11 @@ export type Database = {
         }
         Returns: boolean
       }
-      refresh_style_group_stats: { Args: never; Returns: undefined }
+      refresh_style_group_counts: { Args: never; Returns: undefined }
+      refresh_style_group_primaries: {
+        Args: { p_group_ids: string[] }
+        Returns: number
+      }
       reset_stale_jobs: {
         Args: { p_timeout_minutes?: number }
         Returns: number
