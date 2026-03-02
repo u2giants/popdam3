@@ -63,7 +63,7 @@ export function useStyleGroups(
 
       // Visibility date filter — use latest_file_date (max modified_at of member files)
       const minDate = visibilityDate ?? "2020-01-01";
-      query = query.gte("latest_file_date", minDate);
+      query = query.or(`latest_file_date.gte.${minDate},latest_file_date.is.null`);
 
       // Filters
       if (filters.search) {
@@ -121,6 +121,8 @@ export function useStyleGroups(
 
       const groups: StyleGroup[] = (data ?? []).map((row: any) => ({
         ...row,
+        asset_count: row.asset_count ?? 0,
+        workflow_status: row.workflow_status ?? "other",
         thumbnail_url: row.primary_asset?.thumbnail_url ?? null,
         primary_asset: undefined,
       }));
@@ -145,7 +147,7 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
         .select("*", { count: "exact", head: true });
 
       const minDate = visibilityDate ?? "2020-01-01";
-      query = query.gte("latest_file_date", minDate);
+      query = query.or(`latest_file_date.gte.${minDate},latest_file_date.is.null`);
 
       if (filters.search) {
         query = query.or(
