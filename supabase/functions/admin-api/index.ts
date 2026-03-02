@@ -119,6 +119,25 @@ async function withRetry<T>(
   throw new Error("withRetry: unreachable");
 }
 
+function formatPostgrestError(error: unknown): string {
+  if (!error) return "Unknown database error";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  const e = error as Record<string, unknown>;
+  const message = typeof e.message === "string" ? e.message : "Database error";
+  const details = typeof e.details === "string" ? e.details : "";
+  const hint = typeof e.hint === "string" ? e.hint : "";
+  const code = typeof e.code === "string" ? e.code : "";
+
+  return [
+    code ? `[${code}]` : "",
+    message,
+    details ? `details: ${details}` : "",
+    hint ? `hint: ${hint}` : "",
+  ].filter(Boolean).join(" | ");
+}
+
 // ── Route: get-config ───────────────────────────────────────────────
 
 async function handleGetConfig(body: Record<string, unknown>) {
@@ -1709,8 +1728,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   const db = serviceClient();
 
   const STATE_KEY = "REBUILD_STYLE_GROUPS_STATE";
-  const CLEAR_BATCH = 2000;
-  const GROUP_DELETE_BATCH = 1000;
+  const CLEAR_BATCH = 250;
+  const GROUP_DELETE_BATCH = 250;
   const REBUILD_BATCH = 100;
 
   type RebuildState = {
@@ -1778,15 +1797,18 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
 
     const { data: rows, error: fetchErr } = await q;
-    if (fetchErr) return err(fetchErr.message, 500);
+    if (fetchErr) return err(formatPostgrestError(fetchErr), 500);
 
     const ids = (rows ?? []).map((r) => r.id as string);
     if (ids.length > 0) {
-      const { error: clearErr } = await db
-        .from("assets")
-        .update({ style_group_id: null })
-        .in("id", ids);
-      if (clearErr) return err(clearErr.message, 500);
+      const CHUNK = 100;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        const { error: clearErr } = await withRetry(() =>
+          db.from("assets").update({ style_group_id: null }).in("id", chunk)
+        );
+        if (clearErr) return err(formatPostgrestError(clearErr), 500);
+      }
     }
 
     const reachedEnd = ids.length < CLEAR_BATCH;
@@ -1825,15 +1847,18 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
 
     const { data: rows, error: fetchErr } = await q;
-    if (fetchErr) return err(fetchErr.message, 500);
+    if (fetchErr) return err(formatPostgrestError(fetchErr), 500);
 
     const ids = (rows ?? []).map((r) => r.id as string);
     if (ids.length > 0) {
-      const { error: delErr } = await db
-        .from("style_groups")
-        .delete()
-        .in("id", ids);
-      if (delErr) return err(delErr.message, 500);
+      const CHUNK = 100;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        const { error: delErr } = await withRetry(() =>
+          db.from("style_groups").delete().in("id", chunk)
+        );
+        if (delErr) return err(formatPostgrestError(delErr), 500);
+      }
     }
 
     const reachedEnd = ids.length < GROUP_DELETE_BATCH;
@@ -1874,7 +1899,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         .order("id")
         .range(rebuildOffset, rebuildOffset + REBUILD_BATCH - 1)
         .then((r) => {
-          if (r.error) throw new Error(r.error.message);
+          if (r.error) throw new Error(formatPostgrestError(r.error));
           return r;
         })
     );
@@ -1951,7 +1976,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           .select("id")
           .single()
           .then((r) => {
-            if (r.error) throw new Error(r.error.message);
+            if (r.error) throw new Error(formatPostgrestError(r.error));
             return r;
           })
       );
@@ -1964,7 +1989,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       await withRetry(() =>
         db.from("assets").update({ style_group_id: group.id }).in("id", memberIds)
           .then((r) => {
-            if (r.error) throw new Error(r.error.message);
+            if (r.error) throw new Error(formatPostgrestError(r.error));
             return r;
           })
       );
@@ -1980,7 +2005,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           .in("style_group_id", touchedGroupIds)
           .eq("is_deleted", false)
           .then((r) => {
-            if (r.error) throw new Error(r.error.message);
+            if (r.error) throw new Error(formatPostgrestError(r.error));
             return r;
           })
       );
@@ -2023,7 +2048,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
               updated_at: new Date().toISOString(),
             }).eq("id", gid)
               .then((r) => {
-                if (r.error) throw new Error(r.error.message);
+                if (r.error) throw new Error(formatPostgrestError(r.error));
                 return r;
               })
           );
