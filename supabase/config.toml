@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.sync-external]
 verify_jwt = false
+
+[functions.bulk-job-runner]
+verify_jwt = false
