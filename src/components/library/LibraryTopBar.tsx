@@ -1,4 +1,5 @@
 import { Search, LayoutGrid, List, SlidersHorizontal, RefreshCw, Square, RotateCcw, Layers, File, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -206,9 +207,18 @@ export default function LibraryTopBar({
         </Badge>
       )}
       {scanRunning && (
-        <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={onStopScan} title="Stop scan">
-          <Square className="h-4 w-4" />
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={onStopScan}>
+                <Square className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[220px] text-center">
+              Signals the agent to stop after the current directory. Already-discovered assets are kept.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
 
       {/* Counts */}
