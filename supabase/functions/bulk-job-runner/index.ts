@@ -68,6 +68,8 @@ function buildProgress(
       return {
         groups: ((prev.groups as number) || 0) + ((batch.groups_created as number) || 0),
         assigned: ((prev.assigned as number) || 0) + ((batch.assets_assigned as number) || 0),
+        total_processed: Math.max((prev.total_processed as number) || 0, (batch.total_processed as number) || 0),
+        total_assets: Math.max((prev.total_assets as number) || 0, (batch.total_assets as number) || 0),
       };
     case "ai-tag-untagged":
     case "ai-tag-all":
@@ -90,7 +92,7 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
     case "backfill-sku-names":
       return `Backfilled ${progress.assets_updated} assets, ${progress.groups_updated} groups`;
     case "rebuild-style-groups":
-      return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets`;
+      return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets, processed ${progress.total_processed || 0}/${progress.total_assets || 0}`;
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":

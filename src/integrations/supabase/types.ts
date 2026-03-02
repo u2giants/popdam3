@@ -919,6 +919,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bulk_assign_style_groups: {
+        Args: { p_assignments: Json }
+        Returns: number
+      }
       claim_jobs: {
         Args: { p_agent_id: string; p_batch_size?: number }
         Returns: {

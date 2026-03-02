@@ -97,23 +97,31 @@ export function usePersistentOperation(operationKey: string) {
       confirmMessage?: string;
       params?: Record<string, unknown>;
       initialProgress?: OperationProgress;
+      forceRestart?: boolean;
     }) => {
       if (state.status === "running") return;
       if (options?.confirmMessage && !confirm(options.confirmMessage)) return;
 
+      const shouldResume =
+        options?.forceRestart !== true &&
+        state.status === "interrupted" &&
+        typeof state.cursor === "number";
+
       const now = new Date().toISOString();
       const running: OperationState = {
         status: "running",
-        cursor: 0,
-        params: options?.params,
-        started_at: now,
+        cursor: shouldResume ? state.cursor : 0,
+        params: shouldResume ? (state.params ?? options?.params) : options?.params,
+        started_at: shouldResume ? (state.started_at ?? now) : now,
         updated_at: now,
-        progress: options?.initialProgress ?? {},
+        progress: shouldResume
+          ? (state.progress ?? options?.initialProgress ?? {})
+          : (options?.initialProgress ?? {}),
       };
       setState(running);
       await persistState(running);
     },
-    [state.status, persistState],
+    [state, persistState],
   );
 
   // ── Stop (mark as interrupted) ──────────────────────────────────
