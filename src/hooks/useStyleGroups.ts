@@ -119,13 +119,16 @@ export function useStyleGroups(
       const { data, error, count } = await query;
       if (error) throw error;
 
-      const groups: StyleGroup[] = (data ?? []).map((row: any) => ({
-        ...row,
-        asset_count: row.asset_count ?? 0,
-        workflow_status: row.workflow_status ?? "other",
-        thumbnail_url: row.primary_asset?.thumbnail_url ?? null,
-        primary_asset: undefined,
-      }));
+      const groups: StyleGroup[] = (data ?? []).map((row: any) => {
+        const primaryThumb = row.primary_asset?.thumbnail_url;
+        return {
+          ...row,
+          asset_count: row.asset_count ?? 0,
+          workflow_status: row.workflow_status ?? "other",
+          thumbnail_url: typeof primaryThumb === "string" && primaryThumb.length > 0 ? primaryThumb : null,
+          primary_asset: undefined,
+        };
+      });
 
       return {
         groups,
