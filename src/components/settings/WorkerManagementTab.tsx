@@ -1436,7 +1436,8 @@ export function LiveScanMonitor() {
             <CounterCell label="Unchanged" value={c.noop_unchanged ?? 0} />
             <CounterCell label="Rejected (subfolder)" value={c.rejected_subfolder ?? 0} />
             <CounterCell label="Errors" value={c.errors} variant="error" />
-            <CounterCell label="Skipped dirs" value={c.dirs_skipped_permission} variant="warning" onClick={c.dirs_skipped_permission > 0 ? () => setShowSkippedDirs(true) : undefined} />
+            <CounterCell label="Skipped dirs (perms)" value={c.dirs_skipped_permission} variant="warning" onClick={c.dirs_skipped_permission > 0 ? () => setShowSkippedDirs(true) : undefined} />
+            <CounterCell label="Skipped dirs (excluded)" value={c.dirs_skipped_excluded ?? 0} />
           </div>
         )}
 

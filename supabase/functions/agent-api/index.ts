@@ -59,6 +59,27 @@ async function authenticateAgent(
   return { agentId: data.id, agentName: data.agent_name };
 }
 
+// ── In-memory config cache (short TTL to reduce DB reads during bulk ingest) ──
+
+interface CachedConfig<T> {
+  value: T;
+  fetchedAt: number;
+}
+
+const CONFIG_CACHE_TTL_MS = 60_000; // 60 seconds
+const configCache = new Map<string, CachedConfig<unknown>>();
+
+async function getCachedConfig<T>(db: ReturnType<typeof serviceClient>, key: string): Promise<T | null> {
+  const cached = configCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < CONFIG_CACHE_TTL_MS) {
+    return cached.value as T;
+  }
+  const { data } = await db.from("admin_config").select("value").eq("key", key).maybeSingle();
+  const val = data?.value ?? null;
+  configCache.set(key, { value: val, fetchedAt: Date.now() });
+  return val as T | null;
+}
+
 // ── Validators (inline to avoid deno.lock issues) ───────────────────
 
 function requireString(obj: Record<string, unknown>, key: string): string {
@@ -153,16 +174,12 @@ async function deriveMetadataFromPath(
   const is_licensed = subFolder === "character licensed";
 
 
-  // Load configurable workflow folder map from admin_config (fallback to defaults)
+  // Load configurable workflow folder map from admin_config (cached)
   let workflowFolderMap = DEFAULT_WORKFLOW_FOLDER_MAP;
   try {
-    const { data: wfConfig } = await db
-      .from("admin_config")
-      .select("value")
-      .eq("key", "WORKFLOW_FOLDER_MAP")
-      .maybeSingle();
-    if (wfConfig?.value && typeof wfConfig.value === "object" && !Array.isArray(wfConfig.value)) {
-      workflowFolderMap = wfConfig.value as Record<string, string>;
+    const wfValue = await getCachedConfig<Record<string, string>>(db, "WORKFLOW_FOLDER_MAP");
+    if (wfValue && typeof wfValue === "object" && !Array.isArray(wfValue)) {
+      workflowFolderMap = wfValue;
     }
   } catch (_) { /* use defaults */ }
 
@@ -774,12 +791,8 @@ async function handleIngest(
   // If not set or empty, allow all files through (no filter)
   const ingestParts = relativePath.split("/");
   const db0 = serviceClient();
-  const { data: subfolderConfig } = await db0
-    .from("admin_config")
-    .select("value")
-    .eq("key", "SCAN_ALLOWED_SUBFOLDERS")
-    .maybeSingle();
-  const allowedSubfolders = Array.isArray(subfolderConfig?.value) ? subfolderConfig.value as string[] : [];
+  const subfolderValue = await getCachedConfig<string[]>(db0, "SCAN_ALLOWED_SUBFOLDERS");
+  const allowedSubfolders = Array.isArray(subfolderValue) ? subfolderValue : [];
   if (allowedSubfolders.length > 0) {
     const ingestDecorIndex = ingestParts.findIndex(
       (p) => p.toLowerCase() === "decor",

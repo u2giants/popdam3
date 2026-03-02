@@ -93,11 +93,13 @@ export async function* scanFiles(
   scanRoots?: string[],
   callbacks?: ScanCallbacks,
   resumeFromDir?: string,
+  mountRoot?: string,
 ): AsyncGenerator<FileCandidate> {
   const roots = scanRoots ?? config.scanRoots;
+  const effectiveMountRoot = mountRoot || config.nasContainerMountRoot;
   for (const root of roots) {
     if (callbacks?.shouldAbort?.()) return;
-    yield* scanDirectory(root, counters, callbacks, root, resumeFromDir);
+    yield* scanDirectory(root, counters, callbacks, root, resumeFromDir, effectiveMountRoot);
   }
 }
 
@@ -107,6 +109,7 @@ async function* scanDirectory(
   callbacks?: ScanCallbacks,
   scanRoot?: string,
   resumeFromDir?: string,
+  mountRoot?: string,
 ): AsyncGenerator<FileCandidate> {
   if (callbacks?.shouldAbort?.()) return;
   let entries;
@@ -145,7 +148,7 @@ async function* scanDirectory(
       const dirName = entry.name;
       if (EXCLUDED_DIR_PATTERNS.some(p => p.test(dirName))) {
         logger.debug("Skipping excluded directory", { dirPath: fullPath });
-        counters.dirs_skipped_permission++;
+        counters.dirs_skipped_excluded++;
         continue;
       }
 
@@ -157,7 +160,7 @@ async function* scanDirectory(
           continue;
         }
       }
-      yield* scanDirectory(fullPath, counters, callbacks, scanRoot, resumeFromDir);
+      yield* scanDirectory(fullPath, counters, callbacks, scanRoot, resumeFromDir, mountRoot);
       continue;
     }
 
@@ -188,7 +191,8 @@ async function* scanDirectory(
       const s = await stat(fullPath);
 
       // Build canonical relative path (POSIX, no leading slash) per PATH_UTILS.md §1
-      let relPath = relative(config.nasContainerMountRoot, fullPath);
+      const effectiveRoot = mountRoot || config.nasContainerMountRoot;
+      let relPath = relative(effectiveRoot, fullPath);
       relPath = relPath.split("\\").join("/"); // Ensure POSIX
       if (relPath.startsWith("/")) relPath = relPath.slice(1);
 
