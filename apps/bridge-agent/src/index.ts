@@ -57,6 +57,7 @@ const counters: api.Counters = {
   roots_invalid: 0,
   roots_unreadable: 0,
   dirs_skipped_permission: 0,
+  dirs_skipped_excluded: 0,
   files_stat_failed: 0,
   files_total_encountered: 0,
   rejected_wrong_type: 0,
@@ -75,6 +76,7 @@ function resetCounters() {
   counters.roots_invalid = 0;
   counters.roots_unreadable = 0;
   counters.dirs_skipped_permission = 0;
+  counters.dirs_skipped_excluded = 0;
   counters.files_stat_failed = 0;
   counters.files_total_encountered = 0;
   counters.rejected_wrong_type = 0;
@@ -412,7 +414,7 @@ async function runScan(providedSessionId?: string) {
       },
     };
 
-    for await (const file of scanFiles(counters, effectiveRoots, callbacks, resumeFromDir)) {
+    for await (const file of scanFiles(counters, effectiveRoots, callbacks, resumeFromDir, cloudMountRoot || config.nasContainerMountRoot)) {
       if (abortRequested) {
         logger.info("Scan aborted by cloud request");
         await api.scanProgress(sessionId, "failed", counters, "Aborted by user", skippedDirs);
@@ -752,13 +754,15 @@ function handleApplyUpdate() {
   logger.info("Self-update requested — pulling and restarting container");
   const tag = imageTag !== "unknown" ? imageTag : "stable";
   const pullImage = `ghcr.io/u2giants/popdam-bridge:${tag}`;
+  const composePath = process.env.POPDAM_COMPOSE_PATH || "/volume1/docker/popdam/docker-compose.yml";
+  logger.info("Using compose path for restart", { composePath });
   const { exec } = require("node:child_process");
   // Fire and forget — container will stop mid-execution
   exec([
     `docker pull ${pullImage}`,
     "docker stop popdam-bridge",
     "docker rm popdam-bridge",
-    "docker compose -f /volume1/docker/popdam/docker-compose.yml up -d",
+    `docker compose -f ${composePath} up -d`,
   ].join(" && "), (err: Error | null) => {
     if (err) {
       logger.error("Self-update exec failed", { error: err.message });

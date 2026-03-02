@@ -72,6 +72,7 @@ export interface Counters {
   roots_invalid: number;
   roots_unreadable: number;
   dirs_skipped_permission: number;
+  dirs_skipped_excluded: number;
   files_stat_failed: number;
   files_total_encountered: number;
   rejected_wrong_type: number;

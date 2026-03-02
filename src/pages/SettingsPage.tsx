@@ -374,7 +374,8 @@ function ScanCounters({ counters }: { counters: Record<string, number> }) {
   const moved = counters.moved_detected ?? 0;
   const unchanged = counters.noop_unchanged ?? 0;
   const errors = counters.errors ?? 0;
-  const dirsSkipped = counters.dirs_skipped_permission ?? 0;
+  const dirsSkippedPerm = counters.dirs_skipped_permission ?? 0;
+  const dirsSkippedExcluded = counters.dirs_skipped_excluded ?? 0;
   const statFailed = counters.files_stat_failed ?? 0;
 
   const hasData = totalEncountered > 0 || supported > 0 || errors > 0;
@@ -418,7 +419,8 @@ function ScanCounters({ counters }: { counters: Record<string, number> }) {
 
       {/* Footer stats */}
       <div className="pt-1 space-y-0.5">
-        <div>Directories skipped (no permission): <span className={dirsSkipped > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}>{fmt(dirsSkipped)}</span></div>
+        <div>Directories skipped (no permission): <span className={dirsSkippedPerm > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}>{fmt(dirsSkippedPerm)}</span></div>
+        <div>Directories skipped (excluded patterns): <span className="text-muted-foreground">{fmt(dirsSkippedExcluded)}</span></div>
         <div>Files failed to stat: <span className={statFailed > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}>{fmt(statFailed)}</span></div>
       </div>
     </div>

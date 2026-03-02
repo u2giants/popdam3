@@ -261,6 +261,25 @@ export default function InstallBundleTab() {
         </p>
       </div>
       <BridgeAgentBundle />
+      <Card className="border-dashed">
+        <CardContent className="py-4">
+          <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>
+              <strong>Windows Render Agent:</strong> Use the NSIS installer from{" "}
+              <a
+                href="https://github.com/u2giants/popdam-bridge/releases"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+              >
+                GitHub Releases
+              </a>
+              . The installer will prompt for a pairing code during setup — generate one from the <strong>Agents</strong> tab.
+            </span>
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

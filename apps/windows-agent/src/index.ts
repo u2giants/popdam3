@@ -131,12 +131,14 @@ async function runHealthCheck() {
 }
 
 function startPreflightRecheck() {
-  setInterval(async () => {
+  const loop = async () => {
     if (!healthStatus.healthy) {
       logger.info("Re-running preflight (currently unhealthy)...");
       await runHealthCheck();
     }
-  }, PREFLIGHT_RECHECK_MS);
+    setTimeout(loop, PREFLIGHT_RECHECK_MS);
+  };
+  setTimeout(loop, PREFLIGHT_RECHECK_MS);
 }
 
 // ── Heartbeat ───────────────────────────────────────────────────
@@ -211,7 +213,8 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
 }
 
 function startHeartbeat() {
-  setInterval(async () => {
+  const HEARTBEAT_MS = 30_000;
+  const loop = async () => {
     try {
       const updateState = getUpdateState();
       const response = await api.heartbeat(agentId, lastError, healthStatus, {
@@ -236,7 +239,9 @@ function startHeartbeat() {
     } catch (e) {
       logger.error("Heartbeat failed", { error: (e as Error).message });
     }
-  }, 30_000);
+    setTimeout(loop, HEARTBEAT_MS);
+  };
+  setTimeout(loop, HEARTBEAT_MS);
   logger.info("Heartbeat started (30s interval)");
 }
 
@@ -310,43 +315,43 @@ async function processJob(job: api.RenderJob): Promise<void> {
 function startPolling() {
   const maxConcurrency = config.renderConcurrency;
 
-  setInterval(async () => {
+  const loop = async () => {
     if (!configReceived) {
       logger.debug("Skipping poll — waiting for cloud config (NAS host + Spaces credentials)");
-      return;
-    }
-
-    if (!healthStatus.healthy) {
+    } else if (!healthStatus.healthy) {
       logger.debug("Skipping poll — agent is unhealthy", {
         nasHealthy: healthStatus.nasHealthy,
       });
-      return;
-    }
+    } else {
+      // Fill all available slots
+      while (activeJobs < maxConcurrency) {
+        try {
+          const job = await api.claimRender(agentId);
+          if (!job) {
+            if (activeJobs === 0) logger.debug("No render jobs available");
+            break;
+          }
+          if (!job.relative_path) {
+            logger.error("Claimed job missing relative_path", { jobId: job.job_id });
+            await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
+            continue;
+          }
 
-    // Fill all available slots
-    while (activeJobs < maxConcurrency) {
-      try {
-        const job = await api.claimRender(agentId);
-        if (!job) {
-          if (activeJobs === 0) logger.debug("No render jobs available");
+          activeJobs++;
+          processJob(job)
+            .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
+            .finally(() => { activeJobs--; });
+        } catch (e) {
+          logger.error("Polling error", { error: (e as Error).message });
           break;
         }
-        if (!job.relative_path) {
-          logger.error("Claimed job missing relative_path", { jobId: job.job_id });
-          await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
-          continue;
-        }
-
-        activeJobs++;
-        processJob(job)
-          .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
-          .finally(() => { activeJobs--; });
-      } catch (e) {
-        logger.error("Polling error", { error: (e as Error).message });
-        break;
       }
     }
-  }, config.pollIntervalMs);
+
+    setTimeout(loop, config.pollIntervalMs);
+  };
+
+  setTimeout(loop, config.pollIntervalMs);
 
   logger.info("Polling started", {
     intervalMs: config.pollIntervalMs,

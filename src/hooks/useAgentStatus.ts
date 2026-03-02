@@ -13,6 +13,7 @@ export interface ScanCounters {
   roots_invalid: number;
   roots_unreadable: number;
   dirs_skipped_permission: number;
+  dirs_skipped_excluded?: number;
   files_stat_failed: number;
   files_total_encountered?: number;
   rejected_wrong_type?: number;
@@ -55,6 +56,7 @@ const emptyCounters: ScanCounters = {
   files_checked: 0, candidates_found: 0, ingested_new: 0,
   moved_detected: 0, updated_existing: 0, errors: 0,
   roots_invalid: 0, roots_unreadable: 0, dirs_skipped_permission: 0,
+  dirs_skipped_excluded: 0,
   files_stat_failed: 0, files_total_encountered: 0,
   rejected_wrong_type: 0, rejected_junk_file: 0, noop_unchanged: 0,
   rejected_subfolder: 0,
@@ -73,6 +75,7 @@ function parseCounters(raw: unknown): ScanCounters | null {
     roots_invalid: Number(r.roots_invalid ?? 0),
     roots_unreadable: Number(r.roots_unreadable ?? 0),
     dirs_skipped_permission: Number(r.dirs_skipped_permission ?? 0),
+    dirs_skipped_excluded: Number(r.dirs_skipped_excluded ?? 0),
     files_stat_failed: Number(r.files_stat_failed ?? 0),
     files_total_encountered: Number(r.files_total_encountered ?? 0),
     rejected_wrong_type: Number(r.rejected_wrong_type ?? 0),

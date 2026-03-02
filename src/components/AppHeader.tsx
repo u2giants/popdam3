@@ -110,6 +110,12 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
               <span className="font-mono text-warning">{c.dirs_skipped_permission}</span>
             </div>
           )}
+          {(c.dirs_skipped_excluded ?? 0) > 0 && (
+            <div className="flex justify-between col-span-2">
+              <span className="text-muted-foreground">Dirs skipped (excluded)</span>
+              <span className="font-mono">{c.dirs_skipped_excluded}</span>
+            </div>
+          )}
         </div>
       )}
 
