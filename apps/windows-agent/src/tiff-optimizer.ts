@@ -15,6 +15,9 @@
 import sharp from "sharp";
 import path from "node:path";
 import { stat, rename, unlink, utimes, readdir, lstat } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
 import { logger } from "./logger";
 
 export interface TiffScanResult {
@@ -46,6 +49,32 @@ const EXCLUDED_DIR_PATTERNS = [
   /^@eaDir$/,    // Synology metadata
 ];
 
+const execFileAsync = promisify(execFile);
+
+function findImageMagick(): string | null {
+  if (process.env.IM_PATH) return process.env.IM_PATH;
+
+  const candidates = [
+    "C:\\Program Files\\ImageMagick-7.1.2-Q16-HDRI\\magick.exe",
+    "C:\\Program Files\\ImageMagick-7.1.1-Q16-HDRI\\magick.exe",
+    "C:\\Program Files\\ImageMagick-7.1.0-Q16-HDRI\\magick.exe",
+    "C:\\Program Files\\ImageMagick-7.1.0-Q16\\magick.exe",
+  ];
+
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+
+  try {
+    execFileSync("magick", ["--version"], { timeout: 5000 });
+    return "magick";
+  } catch {
+    return null;
+  }
+}
+
+const IM_EXE = findImageMagick();
+
 // ── Compression type detection ──────────────────────────────────
 
 /**
@@ -61,14 +90,33 @@ function normalizeCompression(raw: string | undefined): string {
   return lower; // lzw, packbits, jpeg, etc.
 }
 
+async function detectCompressionViaImageMagick(filePath: string): Promise<string | null> {
+  if (!IM_EXE) return null;
+  try {
+    const { stdout } = await execFileAsync(IM_EXE, ["identify", "-format", "%[compression]", filePath], {
+      timeout: 15000,
+    });
+    const compression = normalizeCompression((stdout ?? "").toString().trim());
+    return compression === "unknown" ? null : compression;
+  } catch (e) {
+    logger.debug("ImageMagick TIFF compression read failed", { filePath, error: (e as Error).message });
+    return null;
+  }
+}
+
 export async function detectTiffCompression(filePath: string): Promise<string> {
   try {
     const meta = await sharp(filePath).metadata();
-    return normalizeCompression(meta.compression);
+    const sharpCompression = normalizeCompression(meta.compression);
+    if (sharpCompression !== "unknown") return sharpCompression;
   } catch (e) {
-    logger.warn("Failed to read TIFF metadata", { filePath, error: (e as Error).message });
-    return "unknown";
+    logger.warn("Failed to read TIFF metadata with Sharp", { filePath, error: (e as Error).message });
   }
+
+  const imCompression = await detectCompressionViaImageMagick(filePath);
+  if (imCompression) return imCompression;
+
+  return "unknown";
 }
 
 // ── Filesystem scanner for TIFFs ────────────────────────────────

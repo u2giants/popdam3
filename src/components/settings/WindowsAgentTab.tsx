@@ -640,6 +640,45 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
 
 type StatusFilter = "all" | "pending" | "completed" | "failed";
 
+function getRenderStatusTooltip(job: Record<string, unknown>): string {
+  const status = String(job.status ?? "unknown");
+  const rawError = String(job.error_message ?? "").trim();
+
+  if (status === "pending" || status === "claimed") {
+    return "Not finished yet — this job is still queued or currently being processed.";
+  }
+
+  if (status === "completed") {
+    return "Render succeeded. Current logs do not persist which fallback app produced the final thumbnail.";
+  }
+
+  if (status === "failed") {
+    if (!rawError) return "Render failed with no detailed pipeline message.";
+    const details = rawError.replace(/^render_failed:\s*/i, "");
+    const failedMethods = details
+      .split("|")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => part.split(":")[0]?.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (failedMethods.length === 0) return `Render failed: ${details}`;
+
+    const pretty = failedMethods.map((m) => {
+      if (m === "sharp") return "Sharp";
+      if (m === "ghostscript") return "Ghostscript";
+      if (m === "imagemagick") return "ImageMagick";
+      if (m === "inkscape") return "Inkscape";
+      if (m === "sibling") return "Sibling image fallback";
+      return m;
+    });
+
+    return `Render failed. Attempted and failed: ${pretty.join(" → ")}.`;
+  }
+
+  return `Status: ${status}`;
+}
+
 function RenderJobsTable() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
@@ -849,15 +888,22 @@ function RenderJobsTable() {
                         </TableCell>
                         <TableCell className="font-mono text-xs max-w-[200px]" title={job.filename as string || ""}>{formatFilename(job.filename as string || "—", 24)}</TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              job.status === "completed" ? "default" :
-                              job.status === "failed" ? "destructive" :
-                              "secondary"
-                            }
-                          >
-                            {job.status as string}
-                          </Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge
+                                variant={
+                                  job.status === "completed" ? "default" :
+                                  job.status === "failed" ? "destructive" :
+                                  "secondary"
+                                }
+                              >
+                                {job.status as string}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-[360px]">
+                              {getRenderStatusTooltip(job)}
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {job.created_at ? new Date(job.created_at as string).toLocaleString() : "—"}

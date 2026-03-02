@@ -293,8 +293,8 @@ export default function TiffHygieneTab() {
                       <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[220px] text-center">
-                    Removes entries from this results table. Does not delete any files from disk.
+                  <TooltipContent side="bottom" className="max-w-[260px] text-center">
+                    Clears discovered TIFF rows and resets these counts to 0 in this view. Does not delete any NAS files.
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
