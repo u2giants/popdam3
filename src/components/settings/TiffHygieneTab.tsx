@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Search, RefreshCw, Trash2, TestTube, Play, Loader2, FileImage, CheckCircle2, XCircle, Clock, X,
+  Search, RefreshCw, Trash2, TestTube, Play, Loader2, FileImage, CheckCircle2, XCircle, Clock, X, ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -78,6 +78,8 @@ export default function TiffHygieneTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
   const [filter, setFilter] = useState<"all" | "uncompressed" | "compressed">("all");
+  const [sortField, setSortField] = useState<"relative_path" | "file_size" | "file_modified_at" | "compression_type">("relative_path");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [scanPending, setScanPending] = useState(false);
   const scanPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -89,8 +91,40 @@ export default function TiffHygieneTab() {
     }),
   });
 
-  const files: TiffFile[] = data?.files || [];
+  const rawFiles: TiffFile[] = data?.files || [];
   const summary = data?.summary || {};
+
+  // Sort files client-side
+  const files = useMemo(() => {
+    const sorted = [...rawFiles];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case "file_size":
+          cmp = (a.file_size ?? 0) - (b.file_size ?? 0);
+          break;
+        case "file_modified_at":
+          cmp = new Date(a.file_modified_at).getTime() - new Date(b.file_modified_at).getTime();
+          break;
+        case "compression_type":
+          cmp = a.compression_type.localeCompare(b.compression_type);
+          break;
+        default:
+          cmp = a.relative_path.localeCompare(b.relative_path);
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [rawFiles, sortField, sortDir]);
+
+  const toggleSort = useCallback((field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir(field === "file_size" ? "desc" : "asc");
+    }
+  }, [sortField]);
 
   // Check TIFF_SCAN_REQUEST status to show pending state
   const { data: scanReqData } = useQuery({
@@ -442,7 +476,7 @@ export default function TiffHygieneTab() {
           ) : (
             <div className="border border-border rounded-md overflow-hidden">
               <Table>
-                <TableHeader>
+                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8">
                       <Checkbox
@@ -450,20 +484,25 @@ export default function TiffHygieneTab() {
                         onCheckedChange={selectAll}
                       />
                     </TableHead>
-                    <TableHead className="text-xs">File</TableHead>
-                    <TableHead className="text-xs w-20">Size</TableHead>
-                    <TableHead className="text-xs w-24">Modified</TableHead>
+                    <TableHead className="text-xs cursor-pointer select-none" onClick={() => toggleSort("relative_path")}>
+                      <span className="flex items-center gap-1">File {sortField === "relative_path" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
+                    </TableHead>
+                    <TableHead className="text-xs w-20 cursor-pointer select-none" onClick={() => toggleSort("file_size")}>
+                      <span className="flex items-center gap-1">Size {sortField === "file_size" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
+                    </TableHead>
+                    <TableHead className="text-xs w-24 cursor-pointer select-none" onClick={() => toggleSort("file_modified_at")}>
+                      <span className="flex items-center gap-1">Modified {sortField === "file_modified_at" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
+                    </TableHead>
                     <TableHead className="text-xs w-24">Created</TableHead>
-                    <TableHead className="text-xs w-20">
+                    <TableHead className="text-xs w-20 cursor-pointer select-none" onClick={() => toggleSort("compression_type")}>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger className="underline decoration-dotted underline-offset-2 cursor-help">Compress.</TooltipTrigger>
+                          <TooltipTrigger className="underline decoration-dotted underline-offset-2 cursor-help flex items-center gap-1">Compress. {sortField === "compression_type" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</TooltipTrigger>
                           <TooltipContent side="bottom">Current compression algorithm detected in the TIFF file</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </TableHead>
                     <TableHead className="text-xs w-20">Status</TableHead>
-                    {/* Result columns */}
                     <TableHead className="text-xs w-20">New Size</TableHead>
                     <TableHead className="text-xs w-24">New Modified</TableHead>
                     <TableHead className="text-xs w-24">New Created</TableHead>
