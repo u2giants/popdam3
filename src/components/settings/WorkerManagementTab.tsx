@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight, FlaskConical, CheckCircle2, XCircle, Loader2, RefreshCw, Square, FolderOpen, AlertTriangle, FolderX } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -1419,9 +1420,18 @@ export function LiveScanMonitor() {
           <div className="flex items-center gap-2 rounded-md border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.08)] px-3 py-2 text-xs">
             <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))] shrink-0" />
             <span>No progress update for over 3 minutes.</span>
-            <Button variant="outline" size="sm" className="ml-auto h-6 text-[10px]" onClick={handleReset}>
-              Reset Scan State
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" className="ml-auto h-6 text-[10px]" onClick={handleReset}>
+                    Reset Scan State
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[240px] text-center">
+                  Clears scan request and progress flags only. Does not delete any discovered assets or data.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         )}
 

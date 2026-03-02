@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ScanProgress } from "@/hooks/useScanProgress";
 import { cn } from "@/lib/utils";
 
@@ -115,14 +116,23 @@ export default function ScanMonitorBanner({ scanProgress, onStopScan }: ScanMoni
         )}
 
         {/* Stop button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto h-6 px-2 text-destructive hover:text-destructive shrink-0"
-          onClick={onStopScan}
-        >
-          <Square className="h-3 w-3 mr-1" /> Stop
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-6 px-2 text-destructive hover:text-destructive shrink-0"
+                onClick={onStopScan}
+              >
+                <Square className="h-3 w-3 mr-1" /> Stop
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[220px] text-center">
+              Signals the agent to stop scanning after the current directory. Already-found assets are kept.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </div>
   );

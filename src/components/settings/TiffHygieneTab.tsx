@@ -12,6 +12,9 @@ import {
 import {
   Search, RefreshCw, Trash2, TestTube, Play, Loader2, FileImage, CheckCircle2, XCircle, Clock, X,
 } from "lucide-react";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface TiffFile {
   id: string;
@@ -247,11 +250,20 @@ export default function TiffHygieneTab() {
               {isAgentScanning ? "Scanning..." : "Scan for TIFFs"}
             </Button>
             {files.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => {
-                if (confirm("Clear all TIFF scan results?")) clearMutation.mutate();
-              }} disabled={clearMutation.isPending} className="text-destructive">
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      if (confirm("Clear all TIFF scan results?")) clearMutation.mutate();
+                    }} disabled={clearMutation.isPending} className="text-destructive">
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[220px] text-center">
+                    Removes entries from this results table. Does not delete any files from disk.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </CardHeader>
@@ -288,47 +300,74 @@ export default function TiffHygieneTab() {
               <div className="flex-1" />
               {hasQueueableSelected && (
                 <>
-                  <Button
-                    variant="outline" size="sm" className="gap-1.5 text-xs h-7"
-                    onClick={() => {
-                      const ids = selectedFiles
-                        .filter((f) => f.status === "scanned" || f.status === "failed")
-                        .map((f) => f.id);
-                      if (ids.length > 0) queueMutation.mutate({ ids, mode: "test" });
-                    }}
-                    disabled={queueMutation.isPending}
-                  >
-                    <TestTube className="h-3 w-3" /> Test
-                  </Button>
-                  <Button
-                    variant="default" size="sm" className="gap-1.5 text-xs h-7"
-                    onClick={() => {
-                      const ids = selectedFiles
-                        .filter((f) => f.status === "scanned" || f.status === "failed")
-                        .map((f) => f.id);
-                      if (ids.length > 0 && confirm(`Process ${ids.length} file(s)? Originals will be replaced in-place.`))
-                        queueMutation.mutate({ ids, mode: "process" });
-                    }}
-                    disabled={queueMutation.isPending}
-                  >
-                    <Play className="h-3 w-3" /> Process
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline" size="sm" className="gap-1.5 text-xs h-7"
+                          onClick={() => {
+                            const ids = selectedFiles
+                              .filter((f) => f.status === "scanned" || f.status === "failed")
+                              .map((f) => f.id);
+                            if (ids.length > 0) queueMutation.mutate({ ids, mode: "test" });
+                          }}
+                          disabled={queueMutation.isPending}
+                        >
+                          <TestTube className="h-3 w-3" /> Test
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[240px] text-center">
+                        Compress a copy and save backup as *_big.tif. Original is untouched.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="default" size="sm" className="gap-1.5 text-xs h-7"
+                          onClick={() => {
+                            const ids = selectedFiles
+                              .filter((f) => f.status === "scanned" || f.status === "failed")
+                              .map((f) => f.id);
+                            if (ids.length > 0 && confirm(`Process ${ids.length} file(s)? Originals will be replaced in-place.`))
+                              queueMutation.mutate({ ids, mode: "process" });
+                          }}
+                          disabled={queueMutation.isPending}
+                        >
+                          <Play className="h-3 w-3" /> Process
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[240px] text-center">
+                        Replace the original file in-place with a compressed version. Irreversible.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </>
               )}
               {hasTestedSelected && (
-                <Button
-                  variant="destructive" size="sm" className="gap-1.5 text-xs h-7"
-                  onClick={() => {
-                    const ids = selectedFiles
-                      .filter((f) => f.status === "completed" && f.original_backed_up && !f.original_deleted)
-                      .map((f) => f.id);
-                    if (ids.length > 0 && confirm(`Delete ${ids.length} original (_big) backup(s)?`))
-                      deleteMutation.mutate(ids);
-                  }}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="h-3 w-3" /> Delete Originals
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="destructive" size="sm" className="gap-1.5 text-xs h-7"
+                        onClick={() => {
+                          const ids = selectedFiles
+                            .filter((f) => f.status === "completed" && f.original_backed_up && !f.original_deleted)
+                            .map((f) => f.id);
+                          if (ids.length > 0 && confirm(`Delete ${ids.length} original (_big) backup(s)?`))
+                            deleteMutation.mutate(ids);
+                        }}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-3 w-3" /> Delete Originals
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[240px] text-center">
+                      Delete the *_big.tif backup files created during testing. The compressed version stays.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
               <Button variant="ghost" size="sm" className="text-xs h-7"
                 onClick={() => setSelectedIds(new Set())}>
@@ -415,7 +454,14 @@ export default function TiffHygieneTab() {
                     <TableHead className="text-xs w-20">Size</TableHead>
                     <TableHead className="text-xs w-24">Modified</TableHead>
                     <TableHead className="text-xs w-24">Created</TableHead>
-                    <TableHead className="text-xs w-20">Compress.</TableHead>
+                    <TableHead className="text-xs w-20">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger className="underline decoration-dotted underline-offset-2 cursor-help">Compress.</TooltipTrigger>
+                          <TooltipContent side="bottom">Current compression algorithm detected in the TIFF file</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableHead>
                     <TableHead className="text-xs w-20">Status</TableHead>
                     {/* Result columns */}
                     <TableHead className="text-xs w-20">New Size</TableHead>
