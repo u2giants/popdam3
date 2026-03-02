@@ -14,7 +14,7 @@
 
 import sharp from "sharp";
 import path from "node:path";
-import { stat, rename, unlink, utimes, readdir, lstat } from "node:fs/promises";
+import { stat, rename, unlink, utimes, readdir, lstat, open } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
@@ -75,7 +75,100 @@ function findImageMagick(): string | null {
 
 const IM_EXE = findImageMagick();
 
-// ── Compression type detection ──────────────────────────────────
+// ── TIFF Tag 259 binary parser ──────────────────────────────────
+
+const COMPRESSION_TAG = 259;
+
+const COMPRESSION_MAP: Record<number, string> = {
+  1: "none",
+  5: "lzw",
+  7: "jpeg",
+  8: "zip",        // Adobe-style deflate
+  32946: "zip",    // PKZIP-style deflate
+  32773: "packbits",
+  4: "ccittfax4",
+  3: "ccittfax3",
+  6: "jpeg-old",
+  34712: "jp2k",
+  50000: "zstd",
+};
+
+/**
+ * Read TIFF IFD tag 259 (Compression) directly from file bytes.
+ * Handles classic TIFF (version 42). Falls back for BigTIFF (version 43).
+ */
+async function readTiffCompressionTag(filePath: string): Promise<string> {
+  const fh = await open(filePath, "r");
+  try {
+    // Read first 64KB — enough for header + first IFD in normal TIFFs
+    const buf = Buffer.alloc(65536);
+    const { bytesRead } = await fh.read(buf, 0, 65536, 0);
+    if (bytesRead < 8) return "unknown";
+
+    // Byte order
+    const bo = buf.toString("ascii", 0, 2);
+    const le = bo === "II";
+    if (bo !== "II" && bo !== "MM") return "unknown";
+
+    const r16 = le ? (o: number) => buf.readUInt16LE(o) : (o: number) => buf.readUInt16BE(o);
+    const r32 = le ? (o: number) => buf.readUInt32LE(o) : (o: number) => buf.readUInt32BE(o);
+
+    const version = r16(2);
+    if (version === 43) return "unknown"; // BigTIFF — let IM handle it
+    if (version !== 42) return "unknown";
+
+    let ifdOffset = r32(4);
+    if (ifdOffset === 0 || ifdOffset + 2 > bytesRead) return "unknown";
+
+    const entryCount = r16(ifdOffset);
+    const entriesStart = ifdOffset + 2;
+
+    for (let i = 0; i < entryCount; i++) {
+      const entryOff = entriesStart + i * 12;
+      if (entryOff + 12 > bytesRead) break;
+
+      const tag = r16(entryOff);
+      if (tag !== COMPRESSION_TAG) continue;
+
+      // Type 3 = SHORT (2 bytes), Type 4 = LONG (4 bytes)
+      const type = r16(entryOff + 2);
+      let value: number;
+      if (type === 3) {
+        value = r16(entryOff + 8); // SHORT value in first 2 bytes of value field
+      } else {
+        value = r32(entryOff + 8);
+      }
+
+      return COMPRESSION_MAP[value] ?? `other:${value}`;
+    }
+
+    return "unknown"; // tag 259 not found in first IFD
+  } finally {
+    await fh.close();
+  }
+}
+
+// ── Rate-limited unknown logging ────────────────────────────────
+
+let unknownLogCount = 0;
+const MAX_UNKNOWN_LOGS = 5;
+
+function logUnknownCompression(filePath: string, context: string) {
+  if (unknownLogCount < MAX_UNKNOWN_LOGS) {
+    unknownLogCount++;
+    logger.warn(`TIFF compression unknown after all methods (${unknownLogCount}/${MAX_UNKNOWN_LOGS})`, {
+      filePath,
+      context,
+    });
+  }
+}
+
+/** Reset the unknown log counter (call at start of each scan session). */
+export function resetUnknownLogCounter() {
+  unknownLogCount = 0;
+}
+
+// ── Compression type detection (updated chain) ──────────────────
 
 /**
  * Map Sharp's TIFF compression values to human-readable names.
@@ -93,7 +186,7 @@ function normalizeCompression(raw: string | undefined): string {
 async function detectCompressionViaImageMagick(filePath: string): Promise<string | null> {
   if (!IM_EXE) return null;
   try {
-    const { stdout } = await execFileAsync(IM_EXE, ["identify", "-format", "%[compression]", filePath], {
+    const { stdout } = await execFileAsync(IM_EXE, ["identify", "-format", "%[compression]", `${filePath}[0]`], {
       timeout: 15000,
     });
     const compression = normalizeCompression((stdout ?? "").toString().trim());
@@ -105,17 +198,29 @@ async function detectCompressionViaImageMagick(filePath: string): Promise<string
 }
 
 export async function detectTiffCompression(filePath: string): Promise<string> {
+  // 1) Direct IFD tag 259 read (fastest, no external process)
   try {
-    const meta = await sharp(filePath).metadata();
-    const sharpCompression = normalizeCompression(meta.compression);
-    if (sharpCompression !== "unknown") return sharpCompression;
+    const tagResult = await readTiffCompressionTag(filePath);
+    if (tagResult !== "unknown") return tagResult;
   } catch (e) {
-    logger.warn("Failed to read TIFF metadata with Sharp", { filePath, error: (e as Error).message });
+    logger.debug("TIFF tag 259 read failed", { filePath, error: (e as Error).message });
   }
 
-  const imCompression = await detectCompressionViaImageMagick(filePath);
-  if (imCompression) return imCompression;
+  // 2) ImageMagick fallback (handles BigTIFF, exotic formats)
+  const imResult = await detectCompressionViaImageMagick(filePath);
+  if (imResult) return imResult;
 
+  // 3) Sharp metadata (last resort)
+  try {
+    const meta = await sharp(filePath).metadata();
+    const sharpResult = normalizeCompression(meta.compression);
+    if (sharpResult !== "unknown") return sharpResult;
+  } catch (e) {
+    logger.debug("Sharp TIFF metadata failed", { filePath, error: (e as Error).message });
+  }
+
+  // All methods failed — log (rate-limited)
+  logUnknownCompression(filePath, "tag259+IM+sharp all failed");
   return "unknown";
 }
 
