@@ -2554,12 +2554,24 @@ async function handleCountUntaggedAssets() {
 }
 
 serve(async (req: Request) => {
+  console.log(`admin-api: ${req.method} ${new URL(req.url).pathname}`);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
     return err("Method not allowed", 405);
+  }
+
+  // Validate env vars early
+  if (!Deno.env.get("SUPABASE_URL") || !Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || !Deno.env.get("SUPABASE_ANON_KEY")) {
+    console.error("Missing required env vars:", {
+      hasUrl: !!Deno.env.get("SUPABASE_URL"),
+      hasServiceKey: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+      hasAnonKey: !!Deno.env.get("SUPABASE_ANON_KEY"),
+    });
+    return err("Server configuration error", 500);
   }
 
   try {
@@ -2578,6 +2590,7 @@ serve(async (req: Request) => {
     const pathSegments = url.pathname.split("/").filter(Boolean);
     const route = pathSegments[pathSegments.length - 1] || "";
     const action = (body.action as string) || route;
+    console.log(`admin-api action: ${action}`);
 
     switch (action) {
       case "get-config":
@@ -2682,11 +2695,10 @@ serve(async (req: Request) => {
         return err(`Unknown action: ${action}`, 404);
     }
   } catch (e) {
-    console.error("admin-api error:", e);
-    return err(
-      e instanceof Error ? e.message : "Internal server error",
-      500,
-    );
+    console.error("admin-api unhandled error:", e);
+    console.error("Stack:", e instanceof Error ? e.stack : "no stack");
+    const message = e instanceof Error ? e.message : "Internal server error";
+    return err(message, 500);
   }
 });
 
