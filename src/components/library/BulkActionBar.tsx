@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
@@ -14,79 +13,69 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X, Sparkles, ArrowRightLeft, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { X, Sparkles, ArrowRightLeft, Loader2, CheckCircle2, AlertCircle, Square } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
 import { toast } from "@/hooks/use-toast";
+import { usePersistentOperation } from "@/hooks/usePersistentOperation";
+import { useState } from "react";
 
 interface BulkActionBarProps {
   selectedGroups: StyleGroup[];
   onClearSelection: () => void;
 }
 
-interface TagProgress {
-  total: number;
-  completed: number;
-  failed: number;
-  inProgress: boolean;
-}
-
 export default function BulkActionBar({ selectedGroups, onClearSelection }: BulkActionBarProps) {
   const queryClient = useQueryClient();
-  const [tagProgress, setTagProgress] = useState<TagProgress | null>(null);
   const [workflowValue, setWorkflowValue] = useState<string>("");
 
-  // Bulk AI tag — fetch all assets across selected groups, then tag sequentially
+  const op = usePersistentOperation("ai-tag-groups");
+
+  // Start server-side AI tagging for selected groups
   const handleBulkAiTag = async () => {
     const groupIds = selectedGroups.map(g => g.id);
-    const { data: groupAssets, error } = await supabase
+    // Count taggable assets for progress display
+    const { count, error } = await supabase
       .from("assets")
-      .select("id, thumbnail_url")
+      .select("id", { count: "exact", head: true })
       .in("style_group_id", groupIds)
-      .eq("is_deleted", false);
+      .eq("is_deleted", false)
+      .not("thumbnail_url", "is", null);
 
-    if (error || !groupAssets) {
-      toast({ title: "Failed to fetch assets", description: error?.message, variant: "destructive" });
+    if (error) {
+      toast({ title: "Failed to count assets", description: error.message, variant: "destructive" });
       return;
     }
 
-    const taggable = groupAssets.filter((a) => a.thumbnail_url);
-    if (taggable.length === 0) {
+    if (!count || count === 0) {
       toast({ title: "No taggable assets", description: "Selected groups have no assets with thumbnails.", variant: "destructive" });
       return;
     }
 
-    setTagProgress({ total: taggable.length, completed: 0, failed: 0, inProgress: true });
+    await op.start({
+      params: { type: "bulk-ai-tag-all", group_ids: groupIds, total: count },
+      initialProgress: { tagged: 0, skipped: 0, failed: 0, total: count },
+    });
 
-    let completed = 0;
-    let failed = 0;
-
-    for (const asset of taggable) {
-      try {
-        const { error } = await supabase.functions.invoke("ai-tag", {
-          body: { asset_id: asset.id, thumbnail_url: asset.thumbnail_url },
-        });
-        if (error) throw error;
-        completed++;
-      } catch {
-        failed++;
-      }
-      setTagProgress({ total: taggable.length, completed, failed, inProgress: true });
-    }
-
-    setTagProgress({ total: taggable.length, completed, failed, inProgress: false });
-    queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-
-    if (failed === 0) {
-      toast({ title: `AI tagged ${completed} asset${completed !== 1 ? "s" : ""} across ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}` });
-    } else {
-      toast({
-        title: `Tagged ${completed}, failed ${failed}`,
-        variant: "destructive",
-      });
-    }
-
-    setTimeout(() => setTagProgress(null), 3000);
+    toast({ title: `AI tagging ${count} asset${count !== 1 ? "s" : ""} across ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}…` });
   };
+
+  // Invalidate queries when operation completes
+  const progress = op.state.progress ?? {};
+  const isRunning = op.isActive;
+  const isDone = op.state.status === "completed";
+  const isFailed = op.state.status === "failed";
+
+  // Auto-invalidate on completion
+  if (isDone || isFailed) {
+    queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+  }
+
+  const total = (progress.total as number) || 0;
+  const tagged = (progress.tagged as number) || 0;
+  const skipped = (progress.skipped as number) || 0;
+  const failed = (progress.failed as number) || 0;
+  const processed = tagged + skipped + failed;
+  const progressPercent = total > 0 ? Math.round((processed / total) * 100) : 0;
 
   // Bulk workflow change — update style_groups directly
   const bulkWorkflow = useMutation({
@@ -108,10 +97,6 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
     },
   });
 
-  const progressPercent = tagProgress
-    ? Math.round(((tagProgress.completed + tagProgress.failed) / tagProgress.total) * 100)
-    : 0;
-
   return (
     <div className="flex items-center gap-3 border-b border-primary/30 bg-primary/5 px-4 py-2.5 animate-in slide-in-from-top duration-200">
       {/* Selection count */}
@@ -128,23 +113,33 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
-              onClick={handleBulkAiTag}
-              disabled={tagProgress?.inProgress}
-            >
-              {tagProgress?.inProgress ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
+            {isRunning ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => op.stop()}
+              >
+                <Square className="h-3 w-3 fill-current" />
+                Stop
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={handleBulkAiTag}
+                disabled={isDone}
+              >
                 <Sparkles className="h-3.5 w-3.5" />
-              )}
-              AI Tag
-            </Button>
+                AI Tag
+              </Button>
+            )}
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-[240px] text-center">
-            Sends each asset's thumbnail to the AI model for automatic description and tagging
+            {isRunning
+              ? "AI tagging is running server-side — safe to navigate away"
+              : "Sends each asset's thumbnail to the AI model for automatic tagging (runs server-side)"}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -174,28 +169,33 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
       </div>
 
       {/* Progress indicator */}
-      {tagProgress && (
+      {(isRunning || isDone || isFailed) && (
         <div className="flex items-center gap-2 ml-auto">
-          {tagProgress.inProgress ? (
+          {isRunning ? (
             <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
               <Progress value={progressPercent} className="w-32 h-2" />
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {tagProgress.completed + tagProgress.failed}/{tagProgress.total}
+                {processed}/{total}
               </span>
             </>
+          ) : isDone ? (
+            <div className="flex items-center gap-1.5 text-xs">
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              <span className="text-success">
+                Tagged {tagged}{failed > 0 ? `, ${failed} failed` : ""}
+              </span>
+              <Button variant="ghost" size="sm" className="h-5 px-1 text-xs" onClick={() => op.reset()}>
+                Dismiss
+              </Button>
+            </div>
           ) : (
             <div className="flex items-center gap-1.5 text-xs">
-              {tagProgress.failed === 0 ? (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                  <span className="text-success">Done</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-3.5 w-3.5 text-warning" />
-                  <span className="text-warning">{tagProgress.failed} failed</span>
-                </>
-              )}
+              <AlertCircle className="h-3.5 w-3.5 text-warning" />
+              <span className="text-warning">{op.state.error || "Failed"}</span>
+              <Button variant="ghost" size="sm" className="h-5 px-1 text-xs" onClick={() => op.reset()}>
+                Dismiss
+              </Button>
             </div>
           )}
         </div>
