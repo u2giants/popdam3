@@ -61,6 +61,12 @@ async function authenticateAdmin(
   }
 
   const token = authHeader.replace("Bearer ", "");
+
+  // Service role key bypass — allows server-to-server calls (e.g., bulk-job-runner)
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (serviceRoleKey && token === serviceRoleKey) {
+    return { userId: "system" };
+  }
   const anonClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -2587,6 +2593,7 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
 
 async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
+  const groupIds = Array.isArray(body.group_ids) ? body.group_ids as string[] : null;
   const BATCH_SIZE = 10;
   const db = serviceClient();
 
@@ -2596,7 +2603,12 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null);
 
-  if (!tagAll) {
+  // Optional group filter (for BulkActionBar group-based tagging)
+  if (groupIds && groupIds.length > 0) {
+    query = query.in("style_group_id", groupIds);
+  }
+
+  if (!tagAll && !groupIds) {
     query = query.neq("status", "tagged");
   }
 

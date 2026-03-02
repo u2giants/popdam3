@@ -409,51 +409,14 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
   });
 
   function runReprocess() {
-    reprocessOp.run(
-      async (offset) => {
-        const data = await call("reprocess-asset-metadata", { offset });
-        return { done: !!data.done, nextOffset: data.nextOffset, updated: data.updated ?? 0, total: data.total ?? 0 };
-      },
-      {
-        confirmMessage: "Re-derive SKU metadata for all assets. This may take several minutes. Continue?",
-        buildProgress: (batch, prev) => ({
-          updated: ((prev.updated as number) || 0) + (batch.updated as number),
-          total: ((prev.total as number) || 0) + (batch.total as number),
-        }),
-        buildResultMessage: (p) => `Reprocessed ${p.updated} assets`,
-      },
-    ).then(() => {
-      if (reprocessOp.state.status === "completed") {
-        toast.success(reprocessOp.state.result_message || "Reprocess complete");
-        onRefresh();
-      } else if (reprocessOp.state.status === "failed") {
-        toast.error(reprocessOp.state.error || "Reprocess failed");
-      }
+    reprocessOp.start({
+      confirmMessage: "Re-derive SKU metadata for all assets. This may take several minutes. Continue?",
     });
   }
 
   function runBackfill() {
-    backfillOp.run(
-      async (_offset) => {
-        const data = await call("backfill-sku-names");
-        return { done: true, assets_updated: data.assets_updated ?? 0, groups_updated: data.groups_updated ?? 0, assets_checked: data.assets_checked ?? 0 };
-      },
-      {
-        confirmMessage: "Re-resolve licensor/property names from ColdLion API for all assets where name equals code. Continue?",
-        buildProgress: (_batch, _prev) => ({
-          assets_updated: _batch.assets_updated as number,
-          groups_updated: _batch.groups_updated as number,
-          assets_checked: _batch.assets_checked as number,
-        }),
-        buildResultMessage: (p) => `Backfilled ${p.assets_updated} assets, ${p.groups_updated} groups (checked ${p.assets_checked})`,
-      },
-    ).then(() => {
-      if (backfillOp.state.status === "completed") {
-        toast.success(backfillOp.state.result_message || "Backfill complete");
-        onRefresh();
-      } else if (backfillOp.state.status === "failed") {
-        toast.error(backfillOp.state.error || "Backfill failed");
-      }
+    backfillOp.start({
+      confirmMessage: "Re-resolve licensor/property names from ColdLion API for all assets where name equals code. Continue?",
     });
   }
 
@@ -829,38 +792,12 @@ function AiTaggingSection() {
   function runBulkTag(mode: "untagged" | "all") {
     const op = mode === "all" ? tagAllOp : tagUntaggedOp;
     const total = mode === "all" ? totalWithThumb : untaggedCount;
-    const route = mode === "all" ? "bulk-ai-tag-all" : "bulk-ai-tag";
 
-    op.run(
-      async (offset) => {
-        const result = await call(route, { offset });
-        return {
-          done: !!result.done,
-          nextOffset: result.nextOffset,
-          tagged: result.tagged ?? 0,
-          skipped: result.skipped ?? 0,
-          failed: result.failed ?? 0,
-        };
-      },
-      {
-        confirmMessage: mode === "all"
-          ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
-          : `AI tag ${total.toLocaleString()} untagged assets? Continue?`,
-        buildProgress: (batch, prev) => ({
-          tagged: ((prev.tagged as number) || 0) + (batch.tagged as number),
-          skipped: ((prev.skipped as number) || 0) + (batch.skipped as number),
-          failed: ((prev.failed as number) || 0) + (batch.failed as number),
-          total,
-        }),
-        buildResultMessage: (p) => `Tagged ${p.tagged} assets. ${p.skipped} skipped. ${p.failed} failed.`,
-      },
-    ).then(() => {
-      if (op.state.status === "completed") {
-        toast.success(op.state.result_message || "Tagging complete");
-        queryClient.invalidateQueries({ queryKey: ["untagged-asset-count"] });
-      } else if (op.state.status === "failed") {
-        toast.error(op.state.error || "Bulk tag failed");
-      }
+    op.start({
+      confirmMessage: mode === "all"
+        ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
+        : `AI tag ${total.toLocaleString()} untagged assets? Continue?`,
+      initialProgress: { total },
     });
   }
 
@@ -977,33 +914,8 @@ function StyleGroupsSection() {
   });
 
   function runRebuild() {
-    rebuildOp.run(
-      async (offset) => {
-        const data = await call("rebuild-style-groups", { offset });
-        return {
-          done: !!data.done,
-          nextOffset: data.nextOffset,
-          groups_created: data.groups_created ?? 0,
-          assets_assigned: data.assets_assigned ?? 0,
-        };
-      },
-      {
-        confirmMessage: "This will delete all existing style groups and rebuild them from scratch. Continue?",
-        buildProgress: (batch, prev) => ({
-          groups: ((prev.groups as number) || 0) + (batch.groups_created as number),
-          assigned: ((prev.assigned as number) || 0) + (batch.assets_assigned as number),
-        }),
-        buildResultMessage: (p) => `Created ${p.groups} style groups, assigned ${p.assigned} assets`,
-      },
-    ).then(() => {
-      if (rebuildOp.state.status === "completed") {
-        toast.success(rebuildOp.state.result_message || "Rebuild complete");
-        queryClient.invalidateQueries({ queryKey: ["style-group-stats"] });
-        queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-        queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
-      } else if (rebuildOp.state.status === "failed") {
-        toast.error(rebuildOp.state.error || "Rebuild failed");
-      }
+    rebuildOp.start({
+      confirmMessage: "This will delete all existing style groups and rebuild them from scratch. Continue?",
     });
   }
 
