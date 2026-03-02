@@ -1742,7 +1742,6 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   const CLEAR_BATCH = 50;
   const GROUP_DELETE_BATCH = 50;
   const REBUILD_BATCH = 25;
-  const STATS_BATCH = 20;
 
   type RebuildState = {
     stage: "clear_assets" | "delete_groups" | "rebuild_assets" | "finalize_stats";
@@ -2064,137 +2063,22 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
   }
 
-  // Stage 4: finalize stats in independent small batches
+  // Stage 4: finalize stats using a single aggregate SQL update
   if (state.stage === "finalize_stats") {
     try {
-      let q = db
-        .from("style_groups")
-        .select("id")
-        .order("id", { ascending: true })
-        .limit(STATS_BATCH);
-
-      if (state.last_stats_group_id) {
-        q = q.gt("id", state.last_stats_group_id);
-      }
-
-      const { data: groups, error: groupFetchErr } = await withRetry(async () => {
-        const res = await q;
+      const { error: refreshErr } = await withRetry(async () => {
+        const res = await db.rpc("refresh_style_group_stats");
         if (res.error) throw new Error(formatPostgrestError(res.error));
         return res;
       });
 
-      if (groupFetchErr) return err(groupFetchErr.message, 500);
+      if (refreshErr) return err(refreshErr.message, 500);
 
-      const groupIds = (groups ?? []).map((g) => g.id as string);
-      if (groupIds.length === 0) {
-        await clearState();
-        return json({
-          ok: true,
-          stage: "finalize_stats",
-          groups_finalized: 0,
-          done: true,
-          nextOffset: offset + 1,
-        });
-      }
-
-      const { data: allGroupAssets, error: assetsErr } = await withRetry(async () => {
-        const res = await db
-          .from("assets")
-          .select("id, style_group_id, filename, file_type, asset_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
-          .in("style_group_id", groupIds)
-          .eq("is_deleted", false);
-        if (res.error) throw new Error(formatPostgrestError(res.error));
-        return res;
-      });
-
-      if (assetsErr) return err(assetsErr.message, 500);
-
-      const byGroup = new Map<string, Array<Record<string, unknown>>>();
-      for (const gid of groupIds) byGroup.set(gid, []);
-      for (const a of allGroupAssets ?? []) {
-        const gid = a.style_group_id as string;
-        if (!byGroup.has(gid)) byGroup.set(gid, []);
-        byGroup.get(gid)!.push(a as Record<string, unknown>);
-      }
-
-      const statusPriority = [
-        "licensor_approved",
-        "customer_adopted",
-        "in_process",
-        "in_development",
-        "concept_approved",
-        "freelancer_art",
-        "product_ideas",
-      ];
-
-      for (const gid of groupIds) {
-        const groupAssets = byGroup.get(gid) ?? [];
-
-        if (groupAssets.length === 0) {
-          await withRetry(() =>
-            db.from("style_groups").update({
-              asset_count: 0,
-              primary_asset_id: null,
-              primary_asset_type: null,
-              workflow_status: "other",
-              latest_file_date: null,
-              updated_at: new Date().toISOString(),
-            }).eq("id", gid)
-              .then((r) => {
-                if (r.error) throw new Error(formatPostgrestError(r.error));
-                return r;
-              })
-          );
-          continue;
-        }
-
-        const primaryId = selectPrimaryAsset(groupAssets as any);
-        const primaryAsset = groupAssets.find((a) => a.id === primaryId);
-
-        let bestStatus = "other";
-        for (const s of statusPriority) {
-          if (groupAssets.some((a) => a.workflow_status === s)) {
-            bestStatus = s;
-            break;
-          }
-        }
-
-        const latestFileDate = groupAssets.reduce((max: string, a) => {
-          const d = (a.modified_at as string | null) ?? (a.created_at as string | null) ?? "1970-01-01T00:00:00.000Z";
-          return d > max ? d : max;
-        }, "1970-01-01T00:00:00.000Z");
-
-        await withRetry(() =>
-          db.from("style_groups").update({
-            asset_count: groupAssets.length,
-            primary_asset_id: primaryId,
-            primary_asset_type: (primaryAsset?.asset_type as string | null) ?? null,
-            workflow_status: bestStatus as any,
-            latest_file_date: latestFileDate,
-            updated_at: new Date().toISOString(),
-          }).eq("id", gid)
-            .then((r) => {
-              if (r.error) throw new Error(formatPostgrestError(r.error));
-              return r;
-            })
-        );
-      }
-
-      const reachedEnd = groupIds.length < STATS_BATCH;
-      if (reachedEnd) {
-        await clearState();
-      } else {
-        await saveState({
-          stage: "finalize_stats",
-          last_stats_group_id: groupIds[groupIds.length - 1],
-        });
-      }
-
+      await clearState();
       return json({
         ok: true,
         stage: "finalize_stats",
-        groups_finalized: groupIds.length,
-        done: reachedEnd,
+        done: true,
         nextOffset: offset + 1,
       });
     } catch (e) {
