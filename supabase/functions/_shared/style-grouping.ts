@@ -62,8 +62,7 @@ export function selectPrimaryAsset(
   const hasMockup = (a: typeof assets[0]) => fn(a).includes("mockup");
   const hasArt = (a: typeof assets[0]) => fn(a).includes("art");
   const hasPackaging = (a: typeof assets[0]) => fn(a).includes("packaging");
-  const hasUsableThumbnail = (a: typeof assets[0]) =>
-    !!a.thumbnail_url && !a.thumbnail_error;
+  const hasUsableThumbnail = (a: typeof assets[0]) => !!a.thumbnail_url && !a.thumbnail_error;
   const isOther = (a: typeof assets[0]) => !hasMockup(a) && !hasArt(a) && !hasPackaging(a);
 
   // Tier 1: mockup + usable thumbnail (best)

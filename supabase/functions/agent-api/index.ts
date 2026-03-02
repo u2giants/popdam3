@@ -7,8 +7,7 @@ import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-agent-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-agent-key",
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -173,7 +172,6 @@ async function deriveMetadataFromPath(
   const subFolder = decorIndex >= 0 ? (normalizedParts[decorIndex + 1] || "") : "";
   const is_licensed = subFolder === "character licensed";
 
-
   // Load configurable workflow folder map from admin_config (cached)
   let workflowFolderMap = DEFAULT_WORKFLOW_FOLDER_MAP;
   try {
@@ -189,7 +187,7 @@ async function deriveMetadataFromPath(
   const hasNewStructure = pathParts.some((p) => p.startsWith("____New Structure"));
   const lowerParts = normalizedParts;
   let workflow_status = "other";
-  
+
   if (hasNewStructure) {
     // In the new folder structure, "Concept Approved Designs" is structural.
     // Look for workflow signals BELOW the product-type folder instead.
@@ -355,9 +353,7 @@ async function handleHeartbeat(
   const metadata = (agent?.metadata as Record<string, unknown>) || {};
 
   // Append to counter history (keep last 60)
-  const history = Array.isArray(metadata.counter_history)
-    ? (metadata.counter_history as unknown[])
-    : [];
+  const history = Array.isArray(metadata.counter_history) ? (metadata.counter_history as unknown[]) : [];
   history.push({ ts: new Date().toISOString(), ...counters });
   if (history.length > 60) history.splice(0, history.length - 60);
 
@@ -367,29 +363,35 @@ async function handleHeartbeat(
     last_error: lastError,
     counter_history: history,
     // Version info — works for both bridge and windows agents
-    version_info: versionInfo ? {
-      image_tag: versionInfo.image_tag ?? null,
-      version: versionInfo.version ?? null,
-      build_sha: versionInfo.build_sha ?? null,
-      update_available: versionInfo.update_available ?? null,
-      latest_version: versionInfo.latest_version ?? null,
-      last_update_check: versionInfo.last_update_check ?? null,
-      updating: versionInfo.updating ?? false,
-      update_error: versionInfo.update_error ?? null,
-      last_reported_at: new Date().toISOString(),
-    } : metadata.version_info,
+    version_info: versionInfo
+      ? {
+        image_tag: versionInfo.image_tag ?? null,
+        version: versionInfo.version ?? null,
+        build_sha: versionInfo.build_sha ?? null,
+        update_available: versionInfo.update_available ?? null,
+        latest_version: versionInfo.latest_version ?? null,
+        last_update_check: versionInfo.last_update_check ?? null,
+        updating: versionInfo.updating ?? false,
+        update_error: versionInfo.update_error ?? null,
+        last_reported_at: new Date().toISOString(),
+      }
+      : metadata.version_info,
     // Structured health payload from Windows agent preflight
-    health: health ? {
-      healthy: health.healthy ?? false,
-      nas_healthy: health.nasHealthy ?? false,
-      last_preflight_error: health.lastPreflightError ?? null,
-      last_preflight_at: health.lastPreflightAt ?? null,
-    } : metadata.health,
+    health: health
+      ? {
+        healthy: health.healthy ?? false,
+        nas_healthy: health.nasHealthy ?? false,
+        last_preflight_error: health.lastPreflightError ?? null,
+        last_preflight_at: health.lastPreflightAt ?? null,
+      }
+      : metadata.health,
     // Diagnostics from bridge agent (mount root, scan roots, etc.)
-    diagnostics: diagnostics ? {
-      ...diagnostics,
-      last_reported_at: new Date().toISOString(),
-    } : metadata.diagnostics,
+    diagnostics: diagnostics
+      ? {
+        ...diagnostics,
+        last_reported_at: new Date().toISOString(),
+      }
+      : metadata.diagnostics,
     // Clear trigger_update flag once delivered (below)
   };
 
@@ -438,19 +440,15 @@ async function handleHeartbeat(
   }
 
   // Spaces
-  const spacesConfig =
-    (configMap.SPACES_CONFIG as Record<string, string>) || {};
+  const spacesConfig = (configMap.SPACES_CONFIG as Record<string, string>) || {};
 
   // Scanning
   const scanRoots = (configMap.SCAN_ROOTS as string[]) || [];
-  const pollingConfig =
-    (configMap.POLLING_CONFIG as Record<string, number>) || {};
+  const pollingConfig = (configMap.POLLING_CONFIG as Record<string, number>) || {};
 
   // Resource Guard
-  const guard =
-    (configMap.RESOURCE_GUARD as Record<string, unknown>) || {};
-  const schedules =
-    guard.schedules as Array<Record<string, unknown>> | undefined;
+  const guard = (configMap.RESOURCE_GUARD as Record<string, unknown>) || {};
+  const schedules = guard.schedules as Array<Record<string, unknown>> | undefined;
 
   let resourceDirectives: Record<string, unknown> = {
     cpu_percentage_limit: guard.default_cpu_shares ?? 50,
@@ -477,12 +475,9 @@ async function handleHeartbeat(
         hour < endHour
       ) {
         resourceDirectives = {
-          cpu_percentage_limit:
-            sched.cpu_shares ?? resourceDirectives.cpu_percentage_limit,
-          memory_limit_mb:
-            sched.memory_limit_mb ?? resourceDirectives.memory_limit_mb,
-          concurrency:
-            sched.thumb_concurrency ?? resourceDirectives.concurrency,
+          cpu_percentage_limit: sched.cpu_shares ?? resourceDirectives.cpu_percentage_limit,
+          memory_limit_mb: sched.memory_limit_mb ?? resourceDirectives.memory_limit_mb,
+          concurrency: sched.thumb_concurrency ?? resourceDirectives.concurrency,
         };
         break;
       }
@@ -494,8 +489,7 @@ async function handleHeartbeat(
   const forceStop = metadata.force_stop === true;
 
   // ── Durable scan request from admin_config ──
-  const scanRequest =
-    configMap.SCAN_REQUEST as Record<string, unknown> | undefined;
+  const scanRequest = configMap.SCAN_REQUEST as Record<string, unknown> | undefined;
   let forceScan = false;
   let scanSessionId: string | null = null;
 
@@ -538,8 +532,7 @@ async function handleHeartbeat(
   }
 
   // ── Path test request ──
-  const pathTestRequest =
-    configMap.PATH_TEST_REQUEST as Record<string, unknown> | undefined;
+  const pathTestRequest = configMap.PATH_TEST_REQUEST as Record<string, unknown> | undefined;
 
   let testPaths: {
     request_id: string;
@@ -550,8 +543,7 @@ async function handleHeartbeat(
   if (pathTestRequest && pathTestRequest.status === "pending") {
     testPaths = {
       request_id: pathTestRequest.request_id as string,
-      container_mount_root:
-        (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
+      container_mount_root: (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
       scan_roots: scanRoots,
     };
   }
@@ -563,8 +555,7 @@ async function handleHeartbeat(
   }) || { enabled: false, interval_hours: 6 };
 
   // ── Update command from admin ──
-  const updateRequest =
-    configMap.AGENT_UPDATE_REQUEST as Record<string, unknown> | undefined;
+  const updateRequest = configMap.AGENT_UPDATE_REQUEST as Record<string, unknown> | undefined;
   let checkUpdate = false;
   let applyUpdate = false;
 
@@ -608,19 +599,16 @@ async function handleHeartbeat(
     ok: true,
     config: {
       do_spaces: {
-        key: ((configMap.DO_SPACES_KEY as string) || ""),
-        secret: ((configMap.DO_SPACES_SECRET as string) || ""),
+        key: (configMap.DO_SPACES_KEY as string) || "",
+        secret: (configMap.DO_SPACES_SECRET as string) || "",
         bucket: spacesConfig.bucket_name || spacesConfig.bucket || "popdam",
         region: spacesConfig.region || "nyc3",
-        endpoint:
-          spacesConfig.endpoint || "https://nyc3.digitaloceanspaces.com",
-        public_base_url:
-          spacesConfig.public_base_url ||
+        endpoint: spacesConfig.endpoint || "https://nyc3.digitaloceanspaces.com",
+        public_base_url: spacesConfig.public_base_url ||
           "https://popdam.nyc3.digitaloceanspaces.com",
       },
       scanning: {
-        container_mount_root:
-          (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
+        container_mount_root: (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
         roots: scanRoots,
         batch_size: (guard.batch_size as number) || pollingConfig.batch_size || 100,
         scan_min_date: (configMap.SCAN_MIN_DATE as string) || null,
@@ -637,11 +625,11 @@ async function handleHeartbeat(
       windows_healthy: windowsHealthy,
       pending_render_jobs: pendingRenderJobs ?? 0,
       windows_agent: {
-        nas_host: ((configMap.WINDOWS_AGENT_NAS_HOST as string) || ""),
-        nas_share: ((configMap.WINDOWS_AGENT_NAS_SHARE as string) || ""),
-        nas_username: ((configMap.WINDOWS_AGENT_NAS_USER as string) || ""),
-        nas_password: ((configMap.WINDOWS_AGENT_NAS_PASS as string) || ""),
-        nas_mount_path: ((configMap.WINDOWS_AGENT_NAS_MOUNT_PATH as string) || ""),
+        nas_host: (configMap.WINDOWS_AGENT_NAS_HOST as string) || "",
+        nas_share: (configMap.WINDOWS_AGENT_NAS_SHARE as string) || "",
+        nas_username: (configMap.WINDOWS_AGENT_NAS_USER as string) || "",
+        nas_password: (configMap.WINDOWS_AGENT_NAS_PASS as string) || "",
+        nas_mount_path: (configMap.WINDOWS_AGENT_NAS_MOUNT_PATH as string) || "",
         render_concurrency: parseInt((configMap.WINDOWS_AGENT_RENDER_CONCURRENCY as string) || "0") || 0,
       },
     },
@@ -686,9 +674,7 @@ async function assignToStyleGroup(
     // Derive folder_path as the path up to and including the SKU folder
     const parts = relativePath.split("/");
     const skuIdx = parts.lastIndexOf(sku);
-    const folderPath = skuIdx >= 0
-      ? parts.slice(0, skuIdx + 1).join("/")
-      : parts.slice(0, -1).join("/");
+    const folderPath = skuIdx >= 0 ? parts.slice(0, skuIdx + 1).join("/") : parts.slice(0, -1).join("/");
 
     // Keep style_groups licensing aligned with path-authoritative rule
     const groupFields: Record<string, unknown> = {
@@ -763,8 +749,7 @@ async function handleIngest(
       return json(
         {
           ok: false,
-          error:
-            "Ingestion blocked: scan is stopped. " +
+          error: "Ingestion blocked: scan is stopped. " +
             "Clear force_stop in admin to resume.",
         },
         403,
@@ -806,7 +791,7 @@ async function handleIngest(
   }
 
   // Defense in depth: reject files inside ___OLD folders
-  const hasOldFolder = ingestParts.some(p => p.toLowerCase() === "___old");
+  const hasOldFolder = ingestParts.some((p) => p.toLowerCase() === "___old");
   if (hasOldFolder) {
     return json({ ok: true, action: "noop", reason: "excluded ___old folder" });
   }
@@ -831,20 +816,27 @@ async function handleIngest(
 
   // SKU parsing from filename
   const parsed = await parseSku(filename);
-  const skuFields: Record<string, unknown> = parsed ? {
-    sku: parsed.sku,
-    mg01_code: parsed.mg01_code, mg01_name: parsed.mg01_name,
-    mg02_code: parsed.mg02_code, mg02_name: parsed.mg02_name,
-    mg03_code: parsed.mg03_code, mg03_name: parsed.mg03_name,
-    size_code: parsed.size_code, size_name: parsed.size_name,
-    licensor_code: parsed.licensor_code,
-    property_code: parsed.property_code,
-    sku_sequence: parsed.sku_sequence,
-    product_category: parsed.product_category,
-    division_code: parsed.division_code, division_name: parsed.division_name,
-    // NOTE: is_licensed is intentionally EXCLUDED here.
-    // Path-derived is_licensed (from folder structure) is the authoritative source.
-  } : {};
+  const skuFields: Record<string, unknown> = parsed
+    ? {
+      sku: parsed.sku,
+      mg01_code: parsed.mg01_code,
+      mg01_name: parsed.mg01_name,
+      mg02_code: parsed.mg02_code,
+      mg02_name: parsed.mg02_name,
+      mg03_code: parsed.mg03_code,
+      mg03_name: parsed.mg03_name,
+      size_code: parsed.size_code,
+      size_name: parsed.size_name,
+      licensor_code: parsed.licensor_code,
+      property_code: parsed.property_code,
+      sku_sequence: parsed.sku_sequence,
+      product_category: parsed.product_category,
+      division_code: parsed.division_code,
+      division_name: parsed.division_name,
+      // NOTE: is_licensed is intentionally EXCLUDED here.
+      // Path-derived is_licensed (from folder structure) is the authoritative source.
+    }
+    : {};
 
   // Licensor/property names: prefer ColdLion (SKU parser), fall back to path-derived
   if (parsed?.licensor_name) {
@@ -886,15 +878,15 @@ async function handleIngest(
     }
 
     const moveUpdates: Record<string, unknown> = {
-        relative_path: relativePath,
-        filename,
-        modified_at: modifiedAt,
-        file_created_at: fileCreatedAt || modifiedAt,
-        last_seen_at: new Date().toISOString(),
-        workflow_status: reDerived.workflow_status,
-        is_licensed: reDerived.is_licensed,
-        ...thumbMove,
-        ...skuFields,
+      relative_path: relativePath,
+      filename,
+      modified_at: modifiedAt,
+      file_created_at: fileCreatedAt || modifiedAt,
+      last_seen_at: new Date().toISOString(),
+      workflow_status: reDerived.workflow_status,
+      is_licensed: reDerived.is_licensed,
+      ...thumbMove,
+      ...skuFields,
     };
     // Path-derived names fill in when ColdLion didn't resolve
     if (!moveUpdates.licensor_name && reDerived.licensor_name) moveUpdates.licensor_name = reDerived.licensor_name;
@@ -955,20 +947,20 @@ async function handleIngest(
     }
 
     const updateFields: Record<string, unknown> = {
-        filename,
-        file_type: fileType,
-        file_size: fileSize,
-        width,
-        height,
-        modified_at: modifiedAt,
-        file_created_at: fileCreatedAt || modifiedAt,
-        quick_hash: quickHash,
-        quick_hash_version: quickHashVersion,
-        last_seen_at: new Date().toISOString(),
-        workflow_status: derived.workflow_status,
-        is_licensed: derived.is_licensed,
-        ...thumbnailFields,
-        ...skuFields,
+      filename,
+      file_type: fileType,
+      file_size: fileSize,
+      width,
+      height,
+      modified_at: modifiedAt,
+      file_created_at: fileCreatedAt || modifiedAt,
+      quick_hash: quickHash,
+      quick_hash_version: quickHashVersion,
+      last_seen_at: new Date().toISOString(),
+      workflow_status: derived.workflow_status,
+      is_licensed: derived.is_licensed,
+      ...thumbnailFields,
+      ...skuFields,
     };
     // Path-derived names fill in when ColdLion didn't resolve
     if (!updateFields.licensor_name && derived.licensor_name) updateFields.licensor_name = derived.licensor_name;
@@ -1003,22 +995,22 @@ async function handleIngest(
   // ── 3) New asset ──
 
   const newAssetRow: Record<string, unknown> = {
-      relative_path: relativePath,
-      filename,
-      file_type: fileType,
-      file_size: fileSize,
-      width,
-      height,
-      modified_at: modifiedAt,
-      file_created_at: fileCreatedAt || modifiedAt,
-      quick_hash: quickHash,
-      quick_hash_version: quickHashVersion,
-      last_seen_at: new Date().toISOString(),
-      thumbnail_url: thumbnailUrl,
-      thumbnail_error: thumbnailError,
-      workflow_status: derived.workflow_status,
-      is_licensed: derived.is_licensed,
-      ...skuFields,
+    relative_path: relativePath,
+    filename,
+    file_type: fileType,
+    file_size: fileSize,
+    width,
+    height,
+    modified_at: modifiedAt,
+    file_created_at: fileCreatedAt || modifiedAt,
+    quick_hash: quickHash,
+    quick_hash_version: quickHashVersion,
+    last_seen_at: new Date().toISOString(),
+    thumbnail_url: thumbnailUrl,
+    thumbnail_error: thumbnailError,
+    workflow_status: derived.workflow_status,
+    is_licensed: derived.is_licensed,
+    ...skuFields,
   };
   // Path-derived names fill in when ColdLion didn't resolve
   if (!newAssetRow.licensor_name && derived.licensor_name) newAssetRow.licensor_name = derived.licensor_name;
@@ -1127,11 +1119,11 @@ async function handleMoveAsset(body: Record<string, unknown>) {
   const derived = await deriveMetadataFromPath(newRelativePath, db);
 
   const moveUpdates: Record<string, unknown> = {
-      relative_path: newRelativePath,
-      filename: newFilename || asset.filename,
-      workflow_status: derived.workflow_status,
-      is_licensed: derived.is_licensed,
-      last_seen_at: new Date().toISOString(),
+    relative_path: newRelativePath,
+    filename: newFilename || asset.filename,
+    workflow_status: derived.workflow_status,
+    is_licensed: derived.is_licensed,
+    last_seen_at: new Date().toISOString(),
   };
   if (derived.licensor_id) moveUpdates.licensor_id = derived.licensor_id;
   if (derived.property_id) moveUpdates.property_id = derived.property_id;
@@ -1435,7 +1427,6 @@ async function handleTriggerScan(_body: Record<string, unknown>) {
     note: "Scan requests are now managed via admin_config SCAN_REQUEST",
   });
 }
-
 
 // ── Route: claim ────────────────────────────────────────────────────
 
@@ -1773,9 +1764,7 @@ async function handleGetLatestBuild(
   const agentType = optionalString(body, "agent_type") ?? "windows-render";
   const db = serviceClient();
 
-  const configKey = agentType === "bridge"
-    ? "BRIDGE_LATEST_BUILD"
-    : "WINDOWS_LATEST_BUILD";
+  const configKey = agentType === "bridge" ? "BRIDGE_LATEST_BUILD" : "WINDOWS_LATEST_BUILD";
 
   const { data: row } = await db
     .from("admin_config")
@@ -1788,9 +1777,7 @@ async function handleGetLatestBuild(
     return json({
       ok: true,
       latest_version: "0.0.0",
-      download_url: agentType === "bridge"
-        ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz`
-        : `${repoBase}/latest/download/popdam-windows-agent.zip`,
+      download_url: agentType === "bridge" ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz` : `${repoBase}/latest/download/popdam-windows-agent.zip`,
       checksum_sha256: "",
       release_notes: "",
       published_at: null,
@@ -2092,9 +2079,7 @@ async function handleNotifyBuild(
   const installerUrl = optionalString(body, "installer_url") || "";
   const commitSha = optionalString(body, "commit_sha") || "";
 
-  const configKey = agentType === "bridge"
-    ? "BRIDGE_LATEST_BUILD"
-    : "WINDOWS_LATEST_BUILD";
+  const configKey = agentType === "bridge" ? "BRIDGE_LATEST_BUILD" : "WINDOWS_LATEST_BUILD";
 
   const db = serviceClient();
   const { error: upsertErr } = await db

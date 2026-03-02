@@ -7,8 +7,7 @@ import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, " +
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, " +
     "x-supabase-client-platform, x-supabase-client-platform-version, " +
     "x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
@@ -339,27 +338,20 @@ async function handleListAgents() {
   const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000;
 
   const agents = (data || []).map((a) => {
-    const lastHb = a.last_heartbeat
-      ? new Date(a.last_heartbeat).getTime()
-      : 0;
+    const lastHb = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
     const metadata = (a.metadata as Record<string, unknown>) || {};
     return {
       id: a.id,
       name: a.agent_name,
       type: a.agent_type,
-      status:
-        lastHb > 0 && now - lastHb < OFFLINE_THRESHOLD_MS
-          ? "online"
-          : "offline",
+      status: lastHb > 0 && now - lastHb < OFFLINE_THRESHOLD_MS ? "online" : "offline",
       last_heartbeat: a.last_heartbeat,
       last_counters: metadata.last_counters || null,
       last_error: metadata.last_error || null,
       heartbeat_history: metadata.heartbeat_history || [],
       version_info: metadata.version_info || null,
       metadata,
-      key_preview: a.agent_key_hash
-        ? `${a.agent_key_hash.substring(0, 8)}...`
-        : null,
+      key_preview: a.agent_key_hash ? `${a.agent_key_hash.substring(0, 8)}...` : null,
       created_at: a.created_at,
       force_stop: metadata.force_stop === true,
       scan_abort: metadata.scan_abort === true,
@@ -431,19 +423,14 @@ async function handleDoctor() {
   const WINDOWS_OFFLINE_MS = 5 * 60 * 1000;
 
   const agentStatuses = (agents || []).map((a) => {
-    const lastHb = a.last_heartbeat
-      ? new Date(a.last_heartbeat).getTime()
-      : 0;
+    const lastHb = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
     const metadata = (a.metadata as Record<string, unknown>) || {};
     const thresholdMs = a.agent_type === "windows-render" ? WINDOWS_OFFLINE_MS : BRIDGE_OFFLINE_MS;
     return {
       id: a.id,
       name: a.agent_name,
       type: a.agent_type,
-      status:
-        lastHb > 0 && now - lastHb < thresholdMs
-          ? "online"
-          : "offline",
+      status: lastHb > 0 && now - lastHb < thresholdMs ? "online" : "offline",
       last_heartbeat: a.last_heartbeat,
       last_counters: metadata.last_counters || null,
       last_error: metadata.last_error || null,
@@ -521,7 +508,9 @@ async function handleDoctor() {
         severity: "critical",
         code: "BRIDGE_OFFLINE",
         title: `Bridge Agent "${agent.name}" is offline`,
-        details: `Last heartbeat: ${agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}. The agent is not sending heartbeats.`,
+        details: `Last heartbeat: ${
+          agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"
+        }. The agent is not sending heartbeats.`,
         recommended_fix: "Check that the Docker container is running on the Synology NAS. View logs with 'docker compose logs bridge'.",
         detected_at: agent.last_heartbeat as string || undefined,
       });
@@ -622,8 +611,10 @@ async function handleDoctor() {
       }
 
       // Check for non-interactive session
-      if (typeof health.last_preflight_error === "string" && 
-          (health.last_preflight_error as string).includes("NON_INTERACTIVE_SESSION")) {
+      if (
+        typeof health.last_preflight_error === "string" &&
+        (health.last_preflight_error as string).includes("NON_INTERACTIVE_SESSION")
+      ) {
         issues.push({
           severity: "critical",
           code: "NON_INTERACTIVE_SESSION",
@@ -865,23 +856,15 @@ async function handleStopScan(_body: Record<string, unknown>) {
   if (progressFetchErr) return err(progressFetchErr.message, 500);
 
   const progressVal = (progressRow?.value as Record<string, unknown>) || {};
-  const counters =
-    typeof progressVal.counters === "object" && progressVal.counters !== null
-      ? progressVal.counters
-      : {};
+  const counters = typeof progressVal.counters === "object" && progressVal.counters !== null ? progressVal.counters : {};
 
   const { error: progressErr } = await db.from("admin_config").upsert({
     key: "SCAN_PROGRESS",
     value: {
-      ...(typeof progressVal.session_id === "string"
-        ? { session_id: progressVal.session_id }
-        : {}),
+      ...(typeof progressVal.session_id === "string" ? { session_id: progressVal.session_id } : {}),
       status: "failed",
       counters,
-      current_path:
-        typeof progressVal.current_path === "string"
-          ? progressVal.current_path
-          : null,
+      current_path: typeof progressVal.current_path === "string" ? progressVal.current_path : null,
       updated_at: now,
     },
     updated_at: now,
@@ -1674,15 +1657,22 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
     if (parsed) {
       const skuFields: Record<string, string> = {
         sku: parsed.sku,
-        mg01_code: parsed.mg01_code, mg01_name: parsed.mg01_name,
-        mg02_code: parsed.mg02_code, mg02_name: parsed.mg02_name,
-        mg03_code: parsed.mg03_code, mg03_name: parsed.mg03_name,
-        size_code: parsed.size_code, size_name: parsed.size_name,
-        licensor_code: parsed.licensor_code, licensor_name: parsed.licensor_name,
-        property_code: parsed.property_code, property_name: parsed.property_name,
+        mg01_code: parsed.mg01_code,
+        mg01_name: parsed.mg01_name,
+        mg02_code: parsed.mg02_code,
+        mg02_name: parsed.mg02_name,
+        mg03_code: parsed.mg03_code,
+        mg03_name: parsed.mg03_name,
+        size_code: parsed.size_code,
+        size_name: parsed.size_name,
+        licensor_code: parsed.licensor_code,
+        licensor_name: parsed.licensor_name,
+        property_code: parsed.property_code,
+        property_name: parsed.property_name,
         sku_sequence: parsed.sku_sequence,
         product_category: parsed.product_category,
-        division_code: parsed.division_code, division_name: parsed.division_name,
+        division_code: parsed.division_code,
+        division_name: parsed.division_name,
         // NOTE: is_licensed intentionally excluded — path-derived is authoritative
       };
       for (const [k, v] of Object.entries(skuFields)) {
@@ -1802,14 +1792,14 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     const reachedEnd = ids.length < CLEAR_BATCH;
     const nextState: RebuildState = reachedEnd
       ? {
-          stage: "delete_groups",
-          last_group_id: null,
-          rebuild_offset: 0,
-        }
+        stage: "delete_groups",
+        last_group_id: null,
+        rebuild_offset: 0,
+      }
       : {
-          ...state,
-          last_asset_id: ids[ids.length - 1],
-        };
+        ...state,
+        last_asset_id: ids[ids.length - 1],
+      };
 
     await saveState(nextState);
 
@@ -1849,13 +1839,13 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     const reachedEnd = ids.length < GROUP_DELETE_BATCH;
     const nextState: RebuildState = reachedEnd
       ? {
-          stage: "rebuild_assets",
-          rebuild_offset: 0,
-        }
+        stage: "rebuild_assets",
+        rebuild_offset: 0,
+      }
       : {
-          ...state,
-          last_group_id: ids[ids.length - 1],
-        };
+        ...state,
+        last_group_id: ids[ids.length - 1],
+      };
 
     await saveState(nextState);
 
@@ -1873,7 +1863,9 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
   const { data: assets, error: fetchErr } = await db
     .from("assets")
-    .select("id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_id, licensor_code, licensor_name, property_id, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name")
+    .select(
+      "id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_id, licensor_code, licensor_name, property_id, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name",
+    )
     .eq("is_deleted", false)
     .order("id")
     .range(rebuildOffset, rebuildOffset + REBUILD_BATCH - 1);
@@ -1911,15 +1903,11 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
   for (const [sku, members] of skuMap) {
     const sku_upper = sku.toUpperCase();
-    const first = members.find((m) =>
-      m.filename.toUpperCase().includes(sku_upper)
-    ) ?? members[0];
+    const first = members.find((m) => m.filename.toUpperCase().includes(sku_upper)) ?? members[0];
 
     const pathParts = first.relative_path.split("/");
     const skuIdx = pathParts.lastIndexOf(sku);
-    const folderPath = skuIdx >= 0
-      ? pathParts.slice(0, skuIdx + 1).join("/")
-      : pathParts.slice(0, -1).join("/");
+    const folderPath = skuIdx >= 0 ? pathParts.slice(0, skuIdx + 1).join("/") : pathParts.slice(0, -1).join("/");
 
     const { data: group, error: upsertErr } = await db
       .from("style_groups")
@@ -2030,9 +2018,7 @@ async function handleGenerateInstallBundle(
   // Bridge-specific options
   const nasHostPath = optionalString(body, "nas_host_path") || "/volume1/nas-share";
   const containerMountRoot = optionalString(body, "container_mount_root") || "/mnt/nas/mac";
-  const scanRoots = Array.isArray(body.scan_roots)
-    ? (body.scan_roots as string[]).filter(Boolean)
-    : [];
+  const scanRoots = Array.isArray(body.scan_roots) ? (body.scan_roots as string[]).filter(Boolean) : [];
 
   // Windows-specific options
   const desiredDriveLetter = optionalString(body, "desired_drive_letter") || "";
@@ -2077,9 +2063,7 @@ async function handleGenerateInstallBundle(
       "",
       "# Volume mapping (set in docker-compose.yml)",
       "NAS_CONTAINER_MOUNT_ROOT=" + containerMountRoot,
-      ...(scanRoots.length > 0
-        ? ["SCAN_ROOTS=" + scanRoots.map(r => `${containerMountRoot}/${r}`).join(",")]
-        : ["# SCAN_ROOTS=" + containerMountRoot]),
+      ...(scanRoots.length > 0 ? ["SCAN_ROOTS=" + scanRoots.map((r) => `${containerMountRoot}/${r}`).join(",")] : ["# SCAN_ROOTS=" + containerMountRoot]),
     ].join("\n") + "\n";
 
     // ── docker-compose.yml ──
@@ -2111,9 +2095,9 @@ async function handleGenerateInstallBundle(
         "    volumes:",
         "      - /var/run/docker.sock:/var/run/docker.sock",
         "    environment:",
-        '      - WATCHTOWER_POLL_INTERVAL=3600',
-        '      - WATCHTOWER_CLEANUP=true',
-        '      - WATCHTOWER_SCOPE=popdam',
+        "      - WATCHTOWER_POLL_INTERVAL=3600",
+        "      - WATCHTOWER_CLEANUP=true",
+        "      - WATCHTOWER_SCOPE=popdam",
         "    labels:",
         '      - "com.centurylinklabs.watchtower.scope=popdam"',
       ].join("\n");
@@ -2121,7 +2105,7 @@ async function handleGenerateInstallBundle(
       compose = compose.replace(
         "      - /var/run/docker.sock:/var/run/docker.sock\n",
         "      - /var/run/docker.sock:/var/run/docker.sock\n    labels:\n" +
-        '      - "com.centurylinklabs.watchtower.scope=popdam"\n',
+          '      - "com.centurylinklabs.watchtower.scope=popdam"\n',
       );
     }
 
@@ -2158,9 +2142,7 @@ async function handleGenerateInstallBundle(
       "After pairing, the agent will begin scanning automatically.",
       "",
       "── Updating ──────────────────────────────────────",
-      enableWatchtower
-        ? "Watchtower is enabled and will auto-update every hour."
-        : "To update manually:\n  docker compose pull\n  docker compose up -d",
+      enableWatchtower ? "Watchtower is enabled and will auto-update every hour." : "To update manually:\n  docker compose pull\n  docker compose up -d",
       "",
       "── Troubleshooting ───────────────────────────────",
       "• Check agent status in PopDAM Settings → Agents",
@@ -2175,86 +2157,85 @@ async function handleGenerateInstallBundle(
     zip.file(".env", envContent);
     zip.file("docker-compose.yml", compose);
     zip.file("README.txt", readme);
-
   } else {
     // ── Windows Render Agent ──
 
     // ── install.ps1 ──
     const installPs1 = [
-      '#Requires -RunAsAdministrator',
-      '<#',
-      '.SYNOPSIS',
-      '  PopDAM Windows Render Agent — Automated Installer',
-      '  Generated: ' + now.toISOString(),
-      '#>',
-      '',
+      "#Requires -RunAsAdministrator",
+      "<#",
+      ".SYNOPSIS",
+      "  PopDAM Windows Render Agent — Automated Installer",
+      "  Generated: " + now.toISOString(),
+      "#>",
+      "",
       '$ErrorActionPreference = "Stop"',
-      '',
-      '# ── Configuration ──',
+      "",
+      "# ── Configuration ──",
       '$ServerUrl = "' + serverUrl + '"',
       '$PairingCode = "' + pairingCode + '"',
       '$AgentName = "' + agentName + '"',
       ...(nasHost ? ['$NasHost = "' + nasHost + '"'] : ['$NasHost = ""']),
       ...(nasShare ? ['$NasShare = "' + nasShare + '"'] : ['$NasShare = ""']),
       ...(desiredDriveLetter ? ['$DriveLetter = "' + desiredDriveLetter + '"'] : ['$DriveLetter = ""']),
-      '',
-      '# ── Create config directory ──',
+      "",
+      "# ── Create config directory ──",
       '$ConfigDir = Join-Path $env:ProgramData "PopDAM"',
-      'if (-not (Test-Path $ConfigDir)) {',
-      '    New-Item -Path $ConfigDir -ItemType Directory -Force | Out-Null',
+      "if (-not (Test-Path $ConfigDir)) {",
+      "    New-Item -Path $ConfigDir -ItemType Directory -Force | Out-Null",
       '    Write-Host "Created config directory: $ConfigDir" -ForegroundColor Green',
-      '}',
-      '',
-      '# ── Write .env for agent ──',
+      "}",
+      "",
+      "# ── Write .env for agent ──",
       '$InstallDir = "C:\\Program Files\\PopDAM\\WindowsAgent"',
-      'if (-not (Test-Path $InstallDir)) {',
-      '    New-Item -Path $InstallDir -ItemType Directory -Force | Out-Null',
-      '}',
-      '',
+      "if (-not (Test-Path $InstallDir)) {",
+      "    New-Item -Path $InstallDir -ItemType Directory -Force | Out-Null",
+      "}",
+      "",
       '$EnvContent = @"',
-      'SUPABASE_URL=' + serverUrl,
-      'POPDAM_SERVER_URL=' + serverUrl,
-      'POPDAM_PAIRING_CODE=' + pairingCode,
-      'AGENT_NAME=' + agentName,
+      "SUPABASE_URL=" + serverUrl,
+      "POPDAM_SERVER_URL=" + serverUrl,
+      "POPDAM_PAIRING_CODE=" + pairingCode,
+      "AGENT_NAME=" + agentName,
       '"@',
-      '',
+      "",
       '$EnvPath = Join-Path $InstallDir ".env"',
-      'Set-Content -Path $EnvPath -Value $EnvContent -Encoding UTF8 -Force',
+      "Set-Content -Path $EnvPath -Value $EnvContent -Encoding UTF8 -Force",
       'Write-Host "Wrote config to $EnvPath" -ForegroundColor Green',
-      '',
-      '# ── Map network drive (optional) ──',
-      'if ($DriveLetter -and $NasHost -and $NasShare) {',
+      "",
+      "# ── Map network drive (optional) ──",
+      "if ($DriveLetter -and $NasHost -and $NasShare) {",
       '    $UncPath = "\\\\$NasHost\\$NasShare"',
       '    $DriveWithColon = "${DriveLetter}:"',
-      '    $existing = Get-PSDrive -Name $DriveLetter -ErrorAction SilentlyContinue',
-      '    if (-not $existing) {',
+      "    $existing = Get-PSDrive -Name $DriveLetter -ErrorAction SilentlyContinue",
+      "    if (-not $existing) {",
       '        Write-Host "Mapping $DriveWithColon to $UncPath..." -ForegroundColor Yellow',
-      '        net use $DriveWithColon $UncPath /persistent:yes',
+      "        net use $DriveWithColon $UncPath /persistent:yes",
       '        Write-Host "Drive mapped successfully." -ForegroundColor Green',
-      '    } else {',
+      "    } else {",
       '        Write-Host "Drive $DriveWithColon already mapped." -ForegroundColor Cyan',
-      '    }',
-      '}',
-      '',
-      '# ── Generate uninstall script ──',
+      "    }",
+      "}",
+      "",
+      "# ── Generate uninstall script ──",
       '$UninstallScript = @"',
-      '#Requires -RunAsAdministrator',
+      "#Requires -RunAsAdministrator",
       'Write-Host "Uninstalling PopDAM Windows Render Agent..." -ForegroundColor Yellow',
       '\\$TaskName = "PopDAM Windows Render Agent"',
-      '\\$task = Get-ScheduledTask -TaskName \\$TaskName -ErrorAction SilentlyContinue',
-      'if (\\$task) {',
-      '    Stop-ScheduledTask -TaskName \\$TaskName -ErrorAction SilentlyContinue',
-      '    Unregister-ScheduledTask -TaskName \\$TaskName -Confirm:\\$false',
+      "\\$task = Get-ScheduledTask -TaskName \\$TaskName -ErrorAction SilentlyContinue",
+      "if (\\$task) {",
+      "    Stop-ScheduledTask -TaskName \\$TaskName -ErrorAction SilentlyContinue",
+      "    Unregister-ScheduledTask -TaskName \\$TaskName -Confirm:\\$false",
       '    Write-Host "Scheduled task removed." -ForegroundColor Green',
-      '}',
+      "}",
       'Write-Host "Uninstall complete. Config files in %ProgramData%\\PopDAM remain." -ForegroundColor Green',
       '"@',
-      '',
+      "",
       '$UninstallPath = Join-Path $InstallDir "uninstall.ps1"',
-      'Set-Content -Path $UninstallPath -Value $UninstallScript -Encoding UTF8 -Force',
+      "Set-Content -Path $UninstallPath -Value $UninstallScript -Encoding UTF8 -Force",
       'Write-Host "Wrote uninstall script to $UninstallPath" -ForegroundColor Green',
-      '',
-      '# ── Summary ──',
+      "",
+      "# ── Summary ──",
       'Write-Host ""',
       'Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan',
       'Write-Host "║  PopDAM Windows Agent — Configuration Written    ║" -ForegroundColor Cyan',
@@ -2313,9 +2294,7 @@ async function handleGenerateInstallBundle(
   }
 
   const zipBlob = await zip.generateAsync({ type: "uint8array" });
-  const filename = agentType === "bridge"
-    ? "popdam-bridge-bundle.zip"
-    : "popdam-windows-agent-bundle.zip";
+  const filename = agentType === "bridge" ? "popdam-bridge-bundle.zip" : "popdam-windows-agent-bundle.zip";
 
   return new Response(zipBlob, {
     status: 200,
@@ -2356,7 +2335,7 @@ async function handleRunQuery(body: Record<string, unknown>) {
     // Use the REST API directly with the service role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
+
     try {
       const pgRes = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_readonly_query`, {
         method: "POST",
@@ -2413,9 +2392,11 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
   }
 
   const assetIds = oldAssets.map((a: any) => a.id);
-  const affectedGroupIds = [...new Set(
-    oldAssets.map((a: any) => a.style_group_id).filter(Boolean)
-  )] as string[];
+  const affectedGroupIds = [
+    ...new Set(
+      oldAssets.map((a: any) => a.style_group_id).filter(Boolean),
+    ),
+  ] as string[];
 
   const { error: deleteErr } = await db
     .from("assets")
@@ -2455,9 +2436,7 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
           return d > max ? d : max;
         }, "1970-01-01T00:00:00.000Z");
 
-        const statusPriority = ["licensor_approved", "customer_adopted",
-          "in_process", "in_development", "concept_approved",
-          "freelancer_art", "product_ideas"];
+        const statusPriority = ["licensor_approved", "customer_adopted", "in_process", "in_development", "concept_approved", "freelancer_art", "product_ideas"];
         let bestStatus = "other";
         for (const s of statusPriority) {
           if (remaining.some((a: any) => a.workflow_status === s)) {
@@ -2546,7 +2525,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
       failed++;
     }
     // Small delay to avoid rate limiting
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 200));
   }
 
   const done = assets.length < BATCH_SIZE;
@@ -2763,9 +2742,7 @@ async function handleGetLatestAgentBuild(body: Record<string, unknown>) {
   const db = serviceClient();
 
   // Look up the latest build info from admin_config
-  const configKey = agentType === "bridge"
-    ? "BRIDGE_LATEST_BUILD"
-    : "WINDOWS_LATEST_BUILD";
+  const configKey = agentType === "bridge" ? "BRIDGE_LATEST_BUILD" : "WINDOWS_LATEST_BUILD";
 
   const { data: row } = await db
     .from("admin_config")
@@ -2779,9 +2756,7 @@ async function handleGetLatestAgentBuild(body: Record<string, unknown>) {
     return json({
       ok: true,
       latest_version: "0.0.0",
-      download_url: agentType === "bridge"
-        ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz`
-        : `${repoBase}/latest/download/popdam-windows-agent.zip`,
+      download_url: agentType === "bridge" ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz` : `${repoBase}/latest/download/popdam-windows-agent.zip`,
       checksum_sha256: "",
       release_notes: "",
       published_at: null,
@@ -2871,15 +2846,15 @@ async function handleRetryFailedRenders() {
   }
 
   // Find which assets already have an active job
-  const assetIds = failedJobs.map(j => j.asset_id);
+  const assetIds = failedJobs.map((j) => j.asset_id);
   const { data: activeJobs } = await db
     .from("render_queue")
     .select("asset_id")
     .in("asset_id", assetIds)
     .in("status", ["pending", "claimed"]);
 
-  const activeAssetIds = new Set((activeJobs ?? []).map(j => j.asset_id));
-  const safeToRetry = failedJobs.filter(j => !activeAssetIds.has(j.asset_id)).map(j => j.id);
+  const activeAssetIds = new Set((activeJobs ?? []).map((j) => j.asset_id));
+  const safeToRetry = failedJobs.filter((j) => !activeAssetIds.has(j.asset_id)).map((j) => j.id);
 
   if (safeToRetry.length === 0) {
     // Just delete the duplicates
@@ -3023,9 +2998,7 @@ async function handleBackfillSkuNames() {
     offset += assets.length;
 
     // Filter to only those where name = code (needs backfill)
-    const needsBackfill = assets.filter((a: any) =>
-      (a.licensor_name === a.licensor_code) || (a.property_name === a.property_code)
-    );
+    const needsBackfill = assets.filter((a: any) => (a.licensor_name === a.licensor_code) || (a.property_name === a.property_code));
 
     for (const asset of needsBackfill) {
       const parsed = await parseSku(asset.filename);
@@ -3059,7 +3032,7 @@ async function handleBackfillSkuNames() {
 async function handleTriggerTiffScan(userId: string) {
   const db = serviceClient();
   const requestId = crypto.randomUUID();
-  
+
   const { error } = await db.from("admin_config").upsert({
     key: "TIFF_SCAN_REQUEST",
     value: {
@@ -3104,7 +3077,7 @@ async function handleListTiffFiles(body: Record<string, unknown>) {
       count(*) FILTER (WHERE status = 'completed') as processed,
       count(*) FILTER (WHERE status = 'failed') as failed,
       count(*) FILTER (WHERE status IN ('queued_test','queued_process','processing')) as pending
-    FROM tiff_optimization_queue`
+    FROM tiff_optimization_queue`,
   });
 
   return json({ ok: true, files: data, total: count, summary: counts?.[0] || {} });
@@ -3133,7 +3106,7 @@ async function handleDeleteTiffOriginals(body: Record<string, unknown>) {
   if (!Array.isArray(ids) || ids.length === 0) return err("ids must be a non-empty array");
 
   const db = serviceClient();
-  
+
   // Mark these for deletion — the Windows Agent will pick up the request
   const { error } = await db.from("tiff_optimization_queue")
     .update({ status: "queued_delete", error_message: null })

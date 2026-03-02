@@ -74,7 +74,7 @@ export async function getMgLookup(
  */
 export async function getLicensorLookup(): Promise<{
   licensors: Record<string, string>; // code → name (licensed)
-  themes: Record<string, string>;    // code → name (unlicensed)
+  themes: Record<string, string>; // code → name (unlicensed)
 }> {
   const [cw, sp, eh] = await Promise.all([
     getMgLookup("05", "CW001"),

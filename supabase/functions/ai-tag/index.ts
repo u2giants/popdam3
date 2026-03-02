@@ -81,8 +81,7 @@ serve(async (req: Request) => {
       .select("value")
       .eq("key", "TAGGING_INSTRUCTIONS")
       .maybeSingle();
-    const customInstructions = typeof instrRow?.value === "string"
-      ? instrRow.value.trim() : null;
+    const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
     // Fetch taxonomy context
     const { data: licensors } = await db.from("licensors").select("id, name").limit(50);
@@ -185,7 +184,11 @@ Based on the image and metadata, identify:
 6. Asset type: art_piece or product
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
-${usingPriorityOnly ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array." : ""}${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
+${
+      usingPriorityOnly
+        ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
+        : ""
+    }${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
 
     console.log("ai-tag START", {
       assetId,
@@ -227,21 +230,18 @@ ${usingPriorityOnly ? "\nNOTE: You are seeing a curated list of characters that 
               type: "function",
               function: {
                 name: "tag_asset",
-                description:
-                  "Return structured tagging data for this design asset.",
+                description: "Return structured tagging data for this design asset.",
                 parameters: {
                   type: "object",
                   properties: {
                     tags: {
                       type: "array",
                       items: { type: "string" },
-                      description:
-                        "Descriptive tags: characters, styles, colors, themes",
+                      description: "Descriptive tags: characters, styles, colors, themes",
                     },
                     ai_description: {
                       type: "string",
-                      description:
-                        "One-sentence description of the design asset",
+                      description: "One-sentence description of the design asset",
                     },
                     scene_description: {
                       type: "string",
@@ -265,14 +265,12 @@ ${usingPriorityOnly ? "\nNOTE: You are seeing a curated list of characters that 
                     },
                     design_ref: {
                       type: "string",
-                      description:
-                        "Any style number or design reference visible",
+                      description: "Any style number or design reference visible",
                     },
                     character_ids: {
                       type: "array",
                       items: { type: "string" },
-                      description:
-                        "UUIDs of identified characters from taxonomy",
+                      description: "UUIDs of identified characters from taxonomy",
                     },
                     licensor_id: {
                       type: "string",
@@ -318,10 +316,7 @@ ${usingPriorityOnly ? "\nNOTE: You are seeing a curated list of characters that 
 
     let tagData: Record<string, unknown>;
     try {
-      tagData =
-        typeof toolCall.function.arguments === "string"
-          ? JSON.parse(toolCall.function.arguments)
-          : toolCall.function.arguments;
+      tagData = typeof toolCall.function.arguments === "string" ? JSON.parse(toolCall.function.arguments) : toolCall.function.arguments;
     } catch {
       return err("Failed to parse AI tag response", 500);
     }
