@@ -1804,9 +1804,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       const CHUNK = 100;
       for (let i = 0; i < ids.length; i += CHUNK) {
         const chunk = ids.slice(i, i + CHUNK);
-        const { error: clearErr } = await withRetry(() =>
-          db.from("assets").update({ style_group_id: null }).in("id", chunk)
-        );
+        const { error: clearErr } = await withRetry(() => db.from("assets").update({ style_group_id: null }).in("id", chunk));
         if (clearErr) return err(formatPostgrestError(clearErr), 500);
       }
     }
@@ -1854,9 +1852,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       const CHUNK = 100;
       for (let i = 0; i < ids.length; i += CHUNK) {
         const chunk = ids.slice(i, i + CHUNK);
-        const { error: delErr } = await withRetry(() =>
-          db.from("style_groups").delete().in("id", chunk)
-        );
+        const { error: delErr } = await withRetry(() => db.from("style_groups").delete().in("id", chunk));
         if (delErr) return err(formatPostgrestError(delErr), 500);
       }
     }
