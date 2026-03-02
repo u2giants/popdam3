@@ -251,12 +251,25 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
 
     logger.info("Swap complete");
 
-    // 5. Update package.json version
+    // 5. Update package.json version — prefer the stamped copy from dist.zip,
+    //    fall back to patching the existing one
     try {
       const pkgPath = path.join(installDir, "package.json");
-      const pkg = JSON.parse(await readFile(pkgPath, "utf-8"));
-      pkg.version = info.latest_version.replace(/^v/, "");
-      await writeFile(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
+      const distPkgPath = path.join(distDir, "package.json");
+      if (existsSync(distPkgPath)) {
+        // dist.zip includes a pre-stamped package.json — copy it to install root
+        const { copyFileSync } = await import("node:fs");
+        copyFileSync(distPkgPath, pkgPath);
+        logger.info("Copied stamped package.json from dist.zip", {
+          version: info.latest_version,
+        });
+      } else {
+        // Legacy dist.zip without package.json — patch in place
+        const pkg = JSON.parse(await readFile(pkgPath, "utf-8"));
+        pkg.version = info.latest_version.replace(/^v/, "");
+        await writeFile(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
+        logger.info("Patched package.json version", { version: info.latest_version });
+      }
     } catch (e) {
       logger.warn("Could not update package.json version", { error: (e as Error).message });
     }

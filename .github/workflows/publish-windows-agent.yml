@@ -38,6 +38,25 @@ jobs:
           }
           Write-Host 'dist/index.js found, proceeding with packaging'
 
+      # ── Version stamping BEFORE anything is copied to installer ──
+      - name: Compute auto-incrementing version
+        id: version
+        shell: bash
+        run: |
+          BASE_VERSION=$(node -p "require('./apps/windows-agent/package.json').version")
+          # Use the GitHub run number as an auto-incrementing build suffix
+          VERSION="${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION (base=$BASE_VERSION, run=$GITHUB_RUN_NUMBER)"
+
+      - name: Stamp version into package.json
+        shell: powershell
+        run: |
+          $pkg = Get-Content apps\windows-agent\package.json | ConvertFrom-Json
+          $pkg.version = "${{ steps.version.outputs.version }}"
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content apps\windows-agent\package.json
+          Write-Host "Stamped version ${{ steps.version.outputs.version }}"
+
       - name: Create installer staging directory
         shell: powershell
         run: |
@@ -75,9 +94,9 @@ jobs:
           Copy-Item -Recurse "apps\windows-agent\node_modules\*" -Destination "installer\node_modules\"
           Write-Host "node_modules/ copied"
 
-          # Copy package.json (needed for Node module resolution)
+          # Copy package.json (already stamped with full version above)
           Copy-Item "apps\windows-agent\package.json" -Destination "installer\package.json"
-          Write-Host "package.json copied"
+          Write-Host "package.json copied (version already stamped)"
 
       - name: Create launcher script
         shell: bash
@@ -380,29 +399,13 @@ jobs:
           }
           Write-Host "Installer built successfully: $((Get-Item 'popdam-windows-agent-setup.exe').Length / 1MB) MB"
 
-      - name: Compute auto-incrementing version
-        id: version
-        shell: bash
-        run: |
-          BASE_VERSION=$(node -p "require('./apps/windows-agent/package.json').version")
-          # Use the GitHub run number as an auto-incrementing build suffix
-          VERSION="${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION (base=$BASE_VERSION, run=$GITHUB_RUN_NUMBER)"
-
-      - name: Stamp version into package.json
-        shell: powershell
-        run: |
-          $pkg = Get-Content apps\windows-agent\package.json | ConvertFrom-Json
-          $pkg.version = "${{ steps.version.outputs.version }}"
-          $pkg | ConvertTo-Json -Depth 10 | Set-Content apps\windows-agent\package.json
-          Write-Host "Stamped version ${{ steps.version.outputs.version }}"
-
       - name: Create dist.zip (for OTA updates)
         shell: powershell
         run: |
+          # Include package.json in dist.zip so OTA updates get the stamped version
+          Copy-Item "apps\windows-agent\package.json" -Destination "apps\windows-agent\dist\package.json"
           Compress-Archive -Path "apps\windows-agent\dist\*" -DestinationPath "installer\popdam-windows-agent-dist.zip" -Force
-          Write-Host "dist.zip created: $((Get-Item 'installer\popdam-windows-agent-dist.zip').Length / 1KB) KB"
+          Write-Host "dist.zip created (includes package.json): $((Get-Item 'installer\popdam-windows-agent-dist.zip').Length / 1KB) KB"
 
       - name: Compute dist.zip checksum
         id: checksum
