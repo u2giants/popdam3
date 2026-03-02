@@ -914,8 +914,11 @@ function StyleGroupsSection() {
   });
 
   function runRebuild() {
+    const isResume = rebuildOp.isInterrupted;
     rebuildOp.start({
-      confirmMessage: "This will delete all existing style groups and rebuild them from scratch. Continue?",
+      confirmMessage: isResume
+        ? "Resume the interrupted style-group rebuild from the last processed cursor?"
+        : "This will delete all existing style groups and rebuild them from scratch. Continue?",
     });
   }
 
@@ -944,7 +947,7 @@ function StyleGroupsSection() {
                   disabled={rebuildOp.isActive}
                 >
                   {rebuildOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  {rebuildOp.isInterrupted ? "Rebuild (interrupted)" : "Rebuild Style Groups"}
+                  {rebuildOp.isInterrupted ? "Resume Rebuild Style Groups" : "Rebuild Style Groups"}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[260px] text-center">Deletes all style groups and re-creates them from asset folder structure. Tags and AI data on assets are preserved.</TooltipContent>
@@ -957,6 +960,9 @@ function StyleGroupsSection() {
         {(rebuildOp.isActive || rebuildOp.state.status === "completed") && p && (
           <p className="text-xs text-muted-foreground">
             {rebuildOp.isActive ? "" : "✓ "}{(p.groups as number)?.toLocaleString()} groups created, {(p.assigned as number)?.toLocaleString()} assets assigned
+            {typeof p.total_processed === "number" && typeof p.total_assets === "number" && (
+              <span> · Processed {(p.total_processed as number).toLocaleString()} / {(p.total_assets as number).toLocaleString()}</span>
+            )}
           </p>
         )}
         {rebuildOp.state.status === "failed" && (

@@ -1742,12 +1742,13 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
 
 async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
+  const forceRestart = body.force_restart === true;
   const db = serviceClient();
 
   const STATE_KEY = "REBUILD_STYLE_GROUPS_STATE";
-  const CLEAR_BATCH = 50;
-  const GROUP_DELETE_BATCH = 50;
-  const REBUILD_BATCH = 25;
+  const CLEAR_BATCH = 1000;
+  const GROUP_DELETE_BATCH = 1000;
+  const REBUILD_BATCH = 500;
 
   type RebuildState = {
     stage: "clear_assets" | "delete_groups" | "rebuild_assets" | "finalize_stats";
@@ -1755,6 +1756,9 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     last_group_id?: string | null;
     last_rebuild_asset_id?: string | null;
     last_stats_group_id?: string | null;
+    total_assets?: number;
+    total_processed?: number;
+    started_at?: string;
     // legacy compatibility (old implementation)
     rebuild_offset?: number;
   };
@@ -1773,40 +1777,48 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     await db.from("admin_config").delete().eq("key", STATE_KEY);
   }
 
-  // Start a fresh run when caller starts from offset 0
-  if (offset === 0) {
-    const initialState: RebuildState = {
-      stage: "clear_assets",
-      last_asset_id: null,
-      last_group_id: null,
-      last_rebuild_asset_id: null,
-      last_stats_group_id: null,
-    };
-    await saveState(initialState);
-  }
+  const normalizeState = (state: RebuildState | null): RebuildState => ({
+    stage: state?.stage ?? "clear_assets",
+    last_asset_id: state?.last_asset_id ?? null,
+    last_group_id: state?.last_group_id ?? null,
+    last_rebuild_asset_id: state?.last_rebuild_asset_id ?? null,
+    last_stats_group_id: state?.last_stats_group_id ?? null,
+    total_assets: state?.total_assets,
+    total_processed: state?.total_processed ?? 0,
+    started_at: state?.started_at ?? new Date().toISOString(),
+  });
 
-  const { data: stateRow } = await db
+  const { data: existingStateRow } = await db
     .from("admin_config")
     .select("value")
     .eq("key", STATE_KEY)
     .maybeSingle();
 
-  let state = (stateRow?.value as RebuildState | null) ?? null;
+  let state = (existingStateRow?.value as RebuildState | null) ?? null;
 
-  if (!state || !state.stage) {
-    state = {
-      stage: "clear_assets",
-      last_asset_id: null,
-      last_group_id: null,
-      last_rebuild_asset_id: null,
-      last_stats_group_id: null,
-    };
+  // Start fresh only when explicitly requested; otherwise resume existing state.
+  if (offset === 0 && forceRestart) {
+    state = normalizeState(null);
+    await saveState(state);
+  }
+
+  state = normalizeState(state);
+
+  // Ensure we know total assets once per rebuild for UI verbosity.
+  if (typeof state.total_assets !== "number") {
+    const { count, error: countErr } = await db
+      .from("assets")
+      .select("id", { count: "exact", head: true })
+      .eq("is_deleted", false);
+    if (countErr) return err(formatPostgrestError(countErr), 500);
+    state.total_assets = count ?? 0;
     await saveState(state);
   }
 
   // Legacy state compatibility: restart stage 3 safely on new cursor logic
   if (state.stage === "rebuild_assets" && state.last_rebuild_asset_id === undefined) {
     state = {
+      ...state,
       stage: "rebuild_assets",
       last_rebuild_asset_id: null,
       last_stats_group_id: null,
@@ -1833,25 +1845,23 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
     const ids = (rows ?? []).map((r) => r.id as string);
     if (ids.length > 0) {
-      const CHUNK = 25;
-      for (let i = 0; i < ids.length; i += CHUNK) {
-        const chunk = ids.slice(i, i + CHUNK);
-        await withRetry(async () => {
-          const { error: clearErr } = await db.from("assets").update({ style_group_id: null }).in("id", chunk);
-          if (clearErr) {
-            throw new Error(
-              `clear_assets chunk failed (size=${chunk.length}, last_asset_id=${state?.last_asset_id ?? "none"}): ${formatPostgrestError(clearErr)}`,
-            );
-          }
-          return true;
-        });
-      }
+      await withRetry(async () => {
+        const { error: clearErr } = await db.from("assets").update({ style_group_id: null }).in("id", ids);
+        if (clearErr) {
+          throw new Error(
+            `clear_assets batch failed (size=${ids.length}, last_asset_id=${state?.last_asset_id ?? "none"}): ${formatPostgrestError(clearErr)}`,
+          );
+        }
+        return true;
+      });
     }
 
     const reachedEnd = ids.length < CLEAR_BATCH;
     const nextState: RebuildState = reachedEnd
       ? {
+        ...state,
         stage: "delete_groups",
+        last_asset_id: null,
         last_group_id: null,
       }
       : {
@@ -1868,6 +1878,9 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       done: false,
       nextOffset: offset + 1,
       cleared_assets: ids.length,
+      total_processed: nextState.total_processed ?? 0,
+      total_assets: nextState.total_assets ?? 0,
+      resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
     });
   }
 
@@ -1888,25 +1901,23 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
     const ids = (rows ?? []).map((r) => r.id as string);
     if (ids.length > 0) {
-      const CHUNK = 25;
-      for (let i = 0; i < ids.length; i += CHUNK) {
-        const chunk = ids.slice(i, i + CHUNK);
-        await withRetry(async () => {
-          const { error: delErr } = await db.from("style_groups").delete().in("id", chunk);
-          if (delErr) {
-            throw new Error(
-              `delete_groups chunk failed (size=${chunk.length}, last_group_id=${state?.last_group_id ?? "none"}): ${formatPostgrestError(delErr)}`,
-            );
-          }
-          return true;
-        });
-      }
+      await withRetry(async () => {
+        const { error: delErr } = await db.from("style_groups").delete().in("id", ids);
+        if (delErr) {
+          throw new Error(
+            `delete_groups batch failed (size=${ids.length}, last_group_id=${state?.last_group_id ?? "none"}): ${formatPostgrestError(delErr)}`,
+          );
+        }
+        return true;
+      });
     }
 
     const reachedEnd = ids.length < GROUP_DELETE_BATCH;
     const nextState: RebuildState = reachedEnd
       ? {
+        ...state,
         stage: "rebuild_assets",
+        last_group_id: null,
         last_rebuild_asset_id: null,
       }
       : {
@@ -1923,10 +1934,13 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       done: false,
       nextOffset: offset + 1,
       groups_deleted: ids.length,
+      total_processed: nextState.total_processed ?? 0,
+      total_assets: nextState.total_assets ?? 0,
+      resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
     });
   }
 
-  // Stage 3: assign assets -> groups (no stats calculation here)
+  // Stage 3: assign assets -> groups (bulk upsert + bulk assignment RPC)
   if (state.stage === "rebuild_assets") {
     try {
       let q = db
@@ -1950,18 +1964,23 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
       if (fetchErr) return err(fetchErr.message, 500);
       if (!assets || assets.length === 0) {
-        await saveState({
+        const nextState: RebuildState = {
+          ...state,
           stage: "finalize_stats",
           last_stats_group_id: null,
-        });
+        };
+        await saveState(nextState);
         return json({
           ok: true,
           stage: "rebuild_assets",
           groups_created: 0,
           assets_assigned: 0,
           assets_ungrouped: 0,
+          total_processed: nextState.total_processed ?? 0,
+          total_assets: nextState.total_assets ?? 0,
           done: false,
           nextOffset: offset + 1,
+          resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
         });
       }
 
@@ -1978,102 +1997,98 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         skuMap.get(sku)!.push(asset);
       }
 
-      let groupsCreated = 0;
-      let assetsAssigned = 0;
-
-      const assignGroupWithAdaptiveChunks = async (ids: string[], groupId: string) => {
-        const runChunk = async (chunkIds: string[]): Promise<void> => {
-          try {
-            await withRetry(() =>
-              db.from("assets").update({ style_group_id: groupId }).in("id", chunkIds)
-                .then((r) => {
-                  if (r.error) throw new Error(formatPostgrestError(r.error));
-                  return r;
-                })
-            );
-          } catch (e) {
-            const msg = (e as Error).message || "";
-            const isStatementTimeout = msg.includes("57014") || msg.toLowerCase().includes("statement timeout");
-
-            // Retry with smaller chunks to avoid timeout while preserving correctness.
-            if (isStatementTimeout && chunkIds.length > 1) {
-              const mid = Math.ceil(chunkIds.length / 2);
-              await runChunk(chunkIds.slice(0, mid));
-              await runChunk(chunkIds.slice(mid));
-              return;
-            }
-
-            throw e;
-          }
-        };
-
-        const BASE_CHUNK = 25;
-        for (let i = 0; i < ids.length; i += BASE_CHUNK) {
-          await runChunk(ids.slice(i, i + BASE_CHUNK));
-        }
-      };
-
-      for (const [sku, members] of skuMap) {
+      const groupRows = Array.from(skuMap.entries()).map(([sku, members]) => {
         const sku_upper = sku.toUpperCase();
         const first = members.find((m) => m.filename.toUpperCase().includes(sku_upper)) ?? members[0];
-
         const pathParts = first.relative_path.split("/");
         const skuIdx = pathParts.lastIndexOf(sku);
         const folderPath = skuIdx >= 0 ? pathParts.slice(0, skuIdx + 1).join("/") : pathParts.slice(0, -1).join("/");
 
-        const { data: group, error: upsertErr } = await withRetry(() =>
+        return {
+          sku,
+          folder_path: folderPath,
+          is_licensed: first.is_licensed ?? false,
+          licensor_id: (first as any).licensor_id ?? null,
+          licensor_code: first.licensor_code,
+          licensor_name: first.licensor_name,
+          property_id: (first as any).property_id ?? null,
+          property_code: first.property_code,
+          property_name: first.property_name,
+          product_category: first.product_category,
+          division_code: first.division_code,
+          division_name: first.division_name,
+          mg01_code: first.mg01_code,
+          mg01_name: first.mg01_name,
+          mg02_code: first.mg02_code,
+          mg02_name: first.mg02_name,
+          mg03_code: first.mg03_code,
+          mg03_name: first.mg03_name,
+          size_code: first.size_code,
+          size_name: first.size_name,
+        };
+      });
+
+      let groupsCreated = 0;
+      let assetsAssigned = 0;
+
+      if (groupRows.length > 0) {
+        const { data: upsertedGroups, error: upsertErr } = await withRetry(() =>
           db
             .from("style_groups")
-            .upsert({
-              sku,
-              folder_path: folderPath,
-              is_licensed: first.is_licensed ?? false,
-              licensor_id: (first as any).licensor_id ?? null,
-              licensor_code: first.licensor_code,
-              licensor_name: first.licensor_name,
-              property_id: (first as any).property_id ?? null,
-              property_code: first.property_code,
-              property_name: first.property_name,
-              product_category: first.product_category,
-              division_code: first.division_code,
-              division_name: first.division_name,
-              mg01_code: first.mg01_code,
-              mg01_name: first.mg01_name,
-              mg02_code: first.mg02_code,
-              mg02_name: first.mg02_name,
-              mg03_code: first.mg03_code,
-              mg03_name: first.mg03_name,
-              size_code: first.size_code,
-              size_name: first.size_name,
-            }, { onConflict: "sku" })
-            .select("id")
-            .single()
+            .upsert(groupRows, { onConflict: "sku" })
+            .select("id, sku")
             .then((r) => {
               if (r.error) throw new Error(formatPostgrestError(r.error));
               return r;
             })
         );
 
-        if (upsertErr || !group) continue;
-        groupsCreated++;
+        if (upsertErr) return err(upsertErr.message, 500);
 
-        const memberIds = members.map((m) => m.id);
-        await assignGroupWithAdaptiveChunks(memberIds, group.id);
-        assetsAssigned += memberIds.length;
+        const groupIdBySku = new Map<string, string>(
+          (upsertedGroups ?? []).map((g) => [g.sku as string, g.id as string]),
+        );
+
+        const assignments: Array<{ asset_id: string; style_group_id: string }> = [];
+        for (const [sku, members] of skuMap) {
+          const groupId = groupIdBySku.get(sku);
+          if (!groupId) continue;
+          for (const m of members) {
+            assignments.push({ asset_id: m.id, style_group_id: groupId });
+          }
+        }
+
+        if (assignments.length > 0) {
+          const { data: assignedCount, error: assignErr } = await withRetry(() =>
+            db.rpc("bulk_assign_style_groups", { p_assignments: assignments }).then((r) => {
+              if (r.error) throw new Error(formatPostgrestError(r.error));
+              return r;
+            })
+          );
+          if (assignErr) return err(assignErr.message, 500);
+          assetsAssigned = typeof assignedCount === "number" ? assignedCount : assignments.length;
+        }
+
+        groupsCreated = (upsertedGroups ?? []).length;
       }
 
+      const totalProcessed = (state.total_processed ?? 0) + assets.length;
       const reachedEnd = assets.length < REBUILD_BATCH;
-      if (reachedEnd) {
-        await saveState({
+      const nextState: RebuildState = reachedEnd
+        ? {
+          ...state,
           stage: "finalize_stats",
           last_stats_group_id: null,
-        });
-      } else {
-        await saveState({
+          total_processed: totalProcessed,
+        }
+        : {
+          ...state,
           stage: "rebuild_assets",
           last_rebuild_asset_id: assets[assets.length - 1].id,
-        });
-      }
+          total_processed: totalProcessed,
+        };
+
+      await saveState(nextState);
 
       return json({
         ok: true,
@@ -2081,8 +2096,11 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         groups_created: groupsCreated,
         assets_assigned: assetsAssigned,
         assets_ungrouped: ungrouped,
+        total_processed: totalProcessed,
+        total_assets: nextState.total_assets ?? 0,
         done: false,
         nextOffset: offset + 1,
+        resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
       });
     } catch (e) {
       const msg = (e as Error).message || "Unknown error in rebuild stage 3";
@@ -2091,7 +2109,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
   }
 
-  // Stage 4: finalize stats using a single aggregate SQL update
+  // Stage 4: finalize stats using optimized aggregate update
   if (state.stage === "finalize_stats") {
     try {
       const { error: refreshErr } = await withRetry(async () => {
@@ -2106,8 +2124,11 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       return json({
         ok: true,
         stage: "finalize_stats",
+        total_processed: state.total_processed ?? 0,
+        total_assets: state.total_assets ?? 0,
         done: true,
         nextOffset: offset + 1,
+        resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
       });
     } catch (e) {
       const msg = (e as Error).message || "Unknown error in rebuild stage 4";
