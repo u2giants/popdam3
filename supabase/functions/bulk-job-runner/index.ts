@@ -92,7 +92,9 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
     case "backfill-sku-names":
       return `Backfilled ${progress.assets_updated} assets, ${progress.groups_updated} groups`;
     case "rebuild-style-groups":
-      return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets, processed ${progress.total_processed || 0}/${progress.total_assets || 0}`;
+      return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets, processed ${progress.total_processed || 0}/${
+        progress.total_assets || 0
+      }`;
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":
