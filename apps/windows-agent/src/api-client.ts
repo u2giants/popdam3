@@ -132,19 +132,90 @@ export async function pair(
   pairingCode: string,
   agentName: string,
 ): Promise<{ agent_id: string; agent_key: string }> {
-  const res = await fetch(config.agentApiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "pair",
-      pairing_code: pairingCode,
-      agent_name: agentName,
-    }),
+  const maskedCode = pairingCode.length > 4
+    ? `${pairingCode.slice(0, 4)}-****-****-****`
+    : "****";
+  const endpoint = config.agentApiUrl;
+
+  logger.info("Attempting pairing", { endpoint, pairingCode: maskedCode });
+
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "pair",
+        pairing_code: pairingCode,
+        agent_name: agentName,
+      }),
+    });
+  } catch (fetchErr) {
+    const msg = (fetchErr as Error).message;
+    logger.error("Pairing fetch failed (network-level error)", {
+      endpoint,
+      error: msg,
+      stack: (fetchErr as Error).stack,
+    });
+    throw new Error(`Pairing network error: ${msg}`);
+  }
+
+  logger.info("Pairing response received", {
+    status: res.status,
+    statusText: res.statusText,
+    contentType: res.headers.get("content-type"),
   });
 
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "Pairing failed");
-  return { agent_id: data.agent_id, agent_key: data.agent_key };
+  // Read raw body first to handle non-JSON responses
+  let rawBody: string;
+  try {
+    rawBody = await res.text();
+  } catch (readErr) {
+    throw new Error(`Pairing failed: could not read response body (HTTP ${res.status})`);
+  }
+
+  if (!res.ok) {
+    logger.error("Pairing HTTP error", {
+      status: res.status,
+      statusText: res.statusText,
+      body: rawBody.slice(0, 500),
+    });
+    // Try to parse JSON error message
+    try {
+      const errData = JSON.parse(rawBody);
+      throw new Error(errData.error || `Pairing failed with HTTP ${res.status}`);
+    } catch (parseErr) {
+      if ((parseErr as Error).message.startsWith("Pairing")) throw parseErr;
+      throw new Error(`Pairing failed with HTTP ${res.status}: ${rawBody.slice(0, 200)}`);
+    }
+  }
+
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    logger.error("Pairing response is not valid JSON", {
+      status: res.status,
+      body: rawBody.slice(0, 500),
+    });
+    throw new Error(`Pairing failed: response is not JSON (HTTP ${res.status})`);
+  }
+
+  if (!data.ok) {
+    logger.error("Pairing rejected by server", {
+      error: data.error,
+      fullResponse: rawBody.slice(0, 500),
+    });
+    throw new Error(
+      (data.error as string) || `Pairing rejected by server (no error message in response)`
+    );
+  }
+
+  logger.info("Pairing succeeded", {
+    agentId: data.agent_id,
+    agentType: data.agent_type,
+  });
+  return { agent_id: data.agent_id as string, agent_key: data.agent_key as string };
 }
 
 // ── Self-update API ────────────────────────────────────────────────
