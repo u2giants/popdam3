@@ -25,7 +25,7 @@ import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { createHash } from "node:crypto";
-import { spawn, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import path from "node:path";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ export interface UpdateState {
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
+export const RESTART_EXIT_CODE = 77;
 
 let state: UpdateState = {
   updateAvailable: false,
@@ -212,8 +213,9 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
     mkdirSync(distNewDir, { recursive: true });
 
     // Use PowerShell to extract (available on all Windows)
+    // SilentlyContinue suppresses the blue progress bar that flashes in the console
     execSync(
-      `powershell -NoProfile -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${distNewDir}' -Force"`,
+      `powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; Expand-Archive -Path '${zipPath}' -DestinationPath '${distNewDir}' -Force"`,
       { timeout: 30_000 }
     );
 
@@ -302,34 +304,9 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
     // 8. Clean up zip
     try { unlinkSync(zipPath); } catch { /* ok */ }
 
-    // 9. Restart via scheduled task (cleanest method)
-    logger.info("Restarting agent with new code...");
-    try {
-      execSync('schtasks /end /tn "PopDAM Windows Render Agent"', { timeout: 5_000 });
-    } catch { /* may not be running via task */ }
-
-    // Small delay, then restart
-    setTimeout(() => {
-      try {
-        execSync('schtasks /run /tn "PopDAM Windows Render Agent"', { timeout: 5_000 });
-      } catch {
-        // Fallback: spawn directly
-        const nodePath = path.join(installDir, "node.exe");
-        const indexPath = path.join(installDir, "dist", "index.js");
-        const child = spawn(nodePath, [indexPath], {
-          detached: true,
-          stdio: "ignore",
-          cwd: installDir,
-          env: {
-            ...process.env,
-            POPDAM_PREVIOUS_VERSION: config.version,
-            POPDAM_ROLLBACK_DIST: distOldDir,
-          },
-        });
-        child.unref();
-      }
-      process.exit(0);
-    }, 2_000);
+    // 9. Restart via launcher exit code (launcher loop will restart us)
+    logger.info("Restarting via launcher exit code", { exitCode: RESTART_EXIT_CODE });
+    process.exit(RESTART_EXIT_CODE);
   } catch (e) {
     const msg = (e as Error).message;
     state.lastError = msg;
@@ -459,17 +436,9 @@ export async function postRestartHealthCheck(agentId: string): Promise<void> {
           });
         } catch { /* best effort */ }
 
-        // Restart with old code
+        // Restart with old code via launcher exit code
         logger.info("Rollback complete — restarting with previous version");
-        try {
-          execSync('schtasks /end /tn "PopDAM Windows Render Agent"', { timeout: 5_000 });
-        } catch { /* ok */ }
-        setTimeout(() => {
-          try {
-            execSync('schtasks /run /tn "PopDAM Windows Render Agent"', { timeout: 5_000 });
-          } catch { /* ok */ }
-          process.exit(1);
-        }, 2_000);
+        process.exit(RESTART_EXIT_CODE);
       } else {
         logger.error("Rollback dist not found — cannot rollback", { rollbackDist });
       }

@@ -105,6 +105,8 @@ jobs:
           @echo off
           REM PopDAM Windows Agent Launcher
           REM Ensures drive mapping exists before starting the agent.
+          REM Supervises the agent process: restarts on exit code 77 (update)
+          REM or after a 5-second delay on any other exit.
 
           set "CONFIG_DIR=%ProgramData%\PopDAM"
           set "CONFIG_FILE=%CONFIG_DIR%\agent-config.json"
@@ -130,10 +132,23 @@ jobs:
               )
           )
 
-          REM --- Start agent ---
-          echo [launcher] Starting PopDAM Windows Agent...
+          REM --- Supervised agent loop ---
           cd /d "%~dp0"
+
+          :run
+          echo [launcher] Starting PopDAM Windows Agent...
           "%~dp0node.exe" "%~dp0dist\index.js" >> "%LOG_DIR%\agent.log" 2>> "%LOG_DIR%\agent-error.log"
+
+          set EXITCODE=%ERRORLEVEL%
+
+          if "%EXITCODE%"=="77" (
+              echo [launcher] Agent requested restart ^(update applied^). Restarting immediately...
+              goto run
+          )
+
+          echo [launcher] Agent exited with code %EXITCODE%. Restarting in 5 seconds...
+          timeout /t 5 /nobreak >nul
+          goto run
           BAT_EOF
 
       - name: Install NSIS
