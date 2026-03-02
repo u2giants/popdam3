@@ -82,7 +82,7 @@ async function doPairing() {
     }
 
     // Merge in pairing fields, preserving all others (drive_letter, nas_unc, server_url, etc.)
-    const merged = {
+    const merged: Record<string, unknown> = {
       ...existing,
       agent_id: result.agent_id,
       agent_key: result.agent_key,

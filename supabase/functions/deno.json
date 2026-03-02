@@ -1,0 +1,12 @@
+{
+  "fmt": {
+    "options": {
+      "lineWidth": 160,
+      "indentWidth": 2,
+      "useTabs": false,
+      "singleQuote": false,
+      "proseWrap": "preserve"
+    },
+    "exclude": ["_shared/sku-parser.ts"]
+  }
+}

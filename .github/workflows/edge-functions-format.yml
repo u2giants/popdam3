@@ -24,4 +24,4 @@ jobs:
           deno-version: v1.x
 
       - name: Check formatting
-        run: deno fmt --check supabase/functions/**/*.ts
+        run: deno fmt --check --config supabase/functions/deno.json supabase/functions/
