@@ -99,10 +99,16 @@ export default function TiffHygieneTab() {
   // Derive scan state from cloud config
   const scanReqValue = (
     scanReqData?.config?.TIFF_SCAN_REQUEST?.value ?? scanReqData?.config?.TIFF_SCAN_REQUEST
-  ) as { status?: string; error?: string; total_files?: number } | undefined;
+  ) as { status?: string; error?: string; total_files?: number; claimed_at?: string } | undefined;
   const scanReqStatus = scanReqValue?.status;
   const scanReqError = scanReqValue?.error;
-  const isAgentScanning = scanPending || scanReqStatus === "pending" || scanReqStatus === "claimed";
+
+  // Detect stale claimed scans (agent crashed during scan — claimed > 10 min ago)
+  const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+  const isStale = scanReqStatus === "claimed" && scanReqValue?.claimed_at
+    ? Date.now() - new Date(scanReqValue.claimed_at).getTime() > STALE_THRESHOLD_MS
+    : false;
+  const isAgentScanning = !isStale && (scanPending || scanReqStatus === "pending" || scanReqStatus === "claimed");
 
   // Auto-poll for results while scan is pending/claimed
   useEffect(() => {
@@ -337,7 +343,32 @@ export default function TiffHygieneTab() {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading...
             </div>
           ) : files.length === 0 ? (
-            isAgentScanning ? (
+            isStale ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-sm">
+                <XCircle className="h-5 w-5 text-destructive" />
+                <p className="text-destructive font-medium">TIFF scan timed out</p>
+                <p className="text-muted-foreground text-xs max-w-md text-center">
+                  The Windows Agent claimed the scan but never reported back (likely crashed or restarted during the scan).
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    variant="default" size="sm" className="text-xs gap-1.5"
+                    onClick={async () => {
+                      try {
+                        await call("set-config", { entries: { TIFF_SCAN_REQUEST: { status: "cancelled" } } });
+                        setScanPending(false);
+                        queryClient.invalidateQueries({ queryKey: ["tiff-scan-request"] });
+                        toast.info("Stale scan cleared — you can retry now");
+                      } catch (e) {
+                        toast.error((e as Error).message);
+                      }
+                    }}
+                  >
+                    <RefreshCw className="h-3 w-3" /> Clear &amp; Retry
+                  </Button>
+                </div>
+              </div>
+            ) : isAgentScanning ? (
               <div className="flex flex-col items-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <p>Waiting for Windows Agent to scan the filesystem...</p>
