@@ -1873,7 +1873,10 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         .eq("is_deleted", false)
         .order("id")
         .range(rebuildOffset, rebuildOffset + REBUILD_BATCH - 1)
-        .then((r) => { if (r.error) throw new Error(r.error.message); return r; })
+        .then((r) => {
+          if (r.error) throw new Error(r.error.message);
+          return r;
+        })
     );
 
     if (fetchErr) return err(fetchErr.message, 500);
@@ -1947,7 +1950,10 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           }, { onConflict: "sku" })
           .select("id")
           .single()
-          .then((r) => { if (r.error) throw new Error(r.error.message); return r; })
+          .then((r) => {
+            if (r.error) throw new Error(r.error.message);
+            return r;
+          })
       );
 
       if (upsertErr || !group) continue;
@@ -1957,7 +1963,10 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       const memberIds = members.map((m) => m.id);
       await withRetry(() =>
         db.from("assets").update({ style_group_id: group.id }).in("id", memberIds)
-          .then((r) => { if (r.error) throw new Error(r.error.message); return r; })
+          .then((r) => {
+            if (r.error) throw new Error(r.error.message);
+            return r;
+          })
       );
       assetsAssigned += memberIds.length;
     }
@@ -1970,7 +1979,10 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           .select("id, style_group_id, filename, file_type, asset_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
           .in("style_group_id", touchedGroupIds)
           .eq("is_deleted", false)
-          .then((r) => { if (r.error) throw new Error(r.error.message); return r; })
+          .then((r) => {
+            if (r.error) throw new Error(r.error.message);
+            return r;
+          })
       );
 
       if (allGroupAssets && allGroupAssets.length > 0) {
@@ -2010,7 +2022,10 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
               latest_file_date: latestFileDate,
               updated_at: new Date().toISOString(),
             }).eq("id", gid)
-              .then((r) => { if (r.error) throw new Error(r.error.message); return r; })
+              .then((r) => {
+                if (r.error) throw new Error(r.error.message);
+                return r;
+              })
           );
         }
       }
