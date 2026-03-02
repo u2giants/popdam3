@@ -15,6 +15,7 @@ import {
   RotateCcw, Play, Trash2, Wrench, Stethoscope, FileSearch,
   Sparkles,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -470,53 +471,102 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-2 items-center">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={onRefresh}>
-            <RefreshCw className="h-3.5 w-3.5" /> Run Diagnostics
-          </Button>
-          <Button
-            variant="outline" size="sm" className="gap-1.5"
-            onClick={() => { if (confirm("Reset scan state to idle?")) resetScanMutation.mutate(); }}
-            disabled={resetScanMutation.isPending}
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> Reset Scan State
-          </Button>
-          <Button
-            variant="outline" size="sm" className="gap-1.5"
-            onClick={() => resumeMutation.mutate()}
-            disabled={resumeMutation.isPending}
-          >
-            <Play className="h-3.5 w-3.5" /> Resume Scanning
-          </Button>
-          <Button
-            variant="outline" size="sm" className="gap-1.5"
-            onClick={() => retryFailedMutation.mutate()}
-            disabled={retryFailedMutation.isPending}
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Retry Failed Jobs
-          </Button>
-          <Button
-            variant="outline" size="sm" className="gap-1.5 text-destructive"
-            onClick={() => { if (confirm("Delete completed jobs older than 7 days?")) clearCompletedMutation.mutate(); }}
-            disabled={clearCompletedMutation.isPending}
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Clear Old Completed Jobs
-          </Button>
-          <Button
-            variant="outline" size="sm" className="gap-1.5"
-            onClick={runReprocess}
-            disabled={reprocessActive}
-          >
-            {reprocessActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
-            {reprocessActive ? "Reprocessing…" : reprocessOp.isInterrupted ? "Reprocess (interrupted)" : "Reprocess Metadata"}
-          </Button>
-          <Button
-            variant="outline" size="sm" className="gap-1.5"
-            onClick={runBackfill}
-            disabled={backfillActive}
-          >
-            {backfillActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {backfillActive ? "Backfilling…" : backfillOp.isInterrupted ? "Backfill (interrupted)" : "Backfill SKU Names"}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={onRefresh}>
+                  <RefreshCw className="h-3.5 w-3.5" /> Run Diagnostics
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[220px] text-center">Refreshes all status cards and counters on this page</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={() => { if (confirm("Reset scan state to idle?")) resetScanMutation.mutate(); }}
+                  disabled={resetScanMutation.isPending}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Reset Scan State
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px] text-center">Clears scan request and progress flags. Does not delete any discovered assets.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={() => resumeMutation.mutate()}
+                  disabled={resumeMutation.isPending}
+                >
+                  <Play className="h-3.5 w-3.5" /> Resume Scanning
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[220px] text-center">Triggers a new scan that resumes from the last checkpoint</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={() => retryFailedMutation.mutate()}
+                  disabled={retryFailedMutation.isPending}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Retry Failed Jobs
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[220px] text-center">Resets all failed AI-tag and render jobs back to pending so they'll be retried</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5 text-destructive"
+                  onClick={() => { if (confirm("Delete completed jobs older than 7 days?")) clearCompletedMutation.mutate(); }}
+                  disabled={clearCompletedMutation.isPending}
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Clear Old Completed Jobs
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px] text-center">Removes completed job records older than 7 days from the queue table. Does not affect assets.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={runReprocess}
+                  disabled={reprocessActive}
+                >
+                  {reprocessActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
+                  {reprocessActive ? "Reprocessing…" : reprocessOp.isInterrupted ? "Reprocess (interrupted)" : "Reprocess Metadata"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[260px] text-center">Re-derives SKU, licensor, and property metadata from filenames for all assets. Safe to re-run.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={runBackfill}
+                  disabled={backfillActive}
+                >
+                  {backfillActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {backfillActive ? "Backfilling…" : backfillOp.isInterrupted ? "Backfill (interrupted)" : "Backfill SKU Names"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[260px] text-center">Resolves human-readable licensor/property names from the ColdLion API where only codes exist</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {reprocessOp.isInterrupted && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => reprocessOp.reset()}>Dismiss</Button>
           )}
@@ -834,22 +884,36 @@ function AiTaggingSection() {
         </p>
 
         <div className="flex flex-wrap gap-2 items-center">
-          <Button
-            variant="outline" size="sm" className="gap-1.5"
-            onClick={() => runBulkTag("untagged")}
-            disabled={anyActive || untaggedCount === 0}
-          >
-            {tagUntaggedOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {tagUntaggedOp.isInterrupted ? "Tag Untagged (interrupted)" : "Tag All Untagged"}
-          </Button>
-          <Button
-            variant="outline" size="sm" className="gap-1.5 text-[hsl(var(--warning))]"
-            onClick={() => runBulkTag("all")}
-            disabled={anyActive || totalWithThumb === 0}
-          >
-            {tagAllOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            {tagAllOp.isInterrupted ? "Re-tag (interrupted)" : "Re-tag Everything"}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={() => runBulkTag("untagged")}
+                  disabled={anyActive || untaggedCount === 0}
+                >
+                  {tagUntaggedOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {tagUntaggedOp.isInterrupted ? "Tag Untagged (interrupted)" : "Tag All Untagged"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px] text-center">AI-tag only assets that haven't been tagged yet. Existing tags are preserved.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5 text-[hsl(var(--warning))]"
+                  onClick={() => runBulkTag("all")}
+                  disabled={anyActive || totalWithThumb === 0}
+                >
+                  {tagAllOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  {tagAllOp.isInterrupted ? "Re-tag (interrupted)" : "Re-tag Everything"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[240px] text-center">Overwrites ALL existing AI tags and descriptions. Use with caution.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {(tagUntaggedOp.isInterrupted || tagAllOp.isInterrupted) && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => { tagUntaggedOp.reset(); tagAllOp.reset(); }}>
               Dismiss
@@ -959,14 +1023,21 @@ function StyleGroupsSection() {
           </p>
         )}
         <div className="flex flex-wrap gap-2 items-center">
-          <Button
-            variant="outline" size="sm" className="gap-1.5"
-            onClick={runRebuild}
-            disabled={rebuildOp.isActive}
-          >
-            {rebuildOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            {rebuildOp.isInterrupted ? "Rebuild (interrupted)" : "Rebuild Style Groups"}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={runRebuild}
+                  disabled={rebuildOp.isActive}
+                >
+                  {rebuildOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  {rebuildOp.isInterrupted ? "Rebuild (interrupted)" : "Rebuild Style Groups"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[260px] text-center">Deletes all style groups and re-creates them from asset folder structure. Tags and AI data on assets are preserved.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {rebuildOp.isInterrupted && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => rebuildOp.reset()}>Dismiss</Button>
           )}

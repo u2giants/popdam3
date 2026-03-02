@@ -251,7 +251,8 @@ export default function FilterSidebar({
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <h3 className="text-sm font-medium">Filters</h3>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearAll}>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearAll}
+            title="Remove all active filters. Does not delete any data.">
             Clear all
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
