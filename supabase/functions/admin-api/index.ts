@@ -2562,23 +2562,23 @@ serve(async (req: Request) => {
     return err("Method not allowed", 405);
   }
 
-  const authResult = await authenticateAdmin(req);
-  if (authResult instanceof Response) return authResult;
-  const { userId } = authResult;
-
-  let body: Record<string, unknown>;
   try {
-    body = await req.json();
-  } catch {
-    body = {};
-  }
+    const authResult = await authenticateAdmin(req);
+    if (authResult instanceof Response) return authResult;
+    const { userId } = authResult;
 
-  const url = new URL(req.url);
-  const pathSegments = url.pathname.split("/").filter(Boolean);
-  const route = pathSegments[pathSegments.length - 1] || "";
-  const action = (body.action as string) || route;
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
 
-  try {
+    const url = new URL(req.url);
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+    const route = pathSegments[pathSegments.length - 1] || "";
+    const action = (body.action as string) || route;
+
     switch (action) {
       case "get-config":
         return await handleGetConfig(body);
