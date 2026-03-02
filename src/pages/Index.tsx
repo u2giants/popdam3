@@ -283,6 +283,7 @@ export default function LibraryPage() {
                 selectedIds={selectedIds}
                 onSelect={handleSelect}
                 isLoading={isLoading}
+                rebuildHint={groups.length === 0 && ((totalGroupCount ?? 0) > 0 || (ungroupedCount ?? 0) > 0)}
               />
             ) : (
               <StyleGroupListView
@@ -290,6 +291,7 @@ export default function LibraryPage() {
                 selectedIds={selectedIds}
                 onSelect={handleSelect}
                 isLoading={isLoading}
+                rebuildHint={groups.length === 0 && ((totalGroupCount ?? 0) > 0 || (ungroupedCount ?? 0) > 0)}
               />
             )
           ) : (

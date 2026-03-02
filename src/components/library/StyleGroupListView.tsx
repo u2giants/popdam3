@@ -17,9 +17,10 @@ interface StyleGroupListViewProps {
   selectedIds: Set<string>;
   onSelect: (id: string, event: React.MouseEvent) => void;
   isLoading: boolean;
+  rebuildHint?: boolean;
 }
 
-export default function StyleGroupListView({ groups, selectedIds, onSelect, isLoading }: StyleGroupListViewProps) {
+export default function StyleGroupListView({ groups, selectedIds, onSelect, isLoading, rebuildHint }: StyleGroupListViewProps) {
   if (isLoading && groups.length === 0) {
     return (
       <div className="p-4 space-y-2">
@@ -34,10 +35,16 @@ export default function StyleGroupListView({ groups, selectedIds, onSelect, isLo
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <ImageOff className="h-12 w-12 text-muted-foreground/30 mb-4" />
-        <p className="text-muted-foreground">No style groups found</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">
-          Run "Rebuild Style Groups" in Diagnostics to generate groups from your assets
+        <p className="text-muted-foreground">
+          {rebuildHint
+            ? "Style group stats are not finalized (rebuild interrupted). Resume \"Rebuild Style Groups\" in Diagnostics."
+            : "No style groups found"}
         </p>
+        {!rebuildHint && (
+          <p className="text-xs text-muted-foreground/60 mt-1">
+            Run "Rebuild Style Groups" in Diagnostics to generate groups from your assets
+          </p>
+        )}
       </div>
     );
   }
