@@ -1741,12 +1741,16 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   const STATE_KEY = "REBUILD_STYLE_GROUPS_STATE";
   const CLEAR_BATCH = 50;
   const GROUP_DELETE_BATCH = 50;
-  const REBUILD_BATCH = 50;
+  const REBUILD_BATCH = 25;
+  const STATS_BATCH = 20;
 
   type RebuildState = {
-    stage: "clear_assets" | "delete_groups" | "rebuild_assets";
+    stage: "clear_assets" | "delete_groups" | "rebuild_assets" | "finalize_stats";
     last_asset_id?: string | null;
     last_group_id?: string | null;
+    last_rebuild_asset_id?: string | null;
+    last_stats_group_id?: string | null;
+    // legacy compatibility (old implementation)
     rebuild_offset?: number;
   };
 
@@ -1770,7 +1774,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       stage: "clear_assets",
       last_asset_id: null,
       last_group_id: null,
-      rebuild_offset: 0,
+      last_rebuild_asset_id: null,
+      last_stats_group_id: null,
     };
     await saveState(initialState);
   }
@@ -1788,7 +1793,18 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       stage: "clear_assets",
       last_asset_id: null,
       last_group_id: null,
-      rebuild_offset: 0,
+      last_rebuild_asset_id: null,
+      last_stats_group_id: null,
+    };
+    await saveState(state);
+  }
+
+  // Legacy state compatibility: restart stage 3 safely on new cursor logic
+  if (state.stage === "rebuild_assets" && state.last_rebuild_asset_id === undefined) {
+    state = {
+      stage: "rebuild_assets",
+      last_rebuild_asset_id: null,
+      last_stats_group_id: null,
     };
     await saveState(state);
   }
@@ -1832,10 +1848,10 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       ? {
         stage: "delete_groups",
         last_group_id: null,
-        rebuild_offset: 0,
       }
       : {
         ...state,
+        stage: "clear_assets",
         last_asset_id: ids[ids.length - 1],
       };
 
@@ -1886,10 +1902,11 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     const nextState: RebuildState = reachedEnd
       ? {
         stage: "rebuild_assets",
-        rebuild_offset: 0,
+        last_rebuild_asset_id: null,
       }
       : {
         ...state,
+        stage: "delete_groups",
         last_group_id: ids[ids.length - 1],
       };
 
@@ -1904,168 +1921,223 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     });
   }
 
-  // Stage 3: rebuild groups from assets in chunks
-  // Reduced batch + hard cap on SKUs to stay within edge function timeout
-  const rebuildOffset = state.rebuild_offset ?? 0;
-  const MAX_SKUS_PER_CALL = 25;
-
-  try {
-    const { data: assets, error: fetchErr } = await withRetry(() =>
-      db
+  // Stage 3: assign assets -> groups (no stats calculation here)
+  if (state.stage === "rebuild_assets") {
+    try {
+      let q = db
         .from("assets")
         .select(
           "id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_id, licensor_code, licensor_name, property_id, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name",
         )
         .eq("is_deleted", false)
-        .order("id")
-        .range(rebuildOffset, rebuildOffset + REBUILD_BATCH - 1)
-        .then((r) => {
-          if (r.error) throw new Error(formatPostgrestError(r.error));
-          return r;
-        })
-    );
+        .order("id", { ascending: true })
+        .limit(REBUILD_BATCH);
 
-    if (fetchErr) return err(fetchErr.message, 500);
-    if (!assets || assets.length === 0) {
-      await clearState();
+      if (state.last_rebuild_asset_id) {
+        q = q.gt("id", state.last_rebuild_asset_id);
+      }
+
+      const { data: assets, error: fetchErr } = await withRetry(async () => {
+        const res = await q;
+        if (res.error) throw new Error(formatPostgrestError(res.error));
+        return res;
+      });
+
+      if (fetchErr) return err(fetchErr.message, 500);
+      if (!assets || assets.length === 0) {
+        await saveState({
+          stage: "finalize_stats",
+          last_stats_group_id: null,
+        });
+        return json({
+          ok: true,
+          stage: "rebuild_assets",
+          groups_created: 0,
+          assets_assigned: 0,
+          assets_ungrouped: 0,
+          done: false,
+          nextOffset: offset + 1,
+        });
+      }
+
+      const skuMap = new Map<string, typeof assets>();
+      let ungrouped = 0;
+
+      for (const asset of assets) {
+        const sku = extractSkuFolder(asset.relative_path);
+        if (!sku) {
+          ungrouped++;
+          continue;
+        }
+        if (!skuMap.has(sku)) skuMap.set(sku, []);
+        skuMap.get(sku)!.push(asset);
+      }
+
+      let groupsCreated = 0;
+      let assetsAssigned = 0;
+
+      for (const [sku, members] of skuMap) {
+        const sku_upper = sku.toUpperCase();
+        const first = members.find((m) => m.filename.toUpperCase().includes(sku_upper)) ?? members[0];
+
+        const pathParts = first.relative_path.split("/");
+        const skuIdx = pathParts.lastIndexOf(sku);
+        const folderPath = skuIdx >= 0 ? pathParts.slice(0, skuIdx + 1).join("/") : pathParts.slice(0, -1).join("/");
+
+        const { data: group, error: upsertErr } = await withRetry(() =>
+          db
+            .from("style_groups")
+            .upsert({
+              sku,
+              folder_path: folderPath,
+              is_licensed: first.is_licensed ?? false,
+              licensor_id: (first as any).licensor_id ?? null,
+              licensor_code: first.licensor_code,
+              licensor_name: first.licensor_name,
+              property_id: (first as any).property_id ?? null,
+              property_code: first.property_code,
+              property_name: first.property_name,
+              product_category: first.product_category,
+              division_code: first.division_code,
+              division_name: first.division_name,
+              mg01_code: first.mg01_code,
+              mg01_name: first.mg01_name,
+              mg02_code: first.mg02_code,
+              mg02_name: first.mg02_name,
+              mg03_code: first.mg03_code,
+              mg03_name: first.mg03_name,
+              size_code: first.size_code,
+              size_name: first.size_name,
+            }, { onConflict: "sku" })
+            .select("id")
+            .single()
+            .then((r) => {
+              if (r.error) throw new Error(formatPostgrestError(r.error));
+              return r;
+            })
+        );
+
+        if (upsertErr || !group) continue;
+        groupsCreated++;
+
+        const memberIds = members.map((m) => m.id);
+        const CHUNK = 25;
+        for (let i = 0; i < memberIds.length; i += CHUNK) {
+          const idChunk = memberIds.slice(i, i + CHUNK);
+          await withRetry(() =>
+            db.from("assets").update({ style_group_id: group.id }).in("id", idChunk)
+              .then((r) => {
+                if (r.error) throw new Error(formatPostgrestError(r.error));
+                return r;
+              })
+          );
+        }
+        assetsAssigned += memberIds.length;
+      }
+
+      const reachedEnd = assets.length < REBUILD_BATCH;
+      if (reachedEnd) {
+        await saveState({
+          stage: "finalize_stats",
+          last_stats_group_id: null,
+        });
+      } else {
+        await saveState({
+          stage: "rebuild_assets",
+          last_rebuild_asset_id: assets[assets.length - 1].id,
+        });
+      }
+
       return json({
         ok: true,
         stage: "rebuild_assets",
-        groups_created: 0,
-        assets_assigned: 0,
-        assets_ungrouped: 0,
-        done: true,
-        nextOffset: offset,
+        groups_created: groupsCreated,
+        assets_assigned: assetsAssigned,
+        assets_ungrouped: ungrouped,
+        done: false,
+        nextOffset: offset + 1,
       });
+    } catch (e) {
+      const msg = (e as Error).message || "Unknown error in rebuild stage 3";
+      console.error("rebuild-style-groups stage 3 error:", msg);
+      return err(msg, 500);
     }
+  }
 
-    // Group by SKU folder
-    const skuMap = new Map<string, typeof assets>();
-    let ungrouped = 0;
+  // Stage 4: finalize stats in independent small batches
+  if (state.stage === "finalize_stats") {
+    try {
+      let q = db
+        .from("style_groups")
+        .select("id")
+        .order("id", { ascending: true })
+        .limit(STATS_BATCH);
 
-    for (const asset of assets) {
-      const sku = extractSkuFolder(asset.relative_path);
-      if (!sku) {
-        ungrouped++;
-        continue;
+      if (state.last_stats_group_id) {
+        q = q.gt("id", state.last_stats_group_id);
       }
-      if (!skuMap.has(sku)) skuMap.set(sku, []);
-      skuMap.get(sku)!.push(asset);
-    }
 
-    let groupsCreated = 0;
-    let assetsAssigned = 0;
-    const touchedGroupIds: string[] = [];
-    let skusProcessed = 0;
+      const { data: groups, error: groupFetchErr } = await withRetry(async () => {
+        const res = await q;
+        if (res.error) throw new Error(formatPostgrestError(res.error));
+        return res;
+      });
 
-    for (const [sku, members] of skuMap) {
-      if (skusProcessed >= MAX_SKUS_PER_CALL) break;
-      skusProcessed++;
+      if (groupFetchErr) return err(groupFetchErr.message, 500);
 
-      const sku_upper = sku.toUpperCase();
-      const first = members.find((m) => m.filename.toUpperCase().includes(sku_upper)) ?? members[0];
+      const groupIds = (groups ?? []).map((g) => g.id as string);
+      if (groupIds.length === 0) {
+        await clearState();
+        return json({
+          ok: true,
+          stage: "finalize_stats",
+          groups_finalized: 0,
+          done: true,
+          nextOffset: offset + 1,
+        });
+      }
 
-      const pathParts = first.relative_path.split("/");
-      const skuIdx = pathParts.lastIndexOf(sku);
-      const folderPath = skuIdx >= 0 ? pathParts.slice(0, skuIdx + 1).join("/") : pathParts.slice(0, -1).join("/");
-
-      const { data: group, error: upsertErr } = await withRetry(() =>
-        db
-          .from("style_groups")
-          .upsert({
-            sku,
-            folder_path: folderPath,
-            is_licensed: first.is_licensed ?? false,
-            licensor_id: (first as any).licensor_id ?? null,
-            licensor_code: first.licensor_code,
-            licensor_name: first.licensor_name,
-            property_id: (first as any).property_id ?? null,
-            property_code: first.property_code,
-            property_name: first.property_name,
-            product_category: first.product_category,
-            division_code: first.division_code,
-            division_name: first.division_name,
-            mg01_code: first.mg01_code,
-            mg01_name: first.mg01_name,
-            mg02_code: first.mg02_code,
-            mg02_name: first.mg02_name,
-            mg03_code: first.mg03_code,
-            mg03_name: first.mg03_name,
-            size_code: first.size_code,
-            size_name: first.size_name,
-          }, { onConflict: "sku" })
-          .select("id")
-          .single()
-          .then((r) => {
-            if (r.error) throw new Error(formatPostgrestError(r.error));
-            return r;
-          })
-      );
-
-      if (upsertErr || !group) continue;
-      groupsCreated++;
-      touchedGroupIds.push(group.id);
-
-      const memberIds = members.map((m) => m.id);
-      await withRetry(() =>
-        db.from("assets").update({ style_group_id: group.id }).in("id", memberIds)
-          .then((r) => {
-            if (r.error) throw new Error(formatPostgrestError(r.error));
-            return r;
-          })
-      );
-      assetsAssigned += memberIds.length;
-    }
-
-    // Batch-fetch assets for ALL touched groups in one query (eliminates N+1)
-    if (touchedGroupIds.length > 0) {
-      const { data: allGroupAssets } = await withRetry(() =>
-        db
+      const { data: allGroupAssets, error: assetsErr } = await withRetry(async () => {
+        const res = await db
           .from("assets")
           .select("id, style_group_id, filename, file_type, asset_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
-          .in("style_group_id", touchedGroupIds)
-          .eq("is_deleted", false)
-          .then((r) => {
-            if (r.error) throw new Error(formatPostgrestError(r.error));
-            return r;
-          })
-      );
+          .in("style_group_id", groupIds)
+          .eq("is_deleted", false);
+        if (res.error) throw new Error(formatPostgrestError(res.error));
+        return res;
+      });
 
-      if (allGroupAssets && allGroupAssets.length > 0) {
-        // Group fetched assets by style_group_id
-        const byGroup = new Map<string, typeof allGroupAssets>();
-        for (const a of allGroupAssets) {
-          const gid = a.style_group_id as string;
-          if (!byGroup.has(gid)) byGroup.set(gid, []);
-          byGroup.get(gid)!.push(a);
-        }
+      if (assetsErr) return err(assetsErr.message, 500);
 
-        const statusPriority = ["licensor_approved", "customer_adopted", "in_process", "in_development", "concept_approved", "freelancer_art", "product_ideas"];
+      const byGroup = new Map<string, Array<Record<string, unknown>>>();
+      for (const gid of groupIds) byGroup.set(gid, []);
+      for (const a of allGroupAssets ?? []) {
+        const gid = a.style_group_id as string;
+        if (!byGroup.has(gid)) byGroup.set(gid, []);
+        byGroup.get(gid)!.push(a as Record<string, unknown>);
+      }
 
-        for (const [gid, groupAssets] of byGroup) {
-          const primaryId = selectPrimaryAsset(groupAssets);
-          const primaryAsset = groupAssets.find((a: Record<string, unknown>) => a.id === primaryId) as Record<string, unknown> | undefined;
+      const statusPriority = [
+        "licensor_approved",
+        "customer_adopted",
+        "in_process",
+        "in_development",
+        "concept_approved",
+        "freelancer_art",
+        "product_ideas",
+      ];
 
-          let bestStatus = "other";
-          for (const s of statusPriority) {
-            if (groupAssets.some((a: Record<string, unknown>) => a.workflow_status === s)) {
-              bestStatus = s;
-              break;
-            }
-          }
+      for (const gid of groupIds) {
+        const groupAssets = byGroup.get(gid) ?? [];
 
-          const latestFileDate = groupAssets.reduce((max: string, a: any) => {
-            const d = a.modified_at ?? a.created_at;
-            return d > max ? d : max;
-          }, "1970-01-01T00:00:00.000Z");
-
+        if (groupAssets.length === 0) {
           await withRetry(() =>
             db.from("style_groups").update({
-              asset_count: groupAssets.length,
-              primary_asset_id: primaryId,
-              primary_asset_type: (primaryAsset?.asset_type as string | null) ?? null,
-              workflow_status: bestStatus as any,
-              latest_file_date: latestFileDate,
+              asset_count: 0,
+              primary_asset_id: null,
+              primary_asset_type: null,
+              workflow_status: "other",
+              latest_file_date: null,
               updated_at: new Date().toISOString(),
             }).eq("id", gid)
               .then((r) => {
@@ -2073,34 +2145,66 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
                 return r;
               })
           );
+          continue;
         }
+
+        const primaryId = selectPrimaryAsset(groupAssets as any);
+        const primaryAsset = groupAssets.find((a) => a.id === primaryId);
+
+        let bestStatus = "other";
+        for (const s of statusPriority) {
+          if (groupAssets.some((a) => a.workflow_status === s)) {
+            bestStatus = s;
+            break;
+          }
+        }
+
+        const latestFileDate = groupAssets.reduce((max: string, a) => {
+          const d = (a.modified_at as string | null) ?? (a.created_at as string | null) ?? "1970-01-01T00:00:00.000Z";
+          return d > max ? d : max;
+        }, "1970-01-01T00:00:00.000Z");
+
+        await withRetry(() =>
+          db.from("style_groups").update({
+            asset_count: groupAssets.length,
+            primary_asset_id: primaryId,
+            primary_asset_type: (primaryAsset?.asset_type as string | null) ?? null,
+            workflow_status: bestStatus as any,
+            latest_file_date: latestFileDate,
+            updated_at: new Date().toISOString(),
+          }).eq("id", gid)
+            .then((r) => {
+              if (r.error) throw new Error(formatPostgrestError(r.error));
+              return r;
+            })
+        );
       }
-    }
 
-    const done = assets.length < REBUILD_BATCH;
-    if (done) {
-      await clearState();
-    } else {
-      await saveState({
-        stage: "rebuild_assets",
-        rebuild_offset: rebuildOffset + REBUILD_BATCH,
+      const reachedEnd = groupIds.length < STATS_BATCH;
+      if (reachedEnd) {
+        await clearState();
+      } else {
+        await saveState({
+          stage: "finalize_stats",
+          last_stats_group_id: groupIds[groupIds.length - 1],
+        });
+      }
+
+      return json({
+        ok: true,
+        stage: "finalize_stats",
+        groups_finalized: groupIds.length,
+        done: reachedEnd,
+        nextOffset: offset + 1,
       });
+    } catch (e) {
+      const msg = (e as Error).message || "Unknown error in rebuild stage 4";
+      console.error("rebuild-style-groups stage 4 error:", msg);
+      return err(msg, 500);
     }
-
-    return json({
-      ok: true,
-      stage: "rebuild_assets",
-      groups_created: groupsCreated,
-      assets_assigned: assetsAssigned,
-      assets_ungrouped: ungrouped,
-      done,
-      nextOffset: offset + 1,
-    });
-  } catch (e) {
-    const msg = (e as Error).message || "Unknown error in rebuild stage 3";
-    console.error("rebuild-style-groups stage 3 error:", msg);
-    return err(msg, 500);
   }
+
+  return err("Unknown rebuild state", 500);
 }
 
 // ── Route: generate-install-bundle ──────────────────────────────────
