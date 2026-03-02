@@ -64,17 +64,41 @@ async function doPairing() {
 
   const result = await api.pair(config.pairingCode, config.agentName);
 
-  // Persist agent config to %ProgramData%\PopDAM\agent-config.json
-  const configData = {
-    agent_id: result.agent_id,
-    agent_key: result.agent_key,
-    paired_at: new Date().toISOString(),
-  };
-
+  // Merge pairing result into existing agent-config.json (preserve drive_letter, nas_unc, etc.)
   try {
-    const { mkdir } = await import("node:fs/promises");
+    const { mkdir, readFile } = await import("node:fs/promises");
     await mkdir(config.agentConfigDir, { recursive: true });
-    await writeFile(config.agentConfigPath, JSON.stringify(configData, null, 2), "utf-8");
+
+    // Read existing config if present (tolerate parse errors)
+    let existing: Record<string, unknown> = {};
+    try {
+      const raw = await readFile(config.agentConfigPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        existing = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // File doesn't exist or is invalid JSON — start fresh
+    }
+
+    // Merge in pairing fields, preserving all others (drive_letter, nas_unc, server_url, etc.)
+    const merged = {
+      ...existing,
+      agent_id: result.agent_id,
+      agent_key: result.agent_key,
+      paired_at: new Date().toISOString(),
+    };
+
+    // Clear consumed pairing code (no longer needed after successful pairing)
+    if (merged.pairing_code) {
+      delete merged.pairing_code;
+    }
+
+    await writeFile(config.agentConfigPath, JSON.stringify(merged, null, 2), "utf-8");
+
+    logger.info("Agent config merged successfully", {
+      preservedKeys: Object.keys(existing).filter(k => !["agent_id", "agent_key", "paired_at", "pairing_code"].includes(k)),
+    });
   } catch (e) {
     logger.error("Failed to persist agent config — key will be lost on restart", {
       path: config.agentConfigPath,
@@ -506,14 +530,21 @@ async function main() {
 let tiffScanRunning = false;
 
 function startTiffScanChecker() {
-  // Check every heartbeat (30s) if there's a pending TIFF scan request
-  setInterval(async () => {
-    if (!configReceived || !healthStatus.healthy || tiffScanRunning) return;
+  const TIFF_SCAN_CHECK_MS = 30_000;
+
+  const loop = async () => {
+    if (!configReceived || !healthStatus.healthy || tiffScanRunning) {
+      setTimeout(loop, TIFF_SCAN_CHECK_MS);
+      return;
+    }
 
     try {
       const resp = await api.callApi("claim-tiff-scan", {});
       const reqValue = (resp?.request as Record<string, unknown> | null) ?? null;
-      if (!reqValue) return;
+      if (!reqValue) {
+        setTimeout(loop, TIFF_SCAN_CHECK_MS);
+        return;
+      }
 
       tiffScanRunning = true;
       const sessionId = reqValue.request_id || crypto.randomUUID();
@@ -534,23 +565,22 @@ function startTiffScanChecker() {
           nasHost: cloudNasHost,
           nasShare: cloudNasShare,
         });
-        // Report failure back to cloud so UI shows the error
         await api.callApi("report-tiff-scan", {
           files: [],
           session_id: sessionId,
           done: true,
           error: nasMapResult.error,
         });
+        tiffScanRunning = false;
+        setTimeout(loop, TIFF_SCAN_CHECK_MS);
         return;
       }
 
-      // Build mount root path
       const mountPath = (cloudNasMountPath || "").trim().replace(/\\+$/, "");
       const scanRoot = mountPath || `\\\\${cloudNasHost}\\${cloudNasShare}`;
 
       logger.info("TIFF scan root resolved", { scanRoot, sessionId });
 
-      // Mark scan as claimed so UI shows progress
       await api.callApi("report-tiff-scan", {
         files: [],
         session_id: sessionId,
@@ -579,7 +609,6 @@ function startTiffScanChecker() {
         }
       }
 
-      // Send remaining + mark done
       await api.callApi("report-tiff-scan", {
         files: batch,
         session_id: sessionId,
@@ -592,14 +621,23 @@ function startTiffScanChecker() {
     } finally {
       tiffScanRunning = false;
     }
-  }, 30_000);
+
+    setTimeout(loop, TIFF_SCAN_CHECK_MS);
+  };
+
+  setTimeout(loop, TIFF_SCAN_CHECK_MS);
 }
 
 // ── TIFF Job Polling ────────────────────────────────────────────
 
 function startTiffPolling() {
-  setInterval(async () => {
-    if (!configReceived || !healthStatus.healthy || tiffScanRunning) return;
+  const TIFF_POLL_MS = 5_000;
+
+  const loop = async () => {
+    if (!configReceived || !healthStatus.healthy || tiffScanRunning) {
+      setTimeout(loop, TIFF_POLL_MS);
+      return;
+    }
 
     try {
       const resp = await api.callApi("claim-tiff-job", {
@@ -608,56 +646,58 @@ function startTiffPolling() {
       });
 
       const jobs = resp?.jobs as Array<Record<string, unknown>>;
-      if (!jobs || jobs.length === 0) return;
+      if (jobs && jobs.length > 0) {
+        for (const job of jobs) {
+          const jobId = job.id as string;
+          const relativePath = job.relative_path as string;
+          const mode = job.mode as "test" | "process";
+          const fileModifiedAt = new Date(job.file_modified_at as string);
+          const fileCreatedAt = job.file_created_at ? new Date(job.file_created_at as string) : null;
 
-      for (const job of jobs) {
-        const jobId = job.id as string;
-        const relativePath = job.relative_path as string;
-        const mode = job.mode as "test" | "process";
-        const fileModifiedAt = new Date(job.file_modified_at as string);
-        const fileCreatedAt = job.file_created_at ? new Date(job.file_created_at as string) : null;
+          logger.info("Processing TIFF job", { jobId, relativePath, mode });
 
-        logger.info("Processing TIFF job", { jobId, relativePath, mode });
+          const filePath = toUncPath(relativePath);
 
-        const filePath = toUncPath(relativePath);
+          try {
+            const result = await compressTiff(filePath, mode, fileModifiedAt, fileCreatedAt);
 
-        try {
-          const result = await compressTiff(filePath, mode, fileModifiedAt, fileCreatedAt);
+            await api.callApi("complete-tiff-job", {
+              job_id: jobId,
+              success: result.success,
+              error: result.error,
+              new_file_size: result.new_file_size,
+              new_filename: result.new_filename,
+              new_file_modified_at: result.new_file_modified_at,
+              new_file_created_at: result.new_file_created_at,
+              original_backed_up: result.original_backed_up,
+              original_deleted: result.original_deleted,
+            });
 
-          await api.callApi("complete-tiff-job", {
-            job_id: jobId,
-            success: result.success,
-            error: result.error,
-            new_file_size: result.new_file_size,
-            new_filename: result.new_filename,
-            new_file_modified_at: result.new_file_modified_at,
-            new_file_created_at: result.new_file_created_at,
-            original_backed_up: result.original_backed_up,
-            original_deleted: result.original_deleted,
-          });
-
-          if (result.success) {
-            logger.info("TIFF job completed", { jobId, mode, newSize: result.new_file_size });
-          } else {
-            logger.warn("TIFF job failed", { jobId, error: result.error });
+            if (result.success) {
+              logger.info("TIFF job completed", { jobId, mode, newSize: result.new_file_size });
+            } else {
+              logger.warn("TIFF job failed", { jobId, error: result.error });
+            }
+          } catch (e) {
+            logger.error("TIFF job error", { jobId, error: (e as Error).message });
+            await api.callApi("complete-tiff-job", {
+              job_id: jobId,
+              success: false,
+              error: (e as Error).message,
+            }).catch(() => {});
           }
-        } catch (e) {
-          logger.error("TIFF job error", { jobId, error: (e as Error).message });
-          await api.callApi("complete-tiff-job", {
-            job_id: jobId,
-            success: false,
-            error: (e as Error).message,
-          }).catch(() => {});
         }
       }
     } catch (e) {
-      // Silently skip — no jobs available or API error
       if (!(e as Error).message?.includes("Unknown action")) {
         logger.debug("TIFF poll error", { error: (e as Error).message });
       }
     }
-  }, 5_000); // poll every 5s
 
+    setTimeout(loop, TIFF_POLL_MS);
+  };
+
+  setTimeout(loop, TIFF_POLL_MS);
   logger.info("TIFF job polling started (5s interval)");
 }
 
