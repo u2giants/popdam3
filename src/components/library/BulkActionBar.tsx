@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import type { Enums } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -124,20 +125,29 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
       </div>
 
       {/* AI Tag button */}
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5"
-        onClick={handleBulkAiTag}
-        disabled={tagProgress?.inProgress}
-      >
-        {tagProgress?.inProgress ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <Sparkles className="h-3.5 w-3.5" />
-        )}
-        AI Tag
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={handleBulkAiTag}
+              disabled={tagProgress?.inProgress}
+            >
+              {tagProgress?.inProgress ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              AI Tag
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-[240px] text-center">
+            Sends each asset's thumbnail to the AI model for automatic description and tagging
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       {/* Bulk workflow change */}
       <div className="flex items-center gap-1.5">
