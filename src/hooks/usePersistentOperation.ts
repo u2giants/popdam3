@@ -60,12 +60,10 @@ export function usePersistentOperation(operationKey: string) {
           }
         }
 
-        // Still fresh "running" — the page was navigated away and came back.
-        // We can't auto-resume because we don't have the batch function reference yet.
-        // Mark as interrupted so the user can see and re-trigger.
-        const interrupted: OperationState = { ...saved, status: "interrupted" };
-        setState(interrupted);
-        await persistState(interrupted);
+        // Still fresh and marked "running" — preserve state.
+        // The async loop may still be active even if the user navigated away from a page.
+        setState(saved);
+        return;
       } catch {
         // ignore load errors
       }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import { Badge } from "@/components/ui/badge";
 import { ImageOff } from "lucide-react";
@@ -20,9 +21,11 @@ function StyleGroupCard({
   selected: boolean;
   onSelect: (e: React.MouseEvent) => void;
 }) {
+  const [imgError, setImgError] = useState(false);
   const subtitle = group.is_licensed
     ? [group.licensor_name, group.property_name].filter(Boolean).join(" · ")
     : group.product_category || null;
+  const isStatsPending = !group.latest_file_date && group.asset_count === 0;
 
   return (
     <button
@@ -34,12 +37,13 @@ function StyleGroupCard({
     >
       {/* Thumbnail area — 4:3 */}
       <div className="relative aspect-[4/3] w-full bg-muted/30 overflow-hidden">
-        {group.thumbnail_url ? (
+        {group.thumbnail_url && !imgError ? (
           <img
             src={group.thumbnail_url}
             alt={group.sku}
             className="h-full w-full object-cover"
             loading="lazy"
+            onError={() => setImgError(true)}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -52,7 +56,7 @@ function StyleGroupCard({
           variant="secondary"
           className="absolute bottom-2 right-2 text-[10px] px-1.5 py-0"
         >
-          {group.asset_count} file{group.asset_count !== 1 ? "s" : ""}
+          {isStatsPending ? "Syncing…" : `${group.asset_count} file${group.asset_count !== 1 ? "s" : ""}`}
         </Badge>
 
         {/* Licensed/Generic badge */}

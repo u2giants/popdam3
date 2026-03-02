@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import { Badge } from "@/components/ui/badge";
 import { ImageOff } from "lucide-react";
@@ -18,6 +19,28 @@ interface StyleGroupListViewProps {
   onSelect: (id: string, event: React.MouseEvent) => void;
   isLoading: boolean;
   rebuildHint?: boolean;
+}
+
+function GroupThumb({ thumbnailUrl, alt }: { thumbnailUrl: string | null; alt: string }) {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <div className="h-10 w-10 rounded overflow-hidden bg-muted/30 flex-shrink-0">
+      {thumbnailUrl && !imgError ? (
+        <img
+          src={thumbnailUrl}
+          alt={alt}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center">
+          <ImageOff className="h-4 w-4 text-muted-foreground/30" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function StyleGroupListView({ groups, selectedIds, onSelect, isLoading, rebuildHint }: StyleGroupListViewProps) {
@@ -79,20 +102,7 @@ export default function StyleGroupListView({ groups, selectedIds, onSelect, isLo
               )}
             >
               <TableCell className="p-2">
-                <div className="h-10 w-10 rounded overflow-hidden bg-muted/30 flex-shrink-0">
-                  {group.thumbnail_url ? (
-                    <img
-                      src={group.thumbnail_url}
-                      alt={group.sku}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <ImageOff className="h-4 w-4 text-muted-foreground/30" />
-                    </div>
-                  )}
-                </div>
+                <GroupThumb thumbnailUrl={group.thumbnail_url} alt={group.sku} />
               </TableCell>
               <TableCell>
                 <span className="font-semibold font-mono text-sm">{group.sku}</span>
@@ -108,7 +118,7 @@ export default function StyleGroupListView({ groups, selectedIds, onSelect, isLo
                 )}
               </TableCell>
               <TableCell className="text-right tabular-nums text-sm">
-                {group.asset_count}
+                {!group.latest_file_date && group.asset_count === 0 ? "Syncing…" : group.asset_count}
               </TableCell>
               <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                 {group.latest_file_date
