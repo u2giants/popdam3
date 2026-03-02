@@ -1739,9 +1739,9 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   const db = serviceClient();
 
   const STATE_KEY = "REBUILD_STYLE_GROUPS_STATE";
-  const CLEAR_BATCH = 250;
-  const GROUP_DELETE_BATCH = 250;
-  const REBUILD_BATCH = 100;
+  const CLEAR_BATCH = 50;
+  const GROUP_DELETE_BATCH = 50;
+  const REBUILD_BATCH = 50;
 
   type RebuildState = {
     stage: "clear_assets" | "delete_groups" | "rebuild_assets";
