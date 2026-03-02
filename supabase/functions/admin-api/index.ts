@@ -1975,6 +1975,38 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       let groupsCreated = 0;
       let assetsAssigned = 0;
 
+      const assignGroupWithAdaptiveChunks = async (ids: string[], groupId: string) => {
+        const runChunk = async (chunkIds: string[]): Promise<void> => {
+          try {
+            await withRetry(() =>
+              db.from("assets").update({ style_group_id: groupId }).in("id", chunkIds)
+                .then((r) => {
+                  if (r.error) throw new Error(formatPostgrestError(r.error));
+                  return r;
+                })
+            );
+          } catch (e) {
+            const msg = (e as Error).message || "";
+            const isStatementTimeout = msg.includes("57014") || msg.toLowerCase().includes("statement timeout");
+
+            // Retry with smaller chunks to avoid timeout while preserving correctness.
+            if (isStatementTimeout && chunkIds.length > 1) {
+              const mid = Math.ceil(chunkIds.length / 2);
+              await runChunk(chunkIds.slice(0, mid));
+              await runChunk(chunkIds.slice(mid));
+              return;
+            }
+
+            throw e;
+          }
+        };
+
+        const BASE_CHUNK = 25;
+        for (let i = 0; i < ids.length; i += BASE_CHUNK) {
+          await runChunk(ids.slice(i, i + BASE_CHUNK));
+        }
+      };
+
       for (const [sku, members] of skuMap) {
         const sku_upper = sku.toUpperCase();
         const first = members.find((m) => m.filename.toUpperCase().includes(sku_upper)) ?? members[0];
@@ -2020,17 +2052,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         groupsCreated++;
 
         const memberIds = members.map((m) => m.id);
-        const CHUNK = 25;
-        for (let i = 0; i < memberIds.length; i += CHUNK) {
-          const idChunk = memberIds.slice(i, i + CHUNK);
-          await withRetry(() =>
-            db.from("assets").update({ style_group_id: group.id }).in("id", idChunk)
-              .then((r) => {
-                if (r.error) throw new Error(formatPostgrestError(r.error));
-                return r;
-              })
-          );
-        }
+        await assignGroupWithAdaptiveChunks(memberIds, group.id);
         assetsAssigned += memberIds.length;
       }
 
