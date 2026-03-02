@@ -129,12 +129,23 @@ function formatPostgrestError(error: unknown): string {
   const details = typeof e.details === "string" ? e.details : "";
   const hint = typeof e.hint === "string" ? e.hint : "";
   const code = typeof e.code === "string" ? e.code : "";
+  const status = typeof e.status === "number" ? String(e.status) : "";
+  const raw = (() => {
+    try {
+      const serialized = JSON.stringify(e);
+      return serialized && serialized !== "{}" ? serialized : "";
+    } catch {
+      return "";
+    }
+  })();
 
   return [
+    status ? `[status=${status}]` : "",
     code ? `[${code}]` : "",
     message,
     details ? `details: ${details}` : "",
     hint ? `hint: ${hint}` : "",
+    raw && message === "Bad Request" ? `raw: ${raw}` : "",
   ].filter(Boolean).join(" | ");
 }
 
@@ -1801,11 +1812,18 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
     const ids = (rows ?? []).map((r) => r.id as string);
     if (ids.length > 0) {
-      const CHUNK = 100;
+      const CHUNK = 25;
       for (let i = 0; i < ids.length; i += CHUNK) {
         const chunk = ids.slice(i, i + CHUNK);
-        const { error: clearErr } = await withRetry(() => db.from("assets").update({ style_group_id: null }).in("id", chunk));
-        if (clearErr) return err(formatPostgrestError(clearErr), 500);
+        await withRetry(async () => {
+          const { error: clearErr } = await db.from("assets").update({ style_group_id: null }).in("id", chunk);
+          if (clearErr) {
+            throw new Error(
+              `clear_assets chunk failed (size=${chunk.length}, last_asset_id=${state?.last_asset_id ?? "none"}): ${formatPostgrestError(clearErr)}`,
+            );
+          }
+          return true;
+        });
       }
     }
 
@@ -1849,11 +1867,18 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
     const ids = (rows ?? []).map((r) => r.id as string);
     if (ids.length > 0) {
-      const CHUNK = 100;
+      const CHUNK = 25;
       for (let i = 0; i < ids.length; i += CHUNK) {
         const chunk = ids.slice(i, i + CHUNK);
-        const { error: delErr } = await withRetry(() => db.from("style_groups").delete().in("id", chunk));
-        if (delErr) return err(formatPostgrestError(delErr), 500);
+        await withRetry(async () => {
+          const { error: delErr } = await db.from("style_groups").delete().in("id", chunk);
+          if (delErr) {
+            throw new Error(
+              `delete_groups chunk failed (size=${chunk.length}, last_group_id=${state?.last_group_id ?? "none"}): ${formatPostgrestError(delErr)}`,
+            );
+          }
+          return true;
+        });
       }
     }
 
