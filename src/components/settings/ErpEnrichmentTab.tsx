@@ -261,7 +261,7 @@ function EnrichmentControls() {
 
         {/* Dry Run Results */}
         {dryRunResult && (
-          <div className="border border-border rounded-md p-3 bg-muted/30 space-y-1">
+          <div className="border border-border rounded-md p-3 bg-muted/30 space-y-2">
             <p className="text-sm font-medium">Dry Run Preview</p>
             <div className="text-xs text-muted-foreground font-mono space-y-0.5">
               <div>Assets to update: {dryRunResult.assets_to_update ?? 0}</div>
@@ -269,6 +269,21 @@ function EnrichmentControls() {
               <div>New categories: {dryRunResult.new_categories ?? 0}</div>
               <div>Skipped (lower confidence): {dryRunResult.skipped_lower_confidence ?? 0}</div>
             </div>
+            {Array.isArray(dryRunResult.sample_updates) && dryRunResult.sample_updates.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <p className="text-xs font-medium text-foreground">Sample proposed updates (first {dryRunResult.sample_updates.length})</p>
+                <div className="max-h-56 overflow-auto space-y-1">
+                  {dryRunResult.sample_updates.map((row: any, idx: number) => (
+                    <div key={`${row.external_id}-${idx}`} className="rounded border border-border/60 bg-background/60 p-2 text-[11px] font-mono">
+                      <div>SKU: <span className="text-foreground">{row.sku}</span> · ERP ID: <span className="text-foreground">{row.external_id}</span></div>
+                      <div>Matches → assets: <span className="text-foreground">{row.matching_asset_count ?? 0}</span>, groups: <span className="text-foreground">{row.matching_group_count ?? 0}</span></div>
+                      <div>Source: <span className="text-foreground">{row.classification_source}</span> · Confidence: <span className="text-foreground">{typeof row.confidence === "number" ? `${Math.round(row.confidence * 100)}%` : "—"}</span></div>
+                      <pre className="mt-1 whitespace-pre-wrap break-all text-[10px] text-muted-foreground">{JSON.stringify(row.proposed_fields ?? {}, null, 2)}</pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

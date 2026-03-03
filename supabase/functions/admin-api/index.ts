@@ -1809,6 +1809,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     last_rebuild_asset_id?: string | null;
     last_stats_group_id?: string | null;
     total_assets?: number;
+    total_groups?: number;
     total_processed?: number;
     started_at?: string;
     finalize_sub?: string;
@@ -1838,6 +1839,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     last_rebuild_asset_id: state?.last_rebuild_asset_id ?? null,
     last_stats_group_id: state?.last_stats_group_id ?? null,
     total_assets: state?.total_assets,
+    total_groups: state?.total_groups,
     total_processed: state?.total_processed ?? 0,
     started_at: state?.started_at ?? new Date().toISOString(),
   });
@@ -2270,13 +2272,30 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
     try {
       if (subStage === "counts") {
-        // Phase A: aggregate counts + latest_file_date in batches
-        const countsOffset = state.finalize_cursor ?? 0;
-        const { data: groupIds, error: fetchErr } = await db
+        // Initialize total group count once for finalize progress UI
+        if (typeof state.total_groups !== "number") {
+          const { count: totalGroups, error: totalGroupsErr } = await db
+            .from("style_groups")
+            .select("id", { count: "exact", head: true });
+          if (totalGroupsErr) {
+            return json({ ok: false, error: formatPostgrestError(totalGroupsErr), stage: "finalize_stats", substage: "counts" }, 500);
+          }
+          state.total_groups = totalGroups ?? 0;
+          await saveState(state);
+        }
+
+        // Phase A: aggregate counts + latest_file_date using keyset pagination
+        let q = db
           .from("style_groups")
           .select("id")
-          .order("id")
-          .range(countsOffset, countsOffset + COUNTS_BATCH - 1);
+          .order("id", { ascending: true })
+          .limit(COUNTS_BATCH);
+
+        if (state.last_stats_group_id) {
+          q = q.gt("id", state.last_stats_group_id);
+        }
+
+        const { data: groupIds, error: fetchErr } = await q;
 
         if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "finalize_stats", substage: "counts" }, 500);
 
@@ -2284,11 +2303,14 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           // Move to primaries sub-stage
           state.finalize_sub = "primaries";
           state.finalize_cursor = 0;
+          state.last_stats_group_id = null;
           await saveState(state);
           return json({
             ok: true,
             stage: "finalize_stats",
             sub: "counts_done",
+            counts_processed: state.total_groups ?? 0,
+            finalize_total_groups: state.total_groups ?? 0,
             total_processed: state.total_processed ?? 0,
             total_assets: state.total_assets ?? 0,
             done: false,
@@ -2299,7 +2321,6 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         const ids = groupIds.map((g: { id: string }) => g.id);
         // Adaptive: try batch, halve on timeout
         let batchIds = ids;
-        let retries = 0;
         while (batchIds.length > 0) {
           try {
             const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
@@ -2307,7 +2328,6 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
               const msg = formatPostgrestError(countErr);
               if (msg.includes("57014") && batchIds.length > 1) {
                 // Statement timeout — halve and retry
-                retries++;
                 console.warn(`finalize counts timeout, halving batch from ${batchIds.length} to ${Math.ceil(batchIds.length / 2)}`);
                 batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
                 continue;
@@ -2318,7 +2338,6 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           } catch (e) {
             const msg = (e as Error).message || "";
             if (msg.includes("57014") && batchIds.length > 1) {
-              retries++;
               batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
               continue;
             }
@@ -2328,7 +2347,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
         // If we had to halve, only advance by what we actually processed
         const processedCount = batchIds.length;
-        state.finalize_cursor = countsOffset + processedCount;
+        state.finalize_cursor = (state.finalize_cursor ?? 0) + processedCount;
+        state.last_stats_group_id = batchIds[processedCount - 1] ?? state.last_stats_group_id ?? null;
         await saveState(state);
 
         return json({
@@ -2336,6 +2356,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           stage: "finalize_stats",
           sub: "counts",
           counts_processed: state.finalize_cursor,
+          finalize_total_groups: state.total_groups ?? 0,
           total_processed: state.total_processed ?? 0,
           total_assets: state.total_assets ?? 0,
           done: false,
@@ -2344,13 +2365,30 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       }
 
       if (subStage === "primaries") {
-        // Phase B: update primary_asset_id in batches of group IDs
-        const primariesOffset = state.finalize_cursor ?? 0;
-        const { data: groupIds, error: fetchErr } = await db
+        // Ensure finalize total exists for progress UI
+        if (typeof state.total_groups !== "number") {
+          const { count: totalGroups, error: totalGroupsErr } = await db
+            .from("style_groups")
+            .select("id", { count: "exact", head: true });
+          if (totalGroupsErr) {
+            return json({ ok: false, error: formatPostgrestError(totalGroupsErr), stage: "finalize_stats", substage: "primaries" }, 500);
+          }
+          state.total_groups = totalGroups ?? 0;
+          await saveState(state);
+        }
+
+        // Phase B: update primary_asset_id using keyset pagination
+        let q = db
           .from("style_groups")
           .select("id")
-          .order("id")
-          .range(primariesOffset, primariesOffset + PRIMARIES_BATCH - 1);
+          .order("id", { ascending: true })
+          .limit(PRIMARIES_BATCH);
+
+        if (state.last_stats_group_id) {
+          q = q.gt("id", state.last_stats_group_id);
+        }
+
+        const { data: groupIds, error: fetchErr } = await q;
 
         if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "finalize_stats", substage: "primaries" }, 500);
 
@@ -2361,6 +2399,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
             ok: true,
             stage: "finalize_stats",
             sub: "complete",
+            primaries_processed: state.total_groups ?? 0,
+            finalize_total_groups: state.total_groups ?? 0,
             total_processed: state.total_processed ?? 0,
             total_assets: state.total_assets ?? 0,
             done: true,
@@ -2395,7 +2435,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         }
 
         const processedCount = batchIds.length;
-        state.finalize_cursor = primariesOffset + processedCount;
+        state.finalize_cursor = (state.finalize_cursor ?? 0) + processedCount;
+        state.last_stats_group_id = batchIds[processedCount - 1] ?? state.last_stats_group_id ?? null;
         await saveState(state);
 
         return json({
@@ -2403,6 +2444,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           stage: "finalize_stats",
           sub: "primaries",
           primaries_processed: state.finalize_cursor,
+          finalize_total_groups: state.total_groups ?? 0,
           total_processed: state.total_processed ?? 0,
           total_assets: state.total_assets ?? 0,
           done: false,
@@ -3882,34 +3924,11 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   let groupsUpdated = 0;
   let skipped = 0;
 
-  if (mode === "dry-run") {
-    // Count matching assets
-    const skus = erpItems.map((e: any) => e.style_number).filter(Boolean);
-    const { count: assetCount } = await db.from("assets")
-      .select("*", { count: "exact", head: true })
-      .in("sku", skus)
-      .eq("is_deleted", false);
-    const { count: groupCount } = await db.from("style_groups")
-      .select("*", { count: "exact", head: true })
-      .in("sku", skus);
-
-    return json({
-      ok: true,
-      done: true,
-      assets_to_update: assetCount ?? 0,
-      groups_to_update: groupCount ?? 0,
-      new_categories: erpItems.filter((e: any) => e.mg_category).length,
-      skipped_lower_confidence: 0,
-    });
-  }
-
-  // Apply mode
-  const forceOverwrite = mode === "apply-force";
-
-  for (const erpItem of erpItems) {
-    if (!erpItem.style_number) continue;
-
-    // Determine product_category
+  async function buildProposedUpdates(erpItem: any): Promise<{
+    updates: Record<string, unknown>;
+    classification_source: string;
+    confidence: number;
+  }> {
     let productCategory: string | null = erpItem.mg_category || null;
     let classificationSource = "erp";
     let confidence = 1.0;
@@ -3937,12 +3956,11 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
         V: "Floor",
         W: "Garden",
       };
-      productCategory = MG01_TO_CAT[erpItem.mg01_code.toUpperCase()] || null;
+      productCategory = MG01_TO_CAT[String(erpItem.mg01_code).toUpperCase()] || null;
       classificationSource = "rule";
       confidence = 0.95;
     }
 
-    // Check for AI prediction
     if (!productCategory) {
       const { data: pred } = await db.from("product_category_predictions")
         .select("predicted_category, confidence")
@@ -3951,6 +3969,7 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
         .order("confidence", { ascending: false })
         .limit(1)
         .maybeSingle();
+
       if (pred) {
         productCategory = pred.predicted_category;
         classificationSource = "ai";
@@ -3967,6 +3986,89 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     if (erpItem.property_code) updates.property_code = erpItem.property_code;
     if (erpItem.division_code) updates.division_code = erpItem.division_code;
     if (productCategory) updates.product_category = productCategory;
+
+    return {
+      updates,
+      classification_source: classificationSource,
+      confidence,
+    };
+  }
+
+  if (mode === "dry-run") {
+    const skus = erpItems.map((e: any) => e.style_number).filter(Boolean);
+
+    const { count: assetCount } = await db.from("assets")
+      .select("*", { count: "exact", head: true })
+      .in("sku", skus)
+      .eq("is_deleted", false);
+
+    const { count: groupCount } = await db.from("style_groups")
+      .select("*", { count: "exact", head: true })
+      .in("sku", skus);
+
+    const sampleSkus = skus.slice(0, 25);
+    const [assetSampleRes, groupSampleRes] = await Promise.all([
+      db.from("assets")
+        .select("id, sku, filename")
+        .in("sku", sampleSkus)
+        .eq("is_deleted", false)
+        .limit(250),
+      db.from("style_groups")
+        .select("id, sku")
+        .in("sku", sampleSkus)
+        .limit(250),
+    ]);
+
+    const assetSamples = assetSampleRes.data ?? [];
+    const groupSamples = groupSampleRes.data ?? [];
+
+    const assetCountBySku = new Map<string, number>();
+    for (const a of assetSamples) {
+      if (!a.sku) continue;
+      assetCountBySku.set(a.sku, (assetCountBySku.get(a.sku) ?? 0) + 1);
+    }
+
+    const groupCountBySku = new Map<string, number>();
+    for (const g of groupSamples) {
+      if (!g.sku) continue;
+      groupCountBySku.set(g.sku, (groupCountBySku.get(g.sku) ?? 0) + 1);
+    }
+
+    const sample_updates: Array<Record<string, unknown>> = [];
+    for (const erpItem of erpItems.slice(0, 20)) {
+      if (!erpItem.style_number) continue;
+      const { updates, classification_source, confidence } = await buildProposedUpdates(erpItem);
+      if (Object.keys(updates).length === 0) continue;
+
+      sample_updates.push({
+        external_id: erpItem.external_id,
+        sku: erpItem.style_number,
+        classification_source,
+        confidence,
+        proposed_fields: updates,
+        matching_asset_count: assetCountBySku.get(erpItem.style_number) ?? 0,
+        matching_group_count: groupCountBySku.get(erpItem.style_number) ?? 0,
+      });
+    }
+
+    return json({
+      ok: true,
+      done: true,
+      assets_to_update: assetCount ?? 0,
+      groups_to_update: groupCount ?? 0,
+      new_categories: erpItems.filter((e: any) => e.mg_category).length,
+      skipped_lower_confidence: 0,
+      sample_updates,
+    });
+  }
+
+  // Apply mode
+  const forceOverwrite = mode === "apply-force";
+
+  for (const erpItem of erpItems) {
+    if (!erpItem.style_number) continue;
+
+    const { updates } = await buildProposedUpdates(erpItem);
 
     if (Object.keys(updates).length === 0) {
       skipped++;
