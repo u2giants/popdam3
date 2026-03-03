@@ -171,9 +171,7 @@ async function loadAutoResumeConfig(db: ReturnType<typeof createClient>): Promis
       ]);
     for (const row of rows ?? []) {
       const raw = row?.value;
-      const val = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>))
-        ? (raw as Record<string, unknown>).value
-        : raw;
+      const val = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>)) ? (raw as Record<string, unknown>).value : raw;
       switch (row.key) {
         case "REBUILD_AUTO_RESUME_ENABLED":
           config.enabled = val !== false && val !== "false";
@@ -409,7 +407,7 @@ serve(async (req: Request) => {
           } catch { /* not JSON */ }
           const stageInfo = parsed?.stage ? ` [stage=${parsed.stage}${parsed.substage ? `/substage=${parsed.substage}` : ""}]` : "";
           lastError = `admin-api returned ${res.status}:${stageInfo} ${(parsed?.error as string) || text.slice(0, 500)}`;
-          
+
           // Capture stage info from error response
           if (parsed?.stage) lastStage = parsed.stage as string;
           if (parsed?.substage) lastSubstage = parsed.substage as string;
