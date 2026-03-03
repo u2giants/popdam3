@@ -476,6 +476,20 @@ export default function TiffHygieneTab() {
           ) : (
             <>
             <div className="border border-border rounded-md overflow-hidden">
+              {/* Top horizontal scrollbar */}
+              <div
+                className="w-full overflow-x-auto"
+                ref={(el) => {
+                  if (!el) return;
+                  const bottom = el.nextElementSibling as HTMLElement | null;
+                  if (!bottom) return;
+                  let syncing = false;
+                  el.onscroll = () => { if (!syncing) { syncing = true; bottom.scrollLeft = el.scrollLeft; syncing = false; } };
+                  bottom.onscroll = () => { if (!syncing) { syncing = true; el.scrollLeft = bottom.scrollLeft; syncing = false; } };
+                }}
+              >
+                <div className="min-w-[900px] h-[1px]" />
+              </div>
               <div className="w-full overflow-x-auto">
                 <div className="min-w-[900px]">
                   <Table>
