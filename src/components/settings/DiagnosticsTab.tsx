@@ -966,7 +966,9 @@ function StyleGroupsSection() {
           </p>
         )}
         {rebuildOp.state.status === "failed" && (
-          <p className="text-xs text-destructive">Rebuild failed: {rebuildOp.state.error}</p>
+          <div className="bg-destructive/10 border border-destructive/30 rounded-md p-2 text-xs text-destructive font-mono whitespace-pre-wrap mt-2">
+            Rebuild failed: {rebuildOp.state.error}
+          </div>
         )}
       </CardContent>
     </Card>
