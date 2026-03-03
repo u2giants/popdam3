@@ -304,6 +304,11 @@ async function* walkDir(
 
 // ── TIFF Compression ────────────────────────────────────────────
 
+/**
+ * Compress a TIFF with ZIP (deflate).
+ * Strategy: Try Sharp first. If Sharp fails (common on Windows with CMYK / exotic
+ * bit-depth TIFFs — "The data is invalid"), fall back to ImageMagick convert.
+ */
 export async function compressTiff(
   filePath: string,
   mode: "test" | "process",
@@ -316,27 +321,61 @@ export async function compressTiff(
 
   // Record actual timestamps from disk before any changes
   let diskMtime: Date;
-  let diskBirthtime: Date | null;
   try {
     const s = await stat(filePath);
     diskMtime = s.mtime;
-    diskBirthtime = s.birthtime?.getFullYear() > 1970 ? s.birthtime : null;
   } catch (e) {
     return { success: false, error: `Cannot stat file: ${(e as Error).message}` };
   }
 
-  // Use the timestamps from the DB (which were captured at scan time) as authoritative
   const targetMtime = originalModifiedAt;
-  const targetAtime = diskMtime; // preserve access time from disk
+  const targetAtime = diskMtime;
 
   // Temp output path
   const tempPath = path.join(dir, `${base}_popdam_temp${ext}`);
 
   try {
-    // Re-save with ZIP (deflate) compression
-    await sharp(filePath)
-      .tiff({ compression: "deflate", predictor: "horizontal" })
-      .toFile(tempPath);
+    // Attempt compression — Sharp first, ImageMagick fallback
+    let compressedVia = "sharp";
+    try {
+      await sharp(filePath)
+        .tiff({ compression: "deflate", predictor: "horizontal" })
+        .toFile(tempPath);
+    } catch (sharpErr) {
+      const msg = (sharpErr as Error).message || "";
+      logger.warn("Sharp TIFF write failed, trying ImageMagick fallback", {
+        filePath,
+        error: msg,
+      });
+
+      // Clean up any partial temp file from Sharp
+      await unlink(tempPath).catch(() => {});
+
+      // Fallback: ImageMagick
+      if (!IM_EXE) {
+        return {
+          success: false,
+          error: `Sharp failed (${msg}) and ImageMagick is not available for fallback`,
+        };
+      }
+
+      try {
+        await execFileAsync(
+          IM_EXE,
+          ["convert", `${filePath}[0]`, "-compress", "zip", tempPath],
+          { timeout: 120_000 },
+        );
+        compressedVia = "imagemagick";
+      } catch (imErr) {
+        await unlink(tempPath).catch(() => {});
+        return {
+          success: false,
+          error: `Sharp failed (${msg}); ImageMagick also failed: ${(imErr as Error).message}`,
+        };
+      }
+    }
+
+    logger.debug(`TIFF compressed via ${compressedVia}`, { filePath });
 
     // Get new file size
     const newStat = await stat(tempPath);
@@ -344,14 +383,11 @@ export async function compressTiff(
     const origSize = (await stat(filePath)).size;
 
     if (mode === "test") {
-      // Test mode: rename original to _big, rename temp to original name
       const bigPath = path.join(dir, `${base}_big${ext}`);
       await rename(filePath, bigPath);
       await rename(tempPath, filePath);
 
-      // Restore timestamps on the new compressed file
       await restoreTimestamps(filePath, targetAtime, targetMtime);
-      // Also preserve timestamps on the backed-up original
       await restoreTimestamps(bigPath, targetAtime, targetMtime);
 
       return {
@@ -364,9 +400,7 @@ export async function compressTiff(
         original_deleted: false,
       };
     } else {
-      // Process mode: verify compressed is smaller, then replace
       if (newSize >= origSize) {
-        // Compressed is not smaller — clean up and skip
         await unlink(tempPath).catch(() => {});
         return {
           success: true,
@@ -380,20 +414,16 @@ export async function compressTiff(
         };
       }
 
-      // Verify timestamps will be restored before deleting original
       await rename(filePath, filePath + ".popdam_backup");
       await rename(tempPath, filePath);
 
-      // Restore timestamps
       const restored = await restoreTimestamps(filePath, targetAtime, targetMtime);
       if (!restored) {
-        // Rollback: restore original
         await rename(filePath, tempPath).catch(() => {});
         await rename(filePath + ".popdam_backup", filePath).catch(() => {});
         return { success: false, error: "Timestamp restoration failed — rolled back" };
       }
 
-      // Timestamps verified — delete backup
       await unlink(filePath + ".popdam_backup").catch(() => {});
 
       return {
@@ -407,7 +437,6 @@ export async function compressTiff(
       };
     }
   } catch (e) {
-    // Cleanup temp file on error
     await unlink(tempPath).catch(() => {});
     return { success: false, error: (e as Error).message };
   }
