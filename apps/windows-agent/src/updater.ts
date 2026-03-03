@@ -2,7 +2,7 @@
  * Windows Render Agent — Self-updater with dist/ hot-swap + restart.
  *
  * Lifecycle:
- *   1. On startup + every 6h, call agent-api get-latest-build
+ *   1. On startup + every 10min, call agent-api get-latest-build
  *   2. If newer version, download dist.zip to temp
  *   3. Hot-swap: rename dist/ → dist.old/, extract dist.zip → dist/
  *   4. Restart: re-run the scheduled task (or spawn new process) and exit
@@ -48,7 +48,7 @@ export interface UpdateState {
 
 // ── Module state ────────────────────────────────────────────────────
 
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 export const RESTART_EXIT_CODE = 77;
 
@@ -78,10 +78,10 @@ export function initUpdater(opts: {
   // Initial check after 30s (let agent settle first)
   setTimeout(() => checkForUpdate(opts.agentId), 30_000);
 
-  // Periodic check every 6 hours
+  // Periodic check every 10 minutes
   checkTimer = setInterval(() => checkForUpdate(opts.agentId), CHECK_INTERVAL_MS);
 
-  logger.info("Self-updater initialized", { checkIntervalHours: 6 });
+  logger.info("Self-updater initialized", { checkIntervalMinutes: 10 });
 }
 
 export async function triggerImmediateUpdate(agentId: string): Promise<void> {
