@@ -419,6 +419,199 @@ export type Database = {
           },
         ]
       }
+      erp_enrichment_log: {
+        Row: {
+          applied_at: string
+          confidence: number | null
+          field_name: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          run_id: string | null
+          source: string
+          target_id: string
+          target_type: string
+        }
+        Insert: {
+          applied_at?: string
+          confidence?: number | null
+          field_name: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          run_id?: string | null
+          source: string
+          target_id: string
+          target_type: string
+        }
+        Update: {
+          applied_at?: string
+          confidence?: number | null
+          field_name?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          run_id?: string | null
+          source?: string
+          target_id?: string
+          target_type?: string
+        }
+        Relationships: []
+      }
+      erp_items_current: {
+        Row: {
+          created_at: string
+          division_code: string | null
+          erp_updated_at: string | null
+          external_id: string
+          id: string
+          item_description: string | null
+          licensor_code: string | null
+          mg_category: string | null
+          mg01_code: string | null
+          mg02_code: string | null
+          mg03_code: string | null
+          mg04_code: string | null
+          mg05_code: string | null
+          mg06_code: string | null
+          property_code: string | null
+          raw_mg_fields: Json | null
+          size_code: string | null
+          source_system: string
+          style_number: string | null
+          sync_run_id: string | null
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          division_code?: string | null
+          erp_updated_at?: string | null
+          external_id: string
+          id?: string
+          item_description?: string | null
+          licensor_code?: string | null
+          mg_category?: string | null
+          mg01_code?: string | null
+          mg02_code?: string | null
+          mg03_code?: string | null
+          mg04_code?: string | null
+          mg05_code?: string | null
+          mg06_code?: string | null
+          property_code?: string | null
+          raw_mg_fields?: Json | null
+          size_code?: string | null
+          source_system?: string
+          style_number?: string | null
+          sync_run_id?: string | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          division_code?: string | null
+          erp_updated_at?: string | null
+          external_id?: string
+          id?: string
+          item_description?: string | null
+          licensor_code?: string | null
+          mg_category?: string | null
+          mg01_code?: string | null
+          mg02_code?: string | null
+          mg03_code?: string | null
+          mg04_code?: string | null
+          mg05_code?: string | null
+          mg06_code?: string | null
+          property_code?: string | null
+          raw_mg_fields?: Json | null
+          size_code?: string | null
+          source_system?: string
+          style_number?: string | null
+          sync_run_id?: string | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_items_current_sync_run_id_fkey"
+            columns: ["sync_run_id"]
+            isOneToOne: false
+            referencedRelation: "erp_sync_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_items_raw: {
+        Row: {
+          external_id: string
+          fetched_at: string
+          id: string
+          raw_payload: Json
+          sync_run_id: string | null
+        }
+        Insert: {
+          external_id: string
+          fetched_at?: string
+          id?: string
+          raw_payload: Json
+          sync_run_id?: string | null
+        }
+        Update: {
+          external_id?: string
+          fetched_at?: string
+          id?: string
+          raw_payload?: Json
+          sync_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_items_raw_sync_run_id_fkey"
+            columns: ["sync_run_id"]
+            isOneToOne: false
+            referencedRelation: "erp_sync_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sync_runs: {
+        Row: {
+          created_by: string | null
+          ended_at: string | null
+          error_samples: Json | null
+          id: string
+          run_metadata: Json | null
+          started_at: string
+          status: string
+          total_errors: number | null
+          total_fetched: number | null
+          total_upserted: number | null
+        }
+        Insert: {
+          created_by?: string | null
+          ended_at?: string | null
+          error_samples?: Json | null
+          id?: string
+          run_metadata?: Json | null
+          started_at?: string
+          status?: string
+          total_errors?: number | null
+          total_fetched?: number | null
+          total_upserted?: number | null
+        }
+        Update: {
+          created_by?: string | null
+          ended_at?: string | null
+          error_samples?: Json | null
+          id?: string
+          run_metadata?: Json | null
+          started_at?: string
+          status?: string
+          total_errors?: number | null
+          total_fetched?: number | null
+          total_upserted?: number | null
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           accepted_at: string | null
@@ -534,6 +727,65 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      product_category_predictions: {
+        Row: {
+          ai_model: string | null
+          ai_prompt_version: string | null
+          classification_source: string
+          confidence: number
+          created_at: string
+          erp_item_id: string | null
+          external_id: string
+          id: string
+          input_context: Json | null
+          predicted_category: string
+          rationale: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          ai_model?: string | null
+          ai_prompt_version?: string | null
+          classification_source?: string
+          confidence: number
+          created_at?: string
+          erp_item_id?: string | null
+          external_id: string
+          id?: string
+          input_context?: Json | null
+          predicted_category: string
+          rationale?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          ai_model?: string | null
+          ai_prompt_version?: string | null
+          classification_source?: string
+          confidence?: number
+          created_at?: string
+          erp_item_id?: string | null
+          external_id?: string
+          id?: string
+          input_context?: Json | null
+          predicted_category?: string
+          rationale?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_category_predictions_erp_item_id_fkey"
+            columns: ["erp_item_id"]
+            isOneToOne: false
+            referencedRelation: "erp_items_current"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_subtypes: {
         Row: {

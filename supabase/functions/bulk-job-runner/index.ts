@@ -65,6 +65,8 @@ const OP_ACTIONS: Record<string, string> = {
   "ai-tag-all": "bulk-ai-tag-all",
   "ai-tag-groups": "bulk-ai-tag-all",
   "reconcile-style-group-stats": "reconcile-style-group-stats",
+  "erp-enrichment": "apply-erp-enrichment",
+  "erp-classify": "classify-erp-categories",
 };
 
 // ── Interruption reason codes ───────────────────────────────────────
@@ -122,6 +124,18 @@ function buildProgress(
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         total: prev.total || 0,
       };
+    case "erp-enrichment":
+      return {
+        updated: ((prev.updated as number) || 0) + ((batch.updated as number) || 0),
+        total: Math.max((prev.total as number) || 0, (batch.total as number) || 0),
+        assets_updated: ((prev.assets_updated as number) || 0) + ((batch.assets_updated as number) || 0),
+        groups_updated: ((prev.groups_updated as number) || 0) + ((batch.groups_updated as number) || 0),
+      };
+    case "erp-classify":
+      return {
+        classified: ((prev.classified as number) || 0) + ((batch.classified as number) || 0),
+        total: Math.max((prev.total as number) || 0, (batch.total as number) || 0),
+      };
     default:
       return { ...prev, ...batch };
   }
@@ -143,6 +157,10 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
     case "ai-tag-all":
     case "ai-tag-groups":
       return `Tagged ${progress.tagged}. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed.`;
+    case "erp-enrichment":
+      return `Enriched ${progress.assets_updated || 0} assets, ${progress.groups_updated || 0} groups`;
+    case "erp-classify":
+      return `AI-classified ${progress.classified || 0} items`;
     default:
       return "Operation completed";
   }

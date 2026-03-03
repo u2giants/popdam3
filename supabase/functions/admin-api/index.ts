@@ -3242,6 +3242,20 @@ serve(async (req: Request) => {
         return await handleClearTiffScan();
       case "reconcile-style-group-stats":
         return await handleReconcileStyleGroupStats(body);
+      case "trigger-erp-sync":
+        return await handleTriggerErpSync();
+      case "erp-sync-runs":
+        return await handleErpSyncRuns();
+      case "erp-enrichment-stats":
+        return await handleErpEnrichmentStats();
+      case "erp-review-queue":
+        return await handleErpReviewQueue();
+      case "erp-review-action":
+        return await handleErpReviewAction(body, userId);
+      case "apply-erp-enrichment":
+        return await handleApplyErpEnrichment(body);
+      case "classify-erp-categories":
+        return await handleClassifyErpCategories(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
@@ -3689,4 +3703,389 @@ async function handleClearTiffScan() {
   // Also clear scan request
   await db.from("admin_config").delete().eq("key", "TIFF_SCAN_REQUEST");
   return json({ ok: true });
+}
+
+// ── ERP Enrichment Handlers ─────────────────────────────────────────
+
+async function handleTriggerErpSync() {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const resp = await fetch(`${supabaseUrl}/functions/v1/erp-sync`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    let parsed: Record<string, unknown> = {};
+    try { parsed = JSON.parse(text); } catch { /* ignore */ }
+    return err((parsed.error as string) || `erp-sync returned ${resp.status}`, resp.status);
+  }
+
+  const result = await resp.json();
+  return json({ ok: true, ...result });
+}
+
+async function handleErpSyncRuns() {
+  const db = serviceClient();
+  const { data, error } = await db.from("erp_sync_runs")
+    .select("id, status, started_at, ended_at, total_fetched, total_upserted, total_errors, error_samples, created_by")
+    .order("started_at", { ascending: false })
+    .limit(10);
+  if (error) return err(error.message, 500);
+  return json({ ok: true, runs: data });
+}
+
+async function handleErpEnrichmentStats() {
+  const db = serviceClient();
+
+  const { count: totalErp } = await db.from("erp_items_current")
+    .select("*", { count: "exact", head: true });
+
+  const { count: withMgCat } = await db.from("erp_items_current")
+    .select("*", { count: "exact", head: true })
+    .not("mg_category", "is", null);
+
+  const { count: pendingReview } = await db.from("product_category_predictions")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "pending");
+
+  const { count: aiClassified } = await db.from("product_category_predictions")
+    .select("*", { count: "exact", head: true })
+    .in("status", ["approved", "auto_applied"]);
+
+  // Items with mg01_code but no mgCategory = rule-classifiable
+  const { count: ruleClassified } = await db.from("erp_items_current")
+    .select("*", { count: "exact", head: true })
+    .is("mg_category", null)
+    .not("mg01_code", "is", null);
+
+  // Items needing AI = no mgCategory AND no mg01_code
+  const { count: needsAi } = await db.from("erp_items_current")
+    .select("*", { count: "exact", head: true })
+    .is("mg_category", null)
+    .is("mg01_code", null);
+
+  // SKU match: erp items whose style_number matches any asset SKU
+  // (approximate: count erp items with non-null style_number)
+  const { count: skuMatched } = await db.from("erp_items_current")
+    .select("*", { count: "exact", head: true })
+    .not("style_number", "is", null);
+
+  return json({
+    ok: true,
+    total_erp_items: totalErp ?? 0,
+    with_mg_category: withMgCat ?? 0,
+    rule_classified: ruleClassified ?? 0,
+    ai_classified: aiClassified ?? 0,
+    needs_ai: needsAi ?? 0,
+    pending_review: pendingReview ?? 0,
+    sku_matched: skuMatched ?? 0,
+    unmatched_skus: (totalErp ?? 0) - (skuMatched ?? 0),
+  });
+}
+
+async function handleErpReviewQueue() {
+  const db = serviceClient();
+  const { data, error } = await db.from("product_category_predictions")
+    .select("id, external_id, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at")
+    .eq("status", "pending")
+    .order("confidence", { ascending: true })
+    .limit(50);
+
+  if (error) return err(error.message, 500);
+
+  // Enrich with item descriptions
+  const externalIds = (data || []).map((d: any) => d.external_id);
+  const { data: erpItems } = await db.from("erp_items_current")
+    .select("external_id, item_description")
+    .in("external_id", externalIds.length > 0 ? externalIds : ["__none__"]);
+
+  const descMap: Record<string, string> = {};
+  for (const item of erpItems || []) {
+    descMap[item.external_id] = item.item_description || "";
+  }
+
+  const items = (data || []).map((d: any) => ({
+    ...d,
+    description: descMap[d.external_id] || null,
+  }));
+
+  return json({ ok: true, items });
+}
+
+async function handleErpReviewAction(body: Record<string, unknown>, userId: string) {
+  const predictionId = requireString(body, "prediction_id");
+  const action = requireString(body, "action"); // approve, reject
+  const overrideCategory = optionalString(body, "override_category");
+
+  if (!["approve", "reject"].includes(action)) return err("action must be 'approve' or 'reject'");
+
+  const db = serviceClient();
+  const now = new Date().toISOString();
+
+  if (action === "approve") {
+    const updates: Record<string, unknown> = {
+      status: "approved",
+      reviewed_by: userId === "system" ? null : userId,
+      reviewed_at: now,
+    };
+    if (overrideCategory) updates.predicted_category = overrideCategory;
+    const { error } = await db.from("product_category_predictions")
+      .update(updates).eq("id", predictionId);
+    if (error) return err(error.message, 500);
+  } else {
+    const { error } = await db.from("product_category_predictions")
+      .update({ status: "rejected", reviewed_by: userId === "system" ? null : userId, reviewed_at: now })
+      .eq("id", predictionId);
+    if (error) return err(error.message, 500);
+  }
+
+  return json({ ok: true });
+}
+
+async function handleApplyErpEnrichment(body: Record<string, unknown>) {
+  const mode = (body.mode as string) || "dry-run";
+  const offset = typeof body.offset === "number" ? body.offset : 0;
+  const batchSize = 50;
+  const db = serviceClient();
+
+  // Fetch a batch of erp_items_current with style_number
+  const { data: erpItems, error: fetchErr } = await db.from("erp_items_current")
+    .select("id, external_id, style_number, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
+    .not("style_number", "is", null)
+    .order("external_id")
+    .range(offset, offset + batchSize - 1);
+
+  if (fetchErr) return err(fetchErr.message, 500);
+  if (!erpItems || erpItems.length === 0) {
+    return json({ ok: true, done: true, assets_updated: 0, groups_updated: 0 });
+  }
+
+  let assetsUpdated = 0;
+  let groupsUpdated = 0;
+  let skipped = 0;
+
+  if (mode === "dry-run") {
+    // Count matching assets
+    const skus = erpItems.map((e: any) => e.style_number).filter(Boolean);
+    const { count: assetCount } = await db.from("assets")
+      .select("*", { count: "exact", head: true })
+      .in("sku", skus)
+      .eq("is_deleted", false);
+    const { count: groupCount } = await db.from("style_groups")
+      .select("*", { count: "exact", head: true })
+      .in("sku", skus);
+
+    return json({
+      ok: true, done: true,
+      assets_to_update: assetCount ?? 0,
+      groups_to_update: groupCount ?? 0,
+      new_categories: erpItems.filter((e: any) => e.mg_category).length,
+      skipped_lower_confidence: 0,
+    });
+  }
+
+  // Apply mode
+  const forceOverwrite = mode === "apply-force";
+
+  for (const erpItem of erpItems) {
+    if (!erpItem.style_number) continue;
+
+    // Determine product_category
+    let productCategory: string | null = erpItem.mg_category || null;
+    let classificationSource = "erp";
+    let confidence = 1.0;
+
+    if (!productCategory && erpItem.mg01_code) {
+      const MG01_TO_CAT: Record<string, string> = {
+        A: "Wall", B: "Wall", C: "Wall", D: "Wall", E: "Wall",
+        F: "Tabletop", G: "Tabletop", H: "Tabletop", J: "Tabletop", K: "Tabletop",
+        M: "Clock", N: "Storage", P: "Storage", Q: "Storage", R: "Storage",
+        S: "Workspace", T: "Workspace", U: "Workspace", V: "Floor", W: "Garden",
+      };
+      productCategory = MG01_TO_CAT[erpItem.mg01_code.toUpperCase()] || null;
+      classificationSource = "rule";
+      confidence = 0.95;
+    }
+
+    // Check for AI prediction
+    if (!productCategory) {
+      const { data: pred } = await db.from("product_category_predictions")
+        .select("predicted_category, confidence")
+        .eq("external_id", erpItem.external_id)
+        .in("status", ["approved", "auto_applied"])
+        .order("confidence", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (pred) {
+        productCategory = pred.predicted_category;
+        classificationSource = "ai";
+        confidence = pred.confidence;
+      }
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (erpItem.mg01_code) updates.mg01_code = erpItem.mg01_code;
+    if (erpItem.mg02_code) updates.mg02_code = erpItem.mg02_code;
+    if (erpItem.mg03_code) updates.mg03_code = erpItem.mg03_code;
+    if (erpItem.size_code) updates.size_code = erpItem.size_code;
+    if (erpItem.licensor_code) updates.licensor_code = erpItem.licensor_code;
+    if (erpItem.property_code) updates.property_code = erpItem.property_code;
+    if (erpItem.division_code) updates.division_code = erpItem.division_code;
+    if (productCategory) updates.product_category = productCategory;
+
+    if (Object.keys(updates).length === 0) { skipped++; continue; }
+
+    // Update assets
+    const { count: assetUpdated } = await db.from("assets")
+      .update(updates)
+      .eq("sku", erpItem.style_number)
+      .eq("is_deleted", false)
+      .select("*", { count: "exact", head: true });
+    assetsUpdated += assetUpdated ?? 0;
+
+    // Update style_groups
+    const { count: groupUpdated } = await db.from("style_groups")
+      .update(updates)
+      .eq("sku", erpItem.style_number)
+      .select("*", { count: "exact", head: true });
+    groupsUpdated += groupUpdated ?? 0;
+  }
+
+  const done = erpItems.length < batchSize;
+  return json({
+    ok: true, done,
+    nextOffset: offset + erpItems.length,
+    assets_updated: assetsUpdated,
+    groups_updated: groupsUpdated,
+    skipped,
+    updated: assetsUpdated + groupsUpdated,
+    total: offset + erpItems.length,
+  });
+}
+
+async function handleClassifyErpCategories(body: Record<string, unknown>) {
+  const offset = typeof body.offset === "number" ? body.offset : 0;
+  const batchSize = 10;
+  const db = serviceClient();
+
+  // Find ERP items that need AI classification
+  const { data: items, error: fetchErr } = await db.from("erp_items_current")
+    .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
+    .is("mg_category", null)
+    .is("mg01_code", null)
+    .order("external_id")
+    .range(offset, offset + batchSize - 1);
+
+  if (fetchErr) return err(fetchErr.message, 500);
+  if (!items || items.length === 0) {
+    return json({ ok: true, done: true, classified: 0, total: offset });
+  }
+
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) return err("LOVABLE_API_KEY not configured", 500);
+
+  let classified = 0;
+  const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
+
+  for (const item of items) {
+    if (!item.item_description && !item.style_number) continue;
+
+    try {
+      const prompt = `Classify this product into exactly one of these 7 categories: ${CATEGORIES.join(", ")}.
+
+Product info:
+- Style Number: ${item.style_number || "unknown"}
+- Description: ${item.item_description || "none"}
+- MG fields: ${JSON.stringify(item.raw_mg_fields || {})}
+
+Return ONLY the classification using the provided tool.`;
+
+      const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: "You are a product classification expert for a home décor company. Classify each product into exactly one category." },
+            { role: "user", content: prompt },
+          ],
+          tools: [{
+            type: "function",
+            function: {
+              name: "classify_product",
+              description: "Classify a product into one of 7 categories",
+              parameters: {
+                type: "object",
+                properties: {
+                  category: { type: "string", enum: CATEGORIES },
+                  confidence: { type: "number", minimum: 0, maximum: 1 },
+                  rationale: { type: "string", maxLength: 200 },
+                },
+                required: ["category", "confidence", "rationale"],
+                additionalProperties: false,
+              },
+            },
+          }],
+          tool_choice: { type: "function", function: { name: "classify_product" } },
+        }),
+      });
+
+      if (!aiResp.ok) {
+        console.error(`AI classification failed for ${item.external_id}: ${aiResp.status}`);
+        continue;
+      }
+
+      const aiResult = await aiResp.json();
+      const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+      if (!toolCall?.function?.arguments) continue;
+
+      let parsed: { category: string; confidence: number; rationale: string };
+      try {
+        parsed = JSON.parse(toolCall.function.arguments);
+      } catch { continue; }
+
+      if (!CATEGORIES.includes(parsed.category)) continue;
+
+      const status = parsed.confidence >= 0.65 ? "auto_applied" : "pending";
+
+      await db.from("product_category_predictions").insert({
+        erp_item_id: item.id,
+        external_id: item.external_id,
+        predicted_category: parsed.category,
+        confidence: parsed.confidence,
+        rationale: parsed.rationale,
+        classification_source: "ai",
+        ai_model: "google/gemini-3-flash-preview",
+        ai_prompt_version: "v1",
+        status,
+        input_context: {
+          style_number: item.style_number,
+          item_description: item.item_description,
+          raw_mg_fields: item.raw_mg_fields,
+        },
+      });
+
+      classified++;
+    } catch (e) {
+      console.error(`AI classification error for ${item.external_id}:`, e);
+    }
+  }
+
+  const done = items.length < batchSize;
+  return json({
+    ok: true, done,
+    nextOffset: offset + items.length,
+    classified,
+    total: offset + items.length,
+  });
 }
