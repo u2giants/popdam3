@@ -25,7 +25,7 @@ import { writeFile, readFile, mkdir } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { createHash } from "node:crypto";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import path from "node:path";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -115,6 +115,75 @@ function isNewer(remote: string, local: string): boolean {
 function getInstallDir(): string {
   // __dirname = .../WindowsAgent/dist
   return path.dirname(__dirname);
+}
+
+// ── Detect launcher supervision ────────────────────────────────────
+
+const TASK_NAME = "PopDAM Windows Render Agent";
+
+/**
+ * Detect if we're running under popdam-launcher.bat (which loops on exit code 77).
+ * Heuristic: check if POPDAM_LAUNCHER env var is set (launcher sets this), or
+ * if the parent process name contains "cmd.exe" launched from our install dir.
+ */
+function isUnderLauncher(): boolean {
+  return process.env.POPDAM_LAUNCHER === "1";
+}
+
+/**
+ * Restart the agent process in a backward-compatible way:
+ *  1. If running under popdam-launcher.bat → just exit(77), launcher will restart us.
+ *  2. Otherwise → try schtasks /run to restart the Scheduled Task, then exit.
+ *  3. If schtasks fails → spawn a detached node process as last resort, then exit.
+ */
+function restartAgent(reason: string): never {
+  if (isUnderLauncher()) {
+    logger.info(`Restarting via launcher exit code (${reason})`, {
+      mode: "launcher",
+      exitCode: RESTART_EXIT_CODE,
+    });
+    process.exit(RESTART_EXIT_CODE);
+  }
+
+  // Fallback 1: Try schtasks /run
+  logger.info(`Launcher not detected — attempting schtasks restart (${reason})`, {
+    mode: "schtasks-fallback",
+    taskName: TASK_NAME,
+  });
+  try {
+    execSync(`schtasks /run /tn "${TASK_NAME}"`, { timeout: 10_000, stdio: "ignore" });
+    logger.info("schtasks /run succeeded — exiting current process");
+    process.exit(0);
+  } catch (e) {
+    logger.warn("schtasks /run failed — trying direct spawn fallback", {
+      error: (e as Error).message,
+    });
+  }
+
+  // Fallback 2: Spawn a new detached node process
+  const installDir = getInstallDir();
+  const nodeExe = path.join(installDir, "node.exe");
+  const entryPoint = path.join(installDir, "dist", "index.js");
+
+  try {
+    const child = spawn(nodeExe, [entryPoint], {
+      cwd: installDir,
+      detached: true,
+      stdio: "ignore",
+      env: { ...process.env },
+    });
+    child.unref();
+    logger.info("Spawned detached replacement process", {
+      mode: "spawn-fallback",
+      pid: child.pid,
+    });
+    process.exit(0);
+  } catch (e) {
+    logger.error("All restart methods failed — agent will stop until next logon/reboot", {
+      error: (e as Error).message,
+    });
+    process.exit(RESTART_EXIT_CODE); // Last resort: exit 77 in hopes something restarts us
+  }
 }
 
 // ── Check + download + swap ─────────────────────────────────────────
@@ -304,9 +373,8 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
     // 8. Clean up zip
     try { unlinkSync(zipPath); } catch { /* ok */ }
 
-    // 9. Restart via launcher exit code (launcher loop will restart us)
-    logger.info("Restarting via launcher exit code", { exitCode: RESTART_EXIT_CODE });
-    process.exit(RESTART_EXIT_CODE);
+    // 9. Restart agent (launcher-aware with schtasks/spawn fallback)
+    restartAgent("update applied");
   } catch (e) {
     const msg = (e as Error).message;
     state.lastError = msg;
@@ -436,9 +504,8 @@ export async function postRestartHealthCheck(agentId: string): Promise<void> {
           });
         } catch { /* best effort */ }
 
-        // Restart with old code via launcher exit code
-        logger.info("Rollback complete — restarting with previous version");
-        process.exit(RESTART_EXIT_CODE);
+        // Restart with old code (launcher-aware with fallback)
+        restartAgent("rollback applied");
       } else {
         logger.error("Rollback dist not found — cannot rollback", { rollbackDist });
       }
