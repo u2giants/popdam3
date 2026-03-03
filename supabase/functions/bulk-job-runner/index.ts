@@ -23,6 +23,7 @@ const CONFIG_KEY = "BULK_OPERATIONS";
 const MAX_RUN_MS = 50_000; // 50 seconds — leave headroom for 60s edge timeout
 const PERSIST_EVERY = 5; // persist progress every N batches
 const INTERRUPT_CHECK_EVERY = 10; // check for user stop every N batches
+const MAX_TRANSIENT_RETRIES = 3; // retry transient errors (502/503/504) before giving up
 
 interface OpState {
   status: string;
@@ -176,6 +177,8 @@ serve(async (req: Request) => {
     let batchCount = 0;
     let done = false;
     let lastError: string | null = null;
+    let transientRetries = 0;
+    let isTransientFailure = false;
 
     console.log(`bulk-job-runner: processing '${opKey}' action='${action}' cursor=${cursor}`);
 
@@ -191,7 +194,6 @@ serve(async (req: Request) => {
         const freshOps = (freshConfig?.value as Record<string, OpState>) || {};
         if (freshOps[opKey]?.status !== "running") {
           console.log(`bulk-job-runner: op '${opKey}' was stopped by user`);
-          // Save our latest progress with the user's chosen status
           allOps[opKey] = {
             ...freshOps[opKey],
             progress,
@@ -208,13 +210,11 @@ serve(async (req: Request) => {
       }
 
       try {
-        // Build request body: action + offset + any extra params
         const requestBody: Record<string, unknown> = {
           action,
           offset: cursor,
         };
 
-        // Pass through operation params (e.g., group_ids for ai-tag-groups)
         if (opState.params) {
           for (const [k, v] of Object.entries(opState.params)) {
             if (k !== "type" && k !== "total") {
@@ -233,16 +233,28 @@ serve(async (req: Request) => {
         });
 
         if (!res.ok) {
+          const isTransient = [502, 503, 504].includes(res.status);
           const text = await res.text();
           let parsed: any = null;
-          try {
-            parsed = JSON.parse(text);
-          } catch { /* not JSON */ }
+          try { parsed = JSON.parse(text); } catch { /* not JSON */ }
           const stageInfo = parsed?.stage ? ` [stage=${parsed.stage}${parsed.substage ? `/substage=${parsed.substage}` : ""}]` : "";
           lastError = `admin-api returned ${res.status}:${stageInfo} ${parsed?.error || text.slice(0, 500)}`;
+
+          if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
+            transientRetries++;
+            const delayMs = 2000 * transientRetries;
+            console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
+            await new Promise(r => setTimeout(r, delayMs));
+            continue; // retry same cursor
+          }
+
           console.error(`bulk-job-runner: ${lastError}`);
+          isTransientFailure = isTransient;
           break;
         }
+
+        // Reset transient retry counter on success
+        transientRetries = 0;
 
         const result = await res.json();
         if (!result.ok) {
@@ -252,12 +264,9 @@ serve(async (req: Request) => {
           break;
         }
 
-        // Accumulate progress
         progress = buildProgress(opKey, result, progress);
         batchCount++;
 
-        // Check if operation is complete
-        // `done: true` or `done` not present (single-call actions like backfill)
         if (result.done !== false) {
           done = true;
           break;
@@ -265,7 +274,6 @@ serve(async (req: Request) => {
 
         cursor = result.nextOffset ?? cursor + 1;
 
-        // Persist progress periodically
         if (batchCount % PERSIST_EVERY === 0) {
           allOps[opKey] = {
             ...opState,
@@ -299,6 +307,17 @@ serve(async (req: Request) => {
         updated_at: now,
       };
       console.log(`bulk-job-runner: '${opKey}' completed — ${buildResultMessage(opKey, progress)}`);
+    } else if (lastError && isTransientFailure) {
+      // Transient failure (502/503/504) — mark as interrupted so user can resume
+      allOps[opKey] = {
+        ...opState,
+        status: "interrupted",
+        cursor,
+        progress,
+        error: `Transient error (resumable): ${lastError}`,
+        updated_at: now,
+      };
+      console.warn(`bulk-job-runner: '${opKey}' interrupted (transient) — ${lastError}`);
     } else if (lastError) {
       allOps[opKey] = {
         ...opState,

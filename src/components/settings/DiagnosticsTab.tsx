@@ -892,6 +892,73 @@ function AiTaggingSection() {
 
 // ── Section 8: Style Groups ─────────────────────────────────────────
 
+function RebuildStatusDetail({ state }: { state: { status: string; cursor?: number; progress?: Record<string, unknown>; error?: string; started_at?: string; updated_at?: string } }) {
+  const statusMap: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+    idle: { label: "Idle", color: "text-muted-foreground", icon: <Clock className="h-3.5 w-3.5" /> },
+    running: { label: "Running…", color: "text-primary", icon: <Loader2 className="h-3.5 w-3.5 animate-spin" /> },
+    completed: { label: "Completed", color: "text-[hsl(var(--success))]", icon: <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--success))]" /> },
+    interrupted: { label: "Interrupted — Resumable", color: "text-[hsl(var(--warning))]", icon: <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))]" /> },
+    failed: { label: "Failed", color: "text-destructive", icon: <XCircle className="h-3.5 w-3.5 text-destructive" /> },
+  };
+  const s = statusMap[state.status] || statusMap.idle;
+  const p = state.progress;
+
+  return (
+    <div className="border border-border rounded-md p-3 space-y-2 mt-2">
+      <div className="flex items-center gap-2 text-sm">
+        {s.icon}
+        <span className={`font-medium ${s.color}`}>{s.label}</span>
+        {state.started_at && (
+          <span className="text-xs text-muted-foreground ml-auto">Started: {new Date(state.started_at).toLocaleString()}</span>
+        )}
+      </div>
+
+      {p && (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {typeof p.groups === "number" && <span>Groups created: <span className="text-foreground font-medium">{(p.groups as number).toLocaleString()}</span></span>}
+          {typeof p.assigned === "number" && <span>Assets assigned: <span className="text-foreground font-medium">{(p.assigned as number).toLocaleString()}</span></span>}
+          {typeof p.total_processed === "number" && typeof p.total_assets === "number" && (
+            <span className="col-span-2">
+              Progress: <span className="text-foreground font-medium">{(p.total_processed as number).toLocaleString()}</span> / {(p.total_assets as number).toLocaleString()} assets
+            </span>
+          )}
+        </div>
+      )}
+
+      {typeof p?.total_processed === "number" && typeof p?.total_assets === "number" && (p.total_assets as number) > 0 && (
+        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${state.status === "failed" ? "bg-destructive" : state.status === "interrupted" ? "bg-[hsl(var(--warning))]" : "bg-primary"}`}
+            style={{ width: `${Math.min(100, Math.round(((p.total_processed as number) / (p.total_assets as number)) * 100))}%` }}
+          />
+        </div>
+      )}
+
+      {state.error && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-md p-2 text-xs text-destructive font-mono whitespace-pre-wrap">
+          {state.error}
+        </div>
+      )}
+
+      {state.status === "interrupted" && (
+        <p className="text-xs text-[hsl(var(--warning))]">
+          ↳ Click "Resume Rebuild Style Groups" to continue from where it stopped.
+        </p>
+      )}
+
+      {state.status === "failed" && (
+        <p className="text-xs text-muted-foreground">
+          ↳ You can try "Rebuild Style Groups" again to restart, or check the error above for details.
+        </p>
+      )}
+
+      {state.updated_at && (
+        <p className="text-xs text-muted-foreground">Last updated: {timeAgo(state.updated_at)}</p>
+      )}
+    </div>
+  );
+}
+
 function StyleGroupsSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
@@ -922,7 +989,7 @@ function StyleGroupsSection() {
     });
   }
 
-  const p = rebuildOp.state.progress;
+  const showDetail = rebuildOp.state.status !== "idle";
 
   return (
     <Card>
@@ -953,23 +1020,12 @@ function StyleGroupsSection() {
               <TooltipContent side="bottom" className="max-w-[260px] text-center">Deletes all style groups and re-creates them from asset folder structure. Tags and AI data on assets are preserved.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          {rebuildOp.isInterrupted && (
+          {(rebuildOp.isInterrupted || rebuildOp.state.status === "failed") && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => rebuildOp.reset()}>Dismiss</Button>
           )}
         </div>
-        {(rebuildOp.isActive || rebuildOp.state.status === "completed") && p && (
-          <p className="text-xs text-muted-foreground">
-            {rebuildOp.isActive ? "" : "✓ "}{(p.groups as number)?.toLocaleString()} groups created, {(p.assigned as number)?.toLocaleString()} assets assigned
-            {typeof p.total_processed === "number" && typeof p.total_assets === "number" && (
-              <span> · Processed {(p.total_processed as number).toLocaleString()} / {(p.total_assets as number).toLocaleString()}</span>
-            )}
-          </p>
-        )}
-        {rebuildOp.state.status === "failed" && (
-          <div className="bg-destructive/10 border border-destructive/30 rounded-md p-2 text-xs text-destructive font-mono whitespace-pre-wrap mt-2">
-            Rebuild failed: {rebuildOp.state.error}
-          </div>
-        )}
+
+        {showDetail && <RebuildStatusDetail state={rebuildOp.state} />}
       </CardContent>
     </Card>
   );
