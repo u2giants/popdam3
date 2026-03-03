@@ -106,6 +106,9 @@ function buildProgress(
         assigned: ((prev.assigned as number) || 0) + ((batch.assets_assigned as number) || 0),
         total_processed: Math.max((prev.total_processed as number) || 0, (batch.total_processed as number) || 0),
         total_assets: Math.max((prev.total_assets as number) || 0, (batch.total_assets as number) || 0),
+        counts_processed: Math.max((prev.counts_processed as number) || 0, (batch.counts_processed as number) || 0),
+        primaries_processed: Math.max((prev.primaries_processed as number) || 0, (batch.primaries_processed as number) || 0),
+        finalize_total_groups: Math.max((prev.finalize_total_groups as number) || 0, (batch.finalize_total_groups as number) || 0),
         stage: batch.stage || prev.stage,
         substage: batch.sub || batch.substage || prev.substage,
       };

@@ -207,7 +207,7 @@ export default function TiffHygieneTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  // Selection logic with Ctrl+Click and Shift+Click
+  // Selection logic with Shift+Click range selection and click-to-toggle multi-select
   const handleRowClick = useCallback((id: string, idx: number, e: React.MouseEvent) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -217,16 +217,9 @@ export default function TiffHygieneTab() {
         for (let i = start; i <= end; i++) {
           next.add(files[i].id);
         }
-      } else if (e.ctrlKey || e.metaKey) {
+      } else {
         if (next.has(id)) next.delete(id);
         else next.add(id);
-      } else {
-        if (next.size === 1 && next.has(id)) {
-          next.clear();
-        } else {
-          next.clear();
-          next.add(id);
-        }
       }
       return next;
     });

@@ -944,11 +944,15 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {typeof p.groups === "number" && (p.groups as number) > 0 && <span>Groups created: <span className="text-foreground font-medium">{(p.groups as number).toLocaleString()}</span></span>}
           {typeof p.assigned === "number" && (p.assigned as number) > 0 && <span>Assets assigned: <span className="text-foreground font-medium">{(p.assigned as number).toLocaleString()}</span></span>}
-          {typeof p.total_processed === "number" && typeof p.total_assets === "number" && (
+          {p.stage === "finalize_stats" && typeof p.finalize_total_groups === "number" && (p.finalize_total_groups as number) > 0 ? (
+            <span className="col-span-2">
+              Finalize progress: <span className="text-foreground font-medium">{((p.substage === "primaries" ? p.primaries_processed : p.counts_processed) as number || 0).toLocaleString()}</span> / {(p.finalize_total_groups as number).toLocaleString()} groups ({p.substage === "primaries" ? "primaries" : "counts"})
+            </span>
+          ) : typeof p.total_processed === "number" && typeof p.total_assets === "number" ? (
             <span className="col-span-2">
               Progress: <span className="text-foreground font-medium">{(p.total_processed as number).toLocaleString()}</span> / {(p.total_assets as number).toLocaleString()} assets
             </span>
-          )}
+          ) : null}
         </div>
       )}
 
