@@ -142,46 +142,55 @@ serve(async (req: Request) => {
       try {
         // Insert raw snapshots
         const rawRows = batch.map((item: any) => ({
-          external_id: String(item.styleNumber || item.itemCode || item.id || `unknown-${i}`),
+          external_id: String(item.itemNum || item.styleNumber || item.itemCode || item.id || `unknown-${i}`),
           raw_payload: item,
           sync_run_id: runId,
         }));
         await db.from("erp_items_raw").insert(rawRows);
 
         // Upsert normalized rows
+        // Map actual DesignFlow API fields to our schema
         const normalizedRows = batch.map((item: any) => {
-          const externalId = String(item.styleNumber || item.itemCode || item.id || `unknown-${i}`);
+          const externalId = String(item.itemNum || item.styleNumber || item.itemCode || item.id || `unknown-${i}`);
+          
+          // Extract MG codes from DesignFlow field names
+          // API uses: "Product Type ( Material)" for MG01, "Product Sub-Type (Construction)" for MG02,
+          // "Product Sub-Sub-Type (feature)" for MG03
+          const mg01 = item["Product Type ( Material)"] || item["Product Type (Material)"] || item.mg01 || item.merchGroup01 || null;
+          const mg02 = item["Product Sub-Type (Construction)"] || item.mg02 || item.merchGroup02 || null;
+          const mg03 = item["Product Sub-Sub-Type (feature)"] || item["Product Sub-Sub-Type(feature)"] || item.mg03 || item.merchGroup03 || null;
+          
           return {
             external_id: externalId,
-            style_number: item.styleNumber || null,
-            item_description: item.itemDescription || item.description || null,
+            style_number: item.itemNum || item.styleNumber || null,
+            item_description: item.item_name || item.itemDescription || item.description || null,
             mg_category: item.mgCategory || null,
-            mg01_code: item.mg01 || item.merchGroup01 || null,
-            mg02_code: item.mg02 || item.merchGroup02 || null,
-            mg03_code: item.mg03 || item.merchGroup03 || null,
+            mg01_code: mg01,
+            mg02_code: mg02,
+            mg03_code: mg03,
             mg04_code: item.mg04 || item.merchGroup04 || null,
             mg05_code: item.mg05 || item.merchGroup05 || null,
             mg06_code: item.mg06 || item.merchGroup06 || null,
-            size_code: item.sizeCode || item.mg04 || null,
-            licensor_code: item.licensorCode || item.mg05 || null,
-            property_code: item.propertyCode || item.mg06 || null,
+            size_code: item.size || item.sizeCode || null,
+            licensor_code: item.licensor || item.licensorCode || null,
+            property_code: item.property || item.propertyCode || null,
             division_code: item.divisionCode || null,
             erp_updated_at: item.updatedAt || item.lastModified || null,
             sync_run_id: runId,
             synced_at: new Date().toISOString(),
             raw_mg_fields: {
-              mg01: item.mg01 || item.merchGroup01,
-              mg02: item.mg02 || item.merchGroup02,
-              mg03: item.mg03 || item.merchGroup03,
+              mg01: mg01,
+              mg02: mg02,
+              mg03: mg03,
               mg04: item.mg04 || item.merchGroup04,
               mg05: item.mg05 || item.merchGroup05,
               mg06: item.mg06 || item.merchGroup06,
-              mg07: item.mg07 || item.merchGroup07,
-              mg08: item.mg08 || item.merchGroup08,
-              mg09: item.mg09 || item.merchGroup09,
-              mg10: item.mg10 || item.merchGroup10,
-              mg11: item.mg11 || item.merchGroup11,
               mgCategory: item.mgCategory,
+              size: item.size,
+              licensor: item.licensor,
+              property: item.property,
+              season: item.season,
+              status: item.status,
             },
           };
         });
