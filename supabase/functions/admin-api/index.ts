@@ -1748,7 +1748,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   const STATE_KEY = "REBUILD_STYLE_GROUPS_STATE";
   const CLEAR_BATCH = 1000;
   const GROUP_DELETE_BATCH = 1000;
-  const REBUILD_BATCH = 500;
+  const DEFAULT_REBUILD_BATCH = 250;
+  const DEFAULT_REBUILD_MAX_GROUPS_PER_CALL = 50;
 
   type RebuildState = {
     stage: "clear_assets" | "delete_groups" | "rebuild_assets" | "finalize_stats";
@@ -1826,6 +1827,31 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       last_stats_group_id: null,
     };
     await saveState(state);
+  }
+
+  let rebuildBatch = DEFAULT_REBUILD_BATCH;
+  let rebuildMaxGroupsPerCall = DEFAULT_REBUILD_MAX_GROUPS_PER_CALL;
+  try {
+    const { data: knobRows } = await db
+      .from("admin_config")
+      .select("key, value")
+      .in("key", ["REBUILD_ASSET_BATCH_SIZE", "REBUILD_MAX_GROUPS_PER_CALL"]);
+
+    for (const row of knobRows ?? []) {
+      const raw = row?.value;
+      const normalized = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>))
+        ? (raw as Record<string, unknown>).value
+        : raw;
+      const parsed = typeof normalized === "number" ? normalized : parseInt(String(normalized), 10);
+      if (row.key === "REBUILD_ASSET_BATCH_SIZE" && Number.isFinite(parsed) && parsed > 0) {
+        rebuildBatch = parsed;
+      }
+      if (row.key === "REBUILD_MAX_GROUPS_PER_CALL" && Number.isFinite(parsed) && parsed > 0) {
+        rebuildMaxGroupsPerCall = parsed;
+      }
+    }
+  } catch {
+    // defaults are fine
   }
 
   // Stage 1: clear style_group_id in chunks
@@ -1946,6 +1972,13 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
   // Stage 3: assign assets -> groups (bulk upsert + bulk assignment RPC)
   if (state.stage === "rebuild_assets") {
+    const isStatementTimeout = (msg: string) => {
+      const s = msg.toLowerCase();
+      return s.includes("57014") ||
+        s.includes("statement timeout") ||
+        s.includes("canceling statement due to statement timeout");
+    };
+
     try {
       let q = db
         .from("assets")
@@ -1954,20 +1987,19 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         )
         .eq("is_deleted", false)
         .order("id", { ascending: true })
-        .limit(REBUILD_BATCH);
+        .limit(rebuildBatch);
 
       if (state.last_rebuild_asset_id) {
         q = q.gt("id", state.last_rebuild_asset_id);
       }
 
-      const { data: assets, error: fetchErr } = await withRetry(async () => {
-        const res = await q;
-        if (res.error) throw new Error(formatPostgrestError(res.error));
-        return res;
-      });
+      const { data: fetchedAssets, error: fetchErr } = await q;
+      if (fetchErr) {
+        return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "rebuild_assets", substage: "fetch_assets" }, 500);
+      }
 
-      if (fetchErr) return err(fetchErr.message, 500);
-      if (!assets || assets.length === 0) {
+      const assets = fetchedAssets ?? [];
+      if (assets.length === 0) {
         const nextState: RebuildState = {
           ...state,
           stage: "finalize_stats",
@@ -1988,10 +2020,25 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         });
       }
 
-      const skuMap = new Map<string, typeof assets>();
+      let processUntil = assets.length;
+      if (rebuildMaxGroupsPerCall > 0) {
+        const seenSkus = new Set<string>();
+        for (let i = 0; i < assets.length; i++) {
+          const sku = extractSkuFolder(assets[i].relative_path);
+          if (!sku) continue;
+          if (!seenSkus.has(sku) && seenSkus.size >= rebuildMaxGroupsPerCall) {
+            processUntil = i;
+            break;
+          }
+          seenSkus.add(sku);
+        }
+      }
+
+      const processBatch = assets.slice(0, Math.max(1, processUntil));
+      const skuMap = new Map<string, typeof processBatch>();
       let ungrouped = 0;
 
-      for (const asset of assets) {
+      for (const asset of processBatch) {
         const sku = extractSkuFolder(asset.relative_path);
         if (!sku) {
           ungrouped++;
@@ -2002,8 +2049,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       }
 
       const groupRows = Array.from(skuMap.entries()).map(([sku, members]) => {
-        const sku_upper = sku.toUpperCase();
-        const first = members.find((m) => m.filename.toUpperCase().includes(sku_upper)) ?? members[0];
+        const skuUpper = sku.toUpperCase();
+        const first = members.find((m) => m.filename.toUpperCase().includes(skuUpper)) ?? members[0];
         const pathParts = first.relative_path.split("/");
         const skuIdx = pathParts.lastIndexOf(sku);
         const folderPath = skuIdx >= 0 ? pathParts.slice(0, skuIdx + 1).join("/") : pathParts.slice(0, -1).join("/");
@@ -2012,10 +2059,10 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           sku,
           folder_path: folderPath,
           is_licensed: first.is_licensed ?? false,
-          licensor_id: (first as any).licensor_id ?? null,
+          licensor_id: (first as { licensor_id?: string | null }).licensor_id ?? null,
           licensor_code: first.licensor_code,
           licensor_name: first.licensor_name,
-          property_id: (first as any).property_id ?? null,
+          property_id: (first as { property_id?: string | null }).property_id ?? null,
           property_code: first.property_code,
           property_name: first.property_name,
           product_category: first.product_category,
@@ -2036,21 +2083,38 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       let assetsAssigned = 0;
 
       if (groupRows.length > 0) {
-        const { data: upsertedGroups, error: upsertErr } = await withRetry(() =>
-          db
-            .from("style_groups")
-            .upsert(groupRows, { onConflict: "sku" })
-            .select("id, sku")
-            .then((r) => {
-              if (r.error) throw new Error(formatPostgrestError(r.error));
-              return r;
-            })
-        );
+        const allUpsertedGroups: Array<{ id: string; sku: string }> = [];
+        let groupCursor = 0;
+        let groupChunkSize = Math.min(100, groupRows.length);
+        const GROUP_CHUNK_MIN = 10;
 
-        if (upsertErr) return err(upsertErr.message, 500);
+        while (groupCursor < groupRows.length) {
+          const chunk = groupRows.slice(groupCursor, groupCursor + groupChunkSize);
+          const { data: upsertedGroups, error: upsertErr } = await db
+            .from("style_groups")
+            .upsert(chunk, { onConflict: "sku" })
+            .select("id, sku");
+
+          if (upsertErr) {
+            const msg = formatPostgrestError(upsertErr);
+            if (isStatementTimeout(msg) && groupChunkSize > GROUP_CHUNK_MIN) {
+              groupChunkSize = Math.max(GROUP_CHUNK_MIN, Math.ceil(groupChunkSize / 2));
+              continue;
+            }
+            return json({
+              ok: false,
+              error: msg,
+              stage: "rebuild_assets",
+              substage: "upsert_groups",
+            }, 500);
+          }
+
+          allUpsertedGroups.push(...(upsertedGroups ?? []) as Array<{ id: string; sku: string }>);
+          groupCursor += chunk.length;
+        }
 
         const groupIdBySku = new Map<string, string>(
-          (upsertedGroups ?? []).map((g) => [g.sku as string, g.id as string]),
+          allUpsertedGroups.map((g) => [g.sku, g.id]),
         );
 
         const assignments: Array<{ asset_id: string; style_group_id: string }> = [];
@@ -2063,21 +2127,40 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         }
 
         if (assignments.length > 0) {
-          const { data: assignedCount, error: assignErr } = await withRetry(() =>
-            db.rpc("bulk_assign_style_groups", { p_assignments: assignments }).then((r) => {
-              if (r.error) throw new Error(formatPostgrestError(r.error));
-              return r;
-            })
-          );
-          if (assignErr) return err(assignErr.message, 500);
-          assetsAssigned = typeof assignedCount === "number" ? assignedCount : assignments.length;
+          let assignCursor = 0;
+          let assignChunkSize = Math.min(200, assignments.length);
+          const ASSIGN_CHUNK_MIN = 25;
+
+          while (assignCursor < assignments.length) {
+            const chunk = assignments.slice(assignCursor, assignCursor + assignChunkSize);
+            const { data: assignedCount, error: assignErr } = await db.rpc("bulk_assign_style_groups", {
+              p_assignments: chunk,
+            });
+
+            if (assignErr) {
+              const msg = formatPostgrestError(assignErr);
+              if (isStatementTimeout(msg) && assignChunkSize > ASSIGN_CHUNK_MIN) {
+                assignChunkSize = Math.max(ASSIGN_CHUNK_MIN, Math.ceil(assignChunkSize / 2));
+                continue;
+              }
+              return json({
+                ok: false,
+                error: msg,
+                stage: "rebuild_assets",
+                substage: "assign_assets",
+              }, 500);
+            }
+
+            assetsAssigned += typeof assignedCount === "number" ? assignedCount : chunk.length;
+            assignCursor += chunk.length;
+          }
         }
 
-        groupsCreated = (upsertedGroups ?? []).length;
+        groupsCreated = allUpsertedGroups.length;
       }
 
-      const totalProcessed = (state.total_processed ?? 0) + assets.length;
-      const reachedEnd = assets.length < REBUILD_BATCH;
+      const totalProcessed = (state.total_processed ?? 0) + processBatch.length;
+      const reachedEnd = assets.length < rebuildBatch;
       const nextState: RebuildState = reachedEnd
         ? {
           ...state,
@@ -2088,7 +2171,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         : {
           ...state,
           stage: "rebuild_assets",
-          last_rebuild_asset_id: assets[assets.length - 1].id,
+          last_rebuild_asset_id: processBatch[processBatch.length - 1].id,
           total_processed: totalProcessed,
         };
 
@@ -2097,6 +2180,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       return json({
         ok: true,
         stage: "rebuild_assets",
+        substage: "complete_batch",
         groups_created: groupsCreated,
         assets_assigned: assetsAssigned,
         assets_ungrouped: ungrouped,
@@ -2109,7 +2193,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     } catch (e) {
       const msg = (e as Error).message || "Unknown error in rebuild stage 3";
       console.error("rebuild-style-groups stage 3 error:", msg);
-      return json({ ok: false, error: msg, stage: "rebuild_assets", substage: null }, 500);
+      return json({ ok: false, error: msg, stage: "rebuild_assets", substage: "unhandled" }, 500);
     }
   }
 
@@ -2121,14 +2205,15 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     try {
       const { data: knobRow } = await db
         .from("admin_config")
-        .select("value")
+        .select("key, value")
         .in("key", ["REBUILD_FINALIZE_BATCH_SIZE", "REBUILD_PRIMARIES_BATCH_SIZE"]);
       for (const r of knobRow ?? []) {
-        const v = typeof (r as any).value === "object" ? (r as any).value : null;
-        const raw = v?.value ?? v;
+        const raw = (r.value && typeof r.value === "object" && "value" in (r.value as Record<string, unknown>))
+          ? (r.value as Record<string, unknown>).value
+          : r.value;
         const num = typeof raw === "number" ? raw : parseInt(String(raw), 10);
-        if ((r as any).key === "REBUILD_FINALIZE_BATCH_SIZE" && num > 0) COUNTS_BATCH = num;
-        if ((r as any).key === "REBUILD_PRIMARIES_BATCH_SIZE" && num > 0) PRIMARIES_BATCH = num;
+        if (r.key === "REBUILD_FINALIZE_BATCH_SIZE" && Number.isFinite(num) && num > 0) COUNTS_BATCH = num;
+        if (r.key === "REBUILD_PRIMARIES_BATCH_SIZE" && Number.isFinite(num) && num > 0) PRIMARIES_BATCH = num;
       }
     } catch { /* use defaults */ }
 
