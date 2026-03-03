@@ -235,7 +235,9 @@ serve(async (req: Request) => {
         if (!res.ok) {
           const text = await res.text();
           let parsed: any = null;
-          try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+          try {
+            parsed = JSON.parse(text);
+          } catch { /* not JSON */ }
           const stageInfo = parsed?.stage ? ` [stage=${parsed.stage}${parsed.substage ? `/substage=${parsed.substage}` : ""}]` : "";
           lastError = `admin-api returned ${res.status}:${stageInfo} ${parsed?.error || text.slice(0, 500)}`;
           console.error(`bulk-job-runner: ${lastError}`);
