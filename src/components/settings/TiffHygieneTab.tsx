@@ -595,6 +595,7 @@ export default function TiffHygieneTab() {
                             <TableRow>
                               <TableHead className="text-xs whitespace-nowrap">Filename</TableHead>
                               <TableHead className="text-xs whitespace-nowrap">Path</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Compression</TableHead>
                               <TableHead className="text-xs whitespace-nowrap">Original</TableHead>
                               <TableHead className="text-xs whitespace-nowrap">New Size</TableHead>
                               <TableHead className="text-xs whitespace-nowrap">Savings</TableHead>
@@ -612,6 +613,7 @@ export default function TiffHygieneTab() {
                                   <TableCell className="text-[10px] py-1.5 whitespace-nowrap text-muted-foreground truncate max-w-[300px]" title={f.relative_path}>
                                     {f.relative_path.replace(`/${f.filename}`, "").replace(f.filename, "")}
                                   </TableCell>
+                                  <TableCell className="py-1.5 whitespace-nowrap"><CompressionBadge type={f.compression_type} /></TableCell>
                                   <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{formatBytes(f.file_size)}</TableCell>
                                   <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{f.new_file_size ? formatBytes(f.new_file_size) : "—"}</TableCell>
                                   <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">
