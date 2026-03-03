@@ -77,7 +77,7 @@ export default function TiffHygieneTab() {
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
-  const [filter, setFilter] = useState<"all" | "uncompressed" | "compressed">("all");
+  const [filter, setFilter] = useState<"all" | "uncompressed" | "compressed" | "processed" | "failed">("all");
   const [sortField, setSortField] = useState<"relative_path" | "file_size" | "file_modified_at" | "compression_type">("relative_path");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [scanPending, setScanPending] = useState(false);
@@ -87,7 +87,8 @@ export default function TiffHygieneTab() {
     queryKey: ["tiff-files", filter],
     queryFn: () => call("list-tiff-files", {
       limit: 2000,
-      compression: filter === "all" ? undefined : filter === "uncompressed" ? "none" : "compressed",
+      compression: filter === "all" ? undefined : filter === "uncompressed" ? "none" : filter === "compressed" ? "compressed" : undefined,
+      status: filter === "processed" ? "completed" : filter === "failed" ? "failed" : undefined,
     }),
   });
 
@@ -314,13 +315,19 @@ export default function TiffHygieneTab() {
 
           {/* Filter tabs */}
           <div className="flex gap-1 mb-3">
-            {(["all", "uncompressed", "compressed"] as const).map((f) => (
+            {(["all", "uncompressed", "compressed", "processed", "failed"] as const).map((f) => (
               <Button
                 key={f} variant={filter === f ? "default" : "ghost"} size="sm"
                 className="text-xs h-7"
                 onClick={() => { setFilter(f); setSelectedIds(new Set()); }}
               >
-                {f === "all" ? "All" : f === "uncompressed" ? "Uncompressed" : "Compressed"}
+                {f === "all" ? "All" : f === "uncompressed" ? "Uncompressed" : f === "compressed" ? "Compressed" : f === "processed" ? "Processed" : "Failed"}
+                {f === "failed" && (summary.failed ?? 0) > 0 && (
+                  <span className="ml-1 text-destructive">({summary.failed})</span>
+                )}
+                {f === "processed" && (summary.processed ?? 0) > 0 && (
+                  <span className="ml-1 text-[hsl(var(--success))]">({summary.processed})</span>
+                )}
               </Button>
             ))}
           </div>
@@ -531,7 +538,7 @@ export default function TiffHygieneTab() {
                         return (
                           <TableRow
                             key={file.id}
-                            className={`cursor-pointer select-none ${isSelected ? "bg-primary/10" : ""}`}
+                            className={`cursor-pointer ${isSelected ? "bg-primary/10" : ""}`}
                             onClick={(e) => handleRowClick(file.id, idx, e)}
                             data-state={isSelected ? "selected" : undefined}
                           >
@@ -548,7 +555,7 @@ export default function TiffHygieneTab() {
                                 </span>
                               </div>
                               {file.error_message && (
-                                <span className="text-[10px] text-destructive block whitespace-normal max-w-[300px]">{file.error_message}</span>
+                                <span className="text-[10px] text-destructive block whitespace-normal max-w-[300px] cursor-text select-text">{file.error_message}</span>
                               )}
                             </TableCell>
                             <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{formatBytes(file.file_size)}</TableCell>
@@ -676,7 +683,7 @@ export default function TiffHygieneTab() {
                                 </TableCell>
                                 <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{formatBytes(f.file_size)}</TableCell>
                                 <TableCell className="py-1.5 whitespace-nowrap"><CompressionBadge type={f.compression_type} /></TableCell>
-                                <TableCell className="text-xs py-1.5 text-destructive max-w-[400px]">{f.error_message || "Unknown error"}</TableCell>
+                                <TableCell className="text-xs py-1.5 text-destructive max-w-[400px] cursor-text select-text">{f.error_message || "Unknown error"}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
