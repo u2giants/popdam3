@@ -1839,9 +1839,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
     for (const row of knobRows ?? []) {
       const raw = row?.value;
-      const normalized = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>))
-        ? (raw as Record<string, unknown>).value
-        : raw;
+      const normalized = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>)) ? (raw as Record<string, unknown>).value : raw;
       const parsed = typeof normalized === "number" ? normalized : parseInt(String(normalized), 10);
       if (row.key === "REBUILD_ASSET_BATCH_SIZE" && Number.isFinite(parsed) && parsed > 0) {
         rebuildBatch = parsed;
