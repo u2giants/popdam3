@@ -17,6 +17,7 @@ import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
 import InstallBundleTab from "@/components/settings/InstallBundleTab";
 import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
 import TiffHygieneTab from "@/components/settings/TiffHygieneTab";
+import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -818,6 +819,7 @@ export default function SettingsPage() {
           <TabsTrigger value="install-bundles">Install Bundles</TabsTrigger>
           <TabsTrigger value="windows-agent">Windows Agent</TabsTrigger>
           <TabsTrigger value="taxonomy">APIs & Tagging</TabsTrigger>
+          <TabsTrigger value="erp-enrichment">ERP Enrichment</TabsTrigger>
           <TabsTrigger value="tiff-hygiene">TIFF Hygiene</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
@@ -853,6 +855,10 @@ export default function SettingsPage() {
 
         <TabsContent value="taxonomy" className="space-y-4">
           <ApisTab />
+        </TabsContent>
+
+        <TabsContent value="erp-enrichment" className="space-y-4">
+          <ErpEnrichmentTab />
         </TabsContent>
 
         <TabsContent value="users">
