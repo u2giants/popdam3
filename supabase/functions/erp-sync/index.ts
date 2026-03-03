@@ -152,14 +152,14 @@ serve(async (req: Request) => {
         // Map actual DesignFlow API fields to our schema
         const normalizedRows = batch.map((item: any) => {
           const externalId = String(item.itemNum || item.styleNumber || item.itemCode || item.id || `unknown-${i}`);
-          
+
           // Extract MG codes from DesignFlow field names
           // API uses: "Product Type ( Material)" for MG01, "Product Sub-Type (Construction)" for MG02,
           // "Product Sub-Sub-Type (feature)" for MG03
           const mg01 = item["Product Type ( Material)"] || item["Product Type (Material)"] || item.mg01 || item.merchGroup01 || null;
           const mg02 = item["Product Sub-Type (Construction)"] || item.mg02 || item.merchGroup02 || null;
           const mg03 = item["Product Sub-Sub-Type (feature)"] || item["Product Sub-Sub-Type(feature)"] || item.mg03 || item.merchGroup03 || null;
-          
+
           return {
             external_id: externalId,
             style_number: item.itemNum || item.styleNumber || null,
