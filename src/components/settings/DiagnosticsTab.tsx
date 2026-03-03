@@ -942,8 +942,8 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
 
       {p && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {typeof p.groups === "number" && <span>Groups created: <span className="text-foreground font-medium">{(p.groups as number).toLocaleString()}</span></span>}
-          {typeof p.assigned === "number" && <span>Assets assigned: <span className="text-foreground font-medium">{(p.assigned as number).toLocaleString()}</span></span>}
+          {typeof p.groups === "number" && (p.groups as number) > 0 && <span>Groups created: <span className="text-foreground font-medium">{(p.groups as number).toLocaleString()}</span></span>}
+          {typeof p.assigned === "number" && (p.assigned as number) > 0 && <span>Assets assigned: <span className="text-foreground font-medium">{(p.assigned as number).toLocaleString()}</span></span>}
           {typeof p.total_processed === "number" && typeof p.total_assets === "number" && (
             <span className="col-span-2">
               Progress: <span className="text-foreground font-medium">{(p.total_processed as number).toLocaleString()}</span> / {(p.total_assets as number).toLocaleString()} assets
@@ -1043,6 +1043,8 @@ function StyleGroupsSection() {
       confirmMessage: isResume
         ? "Resume the interrupted style-group rebuild from the last processed cursor?"
         : "This will delete all existing style groups and rebuild them from scratch. Continue?",
+      params: isResume ? undefined : { force_restart: true },
+      forceRestart: !isResume,
     });
   }
 
@@ -1097,7 +1099,7 @@ function StyleGroupsSection() {
                 <Button
                   variant="outline" size="sm" className="gap-1.5"
                   onClick={runReconcile}
-                  disabled={rebuildOp.isActive || reconcileOp.isActive}
+                  disabled={(rebuildOp.isActive && rebuildOp.state.progress?.stage !== "finalize_stats") || reconcileOp.isActive}
                 >
                   {reconcileOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
                   {reconcileOp.isInterrupted ? "Resume Reconcile" : "Reconcile Stats"}
