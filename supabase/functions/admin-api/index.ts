@@ -3723,7 +3723,9 @@ async function handleTriggerErpSync() {
   if (!resp.ok) {
     const text = await resp.text();
     let parsed: Record<string, unknown> = {};
-    try { parsed = JSON.parse(text); } catch { /* ignore */ }
+    try {
+      parsed = JSON.parse(text);
+    } catch { /* ignore */ }
     return err((parsed.error as string) || `erp-sync returned ${resp.status}`, resp.status);
   }
 
@@ -3883,7 +3885,8 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       .in("sku", skus);
 
     return json({
-      ok: true, done: true,
+      ok: true,
+      done: true,
       assets_to_update: assetCount ?? 0,
       groups_to_update: groupCount ?? 0,
       new_categories: erpItems.filter((e: any) => e.mg_category).length,
@@ -3904,10 +3907,26 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 
     if (!productCategory && erpItem.mg01_code) {
       const MG01_TO_CAT: Record<string, string> = {
-        A: "Wall", B: "Wall", C: "Wall", D: "Wall", E: "Wall",
-        F: "Tabletop", G: "Tabletop", H: "Tabletop", J: "Tabletop", K: "Tabletop",
-        M: "Clock", N: "Storage", P: "Storage", Q: "Storage", R: "Storage",
-        S: "Workspace", T: "Workspace", U: "Workspace", V: "Floor", W: "Garden",
+        A: "Wall",
+        B: "Wall",
+        C: "Wall",
+        D: "Wall",
+        E: "Wall",
+        F: "Tabletop",
+        G: "Tabletop",
+        H: "Tabletop",
+        J: "Tabletop",
+        K: "Tabletop",
+        M: "Clock",
+        N: "Storage",
+        P: "Storage",
+        Q: "Storage",
+        R: "Storage",
+        S: "Workspace",
+        T: "Workspace",
+        U: "Workspace",
+        V: "Floor",
+        W: "Garden",
       };
       productCategory = MG01_TO_CAT[erpItem.mg01_code.toUpperCase()] || null;
       classificationSource = "rule";
@@ -3940,7 +3959,10 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     if (erpItem.division_code) updates.division_code = erpItem.division_code;
     if (productCategory) updates.product_category = productCategory;
 
-    if (Object.keys(updates).length === 0) { skipped++; continue; }
+    if (Object.keys(updates).length === 0) {
+      skipped++;
+      continue;
+    }
 
     // Update assets
     const { count: assetUpdated } = await db.from("assets")
@@ -3960,7 +3982,8 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 
   const done = erpItems.length < batchSize;
   return json({
-    ok: true, done,
+    ok: true,
+    done,
     nextOffset: offset + erpItems.length,
     assets_updated: assetsUpdated,
     groups_updated: groupsUpdated,
@@ -4052,7 +4075,9 @@ Return ONLY the classification using the provided tool.`;
       let parsed: { category: string; confidence: number; rationale: string };
       try {
         parsed = JSON.parse(toolCall.function.arguments);
-      } catch { continue; }
+      } catch {
+        continue;
+      }
 
       if (!CATEGORIES.includes(parsed.category)) continue;
 
@@ -4083,7 +4108,8 @@ Return ONLY the classification using the provided tool.`;
 
   const done = items.length < batchSize;
   return json({
-    ok: true, done,
+    ok: true,
+    done,
     nextOffset: offset + items.length,
     classified,
     total: offset + items.length,

@@ -9,18 +9,37 @@
 
 // MG01 → Product Category mapping (from spreadsheet)
 const MG01_TO_CATEGORY: Record<string, string> = {
-  A: "Wall", B: "Wall", C: "Wall", D: "Wall", E: "Wall",
-  F: "Tabletop", G: "Tabletop", H: "Tabletop", J: "Tabletop", K: "Tabletop",
+  A: "Wall",
+  B: "Wall",
+  C: "Wall",
+  D: "Wall",
+  E: "Wall",
+  F: "Tabletop",
+  G: "Tabletop",
+  H: "Tabletop",
+  J: "Tabletop",
+  K: "Tabletop",
   M: "Clock",
-  N: "Storage", P: "Storage", Q: "Storage", R: "Storage",
-  S: "Workspace", T: "Workspace", U: "Workspace",
+  N: "Storage",
+  P: "Storage",
+  Q: "Storage",
+  R: "Storage",
+  S: "Workspace",
+  T: "Workspace",
+  U: "Workspace",
   V: "Floor",
   W: "Garden",
 };
 
 // Valid product categories
 export const VALID_CATEGORIES = [
-  "Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden",
+  "Wall",
+  "Tabletop",
+  "Clock",
+  "Storage",
+  "Workspace",
+  "Floor",
+  "Garden",
 ] as const;
 
 export type ProductCategory = typeof VALID_CATEGORIES[number];
@@ -31,12 +50,24 @@ export function isValidCategory(val: string): val is ProductCategory {
 
 // MG01 → Product Type (from spreadsheet)
 const MG01_TO_TYPE: Record<string, string> = {
-  A: "Stretched/Box", B: "Framed", C: "Plaque",
-  D: "Functional", E: "Other Wall", F: "Block",
-  G: "Box", H: "Photo Frames", J: "Object",
-  K: "Other Tabletop", M: "Clocks", N: "Soft Storage",
-  P: "Hard Storage", R: "Other Storage", S: "Stationery Org",
-  T: "Desk Acc", U: "Other Workspace", V: "Floor Coverings",
+  A: "Stretched/Box",
+  B: "Framed",
+  C: "Plaque",
+  D: "Functional",
+  E: "Other Wall",
+  F: "Block",
+  G: "Box",
+  H: "Photo Frames",
+  J: "Object",
+  K: "Other Tabletop",
+  M: "Clocks",
+  N: "Soft Storage",
+  P: "Hard Storage",
+  R: "Other Storage",
+  S: "Stationery Org",
+  T: "Desk Acc",
+  U: "Other Workspace",
+  V: "Floor Coverings",
   W: "Garden",
 };
 

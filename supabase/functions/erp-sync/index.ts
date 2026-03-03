@@ -81,8 +81,10 @@ serve(async (req: Request) => {
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : "Unknown fetch error";
       await db.from("erp_sync_runs").update({
-        status: "failed", ended_at: new Date().toISOString(),
-        total_errors: 1, error_samples: [errMsg],
+        status: "failed",
+        ended_at: new Date().toISOString(),
+        total_errors: 1,
+        error_samples: [errMsg],
       }).eq("id", runId);
       return json({ ok: false, error: `ERP fetch failed: ${errMsg}` }, 502);
     }
@@ -96,7 +98,7 @@ serve(async (req: Request) => {
     // Process in batches
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
-      
+
       try {
         // Insert raw snapshots
         const rawRows = batch.map((item: any) => ({
