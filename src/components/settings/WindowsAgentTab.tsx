@@ -684,6 +684,8 @@ function RenderJobsTable() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const COLLAPSED_LIMIT = 10;
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["render-queue-recent", statusFilter],
@@ -754,6 +756,8 @@ function RenderJobsTable() {
   });
 
   const jobs = data?.jobs || [];
+  const visibleJobs = showAll ? jobs : jobs.slice(0, COLLAPSED_LIMIT);
+  const hasMore = jobs.length > COLLAPSED_LIMIT;
 
   const pendingCount = Number(tabCounts?.pending ?? 0);
   const completed24h = Number(tabCounts?.completed_24h ?? 0);
@@ -821,7 +825,7 @@ function RenderJobsTable() {
               variant={statusFilter === tab.key ? "default" : "ghost"}
               size="sm"
               className="h-7 text-xs gap-1.5"
-              onClick={() => setStatusFilter(tab.key)}
+              onClick={() => { setStatusFilter(tab.key); setShowAll(false); }}
             >
               {tab.label}
               {tab.count !== undefined && (
@@ -857,7 +861,7 @@ function RenderJobsTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {jobs.map((job: Record<string, unknown>) => {
+                {visibleJobs.map((job: Record<string, unknown>) => {
                   const jobId = job.id as string;
                   const isFailed = job.status === "failed";
                   const isExpanded = expandedJobId === jobId;
@@ -951,6 +955,18 @@ function RenderJobsTable() {
               </TableBody>
             </Table>
           </TooltipProvider>
+        )}
+        {!isLoading && hasMore && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground"
+              onClick={() => setShowAll(!showAll)}
+            >
+              {showAll ? `Collapse to ${COLLAPSED_LIMIT} rows` : `Show all ${jobs.length} jobs`}
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
