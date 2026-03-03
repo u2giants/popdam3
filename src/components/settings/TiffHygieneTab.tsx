@@ -474,98 +474,209 @@ export default function TiffHygieneTab() {
               </p>
             )
           ) : (
+            <>
             <div className="border border-border rounded-md overflow-hidden">
-              <Table>
-                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-8">
-                      <Checkbox
-                        checked={selectedIds.size === files.length && files.length > 0}
-                        onCheckedChange={selectAll}
-                      />
-                    </TableHead>
-                    <TableHead className="text-xs cursor-pointer select-none" onClick={() => toggleSort("relative_path")}>
-                      <span className="flex items-center gap-1">File {sortField === "relative_path" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
-                    </TableHead>
-                    <TableHead className="text-xs w-20 cursor-pointer select-none" onClick={() => toggleSort("file_size")}>
-                      <span className="flex items-center gap-1">Size {sortField === "file_size" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
-                    </TableHead>
-                    <TableHead className="text-xs w-24 cursor-pointer select-none" onClick={() => toggleSort("file_modified_at")}>
-                      <span className="flex items-center gap-1">Modified {sortField === "file_modified_at" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
-                    </TableHead>
-                    <TableHead className="text-xs w-24">Created</TableHead>
-                    <TableHead className="text-xs w-20 cursor-pointer select-none" onClick={() => toggleSort("compression_type")}>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger className="underline decoration-dotted underline-offset-2 cursor-help flex items-center gap-1">Compress. {sortField === "compression_type" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</TooltipTrigger>
-                          <TooltipContent side="bottom">Current compression algorithm detected in the TIFF file</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
-                    <TableHead className="text-xs w-20">Status</TableHead>
-                    <TableHead className="text-xs w-20">New Size</TableHead>
-                    <TableHead className="text-xs w-24">New Modified</TableHead>
-                    <TableHead className="text-xs w-24">New Created</TableHead>
-                    <TableHead className="text-xs w-16">Savings</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {files.map((file, idx) => {
-                    const isSelected = selectedIds.has(file.id);
-                    const savings = file.new_file_size && file.file_size > 0
-                      ? Math.round((1 - file.new_file_size / file.file_size) * 100)
-                      : null;
-
-                    return (
-                      <TableRow
-                        key={file.id}
-                        className={`cursor-pointer select-none ${isSelected ? "bg-primary/10" : ""}`}
-                        onClick={(e) => handleRowClick(file.id, idx, e)}
-                        data-state={isSelected ? "selected" : undefined}
-                      >
-                        <TableCell className="py-1.5">
-                          <Checkbox checked={isSelected} tabIndex={-1} />
-                        </TableCell>
-                        <TableCell className="py-1.5">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-medium truncate max-w-[300px]" title={file.relative_path}>
-                              {file.filename}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground truncate max-w-[300px]" title={file.relative_path}>
-                              {file.relative_path.replace(`/${file.filename}`, "").replace(file.filename, "")}
-                            </span>
-                          </div>
-                          {file.error_message && (
-                            <span className="text-[10px] text-destructive block">{file.error_message}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs py-1.5 font-mono">{formatBytes(file.file_size)}</TableCell>
-                        <TableCell className="text-xs py-1.5">{formatDate(file.file_modified_at)}</TableCell>
-                        <TableCell className="text-xs py-1.5">{formatDate(file.file_created_at)}</TableCell>
-                        <TableCell className="py-1.5"><CompressionBadge type={file.compression_type} /></TableCell>
-                        <TableCell className="py-1.5"><StatusBadge status={file.status} /></TableCell>
-                        <TableCell className="text-xs py-1.5 font-mono">
-                          {file.new_file_size ? formatBytes(file.new_file_size) : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs py-1.5">
-                          {file.new_file_modified_at ? formatDate(file.new_file_modified_at) : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs py-1.5">
-                          {file.new_file_created_at ? formatDate(file.new_file_created_at) : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs py-1.5 font-mono">
-                          {savings !== null ? (
-                            <span className={savings > 0 ? "text-[hsl(var(--success))]" : "text-muted-foreground"}>
-                              {savings > 0 ? `-${savings}%` : `${savings}%`}
-                            </span>
-                          ) : "—"}
-                        </TableCell>
+              <div className="w-full overflow-x-auto">
+                <div className="min-w-[1400px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8">
+                          <Checkbox
+                            checked={selectedIds.size === files.length && files.length > 0}
+                            onCheckedChange={selectAll}
+                          />
+                        </TableHead>
+                        <TableHead className="text-xs whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("relative_path")}>
+                          <span className="flex items-center gap-1">File {sortField === "relative_path" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
+                        </TableHead>
+                        <TableHead className="text-xs w-20 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("file_size")}>
+                          <span className="flex items-center gap-1">Size {sortField === "file_size" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
+                        </TableHead>
+                        <TableHead className="text-xs w-24 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("file_modified_at")}>
+                          <span className="flex items-center gap-1">Modified {sortField === "file_modified_at" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
+                        </TableHead>
+                        <TableHead className="text-xs w-24 whitespace-nowrap">Created</TableHead>
+                        <TableHead className="text-xs w-20 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("compression_type")}>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger className="underline decoration-dotted underline-offset-2 cursor-help flex items-center gap-1">Compress. {sortField === "compression_type" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</TooltipTrigger>
+                              <TooltipContent side="bottom">Current compression algorithm detected in the TIFF file</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableHead>
+                        <TableHead className="text-xs w-20 whitespace-nowrap">Status</TableHead>
+                        <TableHead className="text-xs w-20 whitespace-nowrap">New Size</TableHead>
+                        <TableHead className="text-xs w-24 whitespace-nowrap">New Modified</TableHead>
+                        <TableHead className="text-xs w-24 whitespace-nowrap">New Created</TableHead>
+                        <TableHead className="text-xs w-16 whitespace-nowrap">Savings</TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {files.map((file, idx) => {
+                        const isSelected = selectedIds.has(file.id);
+                        const savings = file.new_file_size && file.file_size > 0
+                          ? Math.round((1 - file.new_file_size / file.file_size) * 100)
+                          : null;
+
+                        return (
+                          <TableRow
+                            key={file.id}
+                            className={`cursor-pointer select-none ${isSelected ? "bg-primary/10" : ""}`}
+                            onClick={(e) => handleRowClick(file.id, idx, e)}
+                            data-state={isSelected ? "selected" : undefined}
+                          >
+                            <TableCell className="py-1.5">
+                              <Checkbox checked={isSelected} tabIndex={-1} />
+                            </TableCell>
+                            <TableCell className="py-1.5 whitespace-nowrap">
+                              <div className="flex flex-col">
+                                <span className="text-xs font-medium truncate max-w-[300px]" title={file.relative_path}>
+                                  {file.filename}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground truncate max-w-[300px]" title={file.relative_path}>
+                                  {file.relative_path.replace(`/${file.filename}`, "").replace(file.filename, "")}
+                                </span>
+                              </div>
+                              {file.error_message && (
+                                <span className="text-[10px] text-destructive block whitespace-normal max-w-[300px]">{file.error_message}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{formatBytes(file.file_size)}</TableCell>
+                            <TableCell className="text-xs py-1.5 whitespace-nowrap">{formatDate(file.file_modified_at)}</TableCell>
+                            <TableCell className="text-xs py-1.5 whitespace-nowrap">{formatDate(file.file_created_at)}</TableCell>
+                            <TableCell className="py-1.5 whitespace-nowrap"><CompressionBadge type={file.compression_type} /></TableCell>
+                            <TableCell className="py-1.5 whitespace-nowrap"><StatusBadge status={file.status} /></TableCell>
+                            <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">
+                              {file.new_file_size ? formatBytes(file.new_file_size) : "—"}
+                            </TableCell>
+                            <TableCell className="text-xs py-1.5 whitespace-nowrap">
+                              {file.new_file_modified_at ? formatDate(file.new_file_modified_at) : "—"}
+                            </TableCell>
+                            <TableCell className="text-xs py-1.5 whitespace-nowrap">
+                              {file.new_file_created_at ? formatDate(file.new_file_created_at) : "—"}
+                            </TableCell>
+                            <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">
+                              {savings !== null ? (
+                                <span className={savings > 0 ? "text-[hsl(var(--success))]" : "text-muted-foreground"}>
+                                  {savings > 0 ? `-${savings}%` : `${savings}%`}
+                                </span>
+                              ) : "—"}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
+
+            {/* Completed (Success) table */}
+            {(() => {
+              const completed = files.filter(f => f.status === "completed" && !f.error_message);
+              if (completed.length === 0) return null;
+              const totalSaved = completed.reduce((acc, f) => {
+                if (f.new_file_size && f.file_size > 0) return acc + (f.file_size - f.new_file_size);
+                return acc;
+              }, 0);
+              return (
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />
+                    Successfully Compressed ({completed.length})
+                    {totalSaved > 0 && <span className="text-xs text-muted-foreground font-normal">— {formatBytes(totalSaved)} saved total</span>}
+                  </h4>
+                  <div className="border border-border rounded-md overflow-hidden">
+                    <div className="w-full overflow-x-auto">
+                      <div className="min-w-[900px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs whitespace-nowrap">Filename</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Path</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Original</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">New Size</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Savings</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Backup?</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Processed</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {completed.map((f) => {
+                              const s = f.new_file_size && f.file_size > 0
+                                ? Math.round((1 - f.new_file_size / f.file_size) * 100) : null;
+                              return (
+                                <TableRow key={f.id}>
+                                  <TableCell className="text-xs py-1.5 whitespace-nowrap font-medium">{f.filename}</TableCell>
+                                  <TableCell className="text-[10px] py-1.5 whitespace-nowrap text-muted-foreground truncate max-w-[300px]" title={f.relative_path}>
+                                    {f.relative_path.replace(`/${f.filename}`, "").replace(f.filename, "")}
+                                  </TableCell>
+                                  <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{formatBytes(f.file_size)}</TableCell>
+                                  <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{f.new_file_size ? formatBytes(f.new_file_size) : "—"}</TableCell>
+                                  <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">
+                                    {s !== null ? <span className={s > 0 ? "text-[hsl(var(--success))]" : "text-muted-foreground"}>{s > 0 ? `-${s}%` : `${s}%`}</span> : "—"}
+                                  </TableCell>
+                                  <TableCell className="text-xs py-1.5 whitespace-nowrap">
+                                    {f.original_backed_up && !f.original_deleted ? <Badge variant="outline" className="text-[10px]">_big exists</Badge> : f.original_deleted ? <span className="text-muted-foreground">Deleted</span> : "—"}
+                                  </TableCell>
+                                  <TableCell className="text-xs py-1.5 whitespace-nowrap">{formatDate(f.processed_at)}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Failed table */}
+            {(() => {
+              const failed = files.filter(f => f.status === "failed");
+              if (failed.length === 0) return null;
+              return (
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    Failed ({failed.length})
+                  </h4>
+                  <div className="border border-border rounded-md overflow-hidden">
+                    <div className="w-full overflow-x-auto">
+                      <div className="min-w-[800px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs whitespace-nowrap">Filename</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Path</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Size</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Compression</TableHead>
+                              <TableHead className="text-xs whitespace-nowrap">Error</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {failed.map((f) => (
+                              <TableRow key={f.id}>
+                                <TableCell className="text-xs py-1.5 whitespace-nowrap font-medium">{f.filename}</TableCell>
+                                <TableCell className="text-[10px] py-1.5 whitespace-nowrap text-muted-foreground truncate max-w-[300px]" title={f.relative_path}>
+                                  {f.relative_path.replace(`/${f.filename}`, "").replace(f.filename, "")}
+                                </TableCell>
+                                <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{formatBytes(f.file_size)}</TableCell>
+                                <TableCell className="py-1.5 whitespace-nowrap"><CompressionBadge type={f.compression_type} /></TableCell>
+                                <TableCell className="text-xs py-1.5 text-destructive max-w-[400px]">{f.error_message || "Unknown error"}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            </>
           )}
 
           <p className="text-[10px] text-muted-foreground mt-2">
