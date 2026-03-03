@@ -1252,7 +1252,7 @@ export function UpdateAgentButton() {
   const handleUpdate = async () => {
     setIsPending(true);
     try {
-      await call("trigger-agent-update", { action: "apply" });
+      await call("trigger-agent-update", { update_action: "apply" });
       toast.success("Update requested — agent will restart in ~60 seconds");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to trigger update");
