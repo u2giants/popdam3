@@ -106,7 +106,7 @@ serve(async (req: Request) => {
           items = arrayField;
           console.log(`erp-sync: extracted array from wrapper key (length=${items.length})`);
         } else {
-          const arrayKey = Object.keys(obj).find(k => Array.isArray(obj[k]));
+          const arrayKey = Object.keys(obj).find((k) => Array.isArray(obj[k]));
           if (arrayKey) {
             items = obj[arrayKey] as unknown[];
             console.log(`erp-sync: extracted array from key "${arrayKey}" (length=${items.length})`);
