@@ -234,14 +234,18 @@ serve(async (req: Request) => {
 
         if (!res.ok) {
           const text = await res.text();
-          lastError = `admin-api returned ${res.status}: ${text.slice(0, 500)}`;
+          let parsed: any = null;
+          try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+          const stageInfo = parsed?.stage ? ` [stage=${parsed.stage}${parsed.substage ? `/substage=${parsed.substage}` : ""}]` : "";
+          lastError = `admin-api returned ${res.status}:${stageInfo} ${parsed?.error || text.slice(0, 500)}`;
           console.error(`bulk-job-runner: ${lastError}`);
           break;
         }
 
         const result = await res.json();
         if (!result.ok) {
-          lastError = result.error || "admin-api returned error";
+          const stageInfo = result.stage ? ` [stage=${result.stage}${result.substage ? `/substage=${result.substage}` : ""}]` : "";
+          lastError = `${stageInfo} ${result.error || "admin-api returned error"}`;
           console.error(`bulk-job-runner: ${lastError}`);
           break;
         }

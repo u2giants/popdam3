@@ -983,6 +983,10 @@ export type Database = {
         Returns: boolean
       }
       refresh_style_group_counts: { Args: never; Returns: undefined }
+      refresh_style_group_counts_batch: {
+        Args: { p_group_ids: string[] }
+        Returns: number
+      }
       refresh_style_group_primaries: {
         Args: { p_group_ids: string[] }
         Returns: number

@@ -1759,6 +1759,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     total_assets?: number;
     total_processed?: number;
     started_at?: string;
+    finalize_sub?: string;
+    finalize_cursor?: number;
     // legacy compatibility (old implementation)
     rebuild_offset?: number;
   };
@@ -1841,7 +1843,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
 
     const { data: rows, error: fetchErr } = await q;
-    if (fetchErr) return err(formatPostgrestError(fetchErr), 500);
+    if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "clear_assets", substage: null }, 500);
 
     const ids = (rows ?? []).map((r) => r.id as string);
     if (ids.length > 0) {
@@ -1875,6 +1877,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     return json({
       ok: true,
       stage: "clear_assets",
+      substage: null,
       done: false,
       nextOffset: offset + 1,
       cleared_assets: ids.length,
@@ -1897,7 +1900,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
 
     const { data: rows, error: fetchErr } = await q;
-    if (fetchErr) return err(formatPostgrestError(fetchErr), 500);
+    if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "delete_groups", substage: null }, 500);
 
     const ids = (rows ?? []).map((r) => r.id as string);
     if (ids.length > 0) {
@@ -1931,6 +1934,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     return json({
       ok: true,
       stage: "delete_groups",
+      substage: null,
       done: false,
       nextOffset: offset + 1,
       groups_deleted: ids.length,
@@ -2105,34 +2109,99 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     } catch (e) {
       const msg = (e as Error).message || "Unknown error in rebuild stage 3";
       console.error("rebuild-style-groups stage 3 error:", msg);
-      return err(msg, 500);
+      return json({ ok: false, error: msg, stage: "rebuild_assets", substage: null }, 500);
     }
   }
 
-  // Stage 4: finalize stats — two-phase: counts first, then primary assets in batches
+  // Stage 4: finalize stats — three-phase: counts in batches, then primaries in batches
   if (state.stage === "finalize_stats") {
+    // Load admin_config knobs for tunable batch sizes
+    let COUNTS_BATCH = 100;
+    let PRIMARIES_BATCH = 50;
     try {
-      const PRIMARIES_BATCH = 200;
-      const subStage = state.finalize_sub ?? "counts";
+      const { data: knobRow } = await db
+        .from("admin_config")
+        .select("value")
+        .in("key", ["REBUILD_FINALIZE_BATCH_SIZE", "REBUILD_PRIMARIES_BATCH_SIZE"]);
+      for (const r of knobRow ?? []) {
+        const v = typeof (r as any).value === "object" ? (r as any).value : null;
+        const raw = v?.value ?? v;
+        const num = typeof raw === "number" ? raw : parseInt(String(raw), 10);
+        if ((r as any).key === "REBUILD_FINALIZE_BATCH_SIZE" && num > 0) COUNTS_BATCH = num;
+        if ((r as any).key === "REBUILD_PRIMARIES_BATCH_SIZE" && num > 0) PRIMARIES_BATCH = num;
+      }
+    } catch { /* use defaults */ }
 
+    const subStage = state.finalize_sub ?? "counts";
+
+    try {
       if (subStage === "counts") {
-        // Phase A: aggregate counts + latest_file_date (no LATERAL, fast)
-        const { error: countErr } = await withRetry(async () => {
-          const res = await db.rpc("refresh_style_group_counts");
-          if (res.error) throw new Error(formatPostgrestError(res.error));
-          return res;
-        });
-        if (countErr) return err(countErr.message, 500);
+        // Phase A: aggregate counts + latest_file_date in batches
+        const countsOffset = state.finalize_cursor ?? 0;
+        const { data: groupIds, error: fetchErr } = await db
+          .from("style_groups")
+          .select("id")
+          .order("id")
+          .range(countsOffset, countsOffset + COUNTS_BATCH - 1);
 
-        // Move to primaries sub-stage
-        state.finalize_sub = "primaries";
-        state.finalize_cursor = 0;
+        if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "finalize_stats", substage: "counts" }, 500);
+
+        if (!groupIds || groupIds.length === 0) {
+          // Move to primaries sub-stage
+          state.finalize_sub = "primaries";
+          state.finalize_cursor = 0;
+          await saveState(state);
+          return json({
+            ok: true,
+            stage: "finalize_stats",
+            sub: "counts_done",
+            total_processed: state.total_processed ?? 0,
+            total_assets: state.total_assets ?? 0,
+            done: false,
+            nextOffset: offset + 1,
+          });
+        }
+
+        const ids = groupIds.map((g: { id: string }) => g.id);
+        // Adaptive: try batch, halve on timeout
+        let batchIds = ids;
+        let retries = 0;
+        while (batchIds.length > 0) {
+          try {
+            const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
+            if (countErr) {
+              const msg = formatPostgrestError(countErr);
+              if (msg.includes("57014") && batchIds.length > 1) {
+                // Statement timeout — halve and retry
+                retries++;
+                console.warn(`finalize counts timeout, halving batch from ${batchIds.length} to ${Math.ceil(batchIds.length / 2)}`);
+                batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+                continue;
+              }
+              return json({ ok: false, error: msg, stage: "finalize_stats", substage: "counts" }, 500);
+            }
+            break;
+          } catch (e) {
+            const msg = (e as Error).message || "";
+            if (msg.includes("57014") && batchIds.length > 1) {
+              retries++;
+              batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+              continue;
+            }
+            throw e;
+          }
+        }
+
+        // If we had to halve, only advance by what we actually processed
+        const processedCount = batchIds.length;
+        state.finalize_cursor = countsOffset + processedCount;
         await saveState(state);
 
         return json({
           ok: true,
           stage: "finalize_stats",
-          sub: "counts_done",
+          sub: "counts",
+          counts_processed: state.finalize_cursor,
           total_processed: state.total_processed ?? 0,
           total_assets: state.total_assets ?? 0,
           done: false,
@@ -2149,7 +2218,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           .order("id")
           .range(primariesOffset, primariesOffset + PRIMARIES_BATCH - 1);
 
-        if (fetchErr) return err(formatPostgrestError(fetchErr), 500);
+        if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "finalize_stats", substage: "primaries" }, 500);
 
         if (!groupIds || groupIds.length === 0) {
           // All done — clear state
@@ -2166,14 +2235,33 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         }
 
         const ids = groupIds.map((g: { id: string }) => g.id);
-        const { error: primErr } = await withRetry(async () => {
-          const res = await db.rpc("refresh_style_group_primaries", { p_group_ids: ids });
-          if (res.error) throw new Error(formatPostgrestError(res.error));
-          return res;
-        });
-        if (primErr) return err(primErr.message, 500);
+        // Adaptive: try batch, halve on timeout
+        let batchIds = ids;
+        while (batchIds.length > 0) {
+          try {
+            const { error: primErr } = await db.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
+            if (primErr) {
+              const msg = formatPostgrestError(primErr);
+              if (msg.includes("57014") && batchIds.length > 1) {
+                console.warn(`finalize primaries timeout, halving batch from ${batchIds.length} to ${Math.ceil(batchIds.length / 2)}`);
+                batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+                continue;
+              }
+              return json({ ok: false, error: msg, stage: "finalize_stats", substage: "primaries" }, 500);
+            }
+            break;
+          } catch (e) {
+            const msg = (e as Error).message || "";
+            if (msg.includes("57014") && batchIds.length > 1) {
+              batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+              continue;
+            }
+            throw e;
+          }
+        }
 
-        state.finalize_cursor = primariesOffset + groupIds.length;
+        const processedCount = batchIds.length;
+        state.finalize_cursor = primariesOffset + processedCount;
         await saveState(state);
 
         return json({
@@ -2188,11 +2276,11 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         });
       }
 
-      return err("Unknown finalize sub-stage", 500);
+      return json({ ok: false, error: "Unknown finalize sub-stage", stage: "finalize_stats", substage: subStage }, 500);
     } catch (e) {
       const msg = (e as Error).message || "Unknown error in rebuild stage 4";
       console.error("rebuild-style-groups stage 4 error:", msg);
-      return err(msg, 500);
+      return json({ ok: false, error: msg, stage: "finalize_stats", substage: subStage }, 500);
     }
   }
 

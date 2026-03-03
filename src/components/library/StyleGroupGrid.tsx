@@ -25,7 +25,7 @@ function StyleGroupCard({
   const subtitle = group.is_licensed
     ? [group.licensor_name, group.property_name].filter(Boolean).join(" · ")
     : group.product_category || null;
-  const isStatsPending = !group.latest_file_date && group.asset_count === 0;
+  const isStatsPending = !group.latest_file_date && (group.asset_count === 0 || group.asset_count == null);
 
   return (
     <button
