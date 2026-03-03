@@ -1515,6 +1515,7 @@ async function handleTriggerAgentUpdate(
   const db = serviceClient();
   const requestId = crypto.randomUUID();
 
+  // 1. Write AGENT_UPDATE_REQUEST for bridge agent (reads check_update/apply_update)
   const { error } = await db.from("admin_config").upsert({
     key: "AGENT_UPDATE_REQUEST",
     value: {
@@ -1528,6 +1529,31 @@ async function handleTriggerAgentUpdate(
   });
 
   if (error) return err(error.message, 500);
+
+  // 2. Also set trigger_update flag on Windows Render Agent metadata
+  //    so it picks up the update on its next heartbeat (~30s)
+  const { data: windowsAgents } = await db
+    .from("agent_registrations")
+    .select("id, metadata")
+    .eq("agent_type", "windows-render");
+
+  if (windowsAgents && windowsAgents.length > 0) {
+    for (const agent of windowsAgents) {
+      const meta = (agent.metadata as Record<string, unknown>) || {};
+      await db
+        .from("agent_registrations")
+        .update({
+          metadata: {
+            ...meta,
+            trigger_update: true,
+            update_requested_by: userId,
+            update_requested_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", agent.id);
+    }
+  }
+
   return json({ ok: true, request_id: requestId });
 }
 
