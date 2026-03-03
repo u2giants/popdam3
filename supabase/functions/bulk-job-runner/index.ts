@@ -236,7 +236,9 @@ serve(async (req: Request) => {
           const isTransient = [502, 503, 504].includes(res.status);
           const text = await res.text();
           let parsed: any = null;
-          try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+          try {
+            parsed = JSON.parse(text);
+          } catch { /* not JSON */ }
           const stageInfo = parsed?.stage ? ` [stage=${parsed.stage}${parsed.substage ? `/substage=${parsed.substage}` : ""}]` : "";
           lastError = `admin-api returned ${res.status}:${stageInfo} ${parsed?.error || text.slice(0, 500)}`;
 
@@ -244,7 +246,7 @@ serve(async (req: Request) => {
             transientRetries++;
             const delayMs = 2000 * transientRetries;
             console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
-            await new Promise(r => setTimeout(r, delayMs));
+            await new Promise((r) => setTimeout(r, delayMs));
             continue; // retry same cursor
           }
 
