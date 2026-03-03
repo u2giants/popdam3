@@ -75,12 +75,26 @@ async function authenticateAdmin(
 
   let userId: string;
   try {
-    const { data, error: claimsError } = await anonClient.auth.getClaims(token);
-    if (claimsError || !data?.claims?.sub) {
-      console.error("Token validation error:", claimsError);
-      return err("Invalid or expired token", 401);
+    // Try getClaims first, fall back to getUser if not available
+    let sub: string | undefined;
+    if (typeof anonClient.auth.getClaims === "function") {
+      const { data, error: claimsError } = await anonClient.auth.getClaims(token);
+      if (claimsError || !data?.claims?.sub) {
+        console.error("getClaims failed:", claimsError, "data:", JSON.stringify(data));
+        return err("Invalid or expired token", 401);
+      }
+      sub = data.claims.sub as string;
+    } else {
+      // Fallback: getClaims not available in this supabase-js version
+      const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
+      if (userError || !user?.id) {
+        console.error("getUser failed:", userError);
+        return err("Invalid or expired token", 401);
+      }
+      sub = user.id;
     }
-    userId = data.claims.sub as string;
+    userId = sub;
+    console.log("Authenticated userId:", userId);
   } catch (e) {
     console.error("Token validation error:", e);
     return err("Invalid or expired token", 401);
@@ -88,12 +102,14 @@ async function authenticateAdmin(
 
   // Check admin role using service client (bypasses RLS)
   const db = serviceClient();
-  const { data: roleRow } = await db
+  const { data: roleRow, error: roleError } = await db
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
     .eq("role", "admin")
     .maybeSingle();
+
+  console.log("Role check for userId:", userId, "result:", JSON.stringify(roleRow), "error:", roleError);
 
   if (!roleRow) {
     return err("Forbidden: admin role required", 403);
