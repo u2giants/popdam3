@@ -477,7 +477,7 @@ export default function TiffHygieneTab() {
             <>
             <div className="border border-border rounded-md overflow-hidden">
               <div className="w-full overflow-x-auto">
-                <div className="min-w-[1400px]">
+                <div className="min-w-[900px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -493,18 +493,13 @@ export default function TiffHygieneTab() {
                         <TableHead className="text-xs w-20 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("file_size")}>
                           <span className="flex items-center gap-1">Size {sortField === "file_size" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
                         </TableHead>
+                        <TableHead className="text-xs w-24 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("compression_type")}>
+                          <span className="flex items-center gap-1">Compression {sortField === "compression_type" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
+                        </TableHead>
                         <TableHead className="text-xs w-24 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("file_modified_at")}>
                           <span className="flex items-center gap-1">Modified {sortField === "file_modified_at" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
                         </TableHead>
                         <TableHead className="text-xs w-24 whitespace-nowrap">Created</TableHead>
-                        <TableHead className="text-xs w-20 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("compression_type")}>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger className="underline decoration-dotted underline-offset-2 cursor-help flex items-center gap-1">Compress. {sortField === "compression_type" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</TooltipTrigger>
-                              <TooltipContent side="bottom">Current compression algorithm detected in the TIFF file</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </TableHead>
                         <TableHead className="text-xs w-20 whitespace-nowrap">Status</TableHead>
                         <TableHead className="text-xs w-20 whitespace-nowrap">New Size</TableHead>
                         <TableHead className="text-xs w-24 whitespace-nowrap">New Modified</TableHead>
@@ -543,9 +538,9 @@ export default function TiffHygieneTab() {
                               )}
                             </TableCell>
                             <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">{formatBytes(file.file_size)}</TableCell>
+                            <TableCell className="py-1.5 whitespace-nowrap"><CompressionBadge type={file.compression_type} /></TableCell>
                             <TableCell className="text-xs py-1.5 whitespace-nowrap">{formatDate(file.file_modified_at)}</TableCell>
                             <TableCell className="text-xs py-1.5 whitespace-nowrap">{formatDate(file.file_created_at)}</TableCell>
-                            <TableCell className="py-1.5 whitespace-nowrap"><CompressionBadge type={file.compression_type} /></TableCell>
                             <TableCell className="py-1.5 whitespace-nowrap"><StatusBadge status={file.status} /></TableCell>
                             <TableCell className="text-xs py-1.5 font-mono whitespace-nowrap">
                               {file.new_file_size ? formatBytes(file.new_file_size) : "—"}
