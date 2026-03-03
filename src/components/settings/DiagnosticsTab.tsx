@@ -892,11 +892,22 @@ function AiTaggingSection() {
 
 // ── Section 8: Style Groups ─────────────────────────────────────────
 
-function RebuildStatusDetail({ state }: { state: { status: string; cursor?: number; progress?: Record<string, unknown>; error?: string; started_at?: string; updated_at?: string } }) {
+const REASON_LABELS: Record<string, string> = {
+  gateway_timeout: "Gateway timeout (502/503/504)",
+  statement_timeout: "Database statement timeout",
+  user_stop: "Stopped by user",
+  stale_run: "No progress detected (stale lock)",
+  connection_error: "Connection error",
+  legacy_format: "Legacy operation format",
+  unknown: "Unknown reason",
+};
+
+function RebuildStatusDetail({ state }: { state: { status: string; cursor?: number; progress?: Record<string, unknown>; error?: string; started_at?: string; updated_at?: string; interruption_reason_code?: string; auto_resume_attempts?: number; run_id?: string; last_stage?: string; last_substage?: string; result_message?: string } }) {
   const statusMap: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
     idle: { label: "Idle", color: "text-muted-foreground", icon: <Clock className="h-3.5 w-3.5" /> },
     running: { label: "Running…", color: "text-primary", icon: <Loader2 className="h-3.5 w-3.5 animate-spin" /> },
     completed: { label: "Completed", color: "text-[hsl(var(--success))]", icon: <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--success))]" /> },
+    completed_with_repair: { label: "Completed — auto-repair queued", color: "text-[hsl(var(--warning))]", icon: <Wrench className="h-3.5 w-3.5 text-[hsl(var(--warning))]" /> },
     interrupted: { label: "Interrupted — Resumable", color: "text-[hsl(var(--warning))]", icon: <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))]" /> },
     failed: { label: "Failed", color: "text-destructive", icon: <XCircle className="h-3.5 w-3.5 text-destructive" /> },
   };
@@ -910,6 +921,22 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
         <span className={`font-medium ${s.color}`}>{s.label}</span>
         {state.started_at && (
           <span className="text-xs text-muted-foreground ml-auto">Started: {new Date(state.started_at).toLocaleString()}</span>
+        )}
+      </div>
+
+      {/* Stage / substage / run_id detail row */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {state.last_stage && (
+          <span>Stage: <span className="text-foreground font-mono">{state.last_stage}</span></span>
+        )}
+        {state.last_substage && (
+          <span>Substage: <span className="text-foreground font-mono">{state.last_substage}</span></span>
+        )}
+        {typeof state.cursor === "number" && (
+          <span>Cursor: <span className="text-foreground font-mono">{state.cursor}</span></span>
+        )}
+        {state.run_id && (
+          <span>Run: <span className="text-foreground font-mono">{state.run_id.slice(0, 8)}…</span></span>
         )}
       </div>
 
@@ -934,21 +961,48 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
         </div>
       )}
 
+      {/* Interruption reason */}
+      {state.interruption_reason_code && state.status === "interrupted" && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Reason:</span>
+          <Badge variant="outline" className="text-xs">{REASON_LABELS[state.interruption_reason_code] || state.interruption_reason_code}</Badge>
+          {typeof state.auto_resume_attempts === "number" && state.auto_resume_attempts > 0 && (
+            <span className="text-muted-foreground">· Auto-resume attempts: {state.auto_resume_attempts}</span>
+          )}
+        </div>
+      )}
+
+      {state.result_message && (state.status === "completed" || state.status === "completed_with_repair") && (
+        <p className="text-xs text-[hsl(var(--success))]">{state.result_message}</p>
+      )}
+
       {state.error && (
         <div className="bg-destructive/10 border border-destructive/30 rounded-md p-2 text-xs text-destructive font-mono whitespace-pre-wrap">
           {state.error}
         </div>
       )}
 
-      {state.status === "interrupted" && (
+      {state.status === "interrupted" && state.interruption_reason_code !== "user_stop" && (
         <p className="text-xs text-[hsl(var(--warning))]">
-          ↳ Click "Resume Rebuild Style Groups" to continue from where it stopped.
+          ↳ Auto-resume is enabled. The system will retry automatically, or you can click "Resume" to continue manually.
+        </p>
+      )}
+
+      {state.status === "interrupted" && state.interruption_reason_code === "user_stop" && (
+        <p className="text-xs text-[hsl(var(--warning))]">
+          ↳ You stopped this operation. Click "Resume Rebuild Style Groups" to continue from where it stopped.
+        </p>
+      )}
+
+      {state.status === "completed_with_repair" && (
+        <p className="text-xs text-[hsl(var(--warning))]">
+          ↳ Rebuild completed but some groups had missing stats. A reconcile operation was auto-queued to fix covers and counts.
         </p>
       )}
 
       {state.status === "failed" && (
         <p className="text-xs text-muted-foreground">
-          ↳ You can try "Rebuild Style Groups" again to restart, or check the error above for details.
+          ↳ You can try "Rebuild Style Groups" again to restart, or run "Reconcile Stats" to fix counts/covers without a full rebuild.
         </p>
       )}
 
@@ -964,17 +1018,20 @@ function StyleGroupsSection() {
   const queryClient = useQueryClient();
 
   const rebuildOp = usePersistentOperation("rebuild-style-groups");
+  const reconcileOp = usePersistentOperation("reconcile-style-group-stats");
 
   const { data: stats } = useQuery({
     queryKey: ["style-group-stats"],
     queryFn: async () => {
-      const [groupRes, ungroupedRes] = await Promise.all([
+      const [groupRes, ungroupedRes, anomalyRes] = await Promise.all([
         call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups" }),
         call("run-query", { sql: "SELECT COUNT(*) as count FROM assets WHERE style_group_id IS NULL AND is_deleted = false" }),
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups WHERE (asset_count IS NULL OR asset_count = 0) AND id IN (SELECT DISTINCT style_group_id FROM assets WHERE is_deleted = false AND style_group_id IS NOT NULL)" }),
       ]);
       return {
         groups: groupRes.rows?.[0]?.count ?? 0,
         ungrouped: ungroupedRes.rows?.[0]?.count ?? 0,
+        anomalous: anomalyRes.rows?.[0]?.count ?? 0,
       };
     },
     staleTime: 15_000,
@@ -989,7 +1046,14 @@ function StyleGroupsSection() {
     });
   }
 
-  const showDetail = rebuildOp.state.status !== "idle";
+  function runReconcile() {
+    reconcileOp.start({
+      confirmMessage: "Recompute asset counts, file dates, and cover images for all style groups? This is safe to re-run.",
+    });
+  }
+
+  const showRebuildDetail = rebuildOp.state.status !== "idle";
+  const showReconcileDetail = reconcileOp.state.status !== "idle";
 
   return (
     <Card>
@@ -1000,9 +1064,16 @@ function StyleGroupsSection() {
       </CardHeader>
       <CardContent className="space-y-3">
         {stats && (
-          <p className="text-sm text-muted-foreground">
-            <span className="text-foreground font-medium">{Number(stats.groups).toLocaleString()}</span> groups · <span className="text-foreground font-medium">{Number(stats.ungrouped).toLocaleString()}</span> ungrouped assets
-          </p>
+          <div className="text-sm text-muted-foreground space-y-0.5">
+            <p>
+              <span className="text-foreground font-medium">{Number(stats.groups).toLocaleString()}</span> groups · <span className="text-foreground font-medium">{Number(stats.ungrouped).toLocaleString()}</span> ungrouped assets
+            </p>
+            {Number(stats.anomalous) > 0 && (
+              <p className="text-[hsl(var(--warning))]">
+                ⚠ <span className="font-medium">{Number(stats.anomalous).toLocaleString()}</span> groups have missing counts/covers — run Reconcile to fix
+              </p>
+            )}
+          </div>
         )}
         <div className="flex flex-wrap gap-2 items-center">
           <TooltipProvider>
@@ -1011,7 +1082,7 @@ function StyleGroupsSection() {
                 <Button
                   variant="outline" size="sm" className="gap-1.5"
                   onClick={runRebuild}
-                  disabled={rebuildOp.isActive}
+                  disabled={rebuildOp.isActive || reconcileOp.isActive}
                 >
                   {rebuildOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   {rebuildOp.isInterrupted ? "Resume Rebuild Style Groups" : "Rebuild Style Groups"}
@@ -1020,12 +1091,51 @@ function StyleGroupsSection() {
               <TooltipContent side="bottom" className="max-w-[260px] text-center">Deletes all style groups and re-creates them from asset folder structure. Tags and AI data on assets are preserved.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          {(rebuildOp.isInterrupted || rebuildOp.state.status === "failed") && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={runReconcile}
+                  disabled={rebuildOp.isActive || reconcileOp.isActive}
+                >
+                  {reconcileOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+                  {reconcileOp.isInterrupted ? "Resume Reconcile" : "Reconcile Stats"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[260px] text-center">Recomputes asset counts, latest file dates, and cover images for all style groups. Safe to re-run. No groups are deleted.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          {(rebuildOp.isInterrupted || rebuildOp.state.status === "failed" || rebuildOp.isCompletedWithRepair) && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => rebuildOp.reset()}>Dismiss</Button>
+          )}
+          {(reconcileOp.isInterrupted || reconcileOp.state.status === "failed" || reconcileOp.state.status === "completed") && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => reconcileOp.reset()}>Dismiss Reconcile</Button>
           )}
         </div>
 
-        {showDetail && <RebuildStatusDetail state={rebuildOp.state} />}
+        {showRebuildDetail && <RebuildStatusDetail state={rebuildOp.state} />}
+        {showReconcileDetail && (
+          <div className="border border-border rounded-md p-3 space-y-1.5 mt-2">
+            <div className="flex items-center gap-2 text-sm">
+              {reconcileOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> :
+               reconcileOp.state.status === "completed" ? <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--success))]" /> :
+               reconcileOp.isInterrupted ? <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))]" /> :
+               <XCircle className="h-3.5 w-3.5 text-destructive" />}
+              <span className="font-medium">
+                {reconcileOp.isActive ? "Reconciling…" : reconcileOp.state.status === "completed" ? "Reconcile complete" : reconcileOp.isInterrupted ? "Reconcile interrupted" : "Reconcile failed"}
+              </span>
+            </div>
+            {reconcileOp.state.progress && (
+              <p className="text-xs text-muted-foreground">
+                Counts: {((reconcileOp.state.progress.counts_processed as number) || 0).toLocaleString()} · 
+                Primaries: {((reconcileOp.state.progress.primaries_processed as number) || 0).toLocaleString()}
+              </p>
+            )}
+            {reconcileOp.state.result_message && <p className="text-xs text-[hsl(var(--success))]">{reconcileOp.state.result_message}</p>}
+            {reconcileOp.state.error && <p className="text-xs text-destructive">{reconcileOp.state.error}</p>}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

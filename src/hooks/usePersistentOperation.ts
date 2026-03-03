@@ -14,7 +14,7 @@ export interface OperationProgress {
 }
 
 export interface OperationState {
-  status: "idle" | "running" | "completed" | "failed" | "interrupted";
+  status: "idle" | "running" | "completed" | "completed_with_repair" | "failed" | "interrupted";
   cursor?: number;
   params?: Record<string, unknown>;
   started_at?: string;
@@ -22,6 +22,12 @@ export interface OperationState {
   progress?: OperationProgress;
   result_message?: string;
   error?: string;
+  // Enhanced fields
+  interruption_reason_code?: string;
+  auto_resume_attempts?: number;
+  run_id?: string;
+  last_stage?: string;
+  last_substage?: string;
 }
 
 const CONFIG_KEY = "BULK_OPERATIONS";
@@ -144,6 +150,7 @@ export function usePersistentOperation(operationKey: string) {
 
   const isActive = state.status === "running";
   const isInterrupted = state.status === "interrupted";
+  const isCompletedWithRepair = state.status === "completed_with_repair";
 
-  return { state, start, stop, reset, isActive, isInterrupted };
+  return { state, start, stop, reset, isActive, isInterrupted, isCompletedWithRepair };
 }

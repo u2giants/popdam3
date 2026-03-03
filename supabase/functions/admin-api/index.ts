@@ -2396,6 +2396,134 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   return err("Unknown rebuild state", 500);
 }
 
+// ── Route: reconcile-style-group-stats ───────────────────────────────
+
+async function handleReconcileStyleGroupStats(body: Record<string, unknown>) {
+  const offset = typeof body.offset === "number" ? body.offset : 0;
+  const db = serviceClient();
+
+  const STATE_KEY = "RECONCILE_STYLE_GROUPS_STATE";
+
+  type ReconcileState = {
+    sub: "counts" | "primaries";
+    cursor: number;
+  };
+
+  const { data: stateRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", STATE_KEY)
+    .maybeSingle();
+
+  let state = (stateRow?.value as ReconcileState | null) ?? { sub: "counts", cursor: 0 };
+
+  // On first call, reset state
+  if (offset === 0 && !stateRow) {
+    state = { sub: "counts", cursor: 0 };
+  }
+
+  const BATCH = 100;
+
+  async function saveRecState(s: ReconcileState) {
+    await db.from("admin_config").upsert({
+      key: STATE_KEY,
+      value: s,
+      updated_at: new Date().toISOString(),
+      updated_by: null,
+    });
+  }
+
+  if (state.sub === "counts") {
+    const { data: groupIds, error: fetchErr } = await db
+      .from("style_groups")
+      .select("id")
+      .order("id")
+      .range(state.cursor, state.cursor + BATCH - 1);
+
+    if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "reconcile", substage: "counts" }, 500);
+
+    if (!groupIds || groupIds.length === 0) {
+      state = { sub: "primaries", cursor: 0 };
+      await saveRecState(state);
+      return json({ ok: true, sub: "counts_done", counts_processed: state.cursor, done: false, nextOffset: offset + 1 });
+    }
+
+    const ids = groupIds.map((g: { id: string }) => g.id);
+    let batchIds = ids;
+    while (batchIds.length > 0) {
+      try {
+        const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
+        if (countErr) {
+          const msg = formatPostgrestError(countErr);
+          if (msg.includes("57014") && batchIds.length > 1) {
+            batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+            continue;
+          }
+          return json({ ok: false, error: msg, stage: "reconcile", substage: "counts" }, 500);
+        }
+        break;
+      } catch (e) {
+        const msg = (e as Error).message || "";
+        if (msg.includes("57014") && batchIds.length > 1) {
+          batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    state.cursor += batchIds.length;
+    await saveRecState(state);
+    return json({ ok: true, sub: "counts", counts_processed: state.cursor, done: false, nextOffset: offset + 1 });
+  }
+
+  if (state.sub === "primaries") {
+    const { data: groupIds, error: fetchErr } = await db
+      .from("style_groups")
+      .select("id")
+      .order("id")
+      .range(state.cursor, state.cursor + BATCH - 1);
+
+    if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "reconcile", substage: "primaries" }, 500);
+
+    if (!groupIds || groupIds.length === 0) {
+      // Done — clean up state
+      await db.from("admin_config").delete().eq("key", STATE_KEY);
+      return json({ ok: true, sub: "complete", primaries_processed: state.cursor, done: true, nextOffset: offset + 1 });
+    }
+
+    const ids = groupIds.map((g: { id: string }) => g.id);
+    let batchIds = ids;
+    while (batchIds.length > 0) {
+      try {
+        const { error: primErr } = await db.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
+        if (primErr) {
+          const msg = formatPostgrestError(primErr);
+          if (msg.includes("57014") && batchIds.length > 1) {
+            batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+            continue;
+          }
+          return json({ ok: false, error: msg, stage: "reconcile", substage: "primaries" }, 500);
+        }
+        break;
+      } catch (e) {
+        const msg = (e as Error).message || "";
+        if (msg.includes("57014") && batchIds.length > 1) {
+          batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    state.cursor += batchIds.length;
+    await saveRecState(state);
+    return json({ ok: true, sub: "primaries", primaries_processed: state.cursor, done: false, nextOffset: offset + 1 });
+  }
+
+  return json({ ok: false, error: "Unknown reconcile sub-stage" }, 500);
+}
+
 // ── Route: generate-install-bundle ──────────────────────────────────
 
 async function handleGenerateInstallBundle(
@@ -3096,6 +3224,8 @@ serve(async (req: Request) => {
         return await handleDeleteTiffOriginals(body);
       case "clear-tiff-scan":
         return await handleClearTiffScan();
+      case "reconcile-style-group-stats":
+        return await handleReconcileStyleGroupStats(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
