@@ -73,11 +73,51 @@ serve(async (req: Request) => {
     // Fetch from ERP API
     let items: unknown[];
     try {
-      const resp = await fetch(ERP_ENDPOINT, { signal: AbortSignal.timeout(60_000) });
+      const resp = await fetch(ERP_ENDPOINT, { signal: AbortSignal.timeout(120_000) });
       if (!resp.ok) throw new Error(`ERP API returned ${resp.status}`);
-      const data = await resp.json();
-      if (!Array.isArray(data)) throw new Error("ERP response is not an array");
-      items = data;
+      const responseText = await resp.text();
+      console.log(`erp-sync: raw response length=${responseText.length}, first 200 chars: ${responseText.substring(0, 200)}`);
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(responseText);
+      } catch {
+        // Attempt to recover truncated JSON array
+        const lastBrace = responseText.lastIndexOf("}");
+        if (lastBrace > 0) {
+          try {
+            parsed = JSON.parse(responseText.substring(0, lastBrace + 1) + "]");
+            console.warn(`erp-sync: recovered truncated JSON`);
+          } catch {
+            throw new Error("Cannot parse ERP response (truncated JSON recovery failed)");
+          }
+        } else {
+          throw new Error("Cannot parse ERP response as JSON");
+        }
+      }
+
+      // Handle both bare array and wrapper object formats
+      if (Array.isArray(parsed)) {
+        items = parsed;
+      } else if (parsed && typeof parsed === "object") {
+        const obj = parsed as Record<string, unknown>;
+        const arrayField = obj.items || obj.data || obj.results || obj.records;
+        if (Array.isArray(arrayField)) {
+          items = arrayField;
+          console.log(`erp-sync: extracted array from wrapper key (length=${items.length})`);
+        } else {
+          const arrayKey = Object.keys(obj).find(k => Array.isArray(obj[k]));
+          if (arrayKey) {
+            items = obj[arrayKey] as unknown[];
+            console.log(`erp-sync: extracted array from key "${arrayKey}" (length=${items.length})`);
+          } else {
+            console.error("erp-sync: response object keys:", Object.keys(obj));
+            throw new Error(`ERP response is an object with keys [${Object.keys(obj).join(", ")}] but no array found`);
+          }
+        }
+      } else {
+        throw new Error(`ERP response is unexpected type: ${typeof parsed}`);
+      }
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : "Unknown fetch error";
       await db.from("erp_sync_runs").update({
