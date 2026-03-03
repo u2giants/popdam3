@@ -105,7 +105,8 @@ export function usePersistentOperation(operationKey: string) {
       initialProgress?: OperationProgress;
       forceRestart?: boolean;
     }) => {
-      if (state.status === "running") return;
+      // Allow force restart even when running
+      if (state.status === "running" && !options?.forceRestart) return;
       if (options?.confirmMessage && !confirm(options.confirmMessage)) return;
 
       const shouldResume =

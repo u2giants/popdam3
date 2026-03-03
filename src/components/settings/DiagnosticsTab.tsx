@@ -944,10 +944,24 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {typeof p.groups === "number" && (p.groups as number) > 0 && <span>Groups created: <span className="text-foreground font-medium">{(p.groups as number).toLocaleString()}</span></span>}
           {typeof p.assigned === "number" && (p.assigned as number) > 0 && <span>Assets assigned: <span className="text-foreground font-medium">{(p.assigned as number).toLocaleString()}</span></span>}
-          {p.stage === "finalize_stats" && typeof p.finalize_total_groups === "number" && (p.finalize_total_groups as number) > 0 ? (
-            <span className="col-span-2">
-              Finalize progress: <span className="text-foreground font-medium">{((p.substage === "primaries" ? p.primaries_processed : p.counts_processed) as number || 0).toLocaleString()}</span> / {(p.finalize_total_groups as number).toLocaleString()} groups ({p.substage === "primaries" ? "primaries" : "counts"})
-            </span>
+          {(p.stage === "finalize_stats" || state.last_stage === "finalize_stats") ? (
+            <>
+              {p.substage === "primaries" || state.last_substage === "primaries" ? (
+                <span className="col-span-2">
+                  Finalizing primaries: <span className="text-foreground font-medium">{((p.primaries_processed as number) || 0).toLocaleString()}</span>
+                  {typeof p.finalize_total_groups === "number" && (p.finalize_total_groups as number) > 0
+                    ? <> / {(p.finalize_total_groups as number).toLocaleString()} groups</>
+                    : <> groups</>}
+                </span>
+              ) : (
+                <span className="col-span-2">
+                  Finalizing counts: <span className="text-foreground font-medium">{((p.counts_processed as number) || 0).toLocaleString()}</span>
+                  {typeof p.finalize_total_groups === "number" && (p.finalize_total_groups as number) > 0
+                    ? <> / {(p.finalize_total_groups as number).toLocaleString()} groups</>
+                    : <> groups</>}
+                </span>
+              )}
+            </>
           ) : typeof p.total_processed === "number" && typeof p.total_assets === "number" ? (
             <span className="col-span-2">
               Progress: <span className="text-foreground font-medium">{(p.total_processed as number).toLocaleString()}</span> / {(p.total_assets as number).toLocaleString()} assets
@@ -956,11 +970,22 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
         </div>
       )}
 
-      {typeof p?.total_processed === "number" && typeof p?.total_assets === "number" && (p.total_assets as number) > 0 && (
+      {/* Progress bar for rebuild_assets stage */}
+      {typeof p?.total_processed === "number" && typeof p?.total_assets === "number" && (p.total_assets as number) > 0 && p?.stage !== "finalize_stats" && (
         <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-300 ${state.status === "failed" ? "bg-destructive" : state.status === "interrupted" ? "bg-[hsl(var(--warning))]" : "bg-primary"}`}
             style={{ width: `${Math.min(100, Math.round(((p.total_processed as number) / (p.total_assets as number)) * 100))}%` }}
+          />
+        </div>
+      )}
+
+      {/* Progress bar for finalize_stats stage */}
+      {(p?.stage === "finalize_stats" || state.last_stage === "finalize_stats") && typeof p?.finalize_total_groups === "number" && (p.finalize_total_groups as number) > 0 && (
+        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${state.status === "failed" ? "bg-destructive" : state.status === "interrupted" ? "bg-[hsl(var(--warning))]" : "bg-primary"}`}
+            style={{ width: `${Math.min(100, Math.round((((p.substage === "primaries" ? (p.primaries_processed as number || 0) : (p.counts_processed as number || 0))) / (p.finalize_total_groups as number)) * 100))}%` }}
           />
         </div>
       )}
@@ -1041,14 +1066,15 @@ function StyleGroupsSection() {
     staleTime: 15_000,
   });
 
-  function runRebuild() {
-    const isResume = rebuildOp.isInterrupted;
+  function runRebuild(forceRestart = false) {
     rebuildOp.start({
-      confirmMessage: isResume
-        ? "Resume the interrupted style-group rebuild from the last processed cursor?"
-        : "This will delete all existing style groups and rebuild them from scratch. Continue?",
-      params: isResume ? undefined : { force_restart: true },
-      forceRestart: !isResume,
+      confirmMessage: forceRestart
+        ? "This will WIPE all existing style groups and rebuild from scratch. Continue?"
+        : rebuildOp.isInterrupted
+          ? "Resume the interrupted style-group rebuild from the last processed cursor?"
+          : "This will delete all existing style groups and rebuild them from scratch. Continue?",
+      params: forceRestart || !rebuildOp.isInterrupted ? { force_restart: true } : undefined,
+      forceRestart: forceRestart || !rebuildOp.isInterrupted,
     });
   }
 
@@ -1060,6 +1086,7 @@ function StyleGroupsSection() {
 
   const showRebuildDetail = rebuildOp.state.status !== "idle";
   const showReconcileDetail = reconcileOp.state.status !== "idle";
+  const canStartFresh = rebuildOp.isInterrupted || rebuildOp.state.status === "failed" || rebuildOp.isActive;
 
   return (
     <Card>
@@ -1087,16 +1114,36 @@ function StyleGroupsSection() {
               <TooltipTrigger asChild>
                 <Button
                   variant="outline" size="sm" className="gap-1.5"
-                  onClick={runRebuild}
+                  onClick={() => runRebuild(false)}
                   disabled={rebuildOp.isActive || reconcileOp.isActive}
                 >
                   {rebuildOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  {rebuildOp.isInterrupted ? "Resume Rebuild Style Groups" : "Rebuild Style Groups"}
+                  {rebuildOp.isInterrupted ? "Resume Rebuild" : "Rebuild Style Groups"}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-[260px] text-center">Deletes all style groups and re-creates them from asset folder structure. Tags and AI data on assets are preserved.</TooltipContent>
+              <TooltipContent side="bottom" className="max-w-[260px] text-center">
+                {rebuildOp.isInterrupted
+                  ? "Resume the interrupted rebuild from where it stopped"
+                  : "Deletes all style groups and re-creates them from asset folder structure."}
+              </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          {canStartFresh && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="destructive" size="sm" className="gap-1.5 text-xs"
+                    onClick={() => runRebuild(true)}
+                    disabled={reconcileOp.isActive}
+                  >
+                    <Trash2 className="h-3 w-3" /> Start Fresh
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[260px] text-center">Wipe all progress and restart the rebuild from scratch</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -1112,6 +1159,11 @@ function StyleGroupsSection() {
               <TooltipContent side="bottom" className="max-w-[260px] text-center">Recomputes asset counts, latest file dates, and cover images for all style groups. Safe to re-run. No groups are deleted.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          {rebuildOp.isActive && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-destructive" onClick={() => rebuildOp.stop()}>
+              <XCircle className="h-3 w-3" /> Stop
+            </Button>
+          )}
           {(rebuildOp.isInterrupted || rebuildOp.state.status === "failed" || rebuildOp.isCompletedWithRepair) && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => rebuildOp.reset()}>Dismiss</Button>
           )}
