@@ -102,14 +102,23 @@ async function authenticateAdmin(
 
   // Check admin role using service client (bypasses RLS)
   const db = serviceClient();
-  const { data: roleRow, error: roleError } = await db
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
-    .maybeSingle();
+  const { data: roleRow, error: roleError } = await withRetry(async () => {
+    const result = await db
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (result.error) throw result.error;
+    return result;
+  });
 
   console.log("Role check for userId:", userId, "result:", JSON.stringify(roleRow), "error:", roleError);
+
+  if (roleError) {
+    console.error("Role check query failed:", roleError);
+    return err("Authorization check failed, please retry", 503);
+  }
 
   if (!roleRow) {
     return err("Forbidden: admin role required", 403);
