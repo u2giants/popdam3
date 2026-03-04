@@ -1975,15 +1975,15 @@ async function handleReportTiffScan(body: Record<string, unknown>) {
     const rows = chunk
       .filter((f) => !isExcludedRelativePath(f.relative_path as string))
       .map((f) => ({
-      relative_path: f.relative_path as string,
-      filename: f.filename as string,
-      file_size: f.file_size as number,
-      file_modified_at: f.file_modified_at as string,
-      file_created_at: (f.file_created_at as string) || null,
-      compression_type: (f.compression_type as string) || "unknown",
-      status: "scanned",
-      scan_session_id: sessionId,
-    }));
+        relative_path: f.relative_path as string,
+        filename: f.filename as string,
+        file_size: f.file_size as number,
+        file_modified_at: f.file_modified_at as string,
+        file_created_at: (f.file_created_at as string) || null,
+        compression_type: (f.compression_type as string) || "unknown",
+        status: "scanned",
+        scan_session_id: sessionId,
+      }));
 
     const { error } = await db.from("tiff_optimization_queue")
       .upsert(rows, { onConflict: "relative_path", ignoreDuplicates: false });
