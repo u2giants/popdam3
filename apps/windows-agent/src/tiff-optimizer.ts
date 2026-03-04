@@ -1,24 +1,38 @@
 /**
  * TIFF Optimizer for the Windows Render Agent.
  *
- * - Scans the NAS for .tif/.tiff files
- * - Detects compression type using Sharp metadata
- * - Re-saves uncompressed TIFFs with ZIP lossless compression
- * - Preserves original Created/Modified timestamps
+ * Responsibilities:
+ *   - Scan NAS for .tif/.tiff files and detect compression type
+ *   - Compress uncompressed TIFFs with ZIP (deflate) lossless compression
+ *   - Bulletproof timestamp preservation (mtime + CreationTime) with strict rollback
  *
- * Timestamp Preservation Rules (per PROJECT_BIBLE §7):
- *   1. Record original mtime + birthtime via stat() before touching the file
- *   2. After write, restore timestamps using utimes()
- *   3. If restoration fails, log error (file already saved at that point)
+ * Timestamp Preservation Rules (per PROJECT_BIBLE §7, WORKER_LOGIC §9):
+ *   1. Capture atime, mtime, and Windows CreationTime before touching the file
+ *   2. After write, restore all timestamps with bounded retries
+ *   3. Verify restoration against originals within configurable tolerance
+ *   4. If any verification fails: rollback file swap and report failure
+ *   5. NEVER return success if timestamp restoration is unverified
  */
 
 import sharp from "sharp";
 import path from "node:path";
-import { stat, rename, unlink, utimes, readdir, lstat, open } from "node:fs/promises";
+import { stat, rename, unlink, readdir, lstat, open } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import { logger } from "./logger";
+import {
+  captureTimestamps,
+  restoreTimestamps,
+  TIMESTAMP_ERROR,
+  type CapturedTimestamps,
+  type TimestampRestoreResult,
+  type TimestampErrorCode,
+} from "./tiff-timestamps";
+
+export { setTimestampConfig, getTimestampConfig, DEFAULT_TIMESTAMP_CONFIG } from "./tiff-timestamps";
+
+// ── Result types ────────────────────────────────────────────────
 
 export interface TiffScanResult {
   relative_path: string;
@@ -38,7 +52,15 @@ export interface TiffJobResult {
   original_backed_up?: boolean;
   original_deleted?: boolean;
   error?: string;
+  error_code?: TimestampErrorCode | string;
+  /** Extended timestamp audit fields */
+  timestamp_restore_status?: "verified" | "failed" | "skipped";
+  creation_time_restored?: boolean;
+  mtime_restored?: boolean;
+  verification_details?: TimestampRestoreResult["verification_details"];
 }
+
+// ── Constants ───────────────────────────────────────────────────
 
 const TIFF_EXTENSIONS = new Set([".tif", ".tiff"]);
 
@@ -50,6 +72,8 @@ const EXCLUDED_DIR_PATTERNS = [
 ];
 
 const execFileAsync = promisify(execFile);
+
+// ── ImageMagick discovery ───────────────────────────────────────
 
 function findImageMagick(): string | null {
   if (process.env.IM_PATH) return process.env.IM_PATH;
@@ -83,8 +107,8 @@ const COMPRESSION_MAP: Record<number, string> = {
   1: "none",
   5: "lzw",
   7: "jpeg",
-  8: "zip",        // Adobe-style deflate
-  32946: "zip",    // PKZIP-style deflate
+  8: "zip",
+  32946: "zip",
   32773: "packbits",
   4: "ccittfax4",
   3: "ccittfax3",
@@ -93,19 +117,13 @@ const COMPRESSION_MAP: Record<number, string> = {
   50000: "zstd",
 };
 
-/**
- * Read TIFF IFD tag 259 (Compression) directly from file bytes.
- * Handles classic TIFF (version 42). Falls back for BigTIFF (version 43).
- */
 async function readTiffCompressionTag(filePath: string): Promise<string> {
   const fh = await open(filePath, "r");
   try {
-    // Read first 64KB — enough for header + first IFD in normal TIFFs
     const buf = Buffer.alloc(65536);
     const { bytesRead } = await fh.read(buf, 0, 65536, 0);
     if (bytesRead < 8) return "unknown";
 
-    // Byte order
     const bo = buf.toString("ascii", 0, 2);
     const le = bo === "II";
     if (bo !== "II" && bo !== "MM") return "unknown";
@@ -114,10 +132,10 @@ async function readTiffCompressionTag(filePath: string): Promise<string> {
     const r32 = le ? (o: number) => buf.readUInt32LE(o) : (o: number) => buf.readUInt32BE(o);
 
     const version = r16(2);
-    if (version === 43) return "unknown"; // BigTIFF — let IM handle it
+    if (version === 43) return "unknown"; // BigTIFF
     if (version !== 42) return "unknown";
 
-    let ifdOffset = r32(4);
+    const ifdOffset = r32(4);
     if (ifdOffset === 0 || ifdOffset + 2 > bytesRead) return "unknown";
 
     const entryCount = r16(ifdOffset);
@@ -130,11 +148,10 @@ async function readTiffCompressionTag(filePath: string): Promise<string> {
       const tag = r16(entryOff);
       if (tag !== COMPRESSION_TAG) continue;
 
-      // Type 3 = SHORT (2 bytes), Type 4 = LONG (4 bytes)
       const type = r16(entryOff + 2);
       let value: number;
       if (type === 3) {
-        value = r16(entryOff + 8); // SHORT value in first 2 bytes of value field
+        value = r16(entryOff + 8);
       } else {
         value = r32(entryOff + 8);
       }
@@ -142,7 +159,7 @@ async function readTiffCompressionTag(filePath: string): Promise<string> {
       return COMPRESSION_MAP[value] ?? `other:${value}`;
     }
 
-    return "unknown"; // tag 259 not found in first IFD
+    return "unknown";
   } finally {
     await fh.close();
   }
@@ -157,30 +174,23 @@ function logUnknownCompression(filePath: string, context: string) {
   if (unknownLogCount < MAX_UNKNOWN_LOGS) {
     unknownLogCount++;
     logger.warn(`TIFF compression unknown after all methods (${unknownLogCount}/${MAX_UNKNOWN_LOGS})`, {
-      filePath,
-      context,
+      filePath, context,
     });
   }
 }
 
-/** Reset the unknown log counter (call at start of each scan session). */
 export function resetUnknownLogCounter() {
   unknownLogCount = 0;
 }
 
-// ── Compression type detection (updated chain) ──────────────────
+// ── Compression detection ───────────────────────────────────────
 
-/**
- * Map Sharp's TIFF compression values to human-readable names.
- * Sharp exposes: none, jpeg, deflate, packbits, lzw, webp, zstd, jp2k, ccittfax4
- * "deflate" in TIFF = ZIP compression
- */
 function normalizeCompression(raw: string | undefined): string {
   if (!raw) return "unknown";
   const lower = raw.toLowerCase();
   if (lower === "none" || lower === "uncompressed") return "none";
   if (lower === "deflate" || lower === "zip") return "zip";
-  return lower; // lzw, packbits, jpeg, etc.
+  return lower;
 }
 
 async function detectCompressionViaImageMagick(filePath: string): Promise<string | null> {
@@ -198,7 +208,6 @@ async function detectCompressionViaImageMagick(filePath: string): Promise<string
 }
 
 export async function detectTiffCompression(filePath: string): Promise<string> {
-  // 1) Direct IFD tag 259 read (fastest, no external process)
   try {
     const tagResult = await readTiffCompressionTag(filePath);
     if (tagResult !== "unknown") return tagResult;
@@ -206,11 +215,9 @@ export async function detectTiffCompression(filePath: string): Promise<string> {
     logger.debug("TIFF tag 259 read failed", { filePath, error: (e as Error).message });
   }
 
-  // 2) ImageMagick fallback (handles BigTIFF, exotic formats)
   const imResult = await detectCompressionViaImageMagick(filePath);
   if (imResult) return imResult;
 
-  // 3) Sharp metadata (last resort)
   try {
     const meta = await sharp(filePath).metadata();
     const sharpResult = normalizeCompression(meta.compression);
@@ -219,7 +226,6 @@ export async function detectTiffCompression(filePath: string): Promise<string> {
     logger.debug("Sharp TIFF metadata failed", { filePath, error: (e as Error).message });
   }
 
-  // All methods failed — log (rate-limited)
   logUnknownCompression(filePath, "tag259+IM+sharp all failed");
   return "unknown";
 }
@@ -261,7 +267,6 @@ async function* walkDir(
 
     const fullPath = path.join(dirPath, entry.name);
 
-    // Skip symlinks
     try {
       const ls = await lstat(fullPath);
       if (ls.isSymbolicLink()) continue;
@@ -281,9 +286,8 @@ async function* walkDir(
     try {
       const s = await stat(fullPath);
 
-      // Build relative path from mount root
       let relPath = path.relative(mountRoot, fullPath);
-      relPath = relPath.split("\\").join("/"); // POSIX
+      relPath = relPath.split("\\").join("/");
       if (relPath.startsWith("/")) relPath = relPath.slice(1);
 
       const compression = await detectTiffCompression(fullPath);
@@ -306,36 +310,51 @@ async function* walkDir(
 
 /**
  * Compress a TIFF with ZIP (deflate).
- * Strategy: Try Sharp first. If Sharp fails (common on Windows with CMYK / exotic
- * bit-depth TIFFs — "The data is invalid"), fall back to ImageMagick convert.
+ *
+ * Timestamp guarantees:
+ *   - Captures mtime + atime + Windows CreationTime BEFORE any file operation
+ *   - Restores ALL timestamps after file swap with bounded retries
+ *   - Verifies restoration within configurable tolerance
+ *   - On ANY verification failure: rolls back to original file and returns failure
+ *   - NEVER returns success unless timestamps are verified
  */
 export async function compressTiff(
   filePath: string,
   mode: "test" | "process",
   originalModifiedAt: Date,
   originalCreatedAt: Date | null,
+  jobId?: string,
 ): Promise<TiffJobResult> {
   const dir = path.dirname(filePath);
   const ext = path.extname(filePath);
   const base = path.basename(filePath, ext);
-
-  // Record actual timestamps from disk before any changes
-  let diskMtime: Date;
-  try {
-    const s = await stat(filePath);
-    diskMtime = s.mtime;
-  } catch (e) {
-    return { success: false, error: `Cannot stat file: ${(e as Error).message}` };
-  }
-
-  const targetMtime = originalModifiedAt;
-  const targetAtime = diskMtime;
-
-  // Temp output path
   const tempPath = path.join(dir, `${base}_popdam_temp${ext}`);
 
+  // ── Step 1: Capture all timestamps from disk ──
+  let captured: CapturedTimestamps;
   try {
-    // Attempt compression — Sharp first, ImageMagick fallback
+    captured = await captureTimestamps(filePath, jobId);
+  } catch (e) {
+    return {
+      success: false,
+      error: `Timestamp capture failed: ${(e as Error).message}`,
+      error_code: TIMESTAMP_ERROR.CAPTURE_FAILED,
+      timestamp_restore_status: "skipped",
+      mtime_restored: false,
+      creation_time_restored: false,
+    };
+  }
+
+  // Use DB-provided mtime as authoritative target (per PROJECT_BIBLE §7)
+  const targetTimestamps: CapturedTimestamps = {
+    atime: captured.atime,
+    mtime: originalModifiedAt,
+    creationTime: originalCreatedAt ?? captured.creationTime,
+    creationTimeSource: captured.creationTimeSource,
+  };
+
+  // ── Step 2: Compress the TIFF ──
+  try {
     let compressedVia = "sharp";
     try {
       await sharp(filePath)
@@ -343,19 +362,17 @@ export async function compressTiff(
         .toFile(tempPath);
     } catch (sharpErr) {
       const msg = (sharpErr as Error).message || "";
-      logger.warn("Sharp TIFF write failed, trying ImageMagick fallback", {
-        filePath,
-        error: msg,
-      });
+      logger.warn("Sharp TIFF write failed, trying ImageMagick fallback", { filePath, jobId, error: msg });
 
-      // Clean up any partial temp file from Sharp
       await unlink(tempPath).catch(() => {});
 
-      // Fallback: ImageMagick
       if (!IM_EXE) {
         return {
           success: false,
           error: `Sharp failed (${msg}) and ImageMagick is not available for fallback`,
+          timestamp_restore_status: "skipped",
+          mtime_restored: false,
+          creation_time_restored: false,
         };
       }
 
@@ -371,74 +388,248 @@ export async function compressTiff(
         return {
           success: false,
           error: `Sharp failed (${msg}); ImageMagick also failed: ${(imErr as Error).message}`,
+          timestamp_restore_status: "skipped",
+          mtime_restored: false,
+          creation_time_restored: false,
         };
       }
     }
 
-    logger.debug(`TIFF compressed via ${compressedVia}`, { filePath });
+    logger.debug(`TIFF compressed via ${compressedVia}`, { filePath, jobId });
 
-    // Get new file size
     const newStat = await stat(tempPath);
     const newSize = newStat.size;
     const origSize = (await stat(filePath)).size;
 
+    // ── Step 3: File swap + timestamp restore ──
     if (mode === "test") {
-      const bigPath = path.join(dir, `${base}_big${ext}`);
-      await rename(filePath, bigPath);
-      await rename(tempPath, filePath);
-
-      await restoreTimestamps(filePath, targetAtime, targetMtime);
-      await restoreTimestamps(bigPath, targetAtime, targetMtime);
-
-      return {
-        success: true,
-        new_file_size: newSize,
-        new_filename: path.basename(filePath),
-        new_file_modified_at: targetMtime.toISOString(),
-        new_file_created_at: originalCreatedAt?.toISOString() ?? undefined,
-        original_backed_up: true,
-        original_deleted: false,
-      };
+      return await handleTestMode(filePath, tempPath, dir, base, ext, targetTimestamps, newSize, jobId);
     } else {
-      if (newSize >= origSize) {
-        await unlink(tempPath).catch(() => {});
-        return {
-          success: true,
-          new_file_size: origSize,
-          new_filename: path.basename(filePath),
-          new_file_modified_at: targetMtime.toISOString(),
-          new_file_created_at: originalCreatedAt?.toISOString() ?? undefined,
-          original_backed_up: false,
-          original_deleted: false,
-          error: "Compressed file not smaller than original — skipped",
-        };
-      }
-
-      await rename(filePath, filePath + ".popdam_backup");
-      await rename(tempPath, filePath);
-
-      const restored = await restoreTimestamps(filePath, targetAtime, targetMtime);
-      if (!restored) {
-        await rename(filePath, tempPath).catch(() => {});
-        await rename(filePath + ".popdam_backup", filePath).catch(() => {});
-        return { success: false, error: "Timestamp restoration failed — rolled back" };
-      }
-
-      await unlink(filePath + ".popdam_backup").catch(() => {});
-
-      return {
-        success: true,
-        new_file_size: newSize,
-        new_filename: path.basename(filePath),
-        new_file_modified_at: targetMtime.toISOString(),
-        new_file_created_at: originalCreatedAt?.toISOString() ?? undefined,
-        original_backed_up: false,
-        original_deleted: true,
-      };
+      return await handleProcessMode(filePath, tempPath, targetTimestamps, newSize, origSize, jobId);
     }
   } catch (e) {
     await unlink(tempPath).catch(() => {});
-    return { success: false, error: (e as Error).message };
+    return {
+      success: false,
+      error: (e as Error).message,
+      timestamp_restore_status: "skipped",
+      mtime_restored: false,
+      creation_time_restored: false,
+    };
+  }
+}
+
+// ── Test mode: keep _big backup, strict timestamp verification ──
+
+async function handleTestMode(
+  filePath: string,
+  tempPath: string,
+  dir: string,
+  base: string,
+  ext: string,
+  timestamps: CapturedTimestamps,
+  newSize: number,
+  jobId?: string,
+): Promise<TiffJobResult> {
+  const bigPath = path.join(dir, `${base}_big${ext}`);
+
+  await rename(filePath, bigPath);
+  await rename(tempPath, filePath);
+
+  // Restore timestamps on BOTH files
+  const compressedRestore = await restoreTimestamps(filePath, timestamps, jobId);
+  const backupRestore = await restoreTimestamps(bigPath, timestamps, jobId);
+
+  if (!compressedRestore.success) {
+    // Rollback: restore original file
+    logger.error("Test mode: timestamp restore failed on compressed file — rolling back", {
+      jobId, filePath, error_code: compressedRestore.error_code,
+    });
+    await safeRollback(filePath, bigPath, tempPath);
+    return {
+      success: false,
+      error: `Test mode timestamp restore failed: ${compressedRestore.error_message}`,
+      error_code: compressedRestore.error_code,
+      timestamp_restore_status: "failed",
+      mtime_restored: compressedRestore.mtime_restored,
+      creation_time_restored: compressedRestore.creation_time_restored,
+      verification_details: compressedRestore.verification_details,
+    };
+  }
+
+  if (!backupRestore.success) {
+    logger.warn("Test mode: timestamp restore failed on backup file (non-fatal for result)", {
+      jobId, bigPath, error_code: backupRestore.error_code,
+    });
+  }
+
+  return {
+    success: true,
+    new_file_size: newSize,
+    new_filename: path.basename(filePath),
+    new_file_modified_at: timestamps.mtime.toISOString(),
+    new_file_created_at: timestamps.creationTime?.toISOString() ?? undefined,
+    original_backed_up: true,
+    original_deleted: false,
+    timestamp_restore_status: "verified",
+    mtime_restored: compressedRestore.mtime_restored,
+    creation_time_restored: compressedRestore.creation_time_restored,
+    verification_details: compressedRestore.verification_details,
+  };
+}
+
+// ── Process mode: atomic swap with strict rollback ──────────────
+
+async function handleProcessMode(
+  filePath: string,
+  tempPath: string,
+  timestamps: CapturedTimestamps,
+  newSize: number,
+  origSize: number,
+  jobId?: string,
+): Promise<TiffJobResult> {
+  // Skip if compressed file isn't smaller
+  if (newSize >= origSize) {
+    await unlink(tempPath).catch(() => {});
+    return {
+      success: true,
+      new_file_size: origSize,
+      new_filename: path.basename(filePath),
+      new_file_modified_at: timestamps.mtime.toISOString(),
+      new_file_created_at: timestamps.creationTime?.toISOString() ?? undefined,
+      original_backed_up: false,
+      original_deleted: false,
+      error: "Compressed file not smaller than original — skipped",
+      timestamp_restore_status: "skipped",
+      mtime_restored: false,
+      creation_time_restored: false,
+    };
+  }
+
+  const backupPath = filePath + ".popdam_backup";
+
+  // Create backup
+  await rename(filePath, backupPath);
+
+  // Verify backup exists before proceeding
+  try {
+    await stat(backupPath);
+  } catch {
+    // Backup creation failed — try to restore
+    await rename(backupPath, filePath).catch(() => {});
+    return {
+      success: false,
+      error: "Backup creation failed — backup file not found after rename",
+      timestamp_restore_status: "skipped",
+      mtime_restored: false,
+      creation_time_restored: false,
+    };
+  }
+
+  // Swap in compressed file
+  await rename(tempPath, filePath);
+
+  // Restore timestamps with strict verification
+  const restoreResult = await restoreTimestamps(filePath, timestamps, jobId);
+
+  if (!restoreResult.success) {
+    // CRITICAL: Rollback — put original back
+    logger.error("Process mode: timestamp restore FAILED — initiating rollback", {
+      jobId, filePath,
+      error_code: restoreResult.error_code,
+      error_message: restoreResult.error_message,
+    });
+
+    const rollbackOk = await atomicRollback(filePath, backupPath, jobId);
+    if (!rollbackOk) {
+      return {
+        success: false,
+        error: `Timestamp restore failed AND rollback failed — MANUAL INTERVENTION REQUIRED. ${restoreResult.error_message}`,
+        error_code: TIMESTAMP_ERROR.ROLLBACK_FAILED,
+        timestamp_restore_status: "failed",
+        mtime_restored: restoreResult.mtime_restored,
+        creation_time_restored: restoreResult.creation_time_restored,
+        verification_details: restoreResult.verification_details,
+      };
+    }
+
+    return {
+      success: false,
+      error: `Timestamp restore failed, rolled back to original: ${restoreResult.error_message}`,
+      error_code: restoreResult.error_code,
+      timestamp_restore_status: "failed",
+      mtime_restored: restoreResult.mtime_restored,
+      creation_time_restored: restoreResult.creation_time_restored,
+      verification_details: restoreResult.verification_details,
+    };
+  }
+
+  // Timestamps verified — safe to delete backup
+  await unlink(backupPath).catch((e) => {
+    logger.warn("Failed to delete backup after successful compression", {
+      jobId, backupPath, error: (e as Error).message,
+    });
+  });
+
+  logger.info("TIFF compression + timestamp restore verified", {
+    jobId, filePath,
+    origSize, newSize,
+    savings: `${((1 - newSize / origSize) * 100).toFixed(1)}%`,
+    mtime_restored: restoreResult.mtime_restored,
+    creation_time_restored: restoreResult.creation_time_restored,
+  });
+
+  return {
+    success: true,
+    new_file_size: newSize,
+    new_filename: path.basename(filePath),
+    new_file_modified_at: timestamps.mtime.toISOString(),
+    new_file_created_at: timestamps.creationTime?.toISOString() ?? undefined,
+    original_backed_up: false,
+    original_deleted: true,
+    timestamp_restore_status: "verified",
+    mtime_restored: restoreResult.mtime_restored,
+    creation_time_restored: restoreResult.creation_time_restored,
+    verification_details: restoreResult.verification_details,
+  };
+}
+
+// ── Rollback helpers ────────────────────────────────────────────
+
+/** Rollback for process mode: put backup back as original */
+async function atomicRollback(
+  currentPath: string,
+  backupPath: string,
+  jobId?: string,
+): Promise<boolean> {
+  try {
+    // Remove the bad compressed file
+    await unlink(currentPath).catch(() => {});
+    // Restore backup as original
+    await rename(backupPath, currentPath);
+    // Verify original is back
+    await stat(currentPath);
+    logger.info("Rollback successful — original file restored", { jobId, currentPath });
+    return true;
+  } catch (e) {
+    logger.error("ROLLBACK FAILED — manual intervention required", {
+      jobId, currentPath, backupPath, error: (e as Error).message,
+    });
+    return false;
+  }
+}
+
+/** Rollback for test mode: put original back from _big */
+async function safeRollback(
+  currentPath: string,
+  bigPath: string,
+  _tempPath: string,
+): Promise<void> {
+  try {
+    await unlink(currentPath).catch(() => {});
+    await rename(bigPath, currentPath);
+  } catch (e) {
+    logger.error("Test mode rollback failed", { currentPath, bigPath, error: (e as Error).message });
   }
 }
 
@@ -455,36 +646,5 @@ export async function deleteOriginalBackup(filePath: string): Promise<{ success:
     return { success: true };
   } catch (e) {
     return { success: false, error: `Cannot delete backup: ${(e as Error).message}` };
-  }
-}
-
-// ── Timestamp restoration ───────────────────────────────────────
-
-async function restoreTimestamps(
-  filePath: string,
-  atime: Date,
-  mtime: Date,
-): Promise<boolean> {
-  try {
-    await utimes(filePath, atime, mtime);
-    // Verify
-    const s = await stat(filePath);
-    const diff = Math.abs(s.mtime.getTime() - mtime.getTime());
-    if (diff > 2000) { // allow 2s tolerance for filesystem precision
-      logger.error("Timestamp restoration verification failed", {
-        filePath,
-        expected: mtime.toISOString(),
-        actual: s.mtime.toISOString(),
-        diffMs: diff,
-      });
-      return false;
-    }
-    return true;
-  } catch (e) {
-    logger.error("Failed to restore timestamps", {
-      filePath,
-      error: (e as Error).message,
-    });
-    return false;
   }
 }
