@@ -1972,7 +1972,9 @@ async function handleReportTiffScan(body: Record<string, unknown>) {
   let inserted = 0;
   for (let i = 0; i < files.length; i += CHUNK) {
     const chunk = files.slice(i, i + CHUNK);
-    const rows = chunk.map((f) => ({
+    const rows = chunk
+      .filter((f) => !isExcludedRelativePath(f.relative_path as string))
+      .map((f) => ({
       relative_path: f.relative_path as string,
       filename: f.filename as string,
       file_size: f.file_size as number,
@@ -1988,7 +1990,7 @@ async function handleReportTiffScan(body: Record<string, unknown>) {
     if (error) {
       console.error("report-tiff-scan upsert error:", error);
     } else {
-      inserted += chunk.length;
+      inserted += rows.length;
     }
   }
 
