@@ -14,15 +14,9 @@ import { join, extname, basename, relative } from "node:path";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import type { Counters } from "./api-client.js";
+import { shouldSkipFolder, shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 
 const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai"]);
-
-const EXCLUDED_DIR_PATTERNS = [
-  /^___old$/i,
-  /^__macosx$/i,
-  /^\..*$/,        // any hidden directory (starts with dot)
-  /^@eaDir$/,      // Synology metadata folder
-];
 
 export interface FileCandidate {
   absolutePath: string;
@@ -95,6 +89,7 @@ export async function* scanFiles(
   resumeFromDir?: string,
   mountRoot?: string,
 ): AsyncGenerator<FileCandidate> {
+  resetSkipWarnings(); // Reset per-session dedup for skip warnings
   const roots = scanRoots ?? config.scanRoots;
   const effectiveMountRoot = mountRoot || config.nasContainerMountRoot;
   for (const root of roots) {
@@ -144,10 +139,9 @@ async function* scanDirectory(
     }
 
     if (entry.isDirectory()) {
-      // Skip excluded directories (___OLD, __MACOSX, hidden dirs, @eaDir)
-      const dirName = entry.name;
-      if (EXCLUDED_DIR_PATTERNS.some(p => p.test(dirName))) {
-        logger.debug("Skipping excluded directory", { dirPath: fullPath });
+      // Skip excluded directories using centralized path-filters
+      if (shouldSkipFolder(entry.name)) {
+        logger.debug("Skipping excluded directory", { dirPath: fullPath, folder: entry.name });
         counters.dirs_skipped_excluded++;
         continue;
       }
@@ -182,6 +176,12 @@ async function* scanDirectory(
       } else {
         counters.rejected_wrong_type++;
       }
+      continue;
+    }
+
+    // Check full path for excluded segments (catches files nested inside excluded dirs)
+    if (shouldSkipPath(fullPath, logger.warn)) {
+      counters.rejected_junk_file++;
       continue;
     }
 

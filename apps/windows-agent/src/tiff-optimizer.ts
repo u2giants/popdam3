@@ -29,6 +29,7 @@ import {
   type TimestampRestoreResult,
   type TimestampErrorCode,
 } from "./tiff-timestamps";
+import { shouldSkipFolder, shouldSkipPath } from "@popdam/path-filters";
 
 export { setTimestampConfig, getTimestampConfig, DEFAULT_TIMESTAMP_CONFIG } from "./tiff-timestamps";
 
@@ -63,13 +64,6 @@ export interface TiffJobResult {
 // ── Constants ───────────────────────────────────────────────────
 
 const TIFF_EXTENSIONS = new Set([".tif", ".tiff"]);
-
-const EXCLUDED_DIR_PATTERNS = [
-  /^___old$/i,
-  /^__macosx$/i,
-  /^\..*/,       // hidden dirs
-  /^@eaDir$/,    // Synology metadata
-];
 
 const execFileAsync = promisify(execFile);
 
@@ -273,7 +267,7 @@ async function* walkDir(
     } catch { continue; }
 
     if (entry.isDirectory()) {
-      if (EXCLUDED_DIR_PATTERNS.some(p => p.test(entry.name))) continue;
+      if (shouldSkipFolder(entry.name)) continue;
       yield* walkDir(fullPath, mountRoot, callbacks);
       continue;
     }

@@ -21,6 +21,7 @@ import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
 import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
 import { ensureNasMapped } from "./nas-mapper";
+import { shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
@@ -280,37 +281,19 @@ async function processJob(job: api.RenderJob): Promise<void> {
     uncPath,
   });
 
+  // Centralized path exclusion check (covers all junk files, excluded dirs, system artifacts)
+  if (shouldSkipPath(job.relative_path, logger.warn)) {
+    logger.info("Skipping excluded path", { relativePath: job.relative_path });
+    await api.completeRender(job.job_id, false, undefined, "Skipped: excluded by path filter");
+    return;
+  }
+
   const filename = path.basename(job.relative_path);
 
-  // Skip macOS resource forks
-  if (filename.startsWith('._')) {
-    logger.info("Skipping macOS resource fork", { relativePath: job.relative_path });
-    await api.completeRender(job.job_id, false, undefined, "Skipped: macOS resource fork");
-    return;
-  }
-  // Skip macOS system files
-  if (filename === '.DS_Store' || filename === '.localized') {
-    logger.info("Skipping macOS system file", { relativePath: job.relative_path });
-    await api.completeRender(job.job_id, false, undefined, "Skipped: macOS system file");
-    return;
-  }
-  // Skip Windows system files
-  if (filename === 'Thumbs.db' || filename === 'desktop.ini') {
-    logger.info("Skipping Windows system file", { relativePath: job.relative_path });
-    await api.completeRender(job.job_id, false, undefined, "Skipped: Windows system file");
-    return;
-  }
-  // Skip files in __MACOSX directories
-  if (job.relative_path.includes('__MACOSX/') ||
-      job.relative_path.includes('__MACOSX\\')) {
-    logger.info("Skipping __MACOSX artifact", { relativePath: job.relative_path });
-    await api.completeRender(job.job_id, false, undefined, "Skipped: __MACOSX artifact");
-    return;
-  }
-  // Skip temp/autosave files
-  if (filename.startsWith('~')) {
-    logger.info("Skipping temp file", { relativePath: job.relative_path });
-    await api.completeRender(job.job_id, false, undefined, "Skipped: temp/autosave file");
+  // Skip temp/autosave files (filename-level, not folder-level)
+  if (filename.startsWith('~') || filename.startsWith('._')) {
+    logger.info("Skipping junk file", { relativePath: job.relative_path });
+    await api.completeRender(job.job_id, false, undefined, "Skipped: junk/temp file");
     return;
   }
 
@@ -655,6 +638,17 @@ function startTiffPolling() {
           const fileCreatedAt = job.file_created_at ? new Date(job.file_created_at as string) : null;
 
           logger.info("Processing TIFF job", { jobId, relativePath, mode });
+
+          // Centralized path exclusion check
+          if (shouldSkipPath(relativePath, logger.warn)) {
+            logger.info("Skipping excluded TIFF path", { jobId, relativePath });
+            await api.callApi("complete-tiff-job", {
+              job_id: jobId,
+              success: false,
+              error: "Skipped: excluded by path filter",
+            });
+            continue;
+          }
 
           const filePath = toUncPath(relativePath);
 
