@@ -61,7 +61,9 @@ serve(async (req: Request) => {
 
     // ── Parse request body ────────────────────────────────────────────
     let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty body is fine */ }
+    try {
+      body = await req.json();
+    } catch { /* empty body is fine */ }
 
     const forceFullSync = body.full_sync === true;
     let startDate: string | undefined = body.startDate as string | undefined;
@@ -219,7 +221,9 @@ serve(async (req: Request) => {
             sync_run_id: runId,
             synced_at: new Date().toISOString(),
             raw_mg_fields: {
-              mg01, mg02, mg03,
+              mg01,
+              mg02,
+              mg03,
               mg04: item.mg04 || item.merchGroup04,
               mg05: item.mg05 || item.merchGroup05,
               mg06: item.mg06 || item.merchGroup06,
