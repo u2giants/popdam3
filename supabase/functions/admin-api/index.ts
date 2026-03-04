@@ -3307,6 +3307,8 @@ serve(async (req: Request) => {
         return await handleApplyErpEnrichment(body);
       case "classify-erp-categories":
         return await handleClassifyErpCategories(body);
+      case "erp-items-browse":
+        return await handleErpItemsBrowse(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
