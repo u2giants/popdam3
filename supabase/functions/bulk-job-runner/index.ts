@@ -190,7 +190,7 @@ async function loadAutoResumeConfig(db: ReturnType<typeof createClient>): Promis
         "REBUILD_AUTO_RESUME_COOLDOWN_MS",
         "REBUILD_STALE_RUN_MINUTES",
       ]);
-    for (const row of rows ?? []) {
+    for (const row of (rows ?? []) as Array<{ key: string; value: unknown }>) {
       const raw = row?.value;
       const val = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>)) ? (raw as Record<string, unknown>).value : raw;
       switch (row.key) {
@@ -247,7 +247,7 @@ serve(async (req: Request) => {
 
   try {
     // Load auto-resume config
-    const autoResumeConfig = await loadAutoResumeConfig(db);
+    const autoResumeConfig = await loadAutoResumeConfig(db as any);
 
     // Read current BULK_OPERATIONS
     const { data: configRow } = await db

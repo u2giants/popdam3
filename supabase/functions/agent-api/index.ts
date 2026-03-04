@@ -640,13 +640,13 @@ async function handleHeartbeat(
       test_paths: testPaths,
       check_update: checkUpdate,
       apply_update: applyUpdate,
-      trigger_update: newMetadata.trigger_update === true,
+      trigger_update: (newMetadata as Record<string, unknown>).trigger_update === true,
     },
   };
 
   // Clear trigger_update flag BEFORE returning (so it only fires once)
-  if (newMetadata.trigger_update === true) {
-    const cleanMeta = { ...newMetadata, trigger_update: false };
+  if ((newMetadata as Record<string, unknown>).trigger_update === true) {
+    const cleanMeta = { ...newMetadata, trigger_update: false } as Record<string, unknown>;
     delete cleanMeta.update_requested_by;
     delete cleanMeta.update_requested_at;
     await db
@@ -980,7 +980,7 @@ async function handleIngest(
       await db.from("processing_queue").insert({
         asset_id: existingByPath.id,
         job_type: "ai-tag",
-      }).then(() => {}).catch(() => {}); // best-effort, don't block ingest
+      }).then(() => {}, () => {}); // best-effort, don't block ingest
     }
 
     assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, db).catch(() => {});

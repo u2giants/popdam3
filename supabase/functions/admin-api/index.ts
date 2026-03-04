@@ -196,7 +196,7 @@ async function handleGetConfig(body: Record<string, unknown>) {
     return result;
   });
 
-  if (error) return err(error.message, 500);
+  if (error) return err((error as Error).message, 500);
 
   const config: Record<string, unknown> = {};
   for (const row of data || []) {
@@ -390,7 +390,7 @@ async function handleListAgents() {
   const db = serviceClient();
   const { data, error } = await db
     .from("agent_registrations")
-    .select("id, agent_name, agent_type, last_heartbeat, metadata, created_at")
+    .select("id, agent_name, agent_type, last_heartbeat, metadata, created_at, agent_key_hash")
     .order("created_at", { ascending: false });
 
   if (error) return err(error.message, 500);
@@ -1753,9 +1753,9 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
         size_code: parsed.size_code,
         size_name: parsed.size_name,
         licensor_code: parsed.licensor_code,
-        licensor_name: parsed.licensor_name,
+        licensor_name: parsed.licensor_name ?? undefined,
         property_code: parsed.property_code,
-        property_name: parsed.property_name,
+        property_name: parsed.property_name ?? undefined,
         sku_sequence: parsed.sku_sequence,
         product_category: parsed.product_category,
         division_code: parsed.division_code,
@@ -2890,7 +2890,7 @@ async function handleGenerateInstallBundle(
   const zipBlob = await zip.generateAsync({ type: "uint8array" });
   const filename = agentType === "bridge" ? "popdam-bridge-bundle.zip" : "popdam-windows-agent-bundle.zip";
 
-  return new Response(zipBlob, {
+  return new Response(zipBlob as unknown as BodyInit, {
     status: 200,
     headers: {
       ...corsHeaders,
@@ -4128,14 +4128,14 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       .update(updates)
       .eq("sku", erpItem.style_number)
       .eq("is_deleted", false)
-      .select("*", { count: "exact", head: true });
+      .select("id");
     assetsUpdated += assetUpdated ?? 0;
 
     // Update style_groups
     const { count: groupUpdated } = await db.from("style_groups")
       .update(updates)
       .eq("sku", erpItem.style_number)
-      .select("*", { count: "exact", head: true });
+      .select("id");
     groupsUpdated += groupUpdated ?? 0;
   }
 
