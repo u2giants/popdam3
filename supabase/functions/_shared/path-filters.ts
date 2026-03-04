@@ -1,9 +1,9 @@
 /**
  * Centralized NAS/filesystem path exclusion logic (Deno-compatible copy).
- * 
+ *
  * This is a COPY of packages/path-filters/index.ts for Deno edge functions.
  * If you update the source, update this file too.
- * 
+ *
  * See packages/path-filters/index.ts for the canonical version.
  */
 
