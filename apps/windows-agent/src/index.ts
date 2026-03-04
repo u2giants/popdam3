@@ -19,7 +19,7 @@ import { renderFile } from "./renderer";
 import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
-import { scanTiffFiles, compressTiff, deleteOriginalBackup, type TiffScanResult } from "./tiff-optimizer";
+import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
 import { ensureNasMapped } from "./nas-mapper";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
@@ -659,24 +659,37 @@ function startTiffPolling() {
           const filePath = toUncPath(relativePath);
 
           try {
-            const result = await compressTiff(filePath, mode, fileModifiedAt, fileCreatedAt);
+            const result = await compressTiff(filePath, mode, fileModifiedAt, fileCreatedAt, jobId);
 
             await api.callApi("complete-tiff-job", {
               job_id: jobId,
               success: result.success,
               error: result.error,
+              error_code: result.error_code,
               new_file_size: result.new_file_size,
               new_filename: result.new_filename,
               new_file_modified_at: result.new_file_modified_at,
               new_file_created_at: result.new_file_created_at,
               original_backed_up: result.original_backed_up,
               original_deleted: result.original_deleted,
+              timestamp_restore_status: result.timestamp_restore_status,
+              creation_time_restored: result.creation_time_restored,
+              mtime_restored: result.mtime_restored,
+              verification_details: result.verification_details,
             });
 
             if (result.success) {
-              logger.info("TIFF job completed", { jobId, mode, newSize: result.new_file_size });
+              logger.info("TIFF job completed", {
+                jobId, mode, newSize: result.new_file_size,
+                timestamp_restore_status: result.timestamp_restore_status,
+                mtime_restored: result.mtime_restored,
+                creation_time_restored: result.creation_time_restored,
+              });
             } else {
-              logger.warn("TIFF job failed", { jobId, error: result.error });
+              logger.warn("TIFF job failed", {
+                jobId, error: result.error, error_code: result.error_code,
+                timestamp_restore_status: result.timestamp_restore_status,
+              });
             }
           } catch (e) {
             logger.error("TIFF job error", { jobId, error: (e as Error).message });
