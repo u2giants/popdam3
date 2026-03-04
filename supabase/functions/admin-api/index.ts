@@ -196,7 +196,7 @@ async function handleGetConfig(body: Record<string, unknown>) {
     return result;
   });
 
-  if (error) return err(error.message, 500);
+  if (error) return err((error as Error).message, 500);
 
   const config: Record<string, unknown> = {};
   for (const row of data || []) {
@@ -390,7 +390,7 @@ async function handleListAgents() {
   const db = serviceClient();
   const { data, error } = await db
     .from("agent_registrations")
-    .select("id, agent_name, agent_type, last_heartbeat, metadata, created_at")
+    .select("id, agent_name, agent_type, last_heartbeat, metadata, created_at, agent_key_hash")
     .order("created_at", { ascending: false });
 
   if (error) return err(error.message, 500);
@@ -1742,7 +1742,7 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
     // Re-derive SKU metadata from filename
     const parsed = await parseSku(asset.filename);
     if (parsed) {
-      const skuFields: Record<string, string> = {
+      const skuFields: Record<string, string | null> = {
         sku: parsed.sku,
         mg01_code: parsed.mg01_code,
         mg01_name: parsed.mg01_name,
@@ -2890,7 +2890,7 @@ async function handleGenerateInstallBundle(
   const zipBlob = await zip.generateAsync({ type: "uint8array" });
   const filename = agentType === "bridge" ? "popdam-bridge-bundle.zip" : "popdam-windows-agent-bundle.zip";
 
-  return new Response(zipBlob, {
+  return new Response(zipBlob as unknown as BodyInit, {
     status: 200,
     headers: {
       ...corsHeaders,
@@ -4124,19 +4124,19 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     }
 
     // Update assets
-    const { count: assetUpdated } = await db.from("assets")
+    const { data: assetRows } = await db.from("assets")
       .update(updates)
       .eq("sku", erpItem.style_number)
       .eq("is_deleted", false)
-      .select("*", { count: "exact", head: true });
-    assetsUpdated += assetUpdated ?? 0;
+      .select("id");
+    assetsUpdated += assetRows?.length ?? 0;
 
     // Update style_groups
-    const { count: groupUpdated } = await db.from("style_groups")
+    const { data: groupRows } = await db.from("style_groups")
       .update(updates)
       .eq("sku", erpItem.style_number)
-      .select("*", { count: "exact", head: true });
-    groupsUpdated += groupUpdated ?? 0;
+      .select("id");
+    groupsUpdated += groupRows?.length ?? 0;
   }
 
   const done = erpItems.length < batchSize;
