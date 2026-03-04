@@ -162,16 +162,24 @@ function QualityDashboard() {
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="ERP Items Synced" value={s.total_erp_items ?? 0} icon={<Database className="h-4 w-4" />} />
-            <StatCard label="Has mgCategory" value={s.with_mg_category ?? 0} icon={<CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />} />
-            <StatCard label="Rule-Classified" value={s.rule_classified ?? 0} icon={<Zap className="h-4 w-4 text-primary" />} />
-            <StatCard label="AI-Classified" value={s.ai_classified ?? 0} icon={<Bot className="h-4 w-4 text-[hsl(var(--info))]" />} />
-            <StatCard label="Needs AI" value={s.needs_ai ?? 0} icon={<AlertCircle className="h-4 w-4 text-[hsl(var(--warning))]" />} />
-            <StatCard label="Pending Review" value={s.pending_review ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} />
-            <StatCard label="SKU Matched" value={s.sku_matched ?? 0} icon={<CheckCircle2 className="h-4 w-4" />} />
-            <StatCard label="Unmatched SKUs" value={s.unmatched_skus ?? 0} icon={<AlertCircle className="h-4 w-4 text-destructive" />} />
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="ERP Items Synced" value={s.total_erp_items ?? 0} icon={<Database className="h-4 w-4" />} />
+              <StatCard label="Has mgCategory" value={s.with_mg_category ?? 0} icon={<CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />} />
+              <StatCard label="Legacy (pre-cutoff)" value={s.legacy_items ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} />
+              <StatCard label="Rule-Classified" value={s.rule_classified ?? 0} icon={<Zap className="h-4 w-4 text-primary" />} />
+              <StatCard label="AI-Classified" value={s.ai_classified ?? 0} icon={<Bot className="h-4 w-4 text-[hsl(var(--info))]" />} />
+              <StatCard label="Needs AI" value={s.needs_ai ?? 0} icon={<AlertCircle className="h-4 w-4 text-[hsl(var(--warning))]" />} />
+              <StatCard label="Pending Review" value={s.pending_review ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} />
+              <StatCard label="SKU Matched" value={s.sku_matched ?? 0} icon={<CheckCircle2 className="h-4 w-4" />} />
+              <StatCard label="Unmatched SKUs" value={s.unmatched_skus ?? 0} icon={<AlertCircle className="h-4 w-4 text-destructive" />} />
+            </div>
+            {s.category_cutoff && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Category cutoff date: <strong className="text-foreground">{s.category_cutoff}</strong> — items before this date have mgCategory nulled and require AI classification.
+              </p>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

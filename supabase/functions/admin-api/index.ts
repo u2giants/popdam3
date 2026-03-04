@@ -3935,14 +3935,35 @@ async function handleErpEnrichmentStats() {
     .is("mg_category", null)
     .not("mg01_code", "is", null);
 
-  // Items needing AI = no mgCategory AND no mg01_code
-  const { count: needsAi } = await db.from("erp_items_current")
+  // Items needing AI = mg_category IS NULL, excluding those already classified
+  const { count: needsAiRaw } = await db.from("erp_items_current")
     .select("*", { count: "exact", head: true })
-    .is("mg_category", null)
-    .is("mg01_code", null);
+    .is("mg_category", null);
+
+  // Already classified (have an active prediction)
+  const { count: alreadyHandled } = await db.from("product_category_predictions")
+    .select("*", { count: "exact", head: true })
+    .in("status", ["auto_applied", "approved", "pending"]);
+
+  const needsAi = Math.max(0, (needsAiRaw ?? 0) - (alreadyHandled ?? 0));
+
+  // Legacy items: those with erp_updated_at before cutoff (approximate via mg_category null)
+  // Read cutoff from admin_config
+  let categoryCutoff = "2025-05-10";
+  try {
+    const { data: cutoffRow } = await db.from("admin_config")
+      .select("value").eq("key", "ERP_CATEGORY_CUTOFF_DATE").maybeSingle();
+    if (cutoffRow?.value) {
+      const raw = typeof cutoffRow.value === "string" ? cutoffRow.value : (cutoffRow.value as any)?.value ?? cutoffRow.value;
+      if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}/.test(raw)) categoryCutoff = raw.slice(0, 10);
+    }
+  } catch { /* use default */ }
+
+  const { count: legacyItems } = await db.from("erp_items_current")
+    .select("*", { count: "exact", head: true })
+    .lt("erp_updated_at", categoryCutoff + "T00:00:00Z");
 
   // SKU match: erp items whose style_number matches any asset SKU
-  // (approximate: count erp items with non-null style_number)
   const { count: skuMatched } = await db.from("erp_items_current")
     .select("*", { count: "exact", head: true })
     .not("style_number", "is", null);
@@ -3953,10 +3974,12 @@ async function handleErpEnrichmentStats() {
     with_mg_category: withMgCat ?? 0,
     rule_classified: ruleClassified ?? 0,
     ai_classified: aiClassified ?? 0,
-    needs_ai: needsAi ?? 0,
+    needs_ai: needsAi,
     pending_review: pendingReview ?? 0,
     sku_matched: skuMatched ?? 0,
     unmatched_skus: (totalErp ?? 0) - (skuMatched ?? 0),
+    legacy_items: legacyItems ?? 0,
+    category_cutoff: categoryCutoff,
   });
 }
 
@@ -4226,13 +4249,28 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   const batchSize = 10;
   const db = serviceClient();
 
-  // Find ERP items that need AI classification
+  // Get IDs of items that already have an active prediction (auto_applied or approved)
+  const { data: alreadyClassified } = await db.from("product_category_predictions")
+    .select("erp_item_id")
+    .in("status", ["auto_applied", "approved"]);
+  const classifiedIds = new Set((alreadyClassified || []).map((r: any) => r.erp_item_id).filter(Boolean));
+
+  // Find ERP items that need AI classification:
+  // mg_category IS NULL (covers legacy items whose category was wiped)
+  // NO restriction on mg01_code — legacy items may have MG01 but it's unreliable
   const { data: items, error: fetchErr } = await db.from("erp_items_current")
     .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
     .is("mg_category", null)
-    .is("mg01_code", null)
     .order("external_id")
-    .range(offset, offset + batchSize - 1);
+    .range(offset, offset + batchSize + 49);  // fetch extra to filter out already-classified
+
+  if (fetchErr) return err(fetchErr.message, 500);
+
+  // Filter out already-classified items, then take batchSize
+  const candidates = (items || []).filter((it: any) => !classifiedIds.has(it.id)).slice(0, batchSize);
+  if (candidates.length === 0) {
+    return json({ ok: true, done: true, classified: 0, total: offset });
+  }
 
   if (fetchErr) return err(fetchErr.message, 500);
   if (!items || items.length === 0) {
@@ -4245,7 +4283,7 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   let classified = 0;
   const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
 
-  for (const item of items) {
+  for (const item of candidates) {
     if (!item.item_description && !item.style_number) continue;
 
     try {
@@ -4334,12 +4372,12 @@ Return ONLY the classification using the provided tool.`;
     }
   }
 
-  const done = items.length < batchSize;
+  const done = candidates.length < batchSize;
   return json({
     ok: true,
     done,
-    nextOffset: offset + items.length,
+    nextOffset: offset + (items || []).length,  // advance by total scanned (including skipped)
     classified,
-    total: offset + items.length,
+    total: offset + (items || []).length,
   });
 }
