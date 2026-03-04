@@ -1225,6 +1225,14 @@ export type Database = {
           relative_path: string
         }[]
       }
+      clear_style_group_batch: {
+        Args: { p_batch_size?: number; p_last_id?: string }
+        Returns: {
+          cleared_count: number
+          has_more: boolean
+          last_id: string
+        }[]
+      }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       has_role: {
