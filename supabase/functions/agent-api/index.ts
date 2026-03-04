@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
+import { isExcludedRelativePath } from "../_shared/path-filters.ts";
 
 // ── CORS ────────────────────────────────────────────────────────────
 
@@ -758,6 +759,11 @@ async function handleIngest(
   }
 
   const relativePath = requireCanonicalRelativePath(body, "relative_path");
+
+  // Reject paths that match the centralized exclusion filter
+  if (isExcludedRelativePath(relativePath)) {
+    return json({ ok: true, skipped: true, reason: "excluded_path", id: null });
+  }
   const filename = requireString(body, "filename");
 
   // ── Junk-file guard: skip system/temp files before any DB work ──
@@ -1247,23 +1253,21 @@ async function handleQueueRender(body: Record<string, unknown>) {
 
   const db = serviceClient();
 
-  // Guard: reject junk files before inserting into render queue
+  // Guard: reject files whose path matches the centralized exclusion filter
   const { data: asset } = await db
     .from("assets")
-    .select("filename")
+    .select("filename, relative_path")
     .eq("id", assetId)
     .single();
 
   if (asset) {
+    // Check full relative_path against centralized filter
+    if (isExcludedRelativePath(asset.relative_path)) {
+      return json({ ok: true, job_id: null, skipped: true, reason: "excluded path" });
+    }
+    // Also catch junk filenames (resource forks, temp files)
     const f = asset.filename;
-    if (
-      f.startsWith("._") ||
-      f.startsWith("~") ||
-      f === ".DS_Store" ||
-      f === ".localized" ||
-      f === "Thumbs.db" ||
-      f === "desktop.ini"
-    ) {
+    if (f.startsWith("._") || f.startsWith("~")) {
       return json({ ok: true, job_id: null, skipped: true, reason: "junk file" });
     }
   }
