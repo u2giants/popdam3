@@ -1,0 +1,1 @@
+UPDATE erp_sync_runs SET status = 'failed', ended_at = now(), error_samples = '["Timed out - context canceled"]'::jsonb WHERE id = '3993c1cc-385f-41f1-a0c5-967d54d75b78' AND status = 'running';
