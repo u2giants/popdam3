@@ -1905,70 +1905,23 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     // defaults are fine
   }
 
-  // Stage 1: clear style_group_id in adaptive sub-chunks (avoids large IN(...) payload failures)
+  // Stage 1: clear style_group_id via server-side DB function (avoids REST timeout + URL limits)
   if (state.stage === "clear_assets") {
-    let q = db
-      .from("assets")
-      .select("id")
-      .eq("is_deleted", false)
-      .not("style_group_id", "is", null)
-      .order("id", { ascending: true })
-      .limit(CLEAR_BATCH);
+    const { data: rpcResult, error: rpcErr } = await db.rpc("clear_style_group_batch", {
+      p_last_id: state.last_asset_id ?? null,
+      p_batch_size: CLEAR_BATCH,
+    });
 
-    if (state.last_asset_id) {
-      q = q.gt("id", state.last_asset_id);
+    if (rpcErr) {
+      return json({ ok: false, error: formatPostgrestError(rpcErr), stage: "clear_assets", substage: null }, 500);
     }
 
-    const { data: rows, error: fetchErr } = await q;
-    if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "clear_assets", substage: null }, 500);
+    const result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+    const clearedCount = result?.cleared_count ?? 0;
+    const lastId = result?.last_id ?? null;
+    const hasMore = result?.has_more ?? false;
 
-    const ids = (rows ?? []).map((r) => r.id as string);
-    const CLEAR_SUBCHUNK_START = 100;
-    const CLEAR_SUBCHUNK_MIN = 10;
-
-    const clearIdsAdaptive = async (assetIds: string[]) => {
-      let index = 0;
-      let chunkSize = Math.min(CLEAR_SUBCHUNK_START, assetIds.length);
-
-      while (index < assetIds.length) {
-        const end = Math.min(index + chunkSize, assetIds.length);
-        const subIds = assetIds.slice(index, end);
-
-        const { error: clearErr } = await db
-          .from("assets")
-          .update({ style_group_id: null })
-          .in("id", subIds);
-
-        if (!clearErr) {
-          index = end;
-          // Recover chunk size after successful smaller retries.
-          if (chunkSize < CLEAR_SUBCHUNK_START) {
-            chunkSize = Math.min(CLEAR_SUBCHUNK_START, assetIds.length - index);
-          }
-          continue;
-        }
-
-        const formatted = formatPostgrestError(clearErr);
-        if (subIds.length <= CLEAR_SUBCHUNK_MIN) {
-          throw new Error(
-            `clear_assets sub-chunk failed (size=${subIds.length}, idx=${index}, last_asset_id=${state?.last_asset_id ?? "none"}): ${formatted}`,
-          );
-        }
-
-        const nextSize = Math.max(CLEAR_SUBCHUNK_MIN, Math.floor(subIds.length / 2));
-        console.warn(
-          `clear_assets sub-chunk retry: reducing batch from ${subIds.length} to ${nextSize} (idx=${index}) due to ${formatted}`,
-        );
-        chunkSize = nextSize;
-      }
-    };
-
-    if (ids.length > 0) {
-      await clearIdsAdaptive(ids);
-    }
-
-    const reachedEnd = ids.length < CLEAR_BATCH;
-    const nextState: RebuildState = reachedEnd
+    const nextState: RebuildState = !hasMore
       ? {
         ...state,
         stage: "delete_groups",
@@ -1978,7 +1931,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       : {
         ...state,
         stage: "clear_assets",
-        last_asset_id: ids[ids.length - 1],
+        last_asset_id: lastId,
       };
 
     await saveState(nextState);
@@ -1989,7 +1942,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       substage: null,
       done: false,
       nextOffset: offset + 1,
-      cleared_assets: ids.length,
+      cleared_assets: clearedCount,
       total_processed: nextState.total_processed ?? 0,
       total_assets: nextState.total_assets ?? 0,
       resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
