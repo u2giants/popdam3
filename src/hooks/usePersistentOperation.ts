@@ -37,12 +37,14 @@ const POLL_IDLE_MS = 30_000;
 export function usePersistentOperation(operationKey: string) {
   const { call } = useAdminApi();
   const [state, setState] = useState<OperationState>({ status: "idle" });
+  const [isHydrating, setIsHydrating] = useState(true);
 
   // ── Poll for state updates ──────────────────────────────────────
   useEffect(() => {
     let mounted = true;
     let timerId: ReturnType<typeof setTimeout>;
     let currentStatus = "idle";
+    let firstPoll = true;
 
     const poll = async () => {
       try {
@@ -61,6 +63,11 @@ export function usePersistentOperation(operationKey: string) {
         }
       } catch {
         // ignore polling errors
+      }
+
+      if (firstPoll) {
+        firstPoll = false;
+        if (mounted) setIsHydrating(false);
       }
 
       if (!mounted) return;
@@ -153,5 +160,5 @@ export function usePersistentOperation(operationKey: string) {
   const isInterrupted = state.status === "interrupted";
   const isCompletedWithRepair = state.status === "completed_with_repair";
 
-  return { state, start, stop, reset, isActive, isInterrupted, isCompletedWithRepair };
+  return { state, start, stop, reset, isActive, isInterrupted, isCompletedWithRepair, isHydrating };
 }
