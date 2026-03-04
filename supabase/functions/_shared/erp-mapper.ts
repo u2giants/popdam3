@@ -71,6 +71,9 @@ const MG01_TO_TYPE: Record<string, string> = {
   W: "Garden",
 };
 
+/** Default cutoff: styles before this date have unreliable category codes */
+export const DEFAULT_CATEGORY_CUTOFF = "2025-05-10";
+
 export interface ErpItemInput {
   external_id: string;
   style_number: string | null;
@@ -84,6 +87,8 @@ export interface ErpItemInput {
   property_code: string | null;
   division_code: string | null;
   raw_mg_fields?: Record<string, unknown>;
+  /** ERP created/updated date — used to detect legacy items */
+  erp_date?: string | null;
 }
 
 export interface ResolvedAttributes {
@@ -103,9 +108,9 @@ export interface ResolvedAttributes {
 
 /**
  * Resolve product attributes for an ERP item using deterministic rules.
- * Returns needs_ai=true if mgCategory is missing AND MG01 code is also missing/unrecognized.
+ * If erp_date is before cutoffDate, skip all deterministic rules and return needs_ai=true.
  */
-export function resolveAttributes(item: ErpItemInput): ResolvedAttributes {
+export function resolveAttributes(item: ErpItemInput, cutoffDate: string = DEFAULT_CATEGORY_CUTOFF): ResolvedAttributes {
   const base: Omit<ResolvedAttributes, "product_category" | "classification_source" | "confidence" | "needs_ai" | "product_type"> = {
     mg01_code: item.mg01_code,
     mg02_code: item.mg02_code,
@@ -115,6 +120,19 @@ export function resolveAttributes(item: ErpItemInput): ResolvedAttributes {
     property_code: item.property_code,
     division_code: item.division_code,
   };
+
+  // 0. Legacy check: if item predates cutoff, skip all deterministic rules
+  const isLegacy = item.erp_date && item.erp_date < cutoffDate;
+  if (isLegacy) {
+    return {
+      ...base,
+      product_category: null,
+      product_type: null,
+      classification_source: "none",
+      confidence: 0,
+      needs_ai: true,
+    };
+  }
 
   // 1. ERP direct: mgCategory is populated
   if (item.mg_category && isValidCategory(item.mg_category)) {
