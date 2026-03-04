@@ -3294,7 +3294,7 @@ serve(async (req: Request) => {
       case "reconcile-style-group-stats":
         return await handleReconcileStyleGroupStats(body);
       case "trigger-erp-sync":
-        return await handleTriggerErpSync();
+        return await handleTriggerErpSync(body);
       case "erp-sync-runs":
         return await handleErpSyncRuns();
       case "erp-enrichment-stats":
@@ -3758,9 +3758,15 @@ async function handleClearTiffScan() {
 
 // ── ERP Enrichment Handlers ─────────────────────────────────────────
 
-async function handleTriggerErpSync() {
+async function handleTriggerErpSync(body: Record<string, unknown>) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Forward full_sync, startDate, endDate to the erp-sync function
+  const syncBody: Record<string, unknown> = {};
+  if (body.full_sync === true) syncBody.full_sync = true;
+  if (body.startDate) syncBody.startDate = body.startDate;
+  if (body.endDate) syncBody.endDate = body.endDate;
 
   const resp = await fetch(`${supabaseUrl}/functions/v1/erp-sync`, {
     method: "POST",
@@ -3768,7 +3774,7 @@ async function handleTriggerErpSync() {
       Authorization: `Bearer ${serviceRoleKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify(syncBody),
   });
 
   if (!resp.ok) {
@@ -3787,7 +3793,7 @@ async function handleTriggerErpSync() {
 async function handleErpSyncRuns() {
   const db = serviceClient();
   const { data, error } = await db.from("erp_sync_runs")
-    .select("id, status, started_at, ended_at, total_fetched, total_upserted, total_errors, error_samples, created_by")
+    .select("id, status, started_at, ended_at, total_fetched, total_upserted, total_errors, error_samples, created_by, run_metadata")
     .order("started_at", { ascending: false })
     .limit(10);
   if (error) return err(error.message, 500);

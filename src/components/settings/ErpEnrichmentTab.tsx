@@ -25,16 +25,31 @@ function ErpSyncSection() {
     queryFn: () => call("erp-sync-runs"),
   });
 
+  const { data: configData } = useQuery({
+    queryKey: ["erp-config"],
+    queryFn: () => call("get-config"),
+  });
+
   const runs = syncRuns?.runs || [];
   const lastRun = runs[0];
 
-  const handleSync = async () => {
+  // Read watermark from config (defensive fallback pattern)
+  const rawWatermark = configData?.config?.ERP_LAST_SYNC_DATE;
+  const watermark = typeof rawWatermark === "string"
+    ? rawWatermark
+    : rawWatermark?.value ?? rawWatermark ?? null;
+
+  const handleSync = async (fullSync = false) => {
     setSyncing(true);
     try {
-      const result = await call("trigger-erp-sync");
-      toast.success(`ERP Sync complete: ${result.total_fetched} items fetched, ${result.total_upserted} upserted`);
+      const payload: Record<string, unknown> = {};
+      if (fullSync) payload.full_sync = true;
+      const result = await call("trigger-erp-sync", payload);
+      const modeLabel = result.sync_mode === "incremental" ? "Incremental" : "Full";
+      toast.success(`${modeLabel} sync complete: ${result.total_fetched} items fetched, ${result.total_upserted} upserted`);
       refetchRuns();
       queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-config"] });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -52,29 +67,49 @@ function ErpSyncSection() {
           <Button variant="ghost" size="icon" onClick={() => refetchRuns()}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button size="sm" onClick={handleSync} disabled={syncing} className="gap-1.5">
-            {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-            {syncing ? "Syncing..." : "Run Sync Now"}
+          <Button variant="outline" size="sm" onClick={() => handleSync(true)} disabled={syncing} className="gap-1.5">
+            <Database className="h-3.5 w-3.5" />
+            Full Sync
+          </Button>
+          <Button size="sm" onClick={() => handleSync(false)} disabled={syncing} className="gap-1.5">
+            {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+            {syncing ? "Syncing..." : "Incremental Sync"}
           </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="text-sm text-muted-foreground">
-          Endpoint: <code className="text-xs bg-muted px-1 py-0.5 rounded">api.item.designflow.app</code>
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>Endpoint: <code className="text-xs bg-muted px-1 py-0.5 rounded">api.item.designflow.app</code></span>
+          {watermark && (
+            <span className="flex items-center gap-1.5 text-xs">
+              <Clock className="h-3 w-3" />
+              Last synced through: <strong className="text-foreground">{watermark}</strong>
+            </span>
+          )}
         </div>
 
         {lastRun && (
           <div className="border border-border rounded-md p-3 space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Last Sync</span>
-              <Badge variant={lastRun.status === "completed" ? "default" : lastRun.status === "running" ? "secondary" : "destructive"}>
-                {lastRun.status}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {lastRun.run_metadata?.sync_mode && (
+                  <Badge variant="outline" className="text-xs">
+                    {lastRun.run_metadata.sync_mode}
+                  </Badge>
+                )}
+                <Badge variant={lastRun.status === "completed" ? "default" : lastRun.status === "running" ? "secondary" : "destructive"}>
+                  {lastRun.status}
+                </Badge>
+              </div>
             </div>
             <div className="text-xs text-muted-foreground space-y-0.5 font-mono">
               <div>Started: {new Date(lastRun.started_at).toLocaleString()}</div>
               {lastRun.ended_at && <div>Duration: {Math.round((new Date(lastRun.ended_at).getTime() - new Date(lastRun.started_at).getTime()) / 1000)}s</div>}
               <div>Fetched: {lastRun.total_fetched} | Upserted: {lastRun.total_upserted} | Errors: {lastRun.total_errors}</div>
+              {lastRun.run_metadata?.start_date && (
+                <div>Date range: {lastRun.run_metadata.start_date} → {lastRun.run_metadata.end_date}</div>
+              )}
             </div>
           </div>
         )}
@@ -86,7 +121,10 @@ function ErpSyncSection() {
               {runs.slice(1, 6).map((r: any) => (
                 <div key={r.id} className="flex items-center justify-between font-mono text-muted-foreground border-b border-border pb-1">
                   <span>{new Date(r.started_at).toLocaleDateString()}</span>
-                  <span>{r.status} — {r.total_fetched} fetched</span>
+                  <span>
+                    {r.run_metadata?.sync_mode ? `[${r.run_metadata.sync_mode}] ` : ""}
+                    {r.status} — {r.total_fetched} fetched
+                  </span>
                 </div>
               ))}
             </div>

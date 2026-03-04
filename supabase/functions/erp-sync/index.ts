@@ -17,6 +17,12 @@ function json(data: unknown, status = 200) {
 
 const ERP_ENDPOINT = "https://api.item.designflow.app/lib/getApiAllItems";
 const BATCH_SIZE = 100;
+const WATERMARK_KEY = "ERP_LAST_SYNC_DATE";
+
+/** Format a Date as YYYY-MM-DD */
+function fmtDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -30,14 +36,13 @@ serve(async (req: Request) => {
   const db = createClient(supabaseUrl, serviceRoleKey);
 
   try {
-    // Auth: only service role or admin JWT
+    // ── Auth ──────────────────────────────────────────────────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ ok: false, error: "Missing auth" }, 401);
     }
     const token = authHeader.replace("Bearer ", "");
     if (token !== serviceRoleKey) {
-      // Validate JWT + admin role
       const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
         global: { headers: { Authorization: authHeader } },
       });
@@ -54,26 +59,64 @@ serve(async (req: Request) => {
       if (!roleRow) return json({ ok: false, error: "Admin required" }, 403);
     }
 
-    // Check run lock
+    // ── Parse request body ────────────────────────────────────────────
+    let body: Record<string, unknown> = {};
+    try { body = await req.json(); } catch { /* empty body is fine */ }
+
+    const forceFullSync = body.full_sync === true;
+    let startDate: string | undefined = body.startDate as string | undefined;
+    let endDate: string | undefined = body.endDate as string | undefined;
+
+    // ── Resolve date range ────────────────────────────────────────────
+    // If no explicit dates and not a forced full sync, read watermark
+    if (!startDate && !forceFullSync) {
+      const { data: wm } = await db.from("admin_config")
+        .select("value").eq("key", WATERMARK_KEY).maybeSingle();
+      if (wm?.value) {
+        // value could be wrapped or raw string
+        const raw = typeof wm.value === "string" ? wm.value : (wm.value as any)?.value ?? wm.value;
+        const parsed = typeof raw === "string" ? raw : String(raw);
+        if (/^\d{4}-\d{2}-\d{2}/.test(parsed)) {
+          startDate = parsed.slice(0, 10);
+          console.log(`erp-sync: using watermark startDate=${startDate}`);
+        }
+      }
+    }
+
+    // Default endDate = today
+    if (!endDate) {
+      endDate = fmtDate(new Date());
+    }
+
+    const syncMode = startDate ? "incremental" : "full";
+    console.log(`erp-sync: mode=${syncMode}, startDate=${startDate ?? "none"}, endDate=${endDate}`);
+
+    // ── Run lock ──────────────────────────────────────────────────────
     const { data: runningRuns } = await db.from("erp_sync_runs")
       .select("id").eq("status", "running").limit(1);
     if (runningRuns && runningRuns.length > 0) {
       return json({ ok: false, error: "A sync is already running", running_id: runningRuns[0].id }, 409);
     }
 
-    // Create sync run
+    // ── Create sync run ───────────────────────────────────────────────
+    const runMeta = { sync_mode: syncMode, start_date: startDate ?? null, end_date: endDate };
     const { data: run, error: runErr } = await db.from("erp_sync_runs")
-      .insert({ status: "running", created_by: "erp-sync" })
+      .insert({ status: "running", created_by: "erp-sync", run_metadata: runMeta })
       .select("id").single();
     if (runErr || !run) return json({ ok: false, error: "Failed to create sync run" }, 500);
     const runId = run.id;
 
     console.log(`erp-sync: starting run ${runId}`);
 
-    // Fetch from ERP API
+    // ── Fetch from ERP API ────────────────────────────────────────────
     let items: unknown[];
     try {
-      const resp = await fetch(ERP_ENDPOINT, { signal: AbortSignal.timeout(120_000) });
+      const url = new URL(ERP_ENDPOINT);
+      if (startDate) url.searchParams.set("startDate", startDate);
+      if (endDate) url.searchParams.set("endDate", endDate);
+
+      console.log(`erp-sync: fetching ${url.toString()}`);
+      const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(120_000) });
       if (!resp.ok) throw new Error(`ERP API returned ${resp.status}`);
       const responseText = await resp.text();
       console.log(`erp-sync: raw response length=${responseText.length}, first 200 chars: ${responseText.substring(0, 200)}`);
@@ -82,7 +125,7 @@ serve(async (req: Request) => {
       try {
         parsed = JSON.parse(responseText);
       } catch {
-        // Attempt to recover truncated JSON array
+        // Attempt to recover truncated JSON
         const lastBrace = responseText.lastIndexOf("}");
         if (lastBrace > 0) {
           try {
@@ -96,15 +139,16 @@ serve(async (req: Request) => {
         }
       }
 
-      // Handle both bare array and wrapper object formats
+      // Handle wrapper formats: { rows: [...] }, bare array, or other keys
       if (Array.isArray(parsed)) {
         items = parsed;
       } else if (parsed && typeof parsed === "object") {
         const obj = parsed as Record<string, unknown>;
-        const arrayField = obj.items || obj.data || obj.results || obj.records;
+        // Prioritize "rows" since that's what the API returns
+        const arrayField = obj.rows || obj.items || obj.data || obj.results || obj.records;
         if (Array.isArray(arrayField)) {
           items = arrayField;
-          console.log(`erp-sync: extracted array from wrapper key (length=${items.length})`);
+          console.log(`erp-sync: extracted array from wrapper (length=${items.length}, totalCount=${obj.totalCount ?? "n/a"})`);
         } else {
           const arrayKey = Object.keys(obj).find((k) => Array.isArray(obj[k]));
           if (arrayKey) {
@@ -135,7 +179,7 @@ serve(async (req: Request) => {
     let totalErrors = 0;
     const errorSamples: string[] = [];
 
-    // Process in batches
+    // ── Process in batches ────────────────────────────────────────────
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
 
@@ -149,13 +193,9 @@ serve(async (req: Request) => {
         await db.from("erp_items_raw").insert(rawRows);
 
         // Upsert normalized rows
-        // Map actual DesignFlow API fields to our schema
         const normalizedRows = batch.map((item: any) => {
           const externalId = String(item.itemNum || item.styleNumber || item.itemCode || item.id || `unknown-${i}`);
 
-          // Extract MG codes from DesignFlow field names
-          // API uses: "Product Type ( Material)" for MG01, "Product Sub-Type (Construction)" for MG02,
-          // "Product Sub-Sub-Type (feature)" for MG03
           const mg01 = item["Product Type ( Material)"] || item["Product Type (Material)"] || item.mg01 || item.merchGroup01 || null;
           const mg02 = item["Product Sub-Type (Construction)"] || item.mg02 || item.merchGroup02 || null;
           const mg03 = item["Product Sub-Sub-Type (feature)"] || item["Product Sub-Sub-Type(feature)"] || item.mg03 || item.merchGroup03 || null;
@@ -175,13 +215,11 @@ serve(async (req: Request) => {
             licensor_code: item.licensor || item.licensorCode || null,
             property_code: item.property || item.propertyCode || null,
             division_code: item.divisionCode || null,
-            erp_updated_at: item.updatedAt || item.lastModified || null,
+            erp_updated_at: item.created_date || item.updatedAt || item.lastModified || null,
             sync_run_id: runId,
             synced_at: new Date().toISOString(),
             raw_mg_fields: {
-              mg01: mg01,
-              mg02: mg02,
-              mg03: mg03,
+              mg01, mg02, mg03,
               mg04: item.mg04 || item.merchGroup04,
               mg05: item.mg05 || item.merchGroup05,
               mg06: item.mg06 || item.merchGroup06,
@@ -221,9 +259,10 @@ serve(async (req: Request) => {
       }
     }
 
-    // Finalize run
+    // ── Finalize run ──────────────────────────────────────────────────
+    const finalStatus = totalErrors > 0 && totalUpserted === 0 ? "failed" : "completed";
     await db.from("erp_sync_runs").update({
-      status: totalErrors > 0 && totalUpserted === 0 ? "failed" : "completed",
+      status: finalStatus,
       ended_at: new Date().toISOString(),
       total_fetched: items.length,
       total_upserted: totalUpserted,
@@ -231,11 +270,25 @@ serve(async (req: Request) => {
       error_samples: errorSamples,
     }).eq("id", runId);
 
-    console.log(`erp-sync: run ${runId} completed — fetched=${items.length}, upserted=${totalUpserted}, errors=${totalErrors}`);
+    // ── Update watermark on success ───────────────────────────────────
+    if (finalStatus === "completed" && endDate) {
+      await db.from("admin_config").upsert({
+        key: WATERMARK_KEY,
+        value: endDate,
+        updated_at: new Date().toISOString(),
+        updated_by: null,
+      }, { onConflict: "key" });
+      console.log(`erp-sync: watermark updated to ${endDate}`);
+    }
+
+    console.log(`erp-sync: run ${runId} ${finalStatus} — mode=${syncMode}, fetched=${items.length}, upserted=${totalUpserted}, errors=${totalErrors}`);
 
     return json({
       ok: true,
       run_id: runId,
+      sync_mode: syncMode,
+      start_date: startDate ?? null,
+      end_date: endDate,
       total_fetched: items.length,
       total_upserted: totalUpserted,
       total_errors: totalErrors,
