@@ -3339,7 +3339,9 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
 
   // Data query
   let dataQuery = db.from("erp_items_current")
-    .select("external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields")
+    .select(
+      "external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields",
+    )
     .order("synced_at", { ascending: false })
     .range(offset, offset + pageSize - 1);
   if (search) {
