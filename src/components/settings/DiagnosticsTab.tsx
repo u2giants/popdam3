@@ -1055,7 +1055,7 @@ function StyleGroupsSection() {
       const [groupRes, ungroupedRes, anomalyRes] = await Promise.all([
         call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups" }),
         call("run-query", { sql: "SELECT COUNT(*) as count FROM assets WHERE style_group_id IS NULL AND is_deleted = false" }),
-        call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups WHERE (asset_count IS NULL OR asset_count = 0) AND id IN (SELECT DISTINCT style_group_id FROM assets WHERE is_deleted = false AND style_group_id IS NOT NULL)" }),
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups sg WHERE (sg.asset_count IS NULL OR sg.asset_count = 0) AND EXISTS (SELECT 1 FROM assets a WHERE a.style_group_id = sg.id AND a.is_deleted = false LIMIT 1)" }),
       ]);
       return {
         groups: groupRes.rows?.[0]?.count ?? 0,

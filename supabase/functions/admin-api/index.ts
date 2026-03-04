@@ -2963,38 +2963,59 @@ async function handleRunQuery(body: Record<string, unknown>) {
   }
 
   const db = serviceClient();
-  const { data, error: queryErr } = await db.rpc("execute_readonly_query" as any, { query_text: trimmed });
 
-  if (queryErr) {
-    // Fallback: try raw SQL via postgrest
-    // Use the REST API directly with the service role
+  // Try RPC first, then raw REST fallback
+  const tryQuery = async (): Promise<Response> => {
+    const { data, error: queryErr } = await db.rpc("execute_readonly_query" as any, { query_text: trimmed });
+
+    if (!queryErr) {
+      return json({ ok: true, rows: data ?? [], count: Array.isArray(data) ? data.length : 0 });
+    }
+
+    // Fallback: try raw SQL via postgrest REST API
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    try {
-      const pgRes = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_readonly_query`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${serviceKey}`,
-          "apikey": serviceKey,
-        },
-        body: JSON.stringify({ query_text: trimmed }),
-      });
+    const pgRes = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_readonly_query`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+        "apikey": serviceKey,
+      },
+      body: JSON.stringify({ query_text: trimmed }),
+    });
 
-      if (!pgRes.ok) {
-        const pgErr = await pgRes.text();
-        return err(`Query failed: ${pgErr}`, 400);
+    if (!pgRes.ok) {
+      const pgErr = await pgRes.text();
+      // Detect statement timeout and return a user-friendly message
+      if (pgErr.includes("57014") || pgErr.includes("statement timeout")) {
+        return json({
+          ok: false,
+          error: "Query timed out. Try a simpler query or add WHERE/LIMIT clauses.",
+          code: "statement_timeout",
+        }, 408);
       }
-
-      const rows = await pgRes.json();
-      return json({ ok: true, rows: rows ?? [], count: Array.isArray(rows) ? rows.length : 0 });
-    } catch (e) {
-      return err(`Query execution failed: ${(e as Error).message}`, 500);
+      return err(`Query failed: ${pgErr}`, 400);
     }
-  }
 
-  return json({ ok: true, rows: data ?? [], count: Array.isArray(data) ? data.length : 0 });
+    const rows = await pgRes.json();
+    return json({ ok: true, rows: rows ?? [], count: Array.isArray(rows) ? rows.length : 0 });
+  };
+
+  try {
+    return await tryQuery();
+  } catch (e) {
+    const msg = (e as Error).message || "";
+    if (msg.includes("57014") || msg.includes("statement timeout")) {
+      return json({
+        ok: false,
+        error: "Query timed out. Try a simpler query or add WHERE/LIMIT clauses.",
+        code: "statement_timeout",
+      }, 408);
+    }
+    return err(`Query execution failed: ${msg}`, 500);
+  }
 }
 
 // ── Route: purge-old-assets ──────────────────────────────────────────
