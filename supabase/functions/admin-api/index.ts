@@ -1742,7 +1742,7 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
     // Re-derive SKU metadata from filename
     const parsed = await parseSku(asset.filename);
     if (parsed) {
-      const skuFields: Record<string, string> = {
+      const skuFields: Record<string, string | null> = {
         sku: parsed.sku,
         mg01_code: parsed.mg01_code,
         mg01_name: parsed.mg01_name,
@@ -1753,9 +1753,9 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
         size_code: parsed.size_code,
         size_name: parsed.size_name,
         licensor_code: parsed.licensor_code,
-        licensor_name: parsed.licensor_name ?? undefined,
+        licensor_name: parsed.licensor_name,
         property_code: parsed.property_code,
-        property_name: parsed.property_name ?? undefined,
+        property_name: parsed.property_name,
         sku_sequence: parsed.sku_sequence,
         product_category: parsed.product_category,
         division_code: parsed.division_code,
