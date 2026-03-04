@@ -3320,6 +3320,44 @@ serve(async (req: Request) => {
   }
 });
 
+// ── erp-items-browse ────────────────────────────────────────────────
+
+async function handleErpItemsBrowse(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const page = typeof body.page === "number" ? Math.max(1, body.page) : 1;
+  const pageSize = typeof body.page_size === "number" ? Math.min(Math.max(1, body.page_size), 100) : 25;
+  const search = typeof body.search === "string" ? body.search.trim() : "";
+  const offset = (page - 1) * pageSize;
+
+  // Count query
+  let countQuery = db.from("erp_items_current").select("id", { count: "exact", head: true });
+  if (search) {
+    countQuery = countQuery.or(`external_id.ilike.%${search}%,style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
+  }
+  const { count, error: countErr } = await countQuery;
+  if (countErr) return err(countErr.message, 500);
+
+  // Data query
+  let dataQuery = db.from("erp_items_current")
+    .select("external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields")
+    .order("synced_at", { ascending: false })
+    .range(offset, offset + pageSize - 1);
+  if (search) {
+    dataQuery = dataQuery.or(`external_id.ilike.%${search}%,style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
+  }
+  const { data, error: dataErr } = await dataQuery;
+  if (dataErr) return err(dataErr.message, 500);
+
+  return json({
+    ok: true,
+    items: data || [],
+    total: count ?? 0,
+    page,
+    page_size: pageSize,
+    total_pages: Math.ceil((count ?? 0) / pageSize),
+  });
+}
+
 // ── rebuild-character-stats ─────────────────────────────────────────
 
 async function handleRebuildCharacterStats(body: Record<string, unknown>) {
