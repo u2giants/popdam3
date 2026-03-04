@@ -458,12 +458,197 @@ function ReviewQueue() {
   );
 }
 
+// ── ERP Items Browser ────────────────────────────────────────────────
+
+function ErpItemsBrowser() {
+  const { call } = useAdminApi();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
+  // Debounce search
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+    clearTimeout((window as any).__erpSearchTimer);
+    (window as any).__erpSearchTimer = setTimeout(() => setDebouncedSearch(val), 400);
+  };
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["erp-items-browse", debouncedSearch, page],
+    queryFn: () => call("erp-items-browse", { search: debouncedSearch, page, page_size: 25 }),
+  });
+
+  const items = data?.items || [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.total_pages ?? 1;
+
+  const ATTRIBUTE_COLS = [
+    { key: "style_number", label: "Style #" },
+    { key: "item_description", label: "Description" },
+    { key: "mg_category", label: "Category" },
+    { key: "mg01_code", label: "MG01" },
+    { key: "mg02_code", label: "MG02" },
+    { key: "mg03_code", label: "MG03" },
+    { key: "size_code", label: "Size" },
+    { key: "licensor_code", label: "Licensor" },
+    { key: "property_code", label: "Property" },
+    { key: "division_code", label: "Division" },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <List className="h-4 w-4" /> ERP Items Browser
+          <Badge variant="secondary" className="text-xs font-mono">{total.toLocaleString()}</Badge>
+        </CardTitle>
+        <Button variant="ghost" size="icon" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by style #, external ID, or description..."
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading...
+          </div>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">No items found.</p>
+        ) : (
+          <>
+            <div className="overflow-x-auto border border-border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs w-[100px]">External ID</TableHead>
+                    {ATTRIBUTE_COLS.map((col) => (
+                      <TableHead key={col.key} className="text-xs">{col.label}</TableHead>
+                    ))}
+                    <TableHead className="text-xs">Synced</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item: any) => (
+                    <>
+                      <TableRow
+                        key={item.external_id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setExpandedRow(expandedRow === item.external_id ? null : item.external_id)}
+                      >
+                        <TableCell className="text-xs font-mono text-foreground">{item.external_id}</TableCell>
+                        {ATTRIBUTE_COLS.map((col) => (
+                          <TableCell key={col.key} className={`text-xs ${col.key === "item_description" ? "max-w-[200px] truncate" : ""}`}>
+                            {item[col.key] ? (
+                              <span className="text-foreground">{item[col.key]}</span>
+                            ) : (
+                              <span className="text-muted-foreground/40">—</span>
+                            )}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-xs text-muted-foreground">
+                          {item.synced_at ? new Date(item.synced_at).toLocaleDateString() : "—"}
+                        </TableCell>
+                      </TableRow>
+                      {expandedRow === item.external_id && (
+                        <TableRow key={`${item.external_id}-detail`}>
+                          <TableCell colSpan={ATTRIBUTE_COLS.length + 2} className="bg-muted/30 p-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+                              {ATTRIBUTE_COLS.map((col) => (
+                                <div key={col.key}>
+                                  <span className="text-muted-foreground">{col.label}: </span>
+                                  <span className="font-mono text-foreground">{item[col.key] ?? "—"}</span>
+                                </div>
+                              ))}
+                              <div>
+                                <span className="text-muted-foreground">MG04: </span>
+                                <span className="font-mono text-foreground">{item.mg04_code ?? "—"}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">MG05: </span>
+                                <span className="font-mono text-foreground">{item.mg05_code ?? "—"}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">MG06: </span>
+                                <span className="font-mono text-foreground">{item.mg06_code ?? "—"}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">ERP Updated: </span>
+                                <span className="font-mono text-foreground">
+                                  {item.erp_updated_at ? new Date(item.erp_updated_at).toLocaleDateString() : "—"}
+                                </span>
+                              </div>
+                            </div>
+                            {item.raw_mg_fields && Object.keys(item.raw_mg_fields).some((k) => item.raw_mg_fields[k] != null) && (
+                              <details className="mt-2">
+                                <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">Raw MG Fields</summary>
+                                <pre className="mt-1 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all select-all">
+                                  {JSON.stringify(item.raw_mg_fields, null, 2)}
+                                </pre>
+                              </details>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                Showing {((page - 1) * 25) + 1}–{Math.min(page * 25, total)} of {total.toLocaleString()}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={page <= 1}
+                  onClick={() => setPage(page - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="px-2">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(page + 1)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Export ───────────────────────────────────────────────────────
 
 export default function ErpEnrichmentTab() {
   return (
     <div className="space-y-4">
       <ErpSyncSection />
+      <ErpItemsBrowser />
       <QualityDashboard />
       <EnrichmentControls />
       <ReviewQueue />
