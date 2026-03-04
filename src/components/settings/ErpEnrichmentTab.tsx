@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 import {
   RefreshCw, Play, Database, BarChart3, AlertCircle,
-  CheckCircle2, Clock, Loader2, Eye, Zap, Bot,
+  CheckCircle2, Clock, Loader2, Eye, Zap, Bot, Search,
+  ChevronLeft, ChevronRight, List,
 } from "lucide-react";
 
 // ── ERP Sync Section ─────────────────────────────────────────────────
