@@ -102,23 +102,26 @@ async function authenticateAdmin(
 
   // Check admin role using service client (bypasses RLS)
   const db = serviceClient();
-  const { data: roleRow, error: roleError } = await withRetry(async () => {
-    const result = await db
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-    if (result.error) throw result.error;
-    return result;
-  });
+  let roleRow: { role: string } | null = null;
+  let roleError: unknown = null;
+
+  try {
+    const result = await withRetry(async () => {
+      const queryResult = await db
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+      if (queryResult.error) throw queryResult.error;
+      return queryResult;
+    });
+    roleRow = result.data as { role: string } | null;
+  } catch (e) {
+    roleError = e;
+  }
 
   console.log("Role check for userId:", userId, "result:", JSON.stringify(roleRow), "error:", roleError);
-
-  if (roleError) {
-    console.error("Role check query failed:", roleError);
-    return err("Authorization check failed, please retry", 503);
-  }
 
   if (!roleRow) {
     return err("Forbidden: admin role required", 403);
@@ -3380,9 +3383,8 @@ serve(async (req: Request) => {
         return err(`Unknown action: ${action}`, 404);
     }
   } catch (e) {
-    console.error("admin-api unhandled error:", e);
-    console.error("Stack:", e instanceof Error ? e.stack : "no stack");
-    const message = e instanceof Error ? e.message : "Internal server error";
+    const message = formatPostgrestError(e) || "Internal server error";
+    console.error("admin-api unhandled error:", message, e);
     return err(message, 500);
   }
 });
