@@ -1797,7 +1797,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   const db = serviceClient();
 
   const STATE_KEY = "REBUILD_STYLE_GROUPS_STATE";
-  const CLEAR_BATCH = 200;
+  const DEFAULT_CLEAR_BATCH = 200;
+  const DEFAULT_CLEAR_MIN_BATCH = 25;
   const GROUP_DELETE_BATCH = 200;
   const DEFAULT_REBUILD_BATCH = 250;
   const DEFAULT_REBUILD_MAX_GROUPS_PER_CALL = 50;
@@ -1882,18 +1883,31 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     await saveState(state);
   }
 
+  let clearBatch = DEFAULT_CLEAR_BATCH;
+  let clearMinBatch = DEFAULT_CLEAR_MIN_BATCH;
   let rebuildBatch = DEFAULT_REBUILD_BATCH;
   let rebuildMaxGroupsPerCall = DEFAULT_REBUILD_MAX_GROUPS_PER_CALL;
   try {
     const { data: knobRows } = await db
       .from("admin_config")
       .select("key, value")
-      .in("key", ["REBUILD_ASSET_BATCH_SIZE", "REBUILD_MAX_GROUPS_PER_CALL"]);
+      .in("key", [
+        "CLEAR_ASSET_BATCH_SIZE",
+        "CLEAR_ASSET_MIN_BATCH_SIZE",
+        "REBUILD_ASSET_BATCH_SIZE",
+        "REBUILD_MAX_GROUPS_PER_CALL",
+      ]);
 
     for (const row of knobRows ?? []) {
       const raw = row?.value;
       const normalized = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>)) ? (raw as Record<string, unknown>).value : raw;
       const parsed = typeof normalized === "number" ? normalized : parseInt(String(normalized), 10);
+      if (row.key === "CLEAR_ASSET_BATCH_SIZE" && Number.isFinite(parsed) && parsed > 0) {
+        clearBatch = parsed;
+      }
+      if (row.key === "CLEAR_ASSET_MIN_BATCH_SIZE" && Number.isFinite(parsed) && parsed > 0) {
+        clearMinBatch = parsed;
+      }
       if (row.key === "REBUILD_ASSET_BATCH_SIZE" && Number.isFinite(parsed) && parsed > 0) {
         rebuildBatch = parsed;
       }
@@ -1901,22 +1915,63 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         rebuildMaxGroupsPerCall = parsed;
       }
     }
+
+    clearMinBatch = Math.max(1, Math.min(clearMinBatch, clearBatch));
   } catch {
     // defaults are fine
   }
 
-  // Stage 1: clear style_group_id via server-side DB function (avoids REST timeout + URL limits)
+  // Stage 1: clear style_group_id via server-side DB function with adaptive batch halving on timeout
   if (state.stage === "clear_assets") {
-    const { data: rpcResult, error: rpcErr } = await db.rpc("clear_style_group_batch", {
-      p_last_id: state.last_asset_id ?? null,
-      p_batch_size: CLEAR_BATCH,
-    });
+    const isStatementTimeout = (msg: string) => {
+      const s = (msg || "").toLowerCase();
+      return s.includes("57014") || s.includes("statement timeout") || s.includes("canceling statement due to statement timeout");
+    };
 
-    if (rpcErr) {
-      return json({ ok: false, error: formatPostgrestError(rpcErr), stage: "clear_assets", substage: null }, 500);
+    let batchSize = Math.max(clearMinBatch, clearBatch);
+    let result: { cleared_count?: number; last_id?: string | null; has_more?: boolean } | null = null;
+    let lastErr: string | null = null;
+
+    while (batchSize >= clearMinBatch) {
+      const { data: rpcResult, error: rpcErr } = await db.rpc("clear_style_group_batch", {
+        p_last_id: state.last_asset_id ?? null,
+        p_batch_size: batchSize,
+      });
+
+      if (!rpcErr) {
+        result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+        break;
+      }
+
+      const msg = formatPostgrestError(rpcErr);
+      lastErr = msg;
+      if (!isStatementTimeout(msg) || batchSize === clearMinBatch) {
+        return json({
+          ok: false,
+          error: msg,
+          stage: "clear_assets",
+          substage: "rpc",
+          attempted_batch_size: batchSize,
+          min_batch_size: clearMinBatch,
+        }, 500);
+      }
+
+      const nextBatch = Math.max(clearMinBatch, Math.floor(batchSize / 2));
+      console.warn(`clear_assets timeout at batch=${batchSize}, retrying with batch=${nextBatch}`);
+      if (nextBatch === batchSize) break;
+      batchSize = nextBatch;
     }
 
-    const result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+    if (!result) {
+      return json({
+        ok: false,
+        error: lastErr || "clear_assets failed after adaptive retries",
+        stage: "clear_assets",
+        substage: "adaptive_retry",
+        min_batch_size: clearMinBatch,
+      }, 500);
+    }
+
     const clearedCount = result?.cleared_count ?? 0;
     const lastId = result?.last_id ?? null;
     const hasMore = result?.has_more ?? false;
@@ -1943,6 +1998,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       done: false,
       nextOffset: offset + 1,
       cleared_assets: clearedCount,
+      clear_batch_size_used: batchSize,
       total_processed: nextState.total_processed ?? 0,
       total_assets: nextState.total_assets ?? 0,
       resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
