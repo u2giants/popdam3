@@ -4262,7 +4262,7 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
     .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
     .is("mg_category", null)
     .order("external_id")
-    .range(offset, offset + batchSize + 49);  // fetch extra to filter out already-classified
+    .range(offset, offset + batchSize + 49); // fetch extra to filter out already-classified
 
   if (fetchErr) return err(fetchErr.message, 500);
 
@@ -4376,7 +4376,7 @@ Return ONLY the classification using the provided tool.`;
   return json({
     ok: true,
     done,
-    nextOffset: offset + (items || []).length,  // advance by total scanned (including skipped)
+    nextOffset: offset + (items || []).length, // advance by total scanned (including skipped)
     classified,
     total: offset + (items || []).length,
   });
