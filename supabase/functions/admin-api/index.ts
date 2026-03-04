@@ -2507,129 +2507,134 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 // ── Route: reconcile-style-group-stats ───────────────────────────────
 
 async function handleReconcileStyleGroupStats(body: Record<string, unknown>) {
-  const offset = typeof body.offset === "number" ? body.offset : 0;
-  const db = serviceClient();
+  try {
+    const offset = typeof body.offset === "number" ? body.offset : 0;
+    const db = serviceClient();
 
-  const STATE_KEY = "RECONCILE_STYLE_GROUPS_STATE";
+    const STATE_KEY = "RECONCILE_STYLE_GROUPS_STATE";
 
-  type ReconcileState = {
-    sub: "counts" | "primaries";
-    cursor: number;
-  };
+    type ReconcileState = {
+      sub: "counts" | "primaries";
+      cursor: number;
+    };
 
-  const { data: stateRow } = await db
-    .from("admin_config")
-    .select("value")
-    .eq("key", STATE_KEY)
-    .maybeSingle();
+    const isStatementTimeout = (msg: string) => {
+      const s = (msg || "").toLowerCase();
+      return s.includes("57014") || s.includes("statement timeout") || s.includes("canceling statement due to statement timeout");
+    };
 
-  let state = (stateRow?.value as ReconcileState | null) ?? { sub: "counts", cursor: 0 };
+    const { data: stateRow } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", STATE_KEY)
+      .maybeSingle();
 
-  // On first call, reset state
-  if (offset === 0 && !stateRow) {
-    state = { sub: "counts", cursor: 0 };
-  }
+    let state = (stateRow?.value as ReconcileState | null) ?? { sub: "counts", cursor: 0 };
 
-  const BATCH = 100;
-
-  async function saveRecState(s: ReconcileState) {
-    await db.from("admin_config").upsert({
-      key: STATE_KEY,
-      value: s,
-      updated_at: new Date().toISOString(),
-      updated_by: null,
-    });
-  }
-
-  if (state.sub === "counts") {
-    const { data: groupIds, error: fetchErr } = await db
-      .from("style_groups")
-      .select("id")
-      .order("id")
-      .range(state.cursor, state.cursor + BATCH - 1);
-
-    if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "reconcile", substage: "counts" }, 500);
-
-    if (!groupIds || groupIds.length === 0) {
-      state = { sub: "primaries", cursor: 0 };
-      await saveRecState(state);
-      return json({ ok: true, sub: "counts_done", counts_processed: state.cursor, done: false, nextOffset: offset + 1 });
+    // On first call, reset state
+    if (offset === 0 && !stateRow) {
+      state = { sub: "counts", cursor: 0 };
     }
 
-    const ids = groupIds.map((g: { id: string }) => g.id);
-    let batchIds = ids;
-    while (batchIds.length > 0) {
-      try {
+    const BATCH = 100;
+
+    async function saveRecState(s: ReconcileState) {
+      await db.from("admin_config").upsert({
+        key: STATE_KEY,
+        value: s,
+        updated_at: new Date().toISOString(),
+        updated_by: null,
+      });
+    }
+
+    if (state.sub === "counts") {
+      const { data: groupIds, error: fetchErr } = await db
+        .from("style_groups")
+        .select("id")
+        .order("id")
+        .range(state.cursor, state.cursor + BATCH - 1);
+
+      if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "reconcile", substage: "counts" }, 500);
+
+      if (!groupIds || groupIds.length === 0) {
+        state = { sub: "primaries", cursor: 0 };
+        await saveRecState(state);
+        return json({ ok: true, sub: "counts_done", counts_processed: state.cursor, done: false, nextOffset: offset + 1 });
+      }
+
+      const ids = groupIds.map((g: { id: string }) => g.id);
+      let batchIds = ids;
+      while (batchIds.length > 0) {
         const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
-        if (countErr) {
-          const msg = formatPostgrestError(countErr);
-          if (msg.includes("57014") && batchIds.length > 1) {
-            batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
-            continue;
-          }
-          return json({ ok: false, error: msg, stage: "reconcile", substage: "counts" }, 500);
-        }
-        break;
-      } catch (e) {
-        const msg = (e as Error).message || "";
-        if (msg.includes("57014") && batchIds.length > 1) {
+        if (!countErr) break;
+
+        const msg = formatPostgrestError(countErr);
+        if (isStatementTimeout(msg) && batchIds.length > 1) {
           batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
           continue;
         }
-        throw e;
+
+        return json({
+          ok: false,
+          error: msg,
+          stage: "reconcile",
+          substage: "counts",
+          attempted_batch_size: batchIds.length,
+        }, 500);
       }
+
+      state.cursor += batchIds.length;
+      await saveRecState(state);
+      return json({ ok: true, sub: "counts", counts_processed: state.cursor, done: false, nextOffset: offset + 1 });
     }
 
-    state.cursor += batchIds.length;
-    await saveRecState(state);
-    return json({ ok: true, sub: "counts", counts_processed: state.cursor, done: false, nextOffset: offset + 1 });
-  }
+    if (state.sub === "primaries") {
+      const { data: groupIds, error: fetchErr } = await db
+        .from("style_groups")
+        .select("id")
+        .order("id")
+        .range(state.cursor, state.cursor + BATCH - 1);
 
-  if (state.sub === "primaries") {
-    const { data: groupIds, error: fetchErr } = await db
-      .from("style_groups")
-      .select("id")
-      .order("id")
-      .range(state.cursor, state.cursor + BATCH - 1);
+      if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "reconcile", substage: "primaries" }, 500);
 
-    if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "reconcile", substage: "primaries" }, 500);
+      if (!groupIds || groupIds.length === 0) {
+        // Done — clean up state
+        await db.from("admin_config").delete().eq("key", STATE_KEY);
+        return json({ ok: true, sub: "complete", primaries_processed: state.cursor, done: true, nextOffset: offset + 1 });
+      }
 
-    if (!groupIds || groupIds.length === 0) {
-      // Done — clean up state
-      await db.from("admin_config").delete().eq("key", STATE_KEY);
-      return json({ ok: true, sub: "complete", primaries_processed: state.cursor, done: true, nextOffset: offset + 1 });
-    }
-
-    const ids = groupIds.map((g: { id: string }) => g.id);
-    let batchIds = ids;
-    while (batchIds.length > 0) {
-      try {
+      const ids = groupIds.map((g: { id: string }) => g.id);
+      let batchIds = ids;
+      while (batchIds.length > 0) {
         const { error: primErr } = await db.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
-        if (primErr) {
-          const msg = formatPostgrestError(primErr);
-          if (msg.includes("57014") && batchIds.length > 1) {
-            batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
-            continue;
-          }
-          return json({ ok: false, error: msg, stage: "reconcile", substage: "primaries" }, 500);
-        }
-        break;
-      } catch (e) {
-        const msg = (e as Error).message || "";
-        if (msg.includes("57014") && batchIds.length > 1) {
+        if (!primErr) break;
+
+        const msg = formatPostgrestError(primErr);
+        if (isStatementTimeout(msg) && batchIds.length > 1) {
           batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
           continue;
         }
-        throw e;
+
+        return json({
+          ok: false,
+          error: msg,
+          stage: "reconcile",
+          substage: "primaries",
+          attempted_batch_size: batchIds.length,
+        }, 500);
       }
+
+      state.cursor += batchIds.length;
+      await saveRecState(state);
+      return json({ ok: true, sub: "primaries", primaries_processed: state.cursor, done: false, nextOffset: offset + 1 });
     }
 
-    state.cursor += batchIds.length;
-    await saveRecState(state);
-    return json({ ok: true, sub: "primaries", primaries_processed: state.cursor, done: false, nextOffset: offset + 1 });
+    return json({ ok: false, error: "Unknown reconcile sub-stage", stage: "reconcile", substage: "unknown" }, 500);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : formatPostgrestError(e);
+    console.error("reconcile-style-group-stats unhandled:", msg);
+    return json({ ok: false, error: msg || "Internal server error", stage: "reconcile", substage: "unhandled" }, 500);
   }
-
-  return json({ ok: false, error: "Unknown reconcile sub-stage" }, 500);
 }
 
 // ── Route: generate-install-bundle ──────────────────────────────────
