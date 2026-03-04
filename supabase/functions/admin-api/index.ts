@@ -4124,19 +4124,19 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     }
 
     // Update assets
-    const { count: assetUpdated } = await db.from("assets")
+    const { data: assetRows } = await db.from("assets")
       .update(updates)
       .eq("sku", erpItem.style_number)
       .eq("is_deleted", false)
       .select("id");
-    assetsUpdated += assetUpdated ?? 0;
+    assetsUpdated += assetRows?.length ?? 0;
 
     // Update style_groups
-    const { count: groupUpdated } = await db.from("style_groups")
+    const { data: groupRows } = await db.from("style_groups")
       .update(updates)
       .eq("sku", erpItem.style_number)
       .select("id");
-    groupsUpdated += groupUpdated ?? 0;
+    groupsUpdated += groupRows?.length ?? 0;
   }
 
   const done = erpItems.length < batchSize;
