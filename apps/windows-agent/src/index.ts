@@ -370,6 +370,14 @@ function startPolling() {
 // ── Main ────────────────────────────────────────────────────────
 
 async function main() {
+  // Validate critical config before anything else
+  if (!config.supabaseUrl) {
+    throw new Error(
+      "Missing required: POPDAM_SERVER_URL or SUPABASE_URL.\n" +
+      "Set one of these in your .env file next to the agent executable."
+    );
+  }
+
   logger.info("PopDAM Windows Render Agent starting", {
     nasHost: config.nasHost,
     nasShare: config.nasShare,
@@ -712,7 +720,58 @@ function startTiffPolling() {
   logger.info("TIFF job polling started (5s interval)");
 }
 
-main().catch((e) => {
-  logger.error("Fatal error", { error: (e as Error).message });
-  process.exit(1);
+// ── Global error handlers (prevent crash loops) ─────────────────
+
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception (process will continue)", {
+    error: err.message,
+    stack: err.stack,
+  });
+  // Do NOT call process.exit — let timers/polling continue
 });
+
+process.on("unhandledRejection", (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? reason.stack : undefined;
+  logger.error("Unhandled promise rejection (process will continue)", {
+    error: msg,
+    stack,
+  });
+});
+
+// ── Startup with retry ─────────────────────────────────────────
+
+const MAX_MAIN_RETRIES = 5;
+const MAIN_RETRY_BASE_MS = 10_000; // 10s, 20s, 40s, 80s, 160s
+
+(async () => {
+  for (let attempt = 1; attempt <= MAX_MAIN_RETRIES; attempt++) {
+    try {
+      await main();
+      return; // main() succeeded and is now running (timers active)
+    } catch (e) {
+      const msg = (e as Error).message;
+      logger.error(`main() failed (attempt ${attempt}/${MAX_MAIN_RETRIES})`, {
+        error: msg,
+        stack: (e as Error).stack,
+      });
+
+      if (attempt === MAX_MAIN_RETRIES) {
+        logger.error(
+          `Agent failed to start after ${MAX_MAIN_RETRIES} attempts.\n` +
+          "Common causes:\n" +
+          "  - .env file missing or misconfigured\n" +
+          "  - SUPABASE_URL unreachable (network/firewall)\n" +
+          "  - Agent key or pairing code invalid\n" +
+          "  - NAS not accessible\n" +
+          "The launcher will restart the process in 5 seconds."
+        );
+        process.exit(1);
+      }
+
+      const delay = MAIN_RETRY_BASE_MS * Math.pow(2, attempt - 1);
+      logger.info(`Retrying main() in ${delay / 1000}s...`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+})();
