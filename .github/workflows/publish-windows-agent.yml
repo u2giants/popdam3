@@ -20,6 +20,13 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Build path-filters package
+        working-directory: packages/path-filters
+        run: |
+          npm install --save-dev typescript
+          npx tsc
+          echo "path-filters built successfully"
+
       - name: Install dependencies
         working-directory: apps/windows-agent
         run: npm install
