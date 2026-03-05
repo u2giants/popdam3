@@ -7,7 +7,7 @@
 # ── Stage 1: Build ───────────────────────────────────────────────
 FROM node:20-bookworm-slim AS builder
 
-WORKDIR /app
+WORKDIR /build
 
 # Install build dependencies for native modules (sharp, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,26 +20,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     graphicsmagick \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy shared package first and build it
-COPY packages/path-filters /app/packages/path-filters
-RUN cd /app/packages/path-filters \
- && npm install --save-dev typescript \
- && ./node_modules/.bin/tsc \
- && rm -rf node_modules
+# ── Step 1: Build and pack @popdam/path-filters as a tarball ─────
+COPY packages/path-filters /build/path-filters
+RUN cd /build/path-filters \
+ && npm install --ignore-scripts \
+ && npx tsc \
+ && rm -rf node_modules \
+ && npm pack \
+ && ls -la *.tgz
 
-COPY apps/bridge-agent/package.json apps/bridge-agent/package-lock.json ./
+# ── Step 2: Install bridge-agent deps with tarball (not file: link) ─
+WORKDIR /app
 
-# Rewrite the local file: reference to point to the copied location
-# Then use npm install (not npm ci) because the lockfile won't match the rewritten path
-RUN sed -i 's|"file:../../packages/path-filters"|"file:/app/packages/path-filters"|' package.json \
- && npm install --loglevel verbose
+COPY apps/bridge-agent/package.json ./package.json.orig
 
+# Rewrite the file: dependency to point to the tarball, then install
+RUN node -e "const fs=require('fs');const pkg=JSON.parse(fs.readFileSync('package.json.orig','utf8'));pkg.dependencies['@popdam/path-filters']='file:/build/path-filters/popdam-path-filters-1.0.0.tgz';fs.writeFileSync('package.json',JSON.stringify(pkg,null,2));"
+
+RUN npm install --loglevel verbose
+
+# ── Step 3: Build bridge-agent TypeScript ────────────────────────
 COPY apps/bridge-agent/tsconfig.json ./
 COPY apps/bridge-agent/src/ ./src/
 RUN npm run build
 
-# Remove devDependencies manually (npm prune strips file: deps too)
+# ── Step 4: Remove devDependencies manually ──────────────────────
+# npm prune --production strips file: deps; manual removal is safer.
 RUN node -e "const fs=require('fs');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));Object.keys(pkg.devDependencies||{}).forEach(dep=>{const p='node_modules/'+dep;try{fs.rmSync(p,{recursive:true,force:true});}catch(e){}});console.log('devDeps removed');"
+
+# ── Step 5: Verify path-filters is resolvable ────────────────────
+RUN node -e "require('@popdam/path-filters');console.log('BUILD CHECK: @popdam/path-filters OK');"
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM node:20-bookworm-slim AS runtime
@@ -63,6 +73,9 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
+
+# Verify path-filters survived into runtime stage
+RUN node -e "require('@popdam/path-filters');console.log('RUNTIME CHECK: @popdam/path-filters OK');"
 
 # Inject version info as environment variables
 ENV POPDAM_IMAGE_TAG=${POPDAM_IMAGE_TAG}
