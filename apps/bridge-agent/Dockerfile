@@ -20,10 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     graphicsmagick \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy shared package first (referenced as file:../../packages/path-filters)
+# Copy shared package first and build it
 COPY packages/path-filters /app/packages/path-filters
-RUN cd /app/packages/path-filters && \
-    if [ -f tsconfig.json ]; then npx tsc; else mkdir -p dist && cp index.ts dist/index.js; fi
+RUN cd /app/packages/path-filters && npx -y typescript tsc
 
 COPY apps/bridge-agent/package.json apps/bridge-agent/package-lock.json ./
 
