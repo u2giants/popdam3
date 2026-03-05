@@ -114,22 +114,23 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
   const ERP_MG_CUTOFF = "2025-05-14";
 
-  // Check if this group's SKU is a legacy ERP item (pre-cutoff)
-  const { data: erpItemDate } = useQuery({
-    queryKey: ["erp-item-date", group.sku],
+  // Fetch ERP item data for this group's SKU (legacy check + description)
+  const { data: erpItemData } = useQuery({
+    queryKey: ["erp-item-data", group.sku],
     queryFn: async () => {
       const { data } = await supabase
         .from("erp_items_current")
-        .select("erp_updated_at")
+        .select("erp_updated_at, item_description")
         .eq("style_number", group.sku)
         .limit(1)
         .maybeSingle();
-      return data?.erp_updated_at ?? null;
+      return data ?? null;
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLegacyGroup = erpItemDate ? erpItemDate < ERP_MG_CUTOFF : false;
+  const isLegacyGroup = erpItemData?.erp_updated_at ? erpItemData.erp_updated_at < ERP_MG_CUTOFF : false;
+  const erpDescription = erpItemData?.item_description ?? null;
 
   // Fetch all assets in this group
   const { data: groupAssets, isLoading: assetsLoading } = useQuery({
@@ -349,6 +350,9 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                   <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     <FileText className="h-3.5 w-3.5" /> <span title={detailAsset.filename}>{formatFilename(detailAsset.filename, 30)}</span>
                   </h4>
+                  {erpDescription && (
+                    <p className="text-xs text-foreground/70 leading-relaxed -mt-0.5">{erpDescription}</p>
+                  )}
                   <div className="space-y-1.5">
                     <MetaRow label="Type" value={<Badge variant="secondary" className="text-[10px] uppercase">{detailAsset.file_type}</Badge>} />
                     <MetaRow label="Size" value={formatSize(detailAsset.file_size)} />
