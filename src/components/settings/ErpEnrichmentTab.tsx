@@ -662,7 +662,11 @@ function ErpItemsBrowser() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize] = useState(1000);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState("synced_at");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [maxDigits, setMaxDigits] = useState<number | null>(null);
 
   // Debounce search
   const handleSearchChange = (val: string) => {
@@ -673,13 +677,42 @@ function ErpItemsBrowser() {
   };
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["erp-items-browse", debouncedSearch, page],
-    queryFn: () => call("erp-items-browse", { search: debouncedSearch, page, page_size: 25 }),
+    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, sortBy, sortAsc, maxDigits],
+    queryFn: () => call("erp-items-browse", {
+      search: debouncedSearch,
+      page,
+      page_size: pageSize,
+      sort_by: sortBy,
+      sort_asc: sortAsc,
+      ...(maxDigits !== null ? { max_digits: maxDigits } : {}),
+    }),
   });
 
   const items = data?.items || [];
   const total = data?.total ?? 0;
   const totalPages = data?.total_pages ?? 1;
+
+  const handleSort = (col: string) => {
+    if (sortBy === col) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortBy(col);
+      setSortAsc(true);
+    }
+    setPage(1);
+  };
+
+  const SortHeader = ({ col, label }: { col: string; label: string }) => (
+    <TableHead
+      className="text-xs cursor-pointer hover:text-foreground select-none"
+      onClick={() => handleSort(col)}
+    >
+      {label}
+      {sortBy === col && (
+        <span className="ml-1">{sortAsc ? "↑" : "↓"}</span>
+      )}
+    </TableHead>
+  );
 
   const ATTRIBUTE_COLS = [
     { key: "style_number", label: "Style #" },
@@ -706,14 +739,37 @@ function ErpItemsBrowser() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by style #, external ID, or description..."
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-9 h-9"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by style # or description..."
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9 h-9"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-muted-foreground whitespace-nowrap">Max digits:</label>
+            <Input
+              type="number"
+              min={1}
+              max={20}
+              placeholder="—"
+              value={maxDigits ?? ""}
+              onChange={(e) => {
+                const v = e.target.value ? parseInt(e.target.value) : null;
+                setMaxDigits(v);
+                setPage(1);
+              }}
+              className="h-9 w-[70px] text-xs"
+            />
+            {maxDigits !== null && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-1.5" onClick={() => { setMaxDigits(null); setPage(1); }}>
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
@@ -728,11 +784,10 @@ function ErpItemsBrowser() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-xs w-[100px]">External ID</TableHead>
                     {ATTRIBUTE_COLS.map((col) => (
-                      <TableHead key={col.key} className="text-xs">{col.label}</TableHead>
+                      <SortHeader key={col.key} col={col.key} label={col.label} />
                     ))}
-                    <TableHead className="text-xs">Synced</TableHead>
+                    <SortHeader col="synced_at" label="Synced" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -743,7 +798,6 @@ function ErpItemsBrowser() {
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => setExpandedRow(expandedRow === item.external_id ? null : item.external_id)}
                       >
-                        <TableCell className="text-xs font-mono text-foreground">{item.external_id}</TableCell>
                         {ATTRIBUTE_COLS.map((col) => (
                           <TableCell key={col.key} className={`text-xs ${col.key === "item_description" ? "max-w-[200px] truncate" : ""}`}>
                             {item[col.key] ? (
@@ -759,7 +813,7 @@ function ErpItemsBrowser() {
                       </TableRow>
                       {expandedRow === item.external_id && (
                         <TableRow key={`${item.external_id}-detail`}>
-                          <TableCell colSpan={ATTRIBUTE_COLS.length + 2} className="bg-muted/30 p-3">
+                          <TableCell colSpan={ATTRIBUTE_COLS.length + 1} className="bg-muted/30 p-3">
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
                               {ATTRIBUTE_COLS.map((col) => (
                                 <div key={col.key}>
@@ -767,6 +821,10 @@ function ErpItemsBrowser() {
                                   <span className="font-mono text-foreground">{item[col.key] ?? "—"}</span>
                                 </div>
                               ))}
+                              <div>
+                                <span className="text-muted-foreground">External ID: </span>
+                                <span className="font-mono text-foreground">{item.external_id ?? "—"}</span>
+                              </div>
                               <div>
                                 <span className="text-muted-foreground">MG04: </span>
                                 <span className="font-mono text-foreground">{item.mg04_code ?? "—"}</span>
@@ -806,7 +864,7 @@ function ErpItemsBrowser() {
             {/* Pagination */}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                Showing {((page - 1) * 25) + 1}–{Math.min(page * 25, total)} of {total.toLocaleString()}
+                Showing {((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, total)} of {total.toLocaleString()}
               </span>
               <div className="flex items-center gap-1">
                 <Button
@@ -845,10 +903,10 @@ export default function ErpEnrichmentTab() {
   return (
     <div className="space-y-4">
       <ErpSyncSection />
-      <ErpItemsBrowser />
       <QualityDashboard />
       <EnrichmentControls />
       <ReviewQueue />
+      <ErpItemsBrowser />
     </div>
   );
 }

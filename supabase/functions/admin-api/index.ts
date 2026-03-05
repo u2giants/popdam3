@@ -3459,14 +3459,49 @@ serve(async (req: Request) => {
 async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const db = serviceClient();
   const page = typeof body.page === "number" ? Math.max(1, body.page) : 1;
-  const pageSize = typeof body.page_size === "number" ? Math.min(Math.max(1, body.page_size), 100) : 25;
+  const pageSize = typeof body.page_size === "number" ? Math.min(Math.max(1, body.page_size), 1000) : 25;
   const search = typeof body.search === "string" ? body.search.trim() : "";
+  const sortBy = typeof body.sort_by === "string" ? body.sort_by : "synced_at";
+  const sortAsc = body.sort_asc === true;
+  const maxDigits = typeof body.max_digits === "number" ? body.max_digits : null;
   const offset = (page - 1) * pageSize;
+
+  const ALLOWED_SORT_COLS = [
+    "external_id", "style_number", "item_description", "mg_category",
+    "mg01_code", "mg02_code", "mg03_code", "size_code",
+    "licensor_code", "property_code", "division_code", "synced_at", "erp_updated_at",
+  ];
+  const effectiveSort = ALLOWED_SORT_COLS.includes(sortBy) ? sortBy : "synced_at";
+
+  // If max_digits filter is set, use raw SQL via execute_readonly_query for regex filter
+  if (maxDigits !== null && maxDigits > 0) {
+    const digitPattern = `^[0-9]{1,${maxDigits}}$`;
+    let whereClause = `WHERE (style_number ~ '${digitPattern}' OR (item_description IS NOT NULL AND length(item_description) <= ${maxDigits + 2} AND item_description ~ '^[a-zA-Z0-9 ]{1,${maxDigits + 2}}$'))`;
+    if (search) {
+      const esc = search.replace(/'/g, "''");
+      whereClause += ` AND (style_number ILIKE '%${esc}%' OR item_description ILIKE '%${esc}%')`;
+    }
+    const countSql = `SELECT count(*)::int as cnt FROM erp_items_current ${whereClause}`;
+    const dataSql = `SELECT style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, external_id FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${sortAsc ? "ASC" : "DESC"} NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
+
+    const { data: countResult } = await db.rpc("execute_readonly_query", { query_text: countSql });
+    const total = (countResult as any)?.[0]?.cnt ?? 0;
+    const { data: rows } = await db.rpc("execute_readonly_query", { query_text: dataSql });
+
+    return json({
+      ok: true,
+      items: (rows as any[]) || [],
+      total,
+      page,
+      page_size: pageSize,
+      total_pages: Math.ceil(total / pageSize),
+    });
+  }
 
   // Count query
   let countQuery = db.from("erp_items_current").select("id", { count: "exact", head: true });
   if (search) {
-    countQuery = countQuery.or(`external_id.ilike.%${search}%,style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
+    countQuery = countQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
   }
   const { count, error: countErr } = await countQuery;
   if (countErr) return err(countErr.message, 500);
@@ -3476,10 +3511,10 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
     .select(
       "external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields",
     )
-    .order("synced_at", { ascending: false })
+    .order(effectiveSort, { ascending: sortAsc, nullsFirst: false })
     .range(offset, offset + pageSize - 1);
   if (search) {
-    dataQuery = dataQuery.or(`external_id.ilike.%${search}%,style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
+    dataQuery = dataQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
   }
   const { data, error: dataErr } = await dataQuery;
   if (dataErr) return err(dataErr.message, 500);
@@ -4400,13 +4435,12 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
 
   // Find ERP items that need AI classification:
   // mg_category IS NULL (covers legacy items whose category was wiped)
-  // NO restriction on mg01_code — legacy items may have MG01 but it's unreliable
+  // NO date filter here — items are already date-gated at ingestion time (post-2020 only).
+  // Many legacy items have NULL erp_updated_at, so filtering on it silently excluded them.
   const fetchSize = batchSize + 200; // fetch extra to filter out already-classified
   const { data: items, error: fetchErr } = await db.from("erp_items_current")
     .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
     .is("mg_category", null)
-    .gte("erp_updated_at", "2020-01-01T00:00:00Z")
-    .lt("erp_updated_at", "2025-05-20T00:00:00Z")
     .order("external_id")
     .range(offset, offset + fetchSize - 1);
 
