@@ -331,16 +331,29 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
               {asset.tags.length === 0 && (
                 <span className="text-xs text-muted-foreground/50">No tags</span>
               )}
-              {asset.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-xs bg-tag text-tag-foreground gap-1">
-                  {tag}
-                  {editingTags && (
-                    <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  )}
-                </Badge>
-              ))}
+              {asset.tags.map((tag) => {
+                const source = tagSourceMap.get(tag);
+                const isAi = source === "ai";
+                return (
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className={cn(
+                      "text-xs gap-1",
+                      isAi ? "bg-tag text-tag-foreground" : "bg-accent text-accent-foreground"
+                    )}
+                    title={isAi ? "Added by AI" : "Added manually"}
+                  >
+                    {isAi && <Sparkles className="h-2.5 w-2.5 opacity-60" />}
+                    {tag}
+                    {editingTags && (
+                      <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    )}
+                  </Badge>
+                );
+              })}
             </div>
             {editingTags && (
               <form
