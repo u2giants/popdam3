@@ -130,23 +130,48 @@ async function authenticateAdmin(
   return { userId };
 }
 
-// ── Retry helper for transient connection resets ────────────────────
+// ── Retry helper for transient connection / body-read errors ────────
+// PostgREST streams large result sets over HTTP. When the Deno runtime
+// or the upstream proxy drops the connection mid-stream, errors such as
+// "error reading a body from connection" or "connection reset" surface.
+// These are *transient* — the query itself is fine and will succeed on
+// a fresh attempt.  We normalise the error string to lowercase and
+// match against a known set of transient patterns so that permanent
+// SQL / data errors still fail fast and surface clearly.
+
+const TRANSIENT_ERROR_PATTERNS = [
+  "connection reset",
+  "connection error",
+  "sendrequest",
+  "error reading a body",
+  "error reading body",
+  "error reading a body from connection",
+  "network error",
+  "fetch failed",
+  "broken pipe",
+  "eof",
+];
+
+function isTransientError(e: unknown): boolean {
+  const msg = ((e as Error)?.message || "").toLowerCase();
+  return TRANSIENT_ERROR_PATTERNS.some((p) => msg.includes(p));
+}
 
 async function withRetry<T>(
   fn: () => Promise<T>,
   maxAttempts = 3,
   delayMs = 200,
+  label = "",
 ): Promise<T> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (e) {
-      const msg = (e as Error).message || "";
-      const isTransient = msg.includes("connection reset") ||
-        msg.includes("connection error") ||
-        msg.includes("SendRequest");
-      if (!isTransient || attempt === maxAttempts) throw e;
-      console.warn(`Transient error (attempt ${attempt}/${maxAttempts}):`, msg);
+      if (!isTransientError(e) || attempt === maxAttempts) throw e;
+      const msg = ((e as Error)?.message || "").toLowerCase();
+      console.warn(
+        `withRetry [${label || "?"}] transient error (attempt ${attempt}/${maxAttempts}): ${msg.slice(0, 120)}`,
+      );
       await new Promise((r) => setTimeout(r, delayMs * attempt));
     }
   }
@@ -1803,7 +1828,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   const DEFAULT_CLEAR_BATCH = 200;
   const DEFAULT_CLEAR_MIN_BATCH = 25;
   const GROUP_DELETE_BATCH = 200;
-  const DEFAULT_REBUILD_BATCH = 250;
+  const DEFAULT_REBUILD_BATCH = 100;
   const DEFAULT_REBUILD_MAX_GROUPS_PER_CALL = 50;
 
   type RebuildState = {
@@ -2074,26 +2099,42 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         s.includes("canceling statement due to statement timeout");
     };
 
+    const FETCH_MAX_ATTEMPTS = 5;
+    const WRITE_MAX_ATTEMPTS = 4;
+    const cursorLabel = state.last_rebuild_asset_id ?? "start";
+
     try {
-      let q = db
-        .from("assets")
-        .select(
-          "id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_id, licensor_code, licensor_name, property_id, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name",
-        )
-        .eq("is_deleted", false)
-        .order("id", { ascending: true })
-        .limit(rebuildBatch);
+      // ── Fetch assets with transient retry ──────────────────────────
+      // The Supabase query object must be rebuilt inside each retry
+      // attempt.  PostgREST streams large responses over HTTP; if the
+      // connection drops mid-stream (e.g. proxy timeout, Deno runtime
+      // hiccup), the query object is left in a consumed/errored state
+      // and cannot be reused.
+      const fetchResult = await withRetry(
+        async () => {
+          let q = db
+            .from("assets")
+            .select(
+              "id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_id, licensor_code, licensor_name, property_id, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name",
+            )
+            .eq("is_deleted", false)
+            .order("id", { ascending: true })
+            .limit(rebuildBatch);
 
-      if (state.last_rebuild_asset_id) {
-        q = q.gt("id", state.last_rebuild_asset_id);
-      }
+          if (state.last_rebuild_asset_id) {
+            q = q.gt("id", state.last_rebuild_asset_id);
+          }
 
-      const { data: fetchedAssets, error: fetchErr } = await q;
-      if (fetchErr) {
-        return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "rebuild_assets", substage: "fetch_assets" }, 500);
-      }
+          const { data, error: fetchErr } = await q;
+          if (fetchErr) throw new Error(formatPostgrestError(fetchErr));
+          return data;
+        },
+        FETCH_MAX_ATTEMPTS,
+        500,
+        `rebuild_assets/fetch_assets cursor=${cursorLabel}`,
+      );
 
-      const assets = fetchedAssets ?? [];
+      const assets = fetchResult ?? [];
       if (assets.length === 0) {
         const nextState: RebuildState = {
           ...state,
@@ -2183,28 +2224,41 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         let groupChunkSize = Math.min(100, groupRows.length);
         const GROUP_CHUNK_MIN = 10;
 
+        // ── Upsert groups with transient retry per chunk ─────────────
+        // Writes are retried only for transient network failures.
+        // Permanent SQL errors (constraint violations, etc.) fail fast
+        // so the operator sees the real problem immediately.
         while (groupCursor < groupRows.length) {
           const chunk = groupRows.slice(groupCursor, groupCursor + groupChunkSize);
-          const { data: upsertedGroups, error: upsertErr } = await db
-            .from("style_groups")
-            .upsert(chunk, { onConflict: "sku" })
-            .select("id, sku");
 
-          if (upsertErr) {
-            const msg = formatPostgrestError(upsertErr);
+          const upsertResult = await withRetry(
+            async () => {
+              const { data: upsertedGroups, error: upsertErr } = await db
+                .from("style_groups")
+                .upsert(chunk, { onConflict: "sku" })
+                .select("id, sku");
+              if (upsertErr) throw new Error(formatPostgrestError(upsertErr));
+              return upsertedGroups as Array<{ id: string; sku: string }>;
+            },
+            WRITE_MAX_ATTEMPTS,
+            400,
+            `rebuild_assets/upsert_groups cursor=${cursorLabel} chunk@${groupCursor}`,
+          ).catch((e) => {
+            // If it's a statement timeout, try halving before giving up
+            const msg = ((e as Error).message || "").toLowerCase();
             if (isStatementTimeout(msg) && groupChunkSize > GROUP_CHUNK_MIN) {
-              groupChunkSize = Math.max(GROUP_CHUNK_MIN, Math.ceil(groupChunkSize / 2));
-              continue;
+              return null; // signal to halve
             }
-            return json({
-              ok: false,
-              error: msg,
-              stage: "rebuild_assets",
-              substage: "upsert_groups",
-            }, 500);
+            throw e; // permanent error — propagate
+          });
+
+          if (upsertResult === null) {
+            // Halve chunk size and retry from same cursor position
+            groupChunkSize = Math.max(GROUP_CHUNK_MIN, Math.ceil(groupChunkSize / 2));
+            continue;
           }
 
-          allUpsertedGroups.push(...(upsertedGroups ?? []) as Array<{ id: string; sku: string }>);
+          allUpsertedGroups.push(...(upsertResult ?? []));
           groupCursor += chunk.length;
         }
 
@@ -2226,27 +2280,35 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           let assignChunkSize = Math.min(200, assignments.length);
           const ASSIGN_CHUNK_MIN = 25;
 
+          // ── Assign assets with transient retry per chunk ────────────
           while (assignCursor < assignments.length) {
             const chunk = assignments.slice(assignCursor, assignCursor + assignChunkSize);
-            const { data: assignedCount, error: assignErr } = await db.rpc("bulk_assign_style_groups", {
-              p_assignments: chunk,
+
+            const assignedCount = await withRetry(
+              async () => {
+                const { data, error: assignErr } = await db.rpc("bulk_assign_style_groups", {
+                  p_assignments: chunk,
+                });
+                if (assignErr) throw new Error(formatPostgrestError(assignErr));
+                return typeof data === "number" ? data : chunk.length;
+              },
+              WRITE_MAX_ATTEMPTS,
+              400,
+              `rebuild_assets/assign_assets cursor=${cursorLabel} chunk@${assignCursor}`,
+            ).catch((e) => {
+              const msg = ((e as Error).message || "").toLowerCase();
+              if (isStatementTimeout(msg) && assignChunkSize > ASSIGN_CHUNK_MIN) {
+                return null; // signal to halve
+              }
+              throw e;
             });
 
-            if (assignErr) {
-              const msg = formatPostgrestError(assignErr);
-              if (isStatementTimeout(msg) && assignChunkSize > ASSIGN_CHUNK_MIN) {
-                assignChunkSize = Math.max(ASSIGN_CHUNK_MIN, Math.ceil(assignChunkSize / 2));
-                continue;
-              }
-              return json({
-                ok: false,
-                error: msg,
-                stage: "rebuild_assets",
-                substage: "assign_assets",
-              }, 500);
+            if (assignedCount === null) {
+              assignChunkSize = Math.max(ASSIGN_CHUNK_MIN, Math.ceil(assignChunkSize / 2));
+              continue;
             }
 
-            assetsAssigned += typeof assignedCount === "number" ? assignedCount : chunk.length;
+            assetsAssigned += assignedCount;
             assignCursor += chunk.length;
           }
         }
@@ -2287,8 +2349,11 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       });
     } catch (e) {
       const msg = (e as Error).message || "Unknown error in rebuild stage 3";
-      console.error("rebuild-style-groups stage 3 error:", msg);
-      return json({ ok: false, error: msg, stage: "rebuild_assets", substage: "unhandled" }, 500);
+      // Surface the substage from the withRetry label if available
+      const isBodyRead = msg.toLowerCase().includes("error reading a body");
+      const substage = isBodyRead ? "fetch_assets" : "unhandled";
+      console.error(`rebuild-style-groups stage 3 error (${substage}):`, msg);
+      return json({ ok: false, error: msg, stage: "rebuild_assets", substage }, 500);
     }
   }
 
