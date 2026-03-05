@@ -59,7 +59,7 @@ export function selectPrimaryAsset(
   if (assets.length === 0) return null;
 
   const fn = (a: typeof assets[0]) => a.filename.toLowerCase();
-  const hasMockup = (a: typeof assets[0]) => fn(a).includes("mockup");
+  const hasMockup = (a: typeof assets[0]) => fn(a).includes("mockup") || fn(a).includes("mock up");
   const hasArt = (a: typeof assets[0]) => fn(a).includes("art");
   const hasPackaging = (a: typeof assets[0]) => fn(a).includes("packaging");
   const hasUsableThumbnail = (a: typeof assets[0]) => !!a.thumbnail_url && !a.thumbnail_error;
