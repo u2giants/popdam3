@@ -75,22 +75,24 @@ async function authenticateAdmin(
 
   let userId: string;
   try {
-    // Try getClaims first, fall back to getUser if not available
+    // Use getUser (server-side validation) as primary — most reliable with
+    // Lovable Cloud's ES256 signing keys.  Fall back to getClaims only if
+    // getUser is unavailable.
     let sub: string | undefined;
-    if (typeof anonClient.auth.getClaims === "function") {
-      const { data, error: claimsError } = await anonClient.auth.getClaims(token);
-      if (claimsError || !data?.claims?.sub) {
-        console.error("getClaims failed:", claimsError, "data:", JSON.stringify(data));
+    const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
+    if (userError || !user?.id) {
+      // Fallback: try getClaims if getUser failed (edge case)
+      if (typeof anonClient.auth.getClaims === "function") {
+        const { data, error: claimsError } = await anonClient.auth.getClaims(token);
+        if (!claimsError && data?.claims?.sub) {
+          sub = data.claims.sub as string;
+        }
+      }
+      if (!sub) {
+        console.error("Auth failed — getUser:", userError);
         return err("Invalid or expired token", 401);
       }
-      sub = data.claims.sub as string;
     } else {
-      // Fallback: getClaims not available in this supabase-js version
-      const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
-      if (userError || !user?.id) {
-        console.error("getUser failed:", userError);
-        return err("Invalid or expired token", 401);
-      }
       sub = user.id;
     }
     userId = sub;
