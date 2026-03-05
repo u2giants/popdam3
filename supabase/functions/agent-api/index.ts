@@ -2109,6 +2109,104 @@ async function handleNotifyBuild(
   return json({ ok: true, config_key: configKey, version });
 }
 
+// ── Route: claim-sibling-scan ────────────────────────────────────────
+// Bridge Agent claims the oldest pending sibling scan request.
+
+async function handleClaimSiblingScan(_body: Record<string, unknown>, agentId: string) {
+  const db = serviceClient();
+
+  // Fetch all sibling_scan_request_* keys that are pending
+  const { data: rows, error: fetchErr } = await db
+    .from("admin_config")
+    .select("key, value")
+    .like("key", "sibling_scan_request_%")
+    .order("updated_at", { ascending: true })
+    .limit(20);
+
+  if (fetchErr) return err(fetchErr.message, 500);
+
+  const pendingRequests: Array<{ key: string; value: Record<string, unknown> }> = [];
+  for (const row of rows || []) {
+    const val = row.value as Record<string, unknown>;
+    if (val && val.status === "pending") {
+      pendingRequests.push({ key: row.key, value: val });
+    }
+  }
+
+  if (pendingRequests.length === 0) {
+    return json({ ok: true, request: null });
+  }
+
+  // Claim the oldest one
+  const oldest = pendingRequests[0];
+  const requestId = oldest.key.replace("sibling_scan_request_", "");
+
+  const claimedValue = {
+    ...oldest.value,
+    status: "claimed",
+    claimed_by: agentId,
+    claimed_at: new Date().toISOString(),
+  };
+
+  const { error: claimErr } = await db
+    .from("admin_config")
+    .update({ value: claimedValue, updated_at: new Date().toISOString() })
+    .eq("key", oldest.key);
+
+  if (claimErr) return err(claimErr.message, 500);
+
+  console.log(`[claim-sibling-scan] Agent ${agentId} claimed request ${requestId} for folder ${oldest.value.folder_path}`);
+
+  return json({
+    ok: true,
+    request: {
+      request_id: requestId,
+      folder_path: oldest.value.folder_path,
+      extensions: oldest.value.extensions ?? [".jpg", ".jpeg", ".png"],
+    },
+  });
+}
+
+// ── Route: complete-sibling-scan ────────────────────────────────────
+// Bridge Agent reports completion or failure of a sibling scan.
+
+async function handleCompleteSiblingScan(body: Record<string, unknown>) {
+  const requestId = requireString(body, "request_id");
+  const status = requireString(body, "status"); // "completed" | "failed"
+  const images = (body.images as Array<Record<string, unknown>>) || [];
+  const errorMessage = optionalString(body, "error_message");
+  const db = serviceClient();
+
+  const configKey = `sibling_scan_request_${requestId}`;
+
+  const { data: existing } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", configKey)
+    .maybeSingle();
+
+  if (!existing) return err("Request not found", 404);
+
+  const oldVal = existing.value as Record<string, unknown>;
+  const newVal = {
+    ...oldVal,
+    status,
+    processed_at: new Date().toISOString(),
+    images: status === "completed" ? images : [],
+    error_message: status === "failed" ? errorMessage : null,
+  };
+
+  const { error: updErr } = await db
+    .from("admin_config")
+    .update({ value: newVal, updated_at: new Date().toISOString() })
+    .eq("key", configKey);
+
+  if (updErr) return err(updErr.message, 500);
+
+  console.log(`[complete-sibling-scan] Request ${requestId}: ${status}, ${images.length} images`);
+  return json({ ok: true });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -2210,6 +2308,10 @@ serve(async (req: Request) => {
         return await handleClaimTiffJob(body, agentId);
       case "complete-tiff-job":
         return await handleCompleteTiffJob(body);
+      case "claim-sibling-scan":
+        return await handleClaimSiblingScan(body, agentId);
+      case "complete-sibling-scan":
+        return await handleCompleteSiblingScan(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
