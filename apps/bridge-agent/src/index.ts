@@ -205,8 +205,11 @@ function startHeartbeat() {
         }
       }
 
-      // Auto-scan: trigger if enabled + not scanning + interval elapsed
-      if (autoScanEnabled && !isScanning) {
+      // ── Process sibling scan requests ──
+      processSiblingScanRequests().catch((e) =>
+        logger.error("Sibling scan processing failed", { error: (e as Error).message })
+      );
+    } catch (e) {
         const elapsedMs = Date.now() - lastScanCompletedAt;
         const intervalMs = autoScanIntervalHours * 60 * 60 * 1000;
         if (elapsedMs >= intervalMs) {

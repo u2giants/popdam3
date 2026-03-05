@@ -231,3 +231,38 @@ export async function reportUpdateStatus(
 ): Promise<void> {
   await callApi("report-update-status", status);
 }
+
+// ── Sibling scan requests ──────────────────────────────────────────
+
+export interface SiblingScanRequest {
+  request_id: string;
+  folder_path: string;
+  extensions: string[];
+}
+
+export interface SiblingImageResult {
+  filename: string;
+  relative_path: string;
+  file_size: number;
+}
+
+export async function claimSiblingScan(): Promise<SiblingScanRequest | null> {
+  const data = await callApi("claim-sibling-scan", {});
+  const req = data.request as SiblingScanRequest | null;
+  if (!req || !req.request_id) return null;
+  return req;
+}
+
+export async function completeSiblingScan(
+  requestId: string,
+  status: "completed" | "failed",
+  images: SiblingImageResult[],
+  errorMessage?: string,
+): Promise<void> {
+  await callApi("complete-sibling-scan", {
+    request_id: requestId,
+    status,
+    images,
+    error_message: errorMessage,
+  });
+}
