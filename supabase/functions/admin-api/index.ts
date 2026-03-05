@@ -3471,9 +3471,19 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const offset = (page - 1) * pageSize;
 
   const ALLOWED_SORT_COLS = [
-    "external_id", "style_number", "item_description", "mg_category",
-    "mg01_code", "mg02_code", "mg03_code", "size_code",
-    "licensor_code", "property_code", "division_code", "synced_at", "erp_updated_at",
+    "external_id",
+    "style_number",
+    "item_description",
+    "mg_category",
+    "mg01_code",
+    "mg02_code",
+    "mg03_code",
+    "size_code",
+    "licensor_code",
+    "property_code",
+    "division_code",
+    "synced_at",
+    "erp_updated_at",
   ];
   const effectiveSort = ALLOWED_SORT_COLS.includes(sortBy) ? sortBy : "synced_at";
 
@@ -3483,13 +3493,15 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
   if (useRawSql) {
     const conditions: string[] = [];
     if (!showDismissed) conditions.push("dismissed = false");
-    
+
     const digitFilters: string[] = [];
     if (maxDigitsStyle !== null && maxDigitsStyle > 0) {
       digitFilters.push(`(style_number ~ '^[0-9]{1,${maxDigitsStyle}}$')`);
     }
     if (maxDigitsDesc !== null && maxDigitsDesc > 0) {
-      digitFilters.push(`(item_description IS NOT NULL AND length(item_description) <= ${maxDigitsDesc + 2} AND item_description ~ '^[a-zA-Z0-9 ]{1,${maxDigitsDesc + 2}}$')`);
+      digitFilters.push(
+        `(item_description IS NOT NULL AND length(item_description) <= ${maxDigitsDesc + 2} AND item_description ~ '^[a-zA-Z0-9 ]{1,${maxDigitsDesc + 2}}$')`,
+      );
     }
     if (digitFilters.length > 0) conditions.push(`(${digitFilters.join(" OR ")})`);
 
@@ -3499,7 +3511,10 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
     }
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const countSql = `SELECT count(*)::int as cnt FROM erp_items_current ${whereClause}`;
-    const dataSql = `SELECT id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, external_id, dismissed FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${sortAsc ? "ASC" : "DESC"} NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
+    const dataSql =
+      `SELECT id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, external_id, dismissed FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${
+        sortAsc ? "ASC" : "DESC"
+      } NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
 
     const { data: countResult } = await db.rpc("execute_readonly_query", { query_text: countSql });
     const total = (countResult as any)?.[0]?.cnt ?? 0;
