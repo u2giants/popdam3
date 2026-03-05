@@ -4329,6 +4329,8 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   const { data: items, error: fetchErr } = await db.from("erp_items_current")
     .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
     .is("mg_category", null)
+    .gte("erp_updated_at", "2020-01-01T00:00:00Z")
+    .lt("erp_updated_at", "2025-05-20T00:00:00Z")
     .order("external_id")
     .range(offset, offset + fetchSize - 1);
 
