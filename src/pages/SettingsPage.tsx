@@ -804,7 +804,7 @@ function AgentThroughputChart() {
 
 export default function SettingsPage() {
   return (
-    <div className="container max-w-4xl py-8 space-y-6">
+    <div className="container max-w-7xl py-8 space-y-6">
       <div className="flex items-center gap-3">
         <SettingsIcon className="h-6 w-6 text-primary" />
         <h1 className="text-2xl font-semibold">Settings</h1>
