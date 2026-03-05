@@ -344,58 +344,137 @@ function EnrichmentControls() {
 function ReviewQueue() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["erp-review-queue"],
-    queryFn: () => call("erp-review-queue"),
+    queryKey: ["erp-review-queue", statusFilter, page],
+    queryFn: () => call("erp-review-queue", { status: statusFilter, page, page_size: 100 }),
   });
 
   const items = data?.items || [];
+  const totalPages = data?.total_pages ?? 1;
+  const total = data?.total ?? 0;
+  const statusCounts = data?.status_counts || {};
 
-  const approveMutation = useMutation({
-    mutationFn: (params: { id: string; category?: string }) =>
-      call("erp-review-action", { prediction_id: params.id, action: "approve", override_category: params.category }),
+  const actionMutation = useMutation({
+    mutationFn: (params: { id: string; action: string; category?: string }) =>
+      call("erp-review-action", {
+        prediction_id: params.id,
+        action: params.action,
+        override_category: params.category,
+      }),
     onSuccess: () => {
-      toast.success("Prediction approved");
       queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
       queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: (id: string) => call("erp-review-action", { prediction_id: id, action: "reject" }),
-    onSuccess: () => {
-      toast.success("Prediction rejected");
+  const bulkRejectMutation = useMutation({
+    mutationFn: (ids: string[]) =>
+      call("erp-review-action", { action: "bulk-reject", prediction_ids: ids }),
+    onSuccess: (_, ids) => {
+      toast.success(`Rejected ${ids.length} predictions`);
+      setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
     },
     onError: (e) => toast.error(e.message),
   });
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map((i: any) => i.id)));
+    }
+  };
+
   const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
+  const STATUS_TABS = [
+    { key: "pending", label: "Pending" },
+    { key: "auto_applied", label: "Auto-Applied" },
+    { key: "approved", label: "Approved" },
+    { key: "rejected", label: "Rejected" },
+    { key: "unclassifiable", label: "Unclassifiable" },
+  ];
+
+  const canRevert = statusFilter === "auto_applied" || statusFilter === "approved";
+  const canApprove = statusFilter === "pending";
+  const canReject = statusFilter === "pending" || statusFilter === "auto_applied";
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <AlertCircle className="h-4 w-4" /> Review Queue
-          {items.length > 0 && (
-            <Badge variant="secondary" className="text-xs">{items.length}</Badge>
-          )}
+          <Badge variant="secondary" className="text-xs">{total}</Badge>
         </CardTitle>
-        <Button variant="ghost" size="icon" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && canReject && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="text-xs gap-1"
+              onClick={() => bulkRejectMutation.mutate([...selectedIds])}
+              disabled={bulkRejectMutation.isPending}
+            >
+              Reject {selectedIds.size} selected
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {/* Status tabs */}
+        <div className="flex flex-wrap gap-1">
+          {STATUS_TABS.map((tab) => (
+            <Button
+              key={tab.key}
+              size="sm"
+              variant={statusFilter === tab.key ? "default" : "outline"}
+              className="text-xs h-7 gap-1"
+              onClick={() => { setStatusFilter(tab.key); setPage(1); setSelectedIds(new Set()); }}
+            >
+              {tab.label}
+              {typeof statusCounts[tab.key] === "number" && (
+                <span className="text-[10px] opacity-70">({statusCounts[tab.key]})</span>
+              )}
+            </Button>
+          ))}
+        </div>
+
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No items pending review.</p>
+          <p className="text-sm text-muted-foreground">No items in this status.</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
+                  {(canReject || canRevert) && (
+                    <TableHead className="w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === items.length && items.length > 0}
+                        onChange={toggleAll}
+                        className="rounded"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="text-xs">Style #</TableHead>
                   <TableHead className="text-xs">Description</TableHead>
                   <TableHead className="text-xs">Predicted</TableHead>
@@ -407,7 +486,17 @@ function ReviewQueue() {
               <TableBody>
                 {items.map((item: any) => (
                   <TableRow key={item.id}>
-                    <TableCell className="text-xs font-mono">{item.external_id}</TableCell>
+                    {(canReject || canRevert) && (
+                      <TableCell className="w-8">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                          className="rounded"
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="text-xs font-mono">{item.style_number || item.external_id}</TableCell>
                     <TableCell className="text-xs max-w-[200px] truncate">{item.description || "—"}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">{item.predicted_category}</Badge>
@@ -420,45 +509,80 @@ function ReviewQueue() {
                     <TableCell className="text-xs max-w-[150px] truncate text-muted-foreground">{item.rationale || "—"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 text-xs text-[hsl(var(--success))]"
-                          onClick={() => approveMutation.mutate({ id: item.id })}
-                          disabled={approveMutation.isPending}
-                        >
-                          ✓
-                        </Button>
-                        <select
-                          className="h-6 text-xs bg-muted border border-border rounded px-1"
-                          defaultValue=""
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              approveMutation.mutate({ id: item.id, category: e.target.value });
-                              e.target.value = "";
-                            }
-                          }}
-                        >
-                          <option value="" disabled>Override…</option>
-                          {CATEGORIES.map((c) => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 text-xs text-destructive"
-                          onClick={() => rejectMutation.mutate(item.id)}
-                          disabled={rejectMutation.isPending}
-                        >
-                          ✗
-                        </Button>
+                        {canApprove && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-xs text-[hsl(var(--success))]"
+                            onClick={() => actionMutation.mutate({ id: item.id, action: "approve" })}
+                            disabled={actionMutation.isPending}
+                          >
+                            ✓
+                          </Button>
+                        )}
+                        {/* Override dropdown — available on pending and auto_applied */}
+                        {(canApprove || canRevert) && (
+                          <select
+                            className="h-6 text-xs bg-muted border border-border rounded px-1"
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                actionMutation.mutate({ id: item.id, action: "approve", category: e.target.value });
+                                e.target.value = "";
+                              }
+                            }}
+                          >
+                            <option value="" disabled>Override…</option>
+                            {CATEGORIES.map((c) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                        )}
+                        {canReject && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-xs text-destructive"
+                            onClick={() => actionMutation.mutate({ id: item.id, action: "reject" })}
+                            disabled={actionMutation.isPending}
+                          >
+                            ✗
+                          </Button>
+                        )}
+                        {canRevert && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-xs text-[hsl(var(--warning))]"
+                            onClick={() => actionMutation.mutate({ id: item.id, action: "revert" })}
+                            disabled={actionMutation.isPending}
+                          >
+                            ↩ Undo
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-xs text-muted-foreground">
+              Page {page} of {totalPages} ({total} items)
+            </span>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="outline" className="h-7" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="h-3 w-3" />
+              </Button>
+              <Button size="sm" variant="outline" className="h-7" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
