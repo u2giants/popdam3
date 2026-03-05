@@ -18,7 +18,7 @@ import InstallBundleTab from "@/components/settings/InstallBundleTab";
 import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
 import TiffHygieneTab from "@/components/settings/TiffHygieneTab";
 import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
-import ThumbnailAuditTab from "@/components/settings/ThumbnailAuditTab";
+
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -823,7 +823,7 @@ export default function SettingsPage() {
           <TabsTrigger value="erp-enrichment">ERP Enrichment</TabsTrigger>
           <TabsTrigger value="tiff-hygiene">TIFF Hygiene</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="thumb-audit">Thumb Audit</TabsTrigger>
+          
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         </TabsList>
 
@@ -871,9 +871,6 @@ export default function SettingsPage() {
           <TiffHygieneTab />
         </TabsContent>
 
-        <TabsContent value="thumb-audit" className="space-y-4">
-          <ThumbnailAuditTab />
-        </TabsContent>
 
         <TabsContent value="diagnostics" className="space-y-4">
           <DiagnosticsTab />

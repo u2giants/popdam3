@@ -116,16 +116,24 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
   const [siblings, setSiblings] = useState<SiblingImage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [requestPending, setRequestPending] = useState(false);
+
   const handleFind = async () => {
     setLoading(true);
     setError(null);
     setSiblings(null);
+    setRequestPending(false);
     try {
       const result = await call("list-sibling-images", { folder_path: group.folder_path });
-      const images = (result?.images ?? []) as SiblingImage[];
-      setSiblings(images);
-      if (images.length === 0) {
-        toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+      if (result?.status === "pending") {
+        setRequestPending(true);
+        toast({ title: "Scan requested", description: "The Bridge Agent will scan this folder on its next heartbeat. Check back in a few minutes." });
+      } else {
+        const images = (result?.images ?? []) as SiblingImage[];
+        setSiblings(images);
+        if (images.length === 0) {
+          toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+        }
       }
     } catch (e) {
       const msg = (e as Error).message;
@@ -180,7 +188,18 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
         </div>
       )}
 
-      {siblings && siblings.length === 0 && (
+      {requestPending && (
+        <div className="rounded-md border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.05)] p-2.5 space-y-1">
+          <p className="text-[10px] text-[hsl(var(--warning))] font-medium flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Scan request queued
+          </p>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            The Bridge Agent will scan folder <span className="font-mono">{group.folder_path}</span> for JPG/PNG files on its next heartbeat cycle. This typically takes 1–3 minutes. The results will be available once the agent processes the request.
+          </p>
+        </div>
+      )}
+
+      {siblings && siblings.length === 0 && !requestPending && (
         <p className="text-[10px] text-muted-foreground/60">No JPG/PNG files found in this folder.</p>
       )}
     </section>
