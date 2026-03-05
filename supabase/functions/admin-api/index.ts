@@ -4058,8 +4058,8 @@ async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
 async function handleErpReviewAction(body: Record<string, unknown>, userId: string) {
   const action = requireString(body, "review_action"); // approve, reject, revert, bulk-reject
 
-  if (!["approve", "reject", "revert", "bulk-reject"].includes(action)) {
-    return err("review_action must be 'approve', 'reject', 'revert', or 'bulk-reject'");
+  if (!["approve", "reject", "revert", "bulk-reject", "bulk-dismiss"].includes(action)) {
+    return err("review_action must be 'approve', 'reject', 'revert', 'bulk-reject', or 'bulk-dismiss'");
   }
 
   const db = serviceClient();
@@ -4071,6 +4071,17 @@ async function handleErpReviewAction(body: Record<string, unknown>, userId: stri
     if (!Array.isArray(ids) || ids.length === 0) return err("prediction_ids must be a non-empty array");
     const { error } = await db.from("product_category_predictions")
       .update({ status: "rejected", reviewed_by: userId === "system" ? null : userId, reviewed_at: now })
+      .in("id", ids);
+    if (error) return err(error.message, 500);
+    return json({ ok: true, count: ids.length });
+  }
+
+  // Bulk dismiss: permanently mark as unclassifiable (never re-classified)
+  if (action === "bulk-dismiss") {
+    const ids = body.prediction_ids;
+    if (!Array.isArray(ids) || ids.length === 0) return err("prediction_ids must be a non-empty array");
+    const { error } = await db.from("product_category_predictions")
+      .update({ status: "unclassifiable", reviewed_by: userId === "system" ? null : userId, reviewed_at: now })
       .in("id", ids);
     if (error) return err(error.message, 500);
     return json({ ok: true, count: ids.length });

@@ -385,6 +385,18 @@ function ReviewQueue() {
     onError: (e) => toast.error(e.message),
   });
 
+  const bulkDismissMutation = useMutation({
+    mutationFn: (ids: string[]) =>
+      call("erp-review-action", { review_action: "bulk-dismiss", prediction_ids: ids }),
+    onSuccess: (_, ids) => {
+      toast.success(`Dismissed ${ids.length} items — they will never be re-classified`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -424,15 +436,36 @@ function ReviewQueue() {
         </CardTitle>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && canReject && (
-            <Button
-              size="sm"
-              variant="destructive"
-              className="text-xs gap-1"
-              onClick={() => bulkRejectMutation.mutate([...selectedIds])}
-              disabled={bulkRejectMutation.isPending}
-            >
-              Reject {selectedIds.size} selected
-            </Button>
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs gap-1"
+                    onClick={() => bulkRejectMutation.mutate([...selectedIds])}
+                    disabled={bulkRejectMutation.isPending}
+                  >
+                    Reject {selectedIds.size}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reject these predictions — items can still be re-classified later</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="text-xs gap-1"
+                    onClick={() => bulkDismissMutation.mutate([...selectedIds])}
+                    disabled={bulkDismissMutation.isPending}
+                  >
+                    Dismiss {selectedIds.size}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Permanently dismiss — items will NEVER be re-classified</TooltipContent>
+              </Tooltip>
+            </>
           )}
           <Button variant="ghost" size="icon" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
@@ -572,7 +605,7 @@ function ReviewQueue() {
                                 <X className="h-3.5 w-3.5" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Reject this prediction — item won't be enriched</TooltipContent>
+                            <TooltipContent>Reject this prediction (can be re-classified later). Use "Dismiss" to permanently exclude.</TooltipContent>
                           </Tooltip>
                         )}
                         {canRevert && (
