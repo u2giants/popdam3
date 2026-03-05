@@ -24,15 +24,32 @@ const AGENT_CONFIG_DIR = path.join(PROGRAM_DATA, "PopDAM");
 const AGENT_CONFIG_PATH = path.join(AGENT_CONFIG_DIR, "agent-config.json");
 const LEGACY_KEY_PATH = path.join(path.dirname(process.execPath), "agent-key.cfg");
 
-// ── Load persisted agent key ──
+// ── Load persisted agent config/key ──
 try {
   const raw = readFileSync(AGENT_CONFIG_PATH, "utf-8");
   const saved = JSON.parse(raw);
+
+  // Auth identity
   if (saved.agent_key && !process.env.AGENT_KEY) {
     process.env.AGENT_KEY = saved.agent_key;
   }
   if (saved.agent_id) {
     process.env._SAVED_AGENT_ID = saved.agent_id;
+  }
+
+  // Server URL fallback (helps when .env is missing on some installs)
+  if (saved.server_url && !process.env.POPDAM_SERVER_URL && !process.env.SUPABASE_URL) {
+    process.env.POPDAM_SERVER_URL = saved.server_url;
+  }
+
+  // Pairing fallback (single-use, but useful on first boot after reinstall)
+  if (saved.pairing_code && !process.env.POPDAM_PAIRING_CODE && !process.env.PAIRING_CODE && !process.env.BOOTSTRAP_TOKEN) {
+    process.env.POPDAM_PAIRING_CODE = saved.pairing_code;
+  }
+
+  // Optional persisted agent name
+  if (saved.agent_name && !process.env.AGENT_NAME) {
+    process.env.AGENT_NAME = saved.agent_name;
   }
 } catch {
   // Try legacy key file
