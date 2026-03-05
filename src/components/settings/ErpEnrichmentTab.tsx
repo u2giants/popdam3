@@ -362,7 +362,7 @@ function ReviewQueue() {
     mutationFn: (params: { id: string; action: string; category?: string }) =>
       call("erp-review-action", {
         prediction_id: params.id,
-        action: params.action,
+        review_action: params.action,
         override_category: params.category,
       }),
     onSuccess: () => {
@@ -374,7 +374,7 @@ function ReviewQueue() {
 
   const bulkRejectMutation = useMutation({
     mutationFn: (ids: string[]) =>
-      call("erp-review-action", { action: "bulk-reject", prediction_ids: ids }),
+      call("erp-review-action", { review_action: "bulk-reject", prediction_ids: ids }),
     onSuccess: (_, ids) => {
       toast.success(`Rejected ${ids.length} predictions`);
       setSelectedIds(new Set());
