@@ -722,30 +722,30 @@ function ErpItemsBrowser() {
   };
 
   // Checkbox click with shift/ctrl support
-  const handleCheckboxClick = (id: string, idx: number, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleRowCheck = useCallback((id: string, idx: number, e: React.MouseEvent<HTMLInputElement>) => {
+    e.stopPropagation(); // prevent row expand
+    const shiftKey = e.shiftKey;
+    const ctrlKey = e.ctrlKey || e.metaKey;
+
     setSelectedIds((prev) => {
       const next = new Set(prev);
 
-      if (e.shiftKey && lastClickedIdx !== null) {
-        // Shift+click: select range
+      if (shiftKey && lastClickedIdx !== null) {
         const start = Math.min(lastClickedIdx, idx);
         const end = Math.max(lastClickedIdx, idx);
         for (let i = start; i <= end; i++) {
           if (items[i]?.id) next.add(items[i].id);
         }
-      } else if (e.ctrlKey || e.metaKey) {
-        // Ctrl/Cmd+click: toggle single
+      } else if (ctrlKey) {
         next.has(id) ? next.delete(id) : next.add(id);
       } else {
-        // Plain click: toggle single
         next.has(id) ? next.delete(id) : next.add(id);
       }
 
       return next;
     });
     setLastClickedIdx(idx);
-  };
+  }, [items, lastClickedIdx]);
 
   const toggleAll = () => {
     if (selectedIds.size === items.length) {
@@ -843,9 +843,9 @@ function ErpItemsBrowser() {
             <div className="flex items-center gap-1.5">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <label className="text-xs text-muted-foreground whitespace-nowrap cursor-help">Style # max digits:</label>
+                  <label className="text-xs text-muted-foreground whitespace-nowrap cursor-help">Style # max chars:</label>
                 </TooltipTrigger>
-                <TooltipContent>Show items whose Style # is a number with at most this many digits (e.g. 5 → shows "12345" but not "123456")</TooltipContent>
+                <TooltipContent>Show items whose Style # has at most this many characters (e.g. 3 → shows "ABC" but not "ABCD")</TooltipContent>
               </Tooltip>
               <Input
                 type="number"
@@ -946,13 +946,13 @@ function ErpItemsBrowser() {
                         className={`border-b transition-colors hover:bg-muted/50 cursor-pointer ${item.dismissed ? "opacity-50" : ""} ${selectedIds.has(item.id) ? "bg-primary/10" : ""}`}
                         onClick={() => setExpandedRow(expandedRow === item.external_id ? null : item.external_id)}
                       >
-                        <td className="p-2 align-middle w-10">
+                        <td className="p-2 align-middle w-10" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedIds.has(item.id)}
-                            onClick={(e) => handleCheckboxClick(item.id, idx, e)}
-                            onChange={() => {}}
-                            className="rounded"
+                            onClick={(e) => handleRowCheck(item.id, idx, e as unknown as React.MouseEvent<HTMLInputElement>)}
+                            readOnly
+                            className="rounded cursor-pointer"
                           />
                         </td>
                         {ATTRIBUTE_COLS.map((col) => (
