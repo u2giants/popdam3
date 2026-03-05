@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "apps/windows-agent/**"
+      - "packages/path-filters/**"
       - ".github/workflows/publish-windows-agent.yml"
 
 jobs:
