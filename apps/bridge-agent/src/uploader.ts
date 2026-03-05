@@ -112,6 +112,22 @@ export async function uploadThumbnail(
   buffer: Buffer,
 ): Promise<string> {
   const key = `thumbnails/${assetId}.jpg`;
+  return uploadToSpaces(key, buffer);
+}
+
+/**
+ * Upload a sibling image thumbnail to Spaces.
+ * Stored under siblings/ prefix to avoid collision with asset thumbnails.
+ */
+export async function uploadSiblingThumbnail(
+  pathHash: string,
+  buffer: Buffer,
+): Promise<string> {
+  const key = `siblings/${pathHash}.jpg`;
+  return uploadToSpaces(key, buffer);
+}
+
+async function uploadToSpaces(key: string, buffer: Buffer): Promise<string> {
   const bucket = getCurrentBucket();
   const region = getCurrentRegion();
 
@@ -128,6 +144,6 @@ export async function uploadThumbnail(
   );
 
   const url = `https://${bucket}.${region}.digitaloceanspaces.com/${key}`;
-  logger.info("Thumbnail uploaded", { assetId, url });
+  logger.info("Thumbnail uploaded", { key, url });
   return url;
 }
