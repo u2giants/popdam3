@@ -4056,10 +4056,10 @@ async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
 }
 
 async function handleErpReviewAction(body: Record<string, unknown>, userId: string) {
-  const action = requireString(body, "action"); // approve, reject, revert, bulk-reject
+  const action = requireString(body, "review_action"); // approve, reject, revert, bulk-reject
 
   if (!["approve", "reject", "revert", "bulk-reject"].includes(action)) {
-    return err("action must be 'approve', 'reject', 'revert', or 'bulk-reject'");
+    return err("review_action must be 'approve', 'reject', 'revert', or 'bulk-reject'");
   }
 
   const db = serviceClient();
