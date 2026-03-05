@@ -188,7 +188,18 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
         </div>
       )}
 
-      {siblings && siblings.length === 0 && (
+      {requestPending && (
+        <div className="rounded-md border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.05)] p-2.5 space-y-1">
+          <p className="text-[10px] text-[hsl(var(--warning))] font-medium flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Scan request queued
+          </p>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            The Bridge Agent will scan folder <span className="font-mono">{group.folder_path}</span> for JPG/PNG files on its next heartbeat cycle. This typically takes 1–3 minutes. The results will be available once the agent processes the request.
+          </p>
+        </div>
+      )}
+
+      {siblings && siblings.length === 0 && !requestPending && (
         <p className="text-[10px] text-muted-foreground/60">No JPG/PNG files found in this folder.</p>
       )}
     </section>
