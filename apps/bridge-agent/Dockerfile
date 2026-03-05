@@ -38,10 +38,17 @@ COPY apps/bridge-agent/tsconfig.json ./
 COPY apps/bridge-agent/src/ ./src/
 RUN npm run build
 
-# Prune dev dependencies — but re-install path-filters after, since
-# npm prune removes file: dependencies from node_modules
-RUN npm prune --production
-RUN npm install --production "file:/app/packages/path-filters"
+# Remove devDependencies manually (npm prune strips file: deps too)
+RUN node -e "
+  const fs = require('fs');
+  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  const devDeps = Object.keys(pkg.devDependencies || {});
+  devDeps.forEach(dep => {
+    const p = 'node_modules/' + dep;
+    if (fs.existsSync(p)) fs.rmSync(p, {recursive:true, force:true});
+  });
+  console.log('Removed devDeps:', devDeps.join(', '));
+"
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM node:20-bookworm-slim AS runtime
