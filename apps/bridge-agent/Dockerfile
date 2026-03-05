@@ -24,7 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY packages/path-filters /build/path-filters
 RUN cd /build/path-filters \
  && npm install --ignore-scripts \
- && npx tsc \
+ && npm install --save-dev typescript \
+ && ./node_modules/.bin/tsc \
  && rm -rf node_modules \
  && npm pack \
  && ls -la *.tgz
