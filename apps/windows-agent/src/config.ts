@@ -66,10 +66,9 @@ function optionalInt(key: string, fallback: number): number {
 }
 
 // Server URL: prefer POPDAM_SERVER_URL, fall back to SUPABASE_URL
+// NOTE: Do NOT throw here — let main() handle the error so the process
+// can log properly and retry instead of crashing at module-load time.
 const serverUrl = optional("POPDAM_SERVER_URL", optional("SUPABASE_URL", ""));
-if (!serverUrl) {
-  throw new Error("Missing required: POPDAM_SERVER_URL or SUPABASE_URL");
-}
 
 export const config = {
   // Cloud API
