@@ -27,10 +27,9 @@ RUN cd /app/packages/path-filters && npx -y typescript tsc
 COPY apps/bridge-agent/package.json apps/bridge-agent/package-lock.json ./
 
 # Rewrite the local file: reference to point to the copied location
-RUN sed -i 's|"file:../../packages/path-filters"|"file:/app/packages/path-filters"|' package.json
-
-# Reproducible builds: npm ci requires a lockfile (guaranteed by CI workflow)
-RUN npm ci --loglevel verbose
+# Then use npm install (not npm ci) because the lockfile won't match the rewritten path
+RUN sed -i 's|"file:../../packages/path-filters"|"file:/app/packages/path-filters"|' package.json \
+ && npm install --loglevel verbose
 
 COPY apps/bridge-agent/tsconfig.json ./
 COPY apps/bridge-agent/src/ ./src/
