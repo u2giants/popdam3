@@ -3297,6 +3297,7 @@ async function handleCountUntaggedAssets() {
 
 async function handleListSiblingImages(body: Record<string, unknown>) {
   const rawPath = requireString(body, "folder_path");
+  const styleGroupId = optionalString(body, "style_group_id");
   // Normalize: trim, slash-normalize, no leading/trailing slashes
   const folderPath = rawPath.trim().replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
   const db = serviceClient();
@@ -3341,9 +3342,9 @@ async function handleListSiblingImages(body: Record<string, unknown>) {
         }
       }
 
-      // Already pending — return existing request ID
-      if (val.status === "pending") {
-        console.log(`[list-sibling-images] Already pending for ${folderPath}`);
+      // Already pending or claimed — return existing request ID
+      if (val.status === "pending" || val.status === "claimed") {
+        console.log(`[list-sibling-images] Already ${val.status} for ${folderPath}`);
         return json({
           ok: true,
           status: "pending",
@@ -3361,6 +3362,7 @@ async function handleListSiblingImages(body: Record<string, unknown>) {
     key: `sibling_scan_request_${requestId}`,
     value: {
       folder_path: folderPath,
+      style_group_id: styleGroupId,
       requested_at: new Date().toISOString(),
       status: "pending",
       extensions: [".jpg", ".jpeg", ".png"],
@@ -3402,6 +3404,68 @@ async function handleGetSiblingScanResult(body: Record<string, unknown>) {
     error_message: val.error_message ?? null,
     processed_at: val.processed_at ?? null,
   });
+}
+
+// ── Route: get-sibling-scan-by-folder ──────────────────────────────
+// Read-only lookup of the latest sibling scan result for a folder_path.
+// Does NOT create a new request if none exists.
+
+async function handleGetSiblingScanByFolder(body: Record<string, unknown>) {
+  const rawPath = requireString(body, "folder_path");
+  const folderPath = rawPath.trim().replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+  const db = serviceClient();
+
+  const { data: rows } = await db
+    .from("admin_config")
+    .select("key, value")
+    .like("key", "sibling_scan_request_%")
+    .order("updated_at", { ascending: false })
+    .limit(50);
+
+  if (rows) {
+    for (const row of rows) {
+      const val = row.value as Record<string, unknown>;
+      if (!val || val.folder_path !== folderPath) continue;
+
+      const requestId = row.key.replace("sibling_scan_request_", "");
+
+      if (val.status === "completed") {
+        return json({
+          ok: true,
+          found: true,
+          status: "completed",
+          request_id: requestId,
+          images: val.images ?? [],
+          processed_at: val.processed_at ?? null,
+        });
+      }
+
+      if (val.status === "failed") {
+        return json({
+          ok: true,
+          found: true,
+          status: "failed",
+          request_id: requestId,
+          images: [],
+          error_message: val.error_message ?? "Scan failed",
+          processed_at: val.processed_at ?? null,
+        });
+      }
+
+      if (val.status === "pending" || val.status === "claimed") {
+        return json({
+          ok: true,
+          found: true,
+          status: "pending",
+          request_id: requestId,
+          images: [],
+        });
+      }
+    }
+  }
+
+  // No result found
+  return json({ ok: true, found: false });
 }
 
 serve(async (req: Request) => {
@@ -3566,6 +3630,8 @@ serve(async (req: Request) => {
         return await handleListSiblingImages(body);
       case "get-sibling-scan-result":
         return await handleGetSiblingScanResult(body);
+      case "get-sibling-scan-by-folder":
+        return await handleGetSiblingScanByFolder(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

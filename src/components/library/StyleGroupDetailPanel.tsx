@@ -117,6 +117,7 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
   const [error, setError] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
+  const [initialLoaded, setInitialLoaded] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCountRef = useRef(0);
 
@@ -176,13 +177,41 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
     }, 5000);
   };
 
+  // Auto-load existing results on mount (read-only, no new request created)
+  useEffect(() => {
+    if (initialLoaded || !group.folder_path) return;
+    setInitialLoaded(true);
+
+    (async () => {
+      try {
+        const result = await call("get-sibling-scan-by-folder", { folder_path: group.folder_path });
+        if (!result?.found) return; // No previous scan — just show the button
+
+        if (result.status === "completed") {
+          const images = (result.images ?? []) as SiblingImage[];
+          setSiblings(images);
+        } else if (result.status === "failed") {
+          setError(result.error_message || "Previous scan failed");
+        } else if (result.status === "pending") {
+          // An in-flight scan exists — start polling
+          startPolling(result.request_id as string);
+        }
+      } catch {
+        // Non-fatal — user can still click the button
+      }
+    })();
+  }, [group.folder_path]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleFind = async () => {
     setLoading(true);
     setError(null);
     setSiblings(null);
     stopPolling();
     try {
-      const result = await call("list-sibling-images", { folder_path: group.folder_path });
+      const result = await call("list-sibling-images", {
+        folder_path: group.folder_path,
+        style_group_id: group.id,
+      });
       if (result?.status === "completed") {
         const images = (result.images ?? []) as SiblingImage[];
         setSiblings(images);
@@ -220,7 +249,7 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
         disabled={loading || polling}
       >
         {loading || polling ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSearch className="h-3 w-3" />}
-        {loading ? "Scanning…" : polling ? "Waiting for results…" : "Find JPG/PNG in Folder"}
+        {loading ? "Scanning…" : polling ? "Waiting for results…" : siblings ? "Re-scan Folder" : "Find JPG/PNG in Folder"}
       </Button>
 
       {error && (
