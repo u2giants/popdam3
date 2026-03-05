@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy shared package first and build it
 COPY packages/path-filters /app/packages/path-filters
-RUN cd /app/packages/path-filters && npx -y typescript tsc
+RUN cd /app/packages/path-filters && npx -y tsc
 
 COPY apps/bridge-agent/package.json apps/bridge-agent/package-lock.json ./
 
