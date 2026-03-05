@@ -3370,7 +3370,7 @@ serve(async (req: Request) => {
       case "erp-enrichment-stats":
         return await handleErpEnrichmentStats();
       case "erp-review-queue":
-        return await handleErpReviewQueue();
+        return await handleErpReviewQueue(body);
       case "erp-review-action":
         return await handleErpReviewAction(body, userId);
       case "apply-erp-enrichment":
@@ -3983,44 +3983,111 @@ async function handleErpEnrichmentStats() {
   });
 }
 
-async function handleErpReviewQueue() {
+async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   const db = serviceClient();
-  const { data, error } = await db.from("product_category_predictions")
-    .select("id, external_id, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at")
-    .eq("status", "pending")
-    .order("confidence", { ascending: true })
-    .limit(50);
+  const statusFilter = typeof body.status === "string" ? body.status : "pending";
+  const page = typeof body.page === "number" ? Math.max(1, body.page) : 1;
+  const pageSize = typeof body.page_size === "number" ? Math.min(body.page_size, 200) : 100;
+  const offset = (page - 1) * pageSize;
 
+  // Valid statuses
+  const validStatuses = ["pending", "auto_applied", "approved", "rejected", "unclassifiable", "all"];
+  if (!validStatuses.includes(statusFilter)) return err(`Invalid status filter: ${statusFilter}`);
+
+  // Count total for this filter
+  let countQuery = db.from("product_category_predictions").select("id", { count: "exact", head: true });
+  if (statusFilter !== "all") countQuery = countQuery.eq("status", statusFilter);
+  const { count: totalCount, error: countErr } = await countQuery;
+  if (countErr) return err(countErr.message, 500);
+
+  // Also get counts per status for tabs
+  const { data: statusCountsRaw } = await db.from("product_category_predictions")
+    .select("status")
+    .then(async (_) => {
+      // Can't group by with supabase-js easily, use individual counts
+      return { data: null };
+    });
+  // Individual status counts
+  const statusCounts: Record<string, number> = {};
+  for (const s of ["pending", "auto_applied", "approved", "rejected", "unclassifiable"]) {
+    const { count } = await db.from("product_category_predictions")
+      .select("id", { count: "exact", head: true }).eq("status", s);
+    statusCounts[s] = count ?? 0;
+  }
+
+  // Fetch page
+  let query = db.from("product_category_predictions")
+    .select("id, external_id, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at");
+  if (statusFilter !== "all") query = query.eq("status", statusFilter);
+  query = query.order("confidence", { ascending: true }).range(offset, offset + pageSize - 1);
+
+  const { data, error } = await query;
   if (error) return err(error.message, 500);
 
   // Enrich with item descriptions
   const externalIds = (data || []).map((d: any) => d.external_id);
   const { data: erpItems } = await db.from("erp_items_current")
-    .select("external_id, item_description")
+    .select("external_id, item_description, style_number")
     .in("external_id", externalIds.length > 0 ? externalIds : ["__none__"]);
 
-  const descMap: Record<string, string> = {};
+  const descMap: Record<string, { description: string; style_number: string }> = {};
   for (const item of erpItems || []) {
-    descMap[item.external_id] = item.item_description || "";
+    descMap[item.external_id] = {
+      description: item.item_description || "",
+      style_number: item.style_number || "",
+    };
   }
 
   const items = (data || []).map((d: any) => ({
     ...d,
-    description: descMap[d.external_id] || null,
+    description: descMap[d.external_id]?.description || null,
+    style_number: descMap[d.external_id]?.style_number || d.external_id,
   }));
 
-  return json({ ok: true, items });
+  return json({
+    ok: true,
+    items,
+    total: totalCount ?? 0,
+    page,
+    page_size: pageSize,
+    total_pages: Math.ceil((totalCount ?? 0) / pageSize),
+    status_counts: statusCounts,
+  });
 }
 
 async function handleErpReviewAction(body: Record<string, unknown>, userId: string) {
-  const predictionId = requireString(body, "prediction_id");
-  const action = requireString(body, "action"); // approve, reject
-  const overrideCategory = optionalString(body, "override_category");
+  const action = requireString(body, "action"); // approve, reject, revert, bulk-reject
 
-  if (!["approve", "reject"].includes(action)) return err("action must be 'approve' or 'reject'");
+  if (!["approve", "reject", "revert", "bulk-reject"].includes(action)) {
+    return err("action must be 'approve', 'reject', 'revert', or 'bulk-reject'");
+  }
 
   const db = serviceClient();
   const now = new Date().toISOString();
+
+  // Bulk reject: reject multiple predictions at once
+  if (action === "bulk-reject") {
+    const ids = body.prediction_ids;
+    if (!Array.isArray(ids) || ids.length === 0) return err("prediction_ids must be a non-empty array");
+    const { error } = await db.from("product_category_predictions")
+      .update({ status: "rejected", reviewed_by: userId === "system" ? null : userId, reviewed_at: now })
+      .in("id", ids);
+    if (error) return err(error.message, 500);
+    return json({ ok: true, count: ids.length });
+  }
+
+  const predictionId = requireString(body, "prediction_id");
+
+  // Revert: set an auto_applied or approved prediction back to pending
+  if (action === "revert") {
+    const { error } = await db.from("product_category_predictions")
+      .update({ status: "pending", reviewed_by: null, reviewed_at: null })
+      .eq("id", predictionId);
+    if (error) return err(error.message, 500);
+    return json({ ok: true });
+  }
+
+  const overrideCategory = optionalString(body, "override_category");
 
   if (action === "approve") {
     const updates: Record<string, unknown> = {
