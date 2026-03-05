@@ -85,7 +85,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          context: apps/bridge-agent
+          context: .
           file: apps/bridge-agent/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.tags }}
