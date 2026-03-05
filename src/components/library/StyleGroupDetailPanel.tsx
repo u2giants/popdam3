@@ -115,25 +115,85 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
   const [loading, setLoading] = useState(false);
   const [siblings, setSiblings] = useState<SiblingImage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollCountRef = useRef(0);
 
-  const [requestPending, setRequestPending] = useState(false);
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
+
+  const stopPolling = () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    setPolling(false);
+    pollCountRef.current = 0;
+  };
+
+  const startPolling = (reqId: string) => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    pollCountRef.current = 0;
+    setPolling(true);
+    setRequestId(reqId);
+
+    pollTimerRef.current = setInterval(async () => {
+      pollCountRef.current++;
+      // Timeout after ~2.5 minutes (30 polls × 5s)
+      if (pollCountRef.current > 30) {
+        stopPolling();
+        setError("Scan timed out — the Bridge Agent may be offline. Try again later.");
+        return;
+      }
+
+      try {
+        const result = await call("get-sibling-scan-result", { request_id: reqId });
+        if (result?.status === "completed") {
+          stopPolling();
+          const images = (result.images ?? []) as SiblingImage[];
+          setSiblings(images);
+          if (images.length === 0) {
+            toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+          } else {
+            toast({ title: `Found ${images.length} image${images.length !== 1 ? "s" : ""}` });
+          }
+        } else if (result?.status === "failed") {
+          stopPolling();
+          const msg = result.error_message || "Scan failed";
+          setError(msg);
+          toast({ title: "Folder scan failed", description: msg, variant: "destructive" });
+        }
+        // else still pending — keep polling
+      } catch (e) {
+        // Non-fatal — keep polling
+        console.warn("Poll error:", (e as Error).message);
+      }
+    }, 5000);
+  };
 
   const handleFind = async () => {
     setLoading(true);
     setError(null);
     setSiblings(null);
-    setRequestPending(false);
+    stopPolling();
     try {
       const result = await call("list-sibling-images", { folder_path: group.folder_path });
-      if (result?.status === "pending") {
-        setRequestPending(true);
-        toast({ title: "Scan requested", description: "The Bridge Agent will scan this folder on its next heartbeat. Check back in a few minutes." });
-      } else {
-        const images = (result?.images ?? []) as SiblingImage[];
+      if (result?.status === "completed") {
+        const images = (result.images ?? []) as SiblingImage[];
         setSiblings(images);
         if (images.length === 0) {
           toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
         }
+      } else if (result?.status === "failed") {
+        setError(result.error_message || "Scan failed");
+      } else if (result?.status === "pending") {
+        toast({ title: "Scan requested", description: "The Bridge Agent will scan this folder shortly. Waiting for results…" });
+        startPolling(result.request_id as string);
       }
     } catch (e) {
       const msg = (e as Error).message;
@@ -157,10 +217,10 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
         size="sm"
         className="gap-1.5 text-xs h-7"
         onClick={handleFind}
-        disabled={loading}
+        disabled={loading || polling}
       >
-        {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSearch className="h-3 w-3" />}
-        {loading ? "Scanning…" : "Find JPG/PNG in Folder"}
+        {loading || polling ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSearch className="h-3 w-3" />}
+        {loading ? "Scanning…" : polling ? "Waiting for results…" : "Find JPG/PNG in Folder"}
       </Button>
 
       {error && (
@@ -182,24 +242,21 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
               </span>
             </div>
           ))}
-          <p className="text-[9px] text-muted-foreground/60 pt-1">
-            To ingest these, the Bridge Agent must be configured to scan image files in this folder.
-          </p>
         </div>
       )}
 
-      {requestPending && (
+      {polling && (
         <div className="rounded-md border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.05)] p-2.5 space-y-1">
           <p className="text-[10px] text-[hsl(var(--warning))] font-medium flex items-center gap-1">
-            <Clock className="h-3 w-3" /> Scan request queued
+            <Loader2 className="h-3 w-3 animate-spin" /> Waiting for Bridge Agent…
           </p>
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            The Bridge Agent will scan folder <span className="font-mono">{group.folder_path}</span> for JPG/PNG files on its next heartbeat cycle. This typically takes 1–3 minutes. The results will be available once the agent processes the request.
+            The Bridge Agent is scanning folder <span className="font-mono">{group.folder_path}</span> for JPG/PNG files. This typically takes 10–30 seconds.
           </p>
         </div>
       )}
 
-      {siblings && siblings.length === 0 && !requestPending && (
+      {siblings && siblings.length === 0 && !polling && (
         <p className="text-[10px] text-muted-foreground/60">No JPG/PNG files found in this folder.</p>
       )}
     </section>
