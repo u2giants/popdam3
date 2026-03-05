@@ -116,16 +116,24 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
   const [siblings, setSiblings] = useState<SiblingImage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [requestPending, setRequestPending] = useState(false);
+
   const handleFind = async () => {
     setLoading(true);
     setError(null);
     setSiblings(null);
+    setRequestPending(false);
     try {
       const result = await call("list-sibling-images", { folder_path: group.folder_path });
-      const images = (result?.images ?? []) as SiblingImage[];
-      setSiblings(images);
-      if (images.length === 0) {
-        toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+      if (result?.status === "pending") {
+        setRequestPending(true);
+        toast({ title: "Scan requested", description: "The Bridge Agent will scan this folder on its next heartbeat. Check back in a few minutes." });
+      } else {
+        const images = (result?.images ?? []) as SiblingImage[];
+        setSiblings(images);
+        if (images.length === 0) {
+          toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+        }
       }
     } catch (e) {
       const msg = (e as Error).message;
