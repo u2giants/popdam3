@@ -171,6 +171,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
       });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
       toast({ title: "AI tagging complete" });
     } catch (e: any) {
       toast({ title: "AI tagging failed", description: e.message, variant: "destructive" });
