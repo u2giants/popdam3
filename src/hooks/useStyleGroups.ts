@@ -87,18 +87,18 @@ export function useStyleGroups(
         query = query.eq("property_id", filters.propertyId);
       }
 
-      // File status filter — filter via joined primary_asset (multi-select OR)
+      // File status filter — use denormalized primary_thumbnail_url/primary_thumbnail_error on style_groups
       if (filters.fileStatus.length > 0) {
         const orParts: string[] = [];
         for (const fs of filters.fileStatus) {
           if (fs === "has_preview") {
-            orParts.push("primary_asset.thumbnail_url.not.is.null");
+            orParts.push("primary_thumbnail_url.not.is.null");
           } else if (fs === "no_preview_renderable") {
-            orParts.push("and(primary_asset.thumbnail_url.is.null,primary_asset.thumbnail_error.is.null)");
+            orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.is.null)");
           } else if (fs === "no_pdf_compat") {
-            orParts.push("and(primary_asset.thumbnail_url.is.null,primary_asset.thumbnail_error.eq.no_pdf_compat)");
+            orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.eq.no_pdf_compat)");
           } else if (fs === "no_preview_unsupported") {
-            orParts.push("and(primary_asset.thumbnail_url.is.null,primary_asset.thumbnail_error.not.is.null,primary_asset.thumbnail_error.neq.no_pdf_compat)");
+            orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.not.is.null,primary_thumbnail_error.neq.no_pdf_compat)");
           }
         }
         if (orParts.length > 0) {
