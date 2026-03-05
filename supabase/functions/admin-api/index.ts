@@ -2360,8 +2360,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   // Stage 4: finalize stats — three-phase: counts in batches, then primaries in batches
   if (state.stage === "finalize_stats") {
     // Load admin_config knobs for tunable batch sizes
-    let COUNTS_BATCH = 100;
-    let PRIMARIES_BATCH = 50;
+    let COUNTS_BATCH = 50;
+    let PRIMARIES_BATCH = 25;
     try {
       const { data: knobRow } = await db
         .from("admin_config")
