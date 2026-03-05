@@ -373,9 +373,13 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                 <MetaRow label="Files" value={`${group.asset_count}`} />
                 <MetaRow label="Division" value={group.division_name} />
                 <MetaRow label="Category" value={group.product_category} />
-                <MetaRow label="MG01" value={group.mg01_name ? `${group.mg01_code} — ${group.mg01_name}` : group.mg01_code} />
-                <MetaRow label="MG02" value={group.mg02_name ? `${group.mg02_code} — ${group.mg02_name}` : group.mg02_code} />
-                <MetaRow label="MG03" value={group.mg03_name ? `${group.mg03_code} — ${group.mg03_name}` : group.mg03_code} />
+                {!isLegacyGroup && (
+                  <>
+                    <MetaRow label="MG01" value={group.mg01_name ? `${group.mg01_code} — ${group.mg01_name}` : group.mg01_code} />
+                    <MetaRow label="MG02" value={group.mg02_name ? `${group.mg02_code} — ${group.mg02_name}` : group.mg02_code} />
+                    <MetaRow label="MG03" value={group.mg03_name ? `${group.mg03_code} — ${group.mg03_name}` : group.mg03_code} />
+                  </>
+                )}
                 <MetaRow label="Size" value={group.size_name ? `${group.size_code} — ${group.size_name}` : group.size_code} />
               </div>
             </section>
