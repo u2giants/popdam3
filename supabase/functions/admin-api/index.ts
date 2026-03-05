@@ -3496,12 +3496,10 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
 
     const digitFilters: string[] = [];
     if (maxDigitsStyle !== null && maxDigitsStyle > 0) {
-      digitFilters.push(`(style_number ~ '^[0-9]{1,${maxDigitsStyle}}$')`);
+      digitFilters.push(`(style_number IS NOT NULL AND length(style_number) <= ${maxDigitsStyle})`);
     }
     if (maxDigitsDesc !== null && maxDigitsDesc > 0) {
-      digitFilters.push(
-        `(item_description IS NOT NULL AND length(item_description) <= ${maxDigitsDesc + 2} AND item_description ~ '^[a-zA-Z0-9 ]{1,${maxDigitsDesc + 2}}$')`,
-      );
+      digitFilters.push(`(item_description IS NOT NULL AND length(item_description) <= ${maxDigitsDesc})`);
     }
     if (digitFilters.length > 0) conditions.push(`(${digitFilters.join(" OR ")})`);
 
