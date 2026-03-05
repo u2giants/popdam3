@@ -1,0 +1,1 @@
+DELETE FROM product_category_predictions WHERE erp_item_id IN (SELECT id FROM erp_items_current WHERE erp_updated_at < '2020-01-01'); DELETE FROM erp_items_raw WHERE external_id IN (SELECT external_id FROM erp_items_current WHERE erp_updated_at < '2020-01-01'); DELETE FROM erp_items_current WHERE erp_updated_at < '2020-01-01';

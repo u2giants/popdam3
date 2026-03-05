@@ -19,6 +19,8 @@ const ERP_ENDPOINT = "https://api.item.designflow.app/lib/getApiAllItems";
 const BATCH_SIZE = 100;
 const WATERMARK_KEY = "ERP_LAST_SYNC_DATE";
 const DEFAULT_CATEGORY_CUTOFF = "2025-05-10";
+/** Hard floor: reject any item created before this date */
+const INGESTION_MIN_DATE = "2020-01-01";
 
 /** Format a Date as YYYY-MM-DD */
 function fmtDate(d: Date): string {
@@ -177,6 +179,19 @@ serve(async (req: Request) => {
     }
 
     console.log(`erp-sync: fetched ${items.length} items`);
+
+    // ── Filter out items before ingestion floor ────────────────────────
+    const originalCount = items.length;
+    items = items.filter((item: any) => {
+      const createdDate = item.created_date || item.createdDate || null;
+      if (!createdDate) return true; // No date = keep (can't determine age)
+      const dateStr = String(createdDate).slice(0, 10);
+      return dateStr >= INGESTION_MIN_DATE;
+    });
+    const rejectedCount = originalCount - items.length;
+    if (rejectedCount > 0) {
+      console.log(`erp-sync: rejected ${rejectedCount} items created before ${INGESTION_MIN_DATE} (${items.length} remaining)`);
+    }
 
     let totalUpserted = 0;
     let totalErrors = 0;
