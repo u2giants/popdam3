@@ -265,7 +265,7 @@ function EnrichmentControls() {
             <div className="space-y-1">
               <Progress value={((classifyOp.state.progress.classified as number || 0) / Math.max(classifyOp.state.progress.total as number || 1, 1)) * 100} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {String(classifyOp.state.progress.classified || 0)} / {String(classifyOp.state.progress.total || "?")} classified
+                {String(classifyOp.state.progress.classified || 0)} classified, {String(classifyOp.state.progress.skipped_unclassifiable || 0)} skipped (unclassifiable) — batch {String(classifyOp.state.progress.total || "?")} scanned
               </p>
             </div>
           )}
