@@ -39,16 +39,7 @@ COPY apps/bridge-agent/src/ ./src/
 RUN npm run build
 
 # Remove devDependencies manually (npm prune strips file: deps too)
-RUN node -e "
-  const fs = require('fs');
-  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  const devDeps = Object.keys(pkg.devDependencies || {});
-  devDeps.forEach(dep => {
-    const p = 'node_modules/' + dep;
-    if (fs.existsSync(p)) fs.rmSync(p, {recursive:true, force:true});
-  });
-  console.log('Removed devDeps:', devDeps.join(', '));
-"
+RUN node -e "const fs=require('fs');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));Object.keys(pkg.devDependencies||{}).forEach(dep=>{const p='node_modules/'+dep;try{fs.rmSync(p,{recursive:true,force:true});}catch(e){}});console.log('devDeps removed');"
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM node:20-bookworm-slim AS runtime
