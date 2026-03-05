@@ -1,88 +1,64 @@
-# Plan: Legacy ERP Items — Force AI Classification for Pre-May 2025 Styles
+
+
+# Plan: Tag Provenance — Distinguish AI vs Human Tags
 
 ## Problem
+All tags live in a single `text[]` column with no origin metadata. AI tagging overwrites everything. Manual edits are indistinguishable from AI output. This creates three issues:
+- Re-running AI tagging silently destroys human curation
+- No audit trail for tag origin
+- Cannot implement "keep human tags, re-tag AI ones" workflows
 
-Styles created before May 20, 2025 do not encode Product Category in their style number. The current ERP mapper trusts `mg_category` and MG01 codes from the ERP for all items, but for pre-2025 items those values are unreliable. We need to:
+## Approach
 
-1. Null out `mg_category` for pre-cutoff ERP items so the deterministic mapper stops trusting them
-2. Route those items to AI classification instead
-3. Make the cutoff date configurable
+### Database Changes
 
-## Changes
+**New table: `asset_tags`** (replaces the flat `tags` array as the source of truth)
 
-### 1. ERP Sync — Null out `mg_category` for legacy items
-
-**File: `supabase/functions/erp-sync/index.ts**`
-
-During the normalization step (line ~198-238), add a date check. If the item's `created_date` (or `erp_updated_at`) is before `2025-05-10`, set `mg_category: null` regardless of what the ERP returned. This ensures the mapper cannot use unreliable category data.
-
-Add a constant:
-
-```typescript
-const STYLE_CATEGORY_CUTOFF = "2025-05-10";
+```text
+asset_tags
+├── id          uuid PK
+├── asset_id    uuid FK → assets.id
+├── tag         text
+├── source      text ('ai' | 'manual' | 'bulk')
+├── created_at  timestamptz
+├── created_by  uuid (null for AI)
+└── UNIQUE(asset_id, tag)
 ```
 
-In the normalization loop, after extracting `erp_updated_at`, check:
+RLS: authenticated SELECT, admin ALL.
 
-```typescript
-const isLegacy = erpDate && erpDate < STYLE_CATEGORY_CUTOFF;
-mg_category: isLegacy ? null : (item.mgCategory || null),
-```
+**Migration strategy**: Populate `asset_tags` from existing `tags` arrays. For assets where `ai_tagged_at IS NOT NULL`, mark source = `'ai'`. For others, mark `'manual'`. Keep the `tags` array column as a denormalized cache (updated via trigger) so existing queries/filters don't break.
 
-### 2. Classify handler — Expand scope to include legacy items
+**Trigger**: On `asset_tags` INSERT/DELETE, rebuild the parent asset's `tags` array. This keeps the flat array in sync without changing every consumer.
 
-**File: `supabase/functions/admin-api/index.ts**` — `handleClassifyErpCategories`
+### Edge Function Changes
 
-Currently the query filters for `mg_category IS NULL AND mg01_code IS NULL`. This is too restrictive — legacy items may have an MG01 code but it's not reliable for category. Change the query to:
+**`ai-tag/index.ts`**: Instead of setting `updates.tags = tagData.tags`, upsert into `asset_tags` with `source = 'ai'`. Optionally delete old AI tags before inserting new ones (preserving manual tags).
 
-```sql
--- Items that need AI classification:
--- A) mg_category IS NULL (covers legacy items we just wiped)
--- B) exclude items that already have a high-confidence prediction
-```
+**`agent-api/index.ts`**: No change needed — agents don't set tags.
 
-Remove the `.is("mg01_code", null)` filter so that legacy items with MG01 codes (which are unreliable pre-2025) still get classified by AI. The query becomes:
+### UI Changes
 
-```typescript
-.is("mg_category", null)
-// Remove: .is("mg01_code", null)
-```
+**`AssetDetailPanel.tsx`**: Show tag pills with a subtle indicator (e.g., small icon or color tint) for AI vs manual origin. When a user adds a tag manually, insert with `source = 'manual'`.
 
-Also add a left-join or NOT EXISTS check to skip items that already have an `auto_applied` or `approved` prediction in `product_category_predictions`, so re-running doesn't re-classify already-handled items.
+**Bulk re-tag behavior**: "Re-tag" button can now mean "replace only AI tags" — human-curated tags survive.
 
-### 3. Store cutoff date in `admin_config`
+### Filter function update
 
-**File: `supabase/functions/erp-sync/index.ts**`
+**`get_filter_counts`**: The `v_tag_filter` clause currently checks `v_tag_filter = ANY(tags)`. This continues to work since the denormalized `tags` array stays in sync. No change needed unless we want to filter by tag source.
 
-Read `ERP_CATEGORY_CUTOFF_DATE` from `admin_config` (default `2025-05-10`). This makes it configurable from the admin UI without a code deploy.
+## Files Changed
 
-### 4. Update `erp-mapper.ts` — Skip MG01 rule for legacy items
+| File | Purpose |
+|------|---------|
+| Migration SQL | Create `asset_tags` table, backfill, add sync trigger |
+| `supabase/functions/ai-tag/index.ts` | Write to `asset_tags` instead of flat array |
+| `src/components/library/AssetDetailPanel.tsx` | Show tag provenance, manual tag add writes to `asset_tags` |
+| `src/hooks/useAssets.ts` | Join `asset_tags` if detail view needs source info |
 
-**File: `supabase/functions/_shared/erp-mapper.ts**`
+## What Does NOT Change
+- The `tags` text[] column stays as a denormalized cache for fast filtering
+- `get_filter_counts` DB function — unchanged
+- Scanner/agent code — unchanged
+- Style grouping — unchanged
 
-Add an optional `erp_date?: string` field to `ErpItemInput`. If the date is before the cutoff, skip steps 1-3 (ERP direct, SKU deterministic, style_number extraction) and go straight to `needs_ai: true`.
-
-### 5. UI indicator (minor)
-
-**File: `src/components/settings/ErpEnrichmentTab.tsx**`
-
-Add a note in the Quality Dashboard showing how many legacy items (pre-cutoff) exist and how many still need classification.
-
-## Implementation Order
-
-
-| Step | What                                                     | Risk                               |
-| ---- | -------------------------------------------------------- | ---------------------------------- |
-| 1    | Update `erp-mapper.ts` with date-aware logic             | Low — pure function                |
-| 2    | Update `erp-sync` to null `mg_category` for legacy items | Medium — affects data on next sync |
-| 3    | Update `handleClassifyErpCategories` to broaden scope    | Low — additive                     |
-| 4    | Admin config key for cutoff date                         | Low                                |
-| 5    | UI indicator                                             | Low                                |
-
-
-## What does NOT change
-
-- The 7 category enum stays the same
-- Items after May 20, 2025 continue using the existing ERP-direct and MG01-rule logic
-- The AI classification tool call, model, and prompt are unchanged
-- The review queue and approval flow are unchanged
