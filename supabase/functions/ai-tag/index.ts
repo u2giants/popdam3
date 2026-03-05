@@ -325,7 +325,7 @@ ${
       status: "tagged",
       ai_tagged_at: new Date().toISOString(),
     };
-    if (tagData.tags) updates.tags = tagData.tags;
+    // Tags now go into asset_tags table, not the flat array
     if (tagData.ai_description) updates.ai_description = tagData.ai_description;
     if (tagData.scene_description) updates.scene_description = tagData.scene_description;
     if (tagData.asset_type) updates.asset_type = tagData.asset_type;
@@ -343,6 +343,26 @@ ${
     if (updateErr) {
       console.error("Failed to update asset:", updateErr);
       return err("Failed to save tags", 500);
+    }
+
+    // Write tags to asset_tags with provenance
+    if (Array.isArray(tagData.tags) && tagData.tags.length > 0) {
+      // Delete old AI tags for this asset (preserves manual tags)
+      await db.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
+
+      // Insert new AI tags
+      const tagRows = (tagData.tags as string[]).map((t: string) => ({
+        asset_id: assetId,
+        tag: t.trim().toLowerCase(),
+        source: "ai",
+      }));
+      const { error: tagInsertErr } = await db.from("asset_tags").upsert(tagRows, {
+        onConflict: "asset_id,tag",
+      });
+      if (tagInsertErr) {
+        console.error("Failed to insert asset_tags:", tagInsertErr);
+        // Non-fatal: asset metadata was already saved
+      }
     }
 
     console.log("ai-tag SUCCESS", {

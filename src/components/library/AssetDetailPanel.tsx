@@ -171,6 +171,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
       });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
       toast({ title: "AI tagging complete" });
     } catch (e: any) {
       toast({ title: "AI tagging failed", description: e.message, variant: "destructive" });
@@ -179,16 +180,54 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
     }
   };
 
+  // Fetch tag provenance
+  const { data: assetTags } = useQuery({
+    queryKey: ["asset-tags", asset.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("asset_tags")
+        .select("id, tag, source, created_by")
+        .eq("asset_id", asset.id)
+        .order("tag");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const tagSourceMap = new Map<string, string>();
+  for (const t of assetTags ?? []) {
+    tagSourceMap.set(t.tag, t.source);
+  }
+
   // Tags
-  const addTag = () => {
+  const addTag = async () => {
     const tag = tagInput.trim().toLowerCase();
     if (!tag || asset.tags.includes(tag)) return;
-    updateAsset.mutate({ tags: [...asset.tags, tag] });
+    const { error } = await supabase.from("asset_tags").upsert(
+      { asset_id: asset.id, tag, source: "manual" },
+      { onConflict: "asset_id,tag" }
+    );
+    if (error) {
+      toast({ title: "Failed to add tag", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
     setTagInput("");
   };
 
-  const removeTag = (tag: string) => {
-    updateAsset.mutate({ tags: asset.tags.filter((t) => t !== tag) });
+  const removeTag = async (tag: string) => {
+    const { error } = await supabase
+      .from("asset_tags")
+      .delete()
+      .eq("asset_id", asset.id)
+      .eq("tag", tag);
+    if (error) {
+      toast({ title: "Failed to remove tag", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
   };
 
   const paths = nasConfig ? getPathDisplayModes(asset.relative_path, nasConfig, getUserSyncRoot()) : null;
@@ -293,16 +332,29 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
               {asset.tags.length === 0 && (
                 <span className="text-xs text-muted-foreground/50">No tags</span>
               )}
-              {asset.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-xs bg-tag text-tag-foreground gap-1">
-                  {tag}
-                  {editingTags && (
-                    <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
-                      <X className="h-2.5 w-2.5" />
-                    </button>
-                  )}
-                </Badge>
-              ))}
+              {asset.tags.map((tag) => {
+                const source = tagSourceMap.get(tag);
+                const isAi = source === "ai";
+                return (
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className={cn(
+                      "text-xs gap-1",
+                      isAi ? "bg-tag text-tag-foreground" : "bg-accent text-accent-foreground"
+                    )}
+                    title={isAi ? "Added by AI" : "Added manually"}
+                  >
+                    {isAi && <Sparkles className="h-2.5 w-2.5 opacity-60" />}
+                    {tag}
+                    {editingTags && (
+                      <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    )}
+                  </Badge>
+                );
+              })}
             </div>
             {editingTags && (
               <form
