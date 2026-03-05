@@ -23,10 +23,11 @@ import { toast } from "@/hooks/use-toast";
 import {
   X, ImageOff, Copy, Check, Star, Loader2,
   ChevronLeft, ChevronRight, Sparkles, Clock,
-  HardDrive, Tag, FileText,
+  HardDrive, Tag, FileText, FolderSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Constants } from "@/integrations/supabase/types";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 interface StyleGroupDetailPanelProps {
   group: StyleGroup;
@@ -609,6 +610,11 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                 </div>
               )}
             </section>
+
+            <Separator />
+
+            {/* ── FIND ALTERNATIVE IMAGES ── */}
+            <FindAlternativeImages group={group} />
 
             <Separator />
 
