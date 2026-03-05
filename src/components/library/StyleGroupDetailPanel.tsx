@@ -112,6 +112,25 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const [tagInput, setTagInput] = useState("");
   const [aiTagging, setAiTagging] = useState(false);
 
+  const ERP_MG_CUTOFF = "2025-05-14";
+
+  // Check if this group's SKU is a legacy ERP item (pre-cutoff)
+  const { data: erpItemDate } = useQuery({
+    queryKey: ["erp-item-date", group.sku],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("erp_items_current")
+        .select("erp_updated_at")
+        .eq("style_number", group.sku)
+        .limit(1)
+        .maybeSingle();
+      return data?.erp_updated_at ?? null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isLegacyGroup = erpItemDate ? erpItemDate < ERP_MG_CUTOFF : false;
+
   // Fetch all assets in this group
   const { data: groupAssets, isLoading: assetsLoading } = useQuery({
     queryKey: ["style-group-assets", group.id],
