@@ -3448,6 +3448,8 @@ serve(async (req: Request) => {
         return await handleErpItemsBrowse(body);
       case "erp-items-dismiss":
         return await handleErpItemsDismiss(body);
+      case "list-sibling-images":
+        return await handleListSiblingImages(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
