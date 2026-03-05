@@ -22,6 +22,7 @@ import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUp
 import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
 import { ensureNasMapped } from "./nas-mapper";
 import { shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
+import { startJanitor } from "./janitor";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 
@@ -500,6 +501,9 @@ async function main() {
 
   // 10. Check for TIFF scan requests periodically
   startTiffScanChecker();
+
+  // 11. Start temp janitor (cleanup stale render artifacts)
+  startJanitor();
 
   logger.info("Windows Render Agent ready", {
     healthy: healthStatus.healthy,
