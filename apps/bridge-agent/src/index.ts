@@ -677,6 +677,80 @@ async function processFile(file: FileCandidate) {
   }
 }
 
+// ── Sibling Scan Handler ─────────────────────────────────────────
+
+let siblingScanInProgress = false;
+
+async function processSiblingScanRequests() {
+  if (siblingScanInProgress) return;
+  siblingScanInProgress = true;
+
+  try {
+    const request = await api.claimSiblingScan();
+    if (!request) return;
+
+    logger.info("Sibling scan claimed", { requestId: request.request_id, folder: request.folder_path });
+
+    const effectiveMountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
+    // Build absolute path: mountRoot + "/" + folder_path
+    const folderPath = request.folder_path.replace(/^\/+/, "").replace(/\/+$/, "");
+    const absoluteFolder = `${effectiveMountRoot}/${folderPath}`;
+
+    // Safety: ensure resolved path stays inside mount root (no traversal)
+    const { resolve } = await import("node:path");
+    const resolved = resolve(absoluteFolder);
+    if (!resolved.startsWith(resolve(effectiveMountRoot))) {
+      logger.error("Sibling scan path traversal blocked", { requested: absoluteFolder, resolved });
+      await api.completeSiblingScan(request.request_id, "failed", [], "Path traversal detected — folder is outside allowed mount root");
+      return;
+    }
+
+    // Check folder exists
+    try {
+      const s = await stat(resolved);
+      if (!s.isDirectory()) {
+        await api.completeSiblingScan(request.request_id, "failed", [], `Path exists but is not a directory: ${folderPath}`);
+        return;
+      }
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      const msg = code === "ENOENT" ? `Folder not found: ${folderPath}` : code === "EACCES" ? `Permission denied: ${folderPath}` : `Cannot access folder: ${(e as Error).message}`;
+      logger.warn("Sibling scan folder inaccessible", { folder: folderPath, error: msg });
+      await api.completeSiblingScan(request.request_id, "failed", [], msg);
+      return;
+    }
+
+    // List image files (non-recursive)
+    const entries = await readdir(resolved, { withFileTypes: true });
+    const extensions = new Set((request.extensions || [".jpg", ".jpeg", ".png"]).map(e => e.toLowerCase()));
+    const images: api.SiblingImageResult[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const ext = "." + entry.name.split(".").pop()?.toLowerCase();
+      if (!extensions.has(ext)) continue;
+
+      try {
+        const fileStat = await stat(`${resolved}/${entry.name}`);
+        images.push({
+          filename: entry.name,
+          relative_path: `${folderPath}/${entry.name}`,
+          file_size: fileStat.size,
+        });
+      } catch {
+        // Skip files we can't stat
+      }
+    }
+
+    await api.completeSiblingScan(request.request_id, "completed", images);
+    logger.info("Sibling scan completed", { requestId: request.request_id, folder: folderPath, imageCount: images.length });
+  } catch (e) {
+    logger.error("Sibling scan error", { error: (e as Error).message });
+  } finally {
+    siblingScanInProgress = false;
+  }
+}
+
 // ── Path Test Handler ────────────────────────────────────────────
 
 async function handlePathTest(cmd: { request_id: string; container_mount_root: string; scan_roots: string[] }) {
