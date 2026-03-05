@@ -2210,6 +2210,10 @@ serve(async (req: Request) => {
         return await handleClaimTiffJob(body, agentId);
       case "complete-tiff-job":
         return await handleCompleteTiffJob(body);
+      case "claim-sibling-scan":
+        return await handleClaimSiblingScan(body, agentId);
+      case "complete-sibling-scan":
+        return await handleCompleteSiblingScan(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

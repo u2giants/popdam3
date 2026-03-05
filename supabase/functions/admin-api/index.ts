@@ -3296,11 +3296,67 @@ async function handleCountUntaggedAssets() {
 // request that the agent picks up on next heartbeat.
 
 async function handleListSiblingImages(body: Record<string, unknown>) {
-  const folderPath = requireString(body, "folder_path");
+  const rawPath = requireString(body, "folder_path");
+  // Normalize: trim, slash-normalize, no leading/trailing slashes
+  const folderPath = rawPath.trim().replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
   const db = serviceClient();
 
-  // Store the request as a pending command for the bridge agent
+  // Check for a recent completed result for this folder (within 10 minutes)
+  const { data: existingRows } = await db
+    .from("admin_config")
+    .select("key, value, updated_at")
+    .like("key", "sibling_scan_request_%")
+    .order("updated_at", { ascending: false })
+    .limit(50);
+
+  if (existingRows) {
+    for (const row of existingRows) {
+      const val = row.value as Record<string, unknown>;
+      if (!val || val.folder_path !== folderPath) continue;
+
+      if (val.status === "completed") {
+        const processedAt = val.processed_at as string;
+        if (processedAt && Date.now() - new Date(processedAt).getTime() < 10 * 60 * 1000) {
+          console.log(`[list-sibling-images] Returning cached result for ${folderPath}`);
+          return json({
+            ok: true,
+            status: "completed",
+            request_id: row.key.replace("sibling_scan_request_", ""),
+            images: val.images ?? [],
+          });
+        }
+      }
+
+      if (val.status === "failed") {
+        const processedAt = val.processed_at as string;
+        if (processedAt && Date.now() - new Date(processedAt).getTime() < 10 * 60 * 1000) {
+          console.log(`[list-sibling-images] Returning cached failure for ${folderPath}`);
+          return json({
+            ok: true,
+            status: "failed",
+            request_id: row.key.replace("sibling_scan_request_", ""),
+            images: [],
+            error_message: val.error_message ?? "Scan failed",
+          });
+        }
+      }
+
+      // Already pending — return existing request ID
+      if (val.status === "pending") {
+        console.log(`[list-sibling-images] Already pending for ${folderPath}`);
+        return json({
+          ok: true,
+          status: "pending",
+          request_id: row.key.replace("sibling_scan_request_", ""),
+          images: [],
+        });
+      }
+    }
+  }
+
+  // No recent result — create new pending request
   const requestId = crypto.randomUUID();
+  console.log(`[list-sibling-images] Queuing new request ${requestId} for ${folderPath}`);
   const { error } = await db.from("admin_config").upsert({
     key: `sibling_scan_request_${requestId}`,
     value: {
@@ -3316,10 +3372,35 @@ async function handleListSiblingImages(body: Record<string, unknown>) {
 
   return json({
     ok: true,
-    images: [],
-    message: "Sibling image scan requested. The Bridge Agent will process this on its next heartbeat cycle. Check back in a few minutes.",
-    request_id: requestId,
     status: "pending",
+    request_id: requestId,
+    images: [],
+  });
+}
+
+// ── Route: get-sibling-scan-result ──────────────────────────────────
+// Polls for the result of a sibling scan request by request_id.
+
+async function handleGetSiblingScanResult(body: Record<string, unknown>) {
+  const requestId = requireString(body, "request_id");
+  const db = serviceClient();
+
+  const { data, error } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", `sibling_scan_request_${requestId}`)
+    .maybeSingle();
+
+  if (error) return err(error.message, 500);
+  if (!data) return err("Request not found", 404);
+
+  const val = data.value as Record<string, unknown>;
+  return json({
+    ok: true,
+    status: val.status ?? "pending",
+    images: val.images ?? [],
+    error_message: val.error_message ?? null,
+    processed_at: val.processed_at ?? null,
   });
 }
 
@@ -3483,6 +3564,8 @@ serve(async (req: Request) => {
         return await handleErpItemsDismiss(body);
       case "list-sibling-images":
         return await handleListSiblingImages(body);
+      case "get-sibling-scan-result":
+        return await handleGetSiblingScanResult(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
