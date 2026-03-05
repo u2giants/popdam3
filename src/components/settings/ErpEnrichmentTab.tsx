@@ -12,8 +12,9 @@ import { toast } from "sonner";
 import {
   RefreshCw, Play, Database, BarChart3, AlertCircle,
   CheckCircle2, Clock, Loader2, Eye, Zap, Bot, Search,
-  ChevronLeft, ChevronRight, List,
+  ChevronLeft, ChevronRight, List, Undo2, X, Check,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // ── ERP Sync Section ─────────────────────────────────────────────────
 
@@ -414,6 +415,7 @@ function ReviewQueue() {
   const canReject = statusFilter === "pending" || statusFilter === "auto_applied";
 
   return (
+    <TooltipProvider delayDuration={200}>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base flex items-center gap-2">
@@ -506,59 +508,88 @@ function ReviewQueue() {
                         {(item.confidence * 100).toFixed(0)}%
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs max-w-[150px] truncate text-muted-foreground">{item.rationale || "—"}</TableCell>
+                    <TableCell className="text-xs max-w-[200px]">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="truncate block cursor-help text-muted-foreground">{item.rationale || "—"}</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-sm text-xs whitespace-normal">
+                          {item.rationale || "No rationale provided"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {canApprove && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-xs text-[hsl(var(--success))]"
-                            onClick={() => actionMutation.mutate({ id: item.id, action: "approve" })}
-                            disabled={actionMutation.isPending}
-                          >
-                            ✓
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-[hsl(var(--success))]"
+                                onClick={() => actionMutation.mutate({ id: item.id, action: "approve" })}
+                                disabled={actionMutation.isPending}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Approve this prediction as correct</TooltipContent>
+                          </Tooltip>
                         )}
-                        {/* Override dropdown — available on pending and auto_applied */}
+                        {/* Override dropdown — approve with a different category */}
                         {(canApprove || canRevert) && (
-                          <select
-                            className="h-6 text-xs bg-muted border border-border rounded px-1"
-                            defaultValue=""
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                actionMutation.mutate({ id: item.id, action: "approve", category: e.target.value });
-                                e.target.value = "";
-                              }
-                            }}
-                          >
-                            <option value="" disabled>Override…</option>
-                            {CATEGORIES.map((c) => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
-                          </select>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <select
+                                className="h-6 text-xs bg-muted border border-border rounded px-1"
+                                defaultValue=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    actionMutation.mutate({ id: item.id, action: "approve", category: e.target.value });
+                                    e.target.value = "";
+                                  }
+                                }}
+                              >
+                                <option value="" disabled>Override…</option>
+                                {CATEGORIES.map((c) => (
+                                  <option key={c} value={c}>{c}</option>
+                                ))}
+                              </select>
+                            </TooltipTrigger>
+                            <TooltipContent>Approve with a different category (overrides the AI prediction)</TooltipContent>
+                          </Tooltip>
                         )}
                         {canReject && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-xs text-destructive"
-                            onClick={() => actionMutation.mutate({ id: item.id, action: "reject" })}
-                            disabled={actionMutation.isPending}
-                          >
-                            ✗
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-destructive"
+                                onClick={() => actionMutation.mutate({ id: item.id, action: "reject" })}
+                                disabled={actionMutation.isPending}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Reject this prediction — item won't be enriched</TooltipContent>
+                          </Tooltip>
                         )}
                         {canRevert && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 text-xs text-[hsl(var(--warning))]"
-                            onClick={() => actionMutation.mutate({ id: item.id, action: "revert" })}
-                            disabled={actionMutation.isPending}
-                          >
-                            ↩ Undo
-                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-xs text-[hsl(var(--warning))] gap-1"
+                                onClick={() => actionMutation.mutate({ id: item.id, action: "revert" })}
+                                disabled={actionMutation.isPending}
+                              >
+                                <Undo2 className="h-3 w-3" /> Undo
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Move back to Pending for re-review (undoes auto-apply or approval)</TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                     </TableCell>
@@ -587,6 +618,7 @@ function ReviewQueue() {
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
 
