@@ -244,6 +244,7 @@ export interface SiblingImageResult {
   filename: string;
   relative_path: string;
   file_size: number;
+  thumbnail_url?: string;
 }
 
 export async function claimSiblingScan(): Promise<SiblingScanRequest | null> {

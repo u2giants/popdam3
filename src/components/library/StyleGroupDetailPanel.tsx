@@ -108,6 +108,7 @@ interface SiblingImage {
   filename: string;
   relative_path: string;
   file_size: number;
+  thumbnail_url?: string;
 }
 
 function FindAlternativeImages({ group }: { group: StyleGroup }) {
@@ -257,20 +258,38 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
       )}
 
       {siblings && siblings.length > 0 && (
-        <div className="space-y-1 rounded-md border border-border p-2 bg-muted/20">
+        <div className="space-y-1.5 rounded-md border border-border p-2 bg-muted/20">
           <p className="text-[10px] text-muted-foreground font-medium">
             Found {siblings.length} image{siblings.length !== 1 ? "s" : ""}:
           </p>
-          {siblings.map((img) => (
-            <div key={img.relative_path} className="flex items-center gap-2 text-xs py-1 border-b border-border/50 last:border-0">
-              <span className="flex-1 font-mono text-[10px] truncate" title={img.relative_path}>
-                {img.filename}
-              </span>
-              <span className="text-[9px] text-muted-foreground shrink-0">
-                {img.file_size ? `${(img.file_size / 1024).toFixed(0)} KB` : ""}
-              </span>
-            </div>
-          ))}
+          <div className="grid grid-cols-2 gap-2">
+            {siblings.map((img) => (
+              <div key={img.relative_path} className="rounded-md border border-border/50 overflow-hidden bg-background">
+                {img.thumbnail_url ? (
+                  <div className="aspect-square w-full bg-muted/30 overflow-hidden">
+                    <img
+                      src={img.thumbnail_url}
+                      alt={img.filename}
+                      className="h-full w-full object-contain"
+                      loading="lazy"
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-square w-full bg-muted/30 flex items-center justify-center">
+                    <ImageOff className="h-6 w-6 text-muted-foreground/20" />
+                  </div>
+                )}
+                <div className="p-1.5 space-y-0.5">
+                  <p className="font-mono text-[10px] truncate" title={img.relative_path}>
+                    {img.filename}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground">
+                    {img.file_size ? `${(img.file_size / 1024).toFixed(0)} KB` : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

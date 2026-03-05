@@ -731,12 +731,36 @@ async function processSiblingScanRequests() {
       if (!extensions.has(ext)) continue;
 
       try {
-        const fileStat = await stat(`${resolved}/${entry.name}`);
-        images.push({
+        const filePath = `${resolved}/${entry.name}`;
+        const fileStat = await stat(filePath);
+        const result: api.SiblingImageResult = {
           filename: entry.name,
           relative_path: `${folderPath}/${entry.name}`,
           file_size: fileStat.size,
-        });
+        };
+
+        // Generate and upload a small thumbnail for preview
+        try {
+          const sharp = (await import("sharp")).default;
+          const buffer = await sharp(filePath)
+            .flatten({ background: "#ffffff" })
+            .resize(400, 400, { fit: "inside", withoutEnlargement: true })
+            .jpeg({ quality: 75 })
+            .toBuffer();
+
+          // Upload to DO Spaces under siblings/ prefix using a hash of relative_path
+          const { createHash } = await import("node:crypto");
+          const pathHash = createHash("md5").update(result.relative_path).digest("hex");
+          const { uploadSiblingThumbnail } = await import("./uploader.js");
+          result.thumbnail_url = await uploadSiblingThumbnail(pathHash, buffer);
+        } catch (thumbErr) {
+          logger.warn("Sibling thumbnail generation failed", {
+            file: entry.name,
+            error: (thumbErr as Error).message,
+          });
+        }
+
+        images.push(result);
       } catch {
         // Skip files we can't stat
       }
