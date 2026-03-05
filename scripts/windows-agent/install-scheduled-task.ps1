@@ -6,7 +6,13 @@
   Adobe Illustrator COM automation).
 
 .DESCRIPTION
-  Creates a Scheduled Task "PopDAM Windows Render Agent" that:
+  Performs a preflight scrub before installation:
+    - Removes existing scheduled task if present
+    - Removes legacy NSSM service if present
+    - Cleans stale temp artifacts (popdam-gs-*, popdam-ink-*, popdam-im-*, magick-*)
+    - Recreates config/log directories cleanly
+
+  Then creates a Scheduled Task "PopDAM Windows Render Agent" that:
     - Triggers at logon for the specified user
     - Runs only when the user is logged on (interactive session)
     - Restarts on failure (up to 3 times, 60s delay)
@@ -35,7 +41,81 @@ param(
 $ErrorActionPreference = "Stop"
 $TaskName = "PopDAM Windows Render Agent"
 
+Write-Host ""
+Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+Write-Host "║  PopDAM Windows Agent — Install                         ║" -ForegroundColor Cyan
+Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host ""
+
+# ── Preflight Scrub ─────────────────────────────────────────────────
+
+Write-Host "── Preflight Scrub ──" -ForegroundColor Yellow
+
+# Remove existing scheduled task
+$existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+if ($existing) {
+    Write-Host "  Stopping and removing existing task '$TaskName'..." -ForegroundColor Yellow
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    Write-Host "  Existing task removed." -ForegroundColor Green
+} else {
+    Write-Host "  No existing task found." -ForegroundColor DarkGray
+}
+
+# Remove legacy NSSM service
+$legacyService = Get-Service -Name "PopDAMWindowsAgent" -ErrorAction SilentlyContinue
+if ($legacyService) {
+    Write-Host "  Legacy service 'PopDAMWindowsAgent' detected — removing..." -ForegroundColor Yellow
+    Stop-Service -Name "PopDAMWindowsAgent" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+    $nssm = Get-Command nssm -ErrorAction SilentlyContinue
+    if ($nssm) {
+        & nssm remove PopDAMWindowsAgent confirm 2>&1 | Out-Null
+    } else {
+        & sc.exe delete PopDAMWindowsAgent 2>&1 | Out-Null
+    }
+    Write-Host "  Legacy service removed." -ForegroundColor Green
+} else {
+    Write-Host "  No legacy service found." -ForegroundColor DarkGray
+}
+
+# Clean stale temp artifacts
+$tempDir = $env:LOCALAPPDATA + "\Temp"
+if (-not (Test-Path $tempDir)) { $tempDir = $env:TEMP }
+$dirPrefixes = @("popdam-gs-*", "popdam-ink-*", "popdam-im-*")
+$filePrefixes = @("magick-*")
+$cleanedCount = 0
+
+foreach ($prefix in $dirPrefixes) {
+    $matches = Get-ChildItem -Path $tempDir -Directory -Filter $prefix -ErrorAction SilentlyContinue
+    foreach ($d in $matches) {
+        try {
+            Remove-Item -Recurse -Force $d.FullName -ErrorAction Stop
+            $cleanedCount++
+        } catch { <# locked, ignore #> }
+    }
+}
+foreach ($prefix in $filePrefixes) {
+    $matches = Get-ChildItem -Path $tempDir -File -Filter $prefix -ErrorAction SilentlyContinue
+    foreach ($f in $matches) {
+        try {
+            Remove-Item -Force $f.FullName -ErrorAction Stop
+            $cleanedCount++
+        } catch { <# locked, ignore #> }
+    }
+}
+if ($cleanedCount -gt 0) {
+    Write-Host "  Cleaned $cleanedCount stale temp items." -ForegroundColor Green
+} else {
+    Write-Host "  No stale temp artifacts." -ForegroundColor DarkGray
+}
+
+Write-Host ""
+
 # ── Validate install directory ──────────────────────────────────
+
+Write-Host "── Validation ──" -ForegroundColor Yellow
 
 $LauncherBat = Join-Path $InstallDir "popdam-launcher.bat"
 $NodeExe = Join-Path $InstallDir "node.exe"
@@ -51,51 +131,27 @@ if (-not (Test-Path $EntryPoint)) {
 }
 if (-not (Test-Path $LauncherBat)) {
     Write-Warning "popdam-launcher.bat not found at $LauncherBat — drive mapping will not work."
-    Write-Host "Falling back to direct node.exe execution." -ForegroundColor Yellow
+    Write-Host "  Falling back to direct node.exe execution." -ForegroundColor Yellow
     $LauncherBat = $null
+} else {
+    Write-Host "  All required files found." -ForegroundColor Green
 }
 
-# ── Ensure ProgramData directories exist ────────────────────────
+# ── Ensure ProgramData directories exist (clean) ────────────────
 
 $ConfigDir = Join-Path $env:ProgramData "PopDAM"
 $LogDir = Join-Path $ConfigDir "logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+Write-Host "  Config dir: $ConfigDir"
+Write-Host "  Log dir:    $LogDir"
 
-# ── Remove existing task if present ─────────────────────────────
-
-$existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if ($existing) {
-    Write-Host "Removing existing scheduled task '$TaskName'..." -ForegroundColor Yellow
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-}
-
-# ── Remove legacy NSSM service if present ───────────────────────
-
-$legacyService = Get-Service -Name "PopDAMWindowsAgent" -ErrorAction SilentlyContinue
-if ($legacyService) {
-    Write-Host ""
-    Write-Host "WARNING: Legacy Windows Service 'PopDAMWindowsAgent' detected." -ForegroundColor Red
-    Write-Host "Services cannot use Illustrator COM automation reliably." -ForegroundColor Red
-    Write-Host "Stopping and removing legacy service..." -ForegroundColor Yellow
-    Stop-Service -Name "PopDAMWindowsAgent" -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-    $nssm = Get-Command nssm -ErrorAction SilentlyContinue
-    if ($nssm) {
-        & nssm remove PopDAMWindowsAgent confirm
-    } else {
-        & sc.exe delete PopDAMWindowsAgent
-    }
-    Write-Host "Legacy service removed." -ForegroundColor Green
-    Write-Host ""
-}
+Write-Host ""
 
 # ── Create the scheduled task ───────────────────────────────────
 
-Write-Host "Creating scheduled task '$TaskName'..." -ForegroundColor Green
+Write-Host "── Task Registration ──" -ForegroundColor Yellow
 Write-Host "  Install dir : $InstallDir"
 Write-Host "  User        : $Username"
-Write-Host "  Config dir  : $ConfigDir"
-Write-Host "  Log dir     : $LogDir"
 
 # Action: run launcher.bat (or node.exe directly as fallback)
 if ($LauncherBat) {
@@ -147,11 +203,9 @@ if ($task) {
     Write-Host ""
     Write-Host "SUCCESS: Scheduled task '$TaskName' created." -ForegroundColor Green
     Write-Host ""
-    Write-Host "The agent will start automatically when '$Username' logs in."
-    Write-Host "Logs will be written to: $LogDir"
-    Write-Host ""
-    Write-Host "To start it now:  Start-ScheduledTask -TaskName '$TaskName'"
-    Write-Host "To check status:  Get-ScheduledTask -TaskName '$TaskName' | Format-List"
+    Write-Host "  To start now  : Start-ScheduledTask -TaskName '$TaskName'"
+    Write-Host "  To verify     : .\verify-agent.ps1"
+    Write-Host "  Logs          : $LogDir"
     Write-Host ""
 } else {
     Write-Error "Failed to create scheduled task."
