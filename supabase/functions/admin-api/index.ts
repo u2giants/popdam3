@@ -3467,22 +3467,37 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const offset = (page - 1) * pageSize;
 
   const ALLOWED_SORT_COLS = [
-    "external_id", "style_number", "item_description", "mg_category",
-    "mg01_code", "mg02_code", "mg03_code", "size_code",
-    "licensor_code", "property_code", "division_code", "synced_at", "erp_updated_at",
+    "external_id",
+    "style_number",
+    "item_description",
+    "mg_category",
+    "mg01_code",
+    "mg02_code",
+    "mg03_code",
+    "size_code",
+    "licensor_code",
+    "property_code",
+    "division_code",
+    "synced_at",
+    "erp_updated_at",
   ];
   const effectiveSort = ALLOWED_SORT_COLS.includes(sortBy) ? sortBy : "synced_at";
 
   // If max_digits filter is set, use raw SQL via execute_readonly_query for regex filter
   if (maxDigits !== null && maxDigits > 0) {
     const digitPattern = `^[0-9]{1,${maxDigits}}$`;
-    let whereClause = `WHERE (style_number ~ '${digitPattern}' OR (item_description IS NOT NULL AND length(item_description) <= ${maxDigits + 2} AND item_description ~ '^[a-zA-Z0-9 ]{1,${maxDigits + 2}}$'))`;
+    let whereClause = `WHERE (style_number ~ '${digitPattern}' OR (item_description IS NOT NULL AND length(item_description) <= ${
+      maxDigits + 2
+    } AND item_description ~ '^[a-zA-Z0-9 ]{1,${maxDigits + 2}}$'))`;
     if (search) {
       const esc = search.replace(/'/g, "''");
       whereClause += ` AND (style_number ILIKE '%${esc}%' OR item_description ILIKE '%${esc}%')`;
     }
     const countSql = `SELECT count(*)::int as cnt FROM erp_items_current ${whereClause}`;
-    const dataSql = `SELECT style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, external_id FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${sortAsc ? "ASC" : "DESC"} NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
+    const dataSql =
+      `SELECT style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, external_id FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${
+        sortAsc ? "ASC" : "DESC"
+      } NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
 
     const { data: countResult } = await db.rpc("execute_readonly_query", { query_text: countSql });
     const total = (countResult as any)?.[0]?.cnt ?? 0;
