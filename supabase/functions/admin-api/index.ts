@@ -3290,6 +3290,39 @@ async function handleCountUntaggedAssets() {
   return json({ ok: true, count: untaggedCount ?? 0, totalWithThumbnails: totalWithThumb ?? 0 });
 }
 
+// ── Route: list-sibling-images ───────────────────────────────────────
+// Requests the Bridge Agent to scan a NAS folder for JPG/PNG siblings.
+// Since the cloud can't access the NAS directly, this stores a scan
+// request that the agent picks up on next heartbeat.
+
+async function handleListSiblingImages(body: Record<string, unknown>) {
+  const folderPath = requireString(body, "folder_path");
+  const db = serviceClient();
+
+  // Store the request as a pending command for the bridge agent
+  const requestId = crypto.randomUUID();
+  const { error } = await db.from("admin_config").upsert({
+    key: `sibling_scan_request_${requestId}`,
+    value: {
+      folder_path: folderPath,
+      requested_at: new Date().toISOString(),
+      status: "pending",
+      extensions: [".jpg", ".jpeg", ".png"],
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) return err(error.message, 500);
+
+  return json({
+    ok: true,
+    images: [],
+    message: "Sibling image scan requested. The Bridge Agent will process this on its next heartbeat cycle. Check back in a few minutes.",
+    request_id: requestId,
+    status: "pending",
+  });
+}
+
 serve(async (req: Request) => {
   console.log(`admin-api: ${req.method} ${new URL(req.url).pathname}`);
 
@@ -3448,6 +3481,8 @@ serve(async (req: Request) => {
         return await handleErpItemsBrowse(body);
       case "erp-items-dismiss":
         return await handleErpItemsDismiss(body);
+      case "list-sibling-images":
+        return await handleListSiblingImages(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

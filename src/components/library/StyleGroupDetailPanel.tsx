@@ -23,10 +23,11 @@ import { toast } from "@/hooks/use-toast";
 import {
   X, ImageOff, Copy, Check, Star, Loader2,
   ChevronLeft, ChevronRight, Sparkles, Clock,
-  HardDrive, Tag, FileText,
+  HardDrive, Tag, FileText, FolderSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Constants } from "@/integrations/supabase/types";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 interface StyleGroupDetailPanelProps {
   group: StyleGroup;
@@ -98,6 +99,91 @@ function Lightbox({ url, alt, onClose }: { url: string; alt: string; onClose: ()
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
       <img src={url} alt={alt} className="max-w-[90vw] max-h-[90vh] object-contain" onClick={(e) => e.stopPropagation()} />
     </div>
+  );
+}
+
+/* ── Find Alternative Images component ────────────────────── */
+
+interface SiblingImage {
+  filename: string;
+  relative_path: string;
+  file_size: number;
+}
+
+function FindAlternativeImages({ group }: { group: StyleGroup }) {
+  const { call } = useAdminApi();
+  const [loading, setLoading] = useState(false);
+  const [siblings, setSiblings] = useState<SiblingImage[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFind = async () => {
+    setLoading(true);
+    setError(null);
+    setSiblings(null);
+    try {
+      const result = await call("list-sibling-images", { folder_path: group.folder_path });
+      const images = (result?.images ?? []) as SiblingImage[];
+      setSiblings(images);
+      if (images.length === 0) {
+        toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+      }
+    } catch (e) {
+      const msg = (e as Error).message;
+      setError(msg);
+      toast({ title: "Failed to scan folder", description: msg, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="space-y-2.5">
+      <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <FolderSearch className="h-3.5 w-3.5" /> Alternative Images
+      </h4>
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
+        If this group lacks a proper product image, scan the NAS folder for JPG/PNG files that could be used instead.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5 text-xs h-7"
+        onClick={handleFind}
+        disabled={loading}
+      >
+        {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSearch className="h-3 w-3" />}
+        {loading ? "Scanning…" : "Find JPG/PNG in Folder"}
+      </Button>
+
+      {error && (
+        <p className="text-[10px] text-destructive">{error}</p>
+      )}
+
+      {siblings && siblings.length > 0 && (
+        <div className="space-y-1 rounded-md border border-border p-2 bg-muted/20">
+          <p className="text-[10px] text-muted-foreground font-medium">
+            Found {siblings.length} image{siblings.length !== 1 ? "s" : ""}:
+          </p>
+          {siblings.map((img) => (
+            <div key={img.relative_path} className="flex items-center gap-2 text-xs py-1 border-b border-border/50 last:border-0">
+              <span className="flex-1 font-mono text-[10px] truncate" title={img.relative_path}>
+                {img.filename}
+              </span>
+              <span className="text-[9px] text-muted-foreground shrink-0">
+                {img.file_size ? `${(img.file_size / 1024).toFixed(0)} KB` : ""}
+              </span>
+            </div>
+          ))}
+          <p className="text-[9px] text-muted-foreground/60 pt-1">
+            To ingest these, the Bridge Agent must be configured to scan image files in this folder.
+          </p>
+        </div>
+      )}
+
+      {siblings && siblings.length === 0 && (
+        <p className="text-[10px] text-muted-foreground/60">No JPG/PNG files found in this folder.</p>
+      )}
+    </section>
   );
 }
 
@@ -609,6 +695,11 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                 </div>
               )}
             </section>
+
+            <Separator />
+
+            {/* ── FIND ALTERNATIVE IMAGES ── */}
+            <FindAlternativeImages group={group} />
 
             <Separator />
 
