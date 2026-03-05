@@ -60,7 +60,7 @@ function CopyPathRow({ label, value }: { label: string; value: string }) {
     <div className="group flex items-start gap-2">
       <div className="flex-1 min-w-0">
         <span className="text-[10px] uppercase text-muted-foreground tracking-wider">{label}</span>
-        <p className="text-xs font-mono whitespace-nowrap overflow-x-auto scrollbar-thin text-foreground/80 mt-0.5">{value}</p>
+        <p className="text-xs font-mono break-all text-foreground/80 mt-0.5">{value}</p>
       </div>
       <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={copy}>
         {copied ? <Check className="h-3 w-3 text-[hsl(var(--success))]" /> : <Copy className="h-3 w-3" />}
@@ -615,7 +615,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
             {/* Folder path */}
             <section className="space-y-1">
               <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Folder</h4>
-              <p className="text-[10px] font-mono text-muted-foreground whitespace-nowrap overflow-x-auto scrollbar-thin">{group.folder_path}</p>
+              <p className="text-[10px] font-mono text-muted-foreground break-all">{group.folder_path}</p>
             </section>
           </div>
         </ScrollArea>
