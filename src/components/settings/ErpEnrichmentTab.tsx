@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
@@ -659,6 +659,7 @@ function ReviewQueue() {
 
 function ErpItemsBrowser() {
   const { call } = useAdminApi();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -666,9 +667,14 @@ function ErpItemsBrowser() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState("synced_at");
   const [sortAsc, setSortAsc] = useState(false);
-  const [maxDigits, setMaxDigits] = useState<number | null>(null);
+  const [maxDigitsStyle, setMaxDigitsStyle] = useState<number | null>(null);
+  const [maxDigitsDesc, setMaxDigitsDesc] = useState<number | null>(null);
+  const [showDismissed, setShowDismissed] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const [resizing, setResizing] = useState<{ col: string; startX: number; startW: number } | null>(null);
 
-  // Debounce search
   const handleSearchChange = (val: string) => {
     setSearch(val);
     setPage(1);
@@ -677,20 +683,33 @@ function ErpItemsBrowser() {
   };
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, sortBy, sortAsc, maxDigits],
+    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, sortBy, sortAsc, maxDigitsStyle, maxDigitsDesc, showDismissed],
     queryFn: () => call("erp-items-browse", {
       search: debouncedSearch,
       page,
       page_size: pageSize,
       sort_by: sortBy,
       sort_asc: sortAsc,
-      ...(maxDigits !== null ? { max_digits: maxDigits } : {}),
+      show_dismissed: showDismissed,
+      ...(maxDigitsStyle !== null ? { max_digits_style: maxDigitsStyle } : {}),
+      ...(maxDigitsDesc !== null ? { max_digits_desc: maxDigitsDesc } : {}),
     }),
   });
 
-  const items = data?.items || [];
+  const items: any[] = data?.items || [];
   const total = data?.total ?? 0;
   const totalPages = data?.total_pages ?? 1;
+
+  const dismissMutation = useMutation({
+    mutationFn: (params: { ids: string[]; dismiss: boolean }) =>
+      call("erp-items-dismiss", { ids: params.ids, dismiss: params.dismiss }),
+    onSuccess: (_, params) => {
+      toast.success(params.dismiss ? `Dismissed ${params.ids.length} items` : `Restored ${params.ids.length} items`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   const handleSort = (col: string) => {
     if (sortBy === col) {
@@ -702,17 +721,60 @@ function ErpItemsBrowser() {
     setPage(1);
   };
 
-  const SortHeader = ({ col, label }: { col: string; label: string }) => (
-    <TableHead
-      className="text-xs cursor-pointer hover:text-foreground select-none"
-      onClick={() => handleSort(col)}
-    >
-      {label}
-      {sortBy === col && (
-        <span className="ml-1">{sortAsc ? "↑" : "↓"}</span>
-      )}
-    </TableHead>
-  );
+  // Checkbox click with shift/ctrl support
+  const handleCheckboxClick = (id: string, idx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+
+      if (e.shiftKey && lastClickedIdx !== null) {
+        // Shift+click: select range
+        const start = Math.min(lastClickedIdx, idx);
+        const end = Math.max(lastClickedIdx, idx);
+        for (let i = start; i <= end; i++) {
+          if (items[i]?.id) next.add(items[i].id);
+        }
+      } else if (e.ctrlKey || e.metaKey) {
+        // Ctrl/Cmd+click: toggle single
+        next.has(id) ? next.delete(id) : next.add(id);
+      } else {
+        // Plain click: toggle single
+        next.has(id) ? next.delete(id) : next.add(id);
+      }
+
+      return next;
+    });
+    setLastClickedIdx(idx);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map((i: any) => i.id)));
+    }
+  };
+
+  // Column resize handlers
+  const handleResizeStart = (col: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = (e.target as HTMLElement).closest("th");
+    const startW = colWidths[col] || th?.offsetWidth || 120;
+    setResizing({ col, startX: e.clientX, startW });
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const diff = ev.clientX - e.clientX;
+      setColWidths((prev) => ({ ...prev, [col]: Math.max(60, startW + diff) }));
+    };
+    const onMouseUp = () => {
+      setResizing(null);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
 
   const ATTRIBUTE_COLS = [
     { key: "style_number", label: "Style #" },
@@ -728,19 +790,47 @@ function ErpItemsBrowser() {
   ];
 
   return (
-    <Card>
+    <Card className="max-w-none">
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <List className="h-4 w-4" /> ERP Items Browser
           <Badge variant="secondary" className="text-xs font-mono">{total.toLocaleString()}</Badge>
         </CardTitle>
-        <Button variant="ghost" size="icon" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="text-xs gap-1"
+                onClick={() => dismissMutation.mutate({ ids: [...selectedIds], dismiss: true })}
+                disabled={dismissMutation.isPending}
+              >
+                <X className="h-3.5 w-3.5" />
+                Dismiss {selectedIds.size}
+              </Button>
+              {showDismissed && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs gap-1"
+                  onClick={() => dismissMutation.mutate({ ids: [...selectedIds], dismiss: false })}
+                  disabled={dismissMutation.isPending}
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                  Restore {selectedIds.size}
+                </Button>
+              )}
+            </>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by style # or description..."
@@ -749,27 +839,56 @@ function ErpItemsBrowser() {
               className="pl-9 h-9"
             />
           </div>
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs text-muted-foreground whitespace-nowrap">Max digits:</label>
-            <Input
-              type="number"
-              min={1}
-              max={20}
-              placeholder="—"
-              value={maxDigits ?? ""}
-              onChange={(e) => {
-                const v = e.target.value ? parseInt(e.target.value) : null;
-                setMaxDigits(v);
-                setPage(1);
-              }}
-              className="h-9 w-[70px] text-xs"
-            />
-            {maxDigits !== null && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs px-1.5" onClick={() => { setMaxDigits(null); setPage(1); }}>
-                Clear
+          <TooltipProvider delayDuration={200}>
+            <div className="flex items-center gap-1.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="text-xs text-muted-foreground whitespace-nowrap cursor-help">Style # max digits:</label>
+                </TooltipTrigger>
+                <TooltipContent>Show items whose Style # is a number with at most this many digits (e.g. 5 → shows "12345" but not "123456")</TooltipContent>
+              </Tooltip>
+              <Input
+                type="number"
+                min={1}
+                max={20}
+                placeholder="—"
+                value={maxDigitsStyle ?? ""}
+                onChange={(e) => { setMaxDigitsStyle(e.target.value ? parseInt(e.target.value) : null); setPage(1); }}
+                className="h-9 w-[70px] text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="text-xs text-muted-foreground whitespace-nowrap cursor-help">Desc max chars:</label>
+                </TooltipTrigger>
+                <TooltipContent>Show items whose Description is very short (at most this many characters) — useful for finding junk entries</TooltipContent>
+              </Tooltip>
+              <Input
+                type="number"
+                min={1}
+                max={50}
+                placeholder="—"
+                value={maxDigitsDesc ?? ""}
+                onChange={(e) => { setMaxDigitsDesc(e.target.value ? parseInt(e.target.value) : null); setPage(1); }}
+                className="h-9 w-[70px] text-xs"
+              />
+            </div>
+            {(maxDigitsStyle !== null || maxDigitsDesc !== null) && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-1.5" onClick={() => { setMaxDigitsStyle(null); setMaxDigitsDesc(null); setPage(1); }}>
+                Clear filters
               </Button>
             )}
-          </div>
+          </TooltipProvider>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showDismissed}
+              onChange={(e) => { setShowDismissed(e.target.checked); setPage(1); setSelectedIds(new Set()); }}
+              className="rounded"
+            />
+            Show dismissed
+          </label>
         </div>
 
         {isLoading ? (
@@ -781,39 +900,92 @@ function ErpItemsBrowser() {
         ) : (
           <>
             <div className="overflow-x-auto border border-border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
+              <table className="w-full caption-bottom text-sm" style={{ tableLayout: "fixed" }}>
+                <thead className="[&_tr]:border-b">
+                  <tr className="border-b transition-colors">
+                    <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === items.length && items.length > 0}
+                        onChange={toggleAll}
+                        className="rounded"
+                      />
+                    </th>
                     {ATTRIBUTE_COLS.map((col) => (
-                      <SortHeader key={col.key} col={col.key} label={col.label} />
+                      <th
+                        key={col.key}
+                        className="h-10 px-2 text-left align-middle font-medium text-muted-foreground text-xs cursor-pointer hover:text-foreground select-none relative group"
+                        style={colWidths[col.key] ? { width: colWidths[col.key] } : undefined}
+                        onClick={() => handleSort(col.key)}
+                      >
+                        <span>
+                          {col.label}
+                          {sortBy === col.key && <span className="ml-1">{sortAsc ? "↑" : "↓"}</span>}
+                        </span>
+                        <div
+                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/40 group-hover:bg-border"
+                          onMouseDown={(e) => handleResizeStart(col.key, e)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </th>
                     ))}
-                    <SortHeader col="synced_at" label="Synced" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((item: any) => (
-                    <>
-                      <TableRow
-                        key={item.external_id}
-                        className="cursor-pointer hover:bg-muted/50"
+                    <th
+                      className="h-10 px-2 text-left align-middle font-medium text-muted-foreground text-xs cursor-pointer hover:text-foreground select-none"
+                      style={colWidths["synced_at"] ? { width: colWidths["synced_at"] } : undefined}
+                      onClick={() => handleSort("synced_at")}
+                    >
+                      Synced
+                      {sortBy === "synced_at" && <span className="ml-1">{sortAsc ? "↑" : "↓"}</span>}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child]:border-0">
+                  {items.map((item: any, idx: number) => (
+                    <React.Fragment key={item.id || item.external_id}>
+                      <tr
+                        className={`border-b transition-colors hover:bg-muted/50 cursor-pointer ${item.dismissed ? "opacity-50" : ""} ${selectedIds.has(item.id) ? "bg-primary/10" : ""}`}
                         onClick={() => setExpandedRow(expandedRow === item.external_id ? null : item.external_id)}
                       >
+                        <td className="p-2 align-middle w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(item.id)}
+                            onClick={(e) => handleCheckboxClick(item.id, idx, e)}
+                            onChange={() => {}}
+                            className="rounded"
+                          />
+                        </td>
                         {ATTRIBUTE_COLS.map((col) => (
-                          <TableCell key={col.key} className={`text-xs ${col.key === "item_description" ? "max-w-[200px] truncate" : ""}`}>
-                            {item[col.key] ? (
+                          <td
+                            key={col.key}
+                            className={`p-2 align-middle text-xs overflow-hidden text-ellipsis whitespace-nowrap`}
+                            style={colWidths[col.key] ? { width: colWidths[col.key], maxWidth: colWidths[col.key] } : undefined}
+                          >
+                            {col.key === "item_description" && item[col.key] ? (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-foreground truncate block cursor-help">{item[col.key]}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-md text-xs whitespace-normal">
+                                    {item[col.key]}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : item[col.key] ? (
                               <span className="text-foreground">{item[col.key]}</span>
                             ) : (
                               <span className="text-muted-foreground/40">—</span>
                             )}
-                          </TableCell>
+                          </td>
                         ))}
-                        <TableCell className="text-xs text-muted-foreground">
+                        <td className="p-2 align-middle text-xs text-muted-foreground">
                           {item.synced_at ? new Date(item.synced_at).toLocaleDateString() : "—"}
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                       {expandedRow === item.external_id && (
-                        <TableRow key={`${item.external_id}-detail`}>
-                          <TableCell colSpan={ATTRIBUTE_COLS.length + 1} className="bg-muted/30 p-3">
+                        <tr>
+                          <td colSpan={ATTRIBUTE_COLS.length + 2} className="bg-muted/30 p-3">
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
                               {ATTRIBUTE_COLS.map((col) => (
                                 <div key={col.key}>
@@ -826,25 +998,17 @@ function ErpItemsBrowser() {
                                 <span className="font-mono text-foreground">{item.external_id ?? "—"}</span>
                               </div>
                               <div>
-                                <span className="text-muted-foreground">MG04: </span>
-                                <span className="font-mono text-foreground">{item.mg04_code ?? "—"}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">MG05: </span>
-                                <span className="font-mono text-foreground">{item.mg05_code ?? "—"}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">MG06: </span>
-                                <span className="font-mono text-foreground">{item.mg06_code ?? "—"}</span>
-                              </div>
-                              <div>
                                 <span className="text-muted-foreground">ERP Updated: </span>
                                 <span className="font-mono text-foreground">
                                   {item.erp_updated_at ? new Date(item.erp_updated_at).toLocaleDateString() : "—"}
                                 </span>
                               </div>
+                              <div>
+                                <span className="text-muted-foreground">Dismissed: </span>
+                                <span className="font-mono text-foreground">{item.dismissed ? "Yes" : "No"}</span>
+                              </div>
                             </div>
-                            {item.raw_mg_fields && Object.keys(item.raw_mg_fields).some((k) => item.raw_mg_fields[k] != null) && (
+                            {item.raw_mg_fields && Object.keys(item.raw_mg_fields).some((k: string) => item.raw_mg_fields[k] != null) && (
                               <details className="mt-2">
                                 <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">Raw MG Fields</summary>
                                 <pre className="mt-1 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all select-all">
@@ -852,13 +1016,13 @@ function ErpItemsBrowser() {
                                 </pre>
                               </details>
                             )}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
 
             {/* Pagination */}
@@ -867,25 +1031,11 @@ function ErpItemsBrowser() {
                 Showing {((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, total)} of {total.toLocaleString()}
               </span>
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="px-2">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
+                <span className="px-2">Page {page} of {totalPages}</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

@@ -461,6 +461,7 @@ export type Database = {
       erp_items_current: {
         Row: {
           created_at: string
+          dismissed: boolean
           division_code: string | null
           erp_updated_at: string | null
           external_id: string
@@ -485,6 +486,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dismissed?: boolean
           division_code?: string | null
           erp_updated_at?: string | null
           external_id: string
@@ -509,6 +511,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dismissed?: boolean
           division_code?: string | null
           erp_updated_at?: string | null
           external_id?: string

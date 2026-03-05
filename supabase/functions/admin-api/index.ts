@@ -3444,6 +3444,8 @@ serve(async (req: Request) => {
         return await handleClassifyErpCategories(body);
       case "erp-items-browse":
         return await handleErpItemsBrowse(body);
+      case "erp-items-dismiss":
+        return await handleErpItemsDismiss(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
@@ -3459,45 +3461,45 @@ serve(async (req: Request) => {
 async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const db = serviceClient();
   const page = typeof body.page === "number" ? Math.max(1, body.page) : 1;
-  const pageSize = typeof body.page_size === "number" ? Math.min(Math.max(1, body.page_size), 1000) : 25;
+  const pageSize = typeof body.page_size === "number" ? Math.min(Math.max(1, body.page_size), 2000) : 1000;
   const search = typeof body.search === "string" ? body.search.trim() : "";
   const sortBy = typeof body.sort_by === "string" ? body.sort_by : "synced_at";
   const sortAsc = body.sort_asc === true;
-  const maxDigits = typeof body.max_digits === "number" ? body.max_digits : null;
+  const maxDigitsStyle = typeof body.max_digits_style === "number" ? body.max_digits_style : null;
+  const maxDigitsDesc = typeof body.max_digits_desc === "number" ? body.max_digits_desc : null;
+  const showDismissed = body.show_dismissed === true;
   const offset = (page - 1) * pageSize;
 
   const ALLOWED_SORT_COLS = [
-    "external_id",
-    "style_number",
-    "item_description",
-    "mg_category",
-    "mg01_code",
-    "mg02_code",
-    "mg03_code",
-    "size_code",
-    "licensor_code",
-    "property_code",
-    "division_code",
-    "synced_at",
-    "erp_updated_at",
+    "external_id", "style_number", "item_description", "mg_category",
+    "mg01_code", "mg02_code", "mg03_code", "size_code",
+    "licensor_code", "property_code", "division_code", "synced_at", "erp_updated_at",
   ];
   const effectiveSort = ALLOWED_SORT_COLS.includes(sortBy) ? sortBy : "synced_at";
 
-  // If max_digits filter is set, use raw SQL via execute_readonly_query for regex filter
-  if (maxDigits !== null && maxDigits > 0) {
-    const digitPattern = `^[0-9]{1,${maxDigits}}$`;
-    let whereClause = `WHERE (style_number ~ '${digitPattern}' OR (item_description IS NOT NULL AND length(item_description) <= ${
-      maxDigits + 2
-    } AND item_description ~ '^[a-zA-Z0-9 ]{1,${maxDigits + 2}}$'))`;
+  // Build WHERE clauses for raw SQL path (needed for regex filters)
+  const useRawSql = maxDigitsStyle !== null || maxDigitsDesc !== null;
+
+  if (useRawSql) {
+    const conditions: string[] = [];
+    if (!showDismissed) conditions.push("dismissed = false");
+    
+    const digitFilters: string[] = [];
+    if (maxDigitsStyle !== null && maxDigitsStyle > 0) {
+      digitFilters.push(`(style_number ~ '^[0-9]{1,${maxDigitsStyle}}$')`);
+    }
+    if (maxDigitsDesc !== null && maxDigitsDesc > 0) {
+      digitFilters.push(`(item_description IS NOT NULL AND length(item_description) <= ${maxDigitsDesc + 2} AND item_description ~ '^[a-zA-Z0-9 ]{1,${maxDigitsDesc + 2}}$')`);
+    }
+    if (digitFilters.length > 0) conditions.push(`(${digitFilters.join(" OR ")})`);
+
     if (search) {
       const esc = search.replace(/'/g, "''");
-      whereClause += ` AND (style_number ILIKE '%${esc}%' OR item_description ILIKE '%${esc}%')`;
+      conditions.push(`(style_number ILIKE '%${esc}%' OR item_description ILIKE '%${esc}%')`);
     }
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const countSql = `SELECT count(*)::int as cnt FROM erp_items_current ${whereClause}`;
-    const dataSql =
-      `SELECT style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, external_id FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${
-        sortAsc ? "ASC" : "DESC"
-      } NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
+    const dataSql = `SELECT id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, external_id, dismissed FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${sortAsc ? "ASC" : "DESC"} NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
 
     const { data: countResult } = await db.rpc("execute_readonly_query", { query_text: countSql });
     const total = (countResult as any)?.[0]?.cnt ?? 0;
@@ -3513,21 +3515,22 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
     });
   }
 
-  // Count query
+  // Standard Supabase query path
   let countQuery = db.from("erp_items_current").select("id", { count: "exact", head: true });
+  if (!showDismissed) countQuery = countQuery.eq("dismissed", false);
   if (search) {
     countQuery = countQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
   }
   const { count, error: countErr } = await countQuery;
   if (countErr) return err(countErr.message, 500);
 
-  // Data query
   let dataQuery = db.from("erp_items_current")
     .select(
-      "external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields",
+      "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, dismissed",
     )
     .order(effectiveSort, { ascending: sortAsc, nullsFirst: false })
     .range(offset, offset + pageSize - 1);
+  if (!showDismissed) dataQuery = dataQuery.eq("dismissed", false);
   if (search) {
     dataQuery = dataQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
   }
@@ -3542,6 +3545,23 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
     page_size: pageSize,
     total_pages: Math.ceil((count ?? 0) / pageSize),
   });
+}
+
+// ── erp-items-dismiss ────────────────────────────────────────────────
+
+async function handleErpItemsDismiss(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const ids = body.ids;
+  const dismiss = body.dismiss !== false; // default true
+  if (!Array.isArray(ids) || ids.length === 0) return err("ids must be a non-empty array", 400);
+  if (ids.length > 5000) return err("Max 5000 items per batch", 400);
+
+  const { error } = await db.from("erp_items_current")
+    .update({ dismissed: dismiss })
+    .in("id", ids);
+  if (error) return err(error.message, 500);
+
+  return json({ ok: true, updated: ids.length, dismissed: dismiss });
 }
 
 // ── rebuild-character-stats ─────────────────────────────────────────

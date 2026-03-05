@@ -1,0 +1,2 @@
+ALTER TABLE public.erp_items_current ADD COLUMN IF NOT EXISTS dismissed boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_erp_items_current_dismissed ON public.erp_items_current (dismissed) WHERE dismissed = true;
