@@ -391,12 +391,11 @@ async function main() {
   // 1. Pair if no agent key — retry with exponential backoff
   if (!config.agentKey) {
     if (!config.pairingCode) {
-      logger.error(
-        "No agent key and no pairing code. Cannot start.\n" +
-        "Set POPDAM_SERVER_URL and POPDAM_PAIRING_CODE in your .env.\n" +
-        "Generate a pairing code from PopDAM Settings → Agents."
+      throw new Error(
+        "No agent key and no pairing code. " +
+        "Set POPDAM_SERVER_URL and POPDAM_PAIRING_CODE in your .env, " +
+        "or restore %ProgramData%\\PopDAM\\agent-config.json with agent_key."
       );
-      process.exit(1);
     }
 
     const MAX_PAIRING_RETRIES = 5;
@@ -412,13 +411,10 @@ async function main() {
         const stack = (e as Error).stack;
 
         if (msg.includes("Invalid or expired")) {
-          logger.error(
-            "Pairing code is invalid or expired.\n" +
-            "Generate a new pairing code from PopDAM Settings → Agents\n" +
-            "and update POPDAM_PAIRING_CODE in your .env.",
-            { error: msg }
+          throw new Error(
+            "Pairing code is invalid or expired. " +
+            "Generate a new pairing code and update POPDAM_PAIRING_CODE."
           );
-          process.exit(1); // No point retrying an invalid code
         }
 
         logger.error(`Pairing attempt ${attempt} failed`, {
@@ -429,15 +425,10 @@ async function main() {
         });
 
         if (attempt === MAX_PAIRING_RETRIES) {
-          logger.error(
-            `Pairing failed after ${MAX_PAIRING_RETRIES} attempts — exiting.\n` +
-            "Check the error details above. Common causes:\n" +
-            "  - SUPABASE_URL is incorrect or unreachable\n" +
-            "  - The edge function is not deployed\n" +
-            "  - The pairing code has expired (15 min lifetime)\n" +
-            "  - Network/firewall blocking outbound HTTPS"
+          throw new Error(
+            `Pairing failed after ${MAX_PAIRING_RETRIES} attempts. ` +
+            "Likely causes: server URL unreachable, pairing expired, or outbound HTTPS blocked."
           );
-          process.exit(1);
         }
 
         const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
@@ -457,8 +448,7 @@ async function main() {
         agentId = await api.register(config.agentName);
         logger.info("Registered with cloud API", { agentId });
       } catch (e) {
-        logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
-        process.exit(1);
+        throw new Error(`Failed to register with cloud API: ${(e as Error).message}`);
       }
     }
   }
@@ -739,38 +729,39 @@ process.on("unhandledRejection", (reason) => {
   });
 });
 
-// ── Startup with retry ─────────────────────────────────────────
+// ── Startup with resilient retry (no launcher crash-loop) ──────
 
-const MAX_MAIN_RETRIES = 5;
-const MAIN_RETRY_BASE_MS = 10_000; // 10s, 20s, 40s, 80s, 160s
+const MAIN_RETRY_BASE_MS = 10_000; // backoff base
+const MAIN_RETRY_MAX_MS = 300_000; // cap at 5 minutes
 
 (async () => {
-  for (let attempt = 1; attempt <= MAX_MAIN_RETRIES; attempt++) {
+  let attempt = 0;
+  while (true) {
+    attempt += 1;
     try {
       await main();
-      return; // main() succeeded and is now running (timers active)
+      return; // main() succeeded and timers are active
     } catch (e) {
       const msg = (e as Error).message;
-      logger.error(`main() failed (attempt ${attempt}/${MAX_MAIN_RETRIES})`, {
+      logger.error(`main() failed (attempt ${attempt})`, {
         error: msg,
         stack: (e as Error).stack,
       });
 
-      if (attempt === MAX_MAIN_RETRIES) {
-        logger.error(
-          `Agent failed to start after ${MAX_MAIN_RETRIES} attempts.\n` +
-          "Common causes:\n" +
-          "  - .env file missing or misconfigured\n" +
-          "  - SUPABASE_URL unreachable (network/firewall)\n" +
-          "  - Agent key or pairing code invalid\n" +
-          "  - NAS not accessible\n" +
-          "The launcher will restart the process in 5 seconds."
-        );
-        process.exit(1);
-      }
+      const likelyConfigIssue =
+        msg.includes("No agent key and no pairing code") ||
+        msg.includes("invalid or expired") ||
+        msg.includes("Missing required: POPDAM_SERVER_URL or SUPABASE_URL");
 
-      const delay = MAIN_RETRY_BASE_MS * Math.pow(2, attempt - 1);
-      logger.info(`Retrying main() in ${delay / 1000}s...`);
+      const delay = likelyConfigIssue
+        ? 60_000
+        : Math.min(MAIN_RETRY_MAX_MS, MAIN_RETRY_BASE_MS * Math.pow(2, Math.min(attempt - 1, 8)));
+
+      logger.warn("Startup blocked; agent will retry automatically (process stays alive)", {
+        retryInSeconds: Math.round(delay / 1000),
+        likelyConfigIssue,
+      });
+
       await new Promise((r) => setTimeout(r, delay));
     }
   }
