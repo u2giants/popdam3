@@ -179,16 +179,54 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
     }
   };
 
+  // Fetch tag provenance
+  const { data: assetTags } = useQuery({
+    queryKey: ["asset-tags", asset.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("asset_tags")
+        .select("id, tag, source, created_by")
+        .eq("asset_id", asset.id)
+        .order("tag");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const tagSourceMap = new Map<string, string>();
+  for (const t of assetTags ?? []) {
+    tagSourceMap.set(t.tag, t.source);
+  }
+
   // Tags
-  const addTag = () => {
+  const addTag = async () => {
     const tag = tagInput.trim().toLowerCase();
     if (!tag || asset.tags.includes(tag)) return;
-    updateAsset.mutate({ tags: [...asset.tags, tag] });
+    const { error } = await supabase.from("asset_tags").upsert(
+      { asset_id: asset.id, tag, source: "manual" },
+      { onConflict: "asset_id,tag" }
+    );
+    if (error) {
+      toast({ title: "Failed to add tag", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
     setTagInput("");
   };
 
-  const removeTag = (tag: string) => {
-    updateAsset.mutate({ tags: asset.tags.filter((t) => t !== tag) });
+  const removeTag = async (tag: string) => {
+    const { error } = await supabase
+      .from("asset_tags")
+      .delete()
+      .eq("asset_id", asset.id)
+      .eq("tag", tag);
+    if (error) {
+      toast({ title: "Failed to remove tag", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
   };
 
   const paths = nasConfig ? getPathDisplayModes(asset.relative_path, nasConfig, getUserSyncRoot()) : null;
