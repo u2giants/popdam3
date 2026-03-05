@@ -618,6 +618,7 @@ function InvitationSection() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("user");
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-invites"],
@@ -642,6 +643,25 @@ function InvitationSection() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const handleResend = async (invitationId: string, invEmail: string) => {
+    setResendingId(invitationId);
+    try {
+      const { data: fnData, error } = await (await import("@/integrations/supabase/client")).supabase.functions.invoke("send-invite-email", {
+        body: { email: invEmail, invitation_id: invitationId },
+      });
+      if (error) throw error;
+      if (fnData?.skipped) {
+        toast.warning("Email delivery is not configured (BREVO_API_KEY missing)");
+      } else {
+        toast.success(`Reminder sent to ${invEmail}`);
+      }
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to resend invitation");
+    } finally {
+      setResendingId(null);
+    }
+  };
 
   const invitations = data?.invitations || [];
 
@@ -687,11 +707,25 @@ function InvitationSection() {
                     <Badge variant="outline">Pending</Badge>
                   )}
                 </div>
-                {!inv.accepted_at && (
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => revokeMutation.mutate(inv.id as string)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {!inv.accepted_at && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-xs gap-1"
+                        onClick={() => handleResend(inv.id as string, inv.email as string)}
+                        disabled={resendingId === inv.id}
+                      >
+                        {resendingId === inv.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        Resend
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => revokeMutation.mutate(inv.id as string)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
             {invitations.length === 0 && <p className="text-muted-foreground text-xs">No invitations yet.</p>}
