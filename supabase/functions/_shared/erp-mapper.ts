@@ -72,7 +72,7 @@ const MG01_TO_TYPE: Record<string, string> = {
 };
 
 /** Default cutoff: styles before this date have unreliable category codes */
-export const DEFAULT_CATEGORY_CUTOFF = "2025-05-10";
+export const DEFAULT_CATEGORY_CUTOFF = "2025-05-14";
 
 export interface ErpItemInput {
   external_id: string;

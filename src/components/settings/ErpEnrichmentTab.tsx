@@ -776,6 +776,14 @@ function ErpItemsBrowser() {
     window.addEventListener("mouseup", onMouseUp);
   };
 
+  const ERP_MG_CUTOFF = "2025-05-14";
+  const MG_LEGACY_COLS = new Set(["mg01_code", "mg02_code", "mg03_code"]);
+
+  const isLegacyErpItem = (item: any) => {
+    if (!item.erp_updated_at) return true; // no date → assume legacy
+    return item.erp_updated_at < ERP_MG_CUTOFF;
+  };
+
   const ATTRIBUTE_COLS = [
     { key: "style_number", label: "Style #" },
     { key: "item_description", label: "Description" },
@@ -955,30 +963,44 @@ function ErpItemsBrowser() {
                             className="rounded cursor-pointer"
                           />
                         </td>
-                        {ATTRIBUTE_COLS.map((col) => (
-                          <td
-                            key={col.key}
-                            className={`p-2 align-middle text-xs overflow-hidden text-ellipsis whitespace-nowrap`}
-                            style={colWidths[col.key] ? { width: colWidths[col.key], maxWidth: colWidths[col.key] } : undefined}
-                          >
-                            {col.key === "item_description" && item[col.key] ? (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="text-foreground truncate block cursor-help">{item[col.key]}</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-md text-xs whitespace-normal">
-                                    {item[col.key]}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : item[col.key] ? (
-                              <span className="text-foreground">{item[col.key]}</span>
-                            ) : (
-                              <span className="text-muted-foreground/40">—</span>
-                            )}
-                          </td>
-                        ))}
+                        {ATTRIBUTE_COLS.map((col) => {
+                          const isHiddenLegacyMg = MG_LEGACY_COLS.has(col.key) && isLegacyErpItem(item);
+                          return (
+                            <td
+                              key={col.key}
+                              className={`p-2 align-middle text-xs overflow-hidden text-ellipsis whitespace-nowrap`}
+                              style={colWidths[col.key] ? { width: colWidths[col.key], maxWidth: colWidths[col.key] } : undefined}
+                            >
+                              {isHiddenLegacyMg ? (
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-muted-foreground/30 cursor-help italic">pre-cutoff</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-sm text-xs">
+                                      MG codes are hidden for styles created before {ERP_MG_CUTOFF} because the coding logic changed on that date.
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : col.key === "item_description" && item[col.key] ? (
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-foreground truncate block cursor-help">{item[col.key]}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-md text-xs whitespace-normal">
+                                      {item[col.key]}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : item[col.key] ? (
+                                <span className="text-foreground">{item[col.key]}</span>
+                              ) : (
+                                <span className="text-muted-foreground/40">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         <td className="p-2 align-middle text-xs text-muted-foreground">
                           {item.synced_at ? new Date(item.synced_at).toLocaleDateString() : "—"}
                         </td>
