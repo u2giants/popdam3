@@ -72,9 +72,9 @@ function CopyPathRow({ label, value }: { label: string; value: string }) {
 function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value || value === "—") return null;
   return (
-    <div className="flex justify-between items-baseline gap-2">
-      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
-      <span className="text-xs text-foreground text-right truncate">{value ?? "—"}</span>
+    <div className="flex items-baseline gap-3">
+      <span className="text-xs text-muted-foreground shrink-0 w-20">{label}</span>
+      <span className="text-xs text-foreground overflow-x-auto whitespace-nowrap scrollbar-thin">{value ?? "—"}</span>
     </div>
   );
 }
