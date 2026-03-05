@@ -4246,45 +4246,78 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 
 async function handleClassifyErpCategories(body: Record<string, unknown>) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
-  const batchSize = 10;
+  const batchSize = 100;
   const db = serviceClient();
 
-  // Get IDs of items that already have an active prediction (auto_applied or approved)
+  // Get IDs of items that already have ANY prediction (including unclassifiable)
   const { data: alreadyClassified } = await db.from("product_category_predictions")
     .select("erp_item_id")
-    .in("status", ["auto_applied", "approved"]);
+    .in("status", ["auto_applied", "approved", "unclassifiable"]);
   const classifiedIds = new Set((alreadyClassified || []).map((r: any) => r.erp_item_id).filter(Boolean));
 
   // Find ERP items that need AI classification:
   // mg_category IS NULL (covers legacy items whose category was wiped)
   // NO restriction on mg01_code — legacy items may have MG01 but it's unreliable
+  const fetchSize = batchSize + 200; // fetch extra to filter out already-classified
   const { data: items, error: fetchErr } = await db.from("erp_items_current")
     .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
     .is("mg_category", null)
     .order("external_id")
-    .range(offset, offset + batchSize + 49); // fetch extra to filter out already-classified
+    .range(offset, offset + fetchSize - 1);
 
   if (fetchErr) return err(fetchErr.message, 500);
+  if (!items || items.length === 0) {
+    return json({ ok: true, done: true, classified: 0, skipped_unclassifiable: 0, total: offset });
+  }
 
   // Filter out already-classified items, then take batchSize
   const candidates = (items || []).filter((it: any) => !classifiedIds.has(it.id)).slice(0, batchSize);
   if (candidates.length === 0) {
-    return json({ ok: true, done: true, classified: 0, total: offset });
-  }
-
-  if (fetchErr) return err(fetchErr.message, 500);
-  if (!items || items.length === 0) {
-    return json({ ok: true, done: true, classified: 0, total: offset });
+    return json({ ok: true, done: true, classified: 0, skipped_unclassifiable: 0, total: offset });
   }
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return err("LOVABLE_API_KEY not configured", 500);
 
   let classified = 0;
+  let skippedUnclassifiable = 0;
   const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
 
+  /** Check if an item has enough data for meaningful AI classification */
+  function isUnclassifiable(item: any): boolean {
+    const desc = (item.item_description || "").trim();
+    const style = (item.style_number || "").trim();
+    // No description and no style number
+    if (!desc && !style) return true;
+    // Description is just the external_id or style_number repeated (junk)
+    if (desc === item.external_id || desc === style) return true;
+    // Description is too short to be meaningful (e.g. "test5", "20200")
+    if (desc.length > 0 && desc.length <= 6 && /^[a-z0-9]+$/i.test(desc)) return true;
+    return false;
+  }
+
   for (const item of candidates) {
-    if (!item.item_description && !item.style_number) continue;
+    // Mark items with useless descriptions as unclassifiable
+    if (isUnclassifiable(item)) {
+      await db.from("product_category_predictions").insert({
+        erp_item_id: item.id,
+        external_id: item.external_id,
+        predicted_category: "Unknown",
+        confidence: 0,
+        rationale: "Insufficient product data for classification",
+        classification_source: "ai",
+        ai_model: null,
+        ai_prompt_version: "v1",
+        status: "unclassifiable",
+        input_context: {
+          style_number: item.style_number,
+          item_description: item.item_description,
+          raw_mg_fields: item.raw_mg_fields,
+        },
+      });
+      skippedUnclassifiable++;
+      continue;
+    }
 
     try {
       const prompt = `Classify this product into exactly one of these 7 categories: ${CATEGORIES.join(", ")}.
@@ -4378,6 +4411,7 @@ Return ONLY the classification using the provided tool.`;
     done,
     nextOffset: offset + (items || []).length, // advance by total scanned (including skipped)
     classified,
+    skipped_unclassifiable: skippedUnclassifiable,
     total: offset + (items || []).length,
   });
 }
