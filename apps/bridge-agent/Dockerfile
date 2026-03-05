@@ -20,13 +20,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     graphicsmagick \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json package-lock.json ./
+# Copy shared package first and build it
+COPY packages/path-filters /app/packages/path-filters
+RUN cd /app/packages/path-filters && npx -y typescript tsc
+
+COPY apps/bridge-agent/package.json apps/bridge-agent/package-lock.json ./
+
+# Rewrite the local file: reference to point to the copied location
+RUN sed -i 's|"file:../../packages/path-filters"|"file:/app/packages/path-filters"|' package.json
 
 # Reproducible builds: npm ci requires a lockfile (guaranteed by CI workflow)
 RUN npm ci --loglevel verbose
 
-COPY tsconfig.json ./
-COPY src/ ./src/
+COPY apps/bridge-agent/tsconfig.json ./
+COPY apps/bridge-agent/src/ ./src/
 RUN npm run build
 
 # Prune dev dependencies
