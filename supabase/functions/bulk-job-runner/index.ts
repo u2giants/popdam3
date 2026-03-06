@@ -7,10 +7,11 @@ import type { BulkOperationsMap, OpState, OpStatus } from "../_shared/types.ts";
 // ── Constants ───────────────────────────────────────────────────────
 
 const CONFIG_KEY = "BULK_OPERATIONS";
-const MAX_RUN_MS = 50_000;
+const MAX_RUN_MS = 45_000;
 const DEFAULT_PERSIST_EVERY = 1;
 const INTERRUPT_CHECK_EVERY = 10;
 const MAX_TRANSIENT_RETRIES = 3;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Per-operation persist frequency overrides (rebuild needs more frequent saves)
 const PERSIST_EVERY_OVERRIDES: Record<string, number> = {
@@ -43,6 +44,7 @@ const OP_ACTIONS: Record<string, string> = {
 function classifyInterruptionReason(statusCode: number | null, errorMsg: string): string {
   if (!errorMsg && !statusCode) return "unknown";
   const msg = (errorMsg || "").toLowerCase();
+  if (statusCode === 429 || msg.includes("rate limit exceeded")) return "rate_limited";
   if (statusCode && [502, 503, 504].includes(statusCode)) return "gateway_timeout";
   if (msg.includes("57014") || msg.includes("statement timeout")) return "statement_timeout";
   if (msg.includes("user_stop") || msg.includes("stopped by user")) return "user_stop";
@@ -413,7 +415,8 @@ serve(async (req: Request) => {
         });
 
         if (!res.ok) {
-          const isTransient = [502, 503, 504].includes(res.status);
+          const isRateLimit = res.status === 429;
+          const isTransientStatus = [502, 503, 504].includes(res.status) || isRateLimit;
           lastErrorStatus = res.status;
           const text = await res.text();
           let parsed: Record<string, unknown> | null = null;
@@ -427,11 +430,14 @@ serve(async (req: Request) => {
           if (parsed?.stage) lastStage = parsed.stage as string;
           if (parsed?.substage) lastSubstage = parsed.substage as string;
 
+          const isRateLimitMessage = /rate limit exceeded/i.test(lastError);
+          const isTransient = isTransientStatus || isRateLimitMessage;
+
           if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
             transientRetries++;
-            const delayMs = 2000 * transientRetries;
+            const delayMs = (isRateLimit || isRateLimitMessage) ? 5000 : 1000 * transientRetries;
             console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
-            await new Promise((r) => setTimeout(r, delayMs));
+            await sleep(delayMs);
             continue; // retry same cursor
           }
 
@@ -449,6 +455,17 @@ serve(async (req: Request) => {
           lastError = `${stageInfo} ${result.error || "admin-api returned error"}`;
           if (result.stage) lastStage = result.stage;
           if (result.substage) lastSubstage = result.substage;
+
+          const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
+          if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
+            transientRetries++;
+            const delayMs = 5000;
+            console.warn(`bulk-job-runner: transient rate-limit for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
+            await sleep(delayMs);
+            continue; // retry same cursor
+          }
+
+          isTransientFailure = isRateLimitMessage;
           console.error(`bulk-job-runner: ${lastError}`);
           break;
         }
