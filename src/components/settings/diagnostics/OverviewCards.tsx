@@ -261,8 +261,6 @@ export function RenderJobStats() {
 // ── Configuration Section ───────────────────────────────────────────
 
 function ConfigValue({ k, value }: { k: string; value: unknown }) {
-  const { Collapsible, CollapsibleContent, CollapsibleTrigger } = require("@/components/ui/collapsible");
-  const { ChevronDown } = require("lucide-react");
   const isSensitive = SENSITIVE_PATTERNS.test(k);
 
   if (isSensitive) {
@@ -288,7 +286,6 @@ function ConfigValue({ k, value }: { k: string; value: unknown }) {
 }
 
 export function ConfigurationSection({ config }: { config: Record<string, unknown> }) {
-  const { Wrench } = require("lucide-react");
   const grouped: Record<string, [string, unknown][]> = {
     "Scan Config": [],
     "Storage": [],
