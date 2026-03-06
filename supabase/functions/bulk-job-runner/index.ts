@@ -44,6 +44,7 @@ const OP_ACTIONS: Record<string, string> = {
 function classifyInterruptionReason(statusCode: number | null, errorMsg: string): string {
   if (!errorMsg && !statusCode) return "unknown";
   const msg = (errorMsg || "").toLowerCase();
+  if (statusCode === 429 || msg.includes("rate limit exceeded")) return "rate_limited";
   if (statusCode && [502, 503, 504].includes(statusCode)) return "gateway_timeout";
   if (msg.includes("57014") || msg.includes("statement timeout")) return "statement_timeout";
   if (msg.includes("user_stop") || msg.includes("stopped by user")) return "user_stop";
