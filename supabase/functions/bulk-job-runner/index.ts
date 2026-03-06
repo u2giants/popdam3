@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
-import type { BulkOperationsMap, OpState } from "../_shared/types.ts";
+import type { BulkOperationsMap, OpState, OpStatus } from "../_shared/types.ts";
 
 // ── Constants ───────────────────────────────────────────────────────
 
