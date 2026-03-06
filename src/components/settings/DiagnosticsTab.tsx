@@ -857,7 +857,10 @@ function AiTaggingSection() {
                 <TooltipTrigger asChild>
                   <Button
                     variant="destructive" size="sm" className="gap-1.5"
-                    onClick={() => { if (tagUntaggedOp.isActive) tagUntaggedOp.stop(); if (tagAllOp.isActive) tagAllOp.stop(); }}
+                    onClick={async () => {
+                      if (tagUntaggedOp.isActive) await tagUntaggedOp.stop();
+                      if (tagAllOp.isActive) await tagAllOp.stop();
+                    }}
                   >
                     <XCircle className="h-3.5 w-3.5" /> Stop
                   </Button>
