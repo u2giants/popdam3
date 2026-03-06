@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
+import type { OpState, BulkOperationsMap } from "../_shared/types.ts";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -23,25 +24,6 @@ const AUTO_RESUME_DEFAULTS = {
   cooldownMs: 30_000,
   staleRunMinutes: 10,
 };
-
-interface OpState {
-  status: string;
-  cursor?: number;
-  params?: Record<string, unknown>;
-  progress?: Record<string, unknown>;
-  started_at?: string;
-  updated_at?: string;
-  result_message?: string;
-  error?: string;
-  // Enhanced fields
-  interruption_reason_code?: string;
-  auto_resume_attempts?: number;
-  last_auto_resume_at?: string;
-  run_id?: string;
-  last_stage?: string;
-  last_substage?: string;
-  queue_position?: number;
-}
 
 // Maps operation key → admin-api action name
 const OP_ACTIONS: Record<string, string> = {
@@ -234,7 +216,7 @@ serve(async (req: Request) => {
 
   try {
     // Load auto-resume config
-    const autoResumeConfig = await loadAutoResumeConfig(db as any);
+    const autoResumeConfig = await loadAutoResumeConfig(db);
 
     // Read current BULK_OPERATIONS
     const { data: configRow } = await db

@@ -3034,7 +3034,7 @@ async function handleRunQuery(body: Record<string, unknown>) {
 
   // Try RPC first, then raw REST fallback
   const tryQuery = async (): Promise<Response> => {
-    const { data, error: queryErr } = await db.rpc("execute_readonly_query" as any, { query_text: trimmed });
+    const { data, error: queryErr } = await db.rpc("execute_readonly_query", { query_text: trimmed });
 
     if (!queryErr) {
       return json({ ok: true, rows: data ?? [], count: Array.isArray(data) ? data.length : 0 });
@@ -3182,7 +3182,7 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
         const statusPriority = ["licensor_approved", "customer_adopted", "in_process", "in_development", "concept_approved", "freelancer_art", "product_ideas"];
         let bestStatus = "other";
         for (const s of statusPriority) {
-          if (remaining.some((a: any) => a.workflow_status === s)) {
+          if (remaining.some((a: Record<string, unknown>) => a.workflow_status === s)) {
             bestStatus = s;
             break;
           }
@@ -3191,7 +3191,7 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
         await db.from("style_groups").update({
           asset_count: remaining.length,
           primary_asset_id: primaryId,
-          workflow_status: bestStatus as any,
+          workflow_status: bestStatus as "product_ideas" | "concept_approved" | "in_development" | "freelancer_art" | "discontinued" | "in_process" | "customer_adopted" | "licensor_approved" | "other",
           latest_file_date: latestFileDate,
           updated_at: new Date().toISOString(),
         }).eq("id", groupId);
@@ -3816,12 +3816,12 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
       } NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
 
     const { data: countResult } = await db.rpc("execute_readonly_query", { query_text: countSql });
-    const total = (countResult as any)?.[0]?.cnt ?? 0;
+    const total = Array.isArray(countResult) ? (countResult[0]?.cnt ?? 0) : 0;
     const { data: rows } = await db.rpc("execute_readonly_query", { query_text: dataSql });
 
     return json({
       ok: true,
-      items: (rows as any[]) || [],
+      items: (Array.isArray(rows) ? rows : []),
       total,
       page,
       page_size: pageSize,
