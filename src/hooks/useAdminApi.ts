@@ -23,18 +23,29 @@ export function useAdminApi() {
         if (error) {
           // Extract real error details from FunctionsHttpError
           let detailedMsg = error.message || "Admin API call failed";
+          let status = 0;
           try {
             const ctx = (error as any).context;
             if (ctx && typeof ctx.status === "number") {
+              status = ctx.status;
               const bodyText = typeof ctx.text === "function" ? await ctx.text() : "";
+              const bodyPreview = bodyText.slice(0, 400);
+              const looksHtml = /<!doctype|<html|<head>/i.test(bodyText);
               let parsed: any = null;
               try { parsed = JSON.parse(bodyText); } catch { /* not JSON */ }
-              const serverError = parsed?.error || bodyText || detailedMsg;
-              detailedMsg = `[${ctx.status}] ${serverError}`;
+
+              if (looksHtml) {
+                detailedMsg = `[${ctx.status}] Upstream gateway returned HTML instead of JSON (transient infrastructure error). Please retry.`;
+              } else {
+                const serverError = parsed?.error || bodyPreview || detailedMsg;
+                detailedMsg = `[${ctx.status}] ${serverError}`;
+              }
             }
           } catch { /* fallback to original message */ }
 
-          const isTransient = detailedMsg.includes("Bad Request") || detailedMsg.includes("Internal Server Error");
+          const isTransient =
+            [500, 502, 503, 504, 520, 522, 524].includes(status) ||
+            /internal server error|gateway|transient|timeout|failed to fetch|network/i.test(detailedMsg);
           if (isTransient && attempt < MAX_RETRIES) {
             lastError = new Error(detailedMsg);
             await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
