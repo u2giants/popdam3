@@ -121,13 +121,14 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
       })()}
 
       {stage === "finalize_stats" && (() => {
-        const sub = (p.substage as string) || state.last_substage || "counts";
+      const sub = (p.substage as string) || state.last_substage || "counts";
         const totalGroups = (p.finalize_total_groups as number) || null;
-        const done = sub === "primaries"
+        const isPrimaries = sub === "primaries" || sub === "counts_done";
+        const done = isPrimaries
           ? (p.primaries_processed as number) || 0
           : (p.counts_processed as number) || 0;
         const rate = calcRate(done, stageElapsed);
-        const label = sub === "primaries" ? "Cover images selected" : "Group counts computed";
+        const label = isPrimaries ? "Cover images selected" : "Group counts computed";
         return <ProgressRow label={label} done={done} total={totalGroups} ratePerMin={rate} suffix="groups" />;
       })()}
 

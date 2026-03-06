@@ -522,7 +522,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
             const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
             if (countErr) {
               const msg = formatPostgrestError(countErr);
-              if (msg.includes("57014") && batchIds.length > 1) {
+              if (isStatementTimeout(msg) && batchIds.length > 1) {
                 batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
                 continue;
               }
@@ -531,7 +531,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
             break;
           } catch (e) {
             const msg = (e as Error).message || "";
-            if (msg.includes("57014") && batchIds.length > 1) {
+            if (isStatementTimeout(msg) && batchIds.length > 1) {
               batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
               continue;
             }
@@ -594,7 +594,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
             const { error: primErr } = await db.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
             if (primErr) {
               const msg = formatPostgrestError(primErr);
-              if (msg.includes("57014") && batchIds.length > 1) {
+              if (isStatementTimeout(msg) && batchIds.length > 1) {
                 batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
                 continue;
               }
@@ -603,7 +603,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
             break;
           } catch (e) {
             const msg = (e as Error).message || "";
-            if (msg.includes("57014") && batchIds.length > 1) {
+            if (isStatementTimeout(msg) && batchIds.length > 1) {
               batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
               continue;
             }
