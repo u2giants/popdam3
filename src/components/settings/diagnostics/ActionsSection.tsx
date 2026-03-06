@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
+import { formatDuration, formatEta, calcRate } from "./progress-utils";
 
 export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void; requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
@@ -174,22 +175,114 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => backfillOp.reset()}>Dismiss</Button>
           )}
         </div>
-        {/* Progress indicators */}
-        {(reprocessActive || reprocessOp.state.status === "completed") && rp && (
-          <p className="text-xs text-muted-foreground mt-2">
-            {reprocessActive ? "Reprocessing: " : "✓ Reprocessed: "}
-            {(rp.updated as number)?.toLocaleString()} / {(rp.total as number)?.toLocaleString()}
-          </p>
-        )}
-        {(backfillActive || bp.status === "completed") && bp.progress && (
-          <p className="text-xs text-muted-foreground mt-2">
-            {backfillActive ? "Backfilling… " : "✓ "}
-            {(bp.progress.assets_updated as number)?.toLocaleString()} assets, {(bp.progress.groups_updated as number)?.toLocaleString()} groups updated
-          </p>
-        )}
+
+        {/* Reprocess Metadata progress */}
+        {(reprocessActive || reprocessOp.state.status === "completed" || reprocessOp.state.status === "failed") && rp && (() => {
+          const checked = (rp.assets_checked as number) || 0;
+          const updated = (rp.updated as number) || 0;
+          const grandTotal = (rp.grand_total as number) || 0;
+          const pct = grandTotal > 0 ? Math.min(100, Math.round((checked / grandTotal) * 100)) : null;
+          const elapsedMs = reprocessOp.state.started_at
+            ? Date.now() - new Date(reprocessOp.state.started_at).getTime()
+            : 0;
+          const rate = calcRate(checked, elapsedMs);
+
+          return (
+            <div className="space-y-2 mt-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">
+                  {reprocessActive ? "Reprocessing metadata…"
+                    : reprocessOp.state.status === "completed" ? "✓ Reprocess complete"
+                    : "✗ Reprocess failed"}
+                </span>
+                {elapsedMs > 0 && (
+                  <span className="text-muted-foreground tabular-nums">
+                    Elapsed: {formatDuration(elapsedMs)}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Assets examined</span>
+                <span className="text-foreground font-medium tabular-nums">
+                  {checked.toLocaleString()}
+                  {grandTotal > 0 ? ` / ${grandTotal.toLocaleString()}` : ""}
+                  {pct !== null
+                    ? <span className="text-muted-foreground ml-1">({pct}%)</span>
+                    : null}
+                </span>
+              </div>
+
+              {pct !== null && (
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-300"
+                    style={{ width: `${pct}%` }} />
+                </div>
+              )}
+
+              {rate !== null && grandTotal > 0 && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{Math.round(rate).toLocaleString()} assets/min</span>
+                  <span>ETA: {formatEta(grandTotal - checked, rate)}</span>
+                </div>
+              )}
+
+              <div className="text-xs text-muted-foreground">
+                Records updated: <span className="text-foreground font-medium">{updated.toLocaleString()}</span>
+                {checked > 0 && updated > 0 && (
+                  <span className="ml-1">({Math.round((updated / checked) * 100)}% needed changes)</span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {reprocessOp.state.status === "failed" && (
           <p className="text-xs text-destructive mt-2">Reprocess failed: {reprocessOp.state.error}</p>
         )}
+
+        {/* Backfill SKU Names progress */}
+        {(backfillActive || bp.status === "completed" || bp.status === "failed") && (() => {
+          const elapsedMs = backfillOp.state.started_at
+            ? Date.now() - new Date(backfillOp.state.started_at).getTime()
+            : 0;
+          const assetsUpdated = (bp.progress?.assets_updated as number) || 0;
+          const groupsUpdated = (bp.progress?.groups_updated as number) || 0;
+          const assetsChecked = (bp.progress?.assets_checked as number) || 0;
+
+          return (
+            <div className="space-y-1.5 mt-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium">
+                  {backfillActive
+                    ? "Backfilling SKU names… (scans up to 10,000 assets)"
+                    : bp.status === "completed" ? "✓ Backfill complete"
+                    : "✗ Backfill failed"}
+                </span>
+                {elapsedMs > 0 && (
+                  <span className="text-muted-foreground tabular-nums">
+                    Elapsed: {formatDuration(elapsedMs)}
+                  </span>
+                )}
+              </div>
+              {backfillActive && (
+                <p className="text-xs text-muted-foreground">
+                  This operation runs as a single pass — results will appear when complete.
+                </p>
+              )}
+              {(assetsChecked > 0 || assetsUpdated > 0) && (
+                <div className="flex gap-4 text-xs text-muted-foreground">
+                  {assetsChecked > 0 && (
+                    <span>Examined: <span className="text-foreground font-medium">{assetsChecked.toLocaleString()}</span></span>
+                  )}
+                  <span>Assets updated: <span className="text-foreground font-medium">{assetsUpdated.toLocaleString()}</span></span>
+                  <span>Groups updated: <span className="text-foreground font-medium">{groupsUpdated.toLocaleString()}</span></span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {backfillOp.state.status === "failed" && (
           <p className="text-xs text-destructive mt-2">Backfill failed: {backfillOp.state.error}</p>
         )}

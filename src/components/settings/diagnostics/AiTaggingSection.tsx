@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Sparkles, RefreshCw, Loader2, XCircle } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
+import { formatDuration, formatEta, calcRate } from "./progress-utils";
 
 export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
@@ -117,30 +118,80 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
           )}
         </div>
 
-        {showProgress && (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-sm">
-              {displayOp.isActive && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
-              <span>
-                {displayOp.isActive ? "" : displayOp.state.status === "completed" ? "✓ " : displayOp.isInterrupted ? "⏸ " : "✗ "}
-                Tagged <span className="font-semibold text-foreground">{((p!.tagged as number) || 0).toLocaleString()}</span>
-                {" / "}{((p!.total as number) || 0).toLocaleString()}
-                {(p!.skipped as number) > 0 && (
-                  <span className="text-muted-foreground ml-1">· {(p!.skipped as number)} skipped</span>
+        {showProgress && (() => {
+          const tagged = (p!.tagged as number) || 0;
+          const skipped = (p!.skipped as number) || 0;
+          const failed = (p!.failed as number) || 0;
+          const total = (p!.total as number) || 0;
+          const done = tagged + skipped + failed;
+          const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
+
+          const elapsedMs = displayOp.state.started_at
+            ? Date.now() - new Date(displayOp.state.started_at).getTime()
+            : 0;
+          const rate = calcRate(done, elapsedMs);
+
+          return (
+            <div className="space-y-2 mt-1">
+              {/* Header: status + elapsed */}
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  {displayOp.isActive && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+                  <span>
+                    {displayOp.state.status === "completed" ? "✓ Complete" :
+                     displayOp.isInterrupted ? "⏸ Interrupted" :
+                     displayOp.state.status === "failed" ? "✗ Failed" : "Tagging…"}
+                  </span>
+                </div>
+                {elapsedMs > 0 && (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    Elapsed: {formatDuration(elapsedMs)}
+                  </span>
                 )}
-                {(p!.failed as number) > 0 && (
-                  <span className="text-destructive ml-1">· {(p!.failed as number)} failed</span>
-                )}
-              </span>
+              </div>
+
+              {/* Count row */}
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Assets processed</span>
+                <span className="text-foreground font-medium tabular-nums">
+                  {done.toLocaleString()}
+                  {total > 0 ? ` / ${total.toLocaleString()}` : ""}
+                  {pct !== null
+                    ? <span className="text-muted-foreground ml-1">({pct}%)</span>
+                    : null}
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              {pct !== null && (
+                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      displayOp.state.status === "failed" ? "bg-destructive" : "bg-primary"
+                    }`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              )}
+
+              {/* Rate + ETA row */}
+              {rate !== null && total > 0 && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{Math.round(rate).toLocaleString()} assets/min</span>
+                  <span>ETA: {formatEta(total - done, rate)}</span>
+                </div>
+              )}
+
+              {/* Tagged / skipped / failed breakdown */}
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span>Tagged: <span className="text-foreground font-medium">{tagged.toLocaleString()}</span></span>
+                {skipped > 0 && <span>Skipped: <span className="text-foreground font-medium">{skipped.toLocaleString()}</span></span>}
+                {failed > 0 && <span className="text-destructive">Failed: <span className="font-medium">{failed.toLocaleString()}</span></span>}
+              </div>
             </div>
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary rounded-full transition-all duration-300"
-                style={{ width: `${(p!.total as number) > 0 ? Math.round((((p!.tagged as number) + (p!.skipped as number) + (p!.failed as number)) / (p!.total as number)) * 100) : 0}%` }}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
+
         {displayOp.state.status === "failed" && (
           <p className="text-xs text-destructive">Error: {displayOp.state.error}</p>
         )}
