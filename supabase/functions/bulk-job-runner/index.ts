@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
-import type { BulkOperationsMap, OpState } from "../_shared/types.ts";
+import type { BulkOperationsMap, OpState, OpStatus } from "../_shared/types.ts";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -147,7 +147,8 @@ interface AutoResumeConfig {
   staleRunMinutes: number;
 }
 
-async function loadAutoResumeConfig(db: ReturnType<typeof createClient>): Promise<AutoResumeConfig> {
+// deno-lint-ignore no-explicit-any
+async function loadAutoResumeConfig(db: any): Promise<AutoResumeConfig> {
   const config = { ...AUTO_RESUME_DEFAULTS };
   try {
     const { data: rows } = await db
@@ -514,7 +515,7 @@ serve(async (req: Request) => {
 
     if (done) {
       // Post-completion integrity check for rebuild-style-groups
-      let completionStatus = "completed";
+      let completionStatus: OpStatus = "completed";
       let resultMessage = buildResultMessage(opKey, progress);
 
       if (opKey === "rebuild-style-groups") {
