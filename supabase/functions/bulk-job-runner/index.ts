@@ -481,6 +481,14 @@ serve(async (req: Request) => {
             .eq("key", CONFIG_KEY)
             .maybeSingle();
           const midOps = (midConfig?.value as Record<string, OpState>) || {};
+
+          // Respect UI stop/interruption set while this invocation was processing
+          if (midOps[opKey] && midOps[opKey].status !== "running") {
+            console.log(
+              `bulk-job-runner: op '${opKey}' status changed to ${midOps[opKey].status} by UI. Aborting loop.`,
+            );
+            break;
+          }
           midOps[opKey] = {
             ...opState,
             status: "running",
@@ -620,6 +628,25 @@ serve(async (req: Request) => {
       .eq("key", CONFIG_KEY)
       .maybeSingle();
     const freshAllOps = (freshConfigRow?.value as Record<string, OpState>) || {};
+
+    // Preserve explicit UI state transitions (e.g. user_stop) made during this run
+    if (
+      freshAllOps[opKey] &&
+      freshAllOps[opKey].status !== "running" &&
+      allOps[opKey]?.status === "running"
+    ) {
+      console.log(
+        `bulk-job-runner: UI changed '${opKey}' status to ${freshAllOps[opKey].status}. Preserving UI state.`,
+      );
+      allOps[opKey] = {
+        ...freshAllOps[opKey],
+        cursor,
+        progress,
+        last_stage: lastStage,
+        last_substage: lastSubstage,
+        updated_at: now,
+      };
+    }
 
     // Merge: keep all fresh entries, but overwrite only the op we just processed
     const mergedOps = { ...freshAllOps, [opKey]: allOps[opKey] };
