@@ -147,7 +147,8 @@ interface AutoResumeConfig {
   staleRunMinutes: number;
 }
 
-async function loadAutoResumeConfig(db: ReturnType<typeof createClient>): Promise<AutoResumeConfig> {
+// deno-lint-ignore no-explicit-any
+async function loadAutoResumeConfig(db: any): Promise<AutoResumeConfig> {
   const config = { ...AUTO_RESUME_DEFAULTS };
   try {
     const { data: rows } = await db
@@ -514,7 +515,7 @@ serve(async (req: Request) => {
 
     if (done) {
       // Post-completion integrity check for rebuild-style-groups
-      let completionStatus = "completed";
+      let completionStatus: OpStatus = "completed";
       let resultMessage = buildResultMessage(opKey, progress);
 
       if (opKey === "rebuild-style-groups") {
