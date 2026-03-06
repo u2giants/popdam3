@@ -788,7 +788,7 @@ function RenderJobStats() {
 
 // ── Section 7b: AI Tagging ──────────────────────────────────────────
 
-function AiTaggingSection() {
+function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
@@ -809,13 +809,17 @@ function AiTaggingSection() {
   function runBulkTag(mode: "untagged" | "all") {
     const op = mode === "all" ? tagAllOp : tagUntaggedOp;
     const total = mode === "all" ? totalWithThumb : untaggedCount;
+    const opKey = mode === "all" ? "ai-tag-all" : "ai-tag-untagged";
 
-    op.start({
-      confirmMessage: mode === "all"
-        ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
-        : `AI tag ${total.toLocaleString()} untagged assets? Continue?`,
-      initialProgress: { total },
-    });
+    requestOp(opKey, OP_NAMES[opKey],
+      () => op.start({
+        confirmMessage: mode === "all"
+          ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
+          : `AI tag ${total.toLocaleString()} untagged assets? Continue?`,
+        initialProgress: { total },
+      }),
+      () => op.queue({ initialProgress: { total } }),
+    );
   }
 
   const activeOp = tagUntaggedOp.isActive ? tagUntaggedOp : tagAllOp.isActive ? tagAllOp : null;
