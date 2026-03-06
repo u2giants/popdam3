@@ -13,9 +13,11 @@ import {
   Database, Clock, Monitor, AlertTriangle, RefreshCw,
   Activity, Loader2, CheckCircle2, XCircle, ChevronDown,
   RotateCcw, Play, Trash2, Wrench, Stethoscope, FileSearch,
-  Sparkles,
+  Sparkles, ListOrdered, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { OperationState } from "@/hooks/usePersistentOperation";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
