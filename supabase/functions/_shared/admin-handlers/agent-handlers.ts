@@ -957,9 +957,7 @@ export async function handleDoctor() {
     .eq("key", "SCAN_PROGRESS")
     .maybeSingle();
   const scanProgress = scanRow?.value
-    ? (typeof scanRow.value === "object" && scanRow.value !== null && "value" in (scanRow.value as any)
-        ? (scanRow.value as any).value
-        : scanRow.value)
+    ? (typeof scanRow.value === "object" && scanRow.value !== null && "value" in (scanRow.value as any) ? (scanRow.value as any).value : scanRow.value)
     : null;
 
   // ── Recent errors ──
