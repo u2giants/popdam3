@@ -659,19 +659,36 @@ serve(async (req: Request) => {
       }
     }
 
-    // Atomic final write using batch RPC — eliminates race conditions
-    const finalUpdates: Record<string, OpState> = { [opKey]: allOps[opKey] };
+    // Atomic final write
+    // IMPORTANT: never resurrect a user-stopped op from interrupted -> running on time-slice persists.
+    if (!done && !lastError) {
+      // "paused" branch: only persist if status is still running.
+      const conditionalResult = await db.rpc("update_bulk_operation", {
+        p_op_key: opKey,
+        p_op_state: allOps[opKey],
+        p_only_if_status: "running",
+      });
+      const afterOps = conditionalResult.data as Record<string, OpState> | null;
+      if (afterOps?.[opKey]?.status && afterOps[opKey].status !== "running") {
+        console.log(
+          `bulk-job-runner: final paused persist skipped because '${opKey}' is now '${afterOps[opKey].status}'.`,
+        );
+      }
+    } else {
+      // Completion/error branches can use batched atomic merge.
+      const finalUpdates: Record<string, OpState> = { [opKey]: allOps[opKey] };
 
-    // Also carry over any auto-queued reconcile from post-rebuild integrity check
-    if (
-      opKey !== "reconcile-style-group-stats" &&
-      allOps["reconcile-style-group-stats"]?.status === "running" &&
-      allOps["reconcile-style-group-stats"]?.run_id
-    ) {
-      finalUpdates["reconcile-style-group-stats"] = allOps["reconcile-style-group-stats"];
+      // Also carry over any auto-queued reconcile from post-rebuild integrity check
+      if (
+        opKey !== "reconcile-style-group-stats" &&
+        allOps["reconcile-style-group-stats"]?.status === "running" &&
+        allOps["reconcile-style-group-stats"]?.run_id
+      ) {
+        finalUpdates["reconcile-style-group-stats"] = allOps["reconcile-style-group-stats"];
+      }
+
+      await db.rpc("update_bulk_operations_batch", { p_updates: finalUpdates });
     }
-
-    await db.rpc("update_bulk_operations_batch", { p_updates: finalUpdates });
 
     return json({
       ok: true,
