@@ -7,37 +7,34 @@ import { unwrapConfigString } from "../_shared/config-utils.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
-  handleGenerateAgentKey,
-  handleListAgents,
-  handleRevokeAgent,
-  handleRemoveAgentRegistration,
-  handleTriggerScan,
-  handleStopScan,
-  handleResumeScanning,
-  handleResetScanState,
-  handleRenderQueueStats,
-  handleListRenderJobs,
-  handleClearFailedRenders,
-  handleSendTestRender,
   handleCheckRenderJob,
-  handleRetryFailedJobs,
   handleClearCompletedJobs,
+  handleClearFailedRenders,
   handleClearJunkRenderJobs,
-  handleRequeueRenderJob,
   handleCreatePairingCode,
-  handleListPairingCodes,
+  handleGenerateAgentKey,
   handleGenerateBootstrapToken,
-  handleTriggerAgentUpdate,
   handleGetUpdateStatus,
-  handleRetryFailedRenders,
-  handleRequeueAllNoPreview,
+  handleListAgents,
+  handleListPairingCodes,
+  handleListRenderJobs,
+  handleRemoveAgentRegistration,
+  handleRenderQueueStats,
   handleRequestPathTest,
+  handleRequeueAllNoPreview,
+  handleRequeueRenderJob,
+  handleResetScanState,
+  handleResumeScanning,
+  handleRetryFailedJobs,
+  handleRetryFailedRenders,
+  handleRevokeAgent,
+  handleSendTestRender,
+  handleStopScan,
+  handleTriggerAgentUpdate,
+  handleTriggerScan,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
-import {
-  handleRebuildStyleGroups,
-  handleReconcileStyleGroupStats,
-} from "../_shared/admin-handlers/style-group-handlers.ts";
+import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_shared/admin-handlers/style-group-handlers.ts";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

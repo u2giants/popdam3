@@ -6,14 +6,7 @@
 
 import { extractSkuFolder } from "../style-grouping.ts";
 import { unwrapConfigValue } from "../config-utils.ts";
-import {
-  err,
-  formatPostgrestError,
-  isStatementTimeout,
-  json,
-  serviceClient,
-  withRetry,
-} from "../admin-utils.ts";
+import { err, formatPostgrestError, isStatementTimeout, json, serviceClient, withRetry } from "../admin-utils.ts";
 
 // ── rebuild-style-groups ────────────────────────────────────────────
 
@@ -153,7 +146,13 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
 
     if (!result) {
-      return json({ ok: false, error: lastErr || "clear_assets failed after adaptive retries", stage: "clear_assets", substage: "adaptive_retry", min_batch_size: clearMinBatch }, 500);
+      return json({
+        ok: false,
+        error: lastErr || "clear_assets failed after adaptive retries",
+        stage: "clear_assets",
+        substage: "adaptive_retry",
+        min_batch_size: clearMinBatch,
+      }, 500);
     }
 
     const clearedCount = result?.cleared_count ?? 0;
@@ -167,9 +166,15 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     await saveState(nextState);
 
     return json({
-      ok: true, stage: "clear_assets", substage: null, done: false, nextOffset: offset + 1,
-      cleared_assets: clearedCount, clear_batch_size_used: batchSize,
-      total_processed: nextState.total_processed ?? 0, total_assets: nextState.total_assets ?? 0,
+      ok: true,
+      stage: "clear_assets",
+      substage: null,
+      done: false,
+      nextOffset: offset + 1,
+      cleared_assets: clearedCount,
+      clear_batch_size_used: batchSize,
+      total_processed: nextState.total_processed ?? 0,
+      total_assets: nextState.total_assets ?? 0,
       resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
     });
   }
@@ -199,9 +204,15 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     await saveState(nextState);
 
     return json({
-      ok: true, stage: "delete_groups", substage: null, done: false, nextOffset: offset + 1,
-      groups_deleted: ids.length, total_processed: nextState.total_processed ?? 0,
-      total_assets: nextState.total_assets ?? 0, resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
+      ok: true,
+      stage: "delete_groups",
+      substage: null,
+      done: false,
+      nextOffset: offset + 1,
+      groups_deleted: ids.length,
+      total_processed: nextState.total_processed ?? 0,
+      total_assets: nextState.total_assets ?? 0,
+      resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
     });
   }
 
@@ -229,7 +240,9 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           if (fetchErr) throw new Error(formatPostgrestError(fetchErr));
           return data;
         },
-        FETCH_MAX_ATTEMPTS, 500, `rebuild_assets/fetch cursor=${cursorLabel}`,
+        FETCH_MAX_ATTEMPTS,
+        500,
+        `rebuild_assets/fetch cursor=${cursorLabel}`,
       );
 
       const assets = fetchResult ?? [];
@@ -237,9 +250,16 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         const nextState: RebuildState = { ...state, stage: "finalize_stats", last_stats_group_id: null };
         await saveState(nextState);
         return json({
-          ok: true, stage: "rebuild_assets", groups_created: 0, assets_assigned: 0, assets_ungrouped: 0,
-          total_processed: nextState.total_processed ?? 0, total_assets: nextState.total_assets ?? 0,
-          done: false, nextOffset: offset + 1, resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
+          ok: true,
+          stage: "rebuild_assets",
+          groups_created: 0,
+          assets_assigned: 0,
+          assets_ungrouped: 0,
+          total_processed: nextState.total_processed ?? 0,
+          total_assets: nextState.total_assets ?? 0,
+          done: false,
+          nextOffset: offset + 1,
+          resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
         });
       }
 
@@ -249,7 +269,10 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         for (let i = 0; i < assets.length; i++) {
           const sku = extractSkuFolder(assets[i].relative_path);
           if (!sku) continue;
-          if (!seenSkus.has(sku) && seenSkus.size >= rebuildMaxGroupsPerCall) { processUntil = i; break; }
+          if (!seenSkus.has(sku) && seenSkus.size >= rebuildMaxGroupsPerCall) {
+            processUntil = i;
+            break;
+          }
           seenSkus.add(sku);
         }
       }
@@ -260,7 +283,10 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
       for (const asset of processBatch) {
         const sku = extractSkuFolder(asset.relative_path);
-        if (!sku) { ungrouped++; continue; }
+        if (!sku) {
+          ungrouped++;
+          continue;
+        }
         if (!skuMap.has(sku)) skuMap.set(sku, []);
         skuMap.get(sku)!.push(asset);
       }
@@ -273,18 +299,26 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         const folderPath = skuIdx >= 0 ? pathParts.slice(0, skuIdx + 1).join("/") : pathParts.slice(0, -1).join("/");
 
         return {
-          sku, folder_path: folderPath,
+          sku,
+          folder_path: folderPath,
           is_licensed: first.is_licensed ?? false,
           licensor_id: (first as { licensor_id?: string | null }).licensor_id ?? null,
-          licensor_code: first.licensor_code, licensor_name: first.licensor_name,
+          licensor_code: first.licensor_code,
+          licensor_name: first.licensor_name,
           property_id: (first as { property_id?: string | null }).property_id ?? null,
-          property_code: first.property_code, property_name: first.property_name,
+          property_code: first.property_code,
+          property_name: first.property_name,
           product_category: first.product_category,
-          division_code: first.division_code, division_name: first.division_name,
-          mg01_code: first.mg01_code, mg01_name: first.mg01_name,
-          mg02_code: first.mg02_code, mg02_name: first.mg02_name,
-          mg03_code: first.mg03_code, mg03_name: first.mg03_name,
-          size_code: first.size_code, size_name: first.size_name,
+          division_code: first.division_code,
+          division_name: first.division_name,
+          mg01_code: first.mg01_code,
+          mg01_name: first.mg01_name,
+          mg02_code: first.mg02_code,
+          mg02_name: first.mg02_name,
+          mg03_code: first.mg03_code,
+          mg03_name: first.mg03_name,
+          size_code: first.size_code,
+          size_name: first.size_name,
         };
       });
 
@@ -308,7 +342,9 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
               if (upsertErr) throw new Error(formatPostgrestError(upsertErr));
               return upsertedGroups as Array<{ id: string; sku: string }>;
             },
-            WRITE_MAX_ATTEMPTS, 400, `rebuild_assets/upsert_groups cursor=${cursorLabel} chunk@${groupCursor}`,
+            WRITE_MAX_ATTEMPTS,
+            400,
+            `rebuild_assets/upsert_groups cursor=${cursorLabel} chunk@${groupCursor}`,
           ).catch((e) => {
             const msg = ((e as Error).message || "").toLowerCase();
             if (isStatementTimeout(msg) && groupChunkSize > GROUP_CHUNK_MIN) return null;
@@ -346,7 +382,9 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
                 if (assignErr) throw new Error(formatPostgrestError(assignErr));
                 return typeof data === "number" ? data : chunk.length;
               },
-              WRITE_MAX_ATTEMPTS, 400, `rebuild_assets/assign cursor=${cursorLabel} chunk@${assignCursor}`,
+              WRITE_MAX_ATTEMPTS,
+              400,
+              `rebuild_assets/assign cursor=${cursorLabel} chunk@${assignCursor}`,
             ).catch((e) => {
               const msg = ((e as Error).message || "").toLowerCase();
               if (isStatementTimeout(msg) && assignChunkSize > ASSIGN_CHUNK_MIN) return null;
@@ -375,10 +413,16 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       await saveState(nextState);
 
       return json({
-        ok: true, stage: "rebuild_assets", substage: "complete_batch",
-        groups_created: groupsCreated, assets_assigned: assetsAssigned, assets_ungrouped: ungrouped,
-        total_processed: totalProcessed, total_assets: nextState.total_assets ?? 0,
-        done: false, nextOffset: offset + 1,
+        ok: true,
+        stage: "rebuild_assets",
+        substage: "complete_batch",
+        groups_created: groupsCreated,
+        assets_assigned: assetsAssigned,
+        assets_ungrouped: ungrouped,
+        total_processed: totalProcessed,
+        total_assets: nextState.total_assets ?? 0,
+        done: false,
+        nextOffset: offset + 1,
         resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
       });
     } catch (e) {
@@ -430,10 +474,15 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           state.last_stats_group_id = null;
           await saveState(state);
           return json({
-            ok: true, stage: "finalize_stats", sub: "counts_done",
-            counts_processed: state.total_groups ?? 0, finalize_total_groups: state.total_groups ?? 0,
-            total_processed: state.total_processed ?? 0, total_assets: state.total_assets ?? 0,
-            done: false, nextOffset: offset + 1,
+            ok: true,
+            stage: "finalize_stats",
+            sub: "counts_done",
+            counts_processed: state.total_groups ?? 0,
+            finalize_total_groups: state.total_groups ?? 0,
+            total_processed: state.total_processed ?? 0,
+            total_assets: state.total_assets ?? 0,
+            done: false,
+            nextOffset: offset + 1,
           });
         }
 
@@ -444,13 +493,19 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
             const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
             if (countErr) {
               const msg = formatPostgrestError(countErr);
-              if (msg.includes("57014") && batchIds.length > 1) { batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2)); continue; }
+              if (msg.includes("57014") && batchIds.length > 1) {
+                batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+                continue;
+              }
               return json({ ok: false, error: msg, stage: "finalize_stats", substage: "counts" }, 500);
             }
             break;
           } catch (e) {
             const msg = (e as Error).message || "";
-            if (msg.includes("57014") && batchIds.length > 1) { batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2)); continue; }
+            if (msg.includes("57014") && batchIds.length > 1) {
+              batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+              continue;
+            }
             throw e;
           }
         }
@@ -461,10 +516,15 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         await saveState(state);
 
         return json({
-          ok: true, stage: "finalize_stats", sub: "counts",
-          counts_processed: state.finalize_cursor, finalize_total_groups: state.total_groups ?? 0,
-          total_processed: state.total_processed ?? 0, total_assets: state.total_assets ?? 0,
-          done: false, nextOffset: offset + 1,
+          ok: true,
+          stage: "finalize_stats",
+          sub: "counts",
+          counts_processed: state.finalize_cursor,
+          finalize_total_groups: state.total_groups ?? 0,
+          total_processed: state.total_processed ?? 0,
+          total_assets: state.total_assets ?? 0,
+          done: false,
+          nextOffset: offset + 1,
         });
       }
 
@@ -485,10 +545,15 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         if (!groupIds || groupIds.length === 0) {
           await clearState();
           return json({
-            ok: true, stage: "finalize_stats", sub: "complete",
-            primaries_processed: state.total_groups ?? 0, finalize_total_groups: state.total_groups ?? 0,
-            total_processed: state.total_processed ?? 0, total_assets: state.total_assets ?? 0,
-            done: true, nextOffset: offset + 1,
+            ok: true,
+            stage: "finalize_stats",
+            sub: "complete",
+            primaries_processed: state.total_groups ?? 0,
+            finalize_total_groups: state.total_groups ?? 0,
+            total_processed: state.total_processed ?? 0,
+            total_assets: state.total_assets ?? 0,
+            done: true,
+            nextOffset: offset + 1,
           });
         }
 
@@ -499,13 +564,19 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
             const { error: primErr } = await db.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
             if (primErr) {
               const msg = formatPostgrestError(primErr);
-              if (msg.includes("57014") && batchIds.length > 1) { batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2)); continue; }
+              if (msg.includes("57014") && batchIds.length > 1) {
+                batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+                continue;
+              }
               return json({ ok: false, error: msg, stage: "finalize_stats", substage: "primaries" }, 500);
             }
             break;
           } catch (e) {
             const msg = (e as Error).message || "";
-            if (msg.includes("57014") && batchIds.length > 1) { batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2)); continue; }
+            if (msg.includes("57014") && batchIds.length > 1) {
+              batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
+              continue;
+            }
             throw e;
           }
         }
@@ -516,10 +587,15 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         await saveState(state);
 
         return json({
-          ok: true, stage: "finalize_stats", sub: "primaries",
-          primaries_processed: state.finalize_cursor, finalize_total_groups: state.total_groups ?? 0,
-          total_processed: state.total_processed ?? 0, total_assets: state.total_assets ?? 0,
-          done: false, nextOffset: offset + 1,
+          ok: true,
+          stage: "finalize_stats",
+          sub: "primaries",
+          primaries_processed: state.finalize_cursor,
+          finalize_total_groups: state.total_groups ?? 0,
+          total_processed: state.total_processed ?? 0,
+          total_assets: state.total_assets ?? 0,
+          done: false,
+          nextOffset: offset + 1,
         });
       }
 

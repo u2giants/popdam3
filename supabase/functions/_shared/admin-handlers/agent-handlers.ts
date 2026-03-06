@@ -6,14 +6,7 @@
  * render queue ops, pairing codes, bootstrap tokens, agent updates.
  */
 
-import {
-  err,
-  formatPostgrestError,
-  json,
-  optionalString,
-  requireString,
-  serviceClient,
-} from "../admin-utils.ts";
+import { err, formatPostgrestError, json, optionalString, requireString, serviceClient } from "../admin-utils.ts";
 
 // ── generate-agent-key ──────────────────────────────────────────────
 
