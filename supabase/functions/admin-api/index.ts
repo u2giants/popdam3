@@ -2363,7 +2363,7 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   if (state.stage === "finalize_stats") {
     // Load admin_config knobs for tunable batch sizes
     let COUNTS_BATCH = 50;
-    let PRIMARIES_BATCH = 25;
+    let PRIMARIES_BATCH = 15;
     try {
       const { data: knobRow } = await db
         .from("admin_config")

@@ -492,6 +492,11 @@ serve(async (req: Request) => {
         }
       } catch (e) {
         lastError = e instanceof Error ? e.message : "Unknown batch error";
+        // Network-level errors (connection reset, fetch failed) are transient
+        const errMsg = lastError.toLowerCase();
+        if (errMsg.includes("connection") || errMsg.includes("fetch failed") || errMsg.includes("error reading a body") || errMsg.includes("tcp")) {
+          isTransientFailure = true;
+        }
         console.error(`bulk-job-runner: batch error in '${opKey}':`, lastError);
         break;
       }
@@ -556,7 +561,8 @@ serve(async (req: Request) => {
         updated_at: now,
       };
       console.log(`bulk-job-runner: '${opKey}' ${completionStatus} — ${resultMessage}`);
-    } else if (lastError && isTransientFailure) {
+    } else if (lastError && (isTransientFailure || reasonCode === "gateway_timeout")) {
+      // Transient errors (502/503/504, connection resets) → interrupted (auto-resumable)
       allOps[opKey] = {
         ...opState,
         status: "interrupted",
