@@ -5,6 +5,40 @@ import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.
 import { corsHeaders, err, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
 
+// ── Extracted handler modules ───────────────────────────────────────
+import {
+  handleGenerateAgentKey,
+  handleListAgents,
+  handleRevokeAgent,
+  handleRemoveAgentRegistration,
+  handleTriggerScan,
+  handleStopScan,
+  handleResumeScanning,
+  handleResetScanState,
+  handleRenderQueueStats,
+  handleListRenderJobs,
+  handleClearFailedRenders,
+  handleSendTestRender,
+  handleCheckRenderJob,
+  handleRetryFailedJobs,
+  handleClearCompletedJobs,
+  handleClearJunkRenderJobs,
+  handleRequeueRenderJob,
+  handleCreatePairingCode,
+  handleListPairingCodes,
+  handleGenerateBootstrapToken,
+  handleTriggerAgentUpdate,
+  handleGetUpdateStatus,
+  handleRetryFailedRenders,
+  handleRequeueAllNoPreview,
+  handleRequestPathTest,
+} from "../_shared/admin-handlers/agent-handlers.ts";
+
+import {
+  handleRebuildStyleGroups,
+  handleReconcileStyleGroupStats,
+} from "../_shared/admin-handlers/style-group-handlers.ts";
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function serviceClient() {
