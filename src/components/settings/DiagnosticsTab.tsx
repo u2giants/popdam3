@@ -1087,7 +1087,7 @@ function StyleGroupsSection() {
 
   const showRebuildDetail = rebuildOp.state.status !== "idle";
   const showReconcileDetail = reconcileOp.state.status !== "idle";
-  const canStartFresh = rebuildOp.isInterrupted || rebuildOp.state.status === "failed" || rebuildOp.isActive;
+  const canStartFresh = true; // Always available — users should be able to start fresh from any state
 
   return (
     <Card>

@@ -474,7 +474,14 @@ serve(async (req: Request) => {
         cursor = result.nextOffset ?? cursor + 1;
 
         if (batchCount % persistEvery === 0) {
-          allOps[opKey] = {
+          // Re-read before write to avoid clobbering other ops
+          const { data: midConfig } = await db
+            .from("admin_config")
+            .select("value")
+            .eq("key", CONFIG_KEY)
+            .maybeSingle();
+          const midOps = (midConfig?.value as Record<string, OpState>) || {};
+          midOps[opKey] = {
             ...opState,
             status: "running",
             cursor,
@@ -486,7 +493,7 @@ serve(async (req: Request) => {
           };
           await db.from("admin_config").upsert({
             key: CONFIG_KEY,
-            value: allOps,
+            value: midOps,
             updated_at: new Date().toISOString(),
           });
         }
@@ -605,9 +612,26 @@ serve(async (req: Request) => {
       console.log(`bulk-job-runner: '${opKey}' paused after ${batchCount} batches, cursor=${cursor}`);
     }
 
+    // Re-read BULK_OPERATIONS before final write to avoid clobbering entries
+    // added by the UI or other writers while we were processing (race condition fix).
+    const { data: freshConfigRow } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", CONFIG_KEY)
+      .maybeSingle();
+    const freshAllOps = (freshConfigRow?.value as Record<string, OpState>) || {};
+
+    // Merge: keep all fresh entries, but overwrite only the op we just processed
+    const mergedOps = { ...freshAllOps, [opKey]: allOps[opKey] };
+
+    // Also carry over any auto-queued reconcile from post-rebuild integrity check
+    if (allOps["reconcile-style-group-stats"]?.status === "running" && allOps["reconcile-style-group-stats"]?.run_id) {
+      mergedOps["reconcile-style-group-stats"] = allOps["reconcile-style-group-stats"];
+    }
+
     await db.from("admin_config").upsert({
       key: CONFIG_KEY,
-      value: allOps,
+      value: mergedOps,
       updated_at: now,
     });
 
