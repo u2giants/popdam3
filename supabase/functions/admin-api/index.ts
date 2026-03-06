@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
-import { corsHeaders, json, err } from "../_shared/http.ts";
+import { corsHeaders, err, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
 
 // ── Helpers ─────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { isExcludedRelativePath } from "../_shared/path-filters.ts";
-import { corsHeaders, json, err } from "../_shared/http.ts";
+import { corsHeaders, err, json } from "../_shared/http.ts";
 
 function serviceClient() {
   return createClient(
