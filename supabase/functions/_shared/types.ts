@@ -32,6 +32,7 @@ export interface OpState {
   last_stage?: string;
   last_substage?: string;
   queue_position?: number;
+  stage_started_at?: string;
 }
 
 // ── Bulk operation keys ─────────────────────────────────────────────
