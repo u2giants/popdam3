@@ -173,7 +173,14 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     }
 
     const nextState: RebuildState = !hasMore
-      ? { ...state, stage: "delete_groups", last_asset_id: null, last_group_id: null, total_groups_before_delete: totalGroupsBeforeDelete, stage_started_at: new Date().toISOString() }
+      ? {
+        ...state,
+        stage: "delete_groups",
+        last_asset_id: null,
+        last_group_id: null,
+        total_groups_before_delete: totalGroupsBeforeDelete,
+        stage_started_at: new Date().toISOString(),
+      }
       : { ...state, stage: "clear_assets", last_asset_id: lastId };
 
     await saveState(nextState);
@@ -691,7 +698,14 @@ export async function handleReconcileStyleGroupStats(body: Record<string, unknow
       if (!groupIds || groupIds.length === 0) {
         state = { sub: "primaries", cursor: 0 };
         await saveRecState(state);
-        return json({ ok: true, sub: "counts_done", counts_processed: state.cursor, total_groups: state.total_groups ?? 0, done: false, nextOffset: offset + 1 });
+        return json({
+          ok: true,
+          sub: "counts_done",
+          counts_processed: state.cursor,
+          total_groups: state.total_groups ?? 0,
+          done: false,
+          nextOffset: offset + 1,
+        });
       }
 
       const ids = groupIds.map((g: { id: string }) => g.id);
@@ -726,7 +740,14 @@ export async function handleReconcileStyleGroupStats(body: Record<string, unknow
 
       if (!groupIds || groupIds.length === 0) {
         await db.from("admin_config").delete().eq("key", STATE_KEY);
-        return json({ ok: true, sub: "complete", primaries_processed: state.cursor, total_groups: state.total_groups ?? 0, done: true, nextOffset: offset + 1 });
+        return json({
+          ok: true,
+          sub: "complete",
+          primaries_processed: state.cursor,
+          total_groups: state.total_groups ?? 0,
+          done: true,
+          nextOffset: offset + 1,
+        });
       }
 
       const ids = groupIds.map((g: { id: string }) => g.id);
@@ -747,7 +768,14 @@ export async function handleReconcileStyleGroupStats(body: Record<string, unknow
 
       state.cursor += batchIds.length;
       await saveRecState(state);
-      return json({ ok: true, sub: "primaries", primaries_processed: state.cursor, total_groups: state.total_groups ?? 0, done: false, nextOffset: offset + 1 });
+      return json({
+        ok: true,
+        sub: "primaries",
+        primaries_processed: state.cursor,
+        total_groups: state.total_groups ?? 0,
+        done: false,
+        nextOffset: offset + 1,
+      });
     }
 
     return json({ ok: false, error: "Unknown reconcile sub-stage", stage: "reconcile", substage: "unknown" }, 500);
