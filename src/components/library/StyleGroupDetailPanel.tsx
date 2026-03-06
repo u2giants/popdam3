@@ -111,7 +111,7 @@ interface SiblingImage {
   thumbnail_url?: string;
 }
 
-function FindAlternativeImages({ group }: { group: StyleGroup }) {
+function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIngested?: () => void }) {
   const { call } = useAdminApi();
   const [loading, setLoading] = useState(false);
   const [siblings, setSiblings] = useState<SiblingImage[] | null>(null);
@@ -119,6 +119,8 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
   const [polling, setPolling] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [ingesting, setIngesting] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCountRef = useRef(0);
 
@@ -146,7 +148,6 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
 
     pollTimerRef.current = setInterval(async () => {
       pollCountRef.current++;
-      // Timeout after ~2.5 minutes (30 polls × 5s)
       if (pollCountRef.current > 30) {
         stopPolling();
         setError("Scan timed out — the Bridge Agent may be offline. Try again later.");
@@ -159,6 +160,7 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
           stopPolling();
           const images = (result.images ?? []) as SiblingImage[];
           setSiblings(images);
+          setSelected(new Set());
           if (images.length === 0) {
             toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
           } else {
@@ -170,15 +172,13 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
           setError(msg);
           toast({ title: "Folder scan failed", description: msg, variant: "destructive" });
         }
-        // else still pending — keep polling
       } catch (e) {
-        // Non-fatal — keep polling
         console.warn("Poll error:", (e as Error).message);
       }
     }, 5000);
   };
 
-  // Auto-load existing results on mount (read-only, no new request created)
+  // Auto-load existing results on mount
   useEffect(() => {
     if (initialLoaded || !group.folder_path) return;
     setInitialLoaded(true);
@@ -186,7 +186,7 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
     (async () => {
       try {
         const result = await call("get-sibling-scan-by-folder", { folder_path: group.folder_path });
-        if (!result?.found) return; // No previous scan — just show the button
+        if (!result?.found) return;
 
         if (result.status === "completed") {
           const images = (result.images ?? []) as SiblingImage[];
@@ -194,11 +194,10 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
         } else if (result.status === "failed") {
           setError(result.error_message || "Previous scan failed");
         } else if (result.status === "pending") {
-          // An in-flight scan exists — start polling
           startPolling(result.request_id as string);
         }
       } catch {
-        // Non-fatal — user can still click the button
+        // Non-fatal
       }
     })();
   }, [group.folder_path]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -207,6 +206,7 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
     setLoading(true);
     setError(null);
     setSiblings(null);
+    setSelected(new Set());
     stopPolling();
     try {
       const result = await call("list-sibling-images", {
@@ -234,6 +234,54 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
     }
   };
 
+  const toggleSelect = (path: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (!siblings) return;
+    if (selected.size === siblings.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(siblings.map(s => s.relative_path)));
+    }
+  };
+
+  const handleIngest = async () => {
+    if (!siblings || selected.size === 0) return;
+    setIngesting(true);
+    try {
+      const selectedImages = siblings.filter(s => selected.has(s.relative_path));
+      const result = await call("ingest-sibling-images", {
+        style_group_id: group.id,
+        images: selectedImages,
+      });
+      const summary = result?.summary as { created: number; linked: number; errors: number } | undefined;
+      if (summary) {
+        const parts: string[] = [];
+        if (summary.created > 0) parts.push(`${summary.created} added`);
+        if (summary.linked > 0) parts.push(`${summary.linked} linked`);
+        if (summary.errors > 0) parts.push(`${summary.errors} failed`);
+        toast({ title: "Images ingested", description: parts.join(", ") });
+      } else {
+        toast({ title: "Images ingested" });
+      }
+      // Remove ingested images from the list
+      setSiblings(prev => prev?.filter(s => !selected.has(s.relative_path)) ?? null);
+      setSelected(new Set());
+      onIngested?.();
+    } catch (e) {
+      toast({ title: "Ingestion failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setIngesting(false);
+    }
+  };
+
   return (
     <section className="space-y-2.5">
       <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -258,38 +306,76 @@ function FindAlternativeImages({ group }: { group: StyleGroup }) {
       )}
 
       {siblings && siblings.length > 0 && (
-        <div className="space-y-1.5 rounded-md border border-border p-2 bg-muted/20">
-          <p className="text-[10px] text-muted-foreground font-medium">
-            Found {siblings.length} image{siblings.length !== 1 ? "s" : ""}:
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {siblings.map((img) => (
-              <div key={img.relative_path} className="rounded-md border border-border/50 overflow-hidden bg-background">
-                {img.thumbnail_url ? (
-                  <div className="aspect-square w-full bg-muted/30 overflow-hidden">
-                    <img
-                      src={img.thumbnail_url}
-                      alt={img.filename}
-                      className="h-full w-full object-contain"
-                      loading="lazy"
-                    />
-                  </div>
-                ) : (
-                  <div className="aspect-square w-full bg-muted/30 flex items-center justify-center">
-                    <ImageOff className="h-6 w-6 text-muted-foreground/20" />
-                  </div>
-                )}
-                <div className="p-1.5 space-y-0.5">
-                  <p className="font-mono text-[10px] truncate" title={img.relative_path}>
-                    {img.filename}
-                  </p>
-                  <p className="text-[9px] text-muted-foreground">
-                    {img.file_size ? `${(img.file_size / 1024).toFixed(0)} KB` : ""}
-                  </p>
-                </div>
-              </div>
-            ))}
+        <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground font-medium">
+              Found {siblings.length} image{siblings.length !== 1 ? "s" : ""}:
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={toggleAll}>
+                {selected.size === siblings.length ? "Deselect All" : "Select All"}
+              </Button>
+            </div>
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            {siblings.map((img) => {
+              const isSelected = selected.has(img.relative_path);
+              return (
+                <div
+                  key={img.relative_path}
+                  className={cn(
+                    "rounded-md border overflow-hidden bg-background cursor-pointer transition-colors",
+                    isSelected ? "border-primary ring-1 ring-primary/30" : "border-border/50 hover:border-border"
+                  )}
+                  onClick={() => toggleSelect(img.relative_path)}
+                >
+                  {img.thumbnail_url ? (
+                    <div className="aspect-square w-full bg-muted/30 overflow-hidden relative">
+                      <img
+                        src={img.thumbnail_url}
+                        alt={img.filename}
+                        className="h-full w-full object-contain"
+                        loading="lazy"
+                      />
+                      {isSelected && (
+                        <div className="absolute top-1 right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-3 w-3 text-primary-foreground" />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="aspect-square w-full bg-muted/30 flex items-center justify-center relative">
+                      <ImageOff className="h-6 w-6 text-muted-foreground/20" />
+                      {isSelected && (
+                        <div className="absolute top-1 right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-3 w-3 text-primary-foreground" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="p-1.5 space-y-0.5">
+                    <p className="font-mono text-[10px] truncate" title={img.relative_path}>
+                      {img.filename}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">
+                      {img.file_size ? `${(img.file_size / 1024).toFixed(0)} KB` : ""}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {selected.size > 0 && (
+            <Button
+              size="sm"
+              className="w-full gap-1.5 text-xs h-7"
+              onClick={handleIngest}
+              disabled={ingesting}
+            >
+              {ingesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              Add {selected.size} Image{selected.size !== 1 ? "s" : ""} to Group
+            </Button>
+          )}
         </div>
       )}
 

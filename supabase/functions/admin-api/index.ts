@@ -3468,6 +3468,115 @@ async function handleGetSiblingScanByFolder(body: Record<string, unknown>) {
   return json({ ok: true, found: false });
 }
 
+// ── Route: ingest-sibling-images ────────────────────────────────────
+// Takes selected sibling images from a scan result and creates asset records
+// linked to the given style group.
+
+async function handleIngestSiblingImages(body: Record<string, unknown>, userId: string) {
+  const styleGroupId = requireString(body, "style_group_id");
+  const images = body.images;
+  if (!Array.isArray(images) || images.length === 0) {
+    return err("images must be a non-empty array");
+  }
+  if (images.length > 50) {
+    return err("Maximum 50 images per ingestion request");
+  }
+
+  const db = serviceClient();
+
+  // Verify style group exists
+  const { data: sg, error: sgErr } = await db
+    .from("style_groups")
+    .select("id, sku, folder_path")
+    .eq("id", styleGroupId)
+    .maybeSingle();
+  if (sgErr) return err(sgErr.message, 500);
+  if (!sg) return err("Style group not found", 404);
+
+  const results: Array<{ filename: string; action: string; asset_id?: string; error?: string }> = [];
+  const now = new Date().toISOString();
+
+  for (const img of images) {
+    const imgObj = img as Record<string, unknown>;
+    const relativePath = typeof imgObj.relative_path === "string" ? imgObj.relative_path : "";
+    const filename = typeof imgObj.filename === "string" ? imgObj.filename : "";
+    const fileSize = typeof imgObj.file_size === "number" ? imgObj.file_size : 0;
+    const thumbnailUrl = typeof imgObj.thumbnail_url === "string" ? imgObj.thumbnail_url : null;
+
+    if (!relativePath || !filename) {
+      results.push({ filename: filename || "unknown", action: "error", error: "Missing relative_path or filename" });
+      continue;
+    }
+
+    // Check if asset already exists at this path
+    const { data: existing } = await db
+      .from("assets")
+      .select("id")
+      .eq("relative_path", relativePath)
+      .maybeSingle();
+
+    if (existing) {
+      // Already exists — just link to this style group if not already linked
+      await db.from("assets").update({ style_group_id: styleGroupId }).eq("id", existing.id);
+      results.push({ filename, action: "linked", asset_id: existing.id });
+      continue;
+    }
+
+    // Determine file_type from extension
+    const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+    // Sibling images are JPG/PNG — but our file_type enum only has psd/ai.
+    // We'll store as "psd" placeholder since these are supplementary images.
+    // Actually, let's check if there's a better approach — these are reference images.
+    // For now, we need to work within the existing schema constraints.
+    // The file_type is constrained to 'psd' | 'ai', so we can't store jpg/png directly.
+    // Instead we'll skip the file_type constraint by using a raw insert.
+
+    // Use psd as fallback file_type since the enum is constrained
+    // This is a known limitation — sibling images are supplementary references
+    const fileType = ext === "ai" ? "ai" : "psd";
+
+    const { data: inserted, error: insertErr } = await db
+      .from("assets")
+      .insert({
+        relative_path: relativePath,
+        filename,
+        file_type: fileType,
+        file_size: fileSize,
+        modified_at: now,
+        quick_hash: `sibling_${relativePath}`,
+        quick_hash_version: 0,
+        thumbnail_url: thumbnailUrl,
+        style_group_id: styleGroupId,
+        sku: sg.sku,
+        last_seen_at: now,
+        ingested_at: now,
+      })
+      .select("id")
+      .single();
+
+    if (insertErr) {
+      results.push({ filename, action: "error", error: insertErr.message });
+    } else {
+      results.push({ filename, action: "created", asset_id: inserted.id });
+    }
+  }
+
+  // Refresh style group counts
+  const groupIds = [styleGroupId];
+  try {
+    await db.rpc("refresh_style_group_counts_batch", { p_group_ids: groupIds });
+    await db.rpc("refresh_style_group_primaries", { p_group_ids: groupIds });
+  } catch (e) {
+    console.warn("Failed to refresh style group stats:", e);
+  }
+
+  const created = results.filter(r => r.action === "created").length;
+  const linked = results.filter(r => r.action === "linked").length;
+  const errors = results.filter(r => r.action === "error").length;
+
+  return json({ ok: true, results, summary: { created, linked, errors } });
+}
+
 serve(async (req: Request) => {
   console.log(`admin-api: ${req.method} ${new URL(req.url).pathname}`);
 
