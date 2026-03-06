@@ -181,12 +181,23 @@ async function withRetry<T>(
 }
 
 function formatPostgrestError(error: unknown): string {
+  const normalizeMessage = (message: string) => {
+    const msg = (message || "").trim();
+    if (!msg) return "Unknown database error";
+    const lower = msg.toLowerCase();
+    const looksHtml = lower.includes("<html") || lower.includes("<!doctype") || lower.includes("<head>");
+    if (looksHtml) {
+      return "Upstream gateway returned an HTML 500 page (transient infrastructure error). Please retry.";
+    }
+    return msg;
+  };
+
   if (!error) return "Unknown database error";
-  if (typeof error === "string") return error;
-  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return normalizeMessage(error);
+  if (error instanceof Error) return normalizeMessage(error.message);
 
   const e = error as Record<string, unknown>;
-  const message = typeof e.message === "string" ? e.message : "Database error";
+  const message = normalizeMessage(typeof e.message === "string" ? e.message : "Database error");
   const details = typeof e.details === "string" ? e.details : "";
   const hint = typeof e.hint === "string" ? e.hint : "";
   const code = typeof e.code === "string" ? e.code : "";
@@ -3061,20 +3072,39 @@ async function handleRunQuery(body: Record<string, unknown>) {
       body: JSON.stringify({ query_text: trimmed }),
     });
 
+    const pgContentType = pgRes.headers.get("content-type") || "";
+    const pgBody = await pgRes.text();
+
     if (!pgRes.ok) {
-      const pgErr = await pgRes.text();
       // Detect statement timeout and return a user-friendly message
-      if (pgErr.includes("57014") || pgErr.includes("statement timeout")) {
+      if (pgBody.includes("57014") || pgBody.includes("statement timeout")) {
         return json({
           ok: false,
           error: "Query timed out. Try a simpler query or add WHERE/LIMIT clauses.",
           code: "statement_timeout",
         }, 408);
       }
-      return err(`Query failed: ${pgErr}`, 400);
+      const looksHtml = /<!doctype|<html|<head>/i.test(pgBody);
+      if (looksHtml) {
+        return err("Query backend returned an HTML 500 page (transient infrastructure error). Please retry.", 502);
+      }
+      return err(`Query failed: ${pgBody}`, 400);
     }
 
-    const rows = await pgRes.json();
+    if (!pgContentType.includes("application/json")) {
+      const looksHtml = /<!doctype|<html|<head>/i.test(pgBody);
+      if (looksHtml) {
+        return err("Query backend returned HTML instead of JSON (transient infrastructure error). Please retry.", 502);
+      }
+      return err(`Unexpected query response format: ${pgContentType || "unknown"}`, 502);
+    }
+
+    let rows: unknown = [];
+    try {
+      rows = pgBody ? JSON.parse(pgBody) : [];
+    } catch {
+      return err("Query backend returned malformed JSON.", 502);
+    }
     return json({ ok: true, rows: rows ?? [], count: Array.isArray(rows) ? rows.length : 0 });
   };
 
@@ -4325,8 +4355,14 @@ async function handleTriggerErpSync(body: Record<string, unknown>) {
     body: JSON.stringify(syncBody),
   });
 
+  const contentType = resp.headers.get("content-type") || "";
+  const text = await resp.text();
+
   if (!resp.ok) {
-    const text = await resp.text();
+    const looksHtml = /<!doctype|<html|<head>/i.test(text);
+    if (looksHtml) {
+      return err("ERP sync backend returned an HTML 500 page (transient infrastructure error). Please retry.", 502);
+    }
     let parsed: Record<string, unknown> = {};
     try {
       parsed = JSON.parse(text);
@@ -4334,7 +4370,20 @@ async function handleTriggerErpSync(body: Record<string, unknown>) {
     return err((parsed.error as string) || `erp-sync returned ${resp.status}`, resp.status);
   }
 
-  const result = await resp.json();
+  if (!contentType.includes("application/json")) {
+    const looksHtml = /<!doctype|<html|<head>/i.test(text);
+    if (looksHtml) {
+      return err("ERP sync backend returned HTML instead of JSON (transient infrastructure error). Please retry.", 502);
+    }
+    return err(`Unexpected ERP sync response format: ${contentType || "unknown"}`, 502);
+  }
+
+  let result: Record<string, unknown> = {};
+  try {
+    result = text ? JSON.parse(text) : {};
+  } catch {
+    return err("ERP sync backend returned malformed JSON.", 502);
+  }
   return json({ ok: true, ...result });
 }
 
