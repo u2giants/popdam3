@@ -2362,8 +2362,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
   // Stage 4: finalize stats — three-phase: counts in batches, then primaries in batches
   if (state.stage === "finalize_stats") {
     // Load admin_config knobs for tunable batch sizes
-    let COUNTS_BATCH = 50;
-    let PRIMARIES_BATCH = 15;
+    let COUNTS_BATCH = 25;
+    let PRIMARIES_BATCH = 5;
     try {
       const { data: knobRow } = await db
         .from("admin_config")
@@ -2374,8 +2374,8 @@ async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           ? (r.value as Record<string, unknown>).value
           : r.value;
         const num = typeof raw === "number" ? raw : parseInt(String(raw), 10);
-        if (r.key === "REBUILD_FINALIZE_BATCH_SIZE" && Number.isFinite(num) && num > 0) COUNTS_BATCH = num;
-        if (r.key === "REBUILD_PRIMARIES_BATCH_SIZE" && Number.isFinite(num) && num > 0) PRIMARIES_BATCH = num;
+        if (r.key === "REBUILD_FINALIZE_BATCH_SIZE" && Number.isFinite(num) && num > 0) COUNTS_BATCH = Math.min(num, 25);
+        if (r.key === "REBUILD_PRIMARIES_BATCH_SIZE" && Number.isFinite(num) && num > 0) PRIMARIES_BATCH = Math.min(num, 5);
       }
     } catch { /* use defaults */ }
 
