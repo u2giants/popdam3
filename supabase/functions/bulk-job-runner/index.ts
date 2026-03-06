@@ -294,13 +294,18 @@ serve(async (req: Request) => {
     }
 
     if (!runningEntry) {
-      // Save any stale-lock or auto-resume state changes
+      // Save any stale-lock or auto-resume state changes atomically
       if (configRow) {
-        await db.from("admin_config").upsert({
-          key: CONFIG_KEY,
-          value: allOps,
-          updated_at: new Date().toISOString(),
-        });
+        const updates: Record<string, OpState> = {};
+        for (const [key, op] of Object.entries(allOps)) {
+          const original = (configRow?.value as Record<string, OpState>)?.[key];
+          if (JSON.stringify(op) !== JSON.stringify(original)) {
+            updates[key] = op;
+          }
+        }
+        if (Object.keys(updates).length > 0) {
+          await db.rpc("update_bulk_operations_batch", { p_updates: updates });
+        }
       }
       return json({ ok: true, message: "No running operations" });
     }
@@ -312,10 +317,9 @@ serve(async (req: Request) => {
     if (opState.cursor === undefined && opState.cursor !== 0) {
       const now = new Date().toISOString();
       allOps[opKey] = { ...opState, status: "interrupted", interruption_reason_code: "legacy_format", updated_at: now };
-      await db.from("admin_config").upsert({
-        key: CONFIG_KEY,
-        value: allOps,
-        updated_at: now,
+      await db.rpc("update_bulk_operation", {
+        p_op_key: opKey,
+        p_op_state: allOps[opKey],
       });
       console.log(`bulk-job-runner: legacy op '${opKey}' marked as interrupted`);
       return json({ ok: true, message: `Legacy op ${opKey} marked as interrupted` });
@@ -331,10 +335,9 @@ serve(async (req: Request) => {
         interruption_reason_code: "unknown_action",
         updated_at: now,
       };
-      await db.from("admin_config").upsert({
-        key: CONFIG_KEY,
-        value: allOps,
-        updated_at: now,
+      await db.rpc("update_bulk_operation", {
+        p_op_key: opKey,
+        p_op_state: allOps[opKey],
       });
       return json({ ok: true, message: `Unknown op: ${opKey}` });
     }
