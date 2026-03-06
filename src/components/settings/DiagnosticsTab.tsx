@@ -851,6 +851,21 @@ function AiTaggingSection() {
               <TooltipContent side="bottom" className="max-w-[240px] text-center">Overwrites ALL existing AI tags and descriptions. Use with caution.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          {anyActive && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="destructive" size="sm" className="gap-1.5"
+                    onClick={() => { if (tagUntaggedOp.isActive) tagUntaggedOp.stop(); if (tagAllOp.isActive) tagAllOp.stop(); }}
+                  >
+                    <XCircle className="h-3.5 w-3.5" /> Stop
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[220px] text-center">Stop the current AI tagging run. Progress is saved and can be resumed.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           {(tagUntaggedOp.isInterrupted || tagAllOp.isInterrupted) && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => { tagUntaggedOp.reset(); tagAllOp.reset(); }}>
               Dismiss
