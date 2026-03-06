@@ -3632,6 +3632,8 @@ serve(async (req: Request) => {
         return await handleGetSiblingScanResult(body);
       case "get-sibling-scan-by-folder":
         return await handleGetSiblingScanByFolder(body);
+      case "ingest-sibling-images":
+        return await handleIngestSiblingImages(body, userId);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
