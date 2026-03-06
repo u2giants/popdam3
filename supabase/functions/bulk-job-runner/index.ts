@@ -471,6 +471,11 @@ serve(async (req: Request) => {
 
         cursor = result.nextOffset ?? cursor + 1;
 
+        // Throttle rebuild operations to stay under Edge Function rate limits
+        if (opKey === "rebuild-style-groups") {
+          await sleep(1000);
+        }
+
         if (batchCount % persistEvery === 0) {
           // Atomic mid-batch persist — only updates if status is still "running"
           const midState: OpState = {
