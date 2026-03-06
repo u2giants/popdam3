@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES, REASON_LABELS, timeAgo } from "./types";
+import { formatDuration, formatEta, calcRate, ProgressRow } from "./progress-utils";
 
 // ── Rebuild Status Detail ───────────────────────────────────────────
 
@@ -25,82 +26,110 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
     failed: { label: "Failed", color: "text-destructive", icon: <XCircle className="h-3.5 w-3.5 text-destructive" /> },
   };
   const s = statusMap[state.status] || statusMap.idle;
-  const p = state.progress;
+  const p = state.progress ?? {};
+  const now = Date.now();
+  const overallElapsed = state.started_at ? now - new Date(state.started_at).getTime() : 0;
+  const stageElapsed = (p.stage_started_at as string)
+    ? now - new Date(p.stage_started_at as string).getTime()
+    : overallElapsed;
+
+  const stage = (p.stage as string) || state.last_stage || "clear_assets";
+  const totalAssets = (p.total_assets as number) || 0;
+
+  const STAGES = [
+    { key: "clear_assets", label: "Clear assignments" },
+    { key: "delete_groups", label: "Delete old groups" },
+    { key: "rebuild_assets", label: "Assign to groups" },
+    {
+      key: "finalize_stats",
+      label: stage === "finalize_stats" && ((p.substage as string) || state.last_substage) === "primaries"
+        ? "Select covers" : "Compute counts",
+    },
+  ];
+  const stageIndex = STAGES.findIndex(st => st.key === stage);
 
   return (
-    <div className="border border-border rounded-md p-3 space-y-2 mt-2">
-      <div className="flex items-center gap-2 text-sm">
-        {s.icon}
-        <span className={`font-medium ${s.color}`}>{s.label}</span>
+    <div className="border border-border rounded-md p-3 space-y-3 mt-2">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm">
+          {s.icon}
+          <span className={`font-medium ${s.color}`}>{s.label}</span>
+        </div>
         {state.started_at && (
-          <span className="text-xs text-muted-foreground ml-auto">Started: {new Date(state.started_at).toLocaleString()}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            Started: {new Date(state.started_at).toLocaleString()}
+          </span>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {state.last_stage && <span>Stage: <span className="text-foreground font-mono">{state.last_stage}</span></span>}
-        {state.last_substage && <span>Substage: <span className="text-foreground font-mono">{state.last_substage}</span></span>}
-        {typeof state.cursor === "number" && <span>Cursor: <span className="text-foreground font-mono">{state.cursor}</span></span>}
-        {state.run_id && <span>Run: <span className="text-foreground font-mono">{state.run_id.slice(0, 8)}…</span></span>}
+      {/* Stage pipeline */}
+      <div className="flex items-center gap-1 text-xs flex-wrap">
+        {STAGES.map((st, i) => (
+          <React.Fragment key={st.key}>
+            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+              i < stageIndex ? "bg-muted text-muted-foreground line-through" :
+              i === stageIndex ? "bg-primary/15 text-primary border border-primary/30" :
+              "bg-muted/50 text-muted-foreground/50"
+            }`}>
+              {i + 1}. {st.label}
+            </span>
+            {i < 3 && <span className="text-muted-foreground/40">→</span>}
+          </React.Fragment>
+        ))}
       </div>
 
-      {p && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {typeof p.groups === "number" && (p.groups as number) > 0 && <span>Groups created: <span className="text-foreground font-medium">{(p.groups as number).toLocaleString()}</span></span>}
-          {typeof p.assigned === "number" && (p.assigned as number) > 0 && <span>Assets assigned: <span className="text-foreground font-medium">{(p.assigned as number).toLocaleString()}</span></span>}
-          {(p.stage === "finalize_stats" || state.last_stage === "finalize_stats") ? (
-            <>
-              {p.substage === "primaries" || state.last_substage === "primaries" ? (
-                <span className="col-span-2">
-                  Finalizing primaries: <span className="text-foreground font-medium">{((p.primaries_processed as number) || 0).toLocaleString()}</span>
-                  {typeof p.finalize_total_groups === "number" && (p.finalize_total_groups as number) > 0
-                    ? <> / {(p.finalize_total_groups as number).toLocaleString()} groups</>
-                    : <> groups</>}
-                </span>
-              ) : (
-                <span className="col-span-2">
-                  Finalizing counts: <span className="text-foreground font-medium">{((p.counts_processed as number) || 0).toLocaleString()}</span>
-                  {typeof p.finalize_total_groups === "number" && (p.finalize_total_groups as number) > 0
-                    ? <> / {(p.finalize_total_groups as number).toLocaleString()} groups</>
-                    : <> groups</>}
-                </span>
-              )}
-            </>
-          ) : typeof p.total_processed === "number" && typeof p.total_assets === "number" ? (
-            <span className="col-span-2">
-              Progress: <span className="text-foreground font-medium">{(p.total_processed as number).toLocaleString()}</span> / {(p.total_assets as number).toLocaleString()} assets
-              {state.status === "running" && state.started_at && (p.total_processed as number) > 0 && (() => {
-                const elapsedMs = Date.now() - new Date(state.started_at!).getTime();
-                const rate = (p.total_processed as number) / (elapsedMs / 60000);
-                const remaining = ((p.total_assets as number) - (p.total_processed as number)) / rate;
-                if (remaining < 1) return <span className="text-muted-foreground ml-2">· &lt;1 min left</span>;
-                if (remaining < 60) return <span className="text-muted-foreground ml-2">· ~{Math.round(remaining)} min left</span>;
-                return <span className="text-muted-foreground ml-2">· ~{(remaining / 60).toFixed(1)} hrs left</span>;
-              })()}
-            </span>
-          ) : null}
-        </div>
-      )}
+      {/* Timing row */}
+      <div className="flex gap-4 text-xs text-muted-foreground">
+        {overallElapsed > 0 && (
+          <span>Total elapsed: <span className="text-foreground tabular-nums">{formatDuration(overallElapsed)}</span></span>
+        )}
+        {stageElapsed > 0 && stageElapsed !== overallElapsed && (
+          <span>Stage elapsed: <span className="text-foreground tabular-nums">{formatDuration(stageElapsed)}</span></span>
+        )}
+        {state.run_id && (
+          <span className="ml-auto text-muted-foreground/60 font-mono">Run: {state.run_id.slice(0, 8)}…</span>
+        )}
+      </div>
 
-      {/* Progress bar for rebuild_assets stage */}
-      {typeof p?.total_processed === "number" && typeof p?.total_assets === "number" && (p.total_assets as number) > 0 && p?.stage !== "finalize_stats" && (
-        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${state.status === "failed" ? "bg-destructive" : state.status === "interrupted" ? "bg-[hsl(var(--warning))]" : "bg-primary"}`}
-            style={{ width: `${Math.min(100, Math.round(((p.total_processed as number) / (p.total_assets as number)) * 100))}%` }}
-          />
-        </div>
-      )}
+      {/* Stage-specific progress */}
+      {stage === "clear_assets" && (() => {
+        const cleared = (p.cleared as number) || 0;
+        const rate = calcRate(cleared, stageElapsed);
+        return <ProgressRow label="Assets cleared" done={cleared} total={totalAssets || null} ratePerMin={rate} />;
+      })()}
 
-      {/* Progress bar for finalize_stats stage */}
-      {(p?.stage === "finalize_stats" || state.last_stage === "finalize_stats") && typeof p?.finalize_total_groups === "number" && (p.finalize_total_groups as number) > 0 && (
-        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-300 ${state.status === "failed" ? "bg-destructive" : state.status === "interrupted" ? "bg-[hsl(var(--warning))]" : "bg-primary"}`}
-            style={{ width: `${Math.min(100, Math.round((((p.substage === "primaries" ? (p.primaries_processed as number || 0) : (p.counts_processed as number || 0))) / (p.finalize_total_groups as number)) * 100))}%` }}
-          />
-        </div>
-      )}
+      {stage === "delete_groups" && (() => {
+        const deleted = (p.groups_deleted as number) || 0;
+        const total = (p.total_groups_before_delete as number) || null;
+        const rate = calcRate(deleted, stageElapsed);
+        return <ProgressRow label="Groups deleted" done={deleted} total={total} ratePerMin={rate} suffix="groups" />;
+      })()}
+
+      {stage === "rebuild_assets" && (() => {
+        const processed = (p.total_processed as number) || 0;
+        const rate = calcRate(processed, stageElapsed);
+        return (
+          <div className="space-y-2">
+            <ProgressRow label="Assets assigned" done={processed} total={totalAssets || null} ratePerMin={rate} />
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              {(p.groups as number) > 0 && <span>Groups created: <span className="text-foreground font-medium">{(p.groups as number).toLocaleString()}</span></span>}
+              {(p.assigned as number) > 0 && <span>Assigned: <span className="text-foreground font-medium">{(p.assigned as number).toLocaleString()}</span></span>}
+            </div>
+          </div>
+        );
+      })()}
+
+      {stage === "finalize_stats" && (() => {
+        const sub = (p.substage as string) || state.last_substage || "counts";
+        const totalGroups = (p.finalize_total_groups as number) || null;
+        const done = sub === "primaries"
+          ? (p.primaries_processed as number) || 0
+          : (p.counts_processed as number) || 0;
+        const rate = calcRate(done, stageElapsed);
+        const label = sub === "primaries" ? "Cover images selected" : "Group counts computed";
+        return <ProgressRow label={label} done={done} total={totalGroups} ratePerMin={rate} suffix="groups" />;
+      })()}
 
       {/* Interruption reason */}
       {state.interruption_reason_code && state.status === "interrupted" && (
@@ -294,25 +323,87 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
         </div>
 
         {showRebuildDetail && <RebuildStatusDetail state={rebuildOp.state} />}
+
         {showReconcileDetail && (
-          <div className="border border-border rounded-md p-3 space-y-1.5 mt-2">
-            <div className="flex items-center gap-2 text-sm">
-              {reconcileOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> :
-               reconcileOp.state.status === "completed" ? <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--success))]" /> :
-               reconcileOp.isInterrupted ? <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))]" /> :
-               <XCircle className="h-3.5 w-3.5 text-destructive" />}
-              <span className="font-medium">
-                {reconcileOp.isActive ? "Reconciling…" : reconcileOp.state.status === "completed" ? "Reconcile complete" : reconcileOp.isInterrupted ? "Reconcile interrupted" : "Reconcile failed"}
-              </span>
+          <div className="border border-border rounded-md p-3 space-y-2 mt-2">
+            {/* Reconcile status header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                {reconcileOp.isActive
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  : reconcileOp.state.status === "completed"
+                    ? <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--success))]" />
+                    : reconcileOp.isInterrupted
+                      ? <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />
+                      : <XCircle className="h-3.5 w-3.5 text-destructive" />}
+                <span className="font-medium text-sm">
+                  {reconcileOp.isActive ? "Reconciling…"
+                    : reconcileOp.state.status === "completed" ? "Reconcile complete"
+                    : reconcileOp.isInterrupted ? "Reconcile interrupted"
+                    : "Reconcile failed"}
+                </span>
+              </div>
+              {reconcileOp.state.started_at && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Elapsed: {formatDuration(Date.now() - new Date(reconcileOp.state.started_at).getTime())}
+                </span>
+              )}
             </div>
-            {reconcileOp.state.progress && (
-              <p className="text-xs text-muted-foreground">
-                Counts: {((reconcileOp.state.progress.counts_processed as number) || 0).toLocaleString()} · 
-                Primaries: {((reconcileOp.state.progress.primaries_processed as number) || 0).toLocaleString()}
-              </p>
+
+            {/* Sub-stage indicator */}
+            {reconcileOp.state.progress && (() => {
+              const p = reconcileOp.state.progress;
+              const sub = (p.stage as string) || "counts";
+              const totalGroups = (p.total_groups as number) || 0;
+              const elapsedMs = reconcileOp.state.started_at
+                ? Date.now() - new Date(reconcileOp.state.started_at).getTime()
+                : 0;
+
+              return (
+                <div className="space-y-2">
+                  {/* Sub-stage pipeline strip */}
+                  <div className="flex items-center gap-1 text-xs">
+                    {["counts", "primaries"].map((stg, i) => (
+                      <span key={stg} className="flex items-center gap-1">
+                        <span className={`px-1.5 py-0.5 rounded font-medium ${
+                          (sub === "counts" && stg === "counts") || (sub === "primaries" && stg === "primaries") || (sub === "counts_done" && stg === "counts")
+                            ? "bg-primary/15 text-primary border border-primary/30"
+                            : sub === "primaries" && stg === "counts"
+                              ? "bg-muted text-muted-foreground line-through"
+                              : sub === "complete"
+                                ? "bg-muted text-muted-foreground line-through"
+                                : "bg-muted/50 text-muted-foreground/50"
+                        }`}>
+                          {i + 1}. {stg === "counts" ? "Compute counts" : "Select covers"}
+                        </span>
+                        {i === 0 && <span className="text-muted-foreground/40">→</span>}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Counts progress */}
+                  {(sub === "counts" || sub === "counts_done") && (() => {
+                    const done = (p.counts_processed as number) || 0;
+                    const rate = calcRate(done, elapsedMs);
+                    return <ProgressRow label="Groups with counts updated" done={done} total={totalGroups > 0 ? totalGroups : null} ratePerMin={rate} suffix="groups" />;
+                  })()}
+
+                  {/* Primaries progress */}
+                  {(sub === "primaries" || sub === "complete") && (() => {
+                    const done = (p.primaries_processed as number) || 0;
+                    const rate = calcRate(done, elapsedMs);
+                    return <ProgressRow label="Groups with covers selected" done={done} total={totalGroups > 0 ? totalGroups : null} ratePerMin={rate} suffix="groups" />;
+                  })()}
+                </div>
+              );
+            })()}
+
+            {reconcileOp.state.result_message && (
+              <p className="text-xs text-[hsl(var(--success))]">{reconcileOp.state.result_message}</p>
             )}
-            {reconcileOp.state.result_message && <p className="text-xs text-[hsl(var(--success))]">{reconcileOp.state.result_message}</p>}
-            {reconcileOp.state.error && <p className="text-xs text-destructive">{reconcileOp.state.error}</p>}
+            {reconcileOp.state.error && (
+              <p className="text-xs text-destructive">{reconcileOp.state.error}</p>
+            )}
           </div>
         )}
       </CardContent>

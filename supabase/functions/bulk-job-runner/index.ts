@@ -64,6 +64,8 @@ function buildProgress(
       return {
         updated: ((prev.updated as number) || 0) + ((batch.updated as number) || 0),
         total: ((prev.total as number) || 0) + ((batch.total as number) || 0),
+        grand_total: (batch.grand_total as number) || (prev.grand_total as number) || 0,
+        assets_checked: Math.max((prev.assets_checked as number) || 0, (batch.assets_checked as number) || 0),
       };
     case "backfill-sku-names":
       return {
@@ -75,6 +77,9 @@ function buildProgress(
       return {
         groups: ((prev.groups as number) || 0) + ((batch.groups_created as number) || 0),
         assigned: ((prev.assigned as number) || 0) + ((batch.assets_assigned as number) || 0),
+        cleared: ((prev.cleared as number) || 0) + ((batch.cleared_assets as number) || 0),
+        groups_deleted: ((prev.groups_deleted as number) || 0) + ((batch.groups_deleted as number) || 0),
+        total_groups_before_delete: Math.max((prev.total_groups_before_delete as number) || 0, (batch.total_groups_before_delete as number) || 0),
         total_processed: Math.max((prev.total_processed as number) || 0, (batch.total_processed as number) || 0),
         total_assets: Math.max((prev.total_assets as number) || 0, (batch.total_assets as number) || 0),
         counts_processed: Math.max((prev.counts_processed as number) || 0, (batch.counts_processed as number) || 0),
@@ -82,11 +87,13 @@ function buildProgress(
         finalize_total_groups: Math.max((prev.finalize_total_groups as number) || 0, (batch.finalize_total_groups as number) || 0),
         stage: batch.stage || prev.stage,
         substage: batch.sub || batch.substage || prev.substage,
+        stage_started_at: (batch.stage_started_at as string) || (prev.stage_started_at as string),
       };
     case "reconcile-style-group-stats":
       return {
         counts_processed: Math.max((prev.counts_processed as number) || 0, (batch.counts_processed as number) || 0),
         primaries_processed: Math.max((prev.primaries_processed as number) || 0, (batch.primaries_processed as number) || 0),
+        total_groups: Math.max((prev.total_groups as number) || 0, (batch.total_groups as number) || 0),
         stage: batch.sub || prev.stage,
       };
     case "ai-tag-untagged":

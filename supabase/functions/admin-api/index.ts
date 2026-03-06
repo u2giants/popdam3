@@ -487,6 +487,20 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
   const BATCH_SIZE = 200;
   const db = serviceClient();
 
+  // Fetch grand total once at the start of the operation (offset 0 only)
+  let grandTotal: number | null = null;
+  if (offset === 0) {
+    try {
+      const { count } = await db
+        .from("assets")
+        .select("id", { count: "exact", head: true })
+        .eq("is_deleted", false);
+      grandTotal = count ?? null;
+    } catch {
+      // Non-fatal
+    }
+  }
+
   const { data: allLicensors } = await db
     .from("licensors")
     .select("id, name");
@@ -580,6 +594,8 @@ async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
     done,
     updated,
     total: assets.length,
+    grand_total: grandTotal,
+    assets_checked: offset + assets.length,
     nextOffset: done ? null : offset + BATCH_SIZE,
   });
 }
