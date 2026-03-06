@@ -391,7 +391,7 @@ function ConfigurationSection({ config }: { config: Record<string, unknown> }) {
 
 // ── Section 6: Actions ──────────────────────────────────────────────
 
-function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
+function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void; requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
@@ -424,15 +424,17 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
   });
 
   function runReprocess() {
-    reprocessOp.start({
-      confirmMessage: "Re-derive SKU metadata for all assets. This may take several minutes. Continue?",
-    });
+    requestOp("reprocess-metadata", OP_NAMES["reprocess-metadata"],
+      () => reprocessOp.start({ confirmMessage: "Re-derive SKU metadata for all assets. Continue?" }),
+      () => reprocessOp.queue({ params: {} }),
+    );
   }
 
   function runBackfill() {
-    backfillOp.start({
-      confirmMessage: "Re-resolve licensor/property names from ColdLion API for all assets where name equals code. Continue?",
-    });
+    requestOp("backfill-sku-names", OP_NAMES["backfill-sku-names"],
+      () => backfillOp.start({ confirmMessage: "Re-resolve licensor/property names from ColdLion API. Continue?" }),
+      () => backfillOp.queue({ params: {} }),
+    );
   }
 
   const reprocessActive = reprocessOp.isActive;
