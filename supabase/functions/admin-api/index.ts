@@ -3756,6 +3756,8 @@ serve(async (req: Request) => {
         return await handleGetSiblingScanByFolder(body);
       case "ingest-sibling-images":
         return await handleIngestSiblingImages(body, userId);
+      case "update-bulk-op":
+        return await handleUpdateBulkOp(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
@@ -3765,6 +3767,27 @@ serve(async (req: Request) => {
     return err(message, 500);
   }
 });
+
+// ── Route: update-bulk-op (atomic single-op update via RPC) ─────────
+
+async function handleUpdateBulkOp(body: Record<string, unknown>) {
+  const opKey = body.op_key;
+  const opState = body.op_state;
+  if (typeof opKey !== "string" || !opKey) return err("op_key is required");
+  if (!opState || typeof opState !== "object") return err("op_state is required");
+
+  const onlyIfStatus = typeof body.only_if_status === "string" ? body.only_if_status : null;
+
+  const db = serviceClient();
+  const { data, error } = await db.rpc("update_bulk_operation", {
+    p_op_key: opKey,
+    p_op_state: opState,
+    p_only_if_status: onlyIfStatus,
+  });
+
+  if (error) return err(`update_bulk_operation failed: ${error.message}`, 500);
+  return json({ ok: true, operations: data });
+}
 
 // ── erp-items-browse ────────────────────────────────────────────────
 

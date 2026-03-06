@@ -294,13 +294,18 @@ serve(async (req: Request) => {
     }
 
     if (!runningEntry) {
-      // Save any stale-lock or auto-resume state changes
+      // Save any stale-lock or auto-resume state changes atomically
       if (configRow) {
-        await db.from("admin_config").upsert({
-          key: CONFIG_KEY,
-          value: allOps,
-          updated_at: new Date().toISOString(),
-        });
+        const updates: Record<string, OpState> = {};
+        for (const [key, op] of Object.entries(allOps)) {
+          const original = (configRow?.value as Record<string, OpState>)?.[key];
+          if (JSON.stringify(op) !== JSON.stringify(original)) {
+            updates[key] = op;
+          }
+        }
+        if (Object.keys(updates).length > 0) {
+          await db.rpc("update_bulk_operations_batch", { p_updates: updates });
+        }
       }
       return json({ ok: true, message: "No running operations" });
     }
@@ -312,10 +317,9 @@ serve(async (req: Request) => {
     if (opState.cursor === undefined && opState.cursor !== 0) {
       const now = new Date().toISOString();
       allOps[opKey] = { ...opState, status: "interrupted", interruption_reason_code: "legacy_format", updated_at: now };
-      await db.from("admin_config").upsert({
-        key: CONFIG_KEY,
-        value: allOps,
-        updated_at: now,
+      await db.rpc("update_bulk_operation", {
+        p_op_key: opKey,
+        p_op_state: allOps[opKey],
       });
       console.log(`bulk-job-runner: legacy op '${opKey}' marked as interrupted`);
       return json({ ok: true, message: `Legacy op ${opKey} marked as interrupted` });
@@ -331,10 +335,9 @@ serve(async (req: Request) => {
         interruption_reason_code: "unknown_action",
         updated_at: now,
       };
-      await db.from("admin_config").upsert({
-        key: CONFIG_KEY,
-        value: allOps,
-        updated_at: now,
+      await db.rpc("update_bulk_operation", {
+        p_op_key: opKey,
+        p_op_state: allOps[opKey],
       });
       return json({ ok: true, message: `Unknown op: ${opKey}` });
     }
@@ -378,10 +381,9 @@ serve(async (req: Request) => {
             last_substage: lastSubstage,
             updated_at: new Date().toISOString(),
           };
-          await db.from("admin_config").upsert({
-            key: CONFIG_KEY,
-            value: allOps,
-            updated_at: new Date().toISOString(),
+          await db.rpc("update_bulk_operation", {
+            p_op_key: opKey,
+            p_op_state: allOps[opKey],
           });
           return json({ ok: true, message: `Operation ${opKey} stopped by user`, batches: batchCount });
         }
@@ -466,22 +468,8 @@ serve(async (req: Request) => {
         cursor = result.nextOffset ?? cursor + 1;
 
         if (batchCount % persistEvery === 0) {
-          // Re-read before write to avoid clobbering other ops
-          const { data: midConfig } = await db
-            .from("admin_config")
-            .select("value")
-            .eq("key", CONFIG_KEY)
-            .maybeSingle();
-          const midOps = (midConfig?.value as Record<string, OpState>) || {};
-
-          // Respect UI stop/interruption set while this invocation was processing
-          if (midOps[opKey] && midOps[opKey].status !== "running") {
-            console.log(
-              `bulk-job-runner: op '${opKey}' status changed to ${midOps[opKey].status} by UI. Aborting loop.`,
-            );
-            break;
-          }
-          midOps[opKey] = {
+          // Atomic mid-batch persist — only updates if status is still "running"
+          const midState: OpState = {
             ...opState,
             status: "running",
             cursor,
@@ -491,11 +479,19 @@ serve(async (req: Request) => {
             last_substage: lastSubstage,
             updated_at: new Date().toISOString(),
           };
-          await db.from("admin_config").upsert({
-            key: CONFIG_KEY,
-            value: midOps,
-            updated_at: new Date().toISOString(),
+          const result = await db.rpc("update_bulk_operation", {
+            p_op_key: opKey,
+            p_op_state: midState,
+            p_only_if_status: "running",
           });
+          // If the RPC returned unchanged state (status != running), user stopped
+          const afterOps = result.data as Record<string, OpState> | null;
+          if (afterOps?.[opKey]?.status && afterOps[opKey].status !== "running") {
+            console.log(
+              `bulk-job-runner: op '${opKey}' status changed to ${afterOps[opKey].status} by UI. Aborting loop.`,
+            );
+            break;
+          }
         }
       } catch (e) {
         lastError = e instanceof Error ? e.message : "Unknown batch error";
@@ -612,47 +608,19 @@ serve(async (req: Request) => {
       console.log(`bulk-job-runner: '${opKey}' paused after ${batchCount} batches, cursor=${cursor}`);
     }
 
-    // Re-read BULK_OPERATIONS before final write to avoid clobbering entries
-    // added by the UI or other writers while we were processing (race condition fix).
-    const { data: freshConfigRow } = await db
-      .from("admin_config")
-      .select("value")
-      .eq("key", CONFIG_KEY)
-      .maybeSingle();
-    const freshAllOps = (freshConfigRow?.value as Record<string, OpState>) || {};
-
-    // Preserve explicit UI state transitions (e.g. user_stop) made during this run
-    if (
-      freshAllOps[opKey] &&
-      freshAllOps[opKey].status !== "running" &&
-      allOps[opKey]?.status === "running"
-    ) {
-      console.log(
-        `bulk-job-runner: UI changed '${opKey}' status to ${freshAllOps[opKey].status}. Preserving UI state.`,
-      );
-      allOps[opKey] = {
-        ...freshAllOps[opKey],
-        cursor,
-        progress,
-        last_stage: lastStage,
-        last_substage: lastSubstage,
-        updated_at: now,
-      };
-    }
-
-    // Merge: keep all fresh entries, but overwrite only the op we just processed
-    const mergedOps = { ...freshAllOps, [opKey]: allOps[opKey] };
+    // Atomic final write using batch RPC — eliminates race conditions
+    const finalUpdates: Record<string, OpState> = { [opKey]: allOps[opKey] };
 
     // Also carry over any auto-queued reconcile from post-rebuild integrity check
-    if (allOps["reconcile-style-group-stats"]?.status === "running" && allOps["reconcile-style-group-stats"]?.run_id) {
-      mergedOps["reconcile-style-group-stats"] = allOps["reconcile-style-group-stats"];
+    if (
+      opKey !== "reconcile-style-group-stats" &&
+      allOps["reconcile-style-group-stats"]?.status === "running" &&
+      allOps["reconcile-style-group-stats"]?.run_id
+    ) {
+      finalUpdates["reconcile-style-group-stats"] = allOps["reconcile-style-group-stats"];
     }
 
-    await db.from("admin_config").upsert({
-      key: CONFIG_KEY,
-      value: mergedOps,
-      updated_at: now,
-    });
+    await db.rpc("update_bulk_operations_batch", { p_updates: finalUpdates });
 
     return json({
       ok: true,
