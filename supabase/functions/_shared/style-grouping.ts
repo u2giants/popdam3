@@ -6,8 +6,12 @@
 
 /**
  * Extract the SKU folder name from a relative path.
- * Walks up the directory tree (starting from immediate parent) to find
- * the nearest ancestor that looks like a SKU folder.
+ * Walks DOWN the directory tree (root → file) and returns the FIRST
+ * (outermost) ancestor that looks like a SKU folder.
+ * This ensures that all files inside a SKU folder — including those in
+ * sub-folders like "AAE20DCBM01_SAMPLE_OLD" — are grouped under the
+ * top-level SKU folder (e.g. "AAE20DCBM01").
+ *
  * Returns null if no ancestor matches the SKU pattern
  * (must start with 1-6 letters followed by a digit).
  *
@@ -16,7 +20,10 @@
  *   → "CSG10DYMU02"
  *
  *   "Decor/.../AA021FPFRA03/ART/file.psd"
- *   → "AA021FPFRA03"  (walks past "ART" to find the SKU)
+ *   → "AA021FPFRA03"
+ *
+ *   "Decor/.../AAE20DCBM01/AAE20DCBM01_SAMPLE_OLD/file.psd"
+ *   → "AAE20DCBM01"  (outermost SKU wins, subfolder absorbed)
  *
  *   "Decor/.../GDC6201/GDC6201_art.ai"
  *   → "GDC6201"
@@ -25,8 +32,8 @@ export function extractSkuFolder(relativePath: string): string | null {
   const parts = relativePath.split("/");
   if (parts.length < 2) return null;
   const SKU_PATTERN = /^[A-Za-z]{1,6}\d/;
-  // Walk from immediate parent upward
-  for (let i = parts.length - 2; i >= 0; i--) {
+  // Walk from root toward file — first (outermost) SKU match wins
+  for (let i = 0; i < parts.length - 1; i++) {
     if (SKU_PATTERN.test(parts[i])) return parts[i];
   }
   return null;
