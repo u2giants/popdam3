@@ -2,28 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
-
-// ── CORS ────────────────────────────────────────────────────────────
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, " +
-    "x-supabase-client-platform, x-supabase-client-platform-version, " +
-    "x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders, json, err } from "../_shared/http.ts";
+import { unwrapConfigString } from "../_shared/config-utils.ts";
 
 // ── Helpers ─────────────────────────────────────────────────────────
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function err(message: string, status = 400) {
-  return json({ ok: false, error: message }, status);
-}
 
 function serviceClient() {
   return createClient(
