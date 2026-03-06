@@ -7,10 +7,11 @@ import type { BulkOperationsMap, OpState, OpStatus } from "../_shared/types.ts";
 // ── Constants ───────────────────────────────────────────────────────
 
 const CONFIG_KEY = "BULK_OPERATIONS";
-const MAX_RUN_MS = 50_000;
+const MAX_RUN_MS = 45_000;
 const DEFAULT_PERSIST_EVERY = 1;
 const INTERRUPT_CHECK_EVERY = 10;
 const MAX_TRANSIENT_RETRIES = 3;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Per-operation persist frequency overrides (rebuild needs more frequent saves)
 const PERSIST_EVERY_OVERRIDES: Record<string, number> = {
