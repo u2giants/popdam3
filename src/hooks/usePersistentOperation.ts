@@ -131,6 +131,7 @@ export function usePersistentOperation(operationKey: string) {
         progress: shouldResume
           ? (state.progress ?? options?.initialProgress ?? {})
           : (options?.initialProgress ?? {}),
+        run_id: state.run_id,
       };
       setState(running);
       await persistState(running);
