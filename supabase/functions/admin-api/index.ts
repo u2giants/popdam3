@@ -3756,6 +3756,8 @@ serve(async (req: Request) => {
         return await handleGetSiblingScanByFolder(body);
       case "ingest-sibling-images":
         return await handleIngestSiblingImages(body, userId);
+      case "update-bulk-op":
+        return await handleUpdateBulkOp(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
