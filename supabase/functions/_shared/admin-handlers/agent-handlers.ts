@@ -714,10 +714,37 @@ export async function handleGetUpdateStatus() {
 
 export async function handleRetryFailedRenders() {
   const db = serviceClient();
+  // First get failed jobs that DON'T already have an active (pending/claimed) sibling
+  const { data: failedJobs } = await db
+    .from("render_queue")
+    .select("id, asset_id")
+    .eq("status", "failed");
+
+  if (!failedJobs || failedJobs.length === 0) {
+    return json({ ok: true, requeued_count: 0 });
+  }
+
+  // Find which assets already have an active job
+  const assetIds = failedJobs.map((j) => j.asset_id);
+  const { data: activeJobs } = await db
+    .from("render_queue")
+    .select("asset_id")
+    .in("asset_id", assetIds)
+    .in("status", ["pending", "claimed"]);
+
+  const activeAssetIds = new Set((activeJobs ?? []).map((j) => j.asset_id));
+  const safeToRetry = failedJobs.filter((j) => !activeAssetIds.has(j.asset_id)).map((j) => j.id);
+
+  if (safeToRetry.length === 0) {
+    // Just delete the duplicates
+    await db.from("render_queue").delete().eq("status", "failed").in("asset_id", [...activeAssetIds]);
+    return json({ ok: true, requeued_count: 0, skipped_duplicates: activeAssetIds.size });
+  }
+
   const { data, error } = await db
     .from("render_queue")
-    .update({ status: "pending", error_message: null, claimed_by: null, claimed_at: null, completed_at: null, attempts: 0 })
-    .eq("status", "failed")
+    .update({ status: "pending", claimed_by: null, claimed_at: null, error_message: null })
+    .in("id", safeToRetry)
     .select("id");
 
   if (error) return err(error.message, 500);
@@ -729,55 +756,264 @@ export async function handleRetryFailedRenders() {
 export async function handleRequeueAllNoPreview() {
   const db = serviceClient();
 
-  const { data: assets, error: fetchErr } = await db
-    .from("assets")
-    .select("id")
-    .eq("is_deleted", false)
-    .eq("thumbnail_error", "no_pdf_compat")
-    .is("thumbnail_url", null)
-    .limit(1000);
+  // Paginate to fetch ALL assets with no thumbnail (bypass 1000-row default limit)
+  const PAGE = 1000;
+  const allAssetIds: string[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error: fetchErr } = await db
+      .from("assets")
+      .select("id")
+      .is("thumbnail_url", null)
+      .eq("is_deleted", false)
+      .not("thumbnail_error", "is", null)
+      .order("id")
+      .range(from, from + PAGE - 1);
 
-  if (fetchErr) return err(fetchErr.message, 500);
-  if (!assets || assets.length === 0) return json({ ok: true, queued: 0 });
+    if (fetchErr) return err(fetchErr.message, 500);
+    if (!page || page.length === 0) break;
+    for (const a of page) allAssetIds.push(a.id);
+    if (page.length < PAGE) break;
+    from += PAGE;
+  }
 
-  const assetIds = assets.map((a) => a.id);
+  if (allAssetIds.length === 0) {
+    return json({ ok: true, queued: 0, skipped: 0 });
+  }
 
-  // Remove any existing pending/claimed jobs for these assets
-  await db
-    .from("render_queue")
-    .delete()
-    .in("asset_id", assetIds)
-    .in("status", ["pending", "claimed"]);
+  // Batch in chunks of 500 to avoid query limits
+  const CHUNK = 500;
+  const activeSet = new Set<string>();
+  for (let i = 0; i < allAssetIds.length; i += CHUNK) {
+    const chunk = allAssetIds.slice(i, i + CHUNK);
+    const { data: active } = await db
+      .from("render_queue")
+      .select("asset_id")
+      .in("asset_id", chunk)
+      .in("status", ["pending", "claimed"]);
+    (active ?? []).forEach((j) => activeSet.add(j.asset_id));
+  }
 
-  const rows = assetIds.map((id) => ({ asset_id: id, status: "pending" }));
-  const { error: insertErr } = await db.from("render_queue").insert(rows);
+  const toQueue = allAssetIds.filter((id) => !activeSet.has(id));
+  if (toQueue.length === 0) {
+    return json({ ok: true, queued: 0, skipped: allAssetIds.length });
+  }
 
-  if (insertErr) return err(insertErr.message, 500);
-  return json({ ok: true, queued: rows.length });
+  // Clear old failed jobs for these assets first
+  for (let i = 0; i < toQueue.length; i += CHUNK) {
+    const chunk = toQueue.slice(i, i + CHUNK);
+    await db.from("render_queue").delete().in("asset_id", chunk).eq("status", "failed");
+  }
+
+  let queued = 0;
+  for (let i = 0; i < toQueue.length; i += CHUNK) {
+    const chunk = toQueue.slice(i, i + CHUNK);
+    const rows = chunk.map((id) => ({ asset_id: id, status: "pending" as const }));
+    const { data: inserted } = await db
+      .from("render_queue")
+      .upsert(rows, { onConflict: "id", ignoreDuplicates: true })
+      .select("id");
+    queued += inserted?.length ?? chunk.length;
+  }
+
+  // Clear thumbnail_error so they show as "renderable" until re-attempted
+  for (let i = 0; i < toQueue.length; i += CHUNK) {
+    const chunk = toQueue.slice(i, i + CHUNK);
+    await db.from("assets").update({ thumbnail_error: null }).in("id", chunk);
+  }
+
+  return json({ ok: true, queued, skipped: activeSet.size });
 }
 
 // ── request-path-test ───────────────────────────────────────────────
 
 export async function handleRequestPathTest(userId: string) {
   const db = serviceClient();
-  const { data: agents } = await db
+  const requestId = crypto.randomUUID();
+
+  const { error } = await db.from("admin_config").upsert({
+    key: "PATH_TEST_REQUEST",
+    value: {
+      request_id: requestId,
+      status: "pending",
+      requested_at: new Date().toISOString(),
+      requested_by: userId,
+    },
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, request_id: requestId });
+}
+
+// ── doctor ──────────────────────────────────────────────────────────
+
+export async function handleDoctor() {
+  const db = serviceClient();
+  const issues: Array<{
+    severity: "critical" | "warn" | "info";
+    code: string;
+    title: string;
+    details: string;
+    recommended_fix: string;
+    fix_action?: string;
+    fix_payload?: Record<string, unknown>;
+  }> = [];
+
+  // Check 1: Any registered agents?
+  const { data: agents, error: agentErr } = await db
     .from("agent_registrations")
-    .select("id, metadata")
-    .eq("agent_type", "bridge");
+    .select("id, agent_name, agent_type, last_heartbeat, metadata");
 
-  if (!agents || agents.length === 0) {
-    return err("No bridge agent registered");
+  if (agentErr) {
+    issues.push({
+      severity: "critical",
+      code: "AGENT_QUERY_FAILED",
+      title: "Cannot query agents",
+      details: agentErr.message,
+      recommended_fix: "Check database connectivity",
+    });
+  } else if (!agents || agents.length === 0) {
+    issues.push({
+      severity: "critical",
+      code: "NO_AGENTS",
+      title: "No agents registered",
+      details: "No bridge or render agents are registered. Assets cannot be scanned or thumbnailed.",
+      recommended_fix: "Register a bridge agent via Settings → Install Bundle",
+      fix_action: "create-pairing-code",
+      fix_payload: { agent_type: "bridge" },
+    });
+  } else {
+    // Check heartbeats
+    const now = Date.now();
+    for (const agent of agents) {
+      if (!agent.last_heartbeat) continue;
+      const lastBeat = new Date(agent.last_heartbeat).getTime();
+      const minutesAgo = (now - lastBeat) / 60000;
+      if (minutesAgo > 10) {
+        issues.push({
+          severity: minutesAgo > 60 ? "critical" : "warn",
+          code: "AGENT_STALE",
+          title: `Agent "${agent.agent_name}" is unresponsive`,
+          details: `Last heartbeat was ${Math.round(minutesAgo)} minutes ago.`,
+          recommended_fix: "Check that the agent container/service is running",
+        });
+      }
+    }
   }
 
-  for (const agent of agents) {
-    const meta = (agent.metadata as Record<string, unknown>) || {};
-    await db
-      .from("agent_registrations")
-      .update({
-        metadata: { ...meta, path_test_requested: true, path_test_requested_by: userId },
-      })
-      .eq("id", agent.id);
+  // Check 2: Stale render jobs
+  const { count: staleJobs } = await db
+    .from("render_queue")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "claimed")
+    .lt("claimed_at", new Date(Date.now() - 30 * 60000).toISOString());
+
+  if (staleJobs && staleJobs > 0) {
+    issues.push({
+      severity: "warn",
+      code: "STALE_RENDER_JOBS",
+      title: `${staleJobs} stale render job${staleJobs > 1 ? "s" : ""}`,
+      details: "Render jobs claimed more than 30 minutes ago may be stuck.",
+      recommended_fix: "Reset stale jobs so they can be re-claimed",
+      fix_action: "retry-failed-jobs",
+    });
   }
 
-  return json({ ok: true });
+  // Check 3: Failed render jobs
+  const { count: failedRenders } = await db
+    .from("render_queue")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "failed");
+
+  if (failedRenders && failedRenders > 0) {
+    issues.push({
+      severity: "warn",
+      code: "FAILED_RENDERS",
+      title: `${failedRenders} failed render job${failedRenders > 1 ? "s" : ""}`,
+      details: "These assets could not be thumbnailed. Review errors or retry.",
+      recommended_fix: "Retry failed renders or clear them",
+      fix_action: "retry-failed-renders",
+    });
+  }
+
+  // Check 4: Assets with no thumbnail and no error (not yet processed)
+  const { count: pendingThumbs } = await db
+    .from("assets")
+    .select("id", { count: "exact", head: true })
+    .eq("is_deleted", false)
+    .is("thumbnail_url", null)
+    .is("thumbnail_error", null);
+
+  if (pendingThumbs && pendingThumbs > 50) {
+    issues.push({
+      severity: "info",
+      code: "PENDING_THUMBNAILS",
+      title: `${pendingThumbs} assets awaiting thumbnails`,
+      details: "These assets have not been thumbnailed yet.",
+      recommended_fix: "Ensure an agent is running and processing render jobs",
+    });
+  }
+
+  if (issues.length === 0) {
+    issues.push({
+      severity: "info",
+      code: "ALL_CLEAR",
+      title: "All systems healthy",
+      details: "No issues detected.",
+      recommended_fix: "",
+    });
+  }
+
+  return json({ ok: true, issues });
+}
+
+// ── get-filter-options ──────────────────────────────────────────────
+
+export async function handleGetFilterOptions(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const licensorId = typeof body.licensor_id === "string" ? body.licensor_id : null;
+
+  // Fetch licensors with asset counts
+  const { data: licensors, error: licErr } = await db
+    .from("licensors")
+    .select("id, name");
+
+  if (licErr) return err(licErr.message, 500);
+
+  // Count assets per licensor
+  const licensorResults: Array<{ id: string; name: string; asset_count: number }> = [];
+  for (const lic of licensors ?? []) {
+    const { count } = await db
+      .from("assets")
+      .select("id", { count: "exact", head: true })
+      .eq("licensor_id", lic.id)
+      .eq("is_deleted", false);
+    licensorResults.push({ id: lic.id, name: lic.name, asset_count: count ?? 0 });
+  }
+
+  // Fetch properties (optionally filtered by licensor)
+  let propQuery = db.from("properties").select("id, name, licensor_id");
+  if (licensorId) {
+    propQuery = propQuery.eq("licensor_id", licensorId);
+  }
+  const { data: properties, error: propErr } = await propQuery;
+  if (propErr) return err(propErr.message, 500);
+
+  const propertyResults: Array<{ id: string; name: string; licensor_id: string; asset_count: number }> = [];
+  for (const prop of properties ?? []) {
+    const { count } = await db
+      .from("assets")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", prop.id)
+      .eq("is_deleted", false);
+    propertyResults.push({ id: prop.id, name: prop.name, licensor_id: prop.licensor_id, asset_count: count ?? 0 });
+  }
+
+  return json({
+    ok: true,
+    licensors: licensorResults.filter((l) => l.asset_count > 0),
+    properties: propertyResults.filter((p) => p.asset_count > 0),
+  });
 }
