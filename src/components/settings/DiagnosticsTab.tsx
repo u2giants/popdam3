@@ -1400,11 +1400,11 @@ export default function DiagnosticsTab() {
           <ConnectedAgents agents={diag.agents} />
           <ScanStatusCard progress={diag.scan_progress} />
           <RecentErrors errors={diag.recent_errors} />
-          <ConfigurationSection config={diag.config} />
           <ActionsSection onRefresh={handleRefresh} requestOp={requestOp} />
           <AiTaggingSection requestOp={requestOp} />
           <DatabaseInspector />
           <StyleGroupsSection requestOp={requestOp} />
+          <ConfigurationSection config={diag.config} />
         </>
       ) : (
         <Card>
