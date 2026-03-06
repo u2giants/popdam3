@@ -3191,7 +3191,16 @@ async function handlePurgeOldAssets(body: Record<string, unknown>) {
         await db.from("style_groups").update({
           asset_count: remaining.length,
           primary_asset_id: primaryId,
-          workflow_status: bestStatus as "product_ideas" | "concept_approved" | "in_development" | "freelancer_art" | "discontinued" | "in_process" | "customer_adopted" | "licensor_approved" | "other",
+          workflow_status: bestStatus as
+            | "product_ideas"
+            | "concept_approved"
+            | "in_development"
+            | "freelancer_art"
+            | "discontinued"
+            | "in_process"
+            | "customer_adopted"
+            | "licensor_approved"
+            | "other",
           latest_file_date: latestFileDate,
           updated_at: new Date().toISOString(),
         }).eq("id", groupId);
@@ -3821,7 +3830,7 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
 
     return json({
       ok: true,
-      items: (Array.isArray(rows) ? rows : []),
+      items: Array.isArray(rows) ? rows : [],
       total,
       page,
       page_size: pageSize,
