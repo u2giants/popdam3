@@ -13,9 +13,11 @@ import {
   Database, Clock, Monitor, AlertTriangle, RefreshCw,
   Activity, Loader2, CheckCircle2, XCircle, ChevronDown,
   RotateCcw, Play, Trash2, Wrench, Stethoscope, FileSearch,
-  Sparkles,
+  Sparkles, ListOrdered, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { OperationState } from "@/hooks/usePersistentOperation";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -56,6 +58,19 @@ function categorizeKey(key: string): string {
   if (WINDOWS_AGENT_KEYS.has(key)) return "Windows Agent";
   return "Other";
 }
+
+const OP_NAMES: Record<string, string> = {
+  "reprocess-metadata": "Reprocess Metadata",
+  "backfill-sku-names": "Backfill SKU Names",
+  "rebuild-style-groups": "Rebuild Style Groups",
+  "ai-tag-untagged": "AI Tag Untagged",
+  "ai-tag-all": "Re-tag Everything",
+  "reconcile-style-group-stats": "Reconcile Stats",
+  "erp-enrichment": "ERP Enrichment",
+  "erp-classify": "ERP Classify",
+};
+
+type RequestOpFn = (opKey: string, opName: string, startFn: () => void, queueFn: () => void) => void;
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -376,7 +391,7 @@ function ConfigurationSection({ config }: { config: Record<string, unknown> }) {
 
 // ── Section 6: Actions ──────────────────────────────────────────────
 
-function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
+function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void; requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
@@ -409,15 +424,17 @@ function ActionsSection({ onRefresh }: { onRefresh: () => void }) {
   });
 
   function runReprocess() {
-    reprocessOp.start({
-      confirmMessage: "Re-derive SKU metadata for all assets. This may take several minutes. Continue?",
-    });
+    requestOp("reprocess-metadata", OP_NAMES["reprocess-metadata"],
+      () => reprocessOp.start({ confirmMessage: "Re-derive SKU metadata for all assets. Continue?" }),
+      () => reprocessOp.queue({ params: {} }),
+    );
   }
 
   function runBackfill() {
-    backfillOp.start({
-      confirmMessage: "Re-resolve licensor/property names from ColdLion API for all assets where name equals code. Continue?",
-    });
+    requestOp("backfill-sku-names", OP_NAMES["backfill-sku-names"],
+      () => backfillOp.start({ confirmMessage: "Re-resolve licensor/property names from ColdLion API. Continue?" }),
+      () => backfillOp.queue({ params: {} }),
+    );
   }
 
   const reprocessActive = reprocessOp.isActive;
@@ -771,7 +788,7 @@ function RenderJobStats() {
 
 // ── Section 7b: AI Tagging ──────────────────────────────────────────
 
-function AiTaggingSection() {
+function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
@@ -792,13 +809,17 @@ function AiTaggingSection() {
   function runBulkTag(mode: "untagged" | "all") {
     const op = mode === "all" ? tagAllOp : tagUntaggedOp;
     const total = mode === "all" ? totalWithThumb : untaggedCount;
+    const opKey = mode === "all" ? "ai-tag-all" : "ai-tag-untagged";
 
-    op.start({
-      confirmMessage: mode === "all"
-        ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
-        : `AI tag ${total.toLocaleString()} untagged assets? Continue?`,
-      initialProgress: { total },
-    });
+    requestOp(opKey, OP_NAMES[opKey],
+      () => op.start({
+        confirmMessage: mode === "all"
+          ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
+          : `AI tag ${total.toLocaleString()} untagged assets? Continue?`,
+        initialProgress: { total },
+      }),
+      () => op.queue({ initialProgress: { total } }),
+    );
   }
 
   const activeOp = tagUntaggedOp.isActive ? tagUntaggedOp : tagAllOp.isActive ? tagAllOp : null;
@@ -1060,7 +1081,7 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
   );
 }
 
-function StyleGroupsSection() {
+function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
@@ -1086,21 +1107,30 @@ function StyleGroupsSection() {
 
   function runRebuild(forceRestart = false) {
     const isFreshStart = forceRestart || !rebuildOp.isInterrupted;
-    rebuildOp.start({
-      confirmMessage: forceRestart
-        ? "This will WIPE all existing style groups and rebuild from scratch. Continue?"
-        : rebuildOp.isInterrupted
-          ? "Resume the interrupted style-group rebuild from the last processed cursor?"
-          : "This will delete all existing style groups and rebuild them from scratch. Continue?",
-      params: isFreshStart ? { force_restart: true } : undefined,
-      forceRestart: isFreshStart,
-    });
+    requestOp("rebuild-style-groups", OP_NAMES["rebuild-style-groups"],
+      () => rebuildOp.start({
+        confirmMessage: forceRestart
+          ? "This will WIPE all existing style groups and rebuild from scratch. Continue?"
+          : rebuildOp.isInterrupted
+            ? "Resume the interrupted style-group rebuild from the last processed cursor?"
+            : "This will delete all existing style groups and rebuild them from scratch. Continue?",
+        params: isFreshStart ? { force_restart: true } : undefined,
+        forceRestart: isFreshStart,
+      }),
+      () => rebuildOp.queue({
+        params: isFreshStart ? { force_restart: true } : undefined,
+        forceRestart: isFreshStart,
+      }),
+    );
   }
 
   function runReconcile() {
-    reconcileOp.start({
-      confirmMessage: "Recompute asset counts, file dates, and cover images for all style groups? This is safe to re-run.",
-    });
+    requestOp("reconcile-style-group-stats", OP_NAMES["reconcile-style-group-stats"],
+      () => reconcileOp.start({
+        confirmMessage: "Recompute asset counts, file dates, and cover images for all style groups? This is safe to re-run.",
+      }),
+      () => reconcileOp.queue({ params: {} }),
+    );
   }
 
   const showRebuildDetail = rebuildOp.state.status !== "idle";
@@ -1224,6 +1254,18 @@ export default function DiagnosticsTab() {
   const { call } = useAdminApi();
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
+  // Conflict dialog state
+  const [conflictState, setConflictState] = useState<{
+    isOpen: boolean;
+    newOpKey: string;
+    newOpName: string;
+    activeOpKey: string;
+    activeOpName: string;
+    onStart: () => void;
+    onQueue: () => void;
+  } | null>(null);
+  const [showQueue, setShowQueue] = useState(false);
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["admin-doctor"],
     queryFn: async () => {
@@ -1240,6 +1282,88 @@ export default function DiagnosticsTab() {
 
   const diag: DiagnosticData | null = data?.diagnostic ?? null;
 
+  // ── requestOp: intercept operation starts to check for conflicts ──
+  const requestOp: RequestOpFn = useCallback(async (opKey, opName, startFn, queueFn) => {
+    try {
+      const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
+      const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState> | undefined;
+      const activeEntry = ops
+        ? Object.entries(ops).find(([k, op]) => (op.status === "running") && k !== opKey)
+        : null;
+
+      if (activeEntry) {
+        setConflictState({
+          isOpen: true,
+          newOpKey: opKey,
+          newOpName: opName,
+          activeOpKey: activeEntry[0],
+          activeOpName: OP_NAMES[activeEntry[0]] || activeEntry[0],
+          onStart: startFn,
+          onQueue: queueFn,
+        });
+      } else {
+        startFn();
+      }
+    } catch {
+      startFn(); // fallback
+    }
+  }, [call]);
+
+  // ── Queue data from polled config ──
+  const [queuedItems, setQueuedItems] = useState<[string, OperationState][]>([]);
+
+  // Poll queue items
+  useEffect(() => {
+    let mounted = true;
+    const pollQueue = async () => {
+      try {
+        const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
+        if (!mounted) return;
+        const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState> | undefined;
+        if (ops) {
+          const items = Object.entries(ops)
+            .filter(([_, op]) => op.status === "queued")
+            .sort((a, b) => (a[1].queue_position || 0) - (b[1].queue_position || 0));
+          setQueuedItems(items);
+        } else {
+          setQueuedItems([]);
+        }
+      } catch { /* ignore */ }
+    };
+    pollQueue();
+    const timer = setInterval(pollQueue, 5000);
+    return () => { mounted = false; clearInterval(timer); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleReorderQueue = async (index: number, direction: -1 | 1) => {
+    if (index + direction < 0 || index + direction >= queuedItems.length) return;
+    const items = [...queuedItems];
+    const tempPos = items[index][1].queue_position;
+    items[index][1].queue_position = items[index + direction][1].queue_position;
+    items[index + direction][1].queue_position = tempPos;
+
+    try {
+      const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
+      const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState>;
+      ops[items[index][0]].queue_position = items[index][1].queue_position;
+      ops[items[index + direction][0]].queue_position = items[index + direction][1].queue_position;
+      await call("set-config", { entries: { BULK_OPERATIONS: ops } });
+      setQueuedItems(items.sort((a, b) => (a[1].queue_position || 0) - (b[1].queue_position || 0)));
+    } catch { toast.error("Failed to reorder queue"); }
+  };
+
+  const handleRemoveFromQueue = async (opKey: string) => {
+    try {
+      const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
+      const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState>;
+      if (ops[opKey]) {
+        ops[opKey] = { status: "idle" };
+      }
+      await call("set-config", { entries: { BULK_OPERATIONS: ops } });
+      setQueuedItems(prev => prev.filter(([k]) => k !== opKey));
+    } catch { /* ignore */ }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header with last refreshed */}
@@ -1248,6 +1372,11 @@ export default function DiagnosticsTab() {
           <Stethoscope className="h-5 w-5" /> System Health
         </h2>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {queuedItems.length > 0 && (
+            <Button variant="outline" size="sm" className="gap-1.5 h-7" onClick={() => setShowQueue(true)}>
+              <ListOrdered className="h-3.5 w-3.5" /> Queue ({queuedItems.length})
+            </Button>
+          )}
           {lastRefreshed && (
             <span>Last refreshed: {lastRefreshed.toLocaleTimeString()}</span>
           )}
@@ -1272,10 +1401,10 @@ export default function DiagnosticsTab() {
           <ScanStatusCard progress={diag.scan_progress} />
           <RecentErrors errors={diag.recent_errors} />
           <ConfigurationSection config={diag.config} />
-          <ActionsSection onRefresh={handleRefresh} />
-          <AiTaggingSection />
+          <ActionsSection onRefresh={handleRefresh} requestOp={requestOp} />
+          <AiTaggingSection requestOp={requestOp} />
           <DatabaseInspector />
-          <StyleGroupsSection />
+          <StyleGroupsSection requestOp={requestOp} />
         </>
       ) : (
         <Card>
@@ -1286,6 +1415,92 @@ export default function DiagnosticsTab() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── CONFLICT DIALOG ── */}
+      <Dialog open={conflictState?.isOpen ?? false} onOpenChange={(o) => !o && setConflictState(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Operation Conflict</DialogTitle>
+            <DialogDescription>
+              <span className="font-semibold text-foreground">{conflictState?.activeOpName}</span> is currently running in the background. Only one bulk operation can run at a time.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="default"
+              onClick={async () => {
+                if (!conflictState) return;
+                try {
+                  const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
+                  const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState>;
+                  if (ops[conflictState.activeOpKey]) {
+                    ops[conflictState.activeOpKey] = {
+                      ...ops[conflictState.activeOpKey],
+                      status: "interrupted",
+                      interruption_reason_code: "user_stop",
+                      error: `Paused to run ${conflictState.newOpName}`,
+                      updated_at: new Date().toISOString(),
+                    };
+                    await call("set-config", { entries: { BULK_OPERATIONS: ops } });
+                  }
+                } catch { /* best effort */ }
+                conflictState.onStart();
+                setConflictState(null);
+              }}
+            >
+              Pause Active & Start New
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                conflictState?.onQueue();
+                toast.success(`${conflictState?.newOpName} added to queue`);
+                setConflictState(null);
+              }}
+            >
+              Add to Queue
+            </Button>
+            <Button variant="outline" onClick={() => setConflictState(null)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── QUEUE MANAGER DIALOG ── */}
+      <Dialog open={showQueue} onOpenChange={setShowQueue}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Operation Queue</DialogTitle>
+            <DialogDescription>
+              Operations will run automatically in order when the worker is free. Drag to reorder.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {queuedItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">The queue is empty.</p>
+            ) : (
+              queuedItems.map(([key, op], index) => (
+                <div key={key} className="flex items-center justify-between border border-border rounded-md p-3">
+                  <div>
+                    <span className="font-medium text-sm">{OP_NAMES[key] || key}</span>
+                    <span className="text-xs text-muted-foreground ml-2">#{index + 1}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" disabled={index === 0} onClick={() => handleReorderQueue(index, -1)}>
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" disabled={index === queuedItems.length - 1} onClick={() => handleReorderQueue(index, 1)}>
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleRemoveFromQueue(key)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

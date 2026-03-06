@@ -54,6 +54,7 @@ interface OpState {
   run_id?: string;
   last_stage?: string;
   last_substage?: string;
+  queue_position?: number;
 }
 
 // Maps operation key → admin-api action name
@@ -299,7 +300,29 @@ serve(async (req: Request) => {
     }
 
     // Find first operation with status "running"
-    const runningEntry = Object.entries(allOps).find(([_, op]) => op.status === "running");
+    let runningEntry = Object.entries(allOps).find(([_, op]) => op.status === "running");
+
+    if (!runningEntry) {
+      // Check for queued operations to promote
+      const queuedEntries = Object.entries(allOps).filter(([_, op]) => op.status === "queued");
+      if (queuedEntries.length > 0) {
+        queuedEntries.sort((a, b) => {
+          const posA = a[1].queue_position ?? Number.MAX_SAFE_INTEGER;
+          const posB = b[1].queue_position ?? Number.MAX_SAFE_INTEGER;
+          if (posA !== posB) return posA - posB;
+          return new Date(a[1].updated_at || 0).getTime() - new Date(b[1].updated_at || 0).getTime();
+        });
+
+        const [nextOpKey, nextOp] = queuedEntries[0];
+        console.log(`bulk-job-runner: Promoting '${nextOpKey}' from queue to running.`);
+        allOps[nextOpKey] = {
+          ...nextOp,
+          status: "running",
+          updated_at: new Date().toISOString(),
+        };
+        runningEntry = [nextOpKey, allOps[nextOpKey]];
+      }
+    }
 
     if (!runningEntry) {
       // Save any stale-lock or auto-resume state changes
