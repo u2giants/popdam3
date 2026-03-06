@@ -911,7 +911,8 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
             {/* ── FIND ALTERNATIVE IMAGES ── */}
             <FindAlternativeImages group={group} onIngested={() => {
               queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-              queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+              // Refetch style-groups in background without resetting cache (avoids panel closing)
+              queryClient.invalidateQueries({ queryKey: ["style-groups"], refetchType: "none" });
             }} />
 
             <Separator />
