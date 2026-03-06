@@ -1,19 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, " +
-    "x-supabase-client-platform, x-supabase-client-platform-version, " +
-    "x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+import { corsHeaders, json } from "../_shared/http.ts";
+import { unwrapConfigString } from "../_shared/config-utils.ts";
 
 const ERP_ENDPOINT = "https://api.item.designflow.app/lib/getApiAllItems";
 const BATCH_SIZE = 100;
@@ -78,10 +66,8 @@ serve(async (req: Request) => {
       const { data: wm } = await db.from("admin_config")
         .select("value").eq("key", WATERMARK_KEY).maybeSingle();
       if (wm?.value) {
-        // value could be wrapped or raw string
-        const raw = typeof wm.value === "string" ? wm.value : (wm.value as any)?.value ?? wm.value;
-        const parsed = typeof raw === "string" ? raw : String(raw);
-        if (/^\d{4}-\d{2}-\d{2}/.test(parsed)) {
+        const parsed = unwrapConfigString(wm.value);
+        if (parsed && /^\d{4}-\d{2}-\d{2}/.test(parsed)) {
           startDate = parsed.slice(0, 10);
           console.log(`erp-sync: using watermark startDate=${startDate}`);
         }
@@ -121,7 +107,7 @@ serve(async (req: Request) => {
       if (endDate) url.searchParams.set("endDate", endDate);
 
       console.log(`erp-sync: fetching ${url.toString()}`);
-      const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(120_000) });
+      const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(45_000) });
       if (!resp.ok) throw new Error(`ERP API returned ${resp.status}`);
       const responseText = await resp.text();
       console.log(`erp-sync: raw response length=${responseText.length}, first 200 chars: ${responseText.substring(0, 200)}`);
@@ -203,9 +189,8 @@ serve(async (req: Request) => {
       const { data: cutoffRow } = await db.from("admin_config")
         .select("value").eq("key", "ERP_CATEGORY_CUTOFF_DATE").maybeSingle();
       if (cutoffRow?.value) {
-        const raw = typeof cutoffRow.value === "string" ? cutoffRow.value : (cutoffRow.value as any)?.value ?? cutoffRow.value;
-        const parsed = typeof raw === "string" ? raw : String(raw);
-        if (/^\d{4}-\d{2}-\d{2}/.test(parsed)) {
+        const parsed = unwrapConfigString(cutoffRow.value);
+        if (parsed && /^\d{4}-\d{2}-\d{2}/.test(parsed)) {
           categoryCutoff = parsed.slice(0, 10);
           console.log(`erp-sync: using category cutoff=${categoryCutoff}`);
         }

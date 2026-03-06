@@ -45,6 +45,7 @@ export async function getMgLookup(
   try {
     const res = await fetch(url, {
       headers: { "X-API-Key": apiKey },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) {

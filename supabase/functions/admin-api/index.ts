@@ -2,28 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
-
-// ── CORS ────────────────────────────────────────────────────────────
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, " +
-    "x-supabase-client-platform, x-supabase-client-platform-version, " +
-    "x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders, json, err } from "../_shared/http.ts";
+import { unwrapConfigString } from "../_shared/config-utils.ts";
 
 // ── Helpers ─────────────────────────────────────────────────────────
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function err(message: string, status = 400) {
-  return json({ ok: false, error: message }, status);
-}
 
 function serviceClient() {
   return createClient(
@@ -4440,8 +4422,8 @@ async function handleErpEnrichmentStats() {
     const { data: cutoffRow } = await db.from("admin_config")
       .select("value").eq("key", "ERP_CATEGORY_CUTOFF_DATE").maybeSingle();
     if (cutoffRow?.value) {
-      const raw = typeof cutoffRow.value === "string" ? cutoffRow.value : (cutoffRow.value as any)?.value ?? cutoffRow.value;
-      if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}/.test(raw)) categoryCutoff = raw.slice(0, 10);
+      const raw = unwrapConfigString(cutoffRow.value);
+      if (raw && /^\d{4}-\d{2}-\d{2}/.test(raw)) categoryCutoff = raw.slice(0, 10);
     }
   } catch { /* use default */ }
 
@@ -4895,6 +4877,7 @@ Product info:
 Return ONLY the classification using the provided tool.`;
 
       const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        signal: AbortSignal.timeout(20_000),
         method: "POST",
         headers: {
           Authorization: `Bearer ${LOVABLE_API_KEY}`,

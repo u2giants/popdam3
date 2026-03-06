@@ -1,21 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// ── CORS ────────────────────────────────────────────────────────────
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, " +
-    "x-supabase-client-platform, x-supabase-client-platform-version, " +
-    "x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+import { corsHeaders, json } from "../_shared/http.ts";
+import { unwrapConfigValue } from "../_shared/config-utils.ts";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -193,7 +179,7 @@ async function loadAutoResumeConfig(db: ReturnType<typeof createClient>): Promis
       ]);
     for (const row of (rows ?? []) as Array<{ key: string; value: unknown }>) {
       const raw = row?.value;
-      const val = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>)) ? (raw as Record<string, unknown>).value : raw;
+      const val = unwrapConfigValue(raw);
       switch (row.key) {
         case "REBUILD_AUTO_RESUME_ENABLED":
           config.enabled = val !== false && val !== "false";
