@@ -8,6 +8,8 @@ import { extractSkuFolder } from "../style-grouping.ts";
 import { unwrapConfigValue } from "../config-utils.ts";
 import { err, formatPostgrestError, isStatementTimeout, json, serviceClient, withRetry } from "../admin-utils.ts";
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // ── rebuild-style-groups ────────────────────────────────────────────
 
 export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
@@ -123,6 +125,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     let lastErr: string | null = null;
 
     while (batchSize >= clearMinBatch) {
+      await sleep(100);
       const { data: rpcResult, error: rpcErr } = await db.rpc("clear_style_group_batch", {
         p_last_id: state.last_asset_id ?? null,
         p_batch_size: batchSize,
@@ -332,6 +335,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         const GROUP_CHUNK_MIN = 10;
 
         while (groupCursor < groupRows.length) {
+          await sleep(50);
           const chunk = groupRows.slice(groupCursor, groupCursor + groupChunkSize);
           const upsertResult = await withRetry(
             async () => {
@@ -375,6 +379,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
           const ASSIGN_CHUNK_MIN = 25;
 
           while (assignCursor < assignments.length) {
+            await sleep(50);
             const chunk = assignments.slice(assignCursor, assignCursor + assignChunkSize);
             const assignedCount = await withRetry(
               async () => {
@@ -489,6 +494,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         const ids = groupIds.map((g: { id: string }) => g.id);
         let batchIds = ids;
         while (batchIds.length > 0) {
+          await sleep(100);
           try {
             const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
             if (countErr) {
@@ -560,6 +566,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
         const ids = groupIds.map((g: { id: string }) => g.id);
         let batchIds = ids;
         while (batchIds.length > 0) {
+          await sleep(100);
           try {
             const { error: primErr } = await db.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
             if (primErr) {
@@ -664,6 +671,7 @@ export async function handleReconcileStyleGroupStats(body: Record<string, unknow
       const ids = groupIds.map((g: { id: string }) => g.id);
       let batchIds = ids;
       while (batchIds.length > 0) {
+        await sleep(100);
         const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
         if (!countErr) break;
 
@@ -698,6 +706,7 @@ export async function handleReconcileStyleGroupStats(body: Record<string, unknow
       const ids = groupIds.map((g: { id: string }) => g.id);
       let batchIds = ids;
       while (batchIds.length > 0) {
+        await sleep(100);
         const { error: primErr } = await db.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
         if (!primErr) break;
 
