@@ -138,11 +138,13 @@ export function usePersistentOperation(operationKey: string) {
     [state, persistState],
   );
 
-  // ── Stop (mark as interrupted) ──────────────────────────────────
+  // ── Stop (mark as interrupted by user) ─────────────────────────
   const stop = useCallback(async () => {
     const interrupted: OperationState = {
       ...state,
       status: "interrupted",
+      interruption_reason_code: "user_stop",
+      error: "Stopped by user",
       updated_at: new Date().toISOString(),
     };
     setState(interrupted);
