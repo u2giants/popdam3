@@ -442,7 +442,22 @@ serve(async (req: Request) => {
             await sleep(delayMs);
             continue; // retry same cursor
           }
-...
+
+          console.error(`bulk-job-runner: ${lastError}`);
+          isTransientFailure = isTransient;
+          break;
+        }
+
+        // Reset transient retry counter on success
+        transientRetries = 0;
+
+        const result = await res.json();
+        if (!result.ok) {
+          const stageInfo = result.stage ? ` [stage=${result.stage}${result.substage ? `/substage=${result.substage}` : ""}]` : "";
+          lastError = `${stageInfo} ${result.error || "admin-api returned error"}`;
+          if (result.stage) lastStage = result.stage;
+          if (result.substage) lastSubstage = result.substage;
+
           const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
           if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
             transientRetries++;
