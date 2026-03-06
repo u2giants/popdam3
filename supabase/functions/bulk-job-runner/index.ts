@@ -474,7 +474,14 @@ serve(async (req: Request) => {
         cursor = result.nextOffset ?? cursor + 1;
 
         if (batchCount % persistEvery === 0) {
-          allOps[opKey] = {
+          // Re-read before write to avoid clobbering other ops
+          const { data: midConfig } = await db
+            .from("admin_config")
+            .select("value")
+            .eq("key", CONFIG_KEY)
+            .maybeSingle();
+          const midOps = (midConfig?.value as Record<string, OpState>) || {};
+          midOps[opKey] = {
             ...opState,
             status: "running",
             cursor,
@@ -486,7 +493,7 @@ serve(async (req: Request) => {
           };
           await db.from("admin_config").upsert({
             key: CONFIG_KEY,
-            value: allOps,
+            value: midOps,
             updated_at: new Date().toISOString(),
           });
         }
