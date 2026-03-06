@@ -179,7 +179,7 @@ async function loadAutoResumeConfig(db: ReturnType<typeof createClient>): Promis
       ]);
     for (const row of (rows ?? []) as Array<{ key: string; value: unknown }>) {
       const raw = row?.value;
-      const val = (raw && typeof raw === "object" && "value" in (raw as Record<string, unknown>)) ? (raw as Record<string, unknown>).value : raw;
+      const val = unwrapConfigValue(raw);
       switch (row.key) {
         case "REBUILD_AUTO_RESUME_ENABLED":
           config.enabled = val !== false && val !== "false";
