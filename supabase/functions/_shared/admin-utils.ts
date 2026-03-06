@@ -130,5 +130,6 @@ export function formatPostgrestError(error: unknown): string {
 
 export function isStatementTimeout(msg: string): boolean {
   const s = (msg || "").toLowerCase();
-  return s.includes("57014") || s.includes("statement timeout") || s.includes("canceling statement due to statement timeout") || s.includes("timeout") || s.includes("502") || s.includes("503");
+  return s.includes("57014") || s.includes("statement timeout") || s.includes("canceling statement due to statement timeout") || s.includes("timeout") ||
+    s.includes("502") || s.includes("503");
 }
