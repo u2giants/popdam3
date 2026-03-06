@@ -59,6 +59,19 @@ function categorizeKey(key: string): string {
   return "Other";
 }
 
+const OP_NAMES: Record<string, string> = {
+  "reprocess-metadata": "Reprocess Metadata",
+  "backfill-sku-names": "Backfill SKU Names",
+  "rebuild-style-groups": "Rebuild Style Groups",
+  "ai-tag-untagged": "AI Tag Untagged",
+  "ai-tag-all": "Re-tag Everything",
+  "reconcile-style-group-stats": "Reconcile Stats",
+  "erp-enrichment": "ERP Enrichment",
+  "erp-classify": "ERP Classify",
+};
+
+type RequestOpFn = (opKey: string, opName: string, startFn: () => void, queueFn: () => void) => void;
+
 // ── Types ───────────────────────────────────────────────────────────
 
 interface AgentInfo {
