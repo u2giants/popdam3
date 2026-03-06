@@ -1004,6 +1004,14 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
           ) : typeof p.total_processed === "number" && typeof p.total_assets === "number" ? (
             <span className="col-span-2">
               Progress: <span className="text-foreground font-medium">{(p.total_processed as number).toLocaleString()}</span> / {(p.total_assets as number).toLocaleString()} assets
+              {state.status === "running" && state.started_at && (p.total_processed as number) > 0 && (() => {
+                const elapsedMs = Date.now() - new Date(state.started_at!).getTime();
+                const rate = (p.total_processed as number) / (elapsedMs / 60000);
+                const remaining = ((p.total_assets as number) - (p.total_processed as number)) / rate;
+                if (remaining < 1) return <span className="text-muted-foreground ml-2">· &lt;1 min left</span>;
+                if (remaining < 60) return <span className="text-muted-foreground ml-2">· ~{Math.round(remaining)} min left</span>;
+                return <span className="text-muted-foreground ml-2">· ~{(remaining / 60).toFixed(1)} hrs left</span>;
+              })()}
             </span>
           ) : null}
         </div>

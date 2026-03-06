@@ -247,6 +247,7 @@ export type Database = {
           mg03_code: string | null
           mg03_name: string | null
           modified_at: string
+          primary_sort_tier: number
           product_category: string | null
           product_subtype_id: string | null
           property_code: string | null
@@ -302,6 +303,7 @@ export type Database = {
           mg03_code?: string | null
           mg03_name?: string | null
           modified_at: string
+          primary_sort_tier?: number
           product_category?: string | null
           product_subtype_id?: string | null
           property_code?: string | null
@@ -359,6 +361,7 @@ export type Database = {
           mg03_code?: string | null
           mg03_name?: string | null
           modified_at?: string
+          primary_sort_tier?: number
           product_category?: string | null
           product_subtype_id?: string | null
           property_code?: string | null
