@@ -1081,7 +1081,7 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
   );
 }
 
-function StyleGroupsSection() {
+function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
@@ -1107,21 +1107,30 @@ function StyleGroupsSection() {
 
   function runRebuild(forceRestart = false) {
     const isFreshStart = forceRestart || !rebuildOp.isInterrupted;
-    rebuildOp.start({
-      confirmMessage: forceRestart
-        ? "This will WIPE all existing style groups and rebuild from scratch. Continue?"
-        : rebuildOp.isInterrupted
-          ? "Resume the interrupted style-group rebuild from the last processed cursor?"
-          : "This will delete all existing style groups and rebuild them from scratch. Continue?",
-      params: isFreshStart ? { force_restart: true } : undefined,
-      forceRestart: isFreshStart,
-    });
+    requestOp("rebuild-style-groups", OP_NAMES["rebuild-style-groups"],
+      () => rebuildOp.start({
+        confirmMessage: forceRestart
+          ? "This will WIPE all existing style groups and rebuild from scratch. Continue?"
+          : rebuildOp.isInterrupted
+            ? "Resume the interrupted style-group rebuild from the last processed cursor?"
+            : "This will delete all existing style groups and rebuild them from scratch. Continue?",
+        params: isFreshStart ? { force_restart: true } : undefined,
+        forceRestart: isFreshStart,
+      }),
+      () => rebuildOp.queue({
+        params: isFreshStart ? { force_restart: true } : undefined,
+        forceRestart: isFreshStart,
+      }),
+    );
   }
 
   function runReconcile() {
-    reconcileOp.start({
-      confirmMessage: "Recompute asset counts, file dates, and cover images for all style groups? This is safe to re-run.",
-    });
+    requestOp("reconcile-style-group-stats", OP_NAMES["reconcile-style-group-stats"],
+      () => reconcileOp.start({
+        confirmMessage: "Recompute asset counts, file dates, and cover images for all style groups? This is safe to re-run.",
+      }),
+      () => reconcileOp.queue({ params: {} }),
+    );
   }
 
   const showRebuildDetail = rebuildOp.state.status !== "idle";
