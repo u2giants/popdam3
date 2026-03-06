@@ -1302,6 +1302,11 @@ export type Database = {
         Args: { p_timeout_minutes?: number }
         Returns: number
       }
+      update_bulk_operation: {
+        Args: { p_only_if_status?: string; p_op_key: string; p_op_state: Json }
+        Returns: Json
+      }
+      update_bulk_operations_batch: { Args: { p_updates: Json }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "user"
