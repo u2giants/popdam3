@@ -909,7 +909,10 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
             <Separator />
 
             {/* ── FIND ALTERNATIVE IMAGES ── */}
-            <FindAlternativeImages group={group} />
+            <FindAlternativeImages group={group} onIngested={() => {
+              queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
+              queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+            }} />
 
             <Separator />
 
