@@ -415,7 +415,8 @@ serve(async (req: Request) => {
         });
 
         if (!res.ok) {
-          const isTransient = [502, 503, 504].includes(res.status);
+          const isRateLimit = res.status === 429;
+          const isTransientStatus = [502, 503, 504].includes(res.status) || isRateLimit;
           lastErrorStatus = res.status;
           const text = await res.text();
           let parsed: Record<string, unknown> | null = null;
@@ -429,11 +430,14 @@ serve(async (req: Request) => {
           if (parsed?.stage) lastStage = parsed.stage as string;
           if (parsed?.substage) lastSubstage = parsed.substage as string;
 
+          const isRateLimitMessage = /rate limit exceeded/i.test(lastError);
+          const isTransient = isTransientStatus || isRateLimitMessage;
+
           if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
             transientRetries++;
-            const delayMs = 2000 * transientRetries;
+            const delayMs = (isRateLimit || isRateLimitMessage) ? 5000 : 1000 * transientRetries;
             console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
-            await new Promise((r) => setTimeout(r, delayMs));
+            await sleep(delayMs);
             continue; // retry same cursor
           }
 
