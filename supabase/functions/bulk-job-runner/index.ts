@@ -468,22 +468,8 @@ serve(async (req: Request) => {
         cursor = result.nextOffset ?? cursor + 1;
 
         if (batchCount % persistEvery === 0) {
-          // Re-read before write to avoid clobbering other ops
-          const { data: midConfig } = await db
-            .from("admin_config")
-            .select("value")
-            .eq("key", CONFIG_KEY)
-            .maybeSingle();
-          const midOps = (midConfig?.value as Record<string, OpState>) || {};
-
-          // Respect UI stop/interruption set while this invocation was processing
-          if (midOps[opKey] && midOps[opKey].status !== "running") {
-            console.log(
-              `bulk-job-runner: op '${opKey}' status changed to ${midOps[opKey].status} by UI. Aborting loop.`,
-            );
-            break;
-          }
-          midOps[opKey] = {
+          // Atomic mid-batch persist — only updates if status is still "running"
+          const midState: OpState = {
             ...opState,
             status: "running",
             cursor,
@@ -493,11 +479,19 @@ serve(async (req: Request) => {
             last_substage: lastSubstage,
             updated_at: new Date().toISOString(),
           };
-          await db.from("admin_config").upsert({
-            key: CONFIG_KEY,
-            value: midOps,
-            updated_at: new Date().toISOString(),
+          const result = await db.rpc("update_bulk_operation", {
+            p_op_key: opKey,
+            p_op_state: midState,
+            p_only_if_status: "running",
           });
+          // If the RPC returned unchanged state (status != running), user stopped
+          const afterOps = result.data as Record<string, OpState> | null;
+          if (afterOps?.[opKey]?.status && afterOps[opKey].status !== "running") {
+            console.log(
+              `bulk-job-runner: op '${opKey}' status changed to ${afterOps[opKey].status} by UI. Aborting loop.`,
+            );
+            break;
+          }
         }
       } catch (e) {
         lastError = e instanceof Error ? e.message : "Unknown batch error";
