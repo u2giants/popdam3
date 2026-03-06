@@ -3524,16 +3524,8 @@ async function handleIngestSiblingImages(body: Record<string, unknown>, userId: 
 
     // Determine file_type from extension
     const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-    // Sibling images are JPG/PNG — but our file_type enum only has psd/ai.
-    // We'll store as "psd" placeholder since these are supplementary images.
-    // Actually, let's check if there's a better approach — these are reference images.
-    // For now, we need to work within the existing schema constraints.
-    // The file_type is constrained to 'psd' | 'ai', so we can't store jpg/png directly.
-    // Instead we'll skip the file_type constraint by using a raw insert.
-
-    // Use psd as fallback file_type since the enum is constrained
-    // This is a known limitation — sibling images are supplementary references
-    const fileType = ext === "ai" ? "ai" : "psd";
+    const extMap: Record<string, string> = { psd: "psd", ai: "ai", jpg: "jpg", jpeg: "jpg", png: "png" };
+    const fileType = extMap[ext] ?? "jpg";
 
     const { data: inserted, error: insertErr } = await db
       .from("assets")

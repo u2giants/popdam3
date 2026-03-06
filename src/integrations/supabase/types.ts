@@ -1313,7 +1313,7 @@ export type Database = {
         | "packaging"
         | "tech_pack"
         | "photography"
-      file_type: "psd" | "ai"
+      file_type: "psd" | "ai" | "jpg" | "png"
       queue_status:
         | "pending"
         | "claimed"
@@ -1471,7 +1471,7 @@ export const Constants = {
         "tech_pack",
         "photography",
       ],
-      file_type: ["psd", "ai"],
+      file_type: ["psd", "ai", "jpg", "png"],
       queue_status: ["pending", "claimed", "processing", "completed", "failed"],
       workflow_status: [
         "product_ideas",
