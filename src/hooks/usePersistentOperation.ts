@@ -31,7 +31,7 @@ export interface OperationState {
   queue_position?: number;
 }
 
-const CONFIG_KEY = "BULK_OPERATIONS";
+const CONFIG_KEY = "BULK_OPERATIONS"; // used for polling reads only
 const POLL_ACTIVE_MS = 3_000;
 const POLL_IDLE_MS = 30_000;
 
