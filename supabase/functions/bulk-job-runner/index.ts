@@ -10,7 +10,7 @@ const CONFIG_KEY = "BULK_OPERATIONS";
 const MAX_RUN_MS = 45_000;
 const DEFAULT_PERSIST_EVERY = 1;
 const INTERRUPT_CHECK_EVERY = 10;
-const MAX_TRANSIENT_RETRIES = 3;
+const MAX_TRANSIENT_RETRIES = 5;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Per-operation persist frequency overrides (rebuild needs more frequent saves)
@@ -435,7 +435,9 @@ serve(async (req: Request) => {
 
           if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
             transientRetries++;
-            const delayMs = (isRateLimit || isRateLimitMessage) ? 5000 : 1000 * transientRetries;
+            const delayMs = (isRateLimit || isRateLimitMessage)
+              ? Math.min(5000 * transientRetries, 30000)
+              : 1000 * transientRetries;
             console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
             await sleep(delayMs);
             continue; // retry same cursor
@@ -459,7 +461,7 @@ serve(async (req: Request) => {
           const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
           if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
             transientRetries++;
-            const delayMs = 5000;
+            const delayMs = Math.min(5000 * transientRetries, 30000);
             console.warn(`bulk-job-runner: transient rate-limit for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
             await sleep(delayMs);
             continue; // retry same cursor
@@ -483,6 +485,11 @@ serve(async (req: Request) => {
         }
 
         cursor = result.nextOffset ?? cursor + 1;
+
+        // Throttle rebuild operations to stay under Edge Function rate limits
+        if (opKey === "rebuild-style-groups") {
+          await sleep(1000);
+        }
 
         if (batchCount % persistEvery === 0) {
           // Atomic mid-batch persist — only updates if status is still "running"
