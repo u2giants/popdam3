@@ -455,6 +455,17 @@ serve(async (req: Request) => {
           lastError = `${stageInfo} ${result.error || "admin-api returned error"}`;
           if (result.stage) lastStage = result.stage;
           if (result.substage) lastSubstage = result.substage;
+
+          const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
+          if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
+            transientRetries++;
+            const delayMs = 5000;
+            console.warn(`bulk-job-runner: transient rate-limit for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
+            await sleep(delayMs);
+            continue; // retry same cursor
+          }
+
+          isTransientFailure = isRateLimitMessage;
           console.error(`bulk-job-runner: ${lastError}`);
           break;
         }
