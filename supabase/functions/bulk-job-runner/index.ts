@@ -20,8 +20,8 @@ function json(data: unknown, status = 200) {
 // ── Constants ───────────────────────────────────────────────────────
 
 const CONFIG_KEY = "BULK_OPERATIONS";
-const MAX_RUN_MS = 50_000;
-const DEFAULT_PERSIST_EVERY = 5;
+const MAX_RUN_MS = 25_000;
+const DEFAULT_PERSIST_EVERY = 1;
 const INTERRUPT_CHECK_EVERY = 10;
 const MAX_TRANSIENT_RETRIES = 3;
 
