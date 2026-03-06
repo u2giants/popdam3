@@ -1,21 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// ── CORS ────────────────────────────────────────────────────────────
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, " +
-    "x-supabase-client-platform, x-supabase-client-platform-version, " +
-    "x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+import { corsHeaders, json } from "../_shared/http.ts";
+import { unwrapConfigValue } from "../_shared/config-utils.ts";
 
 // ── Constants ───────────────────────────────────────────────────────
 
