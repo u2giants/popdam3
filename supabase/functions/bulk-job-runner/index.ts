@@ -435,31 +435,18 @@ serve(async (req: Request) => {
 
           if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
             transientRetries++;
-            const delayMs = (isRateLimit || isRateLimitMessage) ? 5000 : 1000 * transientRetries;
+            const delayMs = (isRateLimit || isRateLimitMessage)
+              ? Math.min(5000 * transientRetries, 30000)
+              : 1000 * transientRetries;
             console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
             await sleep(delayMs);
             continue; // retry same cursor
           }
-
-          console.error(`bulk-job-runner: ${lastError}`);
-          isTransientFailure = isTransient;
-          break;
-        }
-
-        // Reset transient retry counter on success
-        transientRetries = 0;
-
-        const result = await res.json();
-        if (!result.ok) {
-          const stageInfo = result.stage ? ` [stage=${result.stage}${result.substage ? `/substage=${result.substage}` : ""}]` : "";
-          lastError = `${stageInfo} ${result.error || "admin-api returned error"}`;
-          if (result.stage) lastStage = result.stage;
-          if (result.substage) lastSubstage = result.substage;
-
+...
           const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
           if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
             transientRetries++;
-            const delayMs = 5000;
+            const delayMs = Math.min(5000 * transientRetries, 30000);
             console.warn(`bulk-job-runner: transient rate-limit for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
             await sleep(delayMs);
             continue; // retry same cursor
