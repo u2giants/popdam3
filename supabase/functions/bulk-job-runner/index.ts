@@ -10,7 +10,7 @@ const CONFIG_KEY = "BULK_OPERATIONS";
 const MAX_RUN_MS = 45_000;
 const DEFAULT_PERSIST_EVERY = 1;
 const INTERRUPT_CHECK_EVERY = 10;
-const MAX_TRANSIENT_RETRIES = 3;
+const MAX_TRANSIENT_RETRIES = 5;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Per-operation persist frequency overrides (rebuild needs more frequent saves)
