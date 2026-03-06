@@ -12,13 +12,6 @@ function serviceClient() {
   );
 }
 
-function serviceClient() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-}
-
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
 async function authenticateAgent(
