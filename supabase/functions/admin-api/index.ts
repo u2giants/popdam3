@@ -3570,9 +3570,9 @@ async function handleIngestSiblingImages(body: Record<string, unknown>, userId: 
     console.warn("Failed to refresh style group stats:", e);
   }
 
-  const created = results.filter(r => r.action === "created").length;
-  const linked = results.filter(r => r.action === "linked").length;
-  const errors = results.filter(r => r.action === "error").length;
+  const created = results.filter((r) => r.action === "created").length;
+  const linked = results.filter((r) => r.action === "linked").length;
+  const errors = results.filter((r) => r.action === "error").length;
 
   return json({ ok: true, results, summary: { created, linked, errors } });
 }
