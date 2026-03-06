@@ -381,10 +381,9 @@ serve(async (req: Request) => {
             last_substage: lastSubstage,
             updated_at: new Date().toISOString(),
           };
-          await db.from("admin_config").upsert({
-            key: CONFIG_KEY,
-            value: allOps,
-            updated_at: new Date().toISOString(),
+          await db.rpc("update_bulk_operation", {
+            p_op_key: opKey,
+            p_op_state: allOps[opKey],
           });
           return json({ ok: true, message: `Operation ${opKey} stopped by user`, batches: batchCount });
         }
