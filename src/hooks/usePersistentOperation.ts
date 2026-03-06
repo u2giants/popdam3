@@ -85,18 +85,13 @@ export function usePersistentOperation(operationKey: string) {
     };
   }, [operationKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Persist helper ──────────────────────────────────────────────
+  // ── Atomic persist via update-bulk-op RPC ────────────────────────
   const persistState = useCallback(
     async (opState: OperationState) => {
       try {
-        const data = await call("get-config", { keys: [CONFIG_KEY] });
-        const existing =
-          ((data?.config?.[CONFIG_KEY]?.value ??
-            data?.config?.[CONFIG_KEY]) as Record<string, unknown>) ?? {};
-        await call("set-config", {
-          entries: {
-            [CONFIG_KEY]: { ...existing, [operationKey]: opState },
-          },
+        await call("update-bulk-op", {
+          op_key: operationKey,
+          op_state: opState,
         });
       } catch {
         // best-effort
