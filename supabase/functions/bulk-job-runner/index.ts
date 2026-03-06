@@ -624,17 +624,39 @@ serve(async (req: Request) => {
       console.error(`bulk-job-runner: '${opKey}' failed (${reasonCode}) — ${lastError}`);
     } else {
       // Time budget exhausted, still running — save cursor for next invocation
-      allOps[opKey] = {
-        ...opState,
-        status: "running",
-        cursor,
-        progress,
-        run_id: opState.run_id,
-        last_stage: lastStage,
-        last_substage: lastSubstage,
-        updated_at: now,
-      };
-      console.log(`bulk-job-runner: '${opKey}' paused after ${batchCount} batches, cursor=${cursor}`);
+      // But first, check if user stopped the operation while we were processing
+      const { data: freshCheck } = await db
+        .from("admin_config")
+        .select("value")
+        .eq("key", CONFIG_KEY)
+        .maybeSingle();
+      const freshOps = (freshCheck?.value as Record<string, OpState>) || {};
+      const freshStatus = freshOps[opKey]?.status;
+
+      if (freshStatus && freshStatus !== "running") {
+        // User (or another process) changed status — respect it, just merge progress
+        console.log(`bulk-job-runner: op '${opKey}' status changed to '${freshStatus}' during run. Preserving.`);
+        allOps[opKey] = {
+          ...freshOps[opKey],
+          cursor,
+          progress,
+          last_stage: lastStage,
+          last_substage: lastSubstage,
+          updated_at: now,
+        };
+      } else {
+        allOps[opKey] = {
+          ...opState,
+          status: "running",
+          cursor,
+          progress,
+          run_id: opState.run_id,
+          last_stage: lastStage,
+          last_substage: lastSubstage,
+          updated_at: now,
+        };
+        console.log(`bulk-job-runner: '${opKey}' paused after ${batchCount} batches, cursor=${cursor}`);
+      }
     }
 
     // Atomic final write using batch RPC — eliminates race conditions
