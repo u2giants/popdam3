@@ -4422,8 +4422,8 @@ async function handleErpEnrichmentStats() {
     const { data: cutoffRow } = await db.from("admin_config")
       .select("value").eq("key", "ERP_CATEGORY_CUTOFF_DATE").maybeSingle();
     if (cutoffRow?.value) {
-      const raw = typeof cutoffRow.value === "string" ? cutoffRow.value : (cutoffRow.value as any)?.value ?? cutoffRow.value;
-      if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}/.test(raw)) categoryCutoff = raw.slice(0, 10);
+      const raw = unwrapConfigString(cutoffRow.value);
+      if (raw && /^\d{4}-\d{2}-\d{2}/.test(raw)) categoryCutoff = raw.slice(0, 10);
     }
   } catch { /* use default */ }
 
@@ -4877,6 +4877,7 @@ Product info:
 Return ONLY the classification using the provided tool.`;
 
       const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        signal: AbortSignal.timeout(20_000),
         method: "POST",
         headers: {
           Authorization: `Bearer ${LOVABLE_API_KEY}`,
