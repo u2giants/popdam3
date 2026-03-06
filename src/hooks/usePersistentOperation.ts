@@ -14,7 +14,7 @@ export interface OperationProgress {
 }
 
 export interface OperationState {
-  status: "idle" | "running" | "completed" | "completed_with_repair" | "failed" | "interrupted";
+  status: "idle" | "running" | "completed" | "completed_with_repair" | "failed" | "interrupted" | "queued";
   cursor?: number;
   params?: Record<string, unknown>;
   started_at?: string;
@@ -28,6 +28,7 @@ export interface OperationState {
   run_id?: string;
   last_stage?: string;
   last_substage?: string;
+  queue_position?: number;
 }
 
 const CONFIG_KEY = "BULK_OPERATIONS";
@@ -73,7 +74,7 @@ export function usePersistentOperation(operationKey: string) {
       if (!mounted) return;
       timerId = setTimeout(
         poll,
-        currentStatus === "running" ? POLL_ACTIVE_MS : POLL_IDLE_MS,
+        currentStatus === "running" || currentStatus === "queued" ? POLL_ACTIVE_MS : POLL_IDLE_MS,
       );
     };
 
@@ -139,6 +140,37 @@ export function usePersistentOperation(operationKey: string) {
     [state, persistState],
   );
 
+  // ── Add to Queue ────────────────────────────────────────────────
+  const queue = useCallback(
+    async (options?: {
+      params?: Record<string, unknown>;
+      initialProgress?: OperationProgress;
+      forceRestart?: boolean;
+    }) => {
+      const shouldResume =
+        options?.forceRestart !== true &&
+        state.status === "interrupted" &&
+        typeof state.cursor === "number";
+
+      const now = new Date().toISOString();
+      const queued: OperationState = {
+        status: "queued",
+        cursor: shouldResume ? state.cursor : 0,
+        params: shouldResume ? (state.params ?? options?.params) : options?.params,
+        started_at: shouldResume ? (state.started_at ?? now) : now,
+        updated_at: now,
+        progress: shouldResume
+          ? (state.progress ?? options?.initialProgress ?? {})
+          : (options?.initialProgress ?? {}),
+        run_id: state.run_id || crypto.randomUUID(),
+        queue_position: Date.now(),
+      };
+      setState(queued);
+      await persistState(queued);
+    },
+    [state, persistState],
+  );
+
   // ── Stop (mark as interrupted by user) ─────────────────────────
   const stop = useCallback(async () => {
     const interrupted: OperationState = {
@@ -160,8 +192,9 @@ export function usePersistentOperation(operationKey: string) {
   }, [persistState]);
 
   const isActive = state.status === "running";
+  const isQueued = state.status === "queued";
   const isInterrupted = state.status === "interrupted";
   const isCompletedWithRepair = state.status === "completed_with_repair";
 
-  return { state, start, stop, reset, isActive, isInterrupted, isCompletedWithRepair, isHydrating };
+  return { state, start, queue, stop, reset, isActive, isQueued, isInterrupted, isCompletedWithRepair, isHydrating };
 }
