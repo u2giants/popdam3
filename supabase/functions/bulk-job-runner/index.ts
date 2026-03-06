@@ -608,47 +608,19 @@ serve(async (req: Request) => {
       console.log(`bulk-job-runner: '${opKey}' paused after ${batchCount} batches, cursor=${cursor}`);
     }
 
-    // Re-read BULK_OPERATIONS before final write to avoid clobbering entries
-    // added by the UI or other writers while we were processing (race condition fix).
-    const { data: freshConfigRow } = await db
-      .from("admin_config")
-      .select("value")
-      .eq("key", CONFIG_KEY)
-      .maybeSingle();
-    const freshAllOps = (freshConfigRow?.value as Record<string, OpState>) || {};
-
-    // Preserve explicit UI state transitions (e.g. user_stop) made during this run
-    if (
-      freshAllOps[opKey] &&
-      freshAllOps[opKey].status !== "running" &&
-      allOps[opKey]?.status === "running"
-    ) {
-      console.log(
-        `bulk-job-runner: UI changed '${opKey}' status to ${freshAllOps[opKey].status}. Preserving UI state.`,
-      );
-      allOps[opKey] = {
-        ...freshAllOps[opKey],
-        cursor,
-        progress,
-        last_stage: lastStage,
-        last_substage: lastSubstage,
-        updated_at: now,
-      };
-    }
-
-    // Merge: keep all fresh entries, but overwrite only the op we just processed
-    const mergedOps = { ...freshAllOps, [opKey]: allOps[opKey] };
+    // Atomic final write using batch RPC — eliminates race conditions
+    const finalUpdates: Record<string, OpState> = { [opKey]: allOps[opKey] };
 
     // Also carry over any auto-queued reconcile from post-rebuild integrity check
-    if (allOps["reconcile-style-group-stats"]?.status === "running" && allOps["reconcile-style-group-stats"]?.run_id) {
-      mergedOps["reconcile-style-group-stats"] = allOps["reconcile-style-group-stats"];
+    if (
+      opKey !== "reconcile-style-group-stats" &&
+      allOps["reconcile-style-group-stats"]?.status === "running" &&
+      allOps["reconcile-style-group-stats"]?.run_id
+    ) {
+      finalUpdates["reconcile-style-group-stats"] = allOps["reconcile-style-group-stats"];
     }
 
-    await db.from("admin_config").upsert({
-      key: CONFIG_KEY,
-      value: mergedOps,
-      updated_at: now,
-    });
+    await db.rpc("update_bulk_operations_batch", { p_updates: finalUpdates });
 
     return json({
       ok: true,
