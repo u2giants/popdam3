@@ -861,10 +861,33 @@ export async function handleDoctor() {
     fix_payload?: Record<string, unknown>;
   }> = [];
 
-  // Check 1: Any registered agents?
-  const { data: agents, error: agentErr } = await db
+  // ── Gather counts ──
+  const [
+    { count: totalAssets },
+    { count: pendingAssets },
+    { count: errorAssets },
+    { count: pendingJobs },
+    { count: pendingRenders },
+  ] = await Promise.all([
+    db.from("assets").select("id", { count: "exact", head: true }).eq("is_deleted", false),
+    db.from("assets").select("id", { count: "exact", head: true }).eq("is_deleted", false).eq("status", "pending"),
+    db.from("assets").select("id", { count: "exact", head: true }).eq("is_deleted", false).eq("status", "error"),
+    db.from("processing_queue").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    db.from("render_queue").select("id", { count: "exact", head: true }).in("status", ["pending", "claimed"]),
+  ]);
+
+  const counts = {
+    total_assets: totalAssets ?? 0,
+    pending_assets: pendingAssets ?? 0,
+    error_assets: errorAssets ?? 0,
+    pending_jobs: pendingJobs ?? 0,
+    pending_renders: pendingRenders ?? 0,
+  };
+
+  // ── Agents ──
+  const { data: rawAgents, error: agentErr } = await db
     .from("agent_registrations")
-    .select("id, agent_name, agent_type, last_heartbeat, metadata");
+    .select("id, agent_name, agent_type, last_heartbeat, metadata, created_at");
 
   if (agentErr) {
     issues.push({
@@ -874,7 +897,7 @@ export async function handleDoctor() {
       details: agentErr.message,
       recommended_fix: "Check database connectivity",
     });
-  } else if (!agents || agents.length === 0) {
+  } else if (!rawAgents || rawAgents.length === 0) {
     issues.push({
       severity: "critical",
       code: "NO_AGENTS",
@@ -885,9 +908,8 @@ export async function handleDoctor() {
       fix_payload: { agent_type: "bridge" },
     });
   } else {
-    // Check heartbeats
     const now = Date.now();
-    for (const agent of agents) {
+    for (const agent of rawAgents) {
       if (!agent.last_heartbeat) continue;
       const lastBeat = new Date(agent.last_heartbeat).getTime();
       const minutesAgo = (now - lastBeat) / 60000;
@@ -903,7 +925,59 @@ export async function handleDoctor() {
     }
   }
 
-  // Check 2: Stale render jobs
+  // Map agents to the shape the UI expects
+  const agents = (rawAgents ?? []).map((a: any) => {
+    const meta = (a.metadata ?? {}) as Record<string, any>;
+    const diag = meta.diagnostics ?? {};
+    const now = Date.now();
+    const lastBeat = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
+    const minutesAgo = lastBeat ? (now - lastBeat) / 60000 : Infinity;
+    let status = "unknown";
+    if (minutesAgo < 5) status = "online";
+    else if (minutesAgo < 30) status = "stale";
+    else status = "offline";
+
+    return {
+      id: a.id,
+      name: a.agent_name,
+      type: a.agent_type,
+      status,
+      last_heartbeat: a.last_heartbeat,
+      last_counters: meta.last_counters ?? null,
+      last_error: meta.last_error ?? null,
+      scan_roots: diag.scan_roots ?? [],
+      created_at: a.created_at,
+    };
+  });
+
+  // ── Scan progress ──
+  const { data: scanRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "SCAN_PROGRESS")
+    .maybeSingle();
+  const scanProgress = scanRow?.value
+    ? (typeof scanRow.value === "object" && scanRow.value !== null && "value" in (scanRow.value as any)
+        ? (scanRow.value as any).value
+        : scanRow.value)
+    : null;
+
+  // ── Recent errors ──
+  const { data: recentErrors } = await db
+    .from("processing_queue")
+    .select("id, asset_id, job_type, error_message, completed_at")
+    .eq("status", "failed")
+    .order("completed_at", { ascending: false })
+    .limit(20);
+
+  // ── Config (non-sensitive) ──
+  const { data: configRows } = await db.from("admin_config").select("key, value, updated_at");
+  const config: Record<string, unknown> = {};
+  for (const row of configRows ?? []) {
+    config[row.key] = row.value;
+  }
+
+  // ── Additional issue checks ──
   const { count: staleJobs } = await db
     .from("render_queue")
     .select("id", { count: "exact", head: true })
@@ -921,7 +995,6 @@ export async function handleDoctor() {
     });
   }
 
-  // Check 3: Failed render jobs
   const { count: failedRenders } = await db
     .from("render_queue")
     .select("id", { count: "exact", head: true })
@@ -938,7 +1011,6 @@ export async function handleDoctor() {
     });
   }
 
-  // Check 4: Assets with no thumbnail and no error (not yet processed)
   const { count: pendingThumbs } = await db
     .from("assets")
     .select("id", { count: "exact", head: true })
@@ -966,7 +1038,18 @@ export async function handleDoctor() {
     });
   }
 
-  return json({ ok: true, issues });
+  return json({
+    ok: true,
+    issues,
+    diagnostic: {
+      timestamp: new Date().toISOString(),
+      counts,
+      agents,
+      scan_progress: scanProgress,
+      recent_errors: recentErrors ?? [],
+      config,
+    },
+  });
 }
 
 // ── get-filter-options ──────────────────────────────────────────────
