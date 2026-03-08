@@ -229,7 +229,7 @@ function ClassificationLiveLog({ active }: { active: boolean }) {
         .neq("status", "unclassifiable")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(200);
 
       if (cancelled || !data) return;
       setEntries(prev => {
@@ -531,6 +531,7 @@ function ReviewQueue() {
   const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
   const STATUS_TABS = [
     { key: "pending", label: "Pending" },
+    { key: "low_confidence", label: "Low Confidence (<50%)" },
     { key: "auto_applied", label: "Auto-Applied" },
     { key: "approved", label: "Approved" },
     { key: "rejected", label: "Rejected" },

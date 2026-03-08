@@ -2281,12 +2281,17 @@ async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   const offset = (page - 1) * pageSize;
 
   // Valid statuses
-  const validStatuses = ["pending", "auto_applied", "approved", "rejected", "unclassifiable", "all"];
+  const validStatuses = ["pending", "low_confidence", "auto_applied", "approved", "rejected", "unclassifiable", "all"];
   if (!validStatuses.includes(statusFilter)) return err(`Invalid status filter: ${statusFilter}`);
+
+  // Handle special "low_confidence" filter: pending items with confidence < 0.5
+  const isLowConfidenceFilter = statusFilter === "low_confidence";
+  const effectiveStatus = isLowConfidenceFilter ? "pending" : statusFilter;
 
   // Count total for this filter
   let countQuery = db.from("product_category_predictions").select("id", { count: "exact", head: true });
-  if (statusFilter !== "all") countQuery = countQuery.eq("status", statusFilter);
+  if (effectiveStatus !== "all") countQuery = countQuery.eq("status", effectiveStatus);
+  if (isLowConfidenceFilter) countQuery = countQuery.lt("confidence", 0.5);
   const { count: totalCount, error: countErr } = await countQuery;
   if (countErr) return err(countErr.message, 500);
 
@@ -2304,11 +2309,16 @@ async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
       .select("id", { count: "exact", head: true }).eq("status", s);
     statusCounts[s] = count ?? 0;
   }
+  // Also count low-confidence items specifically
+  const { count: lowConfCount } = await db.from("product_category_predictions")
+    .select("id", { count: "exact", head: true }).eq("status", "pending").lt("confidence", 0.5);
+  statusCounts["low_confidence"] = lowConfCount ?? 0;
 
   // Fetch page
   let query = db.from("product_category_predictions")
     .select("id, external_id, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at");
-  if (statusFilter !== "all") query = query.eq("status", statusFilter);
+  if (effectiveStatus !== "all") query = query.eq("status", effectiveStatus);
+  if (isLowConfidenceFilter) query = query.lt("confidence", 0.5);
   query = query.order("confidence", { ascending: true }).range(offset, offset + pageSize - 1);
 
   const { data, error } = await query;
@@ -2676,14 +2686,30 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
 
   /** Check if an item has enough data for meaningful AI classification */
   function isUnclassifiable(item: any): boolean {
-    const desc = (item.item_description || "").trim();
+    const desc = (item.item_description || "").trim().toLowerCase();
     const style = (item.style_number || "").trim();
     // No description and no style number
     if (!desc && !style) return true;
     // Description is just the external_id or style_number repeated (junk)
-    if (desc === item.external_id || desc === style) return true;
+    if (desc === item.external_id?.toLowerCase() || desc === style?.toLowerCase()) return true;
     // Description is too short to be meaningful (e.g. "test5", "20200")
     if (desc.length > 0 && desc.length <= 6 && /^[a-z0-9]+$/i.test(desc)) return true;
+    // Generic junk descriptions with no product information
+    const junkPatterns = [
+      /^assortment$/i,
+      /^test$/i,
+      /^testing$/i,
+      /^sample$/i,
+      /^n\/?a$/i,
+      /^tbd$/i,
+      /^none$/i,
+      /^null$/i,
+      /^placeholder$/i,
+      /^(desing|design)\s*(number|num|#)?(\s+function)?\s*(test)?\s*\d*$/i,  // "desing numnber function test"
+      /^\d{4,}$/,  // Just numbers like "20200", "12345"
+      /^[a-z]{1,3}\d{4,}$/i,  // Style-number-like: "AB12345"
+    ];
+    if (junkPatterns.some(p => p.test(desc))) return true;
     return false;
   }
 
@@ -2711,14 +2737,28 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
     }
 
     try {
-      const prompt = `Classify this product into exactly one of these 7 categories: ${CATEGORIES.join(", ")}.
+      const prompt = `Classify this product into exactly ONE of these 7 categories for home décor products:
+- Wall (wall art, wall clocks, wall signs, letters/plaques, canvas, frames, mirrors mounted on walls)
+- Tabletop (picture frames that sit on tables, decorative objects, sculptures, figurines, candle holders, vases, desk accessories)
+- Clock (any type of clock - wall clocks, desk clocks, mantle clocks, alarm clocks)
+- Storage (boxes, baskets, bins, organizers, chests, cabinets)
+- Workspace (desk organizers, office supplies, pen holders, paperweights, desk lamps)
+- Floor (floor lamps, large sculptures, plant stands, umbrella stands, floor decor)
+- Garden (outdoor décor, planters, garden statues, wind chimes, outdoor signs)
 
-Product info:
+IMPORTANT CLASSIFICATION RULES:
+1. "MDF letter" or "letter" items are WALL products (decorative letters mount on walls)
+2. "Canvas" items are always WALL products
+3. If description mentions specific characters (Marvel, Disney, etc.) look for product type keywords
+4. If you cannot determine the category with certainty, set confidence below 0.5
+5. DO NOT guess - if the description is ambiguous or unclear, use low confidence
+
+Product to classify:
 - Style Number: ${item.style_number || "unknown"}
 - Description: ${item.item_description || "none"}
 - MG fields: ${JSON.stringify(item.raw_mg_fields || {})}
 
-Return ONLY the classification using the provided tool.`;
+Use the provided tool to return your classification.`;
 
       const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         signal: AbortSignal.timeout(20_000),
