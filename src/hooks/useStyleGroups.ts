@@ -62,7 +62,7 @@ export function useStyleGroups(
       let query = supabase
         .from("style_groups")
         .select(
-          `*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error, asset_type)`,
+          `*`,
           { count: "exact" },
         );
 
