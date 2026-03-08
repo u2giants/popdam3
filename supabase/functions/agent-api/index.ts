@@ -2176,11 +2176,13 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
     if (progressCounters) {
       progressUpdate.progress = progressCounters;
     }
-    await db.from("admin_config").upsert({
-      key: "HYGIENE_SCAN_REQUEST",
-      value: progressUpdate,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "key" }).then(() => {}).catch(() => {});
+    try {
+      await db.from("admin_config").upsert({
+        key: "HYGIENE_SCAN_REQUEST",
+        value: progressUpdate,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "key" });
+    } catch { /* best-effort */ }
   }
 
   // If done, mark scan request as completed
