@@ -63,6 +63,29 @@ export function buildOpenFolderUri(folderPath: string): string {
   return `popdam://open-folder?path=${encodeURIComponent(folderPath)}`;
 }
 
+function launchProtocol(uri: string) {
+  // Primary: synthetic anchor click (works best across Chromium variants)
+  const a = document.createElement("a");
+  a.href = uri;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  // Fallback for environments where iframe navigation is blocked/sandboxed
+  try {
+    window.open(uri, "_blank", "noopener,noreferrer");
+  } catch {
+    // ignore
+  }
+
+  try {
+    window.location.assign(uri);
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Trigger the popdam:// protocol to open a folder.
  * Returns false if no valid path could be resolved.
@@ -74,6 +97,6 @@ export function openAssetFolder(
 ): boolean {
   const folder = resolveOpenFolderPath(relativePath, nasConfig, mode);
   if (!folder) return false;
-  window.location.href = buildOpenFolderUri(folder);
+  launchProtocol(buildOpenFolderUri(folder));
   return true;
 }
