@@ -15,8 +15,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 const navItems = [
   { to: "/", label: "Library", icon: Library },
