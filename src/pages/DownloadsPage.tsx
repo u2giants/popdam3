@@ -2,8 +2,28 @@ import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen } f
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+
+/** Fetch a public file as blob and trigger a real download (bypasses auth bridge). */
+function useBlobDownload() {
+  return useCallback(async (path: string, filename: string) => {
+    try {
+      const res = await fetch(path);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Download failed:", e);
+    }
+  }, []);
+}
 
 function CopyBlock({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -12,6 +32,8 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+  
+
   return (
     <div className="space-y-1">
       <label className="text-xs text-muted-foreground">{label}</label>
@@ -27,6 +49,7 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
 
 export default function DownloadsPage() {
   const { isAdmin } = useIsAdmin();
+  const download = useBlobDownload();
 
   return (
     <div className="container max-w-4xl py-8 space-y-6">
@@ -159,25 +182,13 @@ export default function DownloadsPage() {
                 <li>Restart your browser</li>
               </ol>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href="/downloads/install-popdam-protocol.reg"
-                    download="install-popdam-protocol.reg"
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="h-3 w-3" />
-                    .reg file
-                  </a>
+                <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.reg", "install-popdam-protocol.reg")} className="flex items-center gap-2">
+                  <Download className="h-3 w-3" />
+                  .reg file
                 </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href="/downloads/popdam-open.bat"
-                    download="popdam-open.bat"
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="h-3 w-3" />
-                    .bat handler
-                  </a>
+                <Button variant="outline" size="sm" onClick={() => download("/downloads/popdam-open.bat", "popdam-open.bat")} className="flex items-center gap-2">
+                  <Download className="h-3 w-3" />
+                  .bat handler
                 </Button>
               </div>
             </div>
@@ -192,15 +203,9 @@ export default function DownloadsPage() {
                 <li>Run: <code>bash install-popdam-protocol.sh</code></li>
                 <li>Restart your browser</li>
               </ol>
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href="/downloads/install-popdam-protocol.sh"
-                  download="install-popdam-protocol.sh"
-                  className="flex items-center gap-2"
-                >
-                  <Download className="h-3 w-3" />
-                  .sh installer
-                </a>
+              <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.sh", "install-popdam-protocol.sh")} className="flex items-center gap-2">
+                <Download className="h-3 w-3" />
+                .sh installer
               </Button>
             </div>
           </div>
