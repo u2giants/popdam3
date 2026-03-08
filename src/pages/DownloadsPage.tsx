@@ -51,6 +51,8 @@ export default function DownloadsPage() {
   const { isAdmin } = useIsAdmin();
   const download = useBlobDownload();
 
+  const windowsNoDownloadInstallCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$bat = @'\n@echo off\nsetlocal\npowershell -NoProfile -Command \"$u=$args[0];$raw=$u -replace '^popdam://open-folder\\?path=','';$p=[uri]::UnescapeDataString($raw);Start-Process explorer.exe -ArgumentList ('\"' + $p + '\"')\" -- \"%~1\"\n'@; New-Item -ItemType Directory -Path 'C:\\PopDAM' -Force | Out-Null; Set-Content -Path 'C:\\PopDAM\\popdam-open.bat' -Value $bat -Encoding ASCII; New-Item -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name '(Default)' -Value 'URL:PopDAM Protocol'; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name 'URL Protocol' -Value ''; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Name '(Default)' -Value '\"C:\\PopDAM\\popdam-open.bat\" \"%1\"'; Write-Host 'PopDAM protocol handler installed. Restart your browser.'"`;
+
   return (
     <div className="container max-w-4xl py-8 space-y-6">
       <div className="flex items-center gap-3">
@@ -176,21 +178,14 @@ export default function DownloadsPage() {
                 <Badge variant="secondary">Windows</Badge>
               </div>
               <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Download both files below</li>
-                <li>Place <code>popdam-open.bat</code> in <code>C:\PopDAM\</code></li>
-                <li>Double-click <code>install-popdam-protocol.bat</code> to register the protocol</li>
+                <li>Open <strong>Windows Terminal</strong> (no download needed)</li>
+                <li>Paste the command below and press Enter</li>
                 <li>Restart your browser</li>
               </ol>
-              <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.bat", "install-popdam-protocol.bat")} className="flex items-center gap-2">
-                  <Download className="h-3 w-3" />
-                  .bat installer
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => download("/downloads/popdam-open.bat", "popdam-open.bat")} className="flex items-center gap-2">
-                  <Download className="h-3 w-3" />
-                  .bat handler
-                </Button>
-              </div>
+              <CopyBlock
+                label="No-download installer command (bypasses Smart App Control file blocking)"
+                text={windowsNoDownloadInstallCommand}
+              />
             </div>
 
             {/* macOS */}
