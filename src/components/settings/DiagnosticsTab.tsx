@@ -43,8 +43,10 @@ export default function DiagnosticsTab() {
     try {
       const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
       const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState> | undefined;
+      // Only conflict with operations in the SAME lane
+      const myLane = getLane(opKey);
       const activeEntry = ops
-        ? Object.entries(ops).find(([k, op]) => (op.status === "running") && k !== opKey)
+        ? Object.entries(ops).find(([k, op]) => (op.status === "running") && k !== opKey && getLane(k) === myLane)
         : null;
 
       if (activeEntry) {
