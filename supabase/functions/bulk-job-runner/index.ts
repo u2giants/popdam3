@@ -23,7 +23,7 @@ const PERSIST_EVERY_OVERRIDES: Record<string, number> = {
 const INTER_CALL_DELAY_MS: Record<string, number> = {
   "rebuild-style-groups": 1000,
   "reconcile-style-group-stats": 1000,
-  "erp-classify": 500,  // small batches but give admin-api breathing room
+  "erp-classify": 500, // small batches but give admin-api breathing room
 };
 
 // ── Parallel Lane System ────────────────────────────────────────────
