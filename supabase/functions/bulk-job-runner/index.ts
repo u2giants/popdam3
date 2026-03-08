@@ -25,6 +25,26 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
   "reconcile-style-group-stats": 1000,
 };
 
+// ── Parallel Lane System ────────────────────────────────────────────
+// Operations in DIFFERENT lanes can run simultaneously.
+// Operations in the SAME lane are mutually exclusive.
+// This prevents DB conflicts while maximizing throughput.
+const OP_LANES: Record<string, string> = {
+  "ai-tag-untagged": "ai-tagging",
+  "ai-tag-all": "ai-tagging",
+  "ai-tag-groups": "ai-tagging",
+  "rebuild-style-groups": "style-groups",
+  "reconcile-style-group-stats": "style-groups",
+  "reprocess-metadata": "metadata",
+  "backfill-sku-names": "metadata",
+  "erp-enrichment": "erp",
+  "erp-classify": "erp",
+};
+
+function getLane(opKey: string): string {
+  return OP_LANES[opKey] ?? opKey; // fallback: each unknown op is its own lane
+}
+
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
   maxAttempts: 5,
