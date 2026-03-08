@@ -330,8 +330,16 @@ export default function TiffHygieneTab() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Scan Progress Panel */}
+          <ScanProgressPanel
+            scanRequest={scanReqValue as Record<string, unknown> | undefined}
+            triggerPending={scanMutation.isPending}
+            label="TIFF"
+            staleThresholdMs={10 * 60 * 1000}
+          />
+
           {/* Summary stats */}
-          <div className="flex flex-wrap gap-4 text-xs font-mono mb-4">
+          <div className="flex flex-wrap gap-4 text-xs font-mono mb-4 mt-3">
             <div>Total: <span className="font-semibold text-foreground">{summary.total ?? 0}</span></div>
             <div>Uncompressed: <span className="font-semibold text-destructive">{summary.uncompressed ?? 0}</span></div>
             <div>Compressed: <span className="font-semibold text-[hsl(var(--success))]">{summary.compressed ?? 0}</span></div>
