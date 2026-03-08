@@ -1023,6 +1023,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
   const groupIds = Array.isArray(body.group_ids) ? body.group_ids as string[] : null;
   const BATCH_SIZE = 10;
+  const CONCURRENCY = 5; // Process 5 ai-tag calls in parallel
   const db = serviceClient();
 
   let query = db
@@ -1046,7 +1047,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
 
   if (error) return err(error.message, 500);
   if (!assets || assets.length === 0) {
-    return json({ ok: true, tagged: 0, failed: 0, done: true, nextOffset: offset });
+    return json({ ok: true, tagged: 0, failed: 0, skipped: 0, done: true, nextOffset: offset });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1056,32 +1057,39 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   let skipped = 0;
   let failed = 0;
 
-  for (const asset of assets) {
-    try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/ai-tag`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ asset_id: asset.id, force: tagAll }),
-      });
-      if (res.ok) {
-        const result = await res.json();
-        if (result.skipped) skipped++;
-        else tagged++;
+  // Process assets in parallel chunks of CONCURRENCY
+  for (let i = 0; i < assets.length; i += CONCURRENCY) {
+    const chunk = assets.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      chunk.map(async (asset) => {
+        const res = await fetch(`${supabaseUrl}/functions/v1/ai-tag`, {
+          signal: AbortSignal.timeout(30_000),
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({ asset_id: asset.id, force: tagAll }),
+        });
+        if (res.ok) {
+          const result = await res.json();
+          return result.skipped ? "skipped" : "tagged";
+        } else {
+          console.error("bulk-ai-tag asset failed", { assetId: asset.id, httpStatus: res.status });
+          return "failed";
+        }
+      }),
+    );
+
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        if (r.value === "tagged") tagged++;
+        else if (r.value === "skipped") skipped++;
+        else failed++;
       } else {
         failed++;
-        console.error("bulk-ai-tag asset failed", {
-          assetId: asset.id,
-          httpStatus: res.status,
-        });
       }
-    } catch {
-      failed++;
     }
-    // Small delay to avoid rate limiting
-    await new Promise((r) => setTimeout(r, 200));
   }
 
   const done = assets.length < BATCH_SIZE;
