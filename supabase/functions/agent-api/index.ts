@@ -796,21 +796,8 @@ async function handleIngest(
 
   if (insertError) return err(insertError.message, 500);
 
-  // Queue for thumbnail processing (if no thumbnail yet)
-  if (!thumbnailUrl) {
-    await db.from("processing_queue").insert({
-      asset_id: newAsset.id,
-      job_type: "thumbnail",
-    });
-  }
-
-  // Queue for AI tagging if thumbnail is available
-  if (thumbnailUrl) {
-    await db.from("processing_queue").insert({
-      asset_id: newAsset.id,
-      job_type: "ai-tag",
-    });
-  }
+  // processing_queue inserts removed — thumbnails are handled by render_queue trigger,
+  // AI tagging by bulk-job-runner
 
   assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, db).catch(() => {});
 
