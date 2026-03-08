@@ -925,7 +925,8 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
               <p className="text-[10px] font-mono text-muted-foreground break-all">{group.folder_path}</p>
             </section>
           </div>
-        </ScrollArea>
+          </div>
+        </div>
       </div>
 
       {/* Lightbox */}
