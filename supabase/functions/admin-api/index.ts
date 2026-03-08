@@ -2519,24 +2519,33 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   const batchSize = 50;
   const db = serviceClient();
 
-  // Only enrich ERP items whose style_number matches an existing asset or style group
-  const matchedSql = `
-    SELECT e.id, e.external_id, e.style_number, e.mg_category,
-           e.mg01_code, e.mg02_code, e.mg03_code, e.size_code,
-           e.licensor_code, e.property_code, e.division_code
-    FROM erp_items_current e
-    WHERE e.style_number IS NOT NULL
-      AND (
-        EXISTS (SELECT 1 FROM assets a WHERE a.sku = e.style_number AND a.is_deleted = false)
-        OR EXISTS (SELECT 1 FROM style_groups sg WHERE sg.sku = e.style_number)
-      )
-    ORDER BY e.external_id
-    LIMIT ${batchSize} OFFSET ${offset}
-  `;
-  const { data: erpItemsRaw, error: fetchErr } = await db.rpc("execute_readonly_query", { query_text: matchedSql });
+  // Fetch ERP items using direct Supabase client queries (avoids execute_readonly_query's
+  // 15s statement_timeout which caused "Only SELECT queries allowed" errors on redeployment).
+  // Step 1: Get ERP items with style numbers
+  const { data: rawErpItems, error: fetchErr } = await db
+    .from("erp_items_current")
+    .select("id, external_id, style_number, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
+    .not("style_number", "is", null)
+    .order("external_id")
+    .range(offset, offset + batchSize + 49); // fetch bigger window for filtering
 
   if (fetchErr) return err(fetchErr.message, 500);
-  const erpItems = (Array.isArray(erpItemsRaw) ? erpItemsRaw : []) as any[];
+  if (!rawErpItems || rawErpItems.length === 0) {
+    return json({ ok: true, done: true, assets_updated: 0, groups_updated: 0 });
+  }
+
+  // Step 2: Filter to items whose style_number matches an asset or style group
+  const skus = rawErpItems.map((e: any) => e.style_number).filter(Boolean);
+  const [assetMatch, groupMatch] = await Promise.all([
+    db.from("assets").select("sku").in("sku", skus).eq("is_deleted", false),
+    db.from("style_groups").select("sku").in("sku", skus),
+  ]);
+  const matchedSkuSet = new Set([
+    ...((assetMatch.data || []).map((a: any) => a.sku)),
+    ...((groupMatch.data || []).map((g: any) => g.sku)),
+  ]);
+
+  const erpItems = rawErpItems.filter((e: any) => matchedSkuSet.has(e.style_number)).slice(0, batchSize) as any[];
   if (erpItems.length === 0) {
     return json({ ok: true, done: true, assets_updated: 0, groups_updated: 0 });
   }

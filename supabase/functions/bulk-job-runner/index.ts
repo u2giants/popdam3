@@ -288,7 +288,9 @@ serve(async (req: Request) => {
     if (autoResumeConfig.enabled) {
       for (const [key, op] of Object.entries(allOps)) {
         if (op.status !== "interrupted") continue;
+        // Skip operations that shouldn't be auto-resumed
         if (op.interruption_reason_code === "user_stop") continue; // respect manual stops
+        if (op.interruption_reason_code === "legacy_format") continue; // needs manual restart with proper cursor
 
         const attempts = op.auto_resume_attempts ?? 0;
         const maxAttemptsForOp = AUTO_RESUME_MAX_ATTEMPTS_BY_OP[key] ?? autoResumeConfig.maxAttempts;
