@@ -2705,11 +2705,11 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
       /^none$/i,
       /^null$/i,
       /^placeholder$/i,
-      /^(desing|design)\s*(number|num|#)?(\s+function)?\s*(test)?\s*\d*$/i,  // "desing numnber function test"
-      /^\d{4,}$/,  // Just numbers like "20200", "12345"
-      /^[a-z]{1,3}\d{4,}$/i,  // Style-number-like: "AB12345"
+      /^(desing|design)\s*(number|num|#)?(\s+function)?\s*(test)?\s*\d*$/i, // "desing numnber function test"
+      /^\d{4,}$/, // Just numbers like "20200", "12345"
+      /^[a-z]{1,3}\d{4,}$/i, // Style-number-like: "AB12345"
     ];
-    if (junkPatterns.some(p => p.test(desc))) return true;
+    if (junkPatterns.some((p) => p.test(desc))) return true;
     return false;
   }
 
