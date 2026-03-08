@@ -96,17 +96,16 @@ export default function LibraryPage() {
 
   // Debounced search
   const [searchInput, setSearchInput] = useState("");
-  const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchInput(value);
-    if (searchTimer) clearTimeout(searchTimer);
-    const timer = setTimeout(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
       setFilters((f) => ({ ...f, search: value }));
       setPage(0);
     }, 300);
-    setSearchTimer(timer);
-  }, [searchTimer]);
+  }, []);
 
   const handleFiltersChange = useCallback((f: AssetFilters) => {
     setFilters(f);
