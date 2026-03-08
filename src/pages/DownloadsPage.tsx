@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 function CopyBlock({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -25,16 +26,21 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
 }
 
 export default function DownloadsPage() {
+  const { isAdmin } = useIsAdmin();
+
   return (
     <div className="container max-w-4xl py-8 space-y-6">
       <div className="flex items-center gap-3">
         <Download className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-semibold">Downloads & Agents</h1>
+        <h1 className="text-2xl font-semibold">{isAdmin ? "Downloads & Agents" : "Downloads"}</h1>
       </div>
       <p className="text-muted-foreground text-sm">
-        PopDAM uses agents to scan your NAS and render thumbnails. Download and deploy them below.
+        {isAdmin
+          ? "PopDAM uses agents to scan your NAS and render thumbnails. Download and deploy them below."
+          : "Install the protocol handler to enable \"Open Containing Folder\" from the asset browser."}
       </p>
 
+      {isAdmin && (
       <div className="grid gap-6 md:grid-cols-2">
         {/* Bridge Agent Card */}
         <Card>
@@ -125,8 +131,9 @@ export default function DownloadsPage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
-      {/* Protocol Handler Card */}
+      {/* Protocol Handler Card — visible to all users */}
       <Card className="mt-6">
         <CardHeader>
           <div className="flex items-center gap-2">
