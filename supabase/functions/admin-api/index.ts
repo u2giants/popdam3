@@ -1576,6 +1576,8 @@ serve(async (req: Request) => {
         return await handleUpdateHygieneFindings(body, userId);
       case "trigger-hygiene-scan":
         return await handleTriggerHygieneScan(body, userId);
+      case "stop-hygiene-scan":
+        return await handleStopHygieneScan(userId);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
