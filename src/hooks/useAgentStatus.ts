@@ -117,16 +117,11 @@ export function useAgentStatus(): AgentStatusInfo {
       const bridgeStatus: AgentOnlineStatus | "none" =
         bridgeAgents.length === 0 ? "none" : bridgeAgents.some((a) => a.isOnline) ? "online" : "offline";
 
-      // scanRunning is now driven by useScanProgress, not agent metadata.
-      // Kept as false here for backward compat; consumers should use useScanProgress.
-      const scanRunning = false;
-
       const online = agents.filter((a) => a.isOnline).length;
 
       if (mounted) {
         setInfo({
           bridgeStatus,
-          scanRunning,
           agents,
           agentCount: data.length,
           onlineCount: online,
