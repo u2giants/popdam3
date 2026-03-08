@@ -2010,6 +2010,122 @@ async function handleClaimTiffJob(body: Record<string, unknown>, agentId: string
   return json({ ok: true, jobs: data });
 }
 
+async function handleClaimTiffReinspect(body: Record<string, unknown>, agentId: string) {
+  const db = serviceClient();
+  const batchSize = typeof body.batch_size === "number"
+    ? Math.min(Math.max(body.batch_size, 1), 200)
+    : 50;
+
+  const { data: row, error: reqErr } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "TIFF_REINSPECT_REQUEST")
+    .maybeSingle();
+
+  if (reqErr) return err(reqErr.message, 500);
+
+  const req = (row?.value as Record<string, unknown> | undefined) ?? undefined;
+  if (!req || (req.status !== "pending" && req.status !== "claimed")) {
+    return json({ ok: true, jobs: [], done: true });
+  }
+
+  const nowIso = new Date().toISOString();
+  const currentStatus = req.status as string;
+  const claimedBy = typeof req.claimed_by === "string" ? req.claimed_by : null;
+
+  if (currentStatus === "pending") {
+    const { error: claimErr } = await db.from("admin_config").upsert({
+      key: "TIFF_REINSPECT_REQUEST",
+      value: {
+        ...req,
+        status: "claimed",
+        claimed_by: agentId,
+        claimed_at: nowIso,
+      },
+      updated_at: nowIso,
+    }, { onConflict: "key" });
+    if (claimErr) return err(claimErr.message, 500);
+  } else if (claimedBy && claimedBy !== agentId) {
+    return json({ ok: true, jobs: [], done: false });
+  }
+
+  const requestedIds = Array.isArray(req.ids)
+    ? (req.ids.filter((v): v is string => typeof v === "string" && v.length > 0))
+    : [];
+  const lastId = typeof req.last_id === "string" && req.last_id.length > 0 ? req.last_id : null;
+  const processedCount = typeof req.processed_count === "number" ? req.processed_count : 0;
+
+  let query = db.from("tiff_optimization_queue")
+    .select("id, relative_path")
+    .eq("status", "completed")
+    .order("id", { ascending: true })
+    .limit(batchSize);
+
+  if (requestedIds.length > 0) query = query.in("id", requestedIds);
+  if (lastId) query = query.gt("id", lastId);
+
+  const { data: jobs, error: jobsErr } = await query;
+  if (jobsErr) return err(jobsErr.message, 500);
+
+  if (!jobs || jobs.length === 0) {
+    const { error: doneErr } = await db.from("admin_config").upsert({
+      key: "TIFF_REINSPECT_REQUEST",
+      value: {
+        ...req,
+        status: "completed",
+        completed_at: nowIso,
+        processed_count: processedCount,
+      },
+      updated_at: nowIso,
+    }, { onConflict: "key" });
+    if (doneErr) return err(doneErr.message, 500);
+    return json({ ok: true, jobs: [], done: true });
+  }
+
+  const newLastId = jobs[jobs.length - 1].id;
+  const { error: progErr } = await db.from("admin_config").upsert({
+    key: "TIFF_REINSPECT_REQUEST",
+    value: {
+      ...req,
+      status: "claimed",
+      claimed_by: agentId,
+      claimed_at: nowIso,
+      processed_count: processedCount + jobs.length,
+      last_id: newLastId,
+    },
+    updated_at: nowIso,
+  }, { onConflict: "key" });
+  if (progErr) return err(progErr.message, 500);
+
+  return json({ ok: true, jobs, done: false });
+}
+
+async function handleCompleteTiffReinspect(body: Record<string, unknown>) {
+  const jobId = requireString(body, "job_id");
+  const success = body.success === true;
+  const db = serviceClient();
+
+  const updates: Record<string, unknown> = {
+    processed_at: new Date().toISOString(),
+  };
+
+  if (success) {
+    if (body.new_file_modified_at !== undefined) updates.new_file_modified_at = body.new_file_modified_at;
+    if (body.new_file_created_at !== undefined) updates.new_file_created_at = body.new_file_created_at;
+    updates.error_message = null;
+  } else {
+    updates.error_message = optionalString(body, "error") || "Timestamp re-inspection failed";
+  }
+
+  const { error } = await db.from("tiff_optimization_queue")
+    .update(updates)
+    .eq("id", jobId)
+    .eq("status", "completed");
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true });
+}
+
 // ── Route: complete-tiff-job ────────────────────────────────────────
 
 async function handleCompleteTiffJob(body: Record<string, unknown>) {
