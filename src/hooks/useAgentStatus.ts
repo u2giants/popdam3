@@ -105,8 +105,6 @@ export function useAgentStatus(): AgentStatusInfo {
           agent_type: a.agent_type,
           last_heartbeat: a.last_heartbeat,
           isOnline: isOnline(a.last_heartbeat),
-          scanRequested: Boolean(meta.scan_requested),
-          scanAbort: Boolean(meta.scan_abort),
           lastError: (meta.last_error as string) || null,
           lastCounters: parseCounters(meta.last_counters) ?? parseCounters(lastEntry),
           lastActivityAt: lastEntry && typeof (lastEntry as Record<string, unknown>).ts === "string"
