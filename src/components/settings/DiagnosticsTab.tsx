@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Stethoscope, ListOrdered } from "lucide-react";
 import type { OperationState } from "@/hooks/usePersistentOperation";
 import type { DiagnosticData, RequestOpFn } from "./diagnostics/types";
-import { OP_NAMES } from "./diagnostics/types";
+import { OP_NAMES, getLane } from "./diagnostics/types";
 
 // Sub-components
 import { OverviewCards, ConnectedAgents, ScanStatusCard, RecentErrors, RenderJobStats, ConfigurationSection } from "./diagnostics/OverviewCards";
