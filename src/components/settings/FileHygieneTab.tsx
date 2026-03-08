@@ -388,7 +388,7 @@ export default function FileHygieneTab() {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="text-[10px] font-mono">
-                                  {f.details.embedded_count ?? 0} rasters •{" "}
+                                  {String(f.details.embedded_count ?? 0)} rasters •{" "}
                                   {formatBytes((f.details.total_embedded_bytes as number) ?? 0)} total
                                 </span>
                               </TooltipTrigger>
