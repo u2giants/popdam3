@@ -20,6 +20,7 @@ import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
 import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
+import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
 import { ensureNasMapped } from "./nas-mapper";
 import { shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
@@ -507,6 +508,9 @@ async function main() {
   // 12. Start temp janitor (cleanup stale render artifacts)
   startJanitor();
 
+  // 13. Start hygiene scan checker (AI raster inspection)
+  startHygieneScanChecker();
+
   logger.info("Windows Render Agent ready", {
     healthy: healthStatus.healthy,
     concurrency: config.renderConcurrency,
@@ -798,6 +802,121 @@ function startTiffReinspectPolling() {
 
   setTimeout(loop, REINSPECT_POLL_MS);
   logger.info("TIFF date re-inspection polling started (7s interval)");
+}
+
+// ── Hygiene Scan Checker (AI Raster Inspection) ─────────────────
+
+let hygieneScanRunning = false;
+
+function startHygieneScanChecker() {
+  const CHECK_MS = 30_000;
+
+  const loop = async () => {
+    if (!configReceived || !healthStatus.healthy || hygieneScanRunning) {
+      setTimeout(loop, CHECK_MS);
+      return;
+    }
+
+    try {
+      const resp = await api.callApi("claim-hygiene-scan", {});
+      const reqValue = (resp?.request as Record<string, unknown> | null) ?? null;
+      if (!reqValue) {
+        setTimeout(loop, CHECK_MS);
+        return;
+      }
+
+      hygieneScanRunning = true;
+      const sessionId = (reqValue.request_id as string) || crypto.randomUUID();
+      const checkTypes = (reqValue.check_types as string[]) || ["ai_embedded_raster"];
+      logger.info("Starting hygiene scan", { sessionId, checkTypes });
+
+      const nasMapResult = await ensureNasMapped(cloudNasMountPath, {
+        host: cloudNasHost, share: cloudNasShare,
+        username: cloudNasUsername, password: cloudNasPassword,
+      });
+
+      if (!nasMapResult.ok) {
+        logger.error("Hygiene scan aborted — NAS not accessible", { error: nasMapResult.error });
+        await api.callApi("report-hygiene-findings", {
+          findings: [], session_id: sessionId, done: true, error: nasMapResult.error,
+        });
+        hygieneScanRunning = false;
+        setTimeout(loop, CHECK_MS);
+        return;
+      }
+
+      const mountPath = (cloudNasMountPath || "").trim().replace(/\\+$/, "");
+      const scanRoot = mountPath || `\\\\${cloudNasHost}\\${cloudNasShare}`;
+
+      // Walk filesystem looking for .ai files
+      const { readdir, stat: fsStat } = await import("node:fs/promises");
+      const findings: Array<Record<string, unknown>> = [];
+      const BATCH_SIZE = 50;
+      let totalChecked = 0;
+
+      async function walkDir(dir: string) {
+        let entries;
+        try { entries = await readdir(dir, { withFileTypes: true }); } catch { return; }
+
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            if (shouldSkipPath(entry.name, () => {})) continue;
+            await walkDir(fullPath);
+          } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".ai")) {
+            const relativePath = fullPath.slice(scanRoot.length).replace(/\\/g, "/").replace(/^\//, "");
+            if (shouldSkipPath(relativePath, () => {})) continue;
+
+            totalChecked++;
+            try {
+              const result = await inspectAiFile(fullPath);
+              if (result.exceedsThreshold) {
+                findings.push({
+                  relative_path: relativePath,
+                  filename: entry.name,
+                  check_type: "ai_embedded_raster",
+                  severity: result.totalEmbeddedBytes > 20 * 1024 * 1024 ? "critical" : "warning",
+                  details: {
+                    embedded_count: result.embeddedCount,
+                    total_embedded_bytes: result.totalEmbeddedBytes,
+                    largest_raster_bytes: result.largestRasterBytes,
+                    inspection_method: result.inspectionMethod,
+                    raster_items: result.rasterItems.slice(0, 10),
+                  },
+                });
+
+                if (findings.length >= BATCH_SIZE) {
+                  await api.callApi("report-hygiene-findings", {
+                    findings, session_id: sessionId, done: false,
+                  });
+                  findings.length = 0;
+                }
+              }
+            } catch (e) {
+              logger.debug("AI inspection error", { file: relativePath, error: (e as Error).message });
+            }
+          }
+        }
+      }
+
+      await walkDir(scanRoot);
+
+      await api.callApi("report-hygiene-findings", {
+        findings, session_id: sessionId, done: true,
+      });
+
+      logger.info("Hygiene scan complete", { totalChecked, findingsReported: findings.length, sessionId });
+    } catch (e) {
+      logger.error("Hygiene scan failed", { error: (e as Error).message });
+    } finally {
+      hygieneScanRunning = false;
+    }
+
+    setTimeout(loop, CHECK_MS);
+  };
+
+  setTimeout(loop, CHECK_MS);
+  logger.info("Hygiene scan checker started (30s interval)");
 }
 
 // ── Global error handlers (prevent crash loops) ─────────────────

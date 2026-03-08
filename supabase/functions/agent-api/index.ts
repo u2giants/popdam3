@@ -312,6 +312,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "WINDOWS_RENDER_MODE",
   "WINDOWS_RENDER_POLICY",
   "TIFF_SCAN_REQUEST",
+  "HYGIENE_SCAN_REQUEST",
 ];
 
 async function handleHeartbeat(
@@ -2300,6 +2301,90 @@ async function handleCompleteSiblingScan(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: claim-hygiene-scan ───────────────────────────────────────
+
+async function handleClaimHygieneScan(_body: Record<string, unknown>, agentId: string) {
+  const db = serviceClient();
+  const { data } = await db.from("admin_config").select("value").eq("key", "HYGIENE_SCAN_REQUEST").maybeSingle();
+  const req = (data?.value as Record<string, unknown>) ?? null;
+
+  if (!req || req.status !== "pending") {
+    return json({ ok: true, request: null });
+  }
+
+  const claimed = {
+    ...req,
+    status: "claimed",
+    claimed_by: agentId,
+    claimed_at: new Date().toISOString(),
+  };
+
+  const { error: claimErr } = await db.from("admin_config").upsert(
+    { key: "HYGIENE_SCAN_REQUEST", value: claimed, updated_at: new Date().toISOString() },
+    { onConflict: "key" },
+  );
+
+  if (claimErr) return err(claimErr.message, 500);
+  return json({ ok: true, request: claimed });
+}
+
+// ── Route: report-hygiene-findings ──────────────────────────────────
+
+async function handleReportHygieneFindings(body: Record<string, unknown>) {
+  const findings = body.findings as Array<Record<string, unknown>>;
+  const sessionId = optionalString(body, "session_id");
+  const done = body.done === true;
+  const scanError = optionalString(body, "error");
+
+  if (!Array.isArray(findings)) return err("findings must be an array");
+
+  const db = serviceClient();
+
+  // Upsert findings in batches
+  const CHUNK = 100;
+  let inserted = 0;
+  for (let i = 0; i < findings.length; i += CHUNK) {
+    const chunk = findings.slice(i, i + CHUNK);
+    const rows = chunk
+      .filter((f) => !isExcludedRelativePath(f.relative_path as string))
+      .map((f) => ({
+        asset_id: (f.asset_id as string) || null,
+        relative_path: f.relative_path as string,
+        filename: f.filename as string,
+        check_type: f.check_type as string,
+        severity: (f.severity as string) || "warning",
+        status: "open",
+        details: f.details || {},
+        scan_session_id: sessionId,
+        found_by_agent: (f.found_by_agent as string) || null,
+      }));
+
+    // Use upsert with the unique index on (relative_path, check_type) WHERE status != 'resolved'
+    for (const row of rows) {
+      const { error } = await db.from("hygiene_findings")
+        .upsert(row, { onConflict: "relative_path,check_type" });
+      if (!error) inserted++;
+    }
+  }
+
+  // If done, mark scan request as completed
+  if (done && sessionId) {
+    await db.from("admin_config").upsert({
+      key: "HYGIENE_SCAN_REQUEST",
+      value: {
+        status: scanError ? "error" : "completed",
+        request_id: sessionId,
+        completed_at: new Date().toISOString(),
+        total_findings: inserted,
+        ...(scanError ? { error: scanError } : {}),
+      },
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  return json({ ok: true, inserted });
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -2409,6 +2494,10 @@ serve(async (req: Request) => {
         return await handleClaimSiblingScan(body, agentId);
       case "complete-sibling-scan":
         return await handleCompleteSiblingScan(body);
+      case "claim-hygiene-scan":
+        return await handleClaimHygieneScan(body, agentId);
+      case "report-hygiene-findings":
+        return await handleReportHygieneFindings(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

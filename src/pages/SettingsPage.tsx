@@ -17,6 +17,7 @@ import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
 import InstallBundleTab from "@/components/settings/InstallBundleTab";
 import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
 import TiffHygieneTab from "@/components/settings/TiffHygieneTab";
+import FileHygieneTab from "@/components/settings/FileHygieneTab";
 import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
 
 
@@ -885,6 +886,7 @@ export default function SettingsPage() {
           <TabsTrigger value="taxonomy">APIs & Tagging</TabsTrigger>
           <TabsTrigger value="erp-enrichment">ERP Enrichment</TabsTrigger>
           <TabsTrigger value="tiff-hygiene">TIFF Hygiene</TabsTrigger>
+          <TabsTrigger value="file-hygiene">File Hygiene</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
@@ -934,6 +936,9 @@ export default function SettingsPage() {
           <TiffHygieneTab />
         </TabsContent>
 
+        <TabsContent value="file-hygiene" className="space-y-4">
+          <FileHygieneTab />
+        </TabsContent>
 
         <TabsContent value="diagnostics" className="space-y-4">
           <DiagnosticsTab />
