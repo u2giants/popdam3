@@ -293,6 +293,9 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
               <MetaRow label="Licensed" value={asset.is_licensed ? "Yes" : "No"} />
               <MetaRow label="Licensor" value={licensorName ?? "—"} />
               <MetaRow label="Property" value={propertyName ?? "—"} />
+              {(asset as any).designer_name && <MetaRow label="Designer" value={(asset as any).designer_name} />}
+              {(asset as any).technical_designer_name && <MetaRow label="Tech Designer" value={(asset as any).technical_designer_name} />}
+              {(asset as any).freelancer_name && <MetaRow label="Freelancer" value={(asset as any).freelancer_name} />}
             </div>
           </section>
 
