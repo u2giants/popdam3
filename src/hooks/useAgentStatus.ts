@@ -28,8 +28,6 @@ export interface AgentRecord {
   agent_type: string;
   last_heartbeat: string | null;
   isOnline: boolean;
-  scanRequested: boolean;
-  scanAbort: boolean;
   lastError: string | null;
   lastCounters: ScanCounters | null;
   /** Most recent counter_history entry timestamp */
