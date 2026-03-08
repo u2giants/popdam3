@@ -52,8 +52,9 @@ export default function LibraryPage() {
     lastSelectedIndex.current = null;
   }, []);
 
+  // Clear scanTriggered once the scan is actually picked up (running/queued)
   useEffect(() => {
-    if (scanTriggered && scanProgress.status !== "idle") {
+    if (scanTriggered && (scanProgress.status === "running" || scanProgress.status === "queued")) {
       setScanTriggered(false);
     }
   }, [scanTriggered, scanProgress.status]);

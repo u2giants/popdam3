@@ -24,10 +24,11 @@ const POLL_QUEUED_MS = 5_000;
  * Returns the current scan progress state, including a synthetic "queued"
  * status when a scan request exists but progress hasn't started yet.
  */
-export function useScanProgress(): ScanProgress {
+export function useScanProgress(): ScanProgress & { pollNow: () => void } {
   const [progress, setProgress] = useState<ScanProgress>({ status: "idle" });
   const { call } = useAdminApi();
   const prevStatusRef = useRef<ScanProgressStatus>("idle");
+  const pollNowRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let mounted = true;
