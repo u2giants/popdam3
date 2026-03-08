@@ -44,6 +44,36 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
     onError: (e) => toast.error(e.message),
   });
 
+  const debugColdlionMutation = useMutation({
+    mutationFn: async () => {
+      const result = await call("debug-coldlion-lookup", { mg_type: "06", division: "CW001", search_code: "CR" });
+      console.log("ColdLion MG06 Debug:", result);
+      return result;
+    },
+    onSuccess: (data) => {
+      const cr = data.search_result;
+      const creature = data.creature_check;
+      let msg = `ColdLion has ${data.total_codes} property codes.\n`;
+      msg += cr?.found 
+        ? `CR → "${cr.name}"` 
+        : "CR code NOT FOUND in ColdLion!";
+      msg += creature?.found 
+        ? `\nCREATURE found as code "${creature.code}"` 
+        : "\nNo code maps to CREATURE.";
+      toast.info(msg, { duration: 10000 });
+    },
+    onError: (e) => toast.error(`ColdLion lookup failed: ${e.message}`),
+  });
+
+  const repairPropertyNamesMutation = useMutation({
+    mutationFn: () => call("repair-invalid-property-names"),
+    onSuccess: (data) => {
+      toast.success(`Repaired ${data.assets_repaired} assets and ${data.groups_repaired} style groups`);
+      onRefresh();
+    },
+    onError: (e) => toast.error(`Repair failed: ${e.message}`),
+  });
+
   function runReprocess() {
     requestOp("reprocess-metadata", OP_NAMES["reprocess-metadata"],
       () => reprocessOp.start({ confirmMessage: "Re-derive SKU metadata for all assets. Continue?" }),
