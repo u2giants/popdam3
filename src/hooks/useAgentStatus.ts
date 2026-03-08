@@ -28,8 +28,6 @@ export interface AgentRecord {
   agent_type: string;
   last_heartbeat: string | null;
   isOnline: boolean;
-  scanRequested: boolean;
-  scanAbort: boolean;
   lastError: string | null;
   lastCounters: ScanCounters | null;
   /** Most recent counter_history entry timestamp */
@@ -38,8 +36,6 @@ export interface AgentRecord {
 
 export interface AgentStatusInfo {
   bridgeStatus: AgentOnlineStatus | "none";
-  /** True if any bridge agent has scan_requested=true and scan_abort=false */
-  scanRunning: boolean;
   agents: AgentRecord[];
   status: "online" | "degraded" | "offline" | "none";
   agentCount: number;
@@ -52,15 +48,7 @@ function isOnline(hb: string | null): boolean {
   return !!hb && Date.now() - new Date(hb).getTime() < TWO_MIN;
 }
 
-const emptyCounters: ScanCounters = {
-  files_checked: 0, candidates_found: 0, ingested_new: 0,
-  moved_detected: 0, updated_existing: 0, errors: 0,
-  roots_invalid: 0, roots_unreadable: 0, dirs_skipped_permission: 0,
-  dirs_skipped_excluded: 0,
-  files_stat_failed: 0, files_total_encountered: 0,
-  rejected_wrong_type: 0, rejected_junk_file: 0, noop_unchanged: 0,
-  rejected_subfolder: 0,
-};
+// emptyCounters removed — was unused
 
 function parseCounters(raw: unknown): ScanCounters | null {
   if (!raw || typeof raw !== "object") return null;
@@ -87,7 +75,6 @@ function parseCounters(raw: unknown): ScanCounters | null {
 export function useAgentStatus(): AgentStatusInfo {
   const [info, setInfo] = useState<AgentStatusInfo>({
     bridgeStatus: "none",
-    scanRunning: false,
     agents: [],
     status: "none",
     agentCount: 0,
@@ -103,7 +90,7 @@ export function useAgentStatus(): AgentStatusInfo {
         .select("id, agent_name, agent_type, last_heartbeat, metadata");
 
       if (error || !data) {
-        if (mounted) setInfo({ bridgeStatus: "none", scanRunning: false, agents: [], status: "none", agentCount: 0, onlineCount: 0 });
+        if (mounted) setInfo({ bridgeStatus: "none", agents: [], status: "none", agentCount: 0, onlineCount: 0 });
         return;
       }
 
@@ -118,8 +105,6 @@ export function useAgentStatus(): AgentStatusInfo {
           agent_type: a.agent_type,
           last_heartbeat: a.last_heartbeat,
           isOnline: isOnline(a.last_heartbeat),
-          scanRequested: Boolean(meta.scan_requested),
-          scanAbort: Boolean(meta.scan_abort),
           lastError: (meta.last_error as string) || null,
           lastCounters: parseCounters(meta.last_counters) ?? parseCounters(lastEntry),
           lastActivityAt: lastEntry && typeof (lastEntry as Record<string, unknown>).ts === "string"
@@ -132,16 +117,11 @@ export function useAgentStatus(): AgentStatusInfo {
       const bridgeStatus: AgentOnlineStatus | "none" =
         bridgeAgents.length === 0 ? "none" : bridgeAgents.some((a) => a.isOnline) ? "online" : "offline";
 
-      // scanRunning is now driven by useScanProgress, not agent metadata.
-      // Kept as false here for backward compat; consumers should use useScanProgress.
-      const scanRunning = false;
-
       const online = agents.filter((a) => a.isOnline).length;
 
       if (mounted) {
         setInfo({
           bridgeStatus,
-          scanRunning,
           agents,
           agentCount: data.length,
           onlineCount: online,

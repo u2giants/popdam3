@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
@@ -65,10 +66,14 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
   const isDone = op.state.status === "completed";
   const isFailed = op.state.status === "failed";
 
-  // Auto-invalidate on completion
-  if (isDone || isFailed) {
-    queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-  }
+  // Auto-invalidate on completion (once per transition)
+  const prevDoneRef = useRef(false);
+  useEffect(() => {
+    if ((isDone || isFailed) && !prevDoneRef.current) {
+      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+    }
+    prevDoneRef.current = isDone || isFailed;
+  }, [isDone, isFailed, queryClient]);
 
   const total = (progress.total as number) || 0;
   const tagged = (progress.tagged as number) || 0;

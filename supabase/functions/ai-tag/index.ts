@@ -202,129 +202,144 @@ ${
       characterCount: characters.length,
     });
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        signal: AbortSignal.timeout(20_000),
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "image_url",
-                  image_url: { url: thumbnailUrl },
-                },
-                {
-                  type: "text",
-                  text: "Analyze this design asset image and return structured tags using the tag_asset tool.",
-                },
-              ],
-            },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "tag_asset",
-                description: "Return structured tagging data for this design asset.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    tags: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "Descriptive tags: characters, styles, colors, themes",
-                    },
-                    ai_description: {
-                      type: "string",
-                      description: "One-sentence description of the design asset",
-                    },
-                    cover_description: {
-                      type: "string",
-                      description:
-                        "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
-                    },
-                    scene_description: {
-                      type: "string",
-                      description: "What is depicted in the image",
-                    },
-                    asset_type: {
-                      type: "string",
-                      enum: ["art_piece", "product"],
-                    },
-                    art_source: {
-                      type: "string",
-                      enum: [
-                        "freelancer",
-                        "straight_style_guide",
-                        "style_guide_composition",
-                      ],
-                    },
-                    design_style: {
-                      type: "string",
-                      description: "e.g. flat, dimensional, vintage, modern",
-                    },
-                    design_ref: {
-                      type: "string",
-                      description: "Any style number or design reference visible",
-                    },
-                    character_ids: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "UUIDs of identified characters from taxonomy",
-                    },
-                    licensor_id: {
-                      type: "string",
-                      description: "UUID of identified licensor",
-                    },
-                    property_id: {
-                      type: "string",
-                      description: "UUID of identified property",
-                    },
-                    designer_name: {
-                      type: "string",
-                      description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
-                    },
-                    technical_designer_name: {
-                      type: "string",
-                      description: "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
-                    },
-                    freelancer_name: {
-                      type: "string",
-                      description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
-                    },
+    // Retry logic for transient AI gateway errors
+    const MAX_AI_RETRIES = 2;
+    let response: Response | null = null;
+
+    for (let attempt = 0; attempt <= MAX_AI_RETRIES; attempt++) {
+      response = await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          signal: AbortSignal.timeout(25_000),
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: systemPrompt },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image_url",
+                    image_url: { url: thumbnailUrl },
                   },
-                  required: ["tags", "ai_description", "scene_description"],
-                  additionalProperties: false,
+                  {
+                    type: "text",
+                    text: "Analyze this design asset image and return structured tags using the tag_asset tool.",
+                  },
+                ],
+              },
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "tag_asset",
+                  description: "Return structured tagging data for this design asset.",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      tags: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Descriptive tags: characters, styles, colors, themes",
+                      },
+                      ai_description: {
+                        type: "string",
+                        description: "One-sentence description of the design asset",
+                      },
+                      cover_description: {
+                        type: "string",
+                        description:
+                          "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
+                      },
+                      scene_description: {
+                        type: "string",
+                        description: "What is depicted in the image",
+                      },
+                      asset_type: {
+                        type: "string",
+                        enum: ["art_piece", "product"],
+                      },
+                      art_source: {
+                        type: "string",
+                        enum: [
+                          "freelancer",
+                          "straight_style_guide",
+                          "style_guide_composition",
+                        ],
+                      },
+                      design_style: {
+                        type: "string",
+                        description: "e.g. flat, dimensional, vintage, modern",
+                      },
+                      design_ref: {
+                        type: "string",
+                        description: "Any style number or design reference visible",
+                      },
+                      character_ids: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "UUIDs of identified characters from taxonomy",
+                      },
+                      licensor_id: {
+                        type: "string",
+                        description: "UUID of identified licensor",
+                      },
+                      property_id: {
+                        type: "string",
+                        description: "UUID of identified property",
+                      },
+                      designer_name: {
+                        type: "string",
+                        description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
+                      },
+                      technical_designer_name: {
+                        type: "string",
+                        description: "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
+                      },
+                      freelancer_name: {
+                        type: "string",
+                        description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
+                      },
+                    },
+                    required: ["tags", "ai_description", "scene_description"],
+                    additionalProperties: false,
+                  },
                 },
               },
+            ],
+            tool_choice: {
+              type: "function",
+              function: { name: "tag_asset" },
             },
-          ],
-          tool_choice: {
-            type: "function",
-            function: { name: "tag_asset" },
-          },
-        }),
-      },
-    );
+          }),
+        },
+      );
 
-    if (!response.ok) {
-      if (response.status === 429) {
+      if (response!.ok) break;
+
+      // Non-retryable errors
+      if (response!.status === 429) {
         return err("AI rate limit exceeded. Try again later.", 429);
       }
-      if (response.status === 402) {
+      if (response!.status === 402) {
         return err("AI credits exhausted. Add credits in workspace settings.", 402);
       }
-      const text = await response.text();
-      console.error("AI gateway error:", response.status, text);
+
+      // Retryable: 5xx errors
+      if (response!.status >= 500 && attempt < MAX_AI_RETRIES) {
+        console.warn(`ai-tag transient error (attempt ${attempt + 1}/${MAX_AI_RETRIES + 1}): ${response!.status}`);
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        continue;
+      }
+
+      const text = await response!.text();
+      console.error("AI gateway error:", response!.status, text);
       return err("AI gateway error", 500);
     }
 

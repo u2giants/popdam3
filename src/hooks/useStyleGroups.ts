@@ -62,7 +62,7 @@ export function useStyleGroups(
       let query = supabase
         .from("style_groups")
         .select(
-          `*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error, asset_type)`,
+          `*`,
           { count: "exact" },
         );
 
@@ -125,13 +125,11 @@ export function useStyleGroups(
       if (error) throw error;
 
       const groups: StyleGroup[] = (data ?? []).map((row: any) => {
-        const primaryThumb = row.primary_asset?.thumbnail_url;
         return {
           ...row,
           asset_count: row.asset_count ?? 0,
           workflow_status: row.workflow_status ?? "other",
-          thumbnail_url: typeof primaryThumb === "string" && primaryThumb.length > 0 ? primaryThumb : null,
-          primary_asset: undefined,
+          thumbnail_url: row.primary_thumbnail_url ?? null,
         };
       });
 

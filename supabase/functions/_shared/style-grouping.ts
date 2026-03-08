@@ -110,5 +110,5 @@ export function selectPrimaryAsset(
   if (p8) return p8.id;
 
   // Tier 9: fallback — first by created_at
-  return assets.sort((a, b) => a.created_at.localeCompare(b.created_at))[0].id;
+  return [...assets].sort((a, b) => a.created_at.localeCompare(b.created_at))[0].id;
 }

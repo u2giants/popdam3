@@ -62,15 +62,7 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
         Heartbeat: {timeAgo(agent.last_heartbeat)}
       </div>
 
-      {agent.scanRequested && !agent.scanAbort && (
-        <div className="flex items-center gap-1 text-[10px] text-primary font-medium">
-          <RefreshCw className="h-3 w-3 animate-spin" />
-          Scan running
-        </div>
-      )}
-      {agent.scanAbort && (
-        <div className="text-[10px] text-warning font-medium">Scan abort requested</div>
-      )}
+      {/* Scan status is now driven by useScanProgress in Index.tsx, not agent metadata */}
 
       {c && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] pt-1 border-t border-border">
@@ -198,12 +190,7 @@ export default function AppHeader() {
       {/* Right: Scan indicator + Agent status + User menu */}
       <div className="flex items-center gap-3">
         {/* Scan running indicator */}
-        {agent.scanRunning && (
-          <div className="flex items-center gap-1.5 text-xs text-primary font-medium animate-pulse">
-            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-            <span className="hidden sm:inline">Scanning…</span>
-          </div>
-        )}
+        {/* Scan indicator now driven by useScanProgress in Index.tsx */}
 
         {/* Bridge agent status — click for full agent list */}
         <Popover>

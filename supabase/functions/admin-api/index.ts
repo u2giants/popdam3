@@ -4,6 +4,9 @@ import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { corsHeaders, err, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
+import { serviceClient } from "../_shared/service-client.ts";
+import { requireString, optionalString } from "../_shared/validators.ts";
+import { deriveMetadataFromPath, DEFAULT_WORKFLOW_FOLDER_MAP } from "../_shared/metadata-derivation.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
@@ -40,30 +43,7 @@ import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_sh
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function serviceClient() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-}
-
-function requireString(obj: Record<string, unknown>, key: string): string {
-  const v = obj[key];
-  if (typeof v !== "string" || v.trim() === "") {
-    throw new Error(`Missing required string field: ${key}`);
-  }
-  return v.trim();
-}
-
-function optionalString(
-  obj: Record<string, unknown>,
-  key: string,
-): string | null {
-  const v = obj[key];
-  if (v === undefined || v === null) return null;
-  if (typeof v !== "string") throw new Error(`Field ${key} must be a string`);
-  return v.trim() || null;
-}
+// serviceClient, requireString, optionalString are now imported from shared modules
 
 // ── Auth: JWT validation + admin role check ─────────────────────────
 
@@ -336,6 +316,7 @@ async function handleInviteUser(
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     await fetch(`${supabaseUrl}/functions/v1/send-invite-email`, {
+      signal: AbortSignal.timeout(10_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${serviceKey}`,
@@ -393,92 +374,7 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
 
 // ── Shared: metadata derivation (same logic as agent-api) ───────────
 
-const DEFAULT_WORKFLOW_FOLDER_MAP: Record<string, string> = {
-  "concept approved designs": "concept_approved",
-  "in development": "in_development",
-  "freelancer art": "freelancer_art",
-  "discontinued": "discontinued",
-  "product ideas": "product_ideas",
-  "in process": "in_process",
-  "customer adopted": "customer_adopted",
-  "licensor approved": "licensor_approved",
-};
-
-async function deriveMetadataFromPath(
-  relativePath: string,
-  db: ReturnType<typeof serviceClient>,
-  licensorMap?: Map<string, string>,
-  propertyMap?: Map<string, string>,
-): Promise<{
-  workflow_status: string;
-  is_licensed: boolean;
-  licensor_id: string | null;
-  property_id: string | null;
-}> {
-  const pathParts = relativePath.split("/");
-  const normalizedParts = pathParts.map((p) => p.trim().toLowerCase());
-
-  // is_licensed is path-authoritative:
-  // - Decor/Character Licensed/** => true
-  // - Decor/Generic Decor/**      => false
-  const decorIndex = normalizedParts.findIndex((p) => p === "decor");
-  const subFolder = decorIndex >= 0 ? (normalizedParts[decorIndex + 1] || "") : "";
-  const is_licensed = subFolder === "character licensed";
-
-  // Load configurable workflow folder map from admin_config (fallback to defaults)
-  let workflowFolderMap = DEFAULT_WORKFLOW_FOLDER_MAP;
-  try {
-    const { data: wfConfig } = await db
-      .from("admin_config")
-      .select("value")
-      .eq("key", "WORKFLOW_FOLDER_MAP")
-      .maybeSingle();
-    if (wfConfig?.value && typeof wfConfig.value === "object" && !Array.isArray(wfConfig.value)) {
-      workflowFolderMap = wfConfig.value as Record<string, string>;
-    }
-  } catch (_) { /* use defaults */ }
-
-  // Skip "Concept Approved Designs" as a workflow signal when under ____New Structure (it's structural)
-  const hasNewStructure = pathParts.some((p) => p.startsWith("____New Structure"));
-  const lowerParts = normalizedParts;
-  let workflow_status = "other";
-  for (let i = lowerParts.length - 1; i >= 0; i--) {
-    const segment = lowerParts[i];
-    if (hasNewStructure && segment === "concept approved designs") continue;
-    const matched = workflowFolderMap[segment];
-    if (matched) {
-      workflow_status = matched;
-      break;
-    }
-  }
-
-  // licensor/property extraction for licensed files
-  // Structure: Decor/Character Licensed/[Licensor]/[Property]/...
-  let licensor_name: string | null = null;
-  let property_name: string | null = null;
-  if (is_licensed && decorIndex >= 0) {
-    const licIdx = decorIndex + 2; // skip "Decor" and "Character Licensed"
-    if (pathParts.length > licIdx) {
-      licensor_name = pathParts[licIdx];
-    }
-    if (pathParts.length > licIdx + 1) {
-      property_name = pathParts[licIdx + 1];
-    }
-  }
-
-  let licensor_id: string | null = null;
-  let property_id: string | null = null;
-
-  if (licensor_name && licensorMap) {
-    licensor_id = licensorMap.get(licensor_name.toLowerCase()) ?? null;
-  }
-
-  if (licensor_id && property_name && propertyMap) {
-    property_id = propertyMap.get(`${licensor_id}:${property_name.toLowerCase()}`) ?? null;
-  }
-
-  return { workflow_status, is_licensed, licensor_id, property_id };
-}
+// DEFAULT_WORKFLOW_FOLDER_MAP and deriveMetadataFromPath are now imported from _shared/metadata-derivation.ts
 
 // ── Route: reprocess-asset-metadata ─────────────────────────────────
 
@@ -2487,24 +2383,19 @@ async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   const { count: totalCount, error: countErr } = await countQuery;
   if (countErr) return err(countErr.message, 500);
 
-  // Also get counts per status for tabs
-  const { data: statusCountsRaw } = await db.from("product_category_predictions")
-    .select("status")
-    .then(async (_) => {
-      // Can't group by with supabase-js easily, use individual counts
-      return { data: null };
-    });
-  // Individual status counts
+  // Parallel status count queries instead of serial loop
+  const statuses = ["pending", "auto_applied", "approved", "rejected", "unclassifiable"];
+  const [statusResults, lowConfRes] = await Promise.all([
+    Promise.all(statuses.map((s) =>
+      db.from("product_category_predictions").select("id", { count: "exact", head: true }).eq("status", s)
+        .then((r) => ({ status: s, count: r.count ?? 0 }))
+    )),
+    db.from("product_category_predictions")
+      .select("id", { count: "exact", head: true }).eq("status", "pending").lt("confidence", 0.5),
+  ]);
   const statusCounts: Record<string, number> = {};
-  for (const s of ["pending", "auto_applied", "approved", "rejected", "unclassifiable"]) {
-    const { count } = await db.from("product_category_predictions")
-      .select("id", { count: "exact", head: true }).eq("status", s);
-    statusCounts[s] = count ?? 0;
-  }
-  // Also count low-confidence items specifically
-  const { count: lowConfCount } = await db.from("product_category_predictions")
-    .select("id", { count: "exact", head: true }).eq("status", "pending").lt("confidence", 0.5);
-  statusCounts["low_confidence"] = lowConfCount ?? 0;
+  for (const r of statusResults) statusCounts[r.status] = r.count;
+  statusCounts["low_confidence"] = lowConfRes.count ?? 0;
 
   // Fetch page
   let query = db.from("product_category_predictions")
@@ -2825,7 +2716,9 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 }
 
 async function handleClassifyErpCategories(body: Record<string, unknown>) {
-  const offset = typeof body.offset === "number" ? body.offset : 0;
+  // Strictly validate numeric inputs to prevent SQL injection via execute_readonly_query
+  const rawOffset = body.offset;
+  const offset = typeof rawOffset === "number" && Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
   const batchSize = 100;
   const db = serviceClient();
 
@@ -2837,7 +2730,6 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
 
   // Find ERP items that need AI classification:
   // mg_category IS NULL AND matched to at least one real asset in the system.
-  // This avoids classifying orphan ERP records / style rows with zero assets.
   const fetchSize = batchSize + 200; // fetch extra to filter out already-classified
   const matchedSql = `
     SELECT e.id, e.external_id, e.style_number, e.item_description,
@@ -2853,7 +2745,7 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
           AND a.is_deleted = false
       )
     ORDER BY e.external_id
-    LIMIT ${fetchSize} OFFSET ${offset}
+    LIMIT ${Number(fetchSize)} OFFSET ${Number(offset)}
   `.trim();
   const { data: itemsRaw, error: fetchErr } = await db.rpc("execute_readonly_query", { query_text: matchedSql });
   const items = (itemsRaw as any[] | null) || [];
@@ -3058,22 +2950,18 @@ async function handleListHygieneFindings(body: Record<string, unknown>) {
   const { data, error } = await query;
   if (error) return err(error.message, 500);
 
-  // Summary counts
-  const { data: summaryData } = await db.from("hygiene_findings")
-    .select("status")
-    .then(async () => {
-      // Get counts per status
-      const counts: Record<string, number> = { total: 0, open: 0, dismissed: 0, resolved: 0 };
-      const { data: all } = await db.from("hygiene_findings").select("status");
-      if (all) {
-        counts.total = all.length;
-        for (const row of all) {
-          const s = (row as Record<string, unknown>).status as string;
-          if (s in counts) counts[s]++;
-        }
-      }
-      return { data: counts, error: null };
-    });
+  // Summary counts — use parallel head-only queries instead of fetching all rows
+  const [openRes, dismissedRes, resolvedRes] = await Promise.all([
+    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "open"),
+    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "dismissed"),
+    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "resolved"),
+  ]);
+  const summaryData = {
+    open: openRes.count ?? 0,
+    dismissed: dismissedRes.count ?? 0,
+    resolved: resolvedRes.count ?? 0,
+    total: (openRes.count ?? 0) + (dismissedRes.count ?? 0) + (resolvedRes.count ?? 0),
+  };
 
   return json({ ok: true, findings: data || [], summary: summaryData || {} });
 }

@@ -1,116 +1,88 @@
+# Plan: Legacy ERP Items — Force AI Classification for Pre-May 2025 Styles
+
+## Problem
+
+Styles created before May 20, 2025 do not encode Product Category in their style number. The current ERP mapper trusts `mg_category` and MG01 codes from the ERP for all items, but for pre-2025 items those values are unreliable. We need to:
+
+1. Null out `mg_category` for pre-cutoff ERP items so the deterministic mapper stops trusting them
+2. Route those items to AI classification instead
+3. Make the cutoff date configurable
+
+## Changes
+
+### 1. ERP Sync — Null out `mg_category` for legacy items
+
+**File: `supabase/functions/erp-sync/index.ts**`
+
+During the normalization step (line ~198-238), add a date check. If the item's `created_date` (or `erp_updated_at`) is before `2025-05-10`, set `mg_category: null` regardless of what the ERP returned. This ensures the mapper cannot use unreliable category data.
+
+Add a constant:
+
+```typescript
+const STYLE_CATEGORY_CUTOFF = "2025-05-10";
+```
+
+In the normalization loop, after extracting `erp_updated_at`, check:
+
+```typescript
+const isLegacy = erpDate && erpDate < STYLE_CATEGORY_CUTOFF;
+mg_category: isLegacy ? null : (item.mgCategory || null),
+```
+
+### 2. Classify handler — Expand scope to include legacy items
+
+**File: `supabase/functions/admin-api/index.ts**` — `handleClassifyErpCategories`
+
+Currently the query filters for `mg_category IS NULL AND mg01_code IS NULL`. This is too restrictive — legacy items may have an MG01 code but it's not reliable for category. Change the query to:
+
+```sql
+-- Items that need AI classification:
+-- A) mg_category IS NULL (covers legacy items we just wiped)
+-- B) exclude items that already have a high-confidence prediction
+```
+
+Remove the `.is("mg01_code", null)` filter so that legacy items with MG01 codes (which are unreliable pre-2025) still get classified by AI. The query becomes:
+
+```typescript
+.is("mg_category", null)
+// Remove: .is("mg01_code", null)
+```
+
+Also add a left-join or NOT EXISTS check to skip items that already have an `auto_applied` or `approved` prediction in `product_category_predictions`, so re-running doesn't re-classify already-handled items.
+
+### 3. Store cutoff date in `admin_config`
+
+**File: `supabase/functions/erp-sync/index.ts**`
+
+Read `ERP_CATEGORY_CUTOFF_DATE` from `admin_config` (default `2025-05-10`). This makes it configurable from the admin UI without a code deploy.
+
+### 4. Update `erp-mapper.ts` — Skip MG01 rule for legacy items
+
+**File: `supabase/functions/_shared/erp-mapper.ts**`
+
+Add an optional `erp_date?: string` field to `ErpItemInput`. If the date is before the cutoff, skip steps 1-3 (ERP direct, SKU deterministic, style_number extraction) and go straight to `needs_ai: true`.
+
+### 5. UI indicator (minor)
+
+**File: `src/components/settings/ErpEnrichmentTab.tsx**`
+
+Add a note in the Quality Dashboard showing how many legacy items (pre-cutoff) exist and how many still need classification.
+
+## Implementation Order
 
 
-# PopDAM Codebase Audit — Findings and Recommendations
+| Step | What                                                     | Risk                               |
+| ---- | -------------------------------------------------------- | ---------------------------------- |
+| 1    | Update `erp-mapper.ts` with date-aware logic             | Low — pure function                |
+| 2    | Update `erp-sync` to null `mg_category` for legacy items | Medium — affects data on next sync |
+| 3    | Update `handleClassifyErpCategories` to broaden scope    | Low — additive                     |
+| 4    | Admin config key for cutoff date                         | Low                                |
+| 5    | UI indicator                                             | Low                                |
 
-## Executive Summary
-The codebase is architecturally sound and follows the PROJECT_BIBLE conventions well. The separation of agent-api/admin-api, the path canonicalization, and the invitation-only auth are all correctly implemented. However, there are several artifacts from iterative development, duplicated code patterns, and opportunities for meaningful improvement.
 
----
+## What does NOT change
 
-## 1. Code Duplication (Most Impactful)
-
-### A. `deriveMetadataFromPath` is duplicated between `agent-api` and `admin-api`
-Both `agent-api/index.ts` (line 141) and `admin-api/index.ts` (line 407) contain nearly identical implementations. The agent-api version is slightly more complete (returns `licensor_name`/`property_name`). This should be extracted to `_shared/metadata-derivation.ts`.
-
-### B. `DEFAULT_WORKFLOW_FOLDER_MAP` duplicated
-Identical constant in both `agent-api/index.ts` (line 121) and `admin-api/index.ts` (line 396).
-
-### C. `requireString`, `optionalString`, `requireNumber`, `optionalNumber` duplicated
-Both edge functions define these inline. Should be in `_shared/validators.ts`. The agent-api also has `requireCanonicalRelativePath` which admin-api doesn't — inconsistency.
-
-### D. `serviceClient()` factory duplicated
-Three edge functions (`agent-api`, `admin-api`, `ai-tag`, `bulk-job-runner`) each create their own `serviceClient()`. Should be a shared utility.
-
-**Impact**: Any schema or logic change must be applied in multiple places, violating the "docs-as-contracts" rule.
-
----
-
-## 2. Artifacts from Previous Revisions
-
-### A. `useAgentStatus` — dead `scanRunning` field
-Line 137: `const scanRunning = false;` with a comment "Kept as false here for backward compat; consumers should use useScanProgress." The `scanRunning` field on `AgentStatusInfo` and the associated `scanRequested`/`scanAbort` fields on `AgentRecord` are vestigial — all scan status is now driven by `useScanProgress`. This dead code adds confusion.
-
-### B. `emptyCounters` in `useAgentStatus` — never used
-Line 55-63: The `emptyCounters` object is defined but never referenced.
-
-### C. `BulkActionBar` — stale invalidation side-effect in render
-Lines 69-71: `if (isDone || isFailed) { queryClient.invalidateQueries(...) }` executes during render, not in an effect. This triggers on every re-render while the status is "completed" or "failed", causing repeated cache invalidation. Should be wrapped in a `useEffect` with a transition guard.
-
-### D. `useStyleGroups` — FK join that may not exist
-Line 65: The query joins `assets!style_groups_primary_asset_id_fkey` — this assumes a foreign key constraint exists on `style_groups.primary_asset_id → assets.id`. If this FK doesn't exist in the migration, this query silently fails or returns incomplete data. The style_groups table already has denormalized `primary_thumbnail_url` / `primary_thumbnail_error`, so the join is redundant.
-
-### E. `searchTimer` stored in useState (Index.tsx)
-Line 99: `const [searchTimer, setSearchTimer] = useState<...>(null)` — storing a timer ID in React state causes unnecessary re-renders. Should be a `useRef`.
-
-### F. `processing_queue` table — appears unused
-The `processing_queue` table and `claim_jobs`/`reset_stale_jobs` RPCs appear to be legacy from before the `render_queue` + `bulk-job-runner` pattern was established. The agent-api still inserts `ai-tag` and `thumbnail` jobs into `processing_queue` (lines 968-1031), but nothing claims them. The AI tagging is now handled by `bulk-job-runner`. This is dead infrastructure.
-
----
-
-## 3. Efficiency Improvements
-
-### A. `handleListHygieneFindings` — N+1 summary query
-Lines 3062-3076 in admin-api: Fetches all hygiene findings to count statuses client-side using `.select("status")` then iterating. Should use `count: "exact", head: true` with status filters, or a single SQL GROUP BY.
-
-### B. `handleErpReviewQueue` — serial count queries
-Lines 2498-2507: Runs 6 sequential `SELECT count(*)` queries for status tabs. Should be a single `GROUP BY status` query or a DB function.
-
-### C. `handleReprocessAssetMetadata` — sequential asset updates
-Lines 532-589: Updates each asset individually in a loop. Could batch updates by grouping assets with the same derived changes.
-
-### D. Agent-api `handleIngest` — multiple serial DB calls per ingest
-Each ingest call hits the DB ~5-8 times: subfolder config check, metadata derivation (workflow map lookup), SKU parse, hash lookup, path lookup, insert/update, style group upsert, asset count, processing queue insert. For bulk ingestion this is significant. Consider:
-- Batched ingest endpoint (accept array of files, single DB round-trip per batch)
-- More aggressive caching of lookup data
-
-### E. `useVisibilityDate` and `useScanProgress` — both poll `admin_config` independently
-Multiple hooks poll admin_config on separate intervals. Could consolidate into a single admin-config polling hook that distributes values.
-
----
-
-## 4. Robustness Concerns
-
-### A. Missing `AbortSignal.timeout` on some admin-api fetch calls
-The invite email fire-and-forget call (line 338-348) has no timeout. Per the memory rules, all external calls must have `AbortSignal.timeout`.
-
-### B. `handleClassifyErpCategories` uses `execute_readonly_query` with string interpolation
-Lines 2842-2857: While the SQL is constructed server-side (not user input), the pattern of building SQL via template literals inside an RPC is fragile. If `fetchSize` or `offset` were ever derived from user input without validation, this would be an injection vector. The offset IS from user input (body.offset). This should use parameterized queries or at minimum validate types strictly.
-
-### C. `selectPrimaryAsset` sorts in-place
-Line 113: `assets.sort(...)` mutates the input array. Should use `[...assets].sort(...)`.
-
-### D. No retry logic on AI gateway calls in `ai-tag`
-The ai-tag function has no retry on transient 429/5xx errors from the AI gateway, unlike the admin-api which has `withRetry`. A single timeout or rate limit kills the entire tag operation.
-
----
-
-## 5. Elegance / Structural Improvements
-
-### A. Admin-api is 3,122 lines
-Despite the handler extraction to `_shared/admin-handlers/`, the main router file is still enormous. The ERP handlers (`handleErpStats`, `handleErpReviewQueue`, `handleErpReviewAction`, `handleApplyErpEnrichment`, `handleClassifyErpCategories`) and hygiene handlers should be extracted to their own modules, following the pattern established with `agent-handlers.ts` and `style-group-handlers.ts`.
-
-### B. Agent-api is 2,558 lines
-Same issue. The ingest, heartbeat, render, TIFF, and hygiene handlers should be modularized.
-
-### C. `useAdminApi` retry logic retries "Bad Request" (400)
-Line 60: 400 errors are client errors (bad payload) and should NOT be retried — they'll fail every time. This was likely added to handle a transient misclassification but creates wasted retries.
-
-### D. QueryClient created without options
-Line 16 of App.tsx: `new QueryClient()` with no default options. Consider setting `defaultOptions.queries.retry: 1` and `staleTime: 5000` globally to reduce unnecessary refetches.
-
----
-
-## 6. Recommended Priority Order
-
-1. **Extract shared utilities** (deriveMetadataFromPath, validators, serviceClient) — eliminates the highest drift risk
-2. **Remove dead code** (emptyCounters, processing_queue inserts, scanRunning on agent status)
-3. **Fix render-time side effect** in BulkActionBar (query invalidation in render)
-4. **Fix searchTimer useState → useRef** in Index.tsx
-5. **Extract ERP/hygiene handlers** from admin-api to reduce file size
-6. **Add batched ingest endpoint** to agent-api for performance
-7. **Consolidate admin_config polling** into a single hook
-8. **Add retry logic to ai-tag** edge function
-9. **Fix SQL injection surface** in handleClassifyErpCategories
-
-Each change is a small, isolated diff consistent with the "No Fix-on-Fix" rule.
-
+- The 7 category enum stays the same
+- Items after May 20, 2025 continue using the existing ERP-direct and MG01-rule logic
+- The AI classification tool call, model, and prompt are unchanged
+- The review queue and approval flow are unchanged

@@ -57,11 +57,7 @@ export function useAdminApi() {
         if (data && !data.ok) throw new Error(data.error || "Admin API returned error");
         return data;
       } catch (e) {
-        if (attempt < MAX_RETRIES && (e as Error).message?.includes("Bad Request")) {
-          lastError = e as Error;
-          await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
-          continue;
-        }
+        // Don't retry client errors (4xx) — they'll fail every time
         throw e;
       }
     }
