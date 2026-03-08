@@ -501,7 +501,10 @@ async function main() {
   // 10. Check for TIFF scan requests periodically
   startTiffScanChecker();
 
-  // 11. Start temp janitor (cleanup stale render artifacts)
+  // 11. Start date re-inspection polling for already-processed TIFFs
+  startTiffReinspectPolling();
+
+  // 12. Start temp janitor (cleanup stale render artifacts)
   startJanitor();
 
   logger.info("Windows Render Agent ready", {
