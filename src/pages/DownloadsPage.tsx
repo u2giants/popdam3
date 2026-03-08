@@ -49,6 +49,7 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
 
 export default function DownloadsPage() {
   const { isAdmin } = useIsAdmin();
+  const download = useBlobDownload();
 
   return (
     <div className="container max-w-4xl py-8 space-y-6">
