@@ -936,6 +936,9 @@ export default function SettingsPage() {
           <TiffHygieneTab />
         </TabsContent>
 
+        <TabsContent value="file-hygiene" className="space-y-4">
+          <FileHygieneTab />
+        </TabsContent>
 
         <TabsContent value="diagnostics" className="space-y-4">
           <DiagnosticsTab />
