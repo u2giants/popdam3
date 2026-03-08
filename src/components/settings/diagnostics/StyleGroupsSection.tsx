@@ -27,10 +27,14 @@ function RebuildStatusDetail({ state }: { state: { status: string; cursor?: numb
   };
   const s = statusMap[state.status] || statusMap.idle;
   const p = state.progress ?? {};
-  const now = Date.now();
-  const overallElapsed = state.started_at ? now - new Date(state.started_at).getTime() : 0;
+  
+  // Use current time for running jobs, but freeze at updated_at for terminal states
+  const isTerminal = ["completed", "completed_with_repair", "failed"].includes(state.status);
+  const endTime = isTerminal && state.updated_at ? new Date(state.updated_at).getTime() : Date.now();
+  
+  const overallElapsed = state.started_at ? endTime - new Date(state.started_at).getTime() : 0;
   const stageElapsed = (p.stage_started_at as string)
-    ? now - new Date(p.stage_started_at as string).getTime()
+    ? endTime - new Date(p.stage_started_at as string).getTime()
     : overallElapsed;
 
   const stage = (p.stage as string) || state.last_stage || "clear_assets";
