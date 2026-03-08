@@ -178,13 +178,13 @@ export default function DownloadsPage() {
               <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
                 <li>Download both files below</li>
                 <li>Place <code>popdam-open.bat</code> in <code>C:\PopDAM\</code></li>
-                <li>Right-click <code>install-popdam-protocol.ps1</code> → <strong>Run with PowerShell</strong></li>
+                <li>Double-click <code>install-popdam-protocol.bat</code> to register the protocol</li>
                 <li>Restart your browser</li>
               </ol>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.ps1", "install-popdam-protocol.ps1")} className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.bat", "install-popdam-protocol.bat")} className="flex items-center gap-2">
                   <Download className="h-3 w-3" />
-                  .ps1 installer
+                  .bat installer
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => download("/downloads/popdam-open.bat", "popdam-open.bat")} className="flex items-center gap-2">
                   <Download className="h-3 w-3" />
