@@ -209,6 +209,16 @@ export default function TiffHygieneTab() {
     onError: (e) => toast.error(e.message),
   });
 
+  const refreshDatesMutation = useMutation({
+    mutationFn: (ids?: string[]) => call("refresh-tiff-dates", ids && ids.length > 0 ? { ids } : {}),
+    onSuccess: (_, ids) => {
+      toast.success(ids && ids.length > 0
+        ? `Queued date re-fetch for ${ids.length} selected processed file(s)`
+        : "Queued date re-fetch for all processed TIFF files");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   // Selection logic with Shift+Click range selection and click-to-toggle multi-select
   const handleRowClick = useCallback((id: string, idx: number, e: React.MouseEvent) => {
     setSelectedIds((prev) => {
