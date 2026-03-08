@@ -2281,12 +2281,17 @@ async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   const offset = (page - 1) * pageSize;
 
   // Valid statuses
-  const validStatuses = ["pending", "auto_applied", "approved", "rejected", "unclassifiable", "all"];
+  const validStatuses = ["pending", "low_confidence", "auto_applied", "approved", "rejected", "unclassifiable", "all"];
   if (!validStatuses.includes(statusFilter)) return err(`Invalid status filter: ${statusFilter}`);
+
+  // Handle special "low_confidence" filter: pending items with confidence < 0.5
+  const isLowConfidenceFilter = statusFilter === "low_confidence";
+  const effectiveStatus = isLowConfidenceFilter ? "pending" : statusFilter;
 
   // Count total for this filter
   let countQuery = db.from("product_category_predictions").select("id", { count: "exact", head: true });
-  if (statusFilter !== "all") countQuery = countQuery.eq("status", statusFilter);
+  if (effectiveStatus !== "all") countQuery = countQuery.eq("status", effectiveStatus);
+  if (isLowConfidenceFilter) countQuery = countQuery.lt("confidence", 0.5);
   const { count: totalCount, error: countErr } = await countQuery;
   if (countErr) return err(countErr.message, 500);
 
@@ -2304,11 +2309,16 @@ async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
       .select("id", { count: "exact", head: true }).eq("status", s);
     statusCounts[s] = count ?? 0;
   }
+  // Also count low-confidence items specifically
+  const { count: lowConfCount } = await db.from("product_category_predictions")
+    .select("id", { count: "exact", head: true }).eq("status", "pending").lt("confidence", 0.5);
+  statusCounts["low_confidence"] = lowConfCount ?? 0;
 
   // Fetch page
   let query = db.from("product_category_predictions")
     .select("id, external_id, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at");
-  if (statusFilter !== "all") query = query.eq("status", statusFilter);
+  if (effectiveStatus !== "all") query = query.eq("status", effectiveStatus);
+  if (isLowConfidenceFilter) query = query.lt("confidence", 0.5);
   query = query.order("confidence", { ascending: true }).range(offset, offset + pageSize - 1);
 
   const { data, error } = await query;
