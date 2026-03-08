@@ -161,7 +161,7 @@ export default function DownloadsPage() {
               <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" asChild>
                   <a
-                    href="https://raw.githubusercontent.com/u2giants/popdam3/main/scripts/protocol-handler/install-popdam-protocol.reg"
+                    href="/downloads/install-popdam-protocol.reg"
                     download="install-popdam-protocol.reg"
                     className="flex items-center gap-2"
                   >
@@ -171,7 +171,7 @@ export default function DownloadsPage() {
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a
-                    href="https://raw.githubusercontent.com/u2giants/popdam3/main/scripts/protocol-handler/popdam-open.bat"
+                    href="/downloads/popdam-open.bat"
                     download="popdam-open.bat"
                     className="flex items-center gap-2"
                   >
@@ -194,7 +194,7 @@ export default function DownloadsPage() {
               </ol>
               <Button variant="outline" size="sm" asChild>
                 <a
-                  href="https://raw.githubusercontent.com/u2giants/popdam3/main/scripts/protocol-handler/install-popdam-protocol.sh"
+                  href="/downloads/install-popdam-protocol.sh"
                   download="install-popdam-protocol.sh"
                   className="flex items-center gap-2"
                 >
