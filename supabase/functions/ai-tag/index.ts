@@ -331,6 +331,9 @@ ${
     if (tagData.design_ref) updates.design_ref = tagData.design_ref;
     if (tagData.licensor_id) updates.licensor_id = tagData.licensor_id;
     if (tagData.property_id) updates.property_id = tagData.property_id;
+    if (tagData.designer_name) updates.designer_name = tagData.designer_name;
+    if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
+    if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
 
     const { error: updateErr } = await db
       .from("assets")
