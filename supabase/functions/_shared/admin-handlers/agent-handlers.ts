@@ -74,6 +74,7 @@ export async function handleListAgents() {
       last_heartbeat: a.last_heartbeat,
       last_counters: metadata.last_counters || null,
       last_error: metadata.last_error || null,
+      last_error_at: metadata.last_error_at || null,
       heartbeat_history: metadata.heartbeat_history || [],
       version_info: metadata.version_info || null,
       metadata,
