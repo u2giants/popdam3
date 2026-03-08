@@ -233,7 +233,7 @@ ${
                     cover_description: {
                       type: "string",
                       description:
-                        "Ultra-short card label (max 8 words). Identify the PROPERTY and key characters — e.g. 'Frozen Elsa & Anna', 'Spider-Man Miles Morales', 'Mickey & Friends retro'. Focus on property name + character names + one style/mood word if space allows. OMIT licensor names (no 'Disney', 'Marvel', etc.), SKUs, file types, and scene descriptions.",
+                        "Ultra-short card label (max 8 words). Format as PROPERTY + PRODUCT TYPE (optionally one key character), e.g. 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. OMIT licensor names (no 'Disney', 'Marvel', etc.), SKUs, file types, and scene/art descriptions.",
                     },
                     scene_description: {
                       type: "string",
