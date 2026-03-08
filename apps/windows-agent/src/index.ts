@@ -585,9 +585,11 @@ function startTiffScanChecker() {
       const BATCH_SIZE = 100;
       let totalFound = 0;
       let dirsScanned = 0;
+      let currentDir = "";
+      const scanStarted = Date.now();
 
       for await (const file of scanTiffFiles(scanRoot, scanRoot, {
-        onProgress: () => { dirsScanned++; },
+        onProgress: (dir?: string) => { dirsScanned++; if (dir) currentDir = dir; },
       })) {
         batch.push(file);
         totalFound++;
@@ -597,6 +599,12 @@ function startTiffScanChecker() {
             files: batch,
             session_id: sessionId,
             done: false,
+            progress: {
+              dirs_scanned: dirsScanned,
+              files_found: totalFound,
+              current_dir: currentDir,
+              elapsed_ms: Date.now() - scanStarted,
+            },
           });
           batch.length = 0;
         }
@@ -606,6 +614,11 @@ function startTiffScanChecker() {
         files: batch,
         session_id: sessionId,
         done: true,
+        progress: {
+          dirs_scanned: dirsScanned,
+          files_found: totalFound,
+          elapsed_ms: Date.now() - scanStarted,
+        },
       });
 
       logger.info("TIFF scan complete", { totalFound, dirsScanned, sessionId });
@@ -853,10 +866,14 @@ function startHygieneScanChecker() {
       const findings: Array<Record<string, unknown>> = [];
       const BATCH_SIZE = 50;
       let totalChecked = 0;
+      let totalDirs = 0;
+      let currentFile = "";
+      const scanStarted = Date.now();
 
       async function walkDir(dir: string) {
         let entries;
         try { entries = await readdir(dir, { withFileTypes: true }); } catch { return; }
+        totalDirs++;
 
         for (const entry of entries) {
           const fullPath = path.join(dir, entry.name);
@@ -868,6 +885,7 @@ function startHygieneScanChecker() {
             if (shouldSkipPath(relativePath, () => {})) continue;
 
             totalChecked++;
+            currentFile = relativePath;
             try {
               const result = await inspectAiFile(fullPath);
               if (result.exceedsThreshold) {
@@ -888,9 +906,30 @@ function startHygieneScanChecker() {
                 if (findings.length >= BATCH_SIZE) {
                   await api.callApi("report-hygiene-findings", {
                     findings, session_id: sessionId, done: false,
+                    progress: {
+                      files_checked: totalChecked,
+                      dirs_scanned: totalDirs,
+                      findings_count: findings.length,
+                      current_file: currentFile,
+                      elapsed_ms: Date.now() - scanStarted,
+                    },
                   });
                   findings.length = 0;
                 }
+              }
+
+              // Report progress every 10 files even without findings
+              if (totalChecked % 10 === 0) {
+                await api.callApi("report-hygiene-findings", {
+                  findings: [], session_id: sessionId, done: false,
+                  progress: {
+                    files_checked: totalChecked,
+                    dirs_scanned: totalDirs,
+                    findings_count: findings.length,
+                    current_file: currentFile,
+                    elapsed_ms: Date.now() - scanStarted,
+                  },
+                });
               }
             } catch (e) {
               logger.debug("AI inspection error", { file: relativePath, error: (e as Error).message });
@@ -903,6 +942,12 @@ function startHygieneScanChecker() {
 
       await api.callApi("report-hygiene-findings", {
         findings, session_id: sessionId, done: true,
+        progress: {
+          files_checked: totalChecked,
+          dirs_scanned: totalDirs,
+          findings_count: findings.length,
+          elapsed_ms: Date.now() - scanStarted,
+        },
       });
 
       logger.info("Hygiene scan complete", { totalChecked, findingsReported: findings.length, sessionId });
