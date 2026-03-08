@@ -2729,7 +2729,8 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   // Strictly validate numeric inputs to prevent SQL injection via execute_readonly_query
   const rawOffset = body.offset;
   const offset = typeof rawOffset === "number" && Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
-  const batchSize = 100;
+  // Keep batch small — each item needs an AI call (~2-5s), and Edge Functions timeout at ~150s.
+  const batchSize = 10;
   const db = serviceClient();
 
   // Get IDs of items that already have ANY prediction (including unclassifiable)
