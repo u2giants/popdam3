@@ -245,11 +245,6 @@ function ClassificationLiveLog({ active }: { active: boolean }) {
     return () => { cancelled = true; clearInterval(interval); };
   }, [active]);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 0;
-    }
-  }, [entries]);
 
   if (entries.length === 0) return null;
 
