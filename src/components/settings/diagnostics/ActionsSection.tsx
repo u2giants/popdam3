@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import {
   RefreshCw, RotateCcw, Play, Trash2, Stethoscope,
-  FileSearch, Sparkles, Loader2,
+  FileSearch, Sparkles, Loader2, Database, Wrench,
 } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
