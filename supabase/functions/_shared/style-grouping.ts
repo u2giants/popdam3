@@ -31,13 +31,15 @@
 export function extractSkuFolder(relativePath: string): string | null {
   const parts = relativePath.split("/");
   if (parts.length < 2) return null;
-  // SKU pattern: 1-6 letters followed by AT LEAST 2 digits (to avoid matching
-  // short prefixes like "AA0" or "AA1" which are category folders, not SKUs).
-  // Real SKUs are longer, e.g. "AA0131P1P01", "CSG10DYMU02", "GDC6201".
-  const SKU_PATTERN = /^[A-Za-z]{1,6}\d{2,}/;
+  // SKU pattern: 1-6 letters followed by digits/letters, with a MINIMUM of 10
+  // total characters. This avoids matching short prefixes like "AA0", "CSG1", etc.
+  // Real SKUs: "AA0131P1P01" (11), "CSG10DYMU02" (11), "GDC6201" (7 - edge case).
+  // We require >=10 chars to be safe for most SKUs.
+  const SKU_PATTERN = /^[A-Za-z]{1,6}\d/;
   // Walk from root toward file — first (outermost) SKU match wins
   for (let i = 0; i < parts.length - 1; i++) {
-    if (SKU_PATTERN.test(parts[i])) return parts[i];
+    const folder = parts[i];
+    if (SKU_PATTERN.test(folder) && folder.length >= 10) return folder;
   }
   return null;
 }
