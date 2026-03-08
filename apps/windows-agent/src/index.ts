@@ -508,6 +508,9 @@ async function main() {
   // 12. Start temp janitor (cleanup stale render artifacts)
   startJanitor();
 
+  // 13. Start hygiene scan checker (AI raster inspection)
+  startHygieneScanChecker();
+
   logger.info("Windows Render Agent ready", {
     healthy: healthStatus.healthy,
     concurrency: config.renderConcurrency,
