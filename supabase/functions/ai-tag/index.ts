@@ -168,7 +168,7 @@ Based on the image and metadata, identify:
 6. Asset type: art_piece or product
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
-${
+9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
       usingPriorityOnly
         ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
         : ""
@@ -265,6 +265,18 @@ ${
                       type: "string",
                       description: "UUID of identified property",
                     },
+                    designer_name: {
+                      type: "string",
+                      description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
+                    },
+                    technical_designer_name: {
+                      type: "string",
+                      description: "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
+                    },
+                    freelancer_name: {
+                      type: "string",
+                      description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
+                    },
                   },
                   required: ["tags", "ai_description", "scene_description"],
                   additionalProperties: false,
@@ -319,6 +331,9 @@ ${
     if (tagData.design_ref) updates.design_ref = tagData.design_ref;
     if (tagData.licensor_id) updates.licensor_id = tagData.licensor_id;
     if (tagData.property_id) updates.property_id = tagData.property_id;
+    if (tagData.designer_name) updates.designer_name = tagData.designer_name;
+    if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
+    if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
 
     const { error: updateErr } = await db
       .from("assets")

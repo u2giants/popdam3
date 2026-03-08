@@ -223,12 +223,14 @@ export type Database = {
           created_at: string
           design_ref: string | null
           design_style: string | null
+          designer_name: string | null
           division_code: string | null
           division_name: string | null
           file_created_at: string | null
           file_size: number | null
           file_type: Database["public"]["Enums"]["file_type"]
           filename: string
+          freelancer_name: string | null
           height: number | null
           id: string
           ingested_at: string | null
@@ -264,6 +266,7 @@ export type Database = {
           status: Database["public"]["Enums"]["asset_status"] | null
           style_group_id: string | null
           tags: string[]
+          technical_designer_name: string | null
           thumbnail_error: string | null
           thumbnail_url: string | null
           width: number | null
@@ -279,12 +282,14 @@ export type Database = {
           created_at?: string
           design_ref?: string | null
           design_style?: string | null
+          designer_name?: string | null
           division_code?: string | null
           division_name?: string | null
           file_created_at?: string | null
           file_size?: number | null
           file_type: Database["public"]["Enums"]["file_type"]
           filename: string
+          freelancer_name?: string | null
           height?: number | null
           id?: string
           ingested_at?: string | null
@@ -320,6 +325,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["asset_status"] | null
           style_group_id?: string | null
           tags?: string[]
+          technical_designer_name?: string | null
           thumbnail_error?: string | null
           thumbnail_url?: string | null
           width?: number | null
@@ -337,12 +343,14 @@ export type Database = {
           created_at?: string
           design_ref?: string | null
           design_style?: string | null
+          designer_name?: string | null
           division_code?: string | null
           division_name?: string | null
           file_created_at?: string | null
           file_size?: number | null
           file_type?: Database["public"]["Enums"]["file_type"]
           filename?: string
+          freelancer_name?: string | null
           height?: number | null
           id?: string
           ingested_at?: string | null
@@ -378,6 +386,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["asset_status"] | null
           style_group_id?: string | null
           tags?: string[]
+          technical_designer_name?: string | null
           thumbnail_error?: string | null
           thumbnail_url?: string | null
           width?: number | null
@@ -1064,9 +1073,12 @@ export type Database = {
         Row: {
           asset_count: number | null
           created_at: string | null
+          designer_conflict: boolean
+          designer_name: string | null
           division_code: string | null
           division_name: string | null
           folder_path: string
+          freelancer_name: string | null
           id: string
           is_licensed: boolean | null
           latest_file_date: string | null
@@ -1090,15 +1102,19 @@ export type Database = {
           size_code: string | null
           size_name: string | null
           sku: string
+          technical_designer_name: string | null
           updated_at: string | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
         }
         Insert: {
           asset_count?: number | null
           created_at?: string | null
+          designer_conflict?: boolean
+          designer_name?: string | null
           division_code?: string | null
           division_name?: string | null
           folder_path: string
+          freelancer_name?: string | null
           id?: string
           is_licensed?: boolean | null
           latest_file_date?: string | null
@@ -1122,6 +1138,7 @@ export type Database = {
           size_code?: string | null
           size_name?: string | null
           sku: string
+          technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
@@ -1130,9 +1147,12 @@ export type Database = {
         Update: {
           asset_count?: number | null
           created_at?: string | null
+          designer_conflict?: boolean
+          designer_name?: string | null
           division_code?: string | null
           division_name?: string | null
           folder_path?: string
+          freelancer_name?: string | null
           id?: string
           is_licensed?: boolean | null
           latest_file_date?: string | null
@@ -1156,6 +1176,7 @@ export type Database = {
           size_code?: string | null
           size_name?: string | null
           sku?: string
+          technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]

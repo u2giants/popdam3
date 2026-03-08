@@ -32,6 +32,10 @@ export interface StyleGroup {
   size_name: string | null;
   thumbnail_url: string | null;
   latest_file_date: string | null;
+  designer_name: string | null;
+  technical_designer_name: string | null;
+  freelancer_name: string | null;
+  designer_conflict: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -703,6 +703,17 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                   </>
                 )}
                 <MetaRow label="Size" value={group.size_name ? `${group.size_code} — ${group.size_name}` : group.size_code} />
+                {(group as any).designer_name && <MetaRow label="Designer" value={(group as any).designer_name} />}
+                {(group as any).technical_designer_name && <MetaRow label="Tech Designer" value={(group as any).technical_designer_name} />}
+                {(group as any).freelancer_name && <MetaRow label="Freelancer" value={(group as any).freelancer_name} />}
+                {(group as any).designer_conflict && (
+                  <div className="rounded-md border border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.08)] px-2 py-1.5 mt-1">
+                    <p className="text-[10px] text-[hsl(var(--warning))] font-medium">⚠ Designer Conflict</p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">
+                      Files in this group have different designer names. Review individual files to resolve.
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 

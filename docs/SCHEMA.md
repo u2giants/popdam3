@@ -94,6 +94,11 @@ Hashing + scan bookkeeping:
 - `ingested_at timestamptz DEFAULT now()`
 - `created_at timestamptz DEFAULT now()`
 
+Designer metadata (extracted by AI from Tech Pack thumbnails):
+- `designer_name text NULL`
+- `technical_designer_name text NULL`
+- `freelancer_name text NULL`
+
 Hard constraints:
 - `modified_at` must be NOT NULL and have no default.
 - `relative_path` must be NOT NULL.
@@ -139,6 +144,11 @@ Hard constraints:
 - `latest_file_date timestamptz NULL`
 - `workflow_status workflow_status DEFAULT 'other'`
 - licensing + taxonomy summary fields (licensor/property/category/division/MG/size)
+- Designer rollup (from member assets, with conflict detection):
+  - `designer_name text NULL`
+  - `technical_designer_name text NULL`
+  - `freelancer_name text NULL`
+  - `designer_conflict boolean NOT NULL DEFAULT false` (true when member assets have differing designer names)
 
 ### 2.11 agent_registrations
 - `id uuid PK`
