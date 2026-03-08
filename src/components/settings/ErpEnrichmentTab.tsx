@@ -348,16 +348,22 @@ function EnrichmentControls() {
               <p className="text-sm font-medium">AI Classification</p>
               <p className="text-xs text-muted-foreground">Classify legacy items missing mgCategory into 7 product categories</p>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleClassify}
-              disabled={classifyOp.isActive}
-              className="gap-1.5"
-            >
-              {classifyOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
-              {classifyOp.isActive ? "Classifying..." : "Classify Now"}
-            </Button>
+            <div className="flex items-center gap-2">
+              {classifyOp.isActive ? (
+                <Button size="sm" variant="destructive" onClick={() => classifyOp.stop()} className="gap-1.5">
+                  <X className="h-3.5 w-3.5" /> Stop
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleClassify}
+                  className="gap-1.5"
+                >
+                  <Bot className="h-3.5 w-3.5" /> Classify Now
+                </Button>
+              )}
+            </div>
           </div>
           {classifyOp.isActive && classifyOp.state.progress && (
             <div className="space-y-1">

@@ -2606,15 +2606,24 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   const classifiedIds = new Set((alreadyClassified || []).map((r: any) => r.erp_item_id).filter(Boolean));
 
   // Find ERP items that need AI classification:
-  // mg_category IS NULL (covers legacy items whose category was wiped)
-  // NO date filter here — items are already date-gated at ingestion time (post-2020 only).
-  // Many legacy items have NULL erp_updated_at, so filtering on it silently excluded them.
+  // mg_category IS NULL AND matched to an asset or style_group in the system.
+  // This prevents classifying ERP items that have no corresponding design files.
   const fetchSize = batchSize + 200; // fetch extra to filter out already-classified
-  const { data: items, error: fetchErr } = await db.from("erp_items_current")
-    .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
-    .is("mg_category", null)
-    .order("external_id")
-    .range(offset, offset + fetchSize - 1);
+  const matchedSql = `
+    SELECT e.id, e.external_id, e.style_number, e.item_description,
+           e.mg01_code, e.mg02_code, e.mg03_code, e.raw_mg_fields
+    FROM erp_items_current e
+    WHERE e.mg_category IS NULL
+      AND e.style_number IS NOT NULL
+      AND (
+        EXISTS (SELECT 1 FROM assets a WHERE a.sku = e.style_number AND a.is_deleted = false)
+        OR EXISTS (SELECT 1 FROM style_groups sg WHERE sg.sku = e.style_number)
+      )
+    ORDER BY e.external_id
+    LIMIT ${fetchSize} OFFSET ${offset}
+  `.trim();
+  const { data: itemsRaw, error: fetchErr } = await db.rpc("execute_readonly_query", { query_text: matchedSql });
+  const items = (itemsRaw as any[] | null) || [];
 
   if (fetchErr) return err(fetchErr.message, 500);
   if (!items || items.length === 0) {
