@@ -886,6 +886,7 @@ export default function SettingsPage() {
           <TabsTrigger value="taxonomy">APIs & Tagging</TabsTrigger>
           <TabsTrigger value="erp-enrichment">ERP Enrichment</TabsTrigger>
           <TabsTrigger value="tiff-hygiene">TIFF Hygiene</TabsTrigger>
+          <TabsTrigger value="file-hygiene">File Hygiene</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>

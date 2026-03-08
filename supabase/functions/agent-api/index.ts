@@ -2409,6 +2409,10 @@ serve(async (req: Request) => {
         return await handleClaimSiblingScan(body, agentId);
       case "complete-sibling-scan":
         return await handleCompleteSiblingScan(body);
+      case "claim-hygiene-scan":
+        return await handleClaimHygieneScan(body, agentId);
+      case "report-hygiene-findings":
+        return await handleReportHygieneFindings(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

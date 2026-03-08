@@ -1666,6 +1666,12 @@ serve(async (req: Request) => {
         return await handleDebugColdlionLookup(body);
       case "repair-invalid-property-names":
         return await handleRepairInvalidPropertyNames();
+      case "list-hygiene-findings":
+        return await handleListHygieneFindings(body);
+      case "update-hygiene-findings":
+        return await handleUpdateHygieneFindings(body, userId);
+      case "trigger-hygiene-scan":
+        return await handleTriggerHygieneScan(body, userId);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
