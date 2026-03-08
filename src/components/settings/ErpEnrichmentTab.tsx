@@ -346,11 +346,19 @@ function EnrichmentControls() {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* AI Classification */}
-        <div className="border border-border rounded-md p-3 space-y-2">
+        <div className={`border rounded-md p-3 space-y-2 ${classifyOp.isActive ? "border-primary bg-primary/5" : "border-border"}`}>
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">AI Classification</p>
-              <p className="text-xs text-muted-foreground">Classify legacy items missing mgCategory into 7 product categories</p>
+            <div className="flex items-center gap-2">
+              {classifyOp.isActive && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-medium animate-pulse">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  CLASSIFYING
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-medium">AI Classification</p>
+                <p className="text-xs text-muted-foreground">Classify legacy items missing mgCategory into 7 product categories</p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {classifyOp.isActive ? (
@@ -369,16 +377,29 @@ function EnrichmentControls() {
               )}
             </div>
           </div>
-          {classifyOp.isActive && classifyOp.state.progress && (
-            <div className="space-y-1">
-              <Progress value={((classifyOp.state.progress.classified as number || 0) / Math.max(classifyOp.state.progress.total as number || 1, 1)) * 100} className="h-2" />
-              <p className="text-xs text-muted-foreground">
-                {String(classifyOp.state.progress.classified || 0)} classified, {String(classifyOp.state.progress.skipped_unclassifiable || 0)} skipped (unclassifiable) — batch {String(classifyOp.state.progress.total || "?")} scanned
-              </p>
+          {classifyOp.isActive && (
+            <div className="space-y-2">
+              <Progress 
+                value={((classifyOp.state.progress?.classified as number || 0) / Math.max(classifyOp.state.progress?.total as number || 1, 1)) * 100} 
+                className="h-2" 
+              />
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">
+                  <span className="font-medium text-foreground">{String(classifyOp.state.progress?.classified || 0)}</span> classified
+                  {" · "}
+                  <span className="font-medium text-foreground">{String(classifyOp.state.progress?.skipped_unclassifiable || 0)}</span> skipped
+                </span>
+                <span className="text-muted-foreground">
+                  Batch <span className="font-medium text-foreground">{String(classifyOp.state.progress?.total || "?")}</span> scanned
+                </span>
+              </div>
             </div>
           )}
           {classifyOp.state.status === "completed" && (
-            <p className="text-xs text-[hsl(var(--success))]">{classifyOp.state.result_message}</p>
+            <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--success))]">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {classifyOp.state.result_message}
+            </div>
           )}
           <ClassificationLiveLog active={classifyOp.isActive || classifyOp.state.status === "completed"} />
         </div>
