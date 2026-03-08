@@ -228,6 +228,10 @@ Based on the image and metadata, identify:
                       type: "string",
                       description: "One-sentence description of the design asset",
                     },
+                    cover_description: {
+                      type: "string",
+                      description: "Ultra-short card label (max 8 words). Capture the most distinctive visual element: e.g. 'Mickey surfing retro sunset', 'Frozen Elsa ice palace packaging'. Omit licensor names, SKUs, file types.",
+                    },
                     scene_description: {
                       type: "string",
                       description: "What is depicted in the image",
@@ -324,6 +328,7 @@ Based on the image and metadata, identify:
     };
     // Tags now go into asset_tags table, not the flat array
     if (tagData.ai_description) updates.ai_description = tagData.ai_description;
+    if (tagData.cover_description) updates.cover_description = tagData.cover_description;
     if (tagData.scene_description) updates.scene_description = tagData.scene_description;
     if (tagData.asset_type) updates.asset_type = tagData.asset_type;
     if (tagData.art_source) updates.art_source = tagData.art_source;

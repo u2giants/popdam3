@@ -38,6 +38,7 @@ export interface StyleGroup {
   designer_conflict: boolean;
   created_at: string;
   updated_at: string;
+  cover_description: string | null;
 }
 
 const PAGE_SIZE = 200;
