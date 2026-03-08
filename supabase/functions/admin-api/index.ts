@@ -43,30 +43,7 @@ import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_sh
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function serviceClient() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-}
-
-function requireString(obj: Record<string, unknown>, key: string): string {
-  const v = obj[key];
-  if (typeof v !== "string" || v.trim() === "") {
-    throw new Error(`Missing required string field: ${key}`);
-  }
-  return v.trim();
-}
-
-function optionalString(
-  obj: Record<string, unknown>,
-  key: string,
-): string | null {
-  const v = obj[key];
-  if (v === undefined || v === null) return null;
-  if (typeof v !== "string") throw new Error(`Field ${key} must be a string`);
-  return v.trim() || null;
-}
+// serviceClient, requireString, optionalString are now imported from shared modules
 
 // ── Auth: JWT validation + admin role check ─────────────────────────
 
