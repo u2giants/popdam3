@@ -36,8 +36,6 @@ export interface AgentRecord {
 
 export interface AgentStatusInfo {
   bridgeStatus: AgentOnlineStatus | "none";
-  /** True if any bridge agent has scan_requested=true and scan_abort=false */
-  scanRunning: boolean;
   agents: AgentRecord[];
   status: "online" | "degraded" | "offline" | "none";
   agentCount: number;
