@@ -24,7 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   X, ImageOff, Copy, Check, Star, Loader2,
   ChevronLeft, ChevronRight, Sparkles, Clock,
-  HardDrive, Tag, FileText, FolderSearch,
+  HardDrive, Tag, FileText, FolderSearch, FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Constants } from "@/integrations/supabase/types";
