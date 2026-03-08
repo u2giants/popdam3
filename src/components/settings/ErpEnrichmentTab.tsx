@@ -275,6 +275,7 @@ function EnrichmentControls() {
           {classifyOp.state.status === "completed" && (
             <p className="text-xs text-[hsl(var(--success))]">{classifyOp.state.result_message}</p>
           )}
+          <ClassificationLiveLog active={classifyOp.isActive || classifyOp.state.status === "completed"} />
         </div>
 
         {/* Enrichment Apply */}
