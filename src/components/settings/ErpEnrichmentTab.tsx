@@ -214,7 +214,6 @@ function ClassificationLiveLog({ active }: { active: boolean }) {
     description: string | null;
     created_at: string;
   }>>([]);
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
