@@ -182,7 +182,11 @@ Based on the image and metadata, identify:
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
 9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
-10. Cover description rule: Derive a very short card label (max 8 words) focused on **PROPERTY + PRODUCT TYPE**. If an ERP Product Description is provided above, distill the product type from THAT description — do NOT guess the product from the image (the image may show just artwork, not the actual product). Format examples: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee". OMIT licensor names (no Disney/Marvel/etc.), SKUs, dimensions, and scene/art descriptions. If no ERP description is available, use the filename/path to infer product type.
+10. Cover description rule — **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
+   - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field — the image often shows artwork/art assets, NOT the actual product.
+   - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
+   - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
+   - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
 ${
       usingPriorityOnly
         ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
@@ -246,7 +250,7 @@ ${
                     cover_description: {
                       type: "string",
                       description:
-                        "Ultra-short card label (max 8 words). Derive from ERP Product Description if available — distill property + product type. Do NOT describe what the image looks like. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. OMIT licensor names (no 'Disney', 'Marvel', etc.), SKUs, dimensions, and scene/art descriptions.",
+                        "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
                     },
                     scene_description: {
                       type: "string",
