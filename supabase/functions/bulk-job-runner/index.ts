@@ -53,6 +53,12 @@ const AUTO_RESUME_DEFAULTS = {
   staleRunMinutes: 10,
 };
 
+const AUTO_RESUME_MAX_ATTEMPTS_BY_OP: Record<string, number> = {
+  // Long-running ERP classification can hit intermittent gateway timeouts at scale.
+  // Allow substantially more resumptions so very large runs (e.g. 90k+) don't stall.
+  "erp-classify": 1000,
+};
+
 // Maps operation key → admin-api action name
 const OP_ACTIONS: Record<string, string> = {
   "reprocess-metadata": "reprocess-asset-metadata",
