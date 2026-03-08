@@ -74,6 +74,7 @@ export async function handleListAgents() {
       last_heartbeat: a.last_heartbeat,
       last_counters: metadata.last_counters || null,
       last_error: metadata.last_error || null,
+      last_error_at: metadata.last_error_at || null,
       heartbeat_history: metadata.heartbeat_history || [],
       version_info: metadata.version_info || null,
       metadata,
@@ -945,6 +946,7 @@ export async function handleDoctor() {
       last_heartbeat: a.last_heartbeat,
       last_counters: meta.last_counters ?? null,
       last_error: meta.last_error ?? null,
+      last_error_at: meta.last_error_at ?? null,
       scan_roots: diag.scan_roots ?? [],
       created_at: a.created_at,
     };

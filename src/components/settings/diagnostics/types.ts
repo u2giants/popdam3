@@ -10,6 +10,7 @@ export interface AgentInfo {
   last_heartbeat: string | null;
   last_counters: Record<string, number> | null;
   last_error: string | null;
+  last_error_at: string | null;
   scan_roots: string[];
   created_at: string;
 }
