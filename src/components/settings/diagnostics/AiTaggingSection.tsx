@@ -138,7 +138,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
 
           return (
             <div className="space-y-2 mt-1">
-              {/* Header: status + elapsed */}
+              {/* Header: status + elapsed + stopped reason */}
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   {displayOp.isActive && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
@@ -147,12 +147,24 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
                      displayOp.isInterrupted ? "⏸ Interrupted" :
                      displayOp.state.status === "failed" ? "✗ Failed" : "Tagging…"}
                   </span>
+                  {/* Show WHY it stopped */}
+                  {(displayOp.isInterrupted || displayOp.state.status === "failed") && displayOp.state.interruption_reason_code && (
+                    <span className="text-xs text-muted-foreground">
+                      — {REASON_LABELS[displayOp.state.interruption_reason_code] ?? displayOp.state.interruption_reason_code}
+                    </span>
+                  )}
                 </div>
-                {elapsedMs > 0 && (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    Elapsed: {formatDuration(elapsedMs)}
-                  </span>
-                )}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+                  {/* Show WHEN it stopped */}
+                  {!displayOp.isActive && displayOp.state.updated_at && (
+                    <span title={new Date(displayOp.state.updated_at).toLocaleString()}>
+                      Stopped {timeAgo(displayOp.state.updated_at)}
+                    </span>
+                  )}
+                  {displayOp.isActive && elapsedMs > 0 && (
+                    <span>Elapsed: {formatDuration(elapsedMs)}</span>
+                  )}
+                </div>
               </div>
 
               {/* Count row */}
