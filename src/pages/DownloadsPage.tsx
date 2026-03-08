@@ -131,8 +131,9 @@ export default function DownloadsPage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
-      {/* Protocol Handler Card */}
+      {/* Protocol Handler Card — visible to all users */}
       <Card className="mt-6">
         <CardHeader>
           <div className="flex items-center gap-2">
