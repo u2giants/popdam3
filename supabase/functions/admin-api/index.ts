@@ -3041,3 +3041,82 @@ Use the provided tool to return your classification.`;
     total: offset + items.length,
   });
 }
+
+// ── Route: list-hygiene-findings ────────────────────────────────────
+
+async function handleListHygieneFindings(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const status = body.status as string | undefined;
+  const checkType = body.check_type as string | undefined;
+  const limit = typeof body.limit === "number" ? body.limit : 500;
+
+  let query = db.from("hygiene_findings").select("*").order("found_at", { ascending: false }).limit(limit);
+
+  if (status) query = query.eq("status", status);
+  if (checkType) query = query.eq("check_type", checkType);
+
+  const { data, error } = await query;
+  if (error) return err(error.message, 500);
+
+  // Summary counts
+  const { data: summaryData } = await db.from("hygiene_findings")
+    .select("status")
+    .then(async () => {
+      // Get counts per status
+      const counts: Record<string, number> = { total: 0, open: 0, dismissed: 0, resolved: 0 };
+      const { data: all } = await db.from("hygiene_findings").select("status");
+      if (all) {
+        counts.total = all.length;
+        for (const row of all) {
+          const s = (row as Record<string, unknown>).status as string;
+          if (s in counts) counts[s]++;
+        }
+      }
+      return { data: counts, error: null };
+    });
+
+  return json({ ok: true, findings: data || [], summary: summaryData || {} });
+}
+
+// ── Route: update-hygiene-findings ──────────────────────────────────
+
+async function handleUpdateHygieneFindings(body: Record<string, unknown>, userId: string) {
+  const ids = body.ids as string[];
+  const status = body.status as string;
+
+  if (!Array.isArray(ids) || ids.length === 0) return err("ids array required");
+  if (!["open", "dismissed", "resolved"].includes(status)) return err("status must be open, dismissed, or resolved");
+
+  const db = serviceClient();
+  const { error } = await db.from("hygiene_findings")
+    .update({
+      status,
+      reviewed_by: userId,
+      reviewed_at: new Date().toISOString(),
+    })
+    .in("id", ids);
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, updated: ids.length });
+}
+
+// ── Route: trigger-hygiene-scan ─────────────────────────────────────
+
+async function handleTriggerHygieneScan(body: Record<string, unknown>, userId: string) {
+  const checkTypes = (body.check_types as string[]) || ["ai_embedded_raster"];
+  const db = serviceClient();
+
+  await db.from("admin_config").upsert({
+    key: "HYGIENE_SCAN_REQUEST",
+    value: {
+      status: "pending",
+      check_types: checkTypes,
+      requested_by: userId,
+      requested_at: new Date().toISOString(),
+      request_id: crypto.randomUUID(),
+    },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "key" });
+
+  return json({ ok: true });
+}
