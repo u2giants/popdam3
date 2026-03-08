@@ -65,6 +65,8 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     total_groups: state?.total_groups,
     total_processed: state?.total_processed ?? 0,
     started_at: state?.started_at ?? new Date().toISOString(),
+    finalize_sub: state?.finalize_sub,
+    finalize_cursor: state?.finalize_cursor,
   });
 
   const { data: existingStateRow } = await db
