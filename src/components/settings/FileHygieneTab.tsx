@@ -245,8 +245,16 @@ export default function FileHygieneTab() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Scan Progress Panel */}
+          <ScanProgressPanel
+            scanRequest={scanReqValue as Record<string, unknown> | undefined}
+            triggerPending={scanMutation.isPending}
+            label="File Hygiene"
+            staleThresholdMs={10 * 60 * 1000}
+          />
+
           {/* Summary stats */}
-          <div className="flex flex-wrap gap-4 text-xs font-mono mb-4">
+          <div className="flex flex-wrap gap-4 text-xs font-mono mb-4 mt-3">
             <div>Total: <span className="font-semibold text-foreground">{summary.total ?? 0}</span></div>
             <div>Open: <span className="font-semibold text-[hsl(var(--warning))]">{summary.open ?? 0}</span></div>
             <div>Dismissed: <span className="font-semibold text-muted-foreground">{summary.dismissed ?? 0}</span></div>
