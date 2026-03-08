@@ -5,7 +5,7 @@ import { isExcludedRelativePath } from "../_shared/path-filters.ts";
 import { corsHeaders, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
-import { deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
+import { deriveMetadataFromPath, getCachedConfig, type DerivedMetadata } from "../_shared/metadata-derivation.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
