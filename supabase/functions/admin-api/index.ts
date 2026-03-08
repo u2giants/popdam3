@@ -5,8 +5,8 @@ import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.
 import { corsHeaders, err, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
 import { serviceClient } from "../_shared/service-client.ts";
-import { requireString, optionalString } from "../_shared/validators.ts";
-import { deriveMetadataFromPath, DEFAULT_WORKFLOW_FOLDER_MAP } from "../_shared/metadata-derivation.ts";
+import { optionalString, requireString } from "../_shared/validators.ts";
+import { DEFAULT_WORKFLOW_FOLDER_MAP, deriveMetadataFromPath } from "../_shared/metadata-derivation.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
