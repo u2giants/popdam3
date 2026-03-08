@@ -714,6 +714,92 @@ function startTiffPolling() {
   logger.info("TIFF job polling started (5s interval)");
 }
 
+function startTiffReinspectPolling() {
+  const REINSPECT_POLL_MS = 7_000;
+
+  const loop = async () => {
+    if (!configReceived || !healthStatus.healthy || tiffScanRunning) {
+      setTimeout(loop, REINSPECT_POLL_MS);
+      return;
+    }
+
+    try {
+      const resp = await api.callApi("claim-tiff-reinspect", {
+        agent_id: agentId,
+        batch_size: 50,
+      });
+
+      const jobs = (resp?.jobs as Array<Record<string, unknown>> | undefined) ?? [];
+      if (jobs.length === 0) {
+        setTimeout(loop, REINSPECT_POLL_MS);
+        return;
+      }
+
+      // Ensure NAS is mapped/authenticated before reading timestamps
+      const nasMapResult = await ensureNasMapped(cloudNasMountPath, {
+        host: cloudNasHost,
+        share: cloudNasShare,
+        username: cloudNasUsername,
+        password: cloudNasPassword,
+      });
+
+      if (!nasMapResult.ok) {
+        const msg = `Re-inspection aborted — NAS not accessible: ${nasMapResult.error}`;
+        logger.error(msg);
+        for (const job of jobs) {
+          await api.callApi("complete-tiff-reinspect", {
+            job_id: job.id,
+            success: false,
+            error: msg,
+          }).catch(() => {});
+        }
+        setTimeout(loop, REINSPECT_POLL_MS);
+        return;
+      }
+
+      for (const job of jobs) {
+        const jobId = job.id as string;
+        const relativePath = job.relative_path as string;
+
+        if (shouldSkipPath(relativePath, logger.warn)) {
+          await api.callApi("complete-tiff-reinspect", {
+            job_id: jobId,
+            success: false,
+            error: "Skipped: excluded by path filter",
+          }).catch(() => {});
+          continue;
+        }
+
+        const filePath = toUncPath(relativePath);
+        try {
+          const ts = await captureTimestamps(filePath, jobId);
+          await api.callApi("complete-tiff-reinspect", {
+            job_id: jobId,
+            success: true,
+            new_file_modified_at: ts.mtime.toISOString(),
+            new_file_created_at: ts.creationTime?.toISOString() ?? null,
+          });
+        } catch (e) {
+          await api.callApi("complete-tiff-reinspect", {
+            job_id: jobId,
+            success: false,
+            error: (e as Error).message,
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      if (!(e as Error).message?.includes("Unknown action")) {
+        logger.debug("TIFF re-inspection poll error", { error: (e as Error).message });
+      }
+    }
+
+    setTimeout(loop, REINSPECT_POLL_MS);
+  };
+
+  setTimeout(loop, REINSPECT_POLL_MS);
+  logger.info("TIFF date re-inspection polling started (7s interval)");
+}
+
 // ── Global error handlers (prevent crash loops) ─────────────────
 
 process.on("uncaughtException", (err) => {
