@@ -566,7 +566,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
   return (
     <TooltipProvider>
-      <div className="flex h-full w-[440px] flex-col border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
+      <div className="flex h-full w-[440px] min-h-0 flex-col border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="text-sm font-semibold truncate pr-2">{group.sku}</h3>
