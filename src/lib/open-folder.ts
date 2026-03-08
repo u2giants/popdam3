@@ -64,14 +64,18 @@ export function buildOpenFolderUri(folderPath: string): string {
 }
 
 function launchProtocol(uri: string) {
-  // Use an anchor click with target="_top" to escape iframe sandboxing
-  const a = document.createElement("a");
-  a.href = uri;
-  a.target = "_top";
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => a.remove(), 100);
+  // Try top-window navigation first (works for embedded previews when permitted)
+  try {
+    if (window.top && window.top !== window) {
+      window.top.location.href = uri;
+      return;
+    }
+  } catch {
+    // ignore cross-origin restrictions and fallback
+  }
+
+  // Primary for normal pages (published URL)
+  window.location.assign(uri);
 }
 
 /**
