@@ -3023,11 +3023,11 @@ async function handleTriggerHygieneScan(body: Record<string, unknown>, userId: s
 
 async function handleStopHygieneScan(userId: string) {
   const db = serviceClient();
-  
+
   const { data } = await db.from("admin_config")
     .select("value").eq("key", "HYGIENE_SCAN_REQUEST").maybeSingle();
   const current = (data?.value as Record<string, unknown>) ?? {};
-  
+
   if (current.status !== "pending" && current.status !== "claimed") {
     return json({ ok: true, message: "No active scan to stop" });
   }
