@@ -9,7 +9,7 @@
  *   5. Poll render_queue for pending jobs (every 3s, up to N concurrent)
  *      — only if healthy
  *
- * Rendering uses Sharp + Ghostscript (no Illustrator dependency).
+ * Rendering uses Sharp + Ghostscript. Hygiene scans use Illustrator ExtendScript.
  */
 
 import { config } from "./config";
