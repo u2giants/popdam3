@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Stethoscope, ListOrdered } from "lucide-react";
 import type { OperationState } from "@/hooks/usePersistentOperation";
 import type { DiagnosticData, RequestOpFn } from "./diagnostics/types";
-import { OP_NAMES } from "./diagnostics/types";
+import { OP_NAMES, getLane } from "./diagnostics/types";
 
 // Sub-components
 import { OverviewCards, ConnectedAgents, ScanStatusCard, RecentErrors, RenderJobStats, ConfigurationSection } from "./diagnostics/OverviewCards";
@@ -43,8 +43,10 @@ export default function DiagnosticsTab() {
     try {
       const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
       const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState> | undefined;
+      // Only conflict with operations in the SAME lane
+      const myLane = getLane(opKey);
       const activeEntry = ops
-        ? Object.entries(ops).find(([k, op]) => (op.status === "running") && k !== opKey)
+        ? Object.entries(ops).find(([k, op]) => (op.status === "running") && k !== opKey && getLane(k) === myLane)
         : null;
 
       if (activeEntry) {
