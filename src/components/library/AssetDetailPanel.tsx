@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
-import { openAssetFolder } from "@/lib/open-folder";
+import { getOpenFolderUri } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
@@ -308,15 +308,20 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-xs h-7 w-full"
-                onClick={() => {
-                  const ok = openAssetFolder(asset.relative_path, nasConfig);
-                  if (!ok) {
-                    toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
-                  }
-                }}
+                asChild
               >
-                <FolderOpen className="h-3 w-3" />
-                Open Containing Folder
+                <a
+                  href={getOpenFolderUri(asset.relative_path, nasConfig) ?? "#"}
+                  onClick={(e) => {
+                    if (!getOpenFolderUri(asset.relative_path, nasConfig)) {
+                      e.preventDefault();
+                      toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <FolderOpen className="h-3 w-3" />
+                  Open Containing Folder
+                </a>
               </Button>
             )}
             <CopyButton label="Relative" value={asset.relative_path} />

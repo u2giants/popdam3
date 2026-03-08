@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
-import { openAssetFolder } from "@/lib/open-folder";
+import { getOpenFolderUri } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -719,15 +719,20 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                       variant="outline"
                       size="sm"
                       className="gap-1.5 text-xs h-7 w-full"
-                      onClick={() => {
-                        const ok = openAssetFolder(detailAsset.relative_path, nasConfig);
-                        if (!ok) {
-                          toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
-                        }
-                      }}
+                      asChild
                     >
-                      <FolderOpen className="h-3 w-3" />
-                      Open Containing Folder
+                      <a
+                        href={getOpenFolderUri(detailAsset.relative_path, nasConfig) ?? "#"}
+                        onClick={(e) => {
+                          if (!getOpenFolderUri(detailAsset.relative_path, nasConfig)) {
+                            e.preventDefault();
+                            toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
+                          }
+                        }}
+                      >
+                        <FolderOpen className="h-3 w-3" />
+                        Open Containing Folder
+                      </a>
                     </Button>
                   )}
                   <CopyPathRow label="Relative" value={detailAsset.relative_path} />

@@ -63,19 +63,24 @@ export function buildOpenFolderUri(folderPath: string): string {
   return `popdam://open-folder?path=${encodeURIComponent(folderPath)}`;
 }
 
-function launchProtocol(uri: string) {
-  // Try top-window navigation first (works for embedded previews when permitted)
-  try {
-    if (window.top && window.top !== window) {
-      window.top.location.href = uri;
-      return;
-    }
-  } catch {
-    // ignore cross-origin restrictions and fallback
-  }
+export function getOpenFolderUri(
+  relativePath: string,
+  nasConfig: NasConfig,
+  mode?: PathMode,
+): string | null {
+  const folder = resolveOpenFolderPath(relativePath, nasConfig, mode);
+  return folder ? buildOpenFolderUri(folder) : null;
+}
 
-  // Primary for normal pages (published URL)
-  window.location.assign(uri);
+function launchProtocol(uri: string) {
+  // Use a real anchor navigation initiated by the user click.
+  const a = document.createElement("a");
+  a.href = uri;
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => a.remove(), 0);
 }
 
 /**
@@ -87,8 +92,8 @@ export function openAssetFolder(
   nasConfig: NasConfig,
   mode?: PathMode,
 ): boolean {
-  const folder = resolveOpenFolderPath(relativePath, nasConfig, mode);
-  if (!folder) return false;
-  launchProtocol(buildOpenFolderUri(folder));
+  const uri = getOpenFolderUri(relativePath, nasConfig, mode);
+  if (!uri) return false;
+  launchProtocol(uri);
   return true;
 }
