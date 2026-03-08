@@ -289,6 +289,27 @@ export default function TiffHygieneTab() {
               {(scanMutation.isPending || isAgentScanning) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
               {isAgentScanning ? "Scanning..." : "Scan for TIFFs"}
             </Button>
+            <Button
+              variant="secondary" size="sm"
+              onClick={() => {
+                const selectedProcessedIds = selectedFiles.filter((f) => f.status === "completed").map((f) => f.id);
+                const targetCount = selectedProcessedIds.length > 0
+                  ? selectedProcessedIds.length
+                  : files.filter((f) => f.status === "completed").length;
+                if (targetCount === 0) {
+                  toast.error("No processed TIFF files to re-fetch dates for");
+                  return;
+                }
+                if (confirm(`Re-fetch filesystem dates for ${targetCount} processed TIFF file(s)?`)) {
+                  refreshDatesMutation.mutate(selectedProcessedIds.length > 0 ? selectedProcessedIds : undefined);
+                }
+              }}
+              disabled={refreshDatesMutation.isPending}
+              className="gap-1.5"
+            >
+              {refreshDatesMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Re-fetch Dates
+            </Button>
             {files.length > 0 && (
               <TooltipProvider>
                 <Tooltip>
