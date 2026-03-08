@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sparkles, RefreshCw, Loader2, XCircle } from "lucide-react";
 import type { RequestOpFn } from "./types";
-import { OP_NAMES } from "./types";
+import { OP_NAMES, REASON_LABELS, timeAgo } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
 
 export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
