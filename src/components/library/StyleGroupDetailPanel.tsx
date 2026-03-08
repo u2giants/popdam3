@@ -575,7 +575,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
           </Button>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="p-4 space-y-5">
             {/* ── Main preview image with carousel arrows ── */}
             <div
