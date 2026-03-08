@@ -139,6 +139,11 @@ Hard constraints:
 - `latest_file_date timestamptz NULL`
 - `workflow_status workflow_status DEFAULT 'other'`
 - licensing + taxonomy summary fields (licensor/property/category/division/MG/size)
+- Designer rollup (from member assets, with conflict detection):
+  - `designer_name text NULL`
+  - `technical_designer_name text NULL`
+  - `freelancer_name text NULL`
+  - `designer_conflict boolean NOT NULL DEFAULT false` (true when member assets have differing designer names)
 
 ### 2.11 agent_registrations
 - `id uuid PK`
