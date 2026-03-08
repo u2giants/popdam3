@@ -2178,7 +2178,7 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
       key: "HYGIENE_SCAN_REQUEST",
       value: progressUpdate,
       updated_at: new Date().toISOString(),
-    }, { onConflict: "key" }).catch(() => {});
+    }, { onConflict: "key" }).then(() => {}).catch(() => {});
   }
 
   // If done, mark scan request as completed

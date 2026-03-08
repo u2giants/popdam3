@@ -343,7 +343,7 @@ ${
       return err("AI gateway error", 500);
     }
 
-    const aiResult = await response.json();
+    const aiResult = await response!.json();
     const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
 
     if (!toolCall?.function?.arguments) {
