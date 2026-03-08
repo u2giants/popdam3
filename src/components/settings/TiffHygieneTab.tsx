@@ -209,6 +209,16 @@ export default function TiffHygieneTab() {
     onError: (e) => toast.error(e.message),
   });
 
+  const refreshDatesMutation = useMutation({
+    mutationFn: (ids?: string[]) => call("refresh-tiff-dates", ids && ids.length > 0 ? { ids } : {}),
+    onSuccess: (_, ids) => {
+      toast.success(ids && ids.length > 0
+        ? `Queued date re-fetch for ${ids.length} selected processed file(s)`
+        : "Queued date re-fetch for all processed TIFF files");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   // Selection logic with Shift+Click range selection and click-to-toggle multi-select
   const handleRowClick = useCallback((id: string, idx: number, e: React.MouseEvent) => {
     setSelectedIds((prev) => {
@@ -278,6 +288,27 @@ export default function TiffHygieneTab() {
             >
               {(scanMutation.isPending || isAgentScanning) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
               {isAgentScanning ? "Scanning..." : "Scan for TIFFs"}
+            </Button>
+            <Button
+              variant="secondary" size="sm"
+              onClick={() => {
+                const selectedProcessedIds = selectedFiles.filter((f) => f.status === "completed").map((f) => f.id);
+                const targetCount = selectedProcessedIds.length > 0
+                  ? selectedProcessedIds.length
+                  : files.filter((f) => f.status === "completed").length;
+                if (targetCount === 0) {
+                  toast.error("No processed TIFF files to re-fetch dates for");
+                  return;
+                }
+                if (confirm(`Re-fetch filesystem dates for ${targetCount} processed TIFF file(s)?`)) {
+                  refreshDatesMutation.mutate(selectedProcessedIds.length > 0 ? selectedProcessedIds : undefined);
+                }
+              }}
+              disabled={refreshDatesMutation.isPending}
+              className="gap-1.5"
+            >
+              {refreshDatesMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Re-fetch Dates
             </Button>
             {files.length > 0 && (
               <TooltipProvider>

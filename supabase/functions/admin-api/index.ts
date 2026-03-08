@@ -1630,6 +1630,8 @@ serve(async (req: Request) => {
         return await handleDeleteTiffOriginals(body);
       case "clear-tiff-scan":
         return await handleClearTiffScan();
+      case "refresh-tiff-dates":
+        return await handleRefreshTiffDates(body, userId);
       case "reconcile-style-group-stats":
         return await handleReconcileStyleGroupStats(body);
       case "trigger-erp-sync":
@@ -2029,6 +2031,32 @@ async function handleTriggerTiffScan(userId: string) {
 
   if (error) return err(error.message, 500);
   return json({ ok: true, request_id: requestId });
+}
+
+async function handleRefreshTiffDates(body: Record<string, unknown>, userId: string) {
+  const db = serviceClient();
+  const requestId = crypto.randomUUID();
+
+  const rawIds = Array.isArray(body.ids) ? body.ids : [];
+  const ids = rawIds.filter((v): v is string => typeof v === "string" && v.length > 0);
+
+  const { error } = await db.from("admin_config").upsert({
+    key: "TIFF_REINSPECT_REQUEST",
+    value: {
+      status: "pending",
+      request_id: requestId,
+      requested_by: userId,
+      requested_at: new Date().toISOString(),
+      ids: ids.length > 0 ? ids : null,
+      processed_count: 0,
+      last_id: null,
+    },
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, request_id: requestId, scope: ids.length > 0 ? "selected" : "all_processed" });
 }
 
 async function handleListTiffFiles(body: Record<string, unknown>) {
