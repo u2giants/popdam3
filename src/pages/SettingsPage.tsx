@@ -17,6 +17,7 @@ import WindowsAgentTab from "@/components/settings/WindowsAgentTab";
 import InstallBundleTab from "@/components/settings/InstallBundleTab";
 import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
 import TiffHygieneTab from "@/components/settings/TiffHygieneTab";
+import FileHygieneTab from "@/components/settings/FileHygieneTab";
 import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
 
 
