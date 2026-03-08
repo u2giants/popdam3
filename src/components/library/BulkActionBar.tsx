@@ -129,7 +129,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
                 size="sm"
                 className="h-8 gap-1.5"
                 onClick={handleBulkAiTag}
-                disabled={isDone}
+                disabled={false}
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 AI Tag
