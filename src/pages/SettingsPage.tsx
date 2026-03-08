@@ -525,6 +525,13 @@ function PathTesterSection() {
   const [inputPath, setInputPath] = useState("");
   const [result, setResult] = useState<ReturnType<typeof parseInputPath> | null>(null);
   const [syncRoot, setSyncRoot] = useState(getUserSyncRoot() || "");
+  const [pathMode, setPathMode] = useState<import("@/lib/open-folder").PathMode>(() => {
+    try {
+      const v = localStorage.getItem("popdam_open_folder_mode");
+      if (v === "unc_host" || v === "unc_ip" || v === "synology_drive") return v;
+    } catch { /* ignore */ }
+    return "unc_host";
+  });
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config"],
