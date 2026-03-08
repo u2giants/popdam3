@@ -13,7 +13,14 @@ import DownloadsPage from "./pages/DownloadsPage";
 import SetupPage from "./pages/SetupPage";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 5_000,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
