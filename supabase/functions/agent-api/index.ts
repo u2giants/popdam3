@@ -751,13 +751,7 @@ async function handleIngest(
 
     if (updateError) return err(updateError.message, 500);
 
-    // Queue AI tagging if this update provides a new thumbnail
-    if (thumbnailUrl) {
-      await db.from("processing_queue").insert({
-        asset_id: existingByPath.id,
-        job_type: "ai-tag",
-      }).then(() => {}, () => {}); // best-effort, don't block ingest
-    }
+    // processing_queue inserts removed — AI tagging is now handled by bulk-job-runner
 
     assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, db).catch(() => {});
 
