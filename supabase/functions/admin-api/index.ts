@@ -1576,6 +1576,8 @@ serve(async (req: Request) => {
         return await handleUpdateHygieneFindings(body, userId);
       case "trigger-hygiene-scan":
         return await handleTriggerHygieneScan(body, userId);
+      case "stop-hygiene-scan":
+        return await handleStopHygieneScan(userId);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
@@ -3015,4 +3017,31 @@ async function handleTriggerHygieneScan(body: Record<string, unknown>, userId: s
   }, { onConflict: "key" });
 
   return json({ ok: true });
+}
+
+// ── Route: stop-hygiene-scan ────────────────────────────────────────
+
+async function handleStopHygieneScan(userId: string) {
+  const db = serviceClient();
+  
+  const { data } = await db.from("admin_config")
+    .select("value").eq("key", "HYGIENE_SCAN_REQUEST").maybeSingle();
+  const current = (data?.value as Record<string, unknown>) ?? {};
+  
+  if (current.status !== "pending" && current.status !== "claimed") {
+    return json({ ok: true, message: "No active scan to stop" });
+  }
+
+  await db.from("admin_config").upsert({
+    key: "HYGIENE_SCAN_REQUEST",
+    value: {
+      ...current,
+      status: "cancelled",
+      cancelled_by: userId,
+      cancelled_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "key" });
+
+  return json({ ok: true, message: "Scan cancellation requested" });
 }

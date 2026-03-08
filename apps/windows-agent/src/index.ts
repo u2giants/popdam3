@@ -867,15 +867,36 @@ function startHygieneScanChecker() {
       const BATCH_SIZE = 50;
       let totalChecked = 0;
       let totalDirs = 0;
+      let totalSkipped = 0;
+      let totalErrors = 0;
       let currentFile = "";
+      let cancelled = false;
       const scanStarted = Date.now();
 
+      function makeProgress() {
+        return {
+          files_checked: totalChecked,
+          dirs_scanned: totalDirs,
+          findings_count: findings.length,
+          current_file: currentFile,
+          elapsed_ms: Date.now() - scanStarted,
+          errors: totalErrors,
+          skipped: totalSkipped,
+        };
+      }
+
       async function walkDir(dir: string) {
+        if (cancelled) return;
         let entries;
-        try { entries = await readdir(dir, { withFileTypes: true }); } catch { return; }
+        try { entries = await readdir(dir, { withFileTypes: true }); } catch (e) {
+          totalSkipped++;
+          logger.debug("Hygiene scan: dir unreadable", { dir, error: (e as Error).message });
+          return;
+        }
         totalDirs++;
 
         for (const entry of entries) {
+          if (cancelled) return;
           const fullPath = path.join(dir, entry.name);
           if (entry.isDirectory()) {
             if (shouldSkipPath(entry.name, () => {})) continue;
@@ -904,34 +925,25 @@ function startHygieneScanChecker() {
                 });
 
                 if (findings.length >= BATCH_SIZE) {
-                  await api.callApi("report-hygiene-findings", {
+                  const resp = await api.callApi("report-hygiene-findings", {
                     findings, session_id: sessionId, done: false,
-                    progress: {
-                      files_checked: totalChecked,
-                      dirs_scanned: totalDirs,
-                      findings_count: findings.length,
-                      current_file: currentFile,
-                      elapsed_ms: Date.now() - scanStarted,
-                    },
+                    progress: makeProgress(),
                   });
+                  if (resp?.cancelled) { cancelled = true; return; }
                   findings.length = 0;
                 }
               }
 
-              // Report progress every 10 files even without findings
-              if (totalChecked % 10 === 0) {
-                await api.callApi("report-hygiene-findings", {
+              // Report progress every 5 files (more frequent updates)
+              if (totalChecked % 5 === 0) {
+                const resp = await api.callApi("report-hygiene-findings", {
                   findings: [], session_id: sessionId, done: false,
-                  progress: {
-                    files_checked: totalChecked,
-                    dirs_scanned: totalDirs,
-                    findings_count: findings.length,
-                    current_file: currentFile,
-                    elapsed_ms: Date.now() - scanStarted,
-                  },
+                  progress: makeProgress(),
                 });
+                if (resp?.cancelled) { cancelled = true; return; }
               }
             } catch (e) {
+              totalErrors++;
               logger.debug("AI inspection error", { file: relativePath, error: (e as Error).message });
             }
           }
@@ -942,15 +954,13 @@ function startHygieneScanChecker() {
 
       await api.callApi("report-hygiene-findings", {
         findings, session_id: sessionId, done: true,
-        progress: {
-          files_checked: totalChecked,
-          dirs_scanned: totalDirs,
-          findings_count: findings.length,
-          elapsed_ms: Date.now() - scanStarted,
-        },
+        progress: makeProgress(),
+        ...(cancelled ? { error: "Scan cancelled by user" } : {}),
       });
 
-      logger.info("Hygiene scan complete", { totalChecked, findingsReported: findings.length, sessionId });
+      logger.info(cancelled ? "Hygiene scan cancelled by user" : "Hygiene scan complete", {
+        totalChecked, totalErrors, findingsReported: findings.length, sessionId,
+      });
     } catch (e) {
       logger.error("Hygiene scan failed", { error: (e as Error).message });
     } finally {

@@ -2165,21 +2165,28 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
     }
   }
 
+  // Read current state to MERGE (not overwrite) — preserves claimed_at, claimed_by, etc.
+  const { data: currentData } = await db.from("admin_config")
+    .select("value").eq("key", "HYGIENE_SCAN_REQUEST").maybeSingle();
+  const currentState = (currentData?.value as Record<string, unknown>) ?? {};
+
+  // Check if scan was cancelled (status changed to "cancelled")
+  const isCancelled = currentState.status === "cancelled";
+
   // Update progress on every batch (not just when done)
-  if (sessionId && !done) {
-    const progressUpdate: Record<string, unknown> = {
-      status: "claimed",
-      request_id: sessionId,
+  if (sessionId && !done && !isCancelled) {
+    const merged = {
+      ...currentState,
       updated_at: new Date().toISOString(),
-      findings_so_far: inserted,
+      findings_so_far: inserted + ((currentState.findings_so_far as number) || 0),
     };
     if (progressCounters) {
-      progressUpdate.progress = progressCounters;
+      merged.progress = progressCounters;
     }
     try {
       await db.from("admin_config").upsert({
         key: "HYGIENE_SCAN_REQUEST",
-        value: progressUpdate,
+        value: merged,
         updated_at: new Date().toISOString(),
       }, { onConflict: "key" });
     } catch { /* best-effort */ }
@@ -2188,10 +2195,10 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
   // If done, mark scan request as completed
   if (done && sessionId) {
     const finalValue: Record<string, unknown> = {
-      status: scanError ? "error" : "completed",
-      request_id: sessionId,
+      ...currentState,
+      status: scanError ? "error" : (isCancelled ? "cancelled" : "completed"),
       completed_at: new Date().toISOString(),
-      total_findings: inserted,
+      total_findings: ((currentState.findings_so_far as number) || 0) + inserted,
     };
     if (scanError) finalValue.error = scanError;
     if (progressCounters) finalValue.progress = progressCounters;
@@ -2202,7 +2209,7 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
     });
   }
 
-  return json({ ok: true, inserted });
+  return json({ ok: true, inserted, cancelled: isCancelled });
 }
 
 serve(async (req: Request) => {
