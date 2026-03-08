@@ -64,26 +64,18 @@ export function buildOpenFolderUri(folderPath: string): string {
 }
 
 function launchProtocol(uri: string) {
-  // Primary: synthetic anchor click (works best across Chromium variants)
-  const a = document.createElement("a");
-  a.href = uri;
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-
-  // Fallback for environments where iframe navigation is blocked/sandboxed
+  // Prefer top-window navigation to avoid preview iframe limitations.
   try {
-    window.open(uri, "_blank", "noopener,noreferrer");
+    if (window.top && window.top !== window) {
+      window.top.location.href = uri;
+      return;
+    }
   } catch {
-    // ignore
+    // cross-origin/sandbox guard, fallback below
   }
 
-  try {
-    window.location.assign(uri);
-  } catch {
-    // ignore
-  }
+  // Same-tab protocol handoff (no window.open to avoid about:blank tabs)
+  window.location.href = uri;
 }
 
 /**
