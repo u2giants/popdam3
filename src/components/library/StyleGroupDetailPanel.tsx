@@ -566,16 +566,16 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
   return (
     <TooltipProvider>
-      <div className="flex h-full w-[440px] min-h-0 flex-col border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
+      <div className="flex h-full w-[440px] flex-col overflow-hidden border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="text-sm font-semibold truncate pr-2">{group.sku}</h3>
           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="flex-1 overflow-hidden">
           <div className="p-4 space-y-5">
             {/* ── Main preview image with carousel arrows ── */}
             <div
