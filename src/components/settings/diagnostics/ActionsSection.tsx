@@ -217,7 +217,7 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="outline" size="sm" className="gap-1.5 text-amber-600"
+                  variant="outline" size="sm" className="gap-1.5 text-warning"
                   onClick={() => {
                     if (confirm("This will null out property_name for assets where it's incorrectly set to 'CREATURE' or 'CR'. Continue?")) {
                       repairPropertyNamesMutation.mutate();
