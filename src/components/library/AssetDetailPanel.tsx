@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
+import { openAssetFolder } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
@@ -31,6 +32,7 @@ import {
   FileText,
   History,
   Loader2,
+  FolderOpen,
 } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
@@ -301,6 +303,22 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
             <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <HardDrive className="h-3.5 w-3.5" /> Paths
             </h4>
+            {nasConfig && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-7 w-full"
+                onClick={() => {
+                  const ok = openAssetFolder(asset.relative_path, nasConfig);
+                  if (!ok) {
+                    toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
+                  }
+                }}
+              >
+                <FolderOpen className="h-3 w-3" />
+                Open Containing Folder
+              </Button>
+            )}
             <CopyButton label="Relative" value={asset.relative_path} />
             {paths && (
               <>

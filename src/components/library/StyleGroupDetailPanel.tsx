@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
+import { openAssetFolder } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   X, ImageOff, Copy, Check, Star, Loader2,
   ChevronLeft, ChevronRight, Sparkles, Clock,
-  HardDrive, Tag, FileText, FolderSearch,
+  HardDrive, Tag, FileText, FolderSearch, FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Constants } from "@/integrations/supabase/types";
@@ -713,6 +714,22 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                   <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     <HardDrive className="h-3.5 w-3.5" /> Paths
                   </h4>
+                  {nasConfig && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs h-7 w-full"
+                      onClick={() => {
+                        const ok = openAssetFolder(detailAsset.relative_path, nasConfig);
+                        if (!ok) {
+                          toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <FolderOpen className="h-3 w-3" />
+                      Open Containing Folder
+                    </Button>
+                  )}
                   <CopyPathRow label="Relative" value={detailAsset.relative_path} />
                   {paths && (
                     <>
