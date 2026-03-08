@@ -25,7 +25,6 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
   "reconcile-style-group-stats": 1000,
 };
 
-
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
   maxAttempts: 5,
