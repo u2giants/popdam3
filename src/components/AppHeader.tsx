@@ -137,6 +137,7 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
 export default function AppHeader() {
   const { user, signOut } = useAuth();
   const agent = useAgentStatus();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const bridgeLabel = agent.bridgeStatus === "online"
     ? "Synology"
@@ -147,7 +148,33 @@ export default function AppHeader() {
   return (
     <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-surface-overlay px-4">
       {/* Left: Logo + Nav */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4 md:gap-6">
+        {/* Mobile hamburger */}
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="md:hidden h-8 w-8">
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-56 p-4 pt-10">
+            <nav className="flex flex-col gap-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === "/"}
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  activeClassName="bg-accent text-foreground"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          </SheetContent>
+        </Sheet>
+
         <Link to="/" className="flex items-center gap-2">
           <span className="text-lg font-bold tracking-tight text-primary">PopDAM</span>
         </Link>
