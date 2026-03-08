@@ -2741,7 +2741,7 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
 
   // Find ERP items that need AI classification:
   // mg_category IS NULL AND matched to at least one real asset in the system.
-  const fetchSize = batchSize + 200; // fetch extra to filter out already-classified
+  const fetchSize = batchSize + 50; // fetch extra to filter out already-classified
   const matchedSql = `
     SELECT e.id, e.external_id, e.style_number, e.item_description,
            e.mg01_code, e.mg02_code, e.mg03_code, e.raw_mg_fields
