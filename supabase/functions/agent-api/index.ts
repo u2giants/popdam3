@@ -132,6 +132,7 @@ async function handleHeartbeat(
     ...metadata,
     last_counters: counters || {},
     last_error: lastError,
+    last_error_at: lastError ? new Date().toISOString() : (lastError === null ? null : metadata.last_error_at),
     counter_history: history,
     // Version info — works for both bridge and windows agents
     version_info: versionInfo

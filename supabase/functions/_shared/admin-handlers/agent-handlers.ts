@@ -945,6 +945,7 @@ export async function handleDoctor() {
       last_heartbeat: a.last_heartbeat,
       last_counters: meta.last_counters ?? null,
       last_error: meta.last_error ?? null,
+      last_error_at: meta.last_error_at ?? null,
       scan_roots: diag.scan_roots ?? [],
       created_at: a.created_at,
     };
