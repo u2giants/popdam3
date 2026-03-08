@@ -585,6 +585,28 @@ function PathTesterSection() {
             <Button size="sm" variant="secondary" onClick={handleSaveSyncRoot}>Save</Button>
           </div>
         </div>
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground">"Open Folder" path mode (used by the popdam:// protocol handler)</label>
+          <div className="flex gap-2 items-center">
+            <select
+              value={pathMode}
+              onChange={(e) => {
+                const v = e.target.value as import("@/lib/open-folder").PathMode;
+                setPathMode(v);
+                import("@/lib/open-folder").then(m => m.setPreferredPathMode(v));
+                toast.success("Open Folder path mode saved");
+              }}
+              className="bg-secondary text-secondary-foreground rounded-md px-2 py-1.5 text-xs border border-border font-mono"
+            >
+              <option value="unc_host">UNC by hostname (\\host\share\…)</option>
+              <option value="unc_ip">UNC by IP (\\192.168.x.x\share\…)</option>
+              <option value="synology_drive">Synology Drive (local sync folder)</option>
+            </select>
+          </div>
+          {pathMode === "synology_drive" && !syncRoot && (
+            <p className="text-[10px] text-[hsl(var(--warning))]">⚠ Set your Synology Drive root above for this mode to work.</p>
+          )}
+        </div>
         <div className="flex gap-2">
           <Input
             placeholder="Paste any path (UNC, container, Synology Drive, or relative)"
