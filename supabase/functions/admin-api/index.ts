@@ -2634,8 +2634,8 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   const classifiedIds = new Set((alreadyClassified || []).map((r: any) => r.erp_item_id).filter(Boolean));
 
   // Find ERP items that need AI classification:
-  // mg_category IS NULL AND matched to an asset or style_group in the system.
-  // This prevents classifying ERP items that have no corresponding design files.
+  // mg_category IS NULL AND matched to at least one real asset in the system.
+  // This avoids classifying orphan ERP records / style rows with zero assets.
   const fetchSize = batchSize + 200; // fetch extra to filter out already-classified
   const matchedSql = `
     SELECT e.id, e.external_id, e.style_number, e.item_description,
@@ -2643,9 +2643,12 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
     FROM erp_items_current e
     WHERE e.mg_category IS NULL
       AND e.style_number IS NOT NULL
-      AND (
-        EXISTS (SELECT 1 FROM assets a WHERE a.sku = e.style_number AND a.is_deleted = false)
-        OR EXISTS (SELECT 1 FROM style_groups sg WHERE sg.sku = e.style_number)
+      AND btrim(e.style_number) <> ''
+      AND EXISTS (
+        SELECT 1
+        FROM assets a
+        WHERE a.sku = e.style_number
+          AND a.is_deleted = false
       )
     ORDER BY e.external_id
     LIMIT ${fetchSize} OFFSET ${offset}
