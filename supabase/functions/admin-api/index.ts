@@ -2519,24 +2519,33 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   const batchSize = 50;
   const db = serviceClient();
 
-  // Only enrich ERP items whose style_number matches an existing asset or style group
-  const matchedSql = `
-    SELECT e.id, e.external_id, e.style_number, e.mg_category,
-           e.mg01_code, e.mg02_code, e.mg03_code, e.size_code,
-           e.licensor_code, e.property_code, e.division_code
-    FROM erp_items_current e
-    WHERE e.style_number IS NOT NULL
-      AND (
-        EXISTS (SELECT 1 FROM assets a WHERE a.sku = e.style_number AND a.is_deleted = false)
-        OR EXISTS (SELECT 1 FROM style_groups sg WHERE sg.sku = e.style_number)
-      )
-    ORDER BY e.external_id
-    LIMIT ${batchSize} OFFSET ${offset}
-  `;
-  const { data: erpItemsRaw, error: fetchErr } = await db.rpc("execute_readonly_query", { query_text: matchedSql });
+  // Fetch ERP items using direct Supabase client queries (avoids execute_readonly_query's
+  // 15s statement_timeout which caused "Only SELECT queries allowed" errors on redeployment).
+  // Step 1: Get ERP items with style numbers
+  const { data: rawErpItems, error: fetchErr } = await db
+    .from("erp_items_current")
+    .select("id, external_id, style_number, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
+    .not("style_number", "is", null)
+    .order("external_id")
+    .range(offset, offset + batchSize + 49); // fetch bigger window for filtering
 
   if (fetchErr) return err(fetchErr.message, 500);
-  const erpItems = (Array.isArray(erpItemsRaw) ? erpItemsRaw : []) as any[];
+  if (!rawErpItems || rawErpItems.length === 0) {
+    return json({ ok: true, done: true, assets_updated: 0, groups_updated: 0 });
+  }
+
+  // Step 2: Filter to items whose style_number matches an asset or style group
+  const skus = rawErpItems.map((e: any) => e.style_number).filter(Boolean);
+  const [assetMatch, groupMatch] = await Promise.all([
+    db.from("assets").select("sku").in("sku", skus).eq("is_deleted", false),
+    db.from("style_groups").select("sku").in("sku", skus),
+  ]);
+  const matchedSkuSet = new Set([
+    ...((assetMatch.data || []).map((a: any) => a.sku)),
+    ...((groupMatch.data || []).map((g: any) => g.sku)),
+  ]);
+
+  const erpItems = rawErpItems.filter((e: any) => matchedSkuSet.has(e.style_number)).slice(0, batchSize) as any[];
   if (erpItems.length === 0) {
     return json({ ok: true, done: true, assets_updated: 0, groups_updated: 0 });
   }
@@ -2734,32 +2743,45 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   const batchSize = 2;
   const db = serviceClient();
 
-  // Use a SQL NOT EXISTS to filter already-classified items directly in the query,
-  // instead of loading all prediction IDs into memory (which doesn't scale to 92K items).
-  const matchedSql = `
-    SELECT e.id, e.external_id, e.style_number, e.item_description,
-           e.mg01_code, e.mg02_code, e.mg03_code, e.raw_mg_fields
-    FROM erp_items_current e
-    WHERE e.mg_category IS NULL
-      AND e.style_number IS NOT NULL
-      AND btrim(e.style_number) <> ''
-      AND EXISTS (
-        SELECT 1
-        FROM assets a
-        WHERE a.sku = e.style_number
-          AND a.is_deleted = false
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM product_category_predictions p
-        WHERE p.erp_item_id = e.id
-          AND p.status IN ('auto_applied', 'approved', 'unclassifiable')
-      )
-    ORDER BY e.external_id
-    LIMIT ${Number(batchSize)} OFFSET ${Number(offset)}
-  `.trim();
-  const { data: itemsRaw, error: fetchErr } = await db.rpc("execute_readonly_query", { query_text: matchedSql });
-  const candidates = (itemsRaw as any[] | null) || [];
+  // Fetch candidate ERP items using direct Supabase client queries (avoids
+  // execute_readonly_query's 15s statement_timeout which caused 504 gateway errors).
+  // Step 1: Get ERP items that need classification
+  const { data: rawItems, error: fetchErr } = await db
+    .from("erp_items_current")
+    .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
+    .is("mg_category", null)
+    .not("style_number", "is", null)
+    .neq("style_number", "")
+    .order("external_id")
+    .range(offset, offset + 49); // fetch a bigger window, we'll filter down
+
+  if (fetchErr) return err(fetchErr.message, 500);
+  if (!rawItems || rawItems.length === 0) {
+    return json({ ok: true, done: true, classified: 0, skipped_unclassifiable: 0, total: offset });
+  }
+
+  // Step 2: Filter to items that have matching assets
+  const styleNumbers = rawItems.map((e: any) => e.style_number).filter(Boolean);
+  const { data: matchedSkus } = await db
+    .from("assets")
+    .select("sku")
+    .in("sku", styleNumbers)
+    .eq("is_deleted", false);
+  const matchedSkuSet = new Set((matchedSkus || []).map((a: any) => a.sku));
+
+  // Step 3: Filter out already-classified items
+  const itemIds = rawItems.map((e: any) => e.id);
+  const { data: existingPreds } = await db
+    .from("product_category_predictions")
+    .select("erp_item_id")
+    .in("erp_item_id", itemIds)
+    .in("status", ["auto_applied", "approved", "unclassifiable"]);
+  const classifiedIds = new Set((existingPreds || []).map((p: any) => p.erp_item_id));
+
+  // Step 4: Build final candidate list
+  const candidates = rawItems
+    .filter((e: any) => matchedSkuSet.has(e.style_number) && !classifiedIds.has(e.id))
+    .slice(0, batchSize);
 
   if (fetchErr) return err(fetchErr.message, 500);
   if (!candidates || candidates.length === 0) {
