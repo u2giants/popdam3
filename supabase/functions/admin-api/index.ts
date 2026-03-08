@@ -1630,6 +1630,8 @@ serve(async (req: Request) => {
         return await handleDeleteTiffOriginals(body);
       case "clear-tiff-scan":
         return await handleClearTiffScan();
+      case "refresh-tiff-dates":
+        return await handleRefreshTiffDates(body, userId);
       case "reconcile-style-group-stats":
         return await handleReconcileStyleGroupStats(body);
       case "trigger-erp-sync":
