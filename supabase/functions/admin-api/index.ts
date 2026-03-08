@@ -2955,22 +2955,18 @@ async function handleListHygieneFindings(body: Record<string, unknown>) {
   const { data, error } = await query;
   if (error) return err(error.message, 500);
 
-  // Summary counts
-  const { data: summaryData } = await db.from("hygiene_findings")
-    .select("status")
-    .then(async () => {
-      // Get counts per status
-      const counts: Record<string, number> = { total: 0, open: 0, dismissed: 0, resolved: 0 };
-      const { data: all } = await db.from("hygiene_findings").select("status");
-      if (all) {
-        counts.total = all.length;
-        for (const row of all) {
-          const s = (row as Record<string, unknown>).status as string;
-          if (s in counts) counts[s]++;
-        }
-      }
-      return { data: counts, error: null };
-    });
+  // Summary counts — use parallel head-only queries instead of fetching all rows
+  const [openRes, dismissedRes, resolvedRes] = await Promise.all([
+    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "open"),
+    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "dismissed"),
+    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "resolved"),
+  ]);
+  const summaryData = {
+    open: openRes.count ?? 0,
+    dismissed: dismissedRes.count ?? 0,
+    resolved: resolvedRes.count ?? 0,
+    total: (openRes.count ?? 0) + (dismissedRes.count ?? 0) + (resolvedRes.count ?? 0),
+  };
 
   return json({ ok: true, findings: data || [], summary: summaryData || {} });
 }
