@@ -2175,7 +2175,7 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
 
   // Update progress on every batch (not just when done)
   if (sessionId && !done && !isCancelled) {
-    const merged = {
+    const merged: Record<string, unknown> = {
       ...currentState,
       updated_at: new Date().toISOString(),
       findings_so_far: inserted + ((currentState.findings_so_far as number) || 0),
