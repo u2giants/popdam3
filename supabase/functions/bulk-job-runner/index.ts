@@ -491,10 +491,9 @@ serve(async (req: Request) => {
 
         cursor = result.nextOffset ?? cursor + 1;
 
-        // Throttle rebuild operations to stay under Edge Function rate limits
-        if (opKey === "rebuild-style-groups") {
-          await sleep(1000);
-        }
+        // Throttle calls to avoid Supabase Edge Function rate limits
+        const interCallDelay = INTER_CALL_DELAY_MS[opKey];
+        if (interCallDelay) await sleep(interCallDelay);
 
         if (batchCount % persistEvery === 0) {
           // Atomic mid-batch persist — only updates if status is still "running"
