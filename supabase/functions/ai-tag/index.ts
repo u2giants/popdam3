@@ -158,9 +158,7 @@ serve(async (req: Request) => {
       erpDescription = erpItem?.item_description ?? null;
     }
 
-    const erpCoverContext = erpDescription
-      ? `\nERP Product Description: "${erpDescription}"\n`
-      : "";
+    const erpCoverContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
 
     const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
 
