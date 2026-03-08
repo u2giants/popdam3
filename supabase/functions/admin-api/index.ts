@@ -2729,19 +2729,13 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   // Strictly validate numeric inputs to prevent SQL injection via execute_readonly_query
   const rawOffset = body.offset;
   const offset = typeof rawOffset === "number" && Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
-  // Keep batch small — each item needs an AI call (~2-5s), and Edge Functions timeout at ~150s.
-  const batchSize = 10;
+  // CRITICAL: Keep batch tiny — each AI call takes 2-8s. With 5 items × 8s = 40s max,
+  // plus DB overhead, stays well within the ~150s edge function timeout.
+  const batchSize = 5;
   const db = serviceClient();
 
-  // Get IDs of items that already have ANY prediction (including unclassifiable)
-  const { data: alreadyClassified } = await db.from("product_category_predictions")
-    .select("erp_item_id")
-    .in("status", ["auto_applied", "approved", "unclassifiable"]);
-  const classifiedIds = new Set((alreadyClassified || []).map((r: any) => r.erp_item_id).filter(Boolean));
-
-  // Find ERP items that need AI classification:
-  // mg_category IS NULL AND matched to at least one real asset in the system.
-  const fetchSize = batchSize + 50; // fetch extra to filter out already-classified
+  // Use a SQL NOT EXISTS to filter already-classified items directly in the query,
+  // instead of loading all prediction IDs into memory (which doesn't scale to 92K items).
   const matchedSql = `
     SELECT e.id, e.external_id, e.style_number, e.item_description,
            e.mg01_code, e.mg02_code, e.mg03_code, e.raw_mg_fields
@@ -2755,20 +2749,20 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
         WHERE a.sku = e.style_number
           AND a.is_deleted = false
       )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM product_category_predictions p
+        WHERE p.erp_item_id = e.id
+          AND p.status IN ('auto_applied', 'approved', 'unclassifiable')
+      )
     ORDER BY e.external_id
-    LIMIT ${Number(fetchSize)} OFFSET ${Number(offset)}
+    LIMIT ${Number(batchSize)} OFFSET ${Number(offset)}
   `.trim();
   const { data: itemsRaw, error: fetchErr } = await db.rpc("execute_readonly_query", { query_text: matchedSql });
-  const items = (itemsRaw as any[] | null) || [];
+  const candidates = (itemsRaw as any[] | null) || [];
 
   if (fetchErr) return err(fetchErr.message, 500);
-  if (!items || items.length === 0) {
-    return json({ ok: true, done: true, classified: 0, skipped_unclassifiable: 0, total: offset });
-  }
-
-  // Filter out already-classified items, then take batchSize
-  const candidates = (items || []).filter((it: any) => !classifiedIds.has(it.id)).slice(0, batchSize);
-  if (candidates.length === 0) {
+  if (!candidates || candidates.length === 0) {
     return json({ ok: true, done: true, classified: 0, skipped_unclassifiable: 0, total: offset });
   }
 
@@ -2932,16 +2926,15 @@ Use the provided tool to return your classification.`;
     }
   }
 
-  // Done only when the raw query returned fewer than fetchSize items (meaning we've exhausted the table)
-  // NOT based on candidates.length, which can be small due to filtering out already-classified items
-  const done = items.length < fetchSize;
+  // Done when the query returned fewer than batchSize items (exhausted candidates)
+  const done = candidates.length < batchSize;
   return json({
     ok: true,
     done,
-    nextOffset: offset + items.length, // advance by total scanned (including skipped)
+    nextOffset: offset + candidates.length,
     classified,
     skipped_unclassifiable: skippedUnclassifiable,
-    total: offset + items.length,
+    total: offset + candidates.length,
   });
 }
 
