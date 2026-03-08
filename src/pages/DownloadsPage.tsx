@@ -181,25 +181,13 @@ export default function DownloadsPage() {
                 <li>Restart your browser</li>
               </ol>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href="/downloads/install-popdam-protocol.reg"
-                    download="install-popdam-protocol.reg"
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="h-3 w-3" />
-                    .reg file
-                  </a>
+                <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.reg", "install-popdam-protocol.reg")} className="flex items-center gap-2">
+                  <Download className="h-3 w-3" />
+                  .reg file
                 </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href="/downloads/popdam-open.bat"
-                    download="popdam-open.bat"
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="h-3 w-3" />
-                    .bat handler
-                  </a>
+                <Button variant="outline" size="sm" onClick={() => download("/downloads/popdam-open.bat", "popdam-open.bat")} className="flex items-center gap-2">
+                  <Download className="h-3 w-3" />
+                  .bat handler
                 </Button>
               </div>
             </div>
