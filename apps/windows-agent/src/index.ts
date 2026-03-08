@@ -585,9 +585,11 @@ function startTiffScanChecker() {
       const BATCH_SIZE = 100;
       let totalFound = 0;
       let dirsScanned = 0;
+      let currentDir = "";
+      const scanStarted = Date.now();
 
       for await (const file of scanTiffFiles(scanRoot, scanRoot, {
-        onProgress: () => { dirsScanned++; },
+        onProgress: (dir?: string) => { dirsScanned++; if (dir) currentDir = dir; },
       })) {
         batch.push(file);
         totalFound++;
@@ -597,6 +599,12 @@ function startTiffScanChecker() {
             files: batch,
             session_id: sessionId,
             done: false,
+            progress: {
+              dirs_scanned: dirsScanned,
+              files_found: totalFound,
+              current_dir: currentDir,
+              elapsed_ms: Date.now() - scanStarted,
+            },
           });
           batch.length = 0;
         }
@@ -606,6 +614,11 @@ function startTiffScanChecker() {
         files: batch,
         session_id: sessionId,
         done: true,
+        progress: {
+          dirs_scanned: dirsScanned,
+          files_found: totalFound,
+          elapsed_ms: Date.now() - scanStarted,
+        },
       });
 
       logger.info("TIFF scan complete", { totalFound, dirsScanned, sessionId });
