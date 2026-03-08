@@ -262,7 +262,7 @@ function ClassificationLiveLog({ active }: { active: boolean }) {
           </Button>
         )}
       </div>
-      <div ref={scrollRef} className={`overflow-auto border border-border rounded-md bg-background/80 ${expanded ? "max-h-72" : "max-h-40"}`}>
+      <div className={`overflow-auto border border-border rounded-md bg-background/80 ${expanded ? "max-h-72" : "max-h-40"}`}>
         <div className="divide-y divide-border">
           {visible.map((e) => (
             <div key={e.id} className="px-2.5 py-1.5 text-[11px] font-mono flex items-start gap-3">
