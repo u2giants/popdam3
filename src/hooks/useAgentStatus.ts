@@ -75,7 +75,6 @@ function parseCounters(raw: unknown): ScanCounters | null {
 export function useAgentStatus(): AgentStatusInfo {
   const [info, setInfo] = useState<AgentStatusInfo>({
     bridgeStatus: "none",
-    scanRunning: false,
     agents: [],
     status: "none",
     agentCount: 0,
