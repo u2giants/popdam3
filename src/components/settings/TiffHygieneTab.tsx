@@ -15,6 +15,7 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ScanProgressPanel } from "./ScanProgressPanel";
 
 interface TiffFile {
   id: string;
