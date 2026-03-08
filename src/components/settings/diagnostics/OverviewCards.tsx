@@ -162,10 +162,21 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
           <p className="text-sm text-muted-foreground">{counterText}</p>
         )}
         {isCompleted && progress.updated_at && (
-          <p className="text-xs text-muted-foreground">Completed {timeAgo(progress.updated_at)}</p>
+          <p className="text-xs text-muted-foreground">
+            Completed {timeAgo(progress.updated_at)} · {new Date(progress.updated_at).toLocaleString()}
+          </p>
         )}
         {isFailed && (
           <div className="bg-destructive/10 border border-destructive/30 rounded-md p-2 text-xs text-destructive font-mono">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="font-semibold">Scan Error</span>
+              {progress.updated_at && (
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-sans">
+                  <Clock className="h-3 w-3" />
+                  {timeAgo(progress.updated_at)} · {new Date(progress.updated_at).toLocaleString()}
+                </span>
+              )}
+            </div>
             {progress.error || "Scan failed — check agent logs for details."}
           </div>
         )}
