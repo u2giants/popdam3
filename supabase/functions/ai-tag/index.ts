@@ -248,7 +248,7 @@ ${
                     cover_description: {
                       type: "string",
                       description:
-                        "Ultra-short card label (max 8 words). Format as PROPERTY + PRODUCT TYPE (optionally one key character), e.g. 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. OMIT licensor names (no 'Disney', 'Marvel', etc.), SKUs, file types, and scene/art descriptions.",
+                        "Ultra-short card label (max 8 words). Derive from ERP Product Description if available — distill property + product type. Do NOT describe what the image looks like. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. OMIT licensor names (no 'Disney', 'Marvel', etc.), SKUs, dimensions, and scene/art descriptions.",
                     },
                     scene_description: {
                       type: "string",
