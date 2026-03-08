@@ -228,6 +228,10 @@ Based on the image and metadata, identify:
                       type: "string",
                       description: "One-sentence description of the design asset",
                     },
+                    cover_description: {
+                      type: "string",
+                      description: "Ultra-short card label (max 8 words). Capture the most distinctive visual element: e.g. 'Mickey surfing retro sunset', 'Frozen Elsa ice palace packaging'. Omit licensor names, SKUs, file types.",
+                    },
                     scene_description: {
                       type: "string",
                       description: "What is depicted in the image",
