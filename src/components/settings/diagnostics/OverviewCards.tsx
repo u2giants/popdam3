@@ -86,6 +86,15 @@ export function ConnectedAgents({ agents }: { agents: AgentInfo[] }) {
               )}
               {agent.last_error && (
                 <div className="bg-destructive/10 border border-destructive/30 rounded-md p-2 text-xs text-destructive font-mono">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-semibold">Last Error</span>
+                    {agent.last_error_at && (
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-sans">
+                        <Clock className="h-3 w-3" />
+                        {timeAgo(agent.last_error_at)} · {new Date(agent.last_error_at).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
                   {agent.last_error}
                 </div>
               )}
