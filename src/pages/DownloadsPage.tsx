@@ -176,15 +176,15 @@ export default function DownloadsPage() {
                 <Badge variant="secondary">Windows</Badge>
               </div>
               <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Create a folder <code>C:\PopDAM\</code></li>
-                <li>Download <code>popdam-open.bat</code> into that folder</li>
-                <li>Import <code>install-popdam-protocol.reg</code> (double-click)</li>
+                <li>Download both files below</li>
+                <li>Place <code>popdam-open.bat</code> in <code>C:\PopDAM\</code></li>
+                <li>Right-click <code>install-popdam-protocol.ps1</code> → <strong>Run with PowerShell</strong></li>
                 <li>Restart your browser</li>
               </ol>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.reg", "install-popdam-protocol.reg")} className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.ps1", "install-popdam-protocol.ps1")} className="flex items-center gap-2">
                   <Download className="h-3 w-3" />
-                  .reg file
+                  .ps1 installer
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => download("/downloads/popdam-open.bat", "popdam-open.bat")} className="flex items-center gap-2">
                   <Download className="h-3 w-3" />
