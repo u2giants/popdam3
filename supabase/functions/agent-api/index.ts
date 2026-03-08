@@ -2360,6 +2360,9 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
   const done = body.done === true;
   const scanError = optionalString(body, "error");
 
+  // Accept progress counters from agent
+  const progressCounters = body.progress as Record<string, unknown> | undefined;
+
   if (!Array.isArray(findings)) return err("findings must be an array");
 
   const db = serviceClient();
@@ -2391,17 +2394,37 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
     }
   }
 
-  // If done, mark scan request as completed
-  if (done && sessionId) {
+  // Update progress on every batch (not just when done)
+  if (sessionId && !done) {
+    const progressUpdate: Record<string, unknown> = {
+      status: "claimed",
+      request_id: sessionId,
+      updated_at: new Date().toISOString(),
+      findings_so_far: inserted,
+    };
+    if (progressCounters) {
+      progressUpdate.progress = progressCounters;
+    }
     await db.from("admin_config").upsert({
       key: "HYGIENE_SCAN_REQUEST",
-      value: {
-        status: scanError ? "error" : "completed",
-        request_id: sessionId,
-        completed_at: new Date().toISOString(),
-        total_findings: inserted,
-        ...(scanError ? { error: scanError } : {}),
-      },
+      value: progressUpdate,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "key" }).catch(() => {});
+  }
+
+  // If done, mark scan request as completed
+  if (done && sessionId) {
+    const finalValue: Record<string, unknown> = {
+      status: scanError ? "error" : "completed",
+      request_id: sessionId,
+      completed_at: new Date().toISOString(),
+      total_findings: inserted,
+    };
+    if (scanError) finalValue.error = scanError;
+    if (progressCounters) finalValue.progress = progressCounters;
+    await db.from("admin_config").upsert({
+      key: "HYGIENE_SCAN_REQUEST",
+      value: finalValue,
       updated_at: new Date().toISOString(),
     });
   }
