@@ -203,15 +203,9 @@ export default function DownloadsPage() {
                 <li>Run: <code>bash install-popdam-protocol.sh</code></li>
                 <li>Restart your browser</li>
               </ol>
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href="/downloads/install-popdam-protocol.sh"
-                  download="install-popdam-protocol.sh"
-                  className="flex items-center gap-2"
-                >
-                  <Download className="h-3 w-3" />
-                  .sh installer
-                </a>
+              <Button variant="outline" size="sm" onClick={() => download("/downloads/install-popdam-protocol.sh", "install-popdam-protocol.sh")} className="flex items-center gap-2">
+                <Download className="h-3 w-3" />
+                .sh installer
               </Button>
             </div>
           </div>
