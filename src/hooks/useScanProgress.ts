@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAdminApi } from "./useAdminApi";
 import type { ScanCounters } from "./useAgentStatus";
 
