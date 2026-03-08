@@ -38,6 +38,7 @@ export default function LibraryPage() {
   const [scanTriggered, setScanTriggered] = useState(false);
   const agentStatus = useAgentStatus();
   const scanProgress = useScanProgress();
+  const { pollNow: pollScanNow } = scanProgress;
 
   const scanRunning = scanProgress.status === "running" || scanProgress.status === "stale";
   const scanQueued = scanProgress.status === "queued";
