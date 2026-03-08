@@ -457,12 +457,25 @@ async function handleTestMode(
     });
   }
 
+  // Re-read actual on-disk timestamps for the compressed file
+  let actualMtime = timestamps.mtime.toISOString();
+  let actualCreated = timestamps.creationTime?.toISOString() ?? undefined;
+  try {
+    const postRestore = await captureTimestamps(filePath, jobId);
+    actualMtime = postRestore.mtime.toISOString();
+    actualCreated = postRestore.creationTime?.toISOString() ?? undefined;
+  } catch (e) {
+    logger.warn("Failed to re-read post-restore timestamps, reporting intended values", {
+      jobId, error: (e as Error).message,
+    });
+  }
+
   return {
     success: true,
     new_file_size: newSize,
     new_filename: path.basename(filePath),
-    new_file_modified_at: timestamps.mtime.toISOString(),
-    new_file_created_at: timestamps.creationTime?.toISOString() ?? undefined,
+    new_file_modified_at: actualMtime,
+    new_file_created_at: actualCreated,
     original_backed_up: true,
     original_deleted: false,
     timestamp_restore_status: "verified",
@@ -573,12 +586,26 @@ async function handleProcessMode(
     creation_time_restored: restoreResult.creation_time_restored,
   });
 
+  // Re-read actual on-disk timestamps to report what's truly there
+  // (not just the intended values — in case tolerance allowed minor drift)
+  let actualMtime = timestamps.mtime.toISOString();
+  let actualCreated = timestamps.creationTime?.toISOString() ?? undefined;
+  try {
+    const postRestore = await captureTimestamps(filePath, jobId);
+    actualMtime = postRestore.mtime.toISOString();
+    actualCreated = postRestore.creationTime?.toISOString() ?? undefined;
+  } catch (e) {
+    logger.warn("Failed to re-read post-restore timestamps, reporting intended values", {
+      jobId, error: (e as Error).message,
+    });
+  }
+
   return {
     success: true,
     new_file_size: newSize,
     new_filename: path.basename(filePath),
-    new_file_modified_at: timestamps.mtime.toISOString(),
-    new_file_created_at: timestamps.creationTime?.toISOString() ?? undefined,
+    new_file_modified_at: actualMtime,
+    new_file_created_at: actualCreated,
     original_backed_up: false,
     original_deleted: true,
     timestamp_restore_status: "verified",
