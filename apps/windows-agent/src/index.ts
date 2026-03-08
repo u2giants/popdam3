@@ -954,15 +954,13 @@ function startHygieneScanChecker() {
 
       await api.callApi("report-hygiene-findings", {
         findings, session_id: sessionId, done: true,
-        progress: {
-          files_checked: totalChecked,
-          dirs_scanned: totalDirs,
-          findings_count: findings.length,
-          elapsed_ms: Date.now() - scanStarted,
-        },
+        progress: makeProgress(),
+        ...(cancelled ? { error: "Scan cancelled by user" } : {}),
       });
 
-      logger.info("Hygiene scan complete", { totalChecked, findingsReported: findings.length, sessionId });
+      logger.info(cancelled ? "Hygiene scan cancelled by user" : "Hygiene scan complete", {
+        totalChecked, totalErrors, findingsReported: findings.length, sessionId,
+      });
     } catch (e) {
       logger.error("Hygiene scan failed", { error: (e as Error).message });
     } finally {
