@@ -325,7 +325,7 @@ export default function LibraryPage() {
 
         {/* Detail panel: style group */}
         {isGroupsMode && detailGroup && (
-          <div className="max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
+          <div className="h-full max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
             <StyleGroupDetailPanel
               group={detailGroup}
               onClose={() => setDetailGroupId(null)}
@@ -335,7 +335,7 @@ export default function LibraryPage() {
 
         {/* Detail panel: individual asset */}
         {!isGroupsMode && detailAsset && (
-          <div className="max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
+          <div className="h-full max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
             <AssetDetailPanel
               asset={detailAsset}
               onClose={() => setDetailAssetId(null)}
