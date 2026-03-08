@@ -2727,14 +2727,28 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
     }
 
     try {
-      const prompt = `Classify this product into exactly one of these 7 categories: ${CATEGORIES.join(", ")}.
+      const prompt = `Classify this product into exactly ONE of these 7 categories for home décor products:
+- Wall (wall art, wall clocks, wall signs, letters/plaques, canvas, frames, mirrors mounted on walls)
+- Tabletop (picture frames that sit on tables, decorative objects, sculptures, figurines, candle holders, vases, desk accessories)
+- Clock (any type of clock - wall clocks, desk clocks, mantle clocks, alarm clocks)
+- Storage (boxes, baskets, bins, organizers, chests, cabinets)
+- Workspace (desk organizers, office supplies, pen holders, paperweights, desk lamps)
+- Floor (floor lamps, large sculptures, plant stands, umbrella stands, floor decor)
+- Garden (outdoor décor, planters, garden statues, wind chimes, outdoor signs)
 
-Product info:
+IMPORTANT CLASSIFICATION RULES:
+1. "MDF letter" or "letter" items are WALL products (decorative letters mount on walls)
+2. "Canvas" items are always WALL products
+3. If description mentions specific characters (Marvel, Disney, etc.) look for product type keywords
+4. If you cannot determine the category with certainty, set confidence below 0.5
+5. DO NOT guess - if the description is ambiguous or unclear, use low confidence
+
+Product to classify:
 - Style Number: ${item.style_number || "unknown"}
 - Description: ${item.item_description || "none"}
 - MG fields: ${JSON.stringify(item.raw_mg_fields || {})}
 
-Return ONLY the classification using the provided tool.`;
+Use the provided tool to return your classification.`;
 
       const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         signal: AbortSignal.timeout(20_000),
