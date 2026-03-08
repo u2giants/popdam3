@@ -20,6 +20,7 @@ import { uploadThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
 import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
+import { captureTimestamps } from "./tiff-timestamps";
 import { ensureNasMapped } from "./nas-mapper";
 import { shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
