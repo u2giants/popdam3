@@ -198,6 +198,40 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
               <TooltipContent side="bottom" className="max-w-[260px] text-center">Resolves human-readable licensor/property names from the ColdLion API where only codes exist</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={() => debugColdlionMutation.mutate()}
+                  disabled={debugColdlionMutation.isPending}
+                >
+                  {debugColdlionMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" />}
+                  Debug ColdLion
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] text-center">Fetches MG06 (property) codes from ColdLion API and checks if CR/CREATURE exists. Results logged to console.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5 text-amber-600"
+                  onClick={() => {
+                    if (confirm("This will null out property_name for assets where it's incorrectly set to 'CREATURE' or 'CR'. Continue?")) {
+                      repairPropertyNamesMutation.mutate();
+                    }
+                  }}
+                  disabled={repairPropertyNamesMutation.isPending}
+                >
+                  {repairPropertyNamesMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+                  Repair Property Names
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] text-center">Nulls out invalid property_name values (like CREATURE) for assets and style groups. Safe to re-run.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {reprocessOp.isInterrupted && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => reprocessOp.reset()}>Dismiss</Button>
           )}
