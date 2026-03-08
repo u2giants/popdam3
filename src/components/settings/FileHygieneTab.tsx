@@ -175,6 +175,15 @@ export default function FileHygieneTab() {
     onError: (e) => toast.error(e.message),
   });
 
+  const stopMutation = useMutation({
+    mutationFn: () => call("stop-hygiene-scan", {}),
+    onSuccess: () => {
+      toast.success("Stop signal sent — scan will halt on the next progress report");
+      queryClient.invalidateQueries({ queryKey: ["hygiene-scan-request"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const dismissMutation = useMutation({
     mutationFn: (ids: string[]) => call("update-hygiene-findings", { ids, status: "dismissed" }),
     onSuccess: (_, ids) => {
