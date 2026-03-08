@@ -300,7 +300,7 @@ serve(async (req: Request) => {
         const lastEventAt = Math.max(lastResumeAt, updatedAt);
         if (Date.now() - lastEventAt < autoResumeConfig.cooldownMs) continue;
 
-        console.log(`bulk-job-runner: auto-resuming '${key}' (attempt ${attempts + 1}/${autoResumeConfig.maxAttempts})`);
+        console.log(`bulk-job-runner: auto-resuming '${key}' (attempt ${attempts + 1}/${maxAttemptsForOp})`);
         allOps[key] = {
           ...op,
           status: "running",
