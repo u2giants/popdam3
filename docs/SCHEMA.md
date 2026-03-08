@@ -94,6 +94,11 @@ Hashing + scan bookkeeping:
 - `ingested_at timestamptz DEFAULT now()`
 - `created_at timestamptz DEFAULT now()`
 
+Designer metadata (extracted by AI from Tech Pack thumbnails):
+- `designer_name text NULL`
+- `technical_designer_name text NULL`
+- `freelancer_name text NULL`
+
 Hard constraints:
 - `modified_at` must be NOT NULL and have no default.
 - `relative_path` must be NOT NULL.
