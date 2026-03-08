@@ -575,8 +575,10 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
           </Button>
         </div>
 
-        <ScrollArea className="flex-1 overflow-hidden">
-          <div className="p-4 space-y-5">
+        {/* Scrollable content area - use relative/absolute for proper height */}
+        <div className="relative flex-1">
+          <div className="absolute inset-0 overflow-y-auto">
+            <div className="p-4 space-y-5">
             {/* ── Main preview image with carousel arrows ── */}
             <div
               className="relative aspect-[4/3] w-full rounded-lg bg-muted/30 overflow-hidden cursor-pointer"
