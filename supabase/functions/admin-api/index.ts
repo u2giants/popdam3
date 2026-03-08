@@ -1662,6 +1662,10 @@ serve(async (req: Request) => {
         return await handleIngestSiblingImages(body, userId);
       case "update-bulk-op":
         return await handleUpdateBulkOp(body);
+      case "debug-coldlion-lookup":
+        return await handleDebugColdlionLookup(body);
+      case "repair-invalid-property-names":
+        return await handleRepairInvalidPropertyNames();
       default:
         return err(`Unknown action: ${action}`, 404);
     }
