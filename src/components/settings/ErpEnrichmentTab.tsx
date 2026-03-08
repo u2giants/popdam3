@@ -364,7 +364,7 @@ function EnrichmentControls() {
                 </div>
               )}
               {classifyOp.state.status === "interrupted" && (
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[hsl(var(--warning))/0.18] text-[hsl(var(--warning))] text-[10px] font-medium">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[hsl(var(--warning)/0.18)] text-[hsl(var(--warning))] text-[10px] font-medium">
                   <AlertCircle className="h-3 w-3" />
                   RETRYING
                 </div>
