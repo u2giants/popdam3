@@ -1,0 +1,17 @@
+Windows Registry Editor Version 5.00
+
+; PopDAM Protocol Handler — registers popdam:// URI scheme
+; Import this .reg file to enable "Open Folder" from the PopDAM web app.
+; The handler script (popdam-open.bat) must be placed alongside this .reg file
+; or adjust the path below.
+
+[HKEY_CURRENT_USER\Software\Classes\popdam]
+@="URL:PopDAM Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\popdam\shell]
+
+[HKEY_CURRENT_USER\Software\Classes\popdam\shell\open]
+
+[HKEY_CURRENT_USER\Software\Classes\popdam\shell\open\command]
+@="\"C:\\PopDAM\\popdam-open.bat\" \"%1\""
