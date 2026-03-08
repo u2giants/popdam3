@@ -51,7 +51,7 @@ export default function DownloadsPage() {
   const { isAdmin } = useIsAdmin();
   const download = useBlobDownload();
 
-  const winStep1 = `New-Item -ItemType Directory -Path 'C:\\PopDAM' -Force | Out-Null; @('@echo off','setlocal','powershell -NoProfile -Command "$u=$args[0];$raw=$u -replace ''^popdam://open-folder\\?path='','''';$p=[uri]::UnescapeDataString($raw);Start-Process explorer.exe $p" -- "%%~1"') | Set-Content -Path 'C:\\PopDAM\\popdam-open.bat' -Encoding ASCII; Write-Host '[OK] Created C:\\PopDAM\\popdam-open.bat'`;
+  const winStep1 = `New-Item -ItemType Directory -Path 'C:\\PopDAM' -Force | Out-Null; @('@echo off','setlocal','powershell -NoProfile -Command "$u=$args[0];$raw=$u -replace ''^popdam://open-folder\\?path='','''';$p=[uri]::UnescapeDataString($raw);Start-Process explorer.exe $p" -- "%~1"') | Set-Content -Path 'C:\\PopDAM\\popdam-open.bat' -Encoding ASCII; Write-Host '[OK] Created C:\\PopDAM\\popdam-open.bat'`;
 
   const winStep2 = `New-Item -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name '(Default)' -Value 'URL:PopDAM Protocol'; New-Item -Path 'HKCU:\\Software\\Classes\\popdam' -Name 'URL Protocol' -Value '' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Name '(Default)' -Value '"C:\\PopDAM\\popdam-open.bat" "%1"'; Write-Host '[OK] Protocol handler registered'`;
 
