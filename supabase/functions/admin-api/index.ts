@@ -1735,7 +1735,7 @@ async function handleDebugColdlionLookup(body: Record<string, unknown>) {
 
     const data = await res.json();
     const items = Array.isArray(data) ? data : (data.value ?? []);
-    
+
     // Build lookup map
     const lookup: Record<string, string> = {};
     for (const item of items) {
@@ -1755,9 +1755,7 @@ async function handleDebugColdlionLookup(body: Record<string, unknown>) {
     }
 
     // Check if CREATURE exists anywhere
-    const creatureCode = Object.entries(lookup).find(([_, name]) => 
-      name.toUpperCase().includes("CREATURE")
-    );
+    const creatureCode = Object.entries(lookup).find(([_, name]) => name.toUpperCase().includes("CREATURE"));
 
     return json({
       ok: true,
@@ -1765,9 +1763,7 @@ async function handleDebugColdlionLookup(body: Record<string, unknown>) {
       division,
       total_codes: Object.keys(lookup).length,
       search_result: searchResult,
-      creature_check: creatureCode 
-        ? { found: true, code: creatureCode[0], name: creatureCode[1] }
-        : { found: false, code: null, name: null },
+      creature_check: creatureCode ? { found: true, code: creatureCode[0], name: creatureCode[1] } : { found: false, code: null, name: null },
       sample_codes: Object.entries(lookup).slice(0, 20).map(([code, name]) => ({ code, name })),
       all_codes: lookup,
     });
@@ -1823,8 +1819,8 @@ async function handleRepairInvalidPropertyNames() {
   }
 
   // Filter to assets where property_code is NOT in valid codes, or property_name is CREATURE
-  const toRepair = (invalidAssets || []).filter(a => 
-    a.property_name === "CREATURE" || 
+  const toRepair = (invalidAssets || []).filter((a) =>
+    a.property_name === "CREATURE" ||
     a.property_name === "CR" ||
     (a.property_code && !validCodes.has(a.property_code))
   );
@@ -1839,7 +1835,7 @@ async function handleRepairInvalidPropertyNames() {
   }
 
   // Null out property_name for these assets (keep property_code for potential future re-resolution)
-  const idsToRepair = toRepair.map(a => a.id);
+  const idsToRepair = toRepair.map((a) => a.id);
   const { error: updateError } = await db
     .from("assets")
     .update({ property_name: null })
@@ -1858,7 +1854,7 @@ async function handleRepairInvalidPropertyNames() {
 
   let groupsRepaired = 0;
   if (invalidGroups && invalidGroups.length > 0) {
-    const groupIds = invalidGroups.map(g => g.id);
+    const groupIds = invalidGroups.map((g) => g.id);
     const { error: groupUpdateError } = await db
       .from("style_groups")
       .update({ property_name: null })
@@ -1875,7 +1871,7 @@ async function handleRepairInvalidPropertyNames() {
     sample_valid_codes: Array.from(validCodes).slice(0, 30),
     assets_repaired: idsToRepair.length,
     groups_repaired: groupsRepaired,
-    sample_repaired: toRepair.slice(0, 10).map(a => ({
+    sample_repaired: toRepair.slice(0, 10).map((a) => ({
       id: a.id,
       property_code: a.property_code,
       old_property_name: a.property_name,
