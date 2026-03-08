@@ -2287,8 +2287,12 @@ serve(async (req: Request) => {
         return await handleReportTiffScan(body);
       case "claim-tiff-job":
         return await handleClaimTiffJob(body, agentId);
+      case "claim-tiff-reinspect":
+        return await handleClaimTiffReinspect(body, agentId);
       case "complete-tiff-job":
         return await handleCompleteTiffJob(body);
+      case "complete-tiff-reinspect":
+        return await handleCompleteTiffReinspect(body);
       case "claim-sibling-scan":
         return await handleClaimSiblingScan(body, agentId);
       case "complete-sibling-scan":
