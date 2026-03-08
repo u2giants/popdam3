@@ -2388,15 +2388,25 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   const batchSize = 50;
   const db = serviceClient();
 
-  // Fetch a batch of erp_items_current with style_number
-  const { data: erpItems, error: fetchErr } = await db.from("erp_items_current")
-    .select("id, external_id, style_number, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
-    .not("style_number", "is", null)
-    .order("external_id")
-    .range(offset, offset + batchSize - 1);
+  // Only enrich ERP items whose style_number matches an existing asset or style group
+  const matchedSql = `
+    SELECT e.id, e.external_id, e.style_number, e.mg_category,
+           e.mg01_code, e.mg02_code, e.mg03_code, e.size_code,
+           e.licensor_code, e.property_code, e.division_code
+    FROM erp_items_current e
+    WHERE e.style_number IS NOT NULL
+      AND (
+        EXISTS (SELECT 1 FROM assets a WHERE a.sku = e.style_number AND a.is_deleted = false)
+        OR EXISTS (SELECT 1 FROM style_groups sg WHERE sg.sku = e.style_number)
+      )
+    ORDER BY e.external_id
+    LIMIT ${batchSize} OFFSET ${offset}
+  `;
+  const { data: erpItemsRaw, error: fetchErr } = await db.rpc("execute_readonly_query", { query_text: matchedSql });
 
   if (fetchErr) return err(fetchErr.message, 500);
-  if (!erpItems || erpItems.length === 0) {
+  const erpItems = (Array.isArray(erpItemsRaw) ? erpItemsRaw : []) as any[];
+  if (erpItems.length === 0) {
     return json({ ok: true, done: true, assets_updated: 0, groups_updated: 0 });
   }
 
