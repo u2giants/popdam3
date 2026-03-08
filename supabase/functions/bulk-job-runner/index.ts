@@ -291,7 +291,8 @@ serve(async (req: Request) => {
         if (op.interruption_reason_code === "user_stop") continue; // respect manual stops
 
         const attempts = op.auto_resume_attempts ?? 0;
-        if (attempts >= autoResumeConfig.maxAttempts) continue;
+        const maxAttemptsForOp = AUTO_RESUME_MAX_ATTEMPTS_BY_OP[key] ?? autoResumeConfig.maxAttempts;
+        if (attempts >= maxAttemptsForOp) continue;
 
         // Check cooldown
         const lastResumeAt = op.last_auto_resume_at ? new Date(op.last_auto_resume_at).getTime() : 0;
