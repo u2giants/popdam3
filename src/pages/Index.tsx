@@ -43,6 +43,63 @@ export default function LibraryPage() {
   const scanRunning = scanProgress.status === "running" || scanProgress.status === "stale";
   const scanQueued = scanProgress.status === "queued";
 
+  // ── Scan outcome notifications ──────────────────────────────────
+  const prevScanStatusRef = useRef(scanProgress.status);
+  useEffect(() => {
+    const prev = prevScanStatusRef.current;
+    const curr = scanProgress.status;
+    prevScanStatusRef.current = curr;
+
+    if (prev === curr) return;
+
+    // Scan started running
+    if (curr === "running" && (prev === "queued" || prev === "idle")) {
+      toast({ title: "Scan started", description: "The Bridge Agent is scanning the NAS…" });
+    }
+
+    // Scan completed
+    if (curr === "completed" || (curr === "idle" && (prev === "running" || prev === "queued"))) {
+      setScanTriggered(false);
+      const c = scanProgress.counters;
+      if (c) {
+        const parts: string[] = [];
+        if (c.files_checked) parts.push(`${c.files_checked.toLocaleString()} files checked`);
+        if (c.ingested_new) parts.push(`${c.ingested_new} new`);
+        if (c.updated_existing) parts.push(`${c.updated_existing} updated`);
+        if (c.moved_detected) parts.push(`${c.moved_detected} moved`);
+        if (parts.length === 0) parts.push("Nothing new to sync");
+        toast({ title: "Scan complete", description: parts.join(", ") });
+      } else {
+        toast({ title: "Scan complete", description: "Nothing new to sync — all assets are up to date." });
+      }
+      // Refresh library data
+      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
+    }
+
+    // Scan failed
+    if (curr === "failed") {
+      setScanTriggered(false);
+      toast({
+        title: "Scan failed",
+        description: scanProgress.updated_at
+          ? `Failed at ${new Date(scanProgress.updated_at).toLocaleTimeString()} — check agent logs`
+          : "Check agent logs for details",
+        variant: "destructive",
+      });
+    }
+
+    // Stale detection
+    if (curr === "stale" && prev === "running") {
+      toast({
+        title: "Scan appears stuck",
+        description: "No progress in 3+ minutes. Use 'Reset Scan State' in Settings if needed.",
+        variant: "destructive",
+      });
+    }
+  }, [scanProgress.status, scanProgress.counters, scanProgress.updated_at, queryClient]);
+
   // Reset selection & detail when switching modes
   const handleLibraryModeChange = useCallback((mode: LibraryMode) => {
     setLibraryMode(mode);
