@@ -48,15 +48,7 @@ function isOnline(hb: string | null): boolean {
   return !!hb && Date.now() - new Date(hb).getTime() < TWO_MIN;
 }
 
-const emptyCounters: ScanCounters = {
-  files_checked: 0, candidates_found: 0, ingested_new: 0,
-  moved_detected: 0, updated_existing: 0, errors: 0,
-  roots_invalid: 0, roots_unreadable: 0, dirs_skipped_permission: 0,
-  dirs_skipped_excluded: 0,
-  files_stat_failed: 0, files_total_encountered: 0,
-  rejected_wrong_type: 0, rejected_junk_file: 0, noop_unchanged: 0,
-  rejected_subfolder: 0,
-};
+// emptyCounters removed — was unused
 
 function parseCounters(raw: unknown): ScanCounters | null {
   if (!raw || typeof raw !== "object") return null;
