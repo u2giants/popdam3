@@ -303,29 +303,43 @@ serve(async (req: Request) => {
       }
     }
 
-    // Find first operation with status "running"
-    let runningEntry = Object.entries(allOps).find(([_, op]) => op.status === "running");
+    // Find ALL running operations, grouped by lane
+    const runningEntries = Object.entries(allOps).filter(([_, op]) => op.status === "running");
 
-    if (!runningEntry) {
-      // Check for queued operations to promote
-      const queuedEntries = Object.entries(allOps).filter(([_, op]) => op.status === "queued");
-      if (queuedEntries.length > 0) {
-        queuedEntries.sort((a, b) => {
-          const posA = a[1].queue_position ?? Number.MAX_SAFE_INTEGER;
-          const posB = b[1].queue_position ?? Number.MAX_SAFE_INTEGER;
-          if (posA !== posB) return posA - posB;
-          return new Date(a[1].updated_at || 0).getTime() - new Date(b[1].updated_at || 0).getTime();
-        });
+    // Promote queued ops into lanes that have no running op
+    const activeLanes = new Set(runningEntries.map(([k]) => getLane(k)));
+    const queuedEntries = Object.entries(allOps)
+      .filter(([_, op]) => op.status === "queued")
+      .sort((a, b) => {
+        const posA = a[1].queue_position ?? Number.MAX_SAFE_INTEGER;
+        const posB = b[1].queue_position ?? Number.MAX_SAFE_INTEGER;
+        if (posA !== posB) return posA - posB;
+        return new Date(a[1].updated_at || 0).getTime() - new Date(b[1].updated_at || 0).getTime();
+      });
 
-        const [nextOpKey, nextOp] = queuedEntries[0];
-        console.log(`bulk-job-runner: Promoting '${nextOpKey}' from queue to running.`);
+    for (const [nextOpKey, nextOp] of queuedEntries) {
+      const lane = getLane(nextOpKey);
+      if (!activeLanes.has(lane)) {
+        console.log(`bulk-job-runner: Promoting '${nextOpKey}' from queue to running (lane: ${lane}).`);
         allOps[nextOpKey] = {
           ...nextOp,
           status: "running",
           updated_at: new Date().toISOString(),
         };
-        runningEntry = [nextOpKey, allOps[nextOpKey]];
+        runningEntries.push([nextOpKey, allOps[nextOpKey]]);
+        activeLanes.add(lane);
       }
+    }
+
+    // Pick one running op to process this invocation (round-robin by least-recently-updated)
+    let runningEntry: [string, OpState] | undefined;
+    if (runningEntries.length > 0) {
+      runningEntries.sort((a, b) => {
+        const aTime = a[1].updated_at ? new Date(a[1].updated_at).getTime() : 0;
+        const bTime = b[1].updated_at ? new Date(b[1].updated_at).getTime() : 0;
+        return aTime - bTime; // oldest update first = most starved
+      });
+      runningEntry = runningEntries[0] as [string, OpState];
     }
 
     if (!runningEntry) {
