@@ -187,12 +187,11 @@ export default function DownloadsPage() {
               </ol>
               <Button variant="outline" size="sm" asChild>
                 <a
-                  href="https://github.com/u2giants/popdam3/blob/main/scripts/protocol-handler/install-popdam-protocol.sh"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="https://raw.githubusercontent.com/u2giants/popdam3/main/scripts/protocol-handler/install-popdam-protocol.sh"
+                  download="install-popdam-protocol.sh"
                   className="flex items-center gap-2"
                 >
-                  <ExternalLink className="h-3 w-3" />
+                  <Download className="h-3 w-3" />
                   .sh installer
                 </a>
               </Button>
