@@ -116,6 +116,11 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
               Dismiss
             </Button>
           )}
+          {(displayOp.state.status === "completed" || displayOp.state.status === "failed") && displayOp.state.status !== "idle" && !displayOp.isActive && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => { tagUntaggedOp.reset(); tagAllOp.reset(); }}>
+              Dismiss
+            </Button>
+          )}
         </div>
 
         {showProgress && (() => {
