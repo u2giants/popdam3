@@ -221,23 +221,33 @@ function ClassificationLiveLog({ active }: { active: boolean }) {
     let cancelled = false;
 
     const poll = async () => {
+      // Only fetch meaningful recent classifications (not unclassifiable junk)
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from("product_category_predictions")
         .select("id, external_id, predicted_category, confidence, status, created_at, input_context")
+        .neq("status", "unclassifiable")
+        .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(50);
 
       if (cancelled || !data) return;
-      setEntries(data.map((r: any) => ({
-        id: r.id,
-        external_id: r.external_id,
-        predicted_category: r.predicted_category,
-        confidence: r.confidence,
-        status: r.status,
-        style_number: r.input_context?.style_number ?? null,
-        description: r.input_context?.item_description ?? null,
-        created_at: r.created_at,
-      })));
+      setEntries(prev => {
+        // Only update if data actually changed (prevent scroll resets)
+        const newIds = data.map((r: any) => r.id).join(",");
+        const oldIds = prev.map(r => r.id).join(",");
+        if (newIds === oldIds) return prev;
+        return data.map((r: any) => ({
+          id: r.id,
+          external_id: r.external_id,
+          predicted_category: r.predicted_category,
+          confidence: r.confidence,
+          status: r.status,
+          style_number: r.input_context?.style_number ?? null,
+          description: r.input_context?.item_description ?? null,
+          created_at: r.created_at,
+        }));
+      });
     };
 
     poll();
