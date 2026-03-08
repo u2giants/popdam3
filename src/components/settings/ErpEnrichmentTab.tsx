@@ -531,6 +531,7 @@ function ReviewQueue() {
   const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
   const STATUS_TABS = [
     { key: "pending", label: "Pending" },
+    { key: "low_confidence", label: "Low Confidence (<50%)" },
     { key: "auto_applied", label: "Auto-Applied" },
     { key: "approved", label: "Approved" },
     { key: "rejected", label: "Rejected" },
