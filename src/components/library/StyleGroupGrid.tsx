@@ -76,6 +76,11 @@ function StyleGroupCard({
         <span className="truncate text-sm font-semibold leading-tight" title={group.sku}>
           {group.sku}
         </span>
+        {group.cover_description && (
+          <span className="truncate text-[11px] text-muted-foreground italic" title={group.cover_description}>
+            {group.cover_description}
+          </span>
+        )}
         {subtitle && (
           <span className="truncate text-[11px] text-muted-foreground" title={subtitle}>
             {subtitle}

@@ -67,6 +67,11 @@ function AssetCard({
         <span className="truncate text-sm font-semibold leading-tight" title={asset.filename}>
           {formatFilename(asset.filename, 28)}
         </span>
+        {asset.cover_description && (
+          <span className="truncate text-[11px] text-muted-foreground italic" title={asset.cover_description}>
+            {asset.cover_description}
+          </span>
+        )}
         {asset.sku && (
           <span className="truncate text-[11px] font-mono text-muted-foreground" title={asset.sku}>
             {asset.sku}
