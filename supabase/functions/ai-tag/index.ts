@@ -250,7 +250,7 @@ ${
                     cover_description: {
                       type: "string",
                       description:
-                        "Ultra-short card label (max 8 words). Derive from ERP Product Description if available — distill property + product type. Do NOT describe what the image looks like. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. OMIT licensor names (no 'Disney', 'Marvel', etc.), SKUs, dimensions, and scene/art descriptions.",
+                        "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
                     },
                     scene_description: {
                       type: "string",
