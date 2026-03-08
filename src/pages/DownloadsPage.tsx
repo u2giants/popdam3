@@ -180,13 +180,18 @@ export default function DownloadsPage() {
                 <Badge variant="secondary">Windows</Badge>
               </div>
               <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Open <strong>Windows Terminal</strong> (no download needed)</li>
-                <li>Paste the command below and press Enter</li>
+                <li>Open <strong>Command Prompt</strong> or <strong>Windows Terminal</strong></li>
+                <li>Paste <strong>Step 1</strong> → press Enter (creates the handler script)</li>
+                <li>Paste <strong>Step 2</strong> → press Enter (registers the protocol)</li>
                 <li>Restart your browser</li>
               </ol>
               <CopyBlock
-                label="No-download installer command (bypasses Smart App Control file blocking)"
-                text={windowsNoDownloadInstallCommand}
+                label="Step 1 — Create handler script"
+                text={winStep1}
+              />
+              <CopyBlock
+                label="Step 2 — Register popdam:// protocol"
+                text={winStep2}
               />
             </div>
 
