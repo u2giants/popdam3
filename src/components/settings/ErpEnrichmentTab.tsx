@@ -286,13 +286,20 @@ function EnrichmentControls() {
               <Button size="sm" variant="outline" onClick={handleDryRun} className="gap-1.5">
                 <Eye className="h-3.5 w-3.5" /> Dry Run
               </Button>
-              <Button size="sm" onClick={() => handleApply(false)} disabled={enrichOp.isActive} className="gap-1.5">
-                {enrichOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                Apply
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => handleApply(true)} disabled={enrichOp.isActive} className="gap-1.5 text-xs">
-                Force
-              </Button>
+              {enrichOp.isActive ? (
+                <Button size="sm" variant="destructive" onClick={() => enrichOp.stop()} className="gap-1.5">
+                  <X className="h-3.5 w-3.5" /> Stop
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" onClick={() => handleApply(false)} className="gap-1.5">
+                    <Play className="h-3.5 w-3.5" /> Apply
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => handleApply(true)} className="gap-1.5 text-xs">
+                    Force
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           {enrichOp.isActive && enrichOp.state.progress && (
