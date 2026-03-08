@@ -2837,13 +2837,15 @@ Use the provided tool to return your classification.`;
     }
   }
 
-  const done = candidates.length < batchSize;
+  // Done only when the raw query returned fewer than fetchSize items (meaning we've exhausted the table)
+  // NOT based on candidates.length, which can be small due to filtering out already-classified items
+  const done = items.length < fetchSize;
   return json({
     ok: true,
     done,
-    nextOffset: offset + (items || []).length, // advance by total scanned (including skipped)
+    nextOffset: offset + items.length, // advance by total scanned (including skipped)
     classified,
     skipped_unclassifiable: skippedUnclassifiable,
-    total: offset + (items || []).length,
+    total: offset + items.length,
   });
 }
