@@ -351,7 +351,7 @@ function EnrichmentControls() {
             (classifyOp.state.status === "running" || classifyOp.state.status === "queued")
               ? "border-primary bg-primary/5"
               : classifyOp.state.status === "interrupted"
-                ? "border-[hsl(var(--warning))] bg-[hsl(var(--warning))/0.08]"
+                ? "border-[hsl(var(--warning))] bg-[hsl(var(--warning)/0.08)]"
                 : "border-border"
           }`}
         >
