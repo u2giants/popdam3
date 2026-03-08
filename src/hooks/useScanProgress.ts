@@ -100,12 +100,18 @@ export function useScanProgress(): ScanProgress & { pollNow: () => void } {
       timerId = setTimeout(poll, interval);
     };
 
+    pollNowRef.current = poll;
     poll();
     return () => {
       mounted = false;
+      pollNowRef.current = null;
       clearTimeout(timerId);
     };
   }, [call]);
 
-  return progress;
+  const pollNow = useCallback(() => {
+    pollNowRef.current?.();
+  }, []);
+
+  return { ...progress, pollNow };
 }
