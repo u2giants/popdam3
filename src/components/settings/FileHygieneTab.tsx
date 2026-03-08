@@ -398,9 +398,9 @@ export default function FileHygieneTab() {
                                   <div>Total size: {formatBytes((f.details.total_embedded_bytes as number) ?? 0)}</div>
                                   <div>Largest: {formatBytes((f.details.largest_raster_bytes as number) ?? 0)}</div>
                                   <div>Method: {String(f.details.inspection_method ?? "unknown")}</div>
-                                  {Array.isArray(f.details.raster_items) && f.details.raster_items.length > 0 && (
+                                  {Array.isArray(f.details.raster_items) && (f.details.raster_items as Array<Record<string, unknown>>).length > 0 && (
                                     <div className="mt-1 border-t border-border pt-1">
-                                      {(f.details.raster_items as Array<Record<string, unknown>>).slice(0, 5).map((r, i) => (
+                                      {(f.details.raster_items as Array<Record<string, unknown>>).slice(0, 5).map((r: Record<string, unknown>, i: number) => (
                                         <div key={i}>
                                           #{i+1}: {String(r.width)}×{String(r.height)} {String(r.colorSpace)} = {formatBytes((r.estimatedBytes as number) ?? 0)}
                                         </div>
