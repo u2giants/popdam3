@@ -346,13 +346,27 @@ function EnrichmentControls() {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* AI Classification */}
-        <div className={`border rounded-md p-3 space-y-2 ${classifyOp.isActive ? "border-primary bg-primary/5" : "border-border"}`}>
+        <div
+          className={`border rounded-md p-3 space-y-2 ${
+            (classifyOp.state.status === "running" || classifyOp.state.status === "queued")
+              ? "border-primary bg-primary/5"
+              : classifyOp.state.status === "interrupted"
+                ? "border-[hsl(var(--warning))] bg-[hsl(var(--warning)/0.08)]"
+                : "border-border"
+          }`}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {classifyOp.isActive && (
+              {(classifyOp.state.status === "running" || classifyOp.state.status === "queued") && (
                 <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-medium animate-pulse">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  CLASSIFYING
+                  {classifyOp.state.status === "queued" ? "QUEUED" : "CLASSIFYING"}
+                </div>
+              )}
+              {classifyOp.state.status === "interrupted" && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[hsl(var(--warning)/0.18)] text-[hsl(var(--warning))] text-[10px] font-medium">
+                  <AlertCircle className="h-3 w-3" />
+                  RETRYING
                 </div>
               )}
               <div>
@@ -361,9 +375,13 @@ function EnrichmentControls() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {classifyOp.isActive ? (
+              {(classifyOp.state.status === "running" || classifyOp.state.status === "queued") ? (
                 <Button size="sm" variant="destructive" onClick={() => classifyOp.stop()} className="gap-1.5">
                   <X className="h-3.5 w-3.5" /> Stop
+                </Button>
+              ) : classifyOp.state.status === "interrupted" ? (
+                <Button size="sm" variant="secondary" onClick={handleClassify} className="gap-1.5">
+                  <Play className="h-3.5 w-3.5" /> Resume
                 </Button>
               ) : (
                 <Button
@@ -377,11 +395,11 @@ function EnrichmentControls() {
               )}
             </div>
           </div>
-          {classifyOp.isActive && (
+          {(classifyOp.state.status === "running" || classifyOp.state.status === "queued" || classifyOp.state.status === "interrupted") && (
             <div className="space-y-2">
-              <Progress 
-                value={((classifyOp.state.progress?.classified as number || 0) / Math.max(classifyOp.state.progress?.total as number || 1, 1)) * 100} 
-                className="h-2" 
+              <Progress
+                value={((classifyOp.state.progress?.classified as number || 0) / Math.max(classifyOp.state.progress?.total as number || 1, 1)) * 100}
+                className="h-2"
               />
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">
@@ -393,6 +411,9 @@ function EnrichmentControls() {
                   Batch <span className="font-medium text-foreground">{String(classifyOp.state.progress?.total || "?")}</span> scanned
                 </span>
               </div>
+              {classifyOp.state.status === "interrupted" && classifyOp.state.error && (
+                <p className="text-[11px] text-[hsl(var(--warning))]">{classifyOp.state.error}</p>
+              )}
             </div>
           )}
           {classifyOp.state.status === "completed" && (
@@ -401,7 +422,14 @@ function EnrichmentControls() {
               {classifyOp.state.result_message}
             </div>
           )}
-          <ClassificationLiveLog active={classifyOp.isActive || classifyOp.state.status === "completed"} />
+          <ClassificationLiveLog
+            active={
+              classifyOp.state.status === "running" ||
+              classifyOp.state.status === "queued" ||
+              classifyOp.state.status === "interrupted" ||
+              classifyOp.state.status === "completed"
+            }
+          />
         </div>
 
         {/* Enrichment Apply */}

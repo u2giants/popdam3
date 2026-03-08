@@ -53,6 +53,12 @@ const AUTO_RESUME_DEFAULTS = {
   staleRunMinutes: 10,
 };
 
+const AUTO_RESUME_MAX_ATTEMPTS_BY_OP: Record<string, number> = {
+  // Long-running ERP classification can hit intermittent gateway timeouts at scale.
+  // Allow substantially more resumptions so very large runs (e.g. 90k+) don't stall.
+  "erp-classify": 1000,
+};
+
 // Maps operation key → admin-api action name
 const OP_ACTIONS: Record<string, string> = {
   "reprocess-metadata": "reprocess-asset-metadata",
@@ -285,7 +291,8 @@ serve(async (req: Request) => {
         if (op.interruption_reason_code === "user_stop") continue; // respect manual stops
 
         const attempts = op.auto_resume_attempts ?? 0;
-        if (attempts >= autoResumeConfig.maxAttempts) continue;
+        const maxAttemptsForOp = AUTO_RESUME_MAX_ATTEMPTS_BY_OP[key] ?? autoResumeConfig.maxAttempts;
+        if (attempts >= maxAttemptsForOp) continue;
 
         // Check cooldown
         const lastResumeAt = op.last_auto_resume_at ? new Date(op.last_auto_resume_at).getTime() : 0;
@@ -293,7 +300,7 @@ serve(async (req: Request) => {
         const lastEventAt = Math.max(lastResumeAt, updatedAt);
         if (Date.now() - lastEventAt < autoResumeConfig.cooldownMs) continue;
 
-        console.log(`bulk-job-runner: auto-resuming '${key}' (attempt ${attempts + 1}/${autoResumeConfig.maxAttempts})`);
+        console.log(`bulk-job-runner: auto-resuming '${key}' (attempt ${attempts + 1}/${maxAttemptsForOp})`);
         allOps[key] = {
           ...op,
           status: "running",

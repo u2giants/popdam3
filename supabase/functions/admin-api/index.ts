@@ -2729,9 +2729,9 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   // Strictly validate numeric inputs to prevent SQL injection via execute_readonly_query
   const rawOffset = body.offset;
   const offset = typeof rawOffset === "number" && Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
-  // CRITICAL: Keep batch tiny — each AI call takes 2-8s. With 5 items × 8s = 40s max,
-  // plus DB overhead, stays well within the ~150s edge function timeout.
-  const batchSize = 5;
+  // Keep batch very small to stay under gateway/runtime limits during sequential AI calls.
+  // With 2 items and a 20s timeout per call, worst-case stays around ~40s (+ DB overhead).
+  const batchSize = 2;
   const db = serviceClient();
 
   // Use a SQL NOT EXISTS to filter already-classified items directly in the query,
