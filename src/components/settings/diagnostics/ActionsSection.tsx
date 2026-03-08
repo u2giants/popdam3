@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import {
   RefreshCw, RotateCcw, Play, Trash2, Stethoscope,
-  FileSearch, Sparkles, Loader2,
+  FileSearch, Sparkles, Loader2, Database, Wrench,
 } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
@@ -42,6 +42,36 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
     mutationFn: () => call("clear-completed-jobs"),
     onSuccess: (data) => { toast.success(`${data.deleted_count ?? 0} old completed jobs cleared`); onRefresh(); },
     onError: (e) => toast.error(e.message),
+  });
+
+  const debugColdlionMutation = useMutation({
+    mutationFn: async () => {
+      const result = await call("debug-coldlion-lookup", { mg_type: "06", division: "CW001", search_code: "CR" });
+      console.log("ColdLion MG06 Debug:", result);
+      return result;
+    },
+    onSuccess: (data) => {
+      const cr = data.search_result;
+      const creature = data.creature_check;
+      let msg = `ColdLion has ${data.total_codes} property codes.\n`;
+      msg += cr?.found 
+        ? `CR → "${cr.name}"` 
+        : "CR code NOT FOUND in ColdLion!";
+      msg += creature?.found 
+        ? `\nCREATURE found as code "${creature.code}"` 
+        : "\nNo code maps to CREATURE.";
+      toast.info(msg, { duration: 10000 });
+    },
+    onError: (e) => toast.error(`ColdLion lookup failed: ${e.message}`),
+  });
+
+  const repairPropertyNamesMutation = useMutation({
+    mutationFn: () => call("repair-invalid-property-names"),
+    onSuccess: (data) => {
+      toast.success(`Repaired ${data.assets_repaired} assets and ${data.groups_repaired} style groups`);
+      onRefresh();
+    },
+    onError: (e) => toast.error(`Repair failed: ${e.message}`),
   });
 
   function runReprocess() {
@@ -166,6 +196,40 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[260px] text-center">Resolves human-readable licensor/property names from the ColdLion API where only codes exist</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={() => debugColdlionMutation.mutate()}
+                  disabled={debugColdlionMutation.isPending}
+                >
+                  {debugColdlionMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" />}
+                  Debug ColdLion
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] text-center">Fetches MG06 (property) codes from ColdLion API and checks if CR/CREATURE exists. Results logged to console.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5 text-warning"
+                  onClick={() => {
+                    if (confirm("This will null out property_name for assets where it's incorrectly set to 'CREATURE' or 'CR'. Continue?")) {
+                      repairPropertyNamesMutation.mutate();
+                    }
+                  }}
+                  disabled={repairPropertyNamesMutation.isPending}
+                >
+                  {repairPropertyNamesMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+                  Repair Property Names
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] text-center">Nulls out invalid property_name values (like CREATURE) for assets and style groups. Safe to re-run.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           {reprocessOp.isInterrupted && (
