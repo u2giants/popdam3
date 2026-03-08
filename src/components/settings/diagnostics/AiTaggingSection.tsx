@@ -209,8 +209,15 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
           );
         })()}
 
-        {displayOp.state.status === "failed" && (
-          <p className="text-xs text-destructive">Error: {displayOp.state.error}</p>
+        {(displayOp.state.status === "failed" || displayOp.isInterrupted) && displayOp.state.error && (
+          <p className="text-xs text-destructive">
+            Error: {displayOp.state.error}
+            {displayOp.state.auto_resume_attempts != null && displayOp.state.auto_resume_attempts > 0 && (
+              <span className="text-muted-foreground ml-1">
+                (auto-resumed {displayOp.state.auto_resume_attempts} time{displayOp.state.auto_resume_attempts !== 1 ? "s" : ""})
+              </span>
+            )}
+          </p>
         )}
       </CardContent>
     </Card>
