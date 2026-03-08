@@ -182,6 +182,8 @@ export default function LibraryPage() {
     try {
       await call("trigger-scan");
       setScanTriggered(true);
+      // Force immediate poll so the UI shows "queued" right away
+      setTimeout(() => pollScanNow(), 500);
       toast({ title: "Scan triggered", description: "The Bridge Agent will start scanning on its next poll (~30s)." });
     } catch (e) {
       toast({ title: "Failed to trigger scan", description: (e as Error).message, variant: "destructive" });
