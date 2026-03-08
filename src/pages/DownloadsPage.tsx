@@ -32,7 +32,7 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-  const download = useBlobDownload();
+  
 
   return (
     <div className="space-y-1">
