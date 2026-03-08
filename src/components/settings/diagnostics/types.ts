@@ -65,6 +65,24 @@ export const OP_NAMES: Record<string, string> = {
   "erp-classify": "ERP Classify",
 };
 
+// Operations in DIFFERENT lanes can run simultaneously.
+// Operations in the SAME lane conflict and need user resolution.
+export const OP_LANES: Record<string, string> = {
+  "ai-tag-untagged": "ai-tagging",
+  "ai-tag-all": "ai-tagging",
+  "ai-tag-groups": "ai-tagging",
+  "rebuild-style-groups": "style-groups",
+  "reconcile-style-group-stats": "style-groups",
+  "reprocess-metadata": "metadata",
+  "backfill-sku-names": "metadata",
+  "erp-enrichment": "erp",
+  "erp-classify": "erp",
+};
+
+export function getLane(opKey: string): string {
+  return OP_LANES[opKey] ?? opKey;
+}
+
 export const REASON_LABELS: Record<string, string> = {
   gateway_timeout: "Gateway timeout (502/503/504)",
   statement_timeout: "Database statement timeout",
