@@ -653,6 +653,68 @@ export type Database = {
         }
         Relationships: []
       }
+      hygiene_findings: {
+        Row: {
+          asset_id: string | null
+          check_type: string
+          created_at: string
+          details: Json
+          filename: string
+          found_at: string
+          found_by_agent: string | null
+          id: string
+          relative_path: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          scan_session_id: string | null
+          severity: string
+          status: string
+        }
+        Insert: {
+          asset_id?: string | null
+          check_type: string
+          created_at?: string
+          details?: Json
+          filename: string
+          found_at?: string
+          found_by_agent?: string | null
+          id?: string
+          relative_path: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scan_session_id?: string | null
+          severity?: string
+          status?: string
+        }
+        Update: {
+          asset_id?: string | null
+          check_type?: string
+          created_at?: string
+          details?: Json
+          filename?: string
+          found_at?: string
+          found_by_agent?: string | null
+          id?: string
+          relative_path?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scan_session_id?: string | null
+          severity?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hygiene_findings_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null
