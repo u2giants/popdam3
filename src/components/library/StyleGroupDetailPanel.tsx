@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
-import { openAssetFolder } from "@/lib/open-folder";
+import { getOpenFolderUri } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
