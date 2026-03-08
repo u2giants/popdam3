@@ -169,6 +169,7 @@ Based on the image and metadata, identify:
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
 9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
+10. Cover description rule: generate a very short card label focused on **PROPERTY + PRODUCT TYPE** (optionally key character), e.g. "Frozen backpack", "Spider-Man lunchbox", "Mickey tee". Do NOT include licensor names (no Disney/Marvel/etc.), and do NOT describe scene composition/art direction.
 ${
       usingPriorityOnly
         ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
@@ -232,7 +233,7 @@ ${
                     cover_description: {
                       type: "string",
                       description:
-                        "Ultra-short card label (max 8 words). Identify the PROPERTY and key characters — e.g. 'Frozen Elsa & Anna', 'Spider-Man Miles Morales', 'Mickey & Friends retro'. Focus on property name + character names + one style/mood word if space allows. OMIT licensor names (no 'Disney', 'Marvel', etc.), SKUs, file types, and scene descriptions.",
+                        "Ultra-short card label (max 8 words). Format as PROPERTY + PRODUCT TYPE (optionally one key character), e.g. 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. OMIT licensor names (no 'Disney', 'Marvel', etc.), SKUs, file types, and scene/art descriptions.",
                     },
                     scene_description: {
                       type: "string",
