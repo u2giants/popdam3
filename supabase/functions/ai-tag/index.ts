@@ -147,6 +147,21 @@ serve(async (req: Request) => {
       `${charContext}${(characters || []).map((c) => `${c.name} (${c.id})`).join(", ")}`,
     ].join("\n");
 
+    // Fetch ERP item_description for cover_description derivation
+    let erpDescription: string | null = null;
+    if (asset.sku) {
+      const { data: erpItem } = await db
+        .from("erp_items_current")
+        .select("item_description")
+        .eq("style_number", asset.sku)
+        .maybeSingle();
+      erpDescription = erpItem?.item_description ?? null;
+    }
+
+    const erpCoverContext = erpDescription
+      ? `\nERP Product Description: "${erpDescription}"\n`
+      : "";
+
     const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
 
 Analyze the thumbnail image and file metadata to produce structured tags.
@@ -155,7 +170,7 @@ File: ${asset.filename}
 Path: ${asset.relative_path}
 Type: ${asset.file_type}
 Existing tags: ${(asset.tags || []).join(", ") || "none"}
-
+${erpCoverContext}
 Known taxonomy:
 ${taxonomyContext}
 
@@ -169,7 +184,7 @@ Based on the image and metadata, identify:
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
 9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
-10. Cover description rule: generate a very short card label focused on **PROPERTY + PRODUCT TYPE** (optionally key character), e.g. "Frozen backpack", "Spider-Man lunchbox", "Mickey tee". Do NOT include licensor names (no Disney/Marvel/etc.), and do NOT describe scene composition/art direction.
+10. Cover description rule: Derive a very short card label (max 8 words) focused on **PROPERTY + PRODUCT TYPE**. If an ERP Product Description is provided above, distill the product type from THAT description — do NOT guess the product from the image (the image may show just artwork, not the actual product). Format examples: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee". OMIT licensor names (no Disney/Marvel/etc.), SKUs, dimensions, and scene/art descriptions. If no ERP description is available, use the filename/path to infer product type.
 ${
       usingPriorityOnly
         ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
