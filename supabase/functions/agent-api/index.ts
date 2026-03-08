@@ -2012,9 +2012,7 @@ async function handleClaimTiffJob(body: Record<string, unknown>, agentId: string
 
 async function handleClaimTiffReinspect(body: Record<string, unknown>, agentId: string) {
   const db = serviceClient();
-  const batchSize = typeof body.batch_size === "number"
-    ? Math.min(Math.max(body.batch_size, 1), 200)
-    : 50;
+  const batchSize = typeof body.batch_size === "number" ? Math.min(Math.max(body.batch_size, 1), 200) : 50;
 
   const { data: row, error: reqErr } = await db
     .from("admin_config")
@@ -2049,9 +2047,7 @@ async function handleClaimTiffReinspect(body: Record<string, unknown>, agentId: 
     return json({ ok: true, jobs: [], done: false });
   }
 
-  const requestedIds = Array.isArray(req.ids)
-    ? (req.ids.filter((v): v is string => typeof v === "string" && v.length > 0))
-    : [];
+  const requestedIds = Array.isArray(req.ids) ? (req.ids.filter((v): v is string => typeof v === "string" && v.length > 0)) : [];
   const lastId = typeof req.last_id === "string" && req.last_id.length > 0 ? req.last_id : null;
   const processedCount = typeof req.processed_count === "number" ? req.processed_count : 0;
 
