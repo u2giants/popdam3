@@ -2721,7 +2721,9 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 }
 
 async function handleClassifyErpCategories(body: Record<string, unknown>) {
-  const offset = typeof body.offset === "number" ? body.offset : 0;
+  // Strictly validate numeric inputs to prevent SQL injection via execute_readonly_query
+  const rawOffset = body.offset;
+  const offset = typeof rawOffset === "number" && Number.isInteger(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
   const batchSize = 100;
   const db = serviceClient();
 
@@ -2733,7 +2735,6 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
 
   // Find ERP items that need AI classification:
   // mg_category IS NULL AND matched to at least one real asset in the system.
-  // This avoids classifying orphan ERP records / style rows with zero assets.
   const fetchSize = batchSize + 200; // fetch extra to filter out already-classified
   const matchedSql = `
     SELECT e.id, e.external_id, e.style_number, e.item_description,
@@ -2749,7 +2750,7 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
           AND a.is_deleted = false
       )
     ORDER BY e.external_id
-    LIMIT ${fetchSize} OFFSET ${offset}
+    LIMIT ${Number(fetchSize)} OFFSET ${Number(offset)}
   `.trim();
   const { data: itemsRaw, error: fetchErr } = await db.rpc("execute_readonly_query", { query_text: matchedSql });
   const items = (itemsRaw as any[] | null) || [];
