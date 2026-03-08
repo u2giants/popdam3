@@ -2676,14 +2676,30 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
 
   /** Check if an item has enough data for meaningful AI classification */
   function isUnclassifiable(item: any): boolean {
-    const desc = (item.item_description || "").trim();
+    const desc = (item.item_description || "").trim().toLowerCase();
     const style = (item.style_number || "").trim();
     // No description and no style number
     if (!desc && !style) return true;
     // Description is just the external_id or style_number repeated (junk)
-    if (desc === item.external_id || desc === style) return true;
+    if (desc === item.external_id?.toLowerCase() || desc === style?.toLowerCase()) return true;
     // Description is too short to be meaningful (e.g. "test5", "20200")
     if (desc.length > 0 && desc.length <= 6 && /^[a-z0-9]+$/i.test(desc)) return true;
+    // Generic junk descriptions with no product information
+    const junkPatterns = [
+      /^assortment$/i,
+      /^test$/i,
+      /^testing$/i,
+      /^sample$/i,
+      /^n\/?a$/i,
+      /^tbd$/i,
+      /^none$/i,
+      /^null$/i,
+      /^placeholder$/i,
+      /^(desing|design)\s*(number|num|#)?(\s+function)?\s*(test)?\s*\d*$/i,  // "desing numnber function test"
+      /^\d{4,}$/,  // Just numbers like "20200", "12345"
+      /^[a-z]{1,3}\d{4,}$/i,  // Style-number-like: "AB12345"
+    ];
+    if (junkPatterns.some(p => p.test(desc))) return true;
     return false;
   }
 
