@@ -171,7 +171,7 @@ export default function DownloadsPage() {
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a
-                    href="https://raw.githubusercontent.com/u2giants/popdam3/main/scripts/protocol-handler/popdam-open.bat"
+                    href="/downloads/popdam-open.bat"
                     download="popdam-open.bat"
                     className="flex items-center gap-2"
                   >
