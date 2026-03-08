@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sparkles, RefreshCw, Loader2, XCircle } from "lucide-react";
 import type { RequestOpFn } from "./types";
-import { OP_NAMES } from "./types";
+import { OP_NAMES, REASON_LABELS, timeAgo } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
 
 export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
@@ -116,6 +116,11 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
               Dismiss
             </Button>
           )}
+          {(displayOp.state.status === "completed" || displayOp.state.status === "failed") && !displayOp.isActive && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => { tagUntaggedOp.reset(); tagAllOp.reset(); }}>
+              Dismiss
+            </Button>
+          )}
         </div>
 
         {showProgress && (() => {
@@ -133,7 +138,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
 
           return (
             <div className="space-y-2 mt-1">
-              {/* Header: status + elapsed */}
+              {/* Header: status + elapsed + stopped reason */}
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   {displayOp.isActive && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
@@ -142,12 +147,24 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
                      displayOp.isInterrupted ? "⏸ Interrupted" :
                      displayOp.state.status === "failed" ? "✗ Failed" : "Tagging…"}
                   </span>
+                  {/* Show WHY it stopped */}
+                  {(displayOp.isInterrupted || displayOp.state.status === "failed") && displayOp.state.interruption_reason_code && (
+                    <span className="text-xs text-muted-foreground">
+                      — {REASON_LABELS[displayOp.state.interruption_reason_code] ?? displayOp.state.interruption_reason_code}
+                    </span>
+                  )}
                 </div>
-                {elapsedMs > 0 && (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    Elapsed: {formatDuration(elapsedMs)}
-                  </span>
-                )}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+                  {/* Show WHEN it stopped */}
+                  {!displayOp.isActive && displayOp.state.updated_at && (
+                    <span title={new Date(displayOp.state.updated_at).toLocaleString()}>
+                      Stopped {timeAgo(displayOp.state.updated_at)}
+                    </span>
+                  )}
+                  {displayOp.isActive && elapsedMs > 0 && (
+                    <span>Elapsed: {formatDuration(elapsedMs)}</span>
+                  )}
+                </div>
               </div>
 
               {/* Count row */}
@@ -192,8 +209,15 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
           );
         })()}
 
-        {displayOp.state.status === "failed" && (
-          <p className="text-xs text-destructive">Error: {displayOp.state.error}</p>
+        {(displayOp.state.status === "failed" || displayOp.isInterrupted) && displayOp.state.error && (
+          <p className="text-xs text-destructive">
+            Error: {displayOp.state.error}
+            {displayOp.state.auto_resume_attempts != null && displayOp.state.auto_resume_attempts > 0 && (
+              <span className="text-muted-foreground ml-1">
+                (auto-resumed {displayOp.state.auto_resume_attempts} time{displayOp.state.auto_resume_attempts !== 1 ? "s" : ""})
+              </span>
+            )}
+          </p>
         )}
       </CardContent>
     </Card>
