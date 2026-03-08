@@ -56,6 +56,7 @@ export function useAdminApi() {
 
         if (data && !data.ok) throw new Error(data.error || "Admin API returned error");
         return data;
+      } catch (e) {
         // Don't retry client errors (4xx) — they'll fail every time
         throw e;
       }
