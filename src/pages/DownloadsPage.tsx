@@ -1,4 +1,4 @@
-import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen } from "lucide-react";
+import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen, Terminal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +51,9 @@ export default function DownloadsPage() {
   const { isAdmin } = useIsAdmin();
   const download = useBlobDownload();
 
-  const windowsNoDownloadInstallCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$bat = @'\n@echo off\nsetlocal\npowershell -NoProfile -Command \"$u=$args[0];$raw=$u -replace '^popdam://open-folder\\?path=','';$p=[uri]::UnescapeDataString($raw);Start-Process explorer.exe -ArgumentList ('\"' + $p + '\"')\" -- \"%~1\"\n'@; New-Item -ItemType Directory -Path 'C:\\PopDAM' -Force | Out-Null; Set-Content -Path 'C:\\PopDAM\\popdam-open.bat' -Value $bat -Encoding ASCII; New-Item -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Force | Out-Null; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name '(Default)' -Value 'URL:PopDAM Protocol'; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam' -Name 'URL Protocol' -Value ''; Set-ItemProperty -Path 'HKCU:\\Software\\Classes\\popdam\\shell\\open\\command' -Name '(Default)' -Value '\"C:\\PopDAM\\popdam-open.bat\" \"%1\"'; Write-Host 'PopDAM protocol handler installed. Restart your browser.'"`;
+  const winStep1 = `mkdir C:\\PopDAM 2>nul & (echo @echo off & echo setlocal & echo powershell -NoProfile -Command "$u=$args[0];$raw=$u -replace '^popdam://open-folder\\?path=','';$p=[uri]::UnescapeDataString($raw);Start-Process explorer.exe $p" -- "%%~1") > C:\\PopDAM\\popdam-open.bat`;
+
+  const winStep2 = `reg add "HKCU\\Software\\Classes\\popdam" /ve /d "URL:PopDAM Protocol" /f & reg add "HKCU\\Software\\Classes\\popdam" /v "URL Protocol" /d "" /f & reg add "HKCU\\Software\\Classes\\popdam\\shell\\open\\command" /ve /d "\\"C:\\PopDAM\\popdam-open.bat\\" \\"%%1\\"" /f`;
 
   return (
     <div className="container max-w-4xl py-8 space-y-6">
@@ -178,13 +180,18 @@ export default function DownloadsPage() {
                 <Badge variant="secondary">Windows</Badge>
               </div>
               <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-                <li>Open <strong>Windows Terminal</strong> (no download needed)</li>
-                <li>Paste the command below and press Enter</li>
+                <li>Open <strong>Command Prompt</strong> or <strong>Windows Terminal</strong></li>
+                <li>Paste <strong>Step 1</strong> → press Enter (creates the handler script)</li>
+                <li>Paste <strong>Step 2</strong> → press Enter (registers the protocol)</li>
                 <li>Restart your browser</li>
               </ol>
               <CopyBlock
-                label="No-download installer command (bypasses Smart App Control file blocking)"
-                text={windowsNoDownloadInstallCommand}
+                label="Step 1 — Create handler script"
+                text={winStep1}
+              />
+              <CopyBlock
+                label="Step 2 — Register popdam:// protocol"
+                text={winStep2}
               />
             </div>
 
