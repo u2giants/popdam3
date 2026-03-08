@@ -260,6 +260,8 @@ export default function FileHygieneTab() {
             triggerPending={scanMutation.isPending}
             label="File Hygiene"
             staleThresholdMs={10 * 60 * 1000}
+            onStop={() => stopMutation.mutate()}
+            stopPending={stopMutation.isPending}
           />
 
           {/* Summary stats */}
