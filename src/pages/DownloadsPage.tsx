@@ -2,8 +2,28 @@ import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen } f
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+
+/** Fetch a public file as blob and trigger a real download (bypasses auth bridge). */
+function useBlobDownload() {
+  return useCallback(async (path: string, filename: string) => {
+    try {
+      const res = await fetch(path);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Download failed:", e);
+    }
+  }, []);
+}
 
 function CopyBlock({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
