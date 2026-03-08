@@ -220,6 +220,7 @@ export type Database = {
           artboards: number | null
           asset_type: Database["public"]["Enums"]["asset_type"] | null
           big_theme: string | null
+          cover_description: string | null
           created_at: string
           design_ref: string | null
           design_style: string | null
@@ -279,6 +280,7 @@ export type Database = {
           artboards?: number | null
           asset_type?: Database["public"]["Enums"]["asset_type"] | null
           big_theme?: string | null
+          cover_description?: string | null
           created_at?: string
           design_ref?: string | null
           design_style?: string | null
@@ -340,6 +342,7 @@ export type Database = {
           artboards?: number | null
           asset_type?: Database["public"]["Enums"]["asset_type"] | null
           big_theme?: string | null
+          cover_description?: string | null
           created_at?: string
           design_ref?: string | null
           design_style?: string | null
@@ -1072,6 +1075,7 @@ export type Database = {
       style_groups: {
         Row: {
           asset_count: number | null
+          cover_description: string | null
           created_at: string | null
           designer_conflict: boolean
           designer_name: string | null
@@ -1108,6 +1112,7 @@ export type Database = {
         }
         Insert: {
           asset_count?: number | null
+          cover_description?: string | null
           created_at?: string | null
           designer_conflict?: boolean
           designer_name?: string | null
@@ -1146,6 +1151,7 @@ export type Database = {
         }
         Update: {
           asset_count?: number | null
+          cover_description?: string | null
           created_at?: string | null
           designer_conflict?: boolean
           designer_name?: string | null
