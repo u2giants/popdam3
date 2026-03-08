@@ -2383,24 +2383,19 @@ async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
   const { count: totalCount, error: countErr } = await countQuery;
   if (countErr) return err(countErr.message, 500);
 
-  // Also get counts per status for tabs
-  const { data: statusCountsRaw } = await db.from("product_category_predictions")
-    .select("status")
-    .then(async (_) => {
-      // Can't group by with supabase-js easily, use individual counts
-      return { data: null };
-    });
-  // Individual status counts
+  // Parallel status count queries instead of serial loop
+  const statuses = ["pending", "auto_applied", "approved", "rejected", "unclassifiable"];
+  const [statusResults, lowConfRes] = await Promise.all([
+    Promise.all(statuses.map((s) =>
+      db.from("product_category_predictions").select("id", { count: "exact", head: true }).eq("status", s)
+        .then((r) => ({ status: s, count: r.count ?? 0 }))
+    )),
+    db.from("product_category_predictions")
+      .select("id", { count: "exact", head: true }).eq("status", "pending").lt("confidence", 0.5),
+  ]);
   const statusCounts: Record<string, number> = {};
-  for (const s of ["pending", "auto_applied", "approved", "rejected", "unclassifiable"]) {
-    const { count } = await db.from("product_category_predictions")
-      .select("id", { count: "exact", head: true }).eq("status", s);
-    statusCounts[s] = count ?? 0;
-  }
-  // Also count low-confidence items specifically
-  const { count: lowConfCount } = await db.from("product_category_predictions")
-    .select("id", { count: "exact", head: true }).eq("status", "pending").lt("confidence", 0.5);
-  statusCounts["low_confidence"] = lowConfCount ?? 0;
+  for (const r of statusResults) statusCounts[r.status] = r.count;
+  statusCounts["low_confidence"] = lowConfRes.count ?? 0;
 
   // Fetch page
   let query = db.from("product_category_predictions")

@@ -5,22 +5,12 @@
  * _shared/admin-handlers/ to use them without circular imports.
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { err, json } from "./http.ts";
+import { serviceClient } from "./service-client.ts";
+export type { ServiceClient } from "./service-client.ts";
 
-// Re-export http helpers so handler modules only need one import
-export { err, json };
-
-// ── Service client factory ──────────────────────────────────────────
-
-export function serviceClient() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-}
-
-export type ServiceClient = ReturnType<typeof serviceClient>;
+// Re-export http helpers and service client so handler modules only need one import
+export { err, json, serviceClient };
 
 // ── Input validation helpers ────────────────────────────────────────
 
