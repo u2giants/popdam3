@@ -46,9 +46,14 @@ function formatBytes(bytes: number): string {
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    year: "numeric", month: "short", day: "numeric",
-  });
+  // TIFF timestamps are filesystem dates — display the date components directly
+  // without timezone conversion to avoid UTC shift showing wrong day
+  const d = new Date(dateStr);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[d.getMonth()]} ${day}, ${year}`;
 }
 
 function StatusBadge({ status }: { status: string }) {
