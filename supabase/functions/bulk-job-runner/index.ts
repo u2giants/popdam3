@@ -18,7 +18,14 @@ const PERSIST_EVERY_OVERRIDES: Record<string, number> = {
   "rebuild-style-groups": 1,
 };
 
-// Auto-resume defaults
+// Inter-call delay (ms) per operation to avoid Edge Function rate limits.
+// Supabase allows ~60 admin-api calls/minute. These delays keep us safely under.
+const INTER_CALL_DELAY_MS: Record<string, number> = {
+  "rebuild-style-groups": 1000,
+  "reconcile-style-group-stats": 1000,
+};
+
+
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
   maxAttempts: 5,
@@ -491,10 +498,9 @@ serve(async (req: Request) => {
 
         cursor = result.nextOffset ?? cursor + 1;
 
-        // Throttle rebuild operations to stay under Edge Function rate limits
-        if (opKey === "rebuild-style-groups") {
-          await sleep(1000);
-        }
+        // Throttle calls to avoid Supabase Edge Function rate limits
+        const interCallDelay = INTER_CALL_DELAY_MS[opKey];
+        if (interCallDelay) await sleep(interCallDelay);
 
         if (batchCount % persistEvery === 0) {
           // Atomic mid-batch persist — only updates if status is still "running"
