@@ -312,6 +312,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "WINDOWS_RENDER_MODE",
   "WINDOWS_RENDER_POLICY",
   "TIFF_SCAN_REQUEST",
+  "HYGIENE_SCAN_REQUEST",
 ];
 
 async function handleHeartbeat(
