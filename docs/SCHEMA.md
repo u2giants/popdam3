@@ -14,10 +14,6 @@ Additionally recommended fields for audit/debug:
 - `original_mtime_at_processing` / `original_birthtime_at_processing` (optional)
 If a timestamp mutation incident occurs, record it in a `worker_incidents` table or an `asset_processing_events` log.
 
-Designer metadata (extracted by AI from Tech Pack thumbnails):
-- `designer_name text NULL`
-- `technical_designer_name text NULL`
-- `freelancer_name text NULL`
 
 ## 1) Enums (Create First)
 - `file_type`: `psd`, `ai`
