@@ -90,7 +90,7 @@ export function useAgentStatus(): AgentStatusInfo {
         .select("id, agent_name, agent_type, last_heartbeat, metadata");
 
       if (error || !data) {
-        if (mounted) setInfo({ bridgeStatus: "none", scanRunning: false, agents: [], status: "none", agentCount: 0, onlineCount: 0 });
+        if (mounted) setInfo({ bridgeStatus: "none", agents: [], status: "none", agentCount: 0, onlineCount: 0 });
         return;
       }
 
