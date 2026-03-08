@@ -38,6 +38,7 @@ export default function LibraryPage() {
   const [scanTriggered, setScanTriggered] = useState(false);
   const agentStatus = useAgentStatus();
   const scanProgress = useScanProgress();
+  const { pollNow: pollScanNow } = scanProgress;
 
   const scanRunning = scanProgress.status === "running" || scanProgress.status === "stale";
   const scanQueued = scanProgress.status === "queued";
@@ -52,8 +53,9 @@ export default function LibraryPage() {
     lastSelectedIndex.current = null;
   }, []);
 
+  // Clear scanTriggered once the scan is actually picked up (running/queued)
   useEffect(() => {
-    if (scanTriggered && scanProgress.status !== "idle") {
+    if (scanTriggered && (scanProgress.status === "running" || scanProgress.status === "queued")) {
       setScanTriggered(false);
     }
   }, [scanTriggered, scanProgress.status]);
@@ -180,6 +182,8 @@ export default function LibraryPage() {
     try {
       await call("trigger-scan");
       setScanTriggered(true);
+      // Force immediate poll so the UI shows "queued" right away
+      setTimeout(() => pollScanNow(), 500);
       toast({ title: "Scan triggered", description: "The Bridge Agent will start scanning on its next poll (~30s)." });
     } catch (e) {
       toast({ title: "Failed to trigger scan", description: (e as Error).message, variant: "destructive" });
