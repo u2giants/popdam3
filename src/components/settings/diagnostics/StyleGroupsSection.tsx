@@ -348,11 +348,19 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
                     : "Reconcile failed"}
                 </span>
               </div>
-              {reconcileOp.state.started_at && (
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  Elapsed: {formatDuration(Date.now() - new Date(reconcileOp.state.started_at).getTime())}
-                </span>
-              )}
+              {reconcileOp.state.started_at && (() => {
+                // Freeze elapsed time at updated_at for terminal states
+                const isTerminal = ["completed", "failed"].includes(reconcileOp.state.status);
+                const endTime = isTerminal && reconcileOp.state.updated_at
+                  ? new Date(reconcileOp.state.updated_at).getTime()
+                  : Date.now();
+                const elapsed = endTime - new Date(reconcileOp.state.started_at).getTime();
+                return (
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    Elapsed: {formatDuration(elapsed)}
+                  </span>
+                );
+              })()}
             </div>
 
             {/* Sub-stage indicator */}
@@ -360,8 +368,14 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
               const p = reconcileOp.state.progress;
               const sub = (p.stage as string) || "counts";
               const totalGroups = (p.total_groups as number) || 0;
+              
+              // Freeze elapsed for rate calculation at updated_at for terminal states
+              const isTerminal = ["completed", "failed"].includes(reconcileOp.state.status);
+              const endTime = isTerminal && reconcileOp.state.updated_at
+                ? new Date(reconcileOp.state.updated_at).getTime()
+                : Date.now();
               const elapsedMs = reconcileOp.state.started_at
-                ? Date.now() - new Date(reconcileOp.state.started_at).getTime()
+                ? endTime - new Date(reconcileOp.state.started_at).getTime()
                 : 0;
 
               return (
