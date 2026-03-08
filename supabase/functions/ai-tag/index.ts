@@ -265,6 +265,18 @@ ${
                       type: "string",
                       description: "UUID of identified property",
                     },
+                    designer_name: {
+                      type: "string",
+                      description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
+                    },
+                    technical_designer_name: {
+                      type: "string",
+                      description: "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
+                    },
+                    freelancer_name: {
+                      type: "string",
+                      description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
+                    },
                   },
                   required: ["tags", "ai_description", "scene_description"],
                   additionalProperties: false,
