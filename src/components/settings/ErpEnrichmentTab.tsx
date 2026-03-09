@@ -521,6 +521,7 @@ function EnrichmentControls() {
 // ── Review Queue ─────────────────────────────────────────────────────
 
 import { TruncatedCell } from "@/components/ui/truncated-cell";
+import { useTableFilterSort, FilterableHeaderRow, type ColumnDef } from "@/components/ui/filterable-table-head";
 
 function ReviewQueue() {
   const { call } = useAdminApi();
