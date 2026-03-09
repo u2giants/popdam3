@@ -11,6 +11,7 @@ import LoginPage from "./pages/LoginPage";
 import SettingsPage from "./pages/SettingsPage";
 import DownloadsPage from "./pages/DownloadsPage";
 import SetupPage from "./pages/SetupPage";
+import AiTaggingFailuresPage from "./pages/AiTaggingFailuresPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
