@@ -167,9 +167,17 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
         {counterText && (
           <p className="text-sm text-muted-foreground">{counterText}</p>
         )}
-        {isCompleted && progress.updated_at && (
+        {(isCompleted || isCompletedWithErrors) && progress.updated_at && (
           <p className="text-xs text-muted-foreground">
             Completed {timeAgo(progress.updated_at)} · {new Date(progress.updated_at).toLocaleString()}
+            {isCompletedWithErrors && (
+              <>
+                {" · "}
+                <Link to="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline text-[hsl(var(--warning))]">
+                  {counters?.errors ?? 0} file error{(counters?.errors ?? 0) !== 1 ? "s" : ""} — view details
+                </Link>
+              </>
+            )}
           </p>
         )}
         {isFailed && (
