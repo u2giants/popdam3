@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench, Play, StopCircle, Globe, RotateCcw, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -868,6 +869,12 @@ function AgentThroughputChart() {
 // ── Main Settings Page ──────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "nas-storage";
+  const handleTabChange = useCallback((value: string) => {
+    setSearchParams({ tab: value }, { replace: true });
+  }, [setSearchParams]);
+
   return (
     <div className="container max-w-7xl py-8 space-y-6">
       <div className="flex items-center gap-3">
@@ -875,7 +882,7 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-semibold">Settings</h1>
       </div>
 
-      <Tabs defaultValue="nas-storage" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="nas-storage">NAS & Storage</TabsTrigger>
           <TabsTrigger value="image-output">Image Output</TabsTrigger>
