@@ -55,12 +55,17 @@ export type RequestOpFn = (
   queueFn: () => void,
 ) => void;
 
+// ── Shared operation constants (single source of truth) ─────────────
+// These mirror the backend definitions in supabase/functions/_shared/operation-constants.ts
+// Keep these in sync when adding new operations.
+
 export const OP_NAMES: Record<string, string> = {
   "reprocess-metadata": "Reprocess Metadata",
   "backfill-sku-names": "Backfill SKU Names",
   "rebuild-style-groups": "Rebuild Style Groups",
   "ai-tag-untagged": "AI Tag Untagged",
   "ai-tag-all": "Re-tag Everything",
+  "ai-tag-groups": "AI Tag Groups",
   "reconcile-style-group-stats": "Reconcile Stats",
   "erp-enrichment": "ERP Enrichment",
   "erp-classify": "ERP Classify",
@@ -87,6 +92,7 @@ export function getLane(opKey: string): string {
 export const REASON_LABELS: Record<string, string> = {
   gateway_timeout: "Gateway timeout (502/503/504)",
   statement_timeout: "Database statement timeout",
+  rate_limited: "Rate limited (429)",
   user_stop: "Stopped by user",
   stale_run: "No progress detected (stale lock)",
   connection_error: "Connection error",
