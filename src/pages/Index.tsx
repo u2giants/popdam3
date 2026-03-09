@@ -125,33 +125,6 @@ export default function LibraryPage() {
     return () => clearTimeout(timer);
   }, [scanTriggered]);
 
-  const prevScanStatus = useRef(scanProgress.status);
-  useEffect(() => {
-    const prev = prevScanStatus.current;
-    prevScanStatus.current = scanProgress.status;
-
-    if (prev === "running" && scanProgress.status === "completed") {
-      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
-      queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
-      queryClient.invalidateQueries({ queryKey: ["ungrouped-asset-count"] });
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      toast({ title: "Scan completed", description: `${scanProgress.counters?.files_checked ?? 0} files checked, ${scanProgress.counters?.ingested_new ?? 0} new assets ingested.` });
-    }
-
-    if (prev === "running" && scanProgress.status === "failed") {
-      const c = scanProgress.counters;
-      const desc = [
-        c ? `${c.files_checked} checked, ${c.errors} errors` : "No counters",
-        scanProgress.current_path ? `Last path: ${scanProgress.current_path}` : "",
-      ].filter(Boolean).join(". ");
-      toast({ title: "Scan failed", description: desc, variant: "destructive" });
-    }
-
-    if (scanProgress.status === "stale" && prev !== "stale") {
-      toast({ title: "Scan appears stuck", description: "No progress update for over 10 minutes.", variant: "destructive" });
-    }
-  }, [scanProgress.status, scanProgress.counters, scanProgress.current_path, queryClient]);
 
   // Debounced search
   const [searchInput, setSearchInput] = useState("");
