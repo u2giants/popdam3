@@ -12,6 +12,7 @@ import SettingsPage from "./pages/SettingsPage";
 import DownloadsPage from "./pages/DownloadsPage";
 import SetupPage from "./pages/SetupPage";
 import AiTaggingFailuresPage from "./pages/AiTaggingFailuresPage";
+import AiTaggingDetailPage from "./pages/AiTaggingDetailPage";
 import ScanDiagnosticsPage from "./pages/ScanDiagnosticsPage";
 import NotFound from "./pages/NotFound";
 
