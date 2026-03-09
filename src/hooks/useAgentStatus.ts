@@ -85,6 +85,8 @@ export function useAgentStatus(): AgentStatusInfo {
     status: "none",
     agentCount: 0,
     onlineCount: 0,
+    scanBlocked: true,
+    scanBlockedReason: "Loading agent status...",
   });
 
   useEffect(() => {
