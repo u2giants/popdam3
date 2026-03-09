@@ -195,13 +195,25 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
                 </div>
               )}
 
-              {/* Tagged / skipped / failed breakdown */}
+              {/* Tagged / skipped / failed breakdown — as links */}
               <div className="flex gap-4 text-xs text-muted-foreground">
-                <span>Tagged: <span className="text-foreground font-medium">{tagged.toLocaleString()}</span></span>
-                {skipped > 0 && <span>Skipped: <span className="text-foreground font-medium">{skipped.toLocaleString()}</span></span>}
+                <Link
+                  to={`/settings/ai-tagging-detail?op=${encodeURIComponent(displayOpKey)}&view=tagged`}
+                  className="hover:underline underline-offset-2"
+                >
+                  Tagged: <span className="text-foreground font-medium">{tagged.toLocaleString()}</span>
+                </Link>
+                {skipped > 0 && (
+                  <Link
+                    to={`/settings/ai-tagging-detail?op=${encodeURIComponent(displayOpKey)}&view=skipped`}
+                    className="hover:underline underline-offset-2"
+                  >
+                    Skipped: <span className="text-foreground font-medium">{skipped.toLocaleString()}</span>
+                  </Link>
+                )}
                 {failed > 0 && (
                   <Link
-                    to={`/settings/ai-tagging-failures?op=${encodeURIComponent(displayOpKey)}`}
+                    to={`/settings/ai-tagging-detail?op=${encodeURIComponent(displayOpKey)}&view=failed`}
                     className="text-destructive underline underline-offset-2 hover:no-underline"
                   >
                     Failed: <span className="font-medium">{failed.toLocaleString()}</span>

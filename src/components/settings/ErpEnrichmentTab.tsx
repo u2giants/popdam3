@@ -520,12 +520,17 @@ function EnrichmentControls() {
 
 // ── Review Queue ─────────────────────────────────────────────────────
 
+import { TruncatedCell } from "@/components/ui/truncated-cell";
+
 function ReviewQueue() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("pending");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Column resize state
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const [resizing, setResizing] = useState<{ col: string; startX: number; startW: number } | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["erp-review-queue", statusFilter, page],
@@ -605,6 +610,35 @@ function ReviewQueue() {
   const canApprove = statusFilter === "pending";
   const canReject = statusFilter === "pending" || statusFilter === "auto_applied";
 
+  const REVIEW_COLS = [
+    { key: "style", label: "Style #" },
+    { key: "description", label: "Description" },
+    { key: "predicted", label: "Predicted" },
+    { key: "confidence", label: "Confidence" },
+    { key: "rationale", label: "Rationale" },
+    { key: "actions", label: "Actions" },
+  ];
+
+  const handleResizeStart = (col: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = (e.target as HTMLElement).closest("th");
+    const startW = colWidths[col] || th?.offsetWidth || 120;
+    setResizing({ col, startX: e.clientX, startW });
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const diff = ev.clientX - e.clientX;
+      setColWidths((prev) => ({ ...prev, [col]: Math.max(60, startW + diff) }));
+    };
+    const onMouseUp = () => {
+      setResizing(null);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
   return (
     <TooltipProvider delayDuration={200}>
     <Card>
@@ -675,141 +709,165 @@ function ReviewQueue() {
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">No items in this status.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {(canReject || canRevert) && (
-                    <TableHead className="w-8">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.size === items.length && items.length > 0}
-                        onChange={toggleAll}
-                        className="rounded"
-                      />
-                    </TableHead>
-                  )}
-                  <TableHead className="text-xs">Style #</TableHead>
-                  <TableHead className="text-xs">Description</TableHead>
-                  <TableHead className="text-xs">Predicted</TableHead>
-                  <TableHead className="text-xs">Confidence</TableHead>
-                  <TableHead className="text-xs">Rationale</TableHead>
-                  <TableHead className="text-xs">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item: any) => (
-                  <TableRow key={item.id}>
+          <div className="overflow-x-auto border border-border rounded-md">
+              <table className="w-full caption-bottom text-sm" style={{ tableLayout: "fixed" }}>
+                <thead className="[&_tr]:border-b">
+                  <tr className="border-b transition-colors">
                     {(canReject || canRevert) && (
-                      <TableCell className="w-8">
+                      <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-10">
                         <input
                           type="checkbox"
-                          checked={selectedIds.has(item.id)}
-                          onChange={() => toggleSelect(item.id)}
+                          checked={selectedIds.size === items.length && items.length > 0}
+                          onChange={toggleAll}
                           className="rounded"
                         />
-                      </TableCell>
+                      </th>
                     )}
-                    <TableCell className="text-xs font-mono">{item.style_number || item.external_id}</TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate">{item.description || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">{item.predicted_category}</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <span className={item.confidence < 0.5 ? "text-destructive" : item.confidence < 0.65 ? "text-[hsl(var(--warning))]" : "text-foreground"}>
-                        {(item.confidence * 100).toFixed(0)}%
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[200px]">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="truncate block cursor-help text-muted-foreground">{item.rationale || "—"}</span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-sm text-xs whitespace-normal">
-                          {item.rationale || "No rationale provided"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {canApprove && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0 text-[hsl(var(--success))]"
-                                onClick={() => actionMutation.mutate({ id: item.id, action: "approve" })}
-                                disabled={actionMutation.isPending}
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Approve this prediction as correct</TooltipContent>
-                          </Tooltip>
-                        )}
-                        {/* Override dropdown — approve with a different category */}
-                        {(canApprove || canRevert) && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <select
-                                className="h-6 text-xs bg-muted border border-border rounded px-1"
-                                defaultValue=""
-                                onChange={(e) => {
-                                  if (e.target.value) {
-                                    actionMutation.mutate({ id: item.id, action: "approve", category: e.target.value });
-                                    e.target.value = "";
-                                  }
-                                }}
-                              >
-                                <option value="" disabled>Override…</option>
-                                {CATEGORIES.map((c) => (
-                                  <option key={c} value={c}>{c}</option>
-                                ))}
-                              </select>
-                            </TooltipTrigger>
-                            <TooltipContent>Approve with a different category (overrides the AI prediction)</TooltipContent>
-                          </Tooltip>
-                        )}
-                        {canReject && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0 text-destructive"
-                                onClick={() => actionMutation.mutate({ id: item.id, action: "reject" })}
-                                disabled={actionMutation.isPending}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Reject this prediction (can be re-classified later). Use "Dismiss" to permanently exclude.</TooltipContent>
-                          </Tooltip>
-                        )}
-                        {canRevert && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 text-xs text-[hsl(var(--warning))] gap-1"
-                                onClick={() => actionMutation.mutate({ id: item.id, action: "revert" })}
-                                disabled={actionMutation.isPending}
-                              >
-                                <Undo2 className="h-3 w-3" /> Undo
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Move back to Pending for re-review (undoes auto-apply or approval)</TooltipContent>
-                          </Tooltip>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                    {REVIEW_COLS.map((col) => (
+                      <th
+                        key={col.key}
+                        className="h-10 px-2 text-left align-middle font-medium text-muted-foreground text-xs select-none relative group"
+                        style={colWidths[col.key] ? { width: colWidths[col.key] } : undefined}
+                      >
+                        <span>{col.label}</span>
+                        <div
+                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/40 group-hover:bg-border"
+                          onMouseDown={(e) => handleResizeStart(col.key, e)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child]:border-0">
+                  {items.map((item: any) => (
+                    <tr key={item.id} className="border-b transition-colors hover:bg-muted/50">
+                      {(canReject || canRevert) && (
+                        <td className="p-2 align-middle w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(item.id)}
+                            onChange={() => toggleSelect(item.id)}
+                            className="rounded"
+                          />
+                        </td>
+                      )}
+                      <td
+                        className="p-2 align-middle text-xs font-mono overflow-hidden"
+                        style={colWidths["style"] ? { width: colWidths["style"], maxWidth: colWidths["style"] } : undefined}
+                      >
+                        <TruncatedCell>{item.style_number || item.external_id || "—"}</TruncatedCell>
+                      </td>
+                      <td
+                        className="p-2 align-middle text-xs overflow-hidden"
+                        style={colWidths["description"] ? { width: colWidths["description"], maxWidth: colWidths["description"] } : undefined}
+                      >
+                        <TruncatedCell>{item.description || "—"}</TruncatedCell>
+                      </td>
+                      <td
+                        className="p-2 align-middle overflow-hidden"
+                        style={colWidths["predicted"] ? { width: colWidths["predicted"], maxWidth: colWidths["predicted"] } : undefined}
+                      >
+                        <Badge variant="outline" className="text-xs">{item.predicted_category}</Badge>
+                      </td>
+                      <td
+                        className="p-2 align-middle text-xs overflow-hidden"
+                        style={colWidths["confidence"] ? { width: colWidths["confidence"], maxWidth: colWidths["confidence"] } : undefined}
+                      >
+                        <span className={item.confidence < 0.5 ? "text-destructive" : item.confidence < 0.65 ? "text-[hsl(var(--warning))]" : "text-foreground"}>
+                          {(item.confidence * 100).toFixed(0)}%
+                        </span>
+                      </td>
+                      <td
+                        className="p-2 align-middle text-xs overflow-hidden"
+                        style={colWidths["rationale"] ? { width: colWidths["rationale"], maxWidth: colWidths["rationale"] } : undefined}
+                      >
+                        <TruncatedCell className="text-muted-foreground" tooltipText={item.rationale || "No rationale provided"}>
+                          {item.rationale || "—"}
+                        </TruncatedCell>
+                      </td>
+                      <td
+                        className="p-2 align-middle overflow-hidden"
+                        style={colWidths["actions"] ? { width: colWidths["actions"], maxWidth: colWidths["actions"] } : undefined}
+                      >
+                        <div className="flex items-center gap-1">
+                          {canApprove && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 text-[hsl(var(--success))]"
+                                  onClick={() => actionMutation.mutate({ id: item.id, action: "approve" })}
+                                  disabled={actionMutation.isPending}
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Approve this prediction as correct</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {(canApprove || canRevert) && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <select
+                                  className="h-6 text-xs bg-muted border border-border rounded px-1"
+                                  defaultValue=""
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      actionMutation.mutate({ id: item.id, action: "approve", category: e.target.value });
+                                      e.target.value = "";
+                                    }
+                                  }}
+                                >
+                                  <option value="" disabled>Override…</option>
+                                  {CATEGORIES.map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                  ))}
+                                </select>
+                              </TooltipTrigger>
+                              <TooltipContent>Approve with a different category (overrides the AI prediction)</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {canReject && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 text-destructive"
+                                  onClick={() => actionMutation.mutate({ id: item.id, action: "reject" })}
+                                  disabled={actionMutation.isPending}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Reject this prediction (can be re-classified later). Use "Dismiss" to permanently exclude.</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {canRevert && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-xs text-[hsl(var(--warning))] gap-1"
+                                  onClick={() => actionMutation.mutate({ id: item.id, action: "revert" })}
+                                  disabled={actionMutation.isPending}
+                                >
+                                  <Undo2 className="h-3 w-3" /> Undo
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Move back to Pending for re-review (undoes auto-apply or approval)</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
         )}
 
         {/* Pagination */}

@@ -1047,7 +1047,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
 
   if (error) return err(error.message, 500);
   if (!assets || assets.length === 0) {
-    return json({ ok: true, tagged: 0, failed: 0, skipped: 0, failure_samples: [], done: true, nextOffset: offset });
+    return json({ ok: true, tagged: 0, failed: 0, skipped: 0, failure_samples: [], skip_samples: [], done: true, nextOffset: offset });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1062,8 +1062,18 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
     asset_id: string;
     filename: string;
     relative_path: string;
+    thumbnail_url?: string;
     http_status?: number;
     error: string;
+  }> = [];
+
+  const skipSamples: Array<{
+    at: string;
+    asset_id: string;
+    filename: string;
+    relative_path: string;
+    thumbnail_url?: string;
+    reason: string;
   }> = [];
 
   const parseErrorBody = (text: string): string => {
@@ -1099,6 +1109,10 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
           return {
             outcome: result.skipped ? "skipped" as const : "tagged" as const,
             asset_id: asset.id as string,
+            filename: (asset.filename as string) || "(unknown)",
+            relative_path: (asset.relative_path as string) || "(unknown)",
+            thumbnail_url: (asset.thumbnail_url as string) || undefined,
+            skip_reason: result.skipped ? (result.reason || "Already tagged") : undefined,
           };
         }
 
@@ -1109,6 +1123,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
           asset_id: asset.id as string,
           filename: (asset.filename as string) || "(unknown)",
           relative_path: (asset.relative_path as string) || "(unknown)",
+          thumbnail_url: (asset.thumbnail_url as string) || undefined,
           http_status: res.status,
           error: parseErrorBody(bodyText) || `HTTP ${res.status}`,
         };
@@ -1119,8 +1134,17 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
       if (r.status === "fulfilled") {
         const v = r.value;
         if (v.outcome === "tagged") tagged++;
-        else if (v.outcome === "skipped") skipped++;
-        else if (v.outcome === "failed") {
+        else if (v.outcome === "skipped") {
+          skipped++;
+          skipSamples.push({
+            at: new Date().toISOString(),
+            asset_id: v.asset_id,
+            filename: v.filename,
+            relative_path: v.relative_path,
+            thumbnail_url: v.thumbnail_url,
+            reason: v.skip_reason || "Already tagged",
+          });
+        } else if (v.outcome === "failed") {
           failed++;
           console.error("bulk-ai-tag asset failed", { assetId: v.asset_id, httpStatus: v.http_status });
           failureSamples.push({
@@ -1128,6 +1152,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
             asset_id: v.asset_id,
             filename: v.filename,
             relative_path: v.relative_path,
+            thumbnail_url: v.thumbnail_url,
             http_status: v.http_status,
             error: v.error,
           });
@@ -1147,7 +1172,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   }
 
   const done = assets.length < BATCH_SIZE;
-  return json({ ok: true, tagged, skipped, failed, failure_samples: failureSamples, done, nextOffset: offset + assets.length });
+  return json({ ok: true, tagged, skipped, failed, failure_samples: failureSamples, skip_samples: skipSamples, done, nextOffset: offset + assets.length });
 }
 
 // ── Route: count-untagged-assets ────────────────────────────────────
