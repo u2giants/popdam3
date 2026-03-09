@@ -1117,12 +1117,13 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
 
     for (const r of results) {
       if (r.status === "fulfilled") {
-        if (r.value.outcome === "tagged") tagged++;
-        else if (r.value.outcome === "skipped") skipped++;
-        else {
+        const v = r.value;
+        if (v.outcome === "tagged") tagged++;
+        else if (v.outcome === "skipped") skipped++;
+        else if (v.outcome === "failed") {
           failed++;
-          console.error("bulk-ai-tag asset failed", { assetId: r.value.asset_id, httpStatus: r.value.http_status });
-          failureSamples.push(r.value);
+          console.error("bulk-ai-tag asset failed", { assetId: v.asset_id, httpStatus: v.http_status });
+          failureSamples.push({ at: v.at, asset_id: v.asset_id, filename: v.filename, relative_path: v.relative_path, http_status: v.http_status, error: v.error });
         }
       } else {
         failed++;
@@ -2829,9 +2830,12 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
     .filter((e: any) => matchedSkuSet.has(e.style_number) && !classifiedIds.has(e.id))
     .slice(0, batchSize);
 
-  if (fetchErr) return err(fetchErr.message, 500);
   if (!candidates || candidates.length === 0) {
-    return json({ ok: true, done: true, classified: 0, skipped_unclassifiable: 0, total: offset });
+    // All items in this window were filtered out (no matching assets or already classified).
+    // If the window was full (50 items), advance cursor. Otherwise we've exhausted the table.
+    const isLastPage = rawItems.length < 50;
+    const nextOffset = offset + rawItems.length;
+    return json({ ok: true, done: isLastPage, classified: 0, skipped_unclassifiable: 0, total: nextOffset, nextOffset });
   }
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");

@@ -495,9 +495,18 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   // Set cover mutation
   const setCover = useMutation({
     mutationFn: async (assetId: string) => {
+      // Find the chosen asset to sync its thumbnail fields to the group immediately
+      const chosenAsset = (groupAssets ?? []).find((a) => a.id === assetId);
+      const updates: Record<string, unknown> = {
+        primary_asset_id: assetId,
+        primary_asset_type: chosenAsset?.asset_type ?? null,
+        primary_thumbnail_url: chosenAsset?.thumbnail_url ?? null,
+        primary_thumbnail_error: chosenAsset?.thumbnail_error ?? null,
+        updated_at: new Date().toISOString(),
+      };
       const { error } = await supabase
         .from("style_groups")
-        .update({ primary_asset_id: assetId, updated_at: new Date().toISOString() })
+        .update(updates)
         .eq("id", group.id);
       if (error) throw error;
     },
