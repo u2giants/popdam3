@@ -496,7 +496,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const setCover = useMutation({
     mutationFn: async (assetId: string) => {
       // Find the chosen asset to sync its thumbnail fields to the group immediately
-      const chosenAsset = assets?.find((a: any) => a.id === assetId);
+      const chosenAsset = (groupAssets ?? []).find((a) => a.id === assetId);
       const updates: Record<string, unknown> = {
         primary_asset_id: assetId,
         primary_asset_type: chosenAsset?.asset_type ?? null,
