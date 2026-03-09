@@ -1903,9 +1903,11 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
         sortAsc ? "ASC" : "DESC"
       } NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
 
-    const { data: countResult } = await db.rpc("execute_readonly_query", { query_text: countSql });
+    const { data: countResult, error: countErr } = await db.rpc("execute_readonly_query", { query_text: countSql });
+    if (countErr) console.error("ERP browse count query failed:", countErr.message);
     const total = Array.isArray(countResult) ? (countResult[0]?.cnt ?? 0) : 0;
-    const { data: rows } = await db.rpc("execute_readonly_query", { query_text: dataSql });
+    const { data: rows, error: dataErr } = await db.rpc("execute_readonly_query", { query_text: dataSql });
+    if (dataErr) return err(`ERP browse query failed: ${dataErr.message}`, 500);
 
     return json({
       ok: true,
@@ -2230,19 +2232,26 @@ async function handleListTiffFiles(body: Record<string, unknown>) {
   const { data, error, count } = await query;
   if (error) return err(error.message, 500);
 
-  // Also get summary counts
-  const { data: counts } = await db.rpc("execute_readonly_query", {
-    query_text: `SELECT 
-      count(*) as total,
-      count(*) FILTER (WHERE compression_type = 'none') as uncompressed,
-      count(*) FILTER (WHERE compression_type != 'none' AND compression_type IS NOT NULL) as compressed,
-      count(*) FILTER (WHERE status = 'completed') as processed,
-      count(*) FILTER (WHERE status = 'failed') as failed,
-      count(*) FILTER (WHERE status IN ('queued_test','queued_process','processing')) as pending
-    FROM tiff_optimization_queue`,
-  });
+  // Get summary counts using separate queries (avoids execute_readonly_query)
+  const [totalRes, uncompRes, compRes, processedRes, failedRes, pendingRes] = await Promise.all([
+    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }),
+    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).eq("compression_type", "none"),
+    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).neq("compression_type", "none").not("compression_type", "is", null),
+    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).eq("status", "completed"),
+    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).eq("status", "failed"),
+    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).in("status", ["queued_test", "queued_process", "processing"]),
+  ]);
 
-  return json({ ok: true, files: data, total: count, summary: counts?.[0] || {} });
+  const summary = {
+    total: totalRes.count ?? 0,
+    uncompressed: uncompRes.count ?? 0,
+    compressed: compRes.count ?? 0,
+    processed: processedRes.count ?? 0,
+    failed: failedRes.count ?? 0,
+    pending: pendingRes.count ?? 0,
+  };
+
+  return json({ ok: true, files: data, total: count, summary });
 }
 
 async function handleQueueTiffJobs(body: Record<string, unknown>) {

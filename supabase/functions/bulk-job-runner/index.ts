@@ -601,16 +601,30 @@ serve(async (req: Request) => {
 
       if (opKey === "rebuild-style-groups") {
         try {
-          const { data: anomalyRows } = await db.rpc("execute_readonly_query", {
-            query_text: `
-              SELECT
-                (SELECT COUNT(*) FROM style_groups WHERE (asset_count IS NULL OR asset_count = 0) AND id IN (SELECT DISTINCT style_group_id FROM assets WHERE is_deleted = false AND style_group_id IS NOT NULL)) AS orphan_counts,
-                (SELECT COUNT(*) FROM style_groups WHERE primary_asset_id IS NULL AND id IN (SELECT DISTINCT style_group_id FROM assets WHERE is_deleted = false AND style_group_id IS NOT NULL)) AS missing_primaries
-            `,
-          });
-          const anomalies = Array.isArray(anomalyRows) ? anomalyRows[0] : null;
-          const orphanCounts = Number(anomalies?.orphan_counts ?? 0);
-          const missingPrimaries = Number(anomalies?.missing_primaries ?? 0);
+          // Get active style group IDs from assets
+          const { data: activeGroupIds } = await db.from("assets")
+            .select("style_group_id")
+            .eq("is_deleted", false)
+            .not("style_group_id", "is", null);
+          const uniqueGroupIds = [...new Set((activeGroupIds || []).map((r: { style_group_id: string }) => r.style_group_id))];
+
+          let orphanCounts = 0;
+          let missingPrimaries = 0;
+          if (uniqueGroupIds.length > 0) {
+            // Check for groups with zero/null asset_count
+            const { count: orphanCount } = await db.from("style_groups")
+              .select("id", { count: "exact", head: true })
+              .in("id", uniqueGroupIds.slice(0, 200))
+              .or("asset_count.is.null,asset_count.eq.0");
+            orphanCounts = orphanCount ?? 0;
+
+            // Check for groups with no primary asset
+            const { count: missingCount } = await db.from("style_groups")
+              .select("id", { count: "exact", head: true })
+              .in("id", uniqueGroupIds.slice(0, 200))
+              .is("primary_asset_id", null);
+            missingPrimaries = missingCount ?? 0;
+          }
 
           if (orphanCounts > 0 || missingPrimaries > 0) {
             completionStatus = "completed_with_repair";
