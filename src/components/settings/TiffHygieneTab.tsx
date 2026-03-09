@@ -547,32 +547,26 @@ export default function TiffHygieneTab() {
                 <div className="min-w-[900px]">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-8">
-                          <Checkbox
-                            checked={selectedIds.size === files.length && files.length > 0}
-                            onCheckedChange={selectAll}
-                          />
-                        </TableHead>
-                        <TableHead className="text-xs whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("relative_path")}>
-                          <span className="flex items-center gap-1">File {sortField === "relative_path" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
-                        </TableHead>
-                        <TableHead className="text-xs w-20 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("file_size")}>
-                          <span className="flex items-center gap-1">Size {sortField === "file_size" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
-                        </TableHead>
-                        <TableHead className="text-xs w-24 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("compression_type")}>
-                          <span className="flex items-center gap-1">Compression {sortField === "compression_type" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
-                        </TableHead>
-                        <TableHead className="text-xs w-24 whitespace-nowrap cursor-pointer select-none" onClick={() => toggleSort("file_modified_at")}>
-                          <span className="flex items-center gap-1">Modified {sortField === "file_modified_at" ? (sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}</span>
-                        </TableHead>
-                        <TableHead className="text-xs w-24 whitespace-nowrap">Created</TableHead>
-                        <TableHead className="text-xs w-20 whitespace-nowrap">Status</TableHead>
-                        <TableHead className="text-xs w-20 whitespace-nowrap">New Size</TableHead>
-                        <TableHead className="text-xs w-24 whitespace-nowrap">New Modified</TableHead>
-                        <TableHead className="text-xs w-24 whitespace-nowrap">New Created</TableHead>
-                        <TableHead className="text-xs w-16 whitespace-nowrap">Savings</TableHead>
-                      </TableRow>
+                      <FilterableHeaderRow
+                        columns={tiffCols}
+                        sortKey={sortField}
+                        sortDir={sortDir}
+                        filters={tiffFilters}
+                        suggestions={tiffSuggestions}
+                        onSort={toggleSort}
+                        onFilter={setTiffFilter}
+                        onClearFilter={clearTiffFilter}
+                        prefixCells={[{
+                          header: (
+                            <Checkbox
+                              checked={selectedIds.size === files.length && files.length > 0}
+                              onCheckedChange={selectAll}
+                            />
+                          ),
+                          filter: null,
+                        }]}
+                      />
+                    </TableHeader>
                     </TableHeader>
                     <TableBody>
                       {files.map((file, idx) => {
