@@ -47,6 +47,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const activeOp = tagUntaggedOp.isActive ? tagUntaggedOp : tagAllOp.isActive ? tagAllOp : null;
   const anyActive = !!activeOp;
   const displayOp = activeOp ?? (tagUntaggedOp.state.status !== "idle" ? tagUntaggedOp : tagAllOp);
+  const displayOpKey = displayOp === tagUntaggedOp ? "ai-tag-untagged" : "ai-tag-all";
   const p = displayOp.state.progress;
   const showProgress = (displayOp.isActive || displayOp.isInterrupted || displayOp.state.status === "completed" || displayOp.state.status === "failed") && p;
 
