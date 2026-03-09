@@ -57,6 +57,11 @@ interface PropagationResult {
 
 /**
  * Propagate product-level tags/metadata from a source asset to its style group siblings.
+ *
+ * Optimised: fetches all sibling data in one query, then does bulk upserts
+ * instead of per-sibling sequential queries. This keeps the total DB round-trips
+ * roughly constant regardless of sibling count.
+ *
  * @param sourceAssetId - The asset that was just tagged (source of truth)
  * @param styleGroupId - The style group to propagate within
  * @param options.onlyUntagged - If true, only propagate to siblings without ai_tagged_at
@@ -102,10 +107,10 @@ export async function propagateGroupTags(
 
   const characterIds = (sourceChars ?? []).map((c) => c.character_id);
 
-  // 4. Find siblings
+  // 4. Find siblings — fetch their metadata in the SAME query to avoid N+1
   let siblingQuery = db
     .from("assets")
-    .select("id, ai_tagged_at")
+    .select("id, ai_tagged_at, licensor_id, property_id, is_licensed, big_theme, little_theme, design_style, cover_description")
     .eq("style_group_id", styleGroupId)
     .eq("is_deleted", false)
     .neq("id", sourceAssetId);
@@ -119,78 +124,94 @@ export async function propagateGroupTags(
     return { siblings_updated: 0, tags_propagated: 0, characters_propagated: 0, skipped_reason: "no_siblings" };
   }
 
-  let siblingsUpdated = 0;
+  const siblingIds = siblings.map((s) => s.id);
+
+  // 5. Batch-fetch existing tags & characters for ALL siblings in two queries
+  const [existingTagsResult, existingCharsResult] = await Promise.all([
+    productTags.length > 0
+      ? db.from("asset_tags").select("asset_id, tag").in("asset_id", siblingIds)
+      : Promise.resolve({ data: [] as { asset_id: string; tag: string }[] }),
+    characterIds.length > 0
+      ? db.from("asset_characters").select("asset_id, character_id").in("asset_id", siblingIds)
+      : Promise.resolve({ data: [] as { asset_id: string; character_id: string }[] }),
+  ]);
+
+  // Build lookup sets per sibling
+  const siblingTagSets = new Map<string, Set<string>>();
+  for (const row of (existingTagsResult.data ?? []) as Array<{ asset_id: string; tag: string }>) {
+    if (!siblingTagSets.has(row.asset_id)) siblingTagSets.set(row.asset_id, new Set());
+    siblingTagSets.get(row.asset_id)!.add(row.tag);
+  }
+
+  const siblingCharSets = new Map<string, Set<string>>();
+  for (const row of (existingCharsResult.data ?? []) as Array<{ asset_id: string; character_id: string }>) {
+    if (!siblingCharSets.has(row.asset_id)) siblingCharSets.set(row.asset_id, new Set());
+    siblingCharSets.get(row.asset_id)!.add(row.character_id);
+  }
+
+  // 6. Build all mutations in memory, then execute in bulk
   let totalTagsPropagated = 0;
   let totalCharsPropagated = 0;
+  const allNewTags: Array<{ asset_id: string; tag: string; source: string }> = [];
+  const allNewChars: Array<{ asset_id: string; character_id: string }> = [];
+  const metaUpdatePromises: Promise<unknown>[] = [];
 
-  // 5. For each sibling, merge product-level data
   for (const sibling of siblings) {
-    // 5a. Merge metadata fields (only fill nulls for merge strategy)
-    const { data: sibData } = await db
-      .from("assets")
-      .select("licensor_id, property_id, is_licensed, big_theme, little_theme, design_style, cover_description")
-      .eq("id", sibling.id)
-      .single();
-
-    if (!sibData) continue;
-
+    // 6a. Metadata updates (only fill nulls)
     const metaUpdates: Record<string, unknown> = {};
-    if (!sibData.licensor_id && source.licensor_id) metaUpdates.licensor_id = source.licensor_id;
-    if (!sibData.property_id && source.property_id) metaUpdates.property_id = source.property_id;
-    if (sibData.is_licensed !== true && source.is_licensed) metaUpdates.is_licensed = source.is_licensed;
-    if (!sibData.big_theme && source.big_theme) metaUpdates.big_theme = source.big_theme;
-    if (!sibData.little_theme && source.little_theme) metaUpdates.little_theme = source.little_theme;
-    if (!sibData.design_style && source.design_style) metaUpdates.design_style = source.design_style;
-    if (!sibData.cover_description && source.cover_description) metaUpdates.cover_description = source.cover_description;
+    if (!sibling.licensor_id && source.licensor_id) metaUpdates.licensor_id = source.licensor_id;
+    if (!sibling.property_id && source.property_id) metaUpdates.property_id = source.property_id;
+    if (sibling.is_licensed !== true && source.is_licensed) metaUpdates.is_licensed = source.is_licensed;
+    if (!sibling.big_theme && source.big_theme) metaUpdates.big_theme = source.big_theme;
+    if (!sibling.little_theme && source.little_theme) metaUpdates.little_theme = source.little_theme;
+    if (!sibling.design_style && source.design_style) metaUpdates.design_style = source.design_style;
+    if (!sibling.cover_description && source.cover_description) metaUpdates.cover_description = source.cover_description;
 
     if (Object.keys(metaUpdates).length > 0) {
-      await db.from("assets").update(metaUpdates).eq("id", sibling.id);
+      metaUpdatePromises.push(db.from("assets").update(metaUpdates).eq("id", sibling.id));
     }
 
-    // 5b. Merge product-level tags (union — never remove existing)
+    // 6b. Collect new tags
     if (productTags.length > 0) {
-      // Get sibling's existing tags to avoid duplicates
-      const { data: existingTags } = await db
-        .from("asset_tags")
-        .select("tag")
-        .eq("asset_id", sibling.id);
-
-      const existingTagSet = new Set((existingTags ?? []).map((t) => t.tag));
-      const newTags = productTags.filter((t) => !existingTagSet.has(t));
-
-      if (newTags.length > 0) {
-        const tagRows = newTags.map((t) => ({
-          asset_id: sibling.id,
-          tag: t,
-          source: "ai",
-        }));
-        await db.from("asset_tags").upsert(tagRows, { onConflict: "asset_id,tag" });
-        totalTagsPropagated += newTags.length;
+      const existing = siblingTagSets.get(sibling.id) ?? new Set();
+      for (const t of productTags) {
+        if (!existing.has(t)) {
+          allNewTags.push({ asset_id: sibling.id, tag: t, source: "ai" });
+          totalTagsPropagated++;
+        }
       }
     }
 
-    // 5c. Merge character links
+    // 6c. Collect new characters
     if (characterIds.length > 0) {
-      const { data: existingChars } = await db
-        .from("asset_characters")
-        .select("character_id")
-        .eq("asset_id", sibling.id);
-
-      const existingCharSet = new Set((existingChars ?? []).map((c) => c.character_id));
-      const newChars = characterIds.filter((cid) => !existingCharSet.has(cid));
-
-      if (newChars.length > 0) {
-        const charRows = newChars.map((cid) => ({
-          asset_id: sibling.id,
-          character_id: cid,
-        }));
-        await db.from("asset_characters").upsert(charRows, { onConflict: "asset_id,character_id" });
-        totalCharsPropagated += newChars.length;
+      const existing = siblingCharSets.get(sibling.id) ?? new Set();
+      for (const cid of characterIds) {
+        if (!existing.has(cid)) {
+          allNewChars.push({ asset_id: sibling.id, character_id: cid });
+          totalCharsPropagated++;
+        }
       }
     }
-
-    siblingsUpdated++;
   }
+
+  // 7. Execute all writes in parallel (max 3 parallel DB calls)
+  const writePromises: Promise<unknown>[] = [...metaUpdatePromises];
+
+  if (allNewTags.length > 0) {
+    writePromises.push(
+      db.from("asset_tags").upsert(allNewTags, { onConflict: "asset_id,tag" }),
+    );
+  }
+
+  if (allNewChars.length > 0) {
+    writePromises.push(
+      db.from("asset_characters").upsert(allNewChars, { onConflict: "asset_id,character_id" }),
+    );
+  }
+
+  await Promise.all(writePromises);
+
+  const siblingsUpdated = siblings.length;
 
   console.log("tag-propagation DONE", {
     sourceAssetId,
