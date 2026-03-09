@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
@@ -521,6 +521,7 @@ function EnrichmentControls() {
 // ── Review Queue ─────────────────────────────────────────────────────
 
 import { TruncatedCell } from "@/components/ui/truncated-cell";
+import { useTableFilterSort, FilterableHeaderRow, type ColumnDef } from "@/components/ui/filterable-table-head";
 
 function ReviewQueue() {
   const { call } = useAdminApi();
@@ -610,14 +611,37 @@ function ReviewQueue() {
   const canApprove = statusFilter === "pending";
   const canReject = statusFilter === "pending" || statusFilter === "auto_applied";
 
-  const REVIEW_COLS = [
-    { key: "style", label: "Style #" },
-    { key: "description", label: "Description" },
-    { key: "predicted", label: "Predicted" },
-    { key: "confidence", label: "Confidence" },
-    { key: "rationale", label: "Rationale" },
+  const REVIEW_COLS: ColumnDef[] = [
+    { key: "style", label: "Style #", sortable: true, filterable: true },
+    { key: "description", label: "Description", sortable: true, filterable: true },
+    { key: "predicted", label: "Predicted", sortable: true, filterable: true },
+    { key: "confidence", label: "Confidence", sortable: true },
+    { key: "rationale", label: "Rationale", filterable: true },
     { key: "actions", label: "Actions" },
   ];
+
+  const getReviewCell = useCallback((item: any, key: string): string => {
+    switch (key) {
+      case "style": return item.style_number || item.external_id || "";
+      case "description": return item.description || "";
+      case "predicted": return item.predicted_category || "";
+      case "confidence": return String(Math.round((item.confidence ?? 0) * 100));
+      case "rationale": return item.rationale || "";
+      default: return "";
+    }
+  }, []);
+
+  const {
+    processed: filteredItems,
+    sortKey: reviewSortKey,
+    sortDir: reviewSortDir,
+    filters: reviewFilters,
+    suggestions: reviewSuggestions,
+    toggleSort: reviewToggleSort,
+    setFilter: reviewSetFilter,
+    clearFilter: reviewClearFilter,
+    hasActiveFilters: reviewHasActiveFilters,
+  } = useTableFilterSort(items, REVIEW_COLS, getReviewCell);
 
   const handleResizeStart = (col: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -712,35 +736,30 @@ function ReviewQueue() {
           <div className="overflow-x-auto border border-border rounded-md">
               <table className="w-full caption-bottom text-sm" style={{ tableLayout: "fixed" }}>
                 <thead className="[&_tr]:border-b">
-                  <tr className="border-b transition-colors">
-                    {(canReject || canRevert) && (
-                      <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-10">
+                  <FilterableHeaderRow
+                    columns={REVIEW_COLS}
+                    sortKey={reviewSortKey}
+                    sortDir={reviewSortDir}
+                    filters={reviewFilters}
+                    suggestions={reviewSuggestions}
+                    onSort={reviewToggleSort}
+                    onFilter={reviewSetFilter}
+                    onClearFilter={reviewClearFilter}
+                    prefixCells={(canReject || canRevert) ? [{
+                      header: (
                         <input
                           type="checkbox"
-                          checked={selectedIds.size === items.length && items.length > 0}
+                          checked={selectedIds.size === filteredItems.length && filteredItems.length > 0}
                           onChange={toggleAll}
                           className="rounded"
                         />
-                      </th>
-                    )}
-                    {REVIEW_COLS.map((col) => (
-                      <th
-                        key={col.key}
-                        className="h-10 px-2 text-left align-middle font-medium text-muted-foreground text-xs select-none relative group"
-                        style={colWidths[col.key] ? { width: colWidths[col.key] } : undefined}
-                      >
-                        <span>{col.label}</span>
-                        <div
-                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/40 group-hover:bg-border"
-                          onMouseDown={(e) => handleResizeStart(col.key, e)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </th>
-                    ))}
-                  </tr>
+                      ),
+                      filter: null,
+                    }] : undefined}
+                  />
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
-                  {items.map((item: any) => (
+                  {filteredItems.map((item: any) => (
                     <tr key={item.id} className="border-b transition-colors hover:bg-muted/50">
                       {(canReject || canRevert) && (
                         <td className="p-2 align-middle w-10">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useTableFilterSort, FilterableHeaderRow } from "@/components/ui/filterable-table-head";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { formatFilename } from "@/lib/format-filename";
@@ -755,9 +756,44 @@ function RenderJobsTable() {
     onError: (e) => toast.error(e.message),
   });
 
-  const jobs = data?.jobs || [];
-  const visibleJobs = showAll ? jobs : jobs.slice(0, COLLAPSED_LIMIT);
-  const hasMore = jobs.length > COLLAPSED_LIMIT;
+  const jobs: Record<string, unknown>[] = data?.jobs || [];
+
+  // Filterable/sortable columns for render jobs
+  const renderCols: import("@/components/ui/filterable-table-head").ColumnDef[] = [
+    { key: "filename", label: "Filename", sortable: true, filterable: true },
+    { key: "status", label: "Status", sortable: true, filterable: true },
+    { key: "created_at", label: "Created", sortable: true },
+    { key: "completed_at", label: "Completed", sortable: true },
+    { key: "duration", label: "Duration", sortable: true },
+  ];
+
+  const getRenderCell = useCallback((job: Record<string, unknown>, key: string): string => {
+    switch (key) {
+      case "filename": return (job.filename as string) || "";
+      case "status": return (job.status as string) || "";
+      case "created_at": return job.created_at ? new Date(job.created_at as string).toLocaleString() : "";
+      case "completed_at": return job.completed_at ? new Date(job.completed_at as string).toLocaleString() : "";
+      case "duration":
+        if (job.completed_at && job.created_at) return formatDuration(job.created_at as string, job.completed_at as string);
+        return "";
+      default: return "";
+    }
+  }, []);
+
+  const {
+    processed: filteredJobs,
+    sortKey,
+    sortDir,
+    filters,
+    suggestions,
+    toggleSort,
+    setFilter,
+    clearFilter,
+    hasActiveFilters,
+  } = useTableFilterSort(jobs, renderCols, getRenderCell, { key: "created_at", dir: "desc" });
+
+  const visibleJobs = showAll ? filteredJobs : filteredJobs.slice(0, COLLAPSED_LIMIT);
+  const hasMore = filteredJobs.length > COLLAPSED_LIMIT;
 
   const pendingCount = Number(tabCounts?.pending ?? 0);
   const completed24h = Number(tabCounts?.completed_24h ?? 0);
@@ -850,15 +886,18 @@ function RenderJobsTable() {
           <TooltipProvider>
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead>Filename</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Completed</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead className="w-16"></TableHead>
-                </TableRow>
+                <FilterableHeaderRow
+                  columns={renderCols}
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  filters={filters}
+                  suggestions={suggestions}
+                  onSort={toggleSort}
+                  onFilter={setFilter}
+                  onClearFilter={clearFilter}
+                  prefixCells={[{ header: null, filter: null }]}
+                  suffixCells={[{ header: null, filter: null }]}
+                />
               </TableHeader>
               <TableBody>
                 {visibleJobs.map((job: Record<string, unknown>) => {
