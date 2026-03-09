@@ -253,7 +253,7 @@ export default function AiTaggingDetailPage() {
   );
 }
 
-function AssetThumb({ url, alt }: { url?: string | null; alt?: string }) {
+function AssetThumb({ url, alt, onClick }: { url?: string | null; alt?: string; onClick?: () => void }) {
   if (!url) {
     return (
       <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
@@ -265,45 +265,67 @@ function AssetThumb({ url, alt }: { url?: string | null; alt?: string }) {
     <img
       src={url}
       alt={alt || "thumbnail"}
-      className="h-10 w-10 rounded object-cover shrink-0 bg-muted"
+      className={`h-10 w-10 rounded object-cover shrink-0 bg-muted ${onClick ? "cursor-pointer hover:ring-2 hover:ring-primary/50 transition-shadow" : ""}`}
       loading="lazy"
+      onClick={onClick}
     />
   );
 }
 
 function TaggedTable({ assets }: { assets: any[] }) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
   if (assets.length === 0) {
     return <p className="text-sm text-muted-foreground">No tagged assets found for this run.</p>;
   }
   return (
-    <div className="overflow-auto border border-border rounded-md">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-14">Thumb</TableHead>
-            <TableHead>File</TableHead>
-            <TableHead>AI Description</TableHead>
-            <TableHead className="text-right">Tagged</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {assets.map((a) => (
-            <TableRow key={a.id}>
-              <TableCell><AssetThumb url={a.thumbnail_url} alt={a.filename} /></TableCell>
-              <TableCell className="text-xs font-mono max-w-[360px]">
-                <TruncatedCell>{a.relative_path || a.filename || "—"}</TruncatedCell>
-              </TableCell>
-              <TableCell className="text-xs max-w-[400px]">
-                <TruncatedCell className="text-muted-foreground">{a.ai_description || "—"}</TruncatedCell>
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground text-right whitespace-nowrap">
-                {a.ai_tagged_at ? timeAgo(a.ai_tagged_at) : "—"}
-              </TableCell>
+    <>
+      <Dialog open={!!lightboxUrl} onOpenChange={(open) => !open && setLightboxUrl(null)}>
+        <DialogContent className="max-w-3xl p-2 bg-background/95 backdrop-blur">
+          {lightboxUrl && (
+            <img
+              src={lightboxUrl}
+              alt="Asset preview"
+              className="w-full h-auto max-h-[80vh] object-contain rounded"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+      <div className="overflow-auto border border-border rounded-md">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-14">Thumb</TableHead>
+              <TableHead>File</TableHead>
+              <TableHead>AI Description</TableHead>
+              <TableHead className="text-right">Tagged</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {assets.map((a) => (
+              <TableRow key={a.id}>
+                <TableCell>
+                  <AssetThumb
+                    url={a.thumbnail_url}
+                    alt={a.filename}
+                    onClick={a.thumbnail_url ? () => setLightboxUrl(a.thumbnail_url) : undefined}
+                  />
+                </TableCell>
+                <TableCell className="text-xs font-mono max-w-[360px]">
+                  <TruncatedCell>{a.relative_path || a.filename || "—"}</TruncatedCell>
+                </TableCell>
+                <TableCell className="text-xs max-w-[400px]">
+                  <TruncatedCell className="text-muted-foreground">{a.ai_description || "—"}</TruncatedCell>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground text-right whitespace-nowrap">
+                  {a.ai_tagged_at ? timeAgo(a.ai_tagged_at) : "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 }
 
