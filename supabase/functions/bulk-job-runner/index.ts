@@ -117,6 +117,12 @@ function buildProgress(
         skipped_unclassifiable: ((prev.skipped_unclassifiable as number) || 0) + ((batch.skipped_unclassifiable as number) || 0),
         total: ((prev.total as number) || 0) + ((batch.total as number) || 0),
       };
+    case "propagate-group-tags":
+      return {
+        propagated: ((prev.propagated as number) || 0) + ((batch.propagated as number) || 0),
+        skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
+        total: prev.total || 0,
+      };
     default:
       return { ...prev, ...batch };
   }
