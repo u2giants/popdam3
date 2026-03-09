@@ -41,6 +41,10 @@ import {
 
 import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_shared/admin-handlers/style-group-handlers.ts";
 
+import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
+
+import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_shared/admin-handlers/erp-handlers.ts";
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 // serviceClient, requireString, optionalString are now imported from shared modules
