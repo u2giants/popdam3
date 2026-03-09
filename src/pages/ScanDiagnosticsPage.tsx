@@ -129,6 +129,7 @@ export default function ScanDiagnosticsPage() {
   const sessionId = progress?.session_id as string | undefined;
 
   const isFailed = status === "failed" || status === "error";
+  const isCompletedWithErrors = status === "completed_with_errors";
   const explanation = isFailed ? explainScanError(error) : null;
 
   return (
@@ -169,11 +170,13 @@ export default function ScanDiagnosticsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 {isFailed ? <XCircle className="h-4 w-4 text-destructive" /> :
+                 isCompletedWithErrors ? <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))]" /> :
                  status === "completed" || status === "done" ? <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" /> :
                  <Clock className="h-4 w-4" />}
                 Scan Status
-                <Badge variant={isFailed ? "destructive" : status === "completed" || status === "done" ? "secondary" : "outline"}>
-                  {status}
+                <Badge variant={isFailed ? "destructive" : isCompletedWithErrors ? "outline" : status === "completed" || status === "done" ? "secondary" : "outline"}
+                  className={isCompletedWithErrors ? "border-[hsl(var(--warning))] text-[hsl(var(--warning))]" : ""}>
+                  {isCompletedWithErrors ? "completed with errors" : status}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -221,6 +224,29 @@ export default function ScanDiagnosticsPage() {
                     </pre>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Completed with errors — soft warning */}
+          {isCompletedWithErrors && (
+            <Card className="border-[hsl(var(--warning))]/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2 text-[hsl(var(--warning))]">
+                  <AlertTriangle className="h-4 w-4" />
+                  Scan completed with {counters.errors ?? 0} file-level error{(counters.errors ?? 0) !== 1 ? "s" : ""}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm">
+                  The scan finished processing all directories successfully, but {counters.errors ?? 0} individual
+                  file{(counters.errors ?? 0) !== 1 ? "s" : ""} failed during ingestion (hashing, thumbnailing, or upload).
+                  All other files were processed normally.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  This is typically caused by corrupted files, extremely large files exceeding memory limits,
+                  or transient network issues during thumbnail upload. These files will be retried on the next scan.
+                </p>
               </CardContent>
             </Card>
           )}

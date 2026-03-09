@@ -948,7 +948,7 @@ async function handleScanProgress(body: Record<string, unknown>) {
   if (error) return err(error.message, 500);
 
   // When scan completes or fails, also update SCAN_REQUEST if session matches
-  if (status === "completed" || status === "failed") {
+  if (status === "completed" || status === "completed_with_errors" || status === "failed") {
     const { data: reqRow } = await db
       .from("admin_config")
       .select("value")

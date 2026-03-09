@@ -128,6 +128,7 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
   const status = progress.status || "idle";
   const isRunning = status === "running" || status === "scanning";
   const isCompleted = status === "completed" || status === "done";
+  const isCompletedWithErrors = status === "completed_with_errors";
   const isFailed = status === "failed" || status === "error";
   const counters = progress.counters;
 
@@ -145,11 +146,15 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
         <CardTitle className="text-base flex items-center gap-2">
           {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> :
            isCompleted ? <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" /> :
+           isCompletedWithErrors ? <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))]" /> :
            isFailed ? <XCircle className="h-4 w-4 text-destructive" /> :
            <Clock className="h-4 w-4" />}
           Scan Status
-          <Badge variant={isRunning ? "default" : isCompleted ? "secondary" : isFailed ? "destructive" : "outline"} className="ml-1">
-            {status}
+          <Badge
+            variant={isRunning ? "default" : isCompleted ? "secondary" : isFailed ? "destructive" : "outline"}
+            className={isCompletedWithErrors ? "border-[hsl(var(--warning))] text-[hsl(var(--warning))]" : "ml-1"}
+          >
+            {isCompletedWithErrors ? "completed with errors" : status}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -162,9 +167,17 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
         {counterText && (
           <p className="text-sm text-muted-foreground">{counterText}</p>
         )}
-        {isCompleted && progress.updated_at && (
+        {(isCompleted || isCompletedWithErrors) && progress.updated_at && (
           <p className="text-xs text-muted-foreground">
             Completed {timeAgo(progress.updated_at)} · {new Date(progress.updated_at).toLocaleString()}
+            {isCompletedWithErrors && (
+              <>
+                {" · "}
+                <Link to="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline text-[hsl(var(--warning))]">
+                  {counters?.errors ?? 0} file error{(counters?.errors ?? 0) !== 1 ? "s" : ""} — view details
+                </Link>
+              </>
+            )}
           </p>
         )}
         {isFailed && (

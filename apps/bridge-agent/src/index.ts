@@ -454,8 +454,10 @@ async function runScan(providedSessionId?: string) {
       return;
     }
 
-    logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length });
-    await api.scanProgress(sessionId, "completed", counters, undefined, skippedDirs);
+    // Determine final status: completed_with_errors if some files failed but scan overall succeeded
+    const finalStatus = counters.errors > 0 ? "completed_with_errors" : "completed";
+    logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length, finalStatus });
+    await api.scanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
     // Clear checkpoint on successful completion
     await api.clearCheckpoint().catch(() => {});
   } catch (e) {
