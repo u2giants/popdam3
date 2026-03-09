@@ -40,6 +40,8 @@ interface LibraryTopBarProps {
   lastScanStatus?: "completed" | "failed" | null;
   lastScanTime?: string;
   lastScanSummary?: string;
+  scanBlocked: boolean;
+  scanBlockedReason: string | null;
 }
 
 function truncatePath(p: string | undefined): string {
