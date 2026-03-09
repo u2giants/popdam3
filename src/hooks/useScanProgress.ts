@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAdminApi } from "./useAdminApi";
 import type { ScanCounters } from "./useAgentStatus";
 
-export type ScanProgressStatus = "idle" | "queued" | "running" | "completed" | "failed" | "stale";
+export type ScanProgressStatus = "idle" | "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "stale";
 
 export interface ScanProgress {
   status: ScanProgressStatus;
