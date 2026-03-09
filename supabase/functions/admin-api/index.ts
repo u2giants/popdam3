@@ -740,6 +740,27 @@ serve(async (req: Request) => {
       case "count-untagged-assets":
         return await handleCountUntaggedAssets();
 
+      // ── Tag propagation ──
+      case "sync-group-tags": {
+        const groupId = typeof body.group_id === "string" ? body.group_id : null;
+        if (!groupId) return err("group_id is required");
+        const { propagateGroupTags } = await import("../_shared/tag-propagation.ts");
+        // Find the primary asset (or first tagged asset) as the source
+        const db = serviceClient();
+        const { data: group } = await db.from("style_groups").select("primary_asset_id").eq("id", groupId).single();
+        let sourceId = group?.primary_asset_id;
+        if (!sourceId) {
+          // Fallback: first tagged asset in the group
+          const { data: tagged } = await db.from("assets")
+            .select("id").eq("style_group_id", groupId).eq("is_deleted", false)
+            .not("ai_tagged_at", "is", null).limit(1).single();
+          sourceId = tagged?.id;
+        }
+        if (!sourceId) return err("No tagged asset found in this group to propagate from");
+        const result = await propagateGroupTags(sourceId, groupId, { onlyUntagged: false });
+        return json({ ok: true, ...result });
+      }
+
       // ── Purge (from purge-handlers.ts) ──
       case "purge-old-assets":
         return await handlePurgeOldAssets(body);
