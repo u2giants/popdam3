@@ -1,12 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { parseSku } from "../_shared/sku-parser.ts";
-import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { corsHeaders, err, json } from "../_shared/http.ts";
-import { unwrapConfigString } from "../_shared/config-utils.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalString, requireString } from "../_shared/validators.ts";
-import { DEFAULT_WORKFLOW_FOLDER_MAP, deriveMetadataFromPath } from "../_shared/metadata-derivation.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
@@ -44,6 +40,20 @@ import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_sh
 import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_shared/admin-handlers/erp-handlers.ts";
+
+import { handleReprocessAssetMetadata, handleBackfillSkuNames } from "../_shared/admin-handlers/metadata-handlers.ts";
+
+import { handlePurgeOldAssets } from "../_shared/admin-handlers/purge-handlers.ts";
+
+import {
+  handleTriggerErpSync,
+  handleErpSyncRuns,
+  handleErpEnrichmentStats,
+  handleErpReviewQueue,
+  handleErpReviewAction,
+  handleErpItemsBrowse,
+  handleErpItemsDismiss,
+} from "../_shared/admin-handlers/erp-browse-handlers.ts";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -376,133 +386,8 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-// ── Agent/scan/render/pairing handlers: moved to _shared/admin-handlers/agent-handlers.ts ──
+// ── Extracted handlers: see _shared/admin-handlers/ ─────────────────
 
-// ── Shared: metadata derivation (same logic as agent-api) ───────────
-
-// DEFAULT_WORKFLOW_FOLDER_MAP and deriveMetadataFromPath are now imported from _shared/metadata-derivation.ts
-
-// ── Route: reprocess-asset-metadata ─────────────────────────────────
-
-async function handleReprocessAssetMetadata(body: Record<string, unknown>) {
-  const offset = typeof body.offset === "number" ? body.offset : 0;
-  const BATCH_SIZE = 200;
-  const db = serviceClient();
-
-  // Fetch grand total once at the start of the operation (offset 0 only)
-  let grandTotal: number | null = null;
-  if (offset === 0) {
-    try {
-      const { count } = await db
-        .from("assets")
-        .select("id", { count: "exact", head: true })
-        .eq("is_deleted", false);
-      grandTotal = count ?? null;
-    } catch {
-      // Non-fatal
-    }
-  }
-
-  const { data: allLicensors } = await db
-    .from("licensors")
-    .select("id, name");
-  const { data: allProperties } = await db
-    .from("properties")
-    .select("id, name, licensor_id");
-
-  const licensorMap = new Map(
-    (allLicensors ?? []).map((l) => [l.name.toLowerCase(), l.id]),
-  );
-  const propertyMap = new Map(
-    (allProperties ?? []).map((p) => [`${p.licensor_id}:${p.name.toLowerCase()}`, p.id]),
-  );
-
-  const { data: assets, error: fetchErr } = await db
-    .from("assets")
-    .select("id, relative_path, filename, is_licensed, workflow_status, licensor_id, property_id, sku")
-    .eq("is_deleted", false)
-    .range(offset, offset + BATCH_SIZE - 1)
-    .order("created_at");
-
-  if (fetchErr) return err(fetchErr.message, 500);
-  if (!assets || assets.length === 0) {
-    return json({ ok: true, done: true, updated: 0, total: 0, nextOffset: null });
-  }
-
-  let updated = 0;
-
-  for (const asset of assets) {
-    const updates: Record<string, unknown> = {};
-
-    // Re-derive path-based metadata
-    const derived = await deriveMetadataFromPath(asset.relative_path, db, licensorMap, propertyMap);
-
-    if (asset.is_licensed !== derived.is_licensed) {
-      updates.is_licensed = derived.is_licensed;
-    }
-    if (asset.workflow_status !== derived.workflow_status) {
-      updates.workflow_status = derived.workflow_status;
-    }
-    if (!asset.licensor_id && derived.licensor_id) {
-      updates.licensor_id = derived.licensor_id;
-    }
-    if (!asset.property_id && derived.property_id) {
-      updates.property_id = derived.property_id;
-    }
-
-    // Re-derive SKU metadata from filename
-    const parsed = await parseSku(asset.filename);
-    if (parsed) {
-      const skuFields: Record<string, string | null> = {
-        sku: parsed.sku,
-        mg01_code: parsed.mg01_code,
-        mg01_name: parsed.mg01_name,
-        mg02_code: parsed.mg02_code,
-        mg02_name: parsed.mg02_name,
-        mg03_code: parsed.mg03_code,
-        mg03_name: parsed.mg03_name,
-        size_code: parsed.size_code,
-        size_name: parsed.size_name,
-        licensor_code: parsed.licensor_code,
-        licensor_name: parsed.licensor_name,
-        property_code: parsed.property_code,
-        property_name: parsed.property_name,
-        sku_sequence: parsed.sku_sequence,
-        product_category: parsed.product_category,
-        division_code: parsed.division_code,
-        division_name: parsed.division_name,
-        // NOTE: is_licensed intentionally excluded — path-derived is authoritative
-      };
-      for (const [k, v] of Object.entries(skuFields)) {
-        const current = (asset as Record<string, unknown>)[k];
-        if (current !== v) {
-          updates[k] = v;
-        }
-      }
-    }
-
-    if (Object.keys(updates).length > 0) {
-      const { error: updateErr } = await db
-        .from("assets")
-        .update(updates)
-        .eq("id", asset.id);
-      if (!updateErr) updated++;
-    }
-  }
-
-  const done = assets.length < BATCH_SIZE;
-  return json({
-    ok: true,
-    done,
-    updated,
-    total: assets.length,
-    grand_total: grandTotal,
-    assets_checked: offset + assets.length,
-    nextOffset: done ? null : offset + BATCH_SIZE,
-  });
-}
-
-// ── Style group handlers: moved to _shared/admin-handlers/style-group-handlers.ts ──
 
 // ── Route: generate-install-bundle ──────────────────────────────────
 
@@ -870,119 +755,8 @@ async function handleRunQuery(body: Record<string, unknown>) {
 
 // ── Route: purge-old-assets ──────────────────────────────────────────
 
-async function handlePurgeOldAssets(body: Record<string, unknown>) {
-  const cutoffDate = typeof body.cutoff_date === "string" ? body.cutoff_date : null;
-  if (!cutoffDate) return err("cutoff_date is required");
+// ── purge-old-assets: moved to _shared/admin-handlers/purge-handlers.ts ──
 
-  const BATCH_SIZE = 200;
-  const db = serviceClient();
-
-  // Always query from 0 — deleted rows disappear from results
-  const { data: oldAssets, error: fetchErr } = await db
-    .from("assets")
-    .select("id, style_group_id, modified_at")
-    .eq("is_deleted", false)
-    .lt("modified_at", cutoffDate)
-    .order("id")
-    .range(0, BATCH_SIZE - 1);
-
-  if (fetchErr) return err(fetchErr.message, 500);
-  if (!oldAssets || oldAssets.length === 0) {
-    return json({
-      ok: true,
-      assets_purged: 0,
-      groups_removed: 0,
-      groups_updated: 0,
-      done: true,
-    });
-  }
-
-  const assetIds = oldAssets.map((a: any) => a.id);
-  const affectedGroupIds = [
-    ...new Set(
-      oldAssets.map((a: any) => a.style_group_id).filter(Boolean),
-    ),
-  ] as string[];
-
-  const { error: deleteErr } = await db
-    .from("assets")
-    .update({ is_deleted: true })
-    .in("id", assetIds);
-  if (deleteErr) return err(deleteErr.message, 500);
-
-  let groupsRemoved = 0;
-  let groupsUpdated = 0;
-
-  if (affectedGroupIds.length > 0) {
-    // Batch query: fetch all remaining assets for affected groups at once
-    const { data: allRemaining } = await db
-      .from("assets")
-      .select("id, style_group_id, filename, file_type, created_at, modified_at, workflow_status, thumbnail_url, thumbnail_error")
-      .in("style_group_id", affectedGroupIds)
-      .eq("is_deleted", false);
-
-    // Group by style_group_id in memory
-    const byGroup = new Map<string, typeof allRemaining>();
-    for (const asset of allRemaining ?? []) {
-      const gid = asset.style_group_id!;
-      if (!byGroup.has(gid)) byGroup.set(gid, []);
-      byGroup.get(gid)!.push(asset);
-    }
-
-    for (const groupId of affectedGroupIds) {
-      const remaining = byGroup.get(groupId) ?? [];
-
-      if (remaining.length === 0) {
-        await db.from("style_groups").delete().eq("id", groupId);
-        groupsRemoved++;
-      } else {
-        const primaryId = selectPrimaryAsset(remaining);
-        const latestFileDate = remaining.reduce((max: string, a: any) => {
-          const d = a.modified_at ?? a.created_at;
-          return d > max ? d : max;
-        }, "1970-01-01T00:00:00.000Z");
-
-        const statusPriority = ["licensor_approved", "customer_adopted", "in_process", "in_development", "concept_approved", "freelancer_art", "product_ideas"];
-        let bestStatus = "other";
-        for (const s of statusPriority) {
-          if (remaining.some((a: Record<string, unknown>) => a.workflow_status === s)) {
-            bestStatus = s;
-            break;
-          }
-        }
-
-        await db.from("style_groups").update({
-          asset_count: remaining.length,
-          primary_asset_id: primaryId,
-          workflow_status: bestStatus as
-            | "product_ideas"
-            | "concept_approved"
-            | "in_development"
-            | "freelancer_art"
-            | "discontinued"
-            | "in_process"
-            | "customer_adopted"
-            | "licensor_approved"
-            | "other",
-          latest_file_date: latestFileDate,
-          updated_at: new Date().toISOString(),
-        }).eq("id", groupId);
-        groupsUpdated++;
-      }
-    }
-  }
-
-  const done = oldAssets.length < BATCH_SIZE;
-  return json({
-    ok: true,
-    assets_purged: assetIds.length,
-    groups_removed: groupsRemoved,
-    groups_updated: groupsUpdated,
-    done,
-  });
-}
-
-// ── bulk-ai-tag and count-untagged-assets: moved to _shared/admin-handlers/ai-tagging-handlers.ts ──
 
 // ── Route: list-sibling-images ───────────────────────────────────────
 // Requests the Bridge Agent to scan a NAS folder for JPG/PNG siblings.
@@ -1924,59 +1698,7 @@ async function handleTriggerWindowsUpdate(
 
 // ── retry-failed-renders, request-path-test, requeue-all-no-preview: moved to _shared/admin-handlers/agent-handlers.ts ──
 
-// ── backfill-sku-names ──────────────────────────────────────────────
-
-async function handleBackfillSkuNames() {
-  const db = serviceClient();
-  const BATCH = 500;
-  let updated = 0;
-  let groupsUpdated = 0;
-  let offset = 0;
-  const MAX = 10000;
-
-  while (offset < MAX) {
-    const { data: assets, error } = await db
-      .from("assets")
-      .select("id, filename, licensor_code, licensor_name, property_code, property_name, style_group_id")
-      .eq("is_deleted", false)
-      .not("sku", "is", null)
-      .not("licensor_code", "is", null)
-      .order("id")
-      .range(offset, offset + BATCH - 1);
-
-    if (error) return err(error.message, 500);
-    if (!assets || assets.length === 0) break;
-    offset += assets.length;
-
-    // Filter to only those where name = code (needs backfill)
-    const needsBackfill = assets.filter((a: any) => (a.licensor_name === a.licensor_code) || (a.property_name === a.property_code));
-
-    for (const asset of needsBackfill) {
-      const parsed = await parseSku(asset.filename);
-      if (!parsed) continue;
-
-      const updates: Record<string, unknown> = {};
-      if (parsed.licensor_name && asset.licensor_name === asset.licensor_code) {
-        updates.licensor_name = parsed.licensor_name;
-      }
-      if (parsed.property_name && asset.property_name === asset.property_code) {
-        updates.property_name = parsed.property_name;
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await db.from("assets").update(updates).eq("id", asset.id);
-        updated++;
-
-        if (asset.style_group_id) {
-          await db.from("style_groups").update(updates).eq("id", asset.style_group_id);
-          groupsUpdated++;
-        }
-      }
-    }
-  }
-
-  return json({ ok: true, assets_updated: updated, groups_updated: groupsUpdated, assets_checked: offset });
-}
+// ── backfill-sku-names: moved to _shared/admin-handlers/metadata-handlers.ts ──
 
 // ── TIFF Hygiene Actions ────────────────────────────────────────────
 
@@ -2112,284 +1834,8 @@ async function handleClearTiffScan() {
   return json({ ok: true });
 }
 
-// ── ERP Enrichment Handlers ─────────────────────────────────────────
+// ── ERP browse/review/sync/stats/dismiss handlers: moved to _shared/admin-handlers/erp-browse-handlers.ts ──
 
-async function handleTriggerErpSync(body: Record<string, unknown>) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  // Forward full_sync, startDate, endDate to the erp-sync function
-  const syncBody: Record<string, unknown> = {};
-  if (body.full_sync === true) syncBody.full_sync = true;
-  if (body.startDate) syncBody.startDate = body.startDate;
-  if (body.endDate) syncBody.endDate = body.endDate;
-
-  const resp = await fetch(`${supabaseUrl}/functions/v1/erp-sync`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(syncBody),
-  });
-
-  const contentType = resp.headers.get("content-type") || "";
-  const text = await resp.text();
-
-  if (!resp.ok) {
-    const looksHtml = /<!doctype|<html|<head>/i.test(text);
-    if (looksHtml) {
-      return err("ERP sync backend returned an HTML 500 page (transient infrastructure error). Please retry.", 502);
-    }
-    let parsed: Record<string, unknown> = {};
-    try {
-      parsed = JSON.parse(text);
-    } catch { /* ignore */ }
-    return err((parsed.error as string) || `erp-sync returned ${resp.status}`, resp.status);
-  }
-
-  if (!contentType.includes("application/json")) {
-    const looksHtml = /<!doctype|<html|<head>/i.test(text);
-    if (looksHtml) {
-      return err("ERP sync backend returned HTML instead of JSON (transient infrastructure error). Please retry.", 502);
-    }
-    return err(`Unexpected ERP sync response format: ${contentType || "unknown"}`, 502);
-  }
-
-  let result: Record<string, unknown> = {};
-  try {
-    result = text ? JSON.parse(text) : {};
-  } catch {
-    return err("ERP sync backend returned malformed JSON.", 502);
-  }
-  return json({ ok: true, ...result });
-}
-
-async function handleErpSyncRuns() {
-  const db = serviceClient();
-  const { data, error } = await db.from("erp_sync_runs")
-    .select("id, status, started_at, ended_at, total_fetched, total_upserted, total_errors, error_samples, created_by, run_metadata")
-    .order("started_at", { ascending: false })
-    .limit(10);
-  if (error) return err(error.message, 500);
-  return json({ ok: true, runs: data });
-}
-
-async function handleErpEnrichmentStats() {
-  const db = serviceClient();
-
-  const { count: totalErp } = await db.from("erp_items_current")
-    .select("*", { count: "exact", head: true });
-
-  const { count: withMgCat } = await db.from("erp_items_current")
-    .select("*", { count: "exact", head: true })
-    .not("mg_category", "is", null);
-
-  const { count: pendingReview } = await db.from("product_category_predictions")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "pending");
-
-  const { count: aiClassified } = await db.from("product_category_predictions")
-    .select("*", { count: "exact", head: true })
-    .in("status", ["approved", "auto_applied"]);
-
-  // Items with mg01_code but no mgCategory = rule-classifiable
-  const { count: ruleClassified } = await db.from("erp_items_current")
-    .select("*", { count: "exact", head: true })
-    .is("mg_category", null)
-    .not("mg01_code", "is", null);
-
-  // Items needing AI = mg_category IS NULL, excluding those already classified
-  const { count: needsAiRaw } = await db.from("erp_items_current")
-    .select("*", { count: "exact", head: true })
-    .is("mg_category", null);
-
-  // Already classified (have an active prediction)
-  const { count: alreadyHandled } = await db.from("product_category_predictions")
-    .select("*", { count: "exact", head: true })
-    .in("status", ["auto_applied", "approved", "pending"]);
-
-  const needsAi = Math.max(0, (needsAiRaw ?? 0) - (alreadyHandled ?? 0));
-
-  // Legacy items: those with erp_updated_at before cutoff (approximate via mg_category null)
-  // Read cutoff from admin_config
-  let categoryCutoff = "2025-05-10";
-  try {
-    const { data: cutoffRow } = await db.from("admin_config")
-      .select("value").eq("key", "ERP_CATEGORY_CUTOFF_DATE").maybeSingle();
-    if (cutoffRow?.value) {
-      const raw = unwrapConfigString(cutoffRow.value);
-      if (raw && /^\d{4}-\d{2}-\d{2}/.test(raw)) categoryCutoff = raw.slice(0, 10);
-    }
-  } catch { /* use default */ }
-
-  const { count: legacyItems } = await db.from("erp_items_current")
-    .select("*", { count: "exact", head: true })
-    .lt("erp_updated_at", categoryCutoff + "T00:00:00Z");
-
-  // SKU match: erp items whose style_number matches any asset SKU
-  const { count: skuMatched } = await db.from("erp_items_current")
-    .select("*", { count: "exact", head: true })
-    .not("style_number", "is", null);
-
-  return json({
-    ok: true,
-    total_erp_items: totalErp ?? 0,
-    with_mg_category: withMgCat ?? 0,
-    rule_classified: ruleClassified ?? 0,
-    ai_classified: aiClassified ?? 0,
-    needs_ai: needsAi,
-    pending_review: pendingReview ?? 0,
-    sku_matched: skuMatched ?? 0,
-    unmatched_skus: (totalErp ?? 0) - (skuMatched ?? 0),
-    legacy_items: legacyItems ?? 0,
-    category_cutoff: categoryCutoff,
-  });
-}
-
-async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
-  const db = serviceClient();
-  const statusFilter = typeof body.status === "string" ? body.status : "pending";
-  const page = typeof body.page === "number" ? Math.max(1, body.page) : 1;
-  const pageSize = typeof body.page_size === "number" ? Math.min(body.page_size, 200) : 100;
-  const offset = (page - 1) * pageSize;
-
-  // Valid statuses
-  const validStatuses = ["pending", "low_confidence", "auto_applied", "approved", "rejected", "unclassifiable", "all"];
-  if (!validStatuses.includes(statusFilter)) return err(`Invalid status filter: ${statusFilter}`);
-
-  // Handle special "low_confidence" filter: pending items with confidence < 0.5
-  const isLowConfidenceFilter = statusFilter === "low_confidence";
-  const effectiveStatus = isLowConfidenceFilter ? "pending" : statusFilter;
-
-  // Count total for this filter
-  let countQuery = db.from("product_category_predictions").select("id", { count: "exact", head: true });
-  if (effectiveStatus !== "all") countQuery = countQuery.eq("status", effectiveStatus);
-  if (isLowConfidenceFilter) countQuery = countQuery.lt("confidence", 0.5);
-  const { count: totalCount, error: countErr } = await countQuery;
-  if (countErr) return err(countErr.message, 500);
-
-  // Parallel status count queries instead of serial loop
-  const statuses = ["pending", "auto_applied", "approved", "rejected", "unclassifiable"];
-  const [statusResults, lowConfRes] = await Promise.all([
-    Promise.all(statuses.map((s) =>
-      db.from("product_category_predictions").select("id", { count: "exact", head: true }).eq("status", s)
-        .then((r) => ({ status: s, count: r.count ?? 0 }))
-    )),
-    db.from("product_category_predictions")
-      .select("id", { count: "exact", head: true }).eq("status", "pending").lt("confidence", 0.5),
-  ]);
-  const statusCounts: Record<string, number> = {};
-  for (const r of statusResults) statusCounts[r.status] = r.count;
-  statusCounts["low_confidence"] = lowConfRes.count ?? 0;
-
-  // Fetch page
-  let query = db.from("product_category_predictions")
-    .select("id, external_id, predicted_category, confidence, rationale, classification_source, ai_model, status, created_at");
-  if (effectiveStatus !== "all") query = query.eq("status", effectiveStatus);
-  if (isLowConfidenceFilter) query = query.lt("confidence", 0.5);
-  query = query.order("confidence", { ascending: true }).range(offset, offset + pageSize - 1);
-
-  const { data, error } = await query;
-  if (error) return err(error.message, 500);
-
-  // Enrich with item descriptions
-  const externalIds = (data || []).map((d: any) => d.external_id);
-  const { data: erpItems } = await db.from("erp_items_current")
-    .select("external_id, item_description, style_number")
-    .in("external_id", externalIds.length > 0 ? externalIds : ["__none__"]);
-
-  const descMap: Record<string, { description: string; style_number: string }> = {};
-  for (const item of erpItems || []) {
-    descMap[item.external_id] = {
-      description: item.item_description || "",
-      style_number: item.style_number || "",
-    };
-  }
-
-  const items = (data || []).map((d: any) => ({
-    ...d,
-    description: descMap[d.external_id]?.description || null,
-    style_number: descMap[d.external_id]?.style_number || d.external_id,
-  }));
-
-  return json({
-    ok: true,
-    items,
-    total: totalCount ?? 0,
-    page,
-    page_size: pageSize,
-    total_pages: Math.ceil((totalCount ?? 0) / pageSize),
-    status_counts: statusCounts,
-  });
-}
-
-async function handleErpReviewAction(body: Record<string, unknown>, userId: string) {
-  const action = requireString(body, "review_action"); // approve, reject, revert, bulk-reject
-
-  if (!["approve", "reject", "revert", "bulk-reject", "bulk-dismiss"].includes(action)) {
-    return err("review_action must be 'approve', 'reject', 'revert', 'bulk-reject', or 'bulk-dismiss'");
-  }
-
-  const db = serviceClient();
-  const now = new Date().toISOString();
-
-  // Bulk reject: reject multiple predictions at once
-  if (action === "bulk-reject") {
-    const ids = body.prediction_ids;
-    if (!Array.isArray(ids) || ids.length === 0) return err("prediction_ids must be a non-empty array");
-    const { error } = await db.from("product_category_predictions")
-      .update({ status: "rejected", reviewed_by: userId === "system" ? null : userId, reviewed_at: now })
-      .in("id", ids);
-    if (error) return err(error.message, 500);
-    return json({ ok: true, count: ids.length });
-  }
-
-  // Bulk dismiss: permanently mark as unclassifiable (never re-classified)
-  if (action === "bulk-dismiss") {
-    const ids = body.prediction_ids;
-    if (!Array.isArray(ids) || ids.length === 0) return err("prediction_ids must be a non-empty array");
-    const { error } = await db.from("product_category_predictions")
-      .update({ status: "unclassifiable", reviewed_by: userId === "system" ? null : userId, reviewed_at: now })
-      .in("id", ids);
-    if (error) return err(error.message, 500);
-    return json({ ok: true, count: ids.length });
-  }
-
-  const predictionId = requireString(body, "prediction_id");
-
-  // Revert: set an auto_applied or approved prediction back to pending
-  if (action === "revert") {
-    const { error } = await db.from("product_category_predictions")
-      .update({ status: "pending", reviewed_by: null, reviewed_at: null })
-      .eq("id", predictionId);
-    if (error) return err(error.message, 500);
-    return json({ ok: true });
-  }
-
-  const overrideCategory = optionalString(body, "override_category");
-
-  if (action === "approve") {
-    const updates: Record<string, unknown> = {
-      status: "approved",
-      reviewed_by: userId === "system" ? null : userId,
-      reviewed_at: now,
-    };
-    if (overrideCategory) updates.predicted_category = overrideCategory;
-    const { error } = await db.from("product_category_predictions")
-      .update(updates).eq("id", predictionId);
-    if (error) return err(error.message, 500);
-  } else {
-    const { error } = await db.from("product_category_predictions")
-      .update({ status: "rejected", reviewed_by: userId === "system" ? null : userId, reviewed_at: now })
-      .eq("id", predictionId);
-    if (error) return err(error.message, 500);
-  }
-
-  return json({ ok: true });
-}
-
-// ── apply-erp-enrichment and classify-erp-categories: moved to _shared/admin-handlers/erp-handlers.ts ──
 
 // ── Route: list-hygiene-findings ────────────────────────────────────
 
