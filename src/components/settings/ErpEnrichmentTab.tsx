@@ -611,14 +611,37 @@ function ReviewQueue() {
   const canApprove = statusFilter === "pending";
   const canReject = statusFilter === "pending" || statusFilter === "auto_applied";
 
-  const REVIEW_COLS = [
-    { key: "style", label: "Style #" },
-    { key: "description", label: "Description" },
-    { key: "predicted", label: "Predicted" },
-    { key: "confidence", label: "Confidence" },
-    { key: "rationale", label: "Rationale" },
+  const REVIEW_COLS: ColumnDef[] = [
+    { key: "style", label: "Style #", sortable: true, filterable: true },
+    { key: "description", label: "Description", sortable: true, filterable: true },
+    { key: "predicted", label: "Predicted", sortable: true, filterable: true },
+    { key: "confidence", label: "Confidence", sortable: true },
+    { key: "rationale", label: "Rationale", filterable: true },
     { key: "actions", label: "Actions" },
   ];
+
+  const getReviewCell = useCallback((item: any, key: string): string => {
+    switch (key) {
+      case "style": return item.style_number || item.external_id || "";
+      case "description": return item.description || "";
+      case "predicted": return item.predicted_category || "";
+      case "confidence": return String(Math.round((item.confidence ?? 0) * 100));
+      case "rationale": return item.rationale || "";
+      default: return "";
+    }
+  }, []);
+
+  const {
+    processed: filteredItems,
+    sortKey: reviewSortKey,
+    sortDir: reviewSortDir,
+    filters: reviewFilters,
+    suggestions: reviewSuggestions,
+    toggleSort: reviewToggleSort,
+    setFilter: reviewSetFilter,
+    clearFilter: reviewClearFilter,
+    hasActiveFilters: reviewHasActiveFilters,
+  } = useTableFilterSort(items, REVIEW_COLS, getReviewCell);
 
   const handleResizeStart = (col: string, e: React.MouseEvent) => {
     e.preventDefault();
