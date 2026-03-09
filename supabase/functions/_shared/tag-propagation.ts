@@ -16,7 +16,7 @@
  *   - design_ref
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serviceClient } from "./service-client.ts";
 
 // Tags that describe the file itself, not the product — skip during propagation
 const FILE_SPECIFIC_TAGS = new Set([
