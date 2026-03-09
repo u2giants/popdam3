@@ -114,7 +114,7 @@ export function usePersistentOperation(operationKey: string) {
 
       const shouldResume =
         options?.forceRestart !== true &&
-        state.status === "interrupted" &&
+        (state.status === "interrupted" || state.status === "failed") &&
         typeof state.cursor === "number";
 
       const now = new Date().toISOString();
