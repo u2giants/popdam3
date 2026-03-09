@@ -20,15 +20,28 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Tags that describe the file itself, not the product — skip during propagation
 const FILE_SPECIFIC_TAGS = new Set([
-  "art_piece", "art piece",
-  "product", "product shot", "product photo",
-  "packaging", "package",
-  "tech_pack", "tech pack", "technical pack",
-  "photography", "photo",
-  "mockup", "mock up", "mock-up",
-  "front view", "back view", "side view",
-  "flat lay", "flatlay",
-  "render", "3d render",
+  "art_piece",
+  "art piece",
+  "product",
+  "product shot",
+  "product photo",
+  "packaging",
+  "package",
+  "tech_pack",
+  "tech pack",
+  "technical pack",
+  "photography",
+  "photo",
+  "mockup",
+  "mock up",
+  "mock-up",
+  "front view",
+  "back view",
+  "side view",
+  "flat lay",
+  "flatlay",
+  "render",
+  "3d render",
 ]);
 
 function isProductTag(tag: string): boolean {
