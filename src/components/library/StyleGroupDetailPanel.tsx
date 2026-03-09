@@ -408,6 +408,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [aiTagging, setAiTagging] = useState(false);
+  const [syncingTags, setSyncingTags] = useState(false);
 
   const ERP_MG_CUTOFF = "2025-05-14";
 
