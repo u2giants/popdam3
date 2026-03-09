@@ -37,7 +37,7 @@ interface LibraryTopBarProps {
   onStopScan: () => void;
   onRefresh: () => void;
   scanCurrentPath?: string;
-  lastScanStatus?: "completed" | "failed" | null;
+  lastScanStatus?: "completed" | "completed_with_errors" | "failed" | null;
   lastScanTime?: string;
   lastScanSummary?: string;
   scanBlocked: boolean;
