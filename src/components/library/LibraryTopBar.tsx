@@ -85,7 +85,17 @@ export default function LibraryTopBar({
   lastScanStatus,
   lastScanTime,
   lastScanSummary,
+  scanBlocked,
+  scanBlockedReason,
 }: LibraryTopBarProps) {
+  const syncDisabled = scanPending || scanRunning || scanQueued || scanBlocked;
+  const syncTitle = scanBlocked ? scanBlockedReason || "Scan blocked" 
+    : scanStale ? "Scan appears stuck — use Reset Scan State in Settings" 
+    : scanRunning ? "Scanning…" 
+    : scanQueued ? "Queued, waiting for agent…" 
+    : scanPending ? "Waiting for agent…" 
+    : "Trigger scan";
+
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-overlay px-4 py-3">
       {/* Filters toggle — far left so it sits above the sidebar */}
