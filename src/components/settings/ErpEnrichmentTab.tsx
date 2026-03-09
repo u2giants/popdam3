@@ -520,12 +520,17 @@ function EnrichmentControls() {
 
 // ── Review Queue ─────────────────────────────────────────────────────
 
+import { TruncatedCell } from "@/components/ui/truncated-cell";
+
 function ReviewQueue() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("pending");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Column resize state
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const [resizing, setResizing] = useState<{ col: string; startX: number; startW: number } | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["erp-review-queue", statusFilter, page],
