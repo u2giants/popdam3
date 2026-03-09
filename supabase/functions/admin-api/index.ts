@@ -828,7 +828,6 @@ async function handleRunQuery(body: Record<string, unknown>) {
     return err("Only SELECT queries are allowed");
   }
 
-  // Block dangerous keywords even within SELECT
   const forbidden = /\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|execute)\b/i;
   if (forbidden.test(trimmed)) {
     return err("Query contains forbidden keywords");
@@ -836,66 +835,26 @@ async function handleRunQuery(body: Record<string, unknown>) {
 
   const db = serviceClient();
 
-  // Try RPC first, then raw REST fallback
-  const tryQuery = async (): Promise<Response> => {
+  try {
     const { data, error: queryErr } = await db.rpc("execute_readonly_query", { query_text: trimmed });
 
-    if (!queryErr) {
-      return json({ ok: true, rows: data ?? [], count: Array.isArray(data) ? data.length : 0 });
-    }
-
-    // Fallback: try raw SQL via postgrest REST API
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const pgRes = await fetch(`${supabaseUrl}/rest/v1/rpc/execute_readonly_query`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${serviceKey}`,
-        "apikey": serviceKey,
-      },
-      body: JSON.stringify({ query_text: trimmed }),
-    });
-
-    const pgContentType = pgRes.headers.get("content-type") || "";
-    const pgBody = await pgRes.text();
-
-    if (!pgRes.ok) {
-      // Detect statement timeout and return a user-friendly message
-      if (pgBody.includes("57014") || pgBody.includes("statement timeout")) {
+    if (queryErr) {
+      const msg = queryErr.message || "";
+      if (msg.includes("57014") || msg.includes("statement timeout")) {
         return json({
           ok: false,
           error: "Query timed out. Try a simpler query or add WHERE/LIMIT clauses.",
           code: "statement_timeout",
         }, 408);
       }
-      const looksHtml = /<!doctype|<html|<head>/i.test(pgBody);
+      const looksHtml = /<!doctype|<html|<head>/i.test(msg);
       if (looksHtml) {
-        return err("Query backend returned an HTML 500 page (transient infrastructure error). Please retry.", 502);
+        return err("Query backend returned HTML (transient infrastructure error). Please retry.", 502);
       }
-      return err(`Query failed: ${pgBody}`, 400);
+      return err(`Query failed: ${msg}`, 400);
     }
 
-    if (!pgContentType.includes("application/json")) {
-      const looksHtml = /<!doctype|<html|<head>/i.test(pgBody);
-      if (looksHtml) {
-        return err("Query backend returned HTML instead of JSON (transient infrastructure error). Please retry.", 502);
-      }
-      return err(`Unexpected query response format: ${pgContentType || "unknown"}`, 502);
-    }
-
-    let rows: unknown = [];
-    try {
-      rows = pgBody ? JSON.parse(pgBody) : [];
-    } catch {
-      return err("Query backend returned malformed JSON.", 502);
-    }
-    return json({ ok: true, rows: rows ?? [], count: Array.isArray(rows) ? rows.length : 0 });
-  };
-
-  try {
-    return await tryQuery();
+    return json({ ok: true, rows: data ?? [], count: Array.isArray(data) ? data.length : 0 });
   } catch (e) {
     const msg = (e as Error).message || "";
     if (msg.includes("57014") || msg.includes("statement timeout")) {
