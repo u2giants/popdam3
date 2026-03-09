@@ -386,15 +386,8 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-// ── Agent/scan/render/pairing handlers: moved to _shared/admin-handlers/agent-handlers.ts ──
+// ── Extracted handlers: see _shared/admin-handlers/ ─────────────────
 
-// ── Shared: metadata derivation (same logic as agent-api) ───────────
-
-// DEFAULT_WORKFLOW_FOLDER_MAP and deriveMetadataFromPath are now imported from _shared/metadata-derivation.ts
-
-// ── reprocess-asset-metadata: moved to _shared/admin-handlers/metadata-handlers.ts ──
-
-// ── Style group handlers: moved to _shared/admin-handlers/style-group-handlers.ts ──
 
 // ── Route: generate-install-bundle ──────────────────────────────────
 
