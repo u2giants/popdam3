@@ -684,7 +684,9 @@ async function handleIngest(
       new_relative_path: relativePath,
     });
 
-    assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, db).catch((e) => console.error(`assignToStyleGroup failed for moved asset ${existingByHash.id}:`, e));
+    assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, db).catch((e) =>
+      console.error(`assignToStyleGroup failed for moved asset ${existingByHash.id}:`, e)
+    );
 
     return json({
       ok: true,
@@ -754,7 +756,9 @@ async function handleIngest(
 
     // processing_queue inserts removed — AI tagging is now handled by bulk-job-runner
 
-    assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, db).catch((e) => console.error(`assignToStyleGroup failed for updated asset ${existingByPath.id}:`, e));
+    assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, db).catch((e) =>
+      console.error(`assignToStyleGroup failed for updated asset ${existingByPath.id}:`, e)
+    );
 
     return json({
       ok: true,
@@ -800,7 +804,9 @@ async function handleIngest(
   // processing_queue inserts removed — thumbnails are handled by render_queue trigger,
   // AI tagging by bulk-job-runner
 
-  assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, db).catch((e) => console.error(`assignToStyleGroup failed for new asset ${newAsset.id}:`, e));
+  assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, db).catch((e) =>
+    console.error(`assignToStyleGroup failed for new asset ${newAsset.id}:`, e)
+  );
 
   return json({ ok: true, action: "created", asset_id: newAsset.id, needs_group_rebuild: true });
 }
