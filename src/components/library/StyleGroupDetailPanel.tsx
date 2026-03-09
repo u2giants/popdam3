@@ -402,12 +402,14 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
 
 export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDetailPanelProps) {
   const queryClient = useQueryClient();
+  const { call: adminApi } = useAdminApi();
   const [localPrimaryId, setLocalPrimaryId] = useState<string | null>(group.primary_asset_id);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [aiTagging, setAiTagging] = useState(false);
+  const [syncingTags, setSyncingTags] = useState(false);
 
   const ERP_MG_CUTOFF = "2025-05-14";
 
@@ -567,6 +569,23 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const removeTag = (tag: string) => {
     if (!detailAsset) return;
     updateAsset.mutate({ tags: detailAsset.tags.filter((t) => t !== tag) });
+  };
+
+  // Sync group tags
+  const handleSyncGroupTags = async () => {
+    setSyncingTags(true);
+    try {
+      const result = await adminApi("sync-group-tags", { group_id: group.id });
+      queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
+      toast({
+        title: "Tags synced across group",
+        description: `${result.siblings_updated} assets updated, ${result.tags_propagated} tags propagated`,
+      });
+    } catch (e: any) {
+      toast({ title: "Sync failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSyncingTags(false);
+    }
   };
 
   // Reset tag input when asset changes
@@ -792,6 +811,18 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                     <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Add tag…" className="h-7 text-xs bg-background" />
                     <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
                   </form>
+                  {(groupAssets?.length ?? 0) > 1 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs w-full"
+                      onClick={handleSyncGroupTags}
+                      disabled={syncingTags}
+                    >
+                      {syncingTags ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Tag className="h-3 w-3 mr-1" />}
+                      Sync Tags to All Group Members
+                    </Button>
+                  )}
                 </section>
               </>
             )}
