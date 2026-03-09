@@ -129,6 +129,7 @@ export default function ScanDiagnosticsPage() {
   const sessionId = progress?.session_id as string | undefined;
 
   const isFailed = status === "failed" || status === "error";
+  const isCompletedWithErrors = status === "completed_with_errors";
   const explanation = isFailed ? explainScanError(error) : null;
 
   return (
