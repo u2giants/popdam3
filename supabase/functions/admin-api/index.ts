@@ -73,10 +73,7 @@ import {
   handleListSiblingImages,
 } from "../_shared/admin-handlers/sibling-scan-handlers.ts";
 
-import {
-  handleDebugColdlionLookup,
-  handleRepairInvalidPropertyNames,
-} from "../_shared/admin-handlers/coldlion-handlers.ts";
+import { handleDebugColdlionLookup, handleRepairInvalidPropertyNames } from "../_shared/admin-handlers/coldlion-handlers.ts";
 
 import {
   handleListHygieneFindings,
