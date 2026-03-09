@@ -160,7 +160,7 @@ export async function ingest(payload: IngestPayload): Promise<IngestResult> {
 
 export async function scanProgress(
   sessionId: string,
-  status: "running" | "completed" | "failed",
+  status: "running" | "completed" | "completed_with_errors" | "failed",
   counters: Counters,
   currentPath?: string,
   skippedDirs?: string[],
