@@ -131,13 +131,19 @@ function buildProgress(
       };
     case "ai-tag-untagged":
     case "ai-tag-all":
-    case "ai-tag-groups":
+    case "ai-tag-groups": {
+      const prevSamples = Array.isArray(prev.failure_samples) ? (prev.failure_samples as unknown[]) : [];
+      const batchSamples = Array.isArray(batch.failure_samples) ? (batch.failure_samples as unknown[]) : [];
+      const mergedSamples = [...prevSamples, ...batchSamples].slice(-200);
+
       return {
         tagged: ((prev.tagged as number) || 0) + ((batch.tagged as number) || 0),
         skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
         total: prev.total || 0,
+        failure_samples: mergedSamples,
       };
+    }
     case "erp-enrichment":
       return {
         updated: ((prev.updated as number) || 0) + ((batch.updated as number) || 0),

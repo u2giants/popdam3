@@ -1028,7 +1028,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
 
   let query = db
     .from("assets")
-    .select("id, thumbnail_url")
+    .select("id, thumbnail_url, filename, relative_path")
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null);
 
@@ -1047,7 +1047,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
 
   if (error) return err(error.message, 500);
   if (!assets || assets.length === 0) {
-    return json({ ok: true, tagged: 0, failed: 0, skipped: 0, done: true, nextOffset: offset });
+    return json({ ok: true, tagged: 0, failed: 0, skipped: 0, failure_samples: [], done: true, nextOffset: offset });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1056,6 +1056,28 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   let tagged = 0;
   let skipped = 0;
   let failed = 0;
+
+  const failureSamples: Array<{
+    at: string;
+    asset_id: string;
+    filename: string;
+    relative_path: string;
+    http_status?: number;
+    error: string;
+  }> = [];
+
+  const parseErrorBody = (text: string): string => {
+    const trimmed = (text || "").trim();
+    if (!trimmed) return "Unknown error";
+    try {
+      const parsed = JSON.parse(trimmed) as { error?: unknown; message?: unknown };
+      const e = typeof parsed?.error === "string" ? parsed.error : null;
+      const m = typeof parsed?.message === "string" ? parsed.message : null;
+      return (e || m || trimmed).slice(0, 500);
+    } catch {
+      return trimmed.slice(0, 500);
+    }
+  };
 
   // Process assets in parallel chunks of CONCURRENCY
   for (let i = 0; i < assets.length; i += CONCURRENCY) {
@@ -1071,29 +1093,52 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
           },
           body: JSON.stringify({ asset_id: asset.id, force: tagAll }),
         });
+
         if (res.ok) {
           const result = await res.json();
-          return result.skipped ? "skipped" : "tagged";
-        } else {
-          console.error("bulk-ai-tag asset failed", { assetId: asset.id, httpStatus: res.status });
-          return "failed";
+          return {
+            outcome: result.skipped ? "skipped" as const : "tagged" as const,
+            asset_id: asset.id as string,
+          };
         }
+
+        const bodyText = await res.text().catch(() => "");
+        return {
+          outcome: "failed" as const,
+          at: new Date().toISOString(),
+          asset_id: asset.id as string,
+          filename: (asset.filename as string) || "(unknown)",
+          relative_path: (asset.relative_path as string) || "(unknown)",
+          http_status: res.status,
+          error: parseErrorBody(bodyText) || `HTTP ${res.status}`,
+        };
       }),
     );
 
     for (const r of results) {
       if (r.status === "fulfilled") {
-        if (r.value === "tagged") tagged++;
-        else if (r.value === "skipped") skipped++;
-        else failed++;
+        if (r.value.outcome === "tagged") tagged++;
+        else if (r.value.outcome === "skipped") skipped++;
+        else {
+          failed++;
+          failureSamples.push(r.value);
+        }
       } else {
         failed++;
+        // We don't have enough context to map this to a specific asset reliably.
+        failureSamples.push({
+          at: new Date().toISOString(),
+          asset_id: "(unknown)",
+          filename: "(unknown)",
+          relative_path: "(unknown)",
+          error: (r.reason instanceof Error ? r.reason.message : String(r.reason || "Unknown error")).slice(0, 500),
+        });
       }
     }
   }
 
   const done = assets.length < BATCH_SIZE;
-  return json({ ok: true, tagged, skipped, failed, done, nextOffset: offset + assets.length });
+  return json({ ok: true, tagged, skipped, failed, failure_samples: failureSamples, done, nextOffset: offset + assets.length });
 }
 
 // ── Route: count-untagged-assets ────────────────────────────────────

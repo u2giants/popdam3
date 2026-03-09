@@ -205,7 +205,14 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
               <div className="flex gap-4 text-xs text-muted-foreground">
                 <span>Tagged: <span className="text-foreground font-medium">{tagged.toLocaleString()}</span></span>
                 {skipped > 0 && <span>Skipped: <span className="text-foreground font-medium">{skipped.toLocaleString()}</span></span>}
-                {failed > 0 && <span className="text-destructive">Failed: <span className="font-medium">{failed.toLocaleString()}</span></span>}
+                {failed > 0 && (
+                  <Link
+                    to={`/settings/ai-tagging-failures?op=${encodeURIComponent(displayOpKey)}`}
+                    className="text-destructive underline underline-offset-2 hover:no-underline"
+                  >
+                    Failed: <span className="font-medium">{failed.toLocaleString()}</span>
+                  </Link>
+                )}
               </div>
             </div>
           );
