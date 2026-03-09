@@ -684,7 +684,7 @@ async function handleIngest(
       new_relative_path: relativePath,
     });
 
-    assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, db).catch(() => {});
+    assignToStyleGroup(relativePath, existingByHash.id, skuFields, reDerived, db).catch((e) => console.error(`assignToStyleGroup failed for moved asset ${existingByHash.id}:`, e));
 
     return json({
       ok: true,
