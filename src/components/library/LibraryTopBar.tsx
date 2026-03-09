@@ -80,6 +80,9 @@ export default function LibraryTopBar({
   onStopScan,
   onRefresh,
   scanCurrentPath,
+  lastScanStatus,
+  lastScanTime,
+  lastScanSummary,
 }: LibraryTopBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-overlay px-4 py-3">
