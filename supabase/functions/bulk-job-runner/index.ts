@@ -181,7 +181,7 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
     case "erp-enrichment":
       return `Enriched ${progress.assets_updated || 0} assets, ${progress.groups_updated || 0} groups`;
     case "erp-classify":
-      return `AI-classified ${progress.classified || 0} items`;
+      return `AI-classified ${progress.classified || 0} items (${progress.skipped_unclassifiable || 0} unclassifiable)`;
     default:
       return "Operation completed";
   }

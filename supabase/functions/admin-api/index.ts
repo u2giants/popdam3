@@ -2789,49 +2789,104 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 }
 
 async function handleClassifyErpCategories(body: Record<string, unknown>) {
-  // Keep batch very small to stay under gateway/runtime limits during sequential AI calls.
-  // With 5 items and a 20s timeout per call, worst-case stays around ~100s (+ DB overhead).
   const batchSize = 5;
+  const scanWindow = 500;
+  const maxScanWindows = 20; // max 10k ERP rows scanned per invocation
+  const offset = typeof body.offset === "number" && body.offset >= 0 ? body.offset : 0;
+
   const db = serviceClient();
 
-  // Single SQL query that returns ONLY eligible items:
-  // - mg_category IS NULL (needs classification)
-  // - style_number exists
-  // - has a matching non-deleted asset (relevance filter)
-  // - no existing terminal prediction (not already classified)
-  // This eliminates the old 3-step fetch-then-filter that paged through thousands of
-  // irrelevant items (most already classified or unmatched) before finding eligible ones.
-  const { data: candidateRows, error: fetchErr } = await db.rpc("execute_readonly_query", {
-    query_text: `
-      SELECT e.id, e.external_id, e.style_number, e.item_description,
-             e.mg01_code, e.mg02_code, e.mg03_code, e.raw_mg_fields
-      FROM erp_items_current e
-      WHERE e.mg_category IS NULL
-        AND e.style_number IS NOT NULL
-        AND e.style_number != ''
-        AND EXISTS (
-          SELECT 1 FROM assets a
-          WHERE a.sku = e.style_number AND a.is_deleted = false
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM product_category_predictions p
-          WHERE p.erp_item_id = e.id
-            AND p.status IN ('auto_applied', 'approved', 'unclassifiable')
-        )
-      ORDER BY e.external_id
-      LIMIT ${batchSize + 1}
-    `,
-  });
+  let scanOffset = offset;
+  let scanned = 0;
+  let exhausted = false;
+  const candidates: Array<{
+    id: string;
+    external_id: string;
+    style_number: string | null;
+    item_description: string | null;
+    mg01_code: string | null;
+    mg02_code: string | null;
+    mg03_code: string | null;
+    raw_mg_fields: unknown;
+  }> = [];
 
-  if (fetchErr) return err(fetchErr.message, 500);
+  // Scan windows of ERP rows until we either fill a batch or exhaust data.
+  for (let i = 0; i < maxScanWindows && candidates.length < batchSize; i++) {
+    const { data: windowRows, error: windowErr } = await db
+      .from("erp_items_current")
+      .select("id, external_id, style_number, item_description, mg01_code, mg02_code, mg03_code, raw_mg_fields")
+      .is("mg_category", null)
+      .not("style_number", "is", null)
+      .neq("style_number", "")
+      .order("external_id", { ascending: true })
+      .range(scanOffset, scanOffset + scanWindow - 1);
 
-  const allRows = (candidateRows as any[]) || [];
-  // We fetched batchSize+1 to detect whether more remain
-  const hasMore = allRows.length > batchSize;
-  const candidates = allRows.slice(0, batchSize);
+    if (windowErr) return err(windowErr.message, 500);
+
+    const rows = (windowRows ?? []) as typeof candidates;
+    if (rows.length === 0) {
+      exhausted = true;
+      break;
+    }
+
+    scanned += rows.length;
+    scanOffset += rows.length;
+
+    const styleNumbers = [...new Set(rows.map((r) => r.style_number).filter((v): v is string => !!v))];
+    const erpItemIds = rows.map((r) => r.id);
+
+    const [assetMatchRes, groupMatchRes, existingPredictionsRes] = await Promise.all([
+      styleNumbers.length
+        ? db.from("assets").select("sku").in("sku", styleNumbers).eq("is_deleted", false)
+        : Promise.resolve({ data: [], error: null }),
+      styleNumbers.length
+        ? db.from("style_groups").select("sku").in("sku", styleNumbers)
+        : Promise.resolve({ data: [], error: null }),
+      erpItemIds.length
+        ? db.from("product_category_predictions").select("erp_item_id,status").in("erp_item_id", erpItemIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (assetMatchRes.error) return err(assetMatchRes.error.message, 500);
+    if (groupMatchRes.error) return err(groupMatchRes.error.message, 500);
+    if (existingPredictionsRes.error) return err(existingPredictionsRes.error.message, 500);
+
+    const matchedSkuSet = new Set<string>([
+      ...((assetMatchRes.data ?? []).map((r) => r.sku).filter((v): v is string => !!v)),
+      ...((groupMatchRes.data ?? []).map((r) => r.sku).filter((v): v is string => !!v)),
+    ]);
+
+    const terminalPredictionIds = new Set<string>(
+      (existingPredictionsRes.data ?? [])
+        .filter((r) => ["auto_applied", "approved", "unclassifiable"].includes(r.status))
+        .map((r) => r.erp_item_id)
+        .filter((v): v is string => !!v),
+    );
+
+    for (const row of rows) {
+      if (candidates.length >= batchSize) break;
+      if (!row.style_number) continue;
+      if (!matchedSkuSet.has(row.style_number)) continue;
+      if (terminalPredictionIds.has(row.id)) continue;
+      candidates.push(row);
+    }
+
+    if (rows.length < scanWindow) {
+      exhausted = true;
+      break;
+    }
+  }
 
   if (candidates.length === 0) {
-    return json({ ok: true, done: true, classified: 0, skipped_unclassifiable: 0, total: 0 });
+    return json({
+      ok: true,
+      done: exhausted,
+      classified: 0,
+      skipped_unclassifiable: 0,
+      total: 0,
+      scanned,
+      nextOffset: scanOffset,
+    });
   }
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -2994,13 +3049,14 @@ Use the provided tool to return your classification.`;
     }
   }
 
-  // done = no more eligible items remain (we fetched batchSize+1 and got fewer)
   return json({
     ok: true,
-    done: !hasMore,
+    done: exhausted && candidates.length < batchSize,
     classified,
     skipped_unclassifiable: skippedUnclassifiable,
     total: classified + skippedUnclassifiable,
+    scanned,
+    nextOffset: scanOffset,
   });
 }
 
