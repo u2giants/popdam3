@@ -36,7 +36,9 @@ export async function handleTriggerErpSync(body: Record<string, unknown>) {
       return err("ERP sync backend returned an HTML 500 page (transient infrastructure error). Please retry.", 502);
     }
     let parsed: Record<string, unknown> = {};
-    try { parsed = JSON.parse(text); } catch { /* ignore */ }
+    try {
+      parsed = JSON.parse(text);
+    } catch { /* ignore */ }
     return err((parsed.error as string) || `erp-sync returned ${resp.status}`, resp.status);
   }
 
@@ -49,7 +51,9 @@ export async function handleTriggerErpSync(body: Record<string, unknown>) {
   }
 
   let result: Record<string, unknown> = {};
-  try { result = text ? JSON.parse(text) : {}; } catch {
+  try {
+    result = text ? JSON.parse(text) : {};
+  } catch {
     return err("ERP sync backend returned malformed JSON.", 502);
   }
   return json({ ok: true, ...result });
@@ -289,9 +293,19 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const offset = (page - 1) * pageSize;
 
   const ALLOWED_SORT_COLS = [
-    "external_id", "style_number", "item_description", "mg_category",
-    "mg01_code", "mg02_code", "mg03_code", "size_code",
-    "licensor_code", "property_code", "division_code", "synced_at", "erp_updated_at",
+    "external_id",
+    "style_number",
+    "item_description",
+    "mg_category",
+    "mg01_code",
+    "mg02_code",
+    "mg03_code",
+    "size_code",
+    "licensor_code",
+    "property_code",
+    "division_code",
+    "synced_at",
+    "erp_updated_at",
   ];
   const effectiveSort = ALLOWED_SORT_COLS.includes(sortBy) ? sortBy : "synced_at";
 

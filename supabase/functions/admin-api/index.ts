@@ -41,18 +41,18 @@ import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-han
 
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_shared/admin-handlers/erp-handlers.ts";
 
-import { handleReprocessAssetMetadata, handleBackfillSkuNames } from "../_shared/admin-handlers/metadata-handlers.ts";
+import { handleBackfillSkuNames, handleReprocessAssetMetadata } from "../_shared/admin-handlers/metadata-handlers.ts";
 
 import { handlePurgeOldAssets } from "../_shared/admin-handlers/purge-handlers.ts";
 
 import {
-  handleTriggerErpSync,
-  handleErpSyncRuns,
   handleErpEnrichmentStats,
-  handleErpReviewQueue,
-  handleErpReviewAction,
   handleErpItemsBrowse,
   handleErpItemsDismiss,
+  handleErpReviewAction,
+  handleErpReviewQueue,
+  handleErpSyncRuns,
+  handleTriggerErpSync,
 } from "../_shared/admin-handlers/erp-browse-handlers.ts";
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -387,7 +387,6 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
 }
 
 // ── Extracted handlers: see _shared/admin-handlers/ ─────────────────
-
 
 // ── Route: generate-install-bundle ──────────────────────────────────
 
@@ -756,7 +755,6 @@ async function handleRunQuery(body: Record<string, unknown>) {
 // ── Route: purge-old-assets ──────────────────────────────────────────
 
 // ── purge-old-assets: moved to _shared/admin-handlers/purge-handlers.ts ──
-
 
 // ── Route: list-sibling-images ───────────────────────────────────────
 // Requests the Bridge Agent to scan a NAS folder for JPG/PNG siblings.
@@ -1835,7 +1833,6 @@ async function handleClearTiffScan() {
 }
 
 // ── ERP browse/review/sync/stats/dismiss handlers: moved to _shared/admin-handlers/erp-browse-handlers.ts ──
-
 
 // ── Route: list-hygiene-findings ────────────────────────────────────
 

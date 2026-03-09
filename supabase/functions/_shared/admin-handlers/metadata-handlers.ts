@@ -150,9 +150,7 @@ export async function handleBackfillSkuNames() {
     if (!assets || assets.length === 0) break;
     offset += assets.length;
 
-    const needsBackfill = assets.filter((a: any) =>
-      (a.licensor_name === a.licensor_code) || (a.property_name === a.property_code)
-    );
+    const needsBackfill = assets.filter((a: any) => (a.licensor_name === a.licensor_code) || (a.property_name === a.property_code));
 
     for (const asset of needsBackfill) {
       const parsed = await parseSku(asset.filename);
