@@ -25,6 +25,7 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
   "rebuild-style-groups": 1000,
   "reconcile-style-group-stats": 1000,
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
+  "propagate-group-tags": 1500, // Heavy per-group DB work; avoid CPU exhaustion (WORKER_LIMIT)
 };
 
 const AUTO_RESUME_DEFAULTS = {
