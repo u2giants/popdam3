@@ -610,6 +610,36 @@ function ReviewQueue() {
   const canApprove = statusFilter === "pending";
   const canReject = statusFilter === "pending" || statusFilter === "auto_applied";
 
+  const REVIEW_COLS = [
+    { key: "style", label: "Style #" },
+    { key: "description", label: "Description" },
+    { key: "predicted", label: "Predicted" },
+    { key: "confidence", label: "Confidence" },
+    { key: "rationale", label: "Rationale" },
+    { key: "actions", label: "Actions" },
+  ];
+
+  const handleResizeStart = (col: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = (e.target as HTMLElement).closest("th");
+    const startW = colWidths[col] || th?.offsetWidth || 120;
+    setResizing({ col, startX: e.clientX, startW });
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const diff = ev.clientX - e.clientX;
+      setColWidths((prev) => ({ ...prev, [col]: Math.max(60, startW + diff) }));
+    };
+    const onMouseUp = () => {
+      setResizing(null);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+  const canReject = statusFilter === "pending" || statusFilter === "auto_applied";
+
   return (
     <TooltipProvider delayDuration={200}>
     <Card>
