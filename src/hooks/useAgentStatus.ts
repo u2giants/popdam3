@@ -32,6 +32,8 @@ export interface AgentRecord {
   lastCounters: ScanCounters | null;
   /** Most recent counter_history entry timestamp */
   lastActivityAt: string | null;
+  /** Whether force_stop is set on this agent */
+  forceStop: boolean;
 }
 
 export interface AgentStatusInfo {
@@ -40,6 +42,10 @@ export interface AgentStatusInfo {
   status: "online" | "degraded" | "offline" | "none";
   agentCount: number;
   onlineCount: number;
+  /** True if any bridge agent has force_stop or scan_abort set */
+  scanBlocked: boolean;
+  /** Reason scanning is blocked, if any */
+  scanBlockedReason: string | null;
 }
 
 const TWO_MIN = 2 * 60 * 1000;
