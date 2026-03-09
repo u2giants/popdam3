@@ -154,7 +154,8 @@ function buildProgress(
     case "erp-classify":
       return {
         classified: ((prev.classified as number) || 0) + ((batch.classified as number) || 0),
-        total: Math.max((prev.total as number) || 0, (batch.total as number) || 0),
+        skipped_unclassifiable: ((prev.skipped_unclassifiable as number) || 0) + ((batch.skipped_unclassifiable as number) || 0),
+        total: ((prev.total as number) || 0) + ((batch.total as number) || 0),
       };
     default:
       return { ...prev, ...batch };
