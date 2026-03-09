@@ -1121,11 +1121,12 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
         else if (r.value.outcome === "skipped") skipped++;
         else {
           failed++;
+          console.error("bulk-ai-tag asset failed", { assetId: r.value.asset_id, httpStatus: r.value.http_status });
           failureSamples.push(r.value);
         }
       } else {
         failed++;
-        // We don't have enough context to map this to a specific asset reliably.
+        console.error("bulk-ai-tag asset rejected", { error: String(r.reason).slice(0, 200) });
         failureSamples.push({
           at: new Date().toISOString(),
           asset_id: "(unknown)",

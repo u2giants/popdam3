@@ -357,6 +357,11 @@ ${
       return err("Failed to parse AI tag response", 500);
     }
 
+    // UUID validation helper — AI models sometimes return "null", descriptive text, or malformed strings
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isValidUuid = (v: unknown): v is string =>
+      typeof v === "string" && UUID_RE.test(v);
+
     const updates: Record<string, unknown> = {
       status: "tagged",
       ai_tagged_at: new Date().toISOString(),
@@ -369,8 +374,9 @@ ${
     if (tagData.art_source) updates.art_source = tagData.art_source;
     if (tagData.design_style) updates.design_style = tagData.design_style;
     if (tagData.design_ref) updates.design_ref = tagData.design_ref;
-    if (tagData.licensor_id) updates.licensor_id = tagData.licensor_id;
-    if (tagData.property_id) updates.property_id = tagData.property_id;
+    // Only write UUID foreign-key fields if the AI returned a valid UUID
+    if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
+    if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
     if (tagData.designer_name) updates.designer_name = tagData.designer_name;
     if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
     if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
