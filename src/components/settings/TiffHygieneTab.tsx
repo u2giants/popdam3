@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Search, RefreshCw, Trash2, TestTube, Play, Loader2, FileImage, CheckCircle2, XCircle, Clock, X, ArrowUpDown, ArrowUp, ArrowDown,
+  Search, RefreshCw, Trash2, TestTube, Play, Loader2, FileImage, CheckCircle2, XCircle, Clock, X,
 } from "lucide-react";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
