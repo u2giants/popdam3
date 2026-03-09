@@ -69,6 +69,7 @@ export const OP_NAMES: Record<string, string> = {
   "reconcile-style-group-stats": "Reconcile Stats",
   "erp-enrichment": "ERP Enrichment",
   "erp-classify": "ERP Classify",
+  "propagate-group-tags": "Propagate Group Tags",
 };
 
 // Operations in DIFFERENT lanes can run simultaneously.
