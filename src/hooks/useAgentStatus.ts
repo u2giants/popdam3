@@ -116,6 +116,7 @@ export function useAgentStatus(): AgentStatusInfo {
           lastActivityAt: lastEntry && typeof (lastEntry as Record<string, unknown>).ts === "string"
             ? (lastEntry as Record<string, unknown>).ts as string
             : null,
+          forceStop: meta.force_stop === true || meta.scan_abort === true,
         };
       });
 
@@ -125,6 +126,18 @@ export function useAgentStatus(): AgentStatusInfo {
 
       const online = agents.filter((a) => a.isOnline).length;
 
+      // Check if any bridge agent has force_stop / scan_abort
+      const blockedBridge = bridgeAgents.find((a) => a.forceStop);
+      const scanBlocked = bridgeStatus === "none" || (bridgeStatus === "offline" && bridgeAgents.length > 0) || !!blockedBridge;
+      let scanBlockedReason: string | null = null;
+      if (bridgeStatus === "none") {
+        scanBlockedReason = "No Bridge Agent registered. Go to Settings → Setup to connect one.";
+      } else if (bridgeStatus === "offline") {
+        scanBlockedReason = "Bridge Agent is offline. Check that the Docker container is running on your NAS.";
+      } else if (blockedBridge) {
+        scanBlockedReason = "Scanning was force-stopped. Clicking Sync will auto-clear this and start a new scan.";
+      }
+
       if (mounted) {
         setInfo({
           bridgeStatus,
@@ -132,6 +145,8 @@ export function useAgentStatus(): AgentStatusInfo {
           agentCount: data.length,
           onlineCount: online,
           status: data.length === 0 ? "none" : online === data.length ? "online" : online > 0 ? "degraded" : "offline",
+          scanBlocked,
+          scanBlockedReason,
         });
       }
     };
