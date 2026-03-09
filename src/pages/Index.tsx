@@ -64,17 +64,25 @@ export default function LibraryPage() {
     if (curr === "completed" || (curr === "idle" && (prev === "running" || prev === "queued"))) {
       setScanTriggered(false);
       const c = scanProgress.counters;
+      let summary = "";
       if (c) {
         const parts: string[] = [];
         if (c.files_checked) parts.push(`${c.files_checked.toLocaleString()} files checked`);
         if (c.ingested_new) parts.push(`${c.ingested_new} new`);
         if (c.updated_existing) parts.push(`${c.updated_existing} updated`);
         if (c.moved_detected) parts.push(`${c.moved_detected} moved`);
-        if (parts.length === 0) parts.push("Nothing new to sync");
-        toast({ title: "Scan complete", description: parts.join(", ") });
+        summary = parts.length > 0 ? parts.join(", ") : "Nothing new to sync";
+        toast({ title: "Scan complete", description: summary });
       } else {
-        toast({ title: "Scan complete", description: "Nothing new to sync — all assets are up to date." });
+        summary = "Nothing new to sync — all assets are up to date.";
+        toast({ title: "Scan complete", description: summary });
       }
+      
+      // Store persistent scan result
+      setLastScanStatus("completed");
+      setLastScanTime(new Date().toISOString());
+      setLastScanSummary(summary);
+      
       // Refresh library data
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
       queryClient.invalidateQueries({ queryKey: ["assets"] });
