@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { forwardRef, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import type { LinkProps } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -10,6 +11,11 @@ import { AlertTriangle, ChevronLeft, RefreshCw } from "lucide-react";
 import { timeAgo } from "@/components/settings/diagnostics/types";
 
 const CONFIG_KEY = "BULK_OPERATIONS";
+
+// ForwardRef wrapper for Link to work with Radix asChild pattern
+const LinkWithRef = forwardRef<HTMLAnchorElement, LinkProps & React.AnchorHTMLAttributes<HTMLAnchorElement>>(
+  (props, ref) => <Link {...props} ref={ref} />
+);
 
 type FailureSample = {
   at?: string;
@@ -65,9 +71,9 @@ export default function AiTaggingFailuresPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
-            <Link to="/settings" className="gap-1.5">
+            <LinkWithRef to="/settings" className="gap-1.5">
               <ChevronLeft className="h-4 w-4" /> Back to Settings
-            </Link>
+            </LinkWithRef>
           </Button>
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />

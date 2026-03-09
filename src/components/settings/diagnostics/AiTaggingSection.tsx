@@ -4,7 +4,7 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sparkles, RefreshCw, Loader2, XCircle } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES, REASON_LABELS, timeAgo } from "./types";
@@ -65,53 +65,47 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
         </p>
 
         <div className="flex flex-wrap gap-2 items-center">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline" size="sm" className="gap-1.5"
-                  onClick={() => runBulkTag("untagged")}
-                  disabled={anyActive || untaggedCount === 0}
-                >
-                  {tagUntaggedOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  {tagUntaggedOp.isInterrupted ? "Tag Untagged (interrupted)" : "Tag All Untagged"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-[240px] text-center">AI-tag only assets that haven't been tagged yet. Existing tags are preserved.</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline" size="sm" className="gap-1.5 text-[hsl(var(--warning))]"
-                  onClick={() => runBulkTag("all")}
-                  disabled={anyActive || totalWithThumb === 0}
-                >
-                  {tagAllOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  {tagAllOp.isInterrupted ? "Re-tag (interrupted)" : "Re-tag Everything"}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-[240px] text-center">Overwrites ALL existing AI tags and descriptions. Use with caution.</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline" size="sm" className="gap-1.5"
+                onClick={() => runBulkTag("untagged")}
+                disabled={anyActive || untaggedCount === 0}
+              >
+                {tagUntaggedOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {tagUntaggedOp.isInterrupted ? "Tag Untagged (interrupted)" : "Tag All Untagged"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[240px] text-center">AI-tag only assets that haven't been tagged yet. Existing tags are preserved.</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline" size="sm" className="gap-1.5 text-[hsl(var(--warning))]"
+                onClick={() => runBulkTag("all")}
+                disabled={anyActive || totalWithThumb === 0}
+              >
+                {tagAllOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                {tagAllOp.isInterrupted ? "Re-tag (interrupted)" : "Re-tag Everything"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[240px] text-center">Overwrites ALL existing AI tags and descriptions. Use with caution.</TooltipContent>
+          </Tooltip>
           {anyActive && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="destructive" size="sm" className="gap-1.5"
-                    onClick={async () => {
-                      if (tagUntaggedOp.isActive) await tagUntaggedOp.stop();
-                      if (tagAllOp.isActive) await tagAllOp.stop();
-                    }}
-                  >
-                    <XCircle className="h-3.5 w-3.5" /> Stop
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-[220px] text-center">Stop the current AI tagging run. Progress is saved and can be resumed.</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="destructive" size="sm" className="gap-1.5"
+                  onClick={async () => {
+                    if (tagUntaggedOp.isActive) await tagUntaggedOp.stop();
+                    if (tagAllOp.isActive) await tagAllOp.stop();
+                  }}
+                >
+                  <XCircle className="h-3.5 w-3.5" /> Stop
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[220px] text-center">Stop the current AI tagging run. Progress is saved and can be resumed.</TooltipContent>
+            </Tooltip>
           )}
           {(tagUntaggedOp.isInterrupted || tagAllOp.isInterrupted) && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => { tagUntaggedOp.reset(); tagAllOp.reset(); }}>
