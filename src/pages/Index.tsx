@@ -36,6 +36,9 @@ export default function LibraryPage() {
   const lastSelectedIndex = useRef<number | null>(null);
   const [pageSize, setPageSize] = useState(200);
   const [scanTriggered, setScanTriggered] = useState(false);
+  const [lastScanStatus, setLastScanStatus] = useState<"completed" | "failed" | null>(null);
+  const [lastScanTime, setLastScanTime] = useState<string | null>(null);
+  const [lastScanSummary, setLastScanSummary] = useState<string | null>(null);
   const agentStatus = useAgentStatus();
   const scanProgress = useScanProgress();
   const { pollNow: pollScanNow } = scanProgress;
@@ -61,17 +64,25 @@ export default function LibraryPage() {
     if (curr === "completed" || (curr === "idle" && (prev === "running" || prev === "queued"))) {
       setScanTriggered(false);
       const c = scanProgress.counters;
+      let summary = "";
       if (c) {
         const parts: string[] = [];
         if (c.files_checked) parts.push(`${c.files_checked.toLocaleString()} files checked`);
         if (c.ingested_new) parts.push(`${c.ingested_new} new`);
         if (c.updated_existing) parts.push(`${c.updated_existing} updated`);
         if (c.moved_detected) parts.push(`${c.moved_detected} moved`);
-        if (parts.length === 0) parts.push("Nothing new to sync");
-        toast({ title: "Scan complete", description: parts.join(", ") });
+        summary = parts.length > 0 ? parts.join(", ") : "Nothing new to sync";
+        toast({ title: "Scan complete", description: summary });
       } else {
-        toast({ title: "Scan complete", description: "Nothing new to sync — all assets are up to date." });
+        summary = "Nothing new to sync — all assets are up to date.";
+        toast({ title: "Scan complete", description: summary });
       }
+      
+      // Store persistent scan result
+      setLastScanStatus("completed");
+      setLastScanTime(new Date().toISOString());
+      setLastScanSummary(summary);
+      
       // Refresh library data
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
       queryClient.invalidateQueries({ queryKey: ["assets"] });
@@ -81,13 +92,19 @@ export default function LibraryPage() {
     // Scan failed
     if (curr === "failed") {
       setScanTriggered(false);
+      const summary = scanProgress.updated_at
+        ? `Failed at ${new Date(scanProgress.updated_at).toLocaleTimeString()} — check agent logs`
+        : "Check agent logs for details";
       toast({
         title: "Scan failed",
-        description: scanProgress.updated_at
-          ? `Failed at ${new Date(scanProgress.updated_at).toLocaleTimeString()} — check agent logs`
-          : "Check agent logs for details",
+        description: summary,
         variant: "destructive",
       });
+      
+      // Store persistent scan result
+      setLastScanStatus("failed");
+      setLastScanTime(scanProgress.updated_at || new Date().toISOString());
+      setLastScanSummary(summary);
     }
 
     // Stale detection
@@ -276,6 +293,9 @@ export default function LibraryPage() {
         onStopScan={handleStopScan}
         onRefresh={handleRefresh}
         scanCurrentPath={scanProgress.current_path}
+        lastScanStatus={lastScanStatus}
+        lastScanTime={lastScanTime}
+        lastScanSummary={lastScanSummary}
       />
 
       <ScanMonitorBanner scanProgress={scanProgress} onStopScan={handleStopScan} />

@@ -37,6 +37,9 @@ interface LibraryTopBarProps {
   onStopScan: () => void;
   onRefresh: () => void;
   scanCurrentPath?: string;
+  lastScanStatus?: "completed" | "failed" | null;
+  lastScanTime?: string;
+  lastScanSummary?: string;
 }
 
 function truncatePath(p: string | undefined): string {
@@ -77,6 +80,9 @@ export default function LibraryTopBar({
   onStopScan,
   onRefresh,
   scanCurrentPath,
+  lastScanStatus,
+  lastScanTime,
+  lastScanSummary,
 }: LibraryTopBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-overlay px-4 py-3">
@@ -216,6 +222,44 @@ export default function LibraryTopBar({
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[220px] text-center">
               Signals the agent to stop after the current directory. Already-discovered assets are kept.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+      
+      {/* Persistent scan status when not actively scanning */}
+      {!scanRunning && !scanQueued && !scanPending && lastScanStatus && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge 
+                variant="outline" 
+                className={cn(
+                  "gap-1 text-[10px]",
+                  lastScanStatus === "completed" && "border-[hsl(var(--success))]/50 text-[hsl(var(--success))]",
+                  lastScanStatus === "failed" && "border-destructive/50 text-destructive"
+                )}
+              >
+                <span className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  lastScanStatus === "completed" && "bg-[hsl(var(--success))]",
+                  lastScanStatus === "failed" && "bg-destructive"
+                )} />
+                Last: {lastScanStatus === "completed" ? "Success" : "Failed"}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[300px]">
+              <div className="space-y-1">
+                <p className="font-medium">Last scan {lastScanStatus}</p>
+                {lastScanTime && (
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(lastScanTime).toLocaleString()}
+                  </p>
+                )}
+                {lastScanSummary && (
+                  <p className="text-xs">{lastScanSummary}</p>
+                )}
+              </div>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
