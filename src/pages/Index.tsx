@@ -92,13 +92,19 @@ export default function LibraryPage() {
     // Scan failed
     if (curr === "failed") {
       setScanTriggered(false);
+      const summary = scanProgress.updated_at
+        ? `Failed at ${new Date(scanProgress.updated_at).toLocaleTimeString()} — check agent logs`
+        : "Check agent logs for details";
       toast({
         title: "Scan failed",
-        description: scanProgress.updated_at
-          ? `Failed at ${new Date(scanProgress.updated_at).toLocaleTimeString()} — check agent logs`
-          : "Check agent logs for details",
+        description: summary,
         variant: "destructive",
       });
+      
+      // Store persistent scan result
+      setLastScanStatus("failed");
+      setLastScanTime(scanProgress.updated_at || new Date().toISOString());
+      setLastScanSummary(summary);
     }
 
     // Stale detection
