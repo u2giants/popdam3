@@ -11,6 +11,7 @@ import LoginPage from "./pages/LoginPage";
 import SettingsPage from "./pages/SettingsPage";
 import DownloadsPage from "./pages/DownloadsPage";
 import SetupPage from "./pages/SetupPage";
+import AiTaggingFailuresPage from "./pages/AiTaggingFailuresPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -29,16 +30,17 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/" element={<Index />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/downloads" element={<DownloadsPage />} />
-              <Route path="/setup" element={<SetupPage />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                <Route path="/" element={<Index />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings/ai-tagging-failures" element={<AiTaggingFailuresPage />} />
+                <Route path="/downloads" element={<DownloadsPage />} />
+                <Route path="/setup" element={<SetupPage />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
