@@ -2793,6 +2793,7 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
   // Keep IN() filters small to avoid oversized PostgREST URLs.
   const scanWindow = 80;
   const maxScanWindows = 50; // max 4k ERP rows scanned per invocation
+  const offset = typeof body.offset === "number" && body.offset >= 0 ? body.offset : 0;
 
   const db = serviceClient();
 
