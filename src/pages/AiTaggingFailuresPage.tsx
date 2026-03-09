@@ -71,9 +71,9 @@ export default function AiTaggingFailuresPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
-            <Link to="/settings" className="gap-1.5">
+            <LinkWithRef to="/settings" className="gap-1.5">
               <ChevronLeft className="h-4 w-4" /> Back to Settings
-            </Link>
+            </LinkWithRef>
           </Button>
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => refetch()}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
