@@ -418,13 +418,16 @@ ${
     });
 
     if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
-      const charLinks = (tagData.character_ids as string[]).map((cid) => ({
-        asset_id: assetId,
-        character_id: cid,
-      }));
-      await db.from("asset_characters").upsert(charLinks, {
-        onConflict: "asset_id,character_id",
-      });
+      const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
+      if (validCharIds.length > 0) {
+        const charLinks = validCharIds.map((cid) => ({
+          asset_id: assetId,
+          character_id: cid,
+        }));
+        await db.from("asset_characters").upsert(charLinks, {
+          onConflict: "asset_id,character_id",
+        });
+      }
     }
 
     return json({
