@@ -755,9 +755,44 @@ function RenderJobsTable() {
     onError: (e) => toast.error(e.message),
   });
 
-  const jobs = data?.jobs || [];
-  const visibleJobs = showAll ? jobs : jobs.slice(0, COLLAPSED_LIMIT);
-  const hasMore = jobs.length > COLLAPSED_LIMIT;
+  const jobs: Record<string, unknown>[] = data?.jobs || [];
+
+  // Filterable/sortable columns for render jobs
+  const renderCols: import("@/components/ui/filterable-table-head").ColumnDef[] = [
+    { key: "filename", label: "Filename", sortable: true, filterable: true },
+    { key: "status", label: "Status", sortable: true, filterable: true },
+    { key: "created_at", label: "Created", sortable: true },
+    { key: "completed_at", label: "Completed", sortable: true },
+    { key: "duration", label: "Duration", sortable: true },
+  ];
+
+  const getRenderCell = useCallback((job: Record<string, unknown>, key: string): string => {
+    switch (key) {
+      case "filename": return (job.filename as string) || "";
+      case "status": return (job.status as string) || "";
+      case "created_at": return job.created_at ? new Date(job.created_at as string).toLocaleString() : "";
+      case "completed_at": return job.completed_at ? new Date(job.completed_at as string).toLocaleString() : "";
+      case "duration":
+        if (job.completed_at && job.created_at) return formatDuration(job.created_at as string, job.completed_at as string);
+        return "";
+      default: return "";
+    }
+  }, []);
+
+  const {
+    processed: filteredJobs,
+    sortKey,
+    sortDir,
+    filters,
+    suggestions,
+    toggleSort,
+    setFilter,
+    clearFilter,
+    hasActiveFilters,
+  } = useTableFilterSort(jobs, renderCols, getRenderCell, { key: "created_at", dir: "desc" });
+
+  const visibleJobs = showAll ? filteredJobs : filteredJobs.slice(0, COLLAPSED_LIMIT);
+  const hasMore = filteredJobs.length > COLLAPSED_LIMIT;
 
   const pendingCount = Number(tabCounts?.pending ?? 0);
   const completed24h = Number(tabCounts?.completed_24h ?? 0);
