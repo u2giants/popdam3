@@ -39,6 +39,8 @@ const AUTO_RESUME_MAX_ATTEMPTS_BY_OP: Record<string, number> = {
   // Long-running ERP classification can hit intermittent gateway timeouts at scale.
   // Allow substantially more resumptions so very large runs (e.g. 90k+) don't stall.
   "erp-classify": 1000,
+  // Propagation iterates many groups with heavy per-group queries; transient WORKER_LIMIT is common.
+  "propagate-group-tags": 50,
 };
 
 // ── Progress accumulators ───────────────────────────────────────────
