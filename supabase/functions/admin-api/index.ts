@@ -2830,9 +2830,11 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
     .filter((e: any) => matchedSkuSet.has(e.style_number) && !classifiedIds.has(e.id))
     .slice(0, batchSize);
 
-  if (fetchErr) return err(fetchErr.message, 500);
   if (!candidates || candidates.length === 0) {
-    return json({ ok: true, done: true, classified: 0, skipped_unclassifiable: 0, total: offset });
+    // All items in this window were filtered out (no matching assets or already classified).
+    // Advance cursor past this window so the runner tries the next page.
+    const nextOffset = offset + rawItems.length;
+    return json({ ok: true, done: false, classified: 0, skipped_unclassifiable: 0, total: nextOffset, offset: nextOffset });
   }
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
