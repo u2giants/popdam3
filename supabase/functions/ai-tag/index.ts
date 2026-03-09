@@ -359,8 +359,7 @@ ${
 
     // UUID validation helper — AI models sometimes return "null", descriptive text, or malformed strings
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const isValidUuid = (v: unknown): v is string =>
-      typeof v === "string" && UUID_RE.test(v);
+    const isValidUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
     const updates: Record<string, unknown> = {
       status: "tagged",
