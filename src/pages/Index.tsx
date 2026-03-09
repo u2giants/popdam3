@@ -293,6 +293,9 @@ export default function LibraryPage() {
         onStopScan={handleStopScan}
         onRefresh={handleRefresh}
         scanCurrentPath={scanProgress.current_path}
+        lastScanStatus={lastScanStatus}
+        lastScanTime={lastScanTime}
+        lastScanSummary={lastScanSummary}
       />
 
       <ScanMonitorBanner scanProgress={scanProgress} onStopScan={handleStopScan} />
