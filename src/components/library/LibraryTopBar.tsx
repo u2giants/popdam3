@@ -226,6 +226,44 @@ export default function LibraryTopBar({
           </Tooltip>
         </TooltipProvider>
       )}
+      
+      {/* Persistent scan status when not actively scanning */}
+      {!scanRunning && !scanQueued && !scanPending && lastScanStatus && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge 
+                variant="outline" 
+                className={cn(
+                  "gap-1 text-[10px]",
+                  lastScanStatus === "completed" && "border-green-500/50 text-green-600",
+                  lastScanStatus === "failed" && "border-red-500/50 text-red-600"
+                )}
+              >
+                <span className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  lastScanStatus === "completed" && "bg-green-500",
+                  lastScanStatus === "failed" && "bg-red-500"
+                )} />
+                Last: {lastScanStatus === "completed" ? "Success" : "Failed"}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[300px]">
+              <div className="space-y-1">
+                <p className="font-medium">Last scan {lastScanStatus}</p>
+                {lastScanTime && (
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(lastScanTime).toLocaleString()}
+                  </p>
+                )}
+                {lastScanSummary && (
+                  <p className="text-xs">{lastScanSummary}</p>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
 
       {/* Counts */}
       <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
