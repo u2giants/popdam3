@@ -2967,9 +2967,18 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
 IMPORTANT CLASSIFICATION RULES:
 1. "MDF letter" or "letter" items are WALL products (decorative letters mount on walls)
 2. "Canvas" items are always WALL products
-3. If description mentions specific characters (Marvel, Disney, etc.) look for product type keywords
-4. If you cannot determine the category with certainty, set confidence below 0.5
-5. DO NOT guess - if the description is ambiguous or unclear, use low confidence
+3. "MDF box" items are WALL products (decorative MDF wall art), NOT Storage
+4. If description mentions specific characters (Marvel, Disney, etc.) look for product type keywords
+5. If you cannot determine the category with certainty, set confidence below 0.5
+6. DO NOT guess - if the description is ambiguous or unclear, use low confidence
+
+CORRECTION EXAMPLES (learn from these past mistakes):
+- "Disney MDF box" → Wall (MDF boxes in this company are decorative wall art panels, not storage)
+- "Marvel MDF box 3D" → Wall (3D MDF wall art)
+- "MDF letter A Disney" → Wall (decorative wall letter)
+- "Canvas stretched Disney Princess" → Wall (stretched canvas wall art)
+- "LED canvas Disney" → Wall (illuminated wall art)
+- "Disney wooden box" → Wall (decorative wooden wall panels, not storage containers)
 
 Product to classify:
 - Style Number: ${item.style_number || "unknown"}
