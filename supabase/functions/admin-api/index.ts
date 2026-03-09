@@ -55,9 +55,35 @@ import {
   handleTriggerErpSync,
 } from "../_shared/admin-handlers/erp-browse-handlers.ts";
 
-// ── Helpers ─────────────────────────────────────────────────────────
+import { handleGenerateInstallBundle } from "../_shared/admin-handlers/install-bundle-handler.ts";
 
-// serviceClient, requireString, optionalString are now imported from shared modules
+import {
+  handleClearTiffScan,
+  handleDeleteTiffOriginals,
+  handleListTiffFiles,
+  handleQueueTiffJobs,
+  handleRefreshTiffDates,
+  handleTriggerTiffScan,
+} from "../_shared/admin-handlers/tiff-handlers.ts";
+
+import {
+  handleGetSiblingScanByFolder,
+  handleGetSiblingScanResult,
+  handleIngestSiblingImages,
+  handleListSiblingImages,
+} from "../_shared/admin-handlers/sibling-scan-handlers.ts";
+
+import {
+  handleDebugColdlionLookup,
+  handleRepairInvalidPropertyNames,
+} from "../_shared/admin-handlers/coldlion-handlers.ts";
+
+import {
+  handleListHygieneFindings,
+  handleStopHygieneScan,
+  handleTriggerHygieneScan,
+  handleUpdateHygieneFindings,
+} from "../_shared/admin-handlers/hygiene-handlers.ts";
 
 // ── Auth: JWT validation + admin role check ─────────────────────────
 
@@ -84,13 +110,9 @@ async function authenticateAdmin(
 
   let userId: string;
   try {
-    // Use getUser (server-side validation) as primary — most reliable with
-    // Lovable Cloud's ES256 signing keys.  Fall back to getClaims only if
-    // getUser is unavailable.
     let sub: string | undefined;
     const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
     if (userError || !user?.id) {
-      // Fallback: try getClaims if getUser failed (edge case)
       if (typeof anonClient.auth.getClaims === "function") {
         const { data, error: claimsError } = await anonClient.auth.getClaims(token);
         if (!claimsError && data?.claims?.sub) {
@@ -142,13 +164,6 @@ async function authenticateAdmin(
 }
 
 // ── Retry helper for transient connection / body-read errors ────────
-// PostgREST streams large result sets over HTTP. When the Deno runtime
-// or the upstream proxy drops the connection mid-stream, errors such as
-// "error reading a body from connection" or "connection reset" surface.
-// These are *transient* — the query itself is fine and will succeed on
-// a fresh attempt.  We normalise the error string to lowercase and
-// match against a known set of transient patterns so that permanent
-// SQL / data errors still fail fast and surface clearly.
 
 const TRANSIENT_ERROR_PATTERNS = [
   "connection reset",
@@ -386,319 +401,6 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-// ── Extracted handlers: see _shared/admin-handlers/ ─────────────────
-
-// ── Route: generate-install-bundle ──────────────────────────────────
-
-async function handleGenerateInstallBundle(
-  body: Record<string, unknown>,
-  userId: string,
-) {
-  const { default: JSZip } = await import("https://esm.sh/jszip@3.10.1");
-
-  const agentType = requireString(body, "agent_type");
-  if (!["bridge", "windows-render"].includes(agentType)) {
-    return err("agent_type must be 'bridge' or 'windows-render'");
-  }
-
-  const agentName = optionalString(body, "agent_name") ||
-    (agentType === "bridge" ? "bridge-agent" : "windows-render-agent");
-  const enableWatchtower = body.enable_watchtower === true;
-  const updateChannel = optionalString(body, "update_channel") || "stable";
-
-  // Bridge-specific options
-  const nasHostPath = optionalString(body, "nas_host_path") || "/volume1/nas-share";
-  const containerMountRoot = optionalString(body, "container_mount_root") || "/mnt/nas/mac";
-  const scanRoots = Array.isArray(body.scan_roots) ? (body.scan_roots as string[]).filter(Boolean) : [];
-
-  // Windows-specific options
-  const desiredDriveLetter = optionalString(body, "desired_drive_letter") || "";
-  const nasHost = optionalString(body, "nas_host") || "";
-  const nasShare = optionalString(body, "nas_share") || "";
-
-  // Create pairing code (reuse existing logic)
-  const db = serviceClient();
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let raw = "";
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < 16; i++) {
-    raw += chars[bytes[i] % chars.length];
-  }
-  const pairingCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
-
-  const { error: pairErr } = await db.from("agent_pairings").insert({
-    pairing_code: pairingCode,
-    agent_type: agentType,
-    agent_name: agentName,
-    status: "pending",
-    created_by: userId,
-    expires_at: expiresAt.toISOString(),
-  });
-  if (pairErr) return err(pairErr.message, 500);
-
-  const serverUrl = Deno.env.get("SUPABASE_URL")!;
-  const zip = new JSZip();
-
-  if (agentType === "bridge") {
-    // ── .env ──
-    const envContent = [
-      "# PopDAM Bridge Agent — generated " + now.toISOString(),
-      "# This pairing code expires in 15 minutes. Deploy promptly.",
-      "",
-      "POPDAM_SERVER_URL=" + serverUrl,
-      "POPDAM_PAIRING_CODE=" + pairingCode,
-      "AGENT_NAME=" + agentName,
-      "",
-      "# Volume mapping (set in docker-compose.yml)",
-      "NAS_CONTAINER_MOUNT_ROOT=" + containerMountRoot,
-      ...(scanRoots.length > 0 ? ["SCAN_ROOTS=" + scanRoots.map((r) => `${containerMountRoot}/${r}`).join(",")] : ["# SCAN_ROOTS=" + containerMountRoot]),
-    ].join("\n") + "\n";
-
-    // ── docker-compose.yml ──
-    let compose = [
-      "# PopDAM Bridge Agent — Synology Container Manager",
-      "# Import: Container Manager → Project → Create → select this folder",
-      'version: "3.8"',
-      "services:",
-      "  bridge-agent:",
-      "    image: ghcr.io/u2giants/popdam-bridge:" + updateChannel,
-      "    container_name: popdam-bridge",
-      "    restart: unless-stopped",
-      "    env_file: .env",
-      "    cpu_shares: 1024",
-      "    mem_limit: 2g",
-      "    volumes:",
-      `      - ${nasHostPath}:${containerMountRoot}:ro`,
-      "      - popdam-data:/data",
-      "      - /var/run/docker.sock:/var/run/docker.sock",
-    ].join("\n");
-
-    if (enableWatchtower) {
-      compose += "\n" + [
-        "",
-        "  watchtower:",
-        "    image: containrrr/watchtower",
-        "    container_name: popdam-watchtower",
-        "    restart: unless-stopped",
-        "    volumes:",
-        "      - /var/run/docker.sock:/var/run/docker.sock",
-        "    environment:",
-        "      - WATCHTOWER_POLL_INTERVAL=3600",
-        "      - WATCHTOWER_CLEANUP=true",
-        "      - WATCHTOWER_SCOPE=popdam",
-        "    labels:",
-        '      - "com.centurylinklabs.watchtower.scope=popdam"',
-      ].join("\n");
-      // Add label to bridge-agent too
-      compose = compose.replace(
-        "      - /var/run/docker.sock:/var/run/docker.sock\n",
-        "      - /var/run/docker.sock:/var/run/docker.sock\n    labels:\n" +
-          '      - "com.centurylinklabs.watchtower.scope=popdam"\n',
-      );
-    }
-
-    compose += "\n\nvolumes:\n  popdam-data:\n";
-
-    // ── README.txt ──
-    const readme = [
-      "╔══════════════════════════════════════════════════╗",
-      "║        PopDAM Bridge Agent — Quick Start         ║",
-      "╚══════════════════════════════════════════════════╝",
-      "",
-      "IMPORTANT: This pairing code expires in 15 minutes!",
-      "Deploy this bundle promptly after downloading.",
-      "",
-      "── STEP 1: Copy to Synology ───────────────────────",
-      "Copy this entire folder to your NAS, e.g.:",
-      "  /volume1/docker/popdam/",
-      "",
-      "── STEP 2: Deploy ────────────────────────────────",
-      "Open Synology Container Manager → Project → Create",
-      "  • Project name: popdam",
-      "  • Path: /volume1/docker/popdam",
-      "  • Click 'Build & Run'",
-      "",
-      "Or via SSH:",
-      "  cd /volume1/docker/popdam",
-      "  docker compose up -d",
-      "",
-      "── STEP 3: Verify ────────────────────────────────",
-      "Check logs:",
-      "  docker compose logs -f bridge-agent",
-      "",
-      "You should see 'Pairing successful' within 30 seconds.",
-      "After pairing, the agent will begin scanning automatically.",
-      "",
-      "── Updating ──────────────────────────────────────",
-      enableWatchtower ? "Watchtower is enabled and will auto-update every hour." : "To update manually:\n  docker compose pull\n  docker compose up -d",
-      "",
-      "── Troubleshooting ───────────────────────────────",
-      "• Check agent status in PopDAM Settings → Agents",
-      "• Logs: docker compose logs --tail 50 bridge-agent",
-      "• If pairing code expired, download a new bundle",
-      "",
-      "Agent name: " + agentName,
-      "Server: " + serverUrl,
-      "Generated: " + now.toISOString(),
-    ].join("\n");
-
-    zip.file(".env", envContent);
-    zip.file("docker-compose.yml", compose);
-    zip.file("README.txt", readme);
-  } else {
-    // ── Windows Render Agent ──
-
-    // ── install.ps1 ──
-    const installPs1 = [
-      "#Requires -RunAsAdministrator",
-      "<#",
-      ".SYNOPSIS",
-      "  PopDAM Windows Render Agent — Automated Installer",
-      "  Generated: " + now.toISOString(),
-      "#>",
-      "",
-      '$ErrorActionPreference = "Stop"',
-      "",
-      "# ── Configuration ──",
-      '$ServerUrl = "' + serverUrl + '"',
-      '$PairingCode = "' + pairingCode + '"',
-      '$AgentName = "' + agentName + '"',
-      ...(nasHost ? ['$NasHost = "' + nasHost + '"'] : ['$NasHost = ""']),
-      ...(nasShare ? ['$NasShare = "' + nasShare + '"'] : ['$NasShare = ""']),
-      ...(desiredDriveLetter ? ['$DriveLetter = "' + desiredDriveLetter + '"'] : ['$DriveLetter = ""']),
-      "",
-      "# ── Create config directory ──",
-      '$ConfigDir = Join-Path $env:ProgramData "PopDAM"',
-      "if (-not (Test-Path $ConfigDir)) {",
-      "    New-Item -Path $ConfigDir -ItemType Directory -Force | Out-Null",
-      '    Write-Host "Created config directory: $ConfigDir" -ForegroundColor Green',
-      "}",
-      "",
-      "# ── Write .env for agent ──",
-      '$InstallDir = "C:\\Program Files\\PopDAM\\WindowsAgent"',
-      "if (-not (Test-Path $InstallDir)) {",
-      "    New-Item -Path $InstallDir -ItemType Directory -Force | Out-Null",
-      "}",
-      "",
-      '$EnvContent = @"',
-      "SUPABASE_URL=" + serverUrl,
-      "POPDAM_SERVER_URL=" + serverUrl,
-      "POPDAM_PAIRING_CODE=" + pairingCode,
-      "AGENT_NAME=" + agentName,
-      '"@',
-      "",
-      '$EnvPath = Join-Path $InstallDir ".env"',
-      "Set-Content -Path $EnvPath -Value $EnvContent -Encoding UTF8 -Force",
-      'Write-Host "Wrote config to $EnvPath" -ForegroundColor Green',
-      "",
-      "# ── Map network drive (optional) ──",
-      "if ($DriveLetter -and $NasHost -and $NasShare) {",
-      '    $UncPath = "\\\\$NasHost\\$NasShare"',
-      '    $DriveWithColon = "${DriveLetter}:"',
-      "    $existing = Get-PSDrive -Name $DriveLetter -ErrorAction SilentlyContinue",
-      "    if (-not $existing) {",
-      '        Write-Host "Mapping $DriveWithColon to $UncPath..." -ForegroundColor Yellow',
-      "        net use $DriveWithColon $UncPath /persistent:yes",
-      '        Write-Host "Drive mapped successfully." -ForegroundColor Green',
-      "    } else {",
-      '        Write-Host "Drive $DriveWithColon already mapped." -ForegroundColor Cyan',
-      "    }",
-      "}",
-      "",
-      "# ── Generate uninstall script ──",
-      '$UninstallScript = @"',
-      "#Requires -RunAsAdministrator",
-      'Write-Host "Uninstalling PopDAM Windows Render Agent..." -ForegroundColor Yellow',
-      '\\$TaskName = "PopDAM Windows Render Agent"',
-      "\\$task = Get-ScheduledTask -TaskName \\$TaskName -ErrorAction SilentlyContinue",
-      "if (\\$task) {",
-      "    Stop-ScheduledTask -TaskName \\$TaskName -ErrorAction SilentlyContinue",
-      "    Unregister-ScheduledTask -TaskName \\$TaskName -Confirm:\\$false",
-      '    Write-Host "Scheduled task removed." -ForegroundColor Green',
-      "}",
-      'Write-Host "Uninstall complete. Config files in %ProgramData%\\PopDAM remain." -ForegroundColor Green',
-      '"@',
-      "",
-      '$UninstallPath = Join-Path $InstallDir "uninstall.ps1"',
-      "Set-Content -Path $UninstallPath -Value $UninstallScript -Encoding UTF8 -Force",
-      'Write-Host "Wrote uninstall script to $UninstallPath" -ForegroundColor Green',
-      "",
-      "# ── Summary ──",
-      'Write-Host ""',
-      'Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor Cyan',
-      'Write-Host "║  PopDAM Windows Agent — Configuration Written    ║" -ForegroundColor Cyan',
-      'Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor Cyan',
-      'Write-Host ""',
-      'Write-Host "Next steps:" -ForegroundColor Yellow',
-      'Write-Host "  1. Download the agent from GitHub Releases"',
-      'Write-Host "  2. Extract to $InstallDir"',
-      'Write-Host "  3. Run install-scheduled-task.ps1 to register startup"',
-      'Write-Host "  4. Start the agent or log off / log on"',
-      'Write-Host ""',
-      'Write-Host "The agent will pair automatically on first start." -ForegroundColor Green',
-      'Write-Host "Pairing code expires in 15 minutes!" -ForegroundColor Red',
-    ].join("\n");
-
-    const readme = [
-      "╔══════════════════════════════════════════════════╗",
-      "║     PopDAM Windows Render Agent — Quick Start    ║",
-      "╚══════════════════════════════════════════════════╝",
-      "",
-      "IMPORTANT: This pairing code expires in 15 minutes!",
-      "",
-      "── STEP 1: Run the installer ──────────────────────",
-      "Right-click install.ps1 → 'Run with PowerShell'",
-      "(or: powershell -ExecutionPolicy Bypass -File install.ps1)",
-      "",
-      "This will:",
-      "  • Create C:\\Program Files\\PopDAM\\WindowsAgent\\",
-      "  • Write .env with server URL and pairing code",
-      ...(desiredDriveLetter ? ["  • Map " + desiredDriveLetter + ": to \\\\" + nasHost + "\\" + nasShare] : []),
-      "  • Generate an uninstall script",
-      "",
-      "── STEP 2: Download & extract agent ────────────────",
-      "Download the latest agent zip from GitHub Releases:",
-      "  https://github.com/u2giants/popdam3/releases",
-      "Extract into C:\\Program Files\\PopDAM\\WindowsAgent\\",
-      "",
-      "── STEP 3: Start the agent ─────────────────────────",
-      "Run install-scheduled-task.ps1 (in the agent folder)",
-      "Then: Start-ScheduledTask -TaskName 'PopDAM Windows Render Agent'",
-      "",
-      "The agent will pair automatically on first start.",
-      "",
-      "── Troubleshooting ───────────────────────────────",
-      "• Check agent status in PopDAM Settings → Windows Agent",
-      "• If pairing code expired, download a new bundle",
-      "• Adobe Illustrator must be installed and activated",
-      "",
-      "Agent name: " + agentName,
-      "Server: " + serverUrl,
-      "Generated: " + now.toISOString(),
-    ].join("\n");
-
-    zip.file("install.ps1", installPs1);
-    zip.file("README.txt", readme);
-  }
-
-  const zipBlob = await zip.generateAsync({ type: "uint8array" });
-  const filename = agentType === "bridge" ? "popdam-bridge-bundle.zip" : "popdam-windows-agent-bundle.zip";
-
-  return new Response(zipBlob as unknown as BodyInit, {
-    status: 200,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
-}
-
-// ── Main router ─────────────────────────────────────────────────────
-
 // ── Route: run-query ─────────────────────────────────────────────────
 
 async function handleRunQuery(body: Record<string, unknown>) {
@@ -752,288 +454,164 @@ async function handleRunQuery(body: Record<string, unknown>) {
   }
 }
 
-// ── Route: purge-old-assets ──────────────────────────────────────────
+// ── Route: update-bulk-op (atomic single-op update via RPC) ─────────
 
-// ── purge-old-assets: moved to _shared/admin-handlers/purge-handlers.ts ──
+async function handleUpdateBulkOp(body: Record<string, unknown>) {
+  const opKey = body.op_key;
+  const opState = body.op_state;
+  if (typeof opKey !== "string" || !opKey) return err("op_key is required");
+  if (!opState || typeof opState !== "object") return err("op_state is required");
 
-// ── Route: list-sibling-images ───────────────────────────────────────
-// Requests the Bridge Agent to scan a NAS folder for JPG/PNG siblings.
-// Since the cloud can't access the NAS directly, this stores a scan
-// request that the agent picks up on next heartbeat.
+  const onlyIfStatus = typeof body.only_if_status === "string" ? body.only_if_status : null;
 
-async function handleListSiblingImages(body: Record<string, unknown>) {
-  const rawPath = requireString(body, "folder_path");
-  const styleGroupId = optionalString(body, "style_group_id");
-  // Normalize: trim, slash-normalize, no leading/trailing slashes
-  const folderPath = rawPath.trim().replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+  const db = serviceClient();
+  const { data, error } = await db.rpc("update_bulk_operation", {
+    p_op_key: opKey,
+    p_op_state: opState,
+    p_only_if_status: onlyIfStatus,
+  });
+
+  if (error) return err(`update_bulk_operation failed: ${error.message}`, 500);
+  return json({ ok: true, operations: data });
+}
+
+// ── Route: rebuild-character-stats ──────────────────────────────────
+
+async function handleRebuildCharacterStats(body: Record<string, unknown>) {
+  const threshold = typeof body.threshold === "number" ? body.threshold : 3;
   const db = serviceClient();
 
-  // Check for a recent completed result for this folder (within 10 minutes)
-  const { data: existingRows } = await db
-    .from("admin_config")
-    .select("key, value, updated_at")
-    .like("key", "sibling_scan_request_%")
-    .order("updated_at", { ascending: false })
-    .limit(50);
-
-  if (existingRows) {
-    for (const row of existingRows) {
-      const val = row.value as Record<string, unknown>;
-      if (!val || val.folder_path !== folderPath) continue;
-
-      if (val.status === "completed") {
-        const processedAt = val.processed_at as string;
-        if (processedAt && Date.now() - new Date(processedAt).getTime() < 10 * 60 * 1000) {
-          console.log(`[list-sibling-images] Returning cached result for ${folderPath}`);
-          return json({
-            ok: true,
-            status: "completed",
-            request_id: row.key.replace("sibling_scan_request_", ""),
-            images: val.images ?? [],
-          });
-        }
-      }
-
-      if (val.status === "failed") {
-        const processedAt = val.processed_at as string;
-        if (processedAt && Date.now() - new Date(processedAt).getTime() < 10 * 60 * 1000) {
-          console.log(`[list-sibling-images] Returning cached failure for ${folderPath}`);
-          return json({
-            ok: true,
-            status: "failed",
-            request_id: row.key.replace("sibling_scan_request_", ""),
-            images: [],
-            error_message: val.error_message ?? "Scan failed",
-          });
-        }
-      }
-
-      // Already pending or claimed — return existing request ID
-      if (val.status === "pending" || val.status === "claimed") {
-        console.log(`[list-sibling-images] Already ${val.status} for ${folderPath}`);
-        return json({
-          ok: true,
-          status: "pending",
-          request_id: row.key.replace("sibling_scan_request_", ""),
-          images: [],
-        });
-      }
-    }
-  }
-
-  // No recent result — create new pending request
-  const requestId = crypto.randomUUID();
-  console.log(`[list-sibling-images] Queuing new request ${requestId} for ${folderPath}`);
-  const { error } = await db.from("admin_config").upsert({
-    key: `sibling_scan_request_${requestId}`,
-    value: {
-      folder_path: folderPath,
-      style_group_id: styleGroupId,
-      requested_at: new Date().toISOString(),
-      status: "pending",
-      extensions: [".jpg", ".jpeg", ".png"],
-    },
-    updated_at: new Date().toISOString(),
-  });
+  const { data: counts, error } = await db
+    .from("asset_characters")
+    .select("character_id, assets!inner(is_deleted)")
+    .eq("assets.is_deleted", false);
 
   if (error) return err(error.message, 500);
 
+  const tally = new Map<string, number>();
+  for (const row of counts ?? []) {
+    const cid = row.character_id;
+    tally.set(cid, (tally.get(cid) ?? 0) + 1);
+  }
+
+  await db.from("characters").update({
+    usage_count: 0,
+    is_priority: false,
+  }).gte("usage_count", 0);
+
+  let priorityCount = 0;
+  const entries = [...tally.entries()];
+  for (const [characterId, count] of entries) {
+    const isPriority = count >= threshold;
+    if (isPriority) priorityCount++;
+    await db.from("characters").update({
+      usage_count: count,
+      is_priority: isPriority,
+    }).eq("id", characterId);
+  }
+
   return json({
     ok: true,
-    status: "pending",
-    request_id: requestId,
-    images: [],
+    total_characters_with_assets: tally.size,
+    priority_characters: priorityCount,
+    threshold,
+    message: `${priorityCount} priority characters (appearing in ${threshold}+ assets) out of ${tally.size} characters with any asset links`,
   });
 }
 
-// ── Route: get-sibling-scan-result ──────────────────────────────────
-// Polls for the result of a sibling scan request by request_id.
+// ── Route: get-latest-agent-build ───────────────────────────────────
 
-async function handleGetSiblingScanResult(body: Record<string, unknown>) {
-  const requestId = requireString(body, "request_id");
+async function handleGetLatestAgentBuild(body: Record<string, unknown>) {
+  const agentType = optionalString(body, "agent_type") ?? "windows-render";
   const db = serviceClient();
 
-  const { data, error } = await db
+  const configKey = agentType === "bridge" ? "BRIDGE_LATEST_BUILD" : "WINDOWS_LATEST_BUILD";
+
+  const { data: row } = await db
     .from("admin_config")
     .select("value")
-    .eq("key", `sibling_scan_request_${requestId}`)
+    .eq("key", configKey)
     .maybeSingle();
 
-  if (error) return err(error.message, 500);
-  if (!data) return err("Request not found", 404);
+  if (!row?.value) {
+    const repoBase = "https://github.com/u2giants/popdam3/releases";
+    return json({
+      ok: true,
+      latest_version: "0.0.0",
+      download_url: agentType === "bridge" ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz` : `${repoBase}/latest/download/popdam-windows-agent.zip`,
+      checksum_sha256: "",
+      release_notes: "",
+      published_at: null,
+    });
+  }
 
-  const val = data.value as Record<string, unknown>;
+  const val = row.value as Record<string, unknown>;
   return json({
     ok: true,
-    status: val.status ?? "pending",
-    images: val.images ?? [],
-    error_message: val.error_message ?? null,
-    processed_at: val.processed_at ?? null,
+    latest_version: val.version || "0.0.0",
+    download_url: val.download_url || "",
+    checksum_sha256: val.checksum_sha256 || "",
+    release_notes: val.release_notes || "",
+    published_at: val.published_at || null,
   });
 }
 
-// ── Route: get-sibling-scan-by-folder ──────────────────────────────
-// Read-only lookup of the latest sibling scan result for a folder_path.
-// Does NOT create a new request if none exists.
+// ── Route: trigger-windows-update ───────────────────────────────────
 
-async function handleGetSiblingScanByFolder(body: Record<string, unknown>) {
-  const rawPath = requireString(body, "folder_path");
-  const folderPath = rawPath.trim().replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+async function handleTriggerWindowsUpdate(
+  body: Record<string, unknown>,
+  userId: string,
+) {
+  const agentId = optionalString(body, "agent_id");
   const db = serviceClient();
 
-  const { data: rows } = await db
-    .from("admin_config")
-    .select("key, value")
-    .like("key", "sibling_scan_request_%")
-    .order("updated_at", { ascending: false })
-    .limit(50);
-
-  if (rows) {
-    for (const row of rows) {
-      const val = row.value as Record<string, unknown>;
-      if (!val || val.folder_path !== folderPath) continue;
-
-      const requestId = row.key.replace("sibling_scan_request_", "");
-
-      if (val.status === "completed") {
-        return json({
-          ok: true,
-          found: true,
-          status: "completed",
-          request_id: requestId,
-          images: val.images ?? [],
-          processed_at: val.processed_at ?? null,
-        });
-      }
-
-      if (val.status === "failed") {
-        return json({
-          ok: true,
-          found: true,
-          status: "failed",
-          request_id: requestId,
-          images: [],
-          error_message: val.error_message ?? "Scan failed",
-          processed_at: val.processed_at ?? null,
-        });
-      }
-
-      if (val.status === "pending" || val.status === "claimed") {
-        return json({
-          ok: true,
-          found: true,
-          status: "pending",
-          request_id: requestId,
-          images: [],
-        });
-      }
-    }
-  }
-
-  // No result found
-  return json({ ok: true, found: false });
-}
-
-// ── Route: ingest-sibling-images ────────────────────────────────────
-// Takes selected sibling images from a scan result and creates asset records
-// linked to the given style group.
-
-async function handleIngestSiblingImages(body: Record<string, unknown>, userId: string) {
-  const styleGroupId = requireString(body, "style_group_id");
-  const images = body.images;
-  if (!Array.isArray(images) || images.length === 0) {
-    return err("images must be a non-empty array");
-  }
-  if (images.length > 50) {
-    return err("Maximum 50 images per ingestion request");
-  }
-
-  const db = serviceClient();
-
-  // Verify style group exists
-  const { data: sg, error: sgErr } = await db
-    .from("style_groups")
-    .select("id, sku, folder_path")
-    .eq("id", styleGroupId)
-    .maybeSingle();
-  if (sgErr) return err(sgErr.message, 500);
-  if (!sg) return err("Style group not found", 404);
-
-  const results: Array<{ filename: string; action: string; asset_id?: string; error?: string }> = [];
-  const now = new Date().toISOString();
-
-  for (const img of images) {
-    const imgObj = img as Record<string, unknown>;
-    const relativePath = typeof imgObj.relative_path === "string" ? imgObj.relative_path : "";
-    const filename = typeof imgObj.filename === "string" ? imgObj.filename : "";
-    const fileSize = typeof imgObj.file_size === "number" ? imgObj.file_size : 0;
-    const thumbnailUrl = typeof imgObj.thumbnail_url === "string" ? imgObj.thumbnail_url : null;
-
-    if (!relativePath || !filename) {
-      results.push({ filename: filename || "unknown", action: "error", error: "Missing relative_path or filename" });
-      continue;
-    }
-
-    // Check if asset already exists at this path
-    const { data: existing } = await db
-      .from("assets")
-      .select("id")
-      .eq("relative_path", relativePath)
+  if (agentId) {
+    const { data: agent } = await db
+      .from("agent_registrations")
+      .select("metadata")
+      .eq("id", agentId)
       .maybeSingle();
 
-    if (existing) {
-      // Already exists — just link to this style group if not already linked
-      await db.from("assets").update({ style_group_id: styleGroupId }).eq("id", existing.id);
-      results.push({ filename, action: "linked", asset_id: existing.id });
-      continue;
-    }
+    if (!agent) return err("Agent not found", 404);
 
-    // Determine file_type from extension
-    const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-    const extMap: Record<string, string> = { psd: "psd", ai: "ai", jpg: "jpg", jpeg: "jpg", png: "png" };
-    const fileType = extMap[ext] ?? "jpg";
-
-    const { data: inserted, error: insertErr } = await db
-      .from("assets")
-      .insert({
-        relative_path: relativePath,
-        filename,
-        file_type: fileType,
-        file_size: fileSize,
-        modified_at: now,
-        quick_hash: `sibling_${relativePath}`,
-        quick_hash_version: 0,
-        thumbnail_url: thumbnailUrl,
-        style_group_id: styleGroupId,
-        sku: sg.sku,
-        last_seen_at: now,
-        ingested_at: now,
+    const metadata = (agent.metadata as Record<string, unknown>) || {};
+    await db
+      .from("agent_registrations")
+      .update({
+        metadata: {
+          ...metadata,
+          trigger_update: true,
+          update_requested_by: userId,
+          update_requested_at: new Date().toISOString(),
+        },
       })
-      .select("id")
-      .single();
+      .eq("id", agentId);
+  } else {
+    const { data: agents } = await db
+      .from("agent_registrations")
+      .select("id, metadata")
+      .eq("agent_type", "windows-render");
 
-    if (insertErr) {
-      results.push({ filename, action: "error", error: insertErr.message });
-    } else {
-      results.push({ filename, action: "created", asset_id: inserted.id });
+    for (const a of agents || []) {
+      const metadata = (a.metadata as Record<string, unknown>) || {};
+      await db
+        .from("agent_registrations")
+        .update({
+          metadata: {
+            ...metadata,
+            trigger_update: true,
+            update_requested_by: userId,
+            update_requested_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", a.id);
     }
   }
 
-  // Refresh style group counts
-  const groupIds = [styleGroupId];
-  try {
-    await db.rpc("refresh_style_group_counts_batch", { p_group_ids: groupIds });
-    await db.rpc("refresh_style_group_primaries", { p_group_ids: groupIds });
-  } catch (e) {
-    console.warn("Failed to refresh style group stats:", e);
-  }
-
-  const created = results.filter((r) => r.action === "created").length;
-  const linked = results.filter((r) => r.action === "linked").length;
-  const errors = results.filter((r) => r.action === "error").length;
-
-  return json({ ok: true, results, summary: { created, linked, errors } });
+  return json({ ok: true });
 }
+
+// ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
   console.log(`admin-api: ${req.method} ${new URL(req.url).pathname}`);
@@ -1075,16 +653,21 @@ serve(async (req: Request) => {
     console.log(`admin-api action: ${action}`);
 
     switch (action) {
+      // ── Config ──
       case "get-config":
         return await handleGetConfig(body);
       case "set-config":
         return await handleSetConfig(body, userId);
+
+      // ── Invitations ──
       case "invite-user":
         return await handleInviteUser(body, userId);
       case "list-invites":
         return await handleListInvites();
       case "revoke-invite":
         return await handleRevokeInvite(body);
+
+      // ── Agents (from agent-handlers.ts) ──
       case "generate-agent-key":
         return await handleGenerateAgentKey(body, userId);
       case "list-agents":
@@ -1133,50 +716,38 @@ serve(async (req: Request) => {
         return await handleTriggerAgentUpdate(body, userId);
       case "get-update-status":
         return await handleGetUpdateStatus();
-      case "reprocess-asset-metadata":
-        return await handleReprocessAssetMetadata(body);
-      case "run-query":
-        return await handleRunQuery(body);
-      case "rebuild-style-groups":
-        return await handleRebuildStyleGroups(body);
-      case "purge-old-assets":
-        return await handlePurgeOldAssets(body);
-      case "rebuild-character-stats":
-        return await handleRebuildCharacterStats(body);
-      case "bulk-ai-tag":
-        return await handleBulkAiTag(body, false);
-      case "bulk-ai-tag-all":
-        return await handleBulkAiTag(body, true);
-      case "count-untagged-assets":
-        return await handleCountUntaggedAssets();
-      case "generate-install-bundle":
-        return await handleGenerateInstallBundle(body, userId);
-      case "get-latest-agent-build":
-        return await handleGetLatestAgentBuild(body);
-      case "trigger-windows-update":
-        return await handleTriggerWindowsUpdate(body, userId);
       case "retry-failed-renders":
         return await handleRetryFailedRenders();
       case "requeue-all-no-preview":
         return await handleRequeueAllNoPreview();
       case "request-path-test":
         return await handleRequestPathTest(userId);
+
+      // ── Metadata (from metadata-handlers.ts) ──
+      case "reprocess-asset-metadata":
+        return await handleReprocessAssetMetadata(body);
       case "backfill-sku-names":
         return await handleBackfillSkuNames();
-      case "trigger-tiff-scan":
-        return await handleTriggerTiffScan(userId);
-      case "list-tiff-files":
-        return await handleListTiffFiles(body);
-      case "queue-tiff-jobs":
-        return await handleQueueTiffJobs(body);
-      case "delete-tiff-originals":
-        return await handleDeleteTiffOriginals(body);
-      case "clear-tiff-scan":
-        return await handleClearTiffScan();
-      case "refresh-tiff-dates":
-        return await handleRefreshTiffDates(body, userId);
+
+      // ── Style groups (from style-group-handlers.ts) ──
+      case "rebuild-style-groups":
+        return await handleRebuildStyleGroups(body);
       case "reconcile-style-group-stats":
         return await handleReconcileStyleGroupStats(body);
+
+      // ── AI tagging (from ai-tagging-handlers.ts) ──
+      case "bulk-ai-tag":
+        return await handleBulkAiTag(body, false);
+      case "bulk-ai-tag-all":
+        return await handleBulkAiTag(body, true);
+      case "count-untagged-assets":
+        return await handleCountUntaggedAssets();
+
+      // ── Purge (from purge-handlers.ts) ──
+      case "purge-old-assets":
+        return await handlePurgeOldAssets(body);
+
+      // ── ERP (from erp-handlers.ts + erp-browse-handlers.ts) ──
       case "trigger-erp-sync":
         return await handleTriggerErpSync(body);
       case "erp-sync-runs":
@@ -1195,6 +766,12 @@ serve(async (req: Request) => {
         return await handleErpItemsBrowse(body);
       case "erp-items-dismiss":
         return await handleErpItemsDismiss(body);
+
+      // ── Install bundle (from install-bundle-handler.ts) ──
+      case "generate-install-bundle":
+        return await handleGenerateInstallBundle(body, userId);
+
+      // ── Sibling scans (from sibling-scan-handlers.ts) ──
       case "list-sibling-images":
         return await handleListSiblingImages(body);
       case "get-sibling-scan-result":
@@ -1203,12 +780,28 @@ serve(async (req: Request) => {
         return await handleGetSiblingScanByFolder(body);
       case "ingest-sibling-images":
         return await handleIngestSiblingImages(body, userId);
-      case "update-bulk-op":
-        return await handleUpdateBulkOp(body);
+
+      // ── TIFF hygiene (from tiff-handlers.ts) ──
+      case "trigger-tiff-scan":
+        return await handleTriggerTiffScan(userId);
+      case "list-tiff-files":
+        return await handleListTiffFiles(body);
+      case "queue-tiff-jobs":
+        return await handleQueueTiffJobs(body);
+      case "delete-tiff-originals":
+        return await handleDeleteTiffOriginals(body);
+      case "clear-tiff-scan":
+        return await handleClearTiffScan();
+      case "refresh-tiff-dates":
+        return await handleRefreshTiffDates(body, userId);
+
+      // ── ColdLion (from coldlion-handlers.ts) ──
       case "debug-coldlion-lookup":
         return await handleDebugColdlionLookup(body);
       case "repair-invalid-property-names":
         return await handleRepairInvalidPropertyNames();
+
+      // ── File hygiene (from hygiene-handlers.ts) ──
       case "list-hygiene-findings":
         return await handleListHygieneFindings(body);
       case "update-hygiene-findings":
@@ -1217,6 +810,19 @@ serve(async (req: Request) => {
         return await handleTriggerHygieneScan(body, userId);
       case "stop-hygiene-scan":
         return await handleStopHygieneScan(userId);
+
+      // ── Misc inline ──
+      case "run-query":
+        return await handleRunQuery(body);
+      case "update-bulk-op":
+        return await handleUpdateBulkOp(body);
+      case "rebuild-character-stats":
+        return await handleRebuildCharacterStats(body);
+      case "get-latest-agent-build":
+        return await handleGetLatestAgentBuild(body);
+      case "trigger-windows-update":
+        return await handleTriggerWindowsUpdate(body, userId);
+
       default:
         return err(`Unknown action: ${action}`, 404);
     }
@@ -1226,591 +832,3 @@ serve(async (req: Request) => {
     return err(message, 500);
   }
 });
-
-// ── Route: update-bulk-op (atomic single-op update via RPC) ─────────
-
-async function handleUpdateBulkOp(body: Record<string, unknown>) {
-  const opKey = body.op_key;
-  const opState = body.op_state;
-  if (typeof opKey !== "string" || !opKey) return err("op_key is required");
-  if (!opState || typeof opState !== "object") return err("op_state is required");
-
-  const onlyIfStatus = typeof body.only_if_status === "string" ? body.only_if_status : null;
-
-  const db = serviceClient();
-  const { data, error } = await db.rpc("update_bulk_operation", {
-    p_op_key: opKey,
-    p_op_state: opState,
-    p_only_if_status: onlyIfStatus,
-  });
-
-  if (error) return err(`update_bulk_operation failed: ${error.message}`, 500);
-  return json({ ok: true, operations: data });
-}
-
-// ── Route: debug-coldlion-lookup ────────────────────────────────────
-
-const COLDLION_BASE = "http://x5.coldlion.com/EhpApi";
-const COLDLION_COMPANY = "EDGEHOME";
-
-async function getColdlionApiKey(): Promise<string> {
-  const db = serviceClient();
-  const { data } = await db
-    .from("admin_config")
-    .select("value")
-    .eq("key", "COLDLION_API_KEY")
-    .maybeSingle();
-  if (data?.value && typeof data.value === "string" && data.value.trim()) {
-    return data.value.trim();
-  }
-  return "Z21355JALT13A54L9X5"; // Hardcoded fallback
-}
-
-async function handleDebugColdlionLookup(body: Record<string, unknown>) {
-  const mgType = (body.mg_type as string) || "06";
-  const division = (body.division as string) || "CW001";
-  const searchCode = (body.search_code as string)?.toUpperCase() || null;
-
-  const apiKey = await getColdlionApiKey();
-  const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COLDLION_COMPANY}&mgTypeCode=${mgType}&divisionCode=${division}`;
-
-  try {
-    const res = await fetch(url, {
-      headers: { "X-API-Key": apiKey },
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    if (!res.ok) {
-      return err(`ColdLion API returned ${res.status}`, 502);
-    }
-
-    const data = await res.json();
-    const items = Array.isArray(data) ? data : (data.value ?? []);
-
-    // Build lookup map
-    const lookup: Record<string, string> = {};
-    for (const item of items) {
-      if (item.mgCode && item.mgDesc) {
-        lookup[item.mgCode] = item.mgDesc;
-      }
-    }
-
-    // If searching for a specific code, check if it exists
-    let searchResult: { found: boolean; code: string; name: string | null } | null = null;
-    if (searchCode) {
-      searchResult = {
-        found: searchCode in lookup,
-        code: searchCode,
-        name: lookup[searchCode] ?? null,
-      };
-    }
-
-    // Check if CREATURE exists anywhere
-    const creatureCode = Object.entries(lookup).find(([_, name]) => name.toUpperCase().includes("CREATURE"));
-
-    return json({
-      ok: true,
-      mg_type: mgType,
-      division,
-      total_codes: Object.keys(lookup).length,
-      search_result: searchResult,
-      creature_check: creatureCode ? { found: true, code: creatureCode[0], name: creatureCode[1] } : { found: false, code: null, name: null },
-      sample_codes: Object.entries(lookup).slice(0, 20).map(([code, name]) => ({ code, name })),
-      all_codes: lookup,
-    });
-  } catch (e) {
-    return err(`ColdLion API error: ${e instanceof Error ? e.message : String(e)}`, 502);
-  }
-}
-
-// ── Route: repair-invalid-property-names ────────────────────────────
-
-async function handleRepairInvalidPropertyNames() {
-  const db = serviceClient();
-  const apiKey = await getColdlionApiKey();
-
-  // Fetch valid property codes from ColdLion for both divisions
-  const fetchPropertyCodes = async (division: string): Promise<Set<string>> => {
-    const url = `${COLDLION_BASE}/merchGroupDetails?companyCode=${COLDLION_COMPANY}&mgTypeCode=06&divisionCode=${division}`;
-    try {
-      const res = await fetch(url, {
-        headers: { "X-API-Key": apiKey },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) return new Set();
-      const data = await res.json();
-      const items = Array.isArray(data) ? data : (data.value ?? []);
-      return new Set(items.map((i: { mgCode: string }) => i.mgCode));
-    } catch {
-      return new Set();
-    }
-  };
-
-  const [cw001Codes, sp001Codes, eh001Codes] = await Promise.all([
-    fetchPropertyCodes("CW001"),
-    fetchPropertyCodes("SP001"),
-    fetchPropertyCodes("EH001"),
-  ]);
-
-  // Merge all valid codes
-  const validCodes = new Set([...cw001Codes, ...sp001Codes, ...eh001Codes]);
-
-  // Find invalid property_name values where property_code exists but isn't in ColdLion
-  // OR where property_name = 'CREATURE' (known bad value)
-  const { data: invalidAssets, error: findError } = await db
-    .from("assets")
-    .select("id, property_code, property_name")
-    .not("property_code", "is", null)
-    .not("property_name", "is", null)
-    .or(`property_name.eq.CREATURE,property_name.eq.CR`)
-    .limit(5000);
-
-  if (findError) {
-    return err(`Failed to find invalid assets: ${findError.message}`, 500);
-  }
-
-  // Filter to assets where property_code is NOT in valid codes, or property_name is CREATURE
-  const toRepair = (invalidAssets || []).filter((a) =>
-    a.property_name === "CREATURE" ||
-    a.property_name === "CR" ||
-    (a.property_code && !validCodes.has(a.property_code))
-  );
-
-  if (toRepair.length === 0) {
-    return json({
-      ok: true,
-      message: "No invalid property_name values found",
-      valid_codes_count: validCodes.size,
-      repaired: 0,
-    });
-  }
-
-  // Null out property_name for these assets (keep property_code for potential future re-resolution)
-  const idsToRepair = toRepair.map((a) => a.id);
-  const { error: updateError } = await db
-    .from("assets")
-    .update({ property_name: null })
-    .in("id", idsToRepair);
-
-  if (updateError) {
-    return err(`Failed to repair assets: ${updateError.message}`, 500);
-  }
-
-  // Also repair style_groups
-  const { data: invalidGroups } = await db
-    .from("style_groups")
-    .select("id, property_code, property_name")
-    .or(`property_name.eq.CREATURE,property_name.eq.CR`)
-    .limit(1000);
-
-  let groupsRepaired = 0;
-  if (invalidGroups && invalidGroups.length > 0) {
-    const groupIds = invalidGroups.map((g) => g.id);
-    const { error: groupUpdateError } = await db
-      .from("style_groups")
-      .update({ property_name: null })
-      .in("id", groupIds);
-    if (!groupUpdateError) {
-      groupsRepaired = groupIds.length;
-    }
-  }
-
-  return json({
-    ok: true,
-    message: `Repaired ${idsToRepair.length} assets and ${groupsRepaired} style groups`,
-    valid_codes_count: validCodes.size,
-    sample_valid_codes: Array.from(validCodes).slice(0, 30),
-    assets_repaired: idsToRepair.length,
-    groups_repaired: groupsRepaired,
-    sample_repaired: toRepair.slice(0, 10).map((a) => ({
-      id: a.id,
-      property_code: a.property_code,
-      old_property_name: a.property_name,
-    })),
-  });
-}
-
-// ── erp-items-browse + erp-items-dismiss: moved to _shared/admin-handlers/erp-browse-handlers.ts ──
-
-// ── rebuild-character-stats ─────────────────────────────────────────
-
-async function handleRebuildCharacterStats(body: Record<string, unknown>) {
-  // ... keep existing code
-  const threshold = typeof body.threshold === "number" ? body.threshold : 3;
-  const db = serviceClient();
-
-  const { data: counts, error } = await db
-    .from("asset_characters")
-    .select("character_id, assets!inner(is_deleted)")
-    .eq("assets.is_deleted", false);
-
-  if (error) return err(error.message, 500);
-
-  const tally = new Map<string, number>();
-  for (const row of counts ?? []) {
-    const cid = row.character_id;
-    tally.set(cid, (tally.get(cid) ?? 0) + 1);
-  }
-
-  await db.from("characters").update({
-    usage_count: 0,
-    is_priority: false,
-  }).gte("usage_count", 0);
-
-  let priorityCount = 0;
-  const entries = [...tally.entries()];
-  for (const [characterId, count] of entries) {
-    const isPriority = count >= threshold;
-    if (isPriority) priorityCount++;
-    await db.from("characters").update({
-      usage_count: count,
-      is_priority: isPriority,
-    }).eq("id", characterId);
-  }
-
-  return json({
-    ok: true,
-    total_characters_with_assets: tally.size,
-    priority_characters: priorityCount,
-    threshold,
-    message: `${priorityCount} priority characters (appearing in ${threshold}+ assets) out of ${tally.size} characters with any asset links`,
-  });
-}
-
-// ── get-latest-agent-build ──────────────────────────────────────────
-
-async function handleGetLatestAgentBuild(body: Record<string, unknown>) {
-  const agentType = optionalString(body, "agent_type") ?? "windows-render";
-  const db = serviceClient();
-
-  // Look up the latest build info from admin_config
-  const configKey = agentType === "bridge" ? "BRIDGE_LATEST_BUILD" : "WINDOWS_LATEST_BUILD";
-
-  const { data: row } = await db
-    .from("admin_config")
-    .select("value")
-    .eq("key", configKey)
-    .maybeSingle();
-
-  if (!row?.value) {
-    // Fallback: return GitHub releases URL pattern
-    const repoBase = "https://github.com/u2giants/popdam3/releases";
-    return json({
-      ok: true,
-      latest_version: "0.0.0",
-      download_url: agentType === "bridge" ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz` : `${repoBase}/latest/download/popdam-windows-agent.zip`,
-      checksum_sha256: "",
-      release_notes: "",
-      published_at: null,
-    });
-  }
-
-  const val = row.value as Record<string, unknown>;
-  return json({
-    ok: true,
-    latest_version: val.version || "0.0.0",
-    download_url: val.download_url || "",
-    checksum_sha256: val.checksum_sha256 || "",
-    release_notes: val.release_notes || "",
-    published_at: val.published_at || null,
-  });
-}
-
-// ── trigger-windows-update ──────────────────────────────────────────
-
-async function handleTriggerWindowsUpdate(
-  body: Record<string, unknown>,
-  userId: string,
-) {
-  const agentId = optionalString(body, "agent_id");
-  const db = serviceClient();
-
-  if (agentId) {
-    // Signal specific agent via metadata flag
-    const { data: agent } = await db
-      .from("agent_registrations")
-      .select("metadata")
-      .eq("id", agentId)
-      .maybeSingle();
-
-    if (!agent) return err("Agent not found", 404);
-
-    const metadata = (agent.metadata as Record<string, unknown>) || {};
-    await db
-      .from("agent_registrations")
-      .update({
-        metadata: {
-          ...metadata,
-          trigger_update: true,
-          update_requested_by: userId,
-          update_requested_at: new Date().toISOString(),
-        },
-      })
-      .eq("id", agentId);
-  } else {
-    // Signal all windows agents
-    const { data: agents } = await db
-      .from("agent_registrations")
-      .select("id, metadata")
-      .eq("agent_type", "windows-render");
-
-    for (const a of agents || []) {
-      const metadata = (a.metadata as Record<string, unknown>) || {};
-      await db
-        .from("agent_registrations")
-        .update({
-          metadata: {
-            ...metadata,
-            trigger_update: true,
-            update_requested_by: userId,
-            update_requested_at: new Date().toISOString(),
-          },
-        })
-        .eq("id", a.id);
-    }
-  }
-
-  return json({ ok: true });
-}
-
-// ── retry-failed-renders, request-path-test, requeue-all-no-preview: moved to _shared/admin-handlers/agent-handlers.ts ──
-
-// ── backfill-sku-names: moved to _shared/admin-handlers/metadata-handlers.ts ──
-
-// ── TIFF Hygiene Actions ────────────────────────────────────────────
-
-async function handleTriggerTiffScan(userId: string) {
-  const db = serviceClient();
-  const requestId = crypto.randomUUID();
-
-  const { error } = await db.from("admin_config").upsert({
-    key: "TIFF_SCAN_REQUEST",
-    value: {
-      status: "pending",
-      request_id: requestId,
-      requested_by: userId,
-      requested_at: new Date().toISOString(),
-    },
-    updated_at: new Date().toISOString(),
-    updated_by: userId,
-  });
-
-  if (error) return err(error.message, 500);
-  return json({ ok: true, request_id: requestId });
-}
-
-async function handleRefreshTiffDates(body: Record<string, unknown>, userId: string) {
-  const db = serviceClient();
-  const requestId = crypto.randomUUID();
-
-  const rawIds = Array.isArray(body.ids) ? body.ids : [];
-  const ids = rawIds.filter((v): v is string => typeof v === "string" && v.length > 0);
-
-  const { error } = await db.from("admin_config").upsert({
-    key: "TIFF_REINSPECT_REQUEST",
-    value: {
-      status: "pending",
-      request_id: requestId,
-      requested_by: userId,
-      requested_at: new Date().toISOString(),
-      ids: ids.length > 0 ? ids : null,
-      processed_count: 0,
-      last_id: null,
-    },
-    updated_at: new Date().toISOString(),
-    updated_by: userId,
-  });
-
-  if (error) return err(error.message, 500);
-  return json({ ok: true, request_id: requestId, scope: ids.length > 0 ? "selected" : "all_processed" });
-}
-
-async function handleListTiffFiles(body: Record<string, unknown>) {
-  const db = serviceClient();
-  const status = optionalString(body, "status");
-  const compressionFilter = optionalString(body, "compression");
-  const limit = typeof body.limit === "number" ? body.limit : 500;
-  const offset = typeof body.offset === "number" ? body.offset : 0;
-
-  let query = db.from("tiff_optimization_queue")
-    .select("*", { count: "exact" })
-    .order("relative_path", { ascending: true })
-    .range(offset, offset + limit - 1);
-
-  if (status) query = query.eq("status", status);
-  if (compressionFilter === "none") query = query.eq("compression_type", "none");
-  if (compressionFilter === "compressed") query = query.neq("compression_type", "none");
-
-  const { data, error, count } = await query;
-  if (error) return err(error.message, 500);
-
-  // Get summary counts using separate queries (avoids execute_readonly_query)
-  const [totalRes, uncompRes, compRes, processedRes, failedRes, pendingRes] = await Promise.all([
-    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }),
-    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).eq("compression_type", "none"),
-    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).neq("compression_type", "none").not("compression_type", "is", null),
-    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).eq("status", "completed"),
-    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).eq("status", "failed"),
-    db.from("tiff_optimization_queue").select("id", { count: "exact", head: true }).in("status", ["queued_test", "queued_process", "processing"]),
-  ]);
-
-  const summary = {
-    total: totalRes.count ?? 0,
-    uncompressed: uncompRes.count ?? 0,
-    compressed: compRes.count ?? 0,
-    processed: processedRes.count ?? 0,
-    failed: failedRes.count ?? 0,
-    pending: pendingRes.count ?? 0,
-  };
-
-  return json({ ok: true, files: data, total: count, summary });
-}
-
-async function handleQueueTiffJobs(body: Record<string, unknown>) {
-  const ids = body.ids as string[];
-  const mode = requireString(body, "mode"); // 'test' or 'process'
-  if (!["test", "process"].includes(mode)) return err("mode must be 'test' or 'process'");
-  if (!Array.isArray(ids) || ids.length === 0) return err("ids must be a non-empty array");
-
-  const db = serviceClient();
-  const newStatus = mode === "test" ? "queued_test" : "queued_process";
-
-  const { error } = await db.from("tiff_optimization_queue")
-    .update({ status: newStatus, mode, error_message: null, claimed_by: null, claimed_at: null })
-    .in("id", ids)
-    .in("status", ["scanned", "failed", "completed"]); // allow re-queue
-
-  if (error) return err(error.message, 500);
-  return json({ ok: true, queued: ids.length, mode });
-}
-
-async function handleDeleteTiffOriginals(body: Record<string, unknown>) {
-  const ids = body.ids as string[];
-  if (!Array.isArray(ids) || ids.length === 0) return err("ids must be a non-empty array");
-
-  const db = serviceClient();
-
-  // Mark these for deletion — the Windows Agent will pick up the request
-  const { error } = await db.from("tiff_optimization_queue")
-    .update({ status: "queued_delete", error_message: null })
-    .in("id", ids)
-    .eq("original_backed_up", true)
-    .eq("original_deleted", false);
-
-  if (error) return err(error.message, 500);
-  return json({ ok: true, queued: ids.length });
-}
-
-async function handleClearTiffScan() {
-  const db = serviceClient();
-  const { error } = await db.from("tiff_optimization_queue").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-  if (error) return err(error.message, 500);
-
-  // Also clear scan request
-  await db.from("admin_config").delete().eq("key", "TIFF_SCAN_REQUEST");
-  return json({ ok: true });
-}
-
-// ── ERP browse/review/sync/stats/dismiss handlers: moved to _shared/admin-handlers/erp-browse-handlers.ts ──
-
-// ── Route: list-hygiene-findings ────────────────────────────────────
-
-async function handleListHygieneFindings(body: Record<string, unknown>) {
-  const db = serviceClient();
-  const status = body.status as string | undefined;
-  const checkType = body.check_type as string | undefined;
-  const limit = typeof body.limit === "number" ? body.limit : 500;
-
-  let query = db.from("hygiene_findings").select("*").order("found_at", { ascending: false }).limit(limit);
-
-  if (status) query = query.eq("status", status);
-  if (checkType) query = query.eq("check_type", checkType);
-
-  const { data, error } = await query;
-  if (error) return err(error.message, 500);
-
-  // Summary counts — use parallel head-only queries instead of fetching all rows
-  const [openRes, dismissedRes, resolvedRes] = await Promise.all([
-    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "open"),
-    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "dismissed"),
-    db.from("hygiene_findings").select("id", { count: "exact", head: true }).eq("status", "resolved"),
-  ]);
-  const summaryData = {
-    open: openRes.count ?? 0,
-    dismissed: dismissedRes.count ?? 0,
-    resolved: resolvedRes.count ?? 0,
-    total: (openRes.count ?? 0) + (dismissedRes.count ?? 0) + (resolvedRes.count ?? 0),
-  };
-
-  return json({ ok: true, findings: data || [], summary: summaryData || {} });
-}
-
-// ── Route: update-hygiene-findings ──────────────────────────────────
-
-async function handleUpdateHygieneFindings(body: Record<string, unknown>, userId: string) {
-  const ids = body.ids as string[];
-  const status = body.status as string;
-
-  if (!Array.isArray(ids) || ids.length === 0) return err("ids array required");
-  if (!["open", "dismissed", "resolved"].includes(status)) return err("status must be open, dismissed, or resolved");
-
-  const db = serviceClient();
-  const { error } = await db.from("hygiene_findings")
-    .update({
-      status,
-      reviewed_by: userId,
-      reviewed_at: new Date().toISOString(),
-    })
-    .in("id", ids);
-
-  if (error) return err(error.message, 500);
-  return json({ ok: true, updated: ids.length });
-}
-
-// ── Route: trigger-hygiene-scan ─────────────────────────────────────
-
-async function handleTriggerHygieneScan(body: Record<string, unknown>, userId: string) {
-  const checkTypes = (body.check_types as string[]) || ["ai_embedded_raster"];
-  const db = serviceClient();
-
-  await db.from("admin_config").upsert({
-    key: "HYGIENE_SCAN_REQUEST",
-    value: {
-      status: "pending",
-      check_types: checkTypes,
-      requested_by: userId,
-      requested_at: new Date().toISOString(),
-      request_id: crypto.randomUUID(),
-    },
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "key" });
-
-  return json({ ok: true });
-}
-
-// ── Route: stop-hygiene-scan ────────────────────────────────────────
-
-async function handleStopHygieneScan(userId: string) {
-  const db = serviceClient();
-
-  const { data } = await db.from("admin_config")
-    .select("value").eq("key", "HYGIENE_SCAN_REQUEST").maybeSingle();
-  const current = (data?.value as Record<string, unknown>) ?? {};
-
-  if (current.status !== "pending" && current.status !== "claimed") {
-    return json({ ok: true, message: "No active scan to stop" });
-  }
-
-  await db.from("admin_config").upsert({
-    key: "HYGIENE_SCAN_REQUEST",
-    value: {
-      ...current,
-      status: "cancelled",
-      cancelled_by: userId,
-      cancelled_at: new Date().toISOString(),
-    },
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "key" });
-
-  return json({ ok: true, message: "Scan cancellation requested" });
-}
