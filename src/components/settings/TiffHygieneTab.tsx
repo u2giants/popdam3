@@ -567,7 +567,6 @@ export default function TiffHygieneTab() {
                         }]}
                       />
                     </TableHeader>
-                    </TableHeader>
                     <TableBody>
                       {files.map((file, idx) => {
                         const isSelected = selectedIds.has(file.id);
