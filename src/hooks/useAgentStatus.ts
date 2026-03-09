@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type AgentOnlineStatus = "online" | "offline";
@@ -54,8 +54,6 @@ function isOnline(hb: string | null): boolean {
   return !!hb && Date.now() - new Date(hb).getTime() < TWO_MIN;
 }
 
-// emptyCounters removed — was unused
-
 function parseCounters(raw: unknown): ScanCounters | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -78,93 +76,82 @@ function parseCounters(raw: unknown): ScanCounters | null {
   };
 }
 
-export function useAgentStatus(): AgentStatusInfo {
-  const [info, setInfo] = useState<AgentStatusInfo>({
-    bridgeStatus: "none",
-    agents: [],
-    status: "none",
-    agentCount: 0,
-    onlineCount: 0,
-    scanBlocked: true,
-    scanBlockedReason: "Loading agent status...",
+const DEFAULT_STATUS: AgentStatusInfo = {
+  bridgeStatus: "none",
+  agents: [],
+  status: "none",
+  agentCount: 0,
+  onlineCount: 0,
+  scanBlocked: true,
+  scanBlockedReason: "Loading agent status...",
+};
+
+async function fetchAgentStatus(): Promise<AgentStatusInfo> {
+  const { data, error } = await supabase
+    .from("agent_registrations")
+    .select("id, agent_name, agent_type, last_heartbeat, metadata");
+
+  if (error || !data) {
+    return {
+      ...DEFAULT_STATUS,
+      scanBlockedReason: "Failed to load agent status",
+    };
+  }
+
+  const agents: AgentRecord[] = data.map((a) => {
+    const meta = (a.metadata ?? {}) as Record<string, unknown>;
+    const counterHistory = Array.isArray(meta.counter_history) ? meta.counter_history : [];
+    const lastEntry = counterHistory.length > 0 ? counterHistory[counterHistory.length - 1] : null;
+
+    return {
+      id: a.id,
+      agent_name: a.agent_name,
+      agent_type: a.agent_type,
+      last_heartbeat: a.last_heartbeat,
+      isOnline: isOnline(a.last_heartbeat),
+      lastError: (meta.last_error as string) || null,
+      lastCounters: parseCounters(meta.last_counters) ?? parseCounters(lastEntry),
+      lastActivityAt: lastEntry && typeof (lastEntry as Record<string, unknown>).ts === "string"
+        ? (lastEntry as Record<string, unknown>).ts as string
+        : null,
+      forceStop: meta.force_stop === true || meta.scan_abort === true,
+    };
   });
 
-  useEffect(() => {
-    let mounted = true;
+  const bridgeAgents = agents.filter((a) => a.agent_type === "bridge");
+  const bridgeStatus: AgentOnlineStatus | "none" =
+    bridgeAgents.length === 0 ? "none" : bridgeAgents.some((a) => a.isOnline) ? "online" : "offline";
 
-    const check = async () => {
-      const { data, error } = await supabase
-        .from("agent_registrations")
-        .select("id, agent_name, agent_type, last_heartbeat, metadata");
+  const online = agents.filter((a) => a.isOnline).length;
 
-      if (error || !data) {
-        if (mounted) setInfo({ 
-          bridgeStatus: "none", 
-          agents: [], 
-          status: "none", 
-          agentCount: 0, 
-          onlineCount: 0,
-          scanBlocked: true,
-          scanBlockedReason: "Failed to load agent status",
-        });
-        return;
-      }
+  const blockedBridge = bridgeAgents.find((a) => a.forceStop);
+  const scanBlocked = bridgeStatus === "none" || (bridgeStatus === "offline" && bridgeAgents.length > 0) || !!blockedBridge;
+  let scanBlockedReason: string | null = null;
+  if (bridgeStatus === "none") {
+    scanBlockedReason = "No Bridge Agent registered. Go to Settings → Setup to connect one.";
+  } else if (bridgeStatus === "offline") {
+    scanBlockedReason = "Bridge Agent is offline. Check that the Docker container is running on your NAS.";
+  } else if (blockedBridge) {
+    scanBlockedReason = "Scanning was force-stopped. Clicking Sync will auto-clear this and start a new scan.";
+  }
 
-      const agents: AgentRecord[] = data.map((a) => {
-        const meta = (a.metadata ?? {}) as Record<string, unknown>;
-        const counterHistory = Array.isArray(meta.counter_history) ? meta.counter_history : [];
-        const lastEntry = counterHistory.length > 0 ? counterHistory[counterHistory.length - 1] : null;
+  return {
+    bridgeStatus,
+    agents,
+    agentCount: data.length,
+    onlineCount: online,
+    status: data.length === 0 ? "none" : online === data.length ? "online" : online > 0 ? "degraded" : "offline",
+    scanBlocked,
+    scanBlockedReason,
+  };
+}
 
-        return {
-          id: a.id,
-          agent_name: a.agent_name,
-          agent_type: a.agent_type,
-          last_heartbeat: a.last_heartbeat,
-          isOnline: isOnline(a.last_heartbeat),
-          lastError: (meta.last_error as string) || null,
-          lastCounters: parseCounters(meta.last_counters) ?? parseCounters(lastEntry),
-          lastActivityAt: lastEntry && typeof (lastEntry as Record<string, unknown>).ts === "string"
-            ? (lastEntry as Record<string, unknown>).ts as string
-            : null,
-          forceStop: meta.force_stop === true || meta.scan_abort === true,
-        };
-      });
-
-      const bridgeAgents = agents.filter((a) => a.agent_type === "bridge");
-      const bridgeStatus: AgentOnlineStatus | "none" =
-        bridgeAgents.length === 0 ? "none" : bridgeAgents.some((a) => a.isOnline) ? "online" : "offline";
-
-      const online = agents.filter((a) => a.isOnline).length;
-
-      // Check if any bridge agent has force_stop / scan_abort
-      const blockedBridge = bridgeAgents.find((a) => a.forceStop);
-      const scanBlocked = bridgeStatus === "none" || (bridgeStatus === "offline" && bridgeAgents.length > 0) || !!blockedBridge;
-      let scanBlockedReason: string | null = null;
-      if (bridgeStatus === "none") {
-        scanBlockedReason = "No Bridge Agent registered. Go to Settings → Setup to connect one.";
-      } else if (bridgeStatus === "offline") {
-        scanBlockedReason = "Bridge Agent is offline. Check that the Docker container is running on your NAS.";
-      } else if (blockedBridge) {
-        scanBlockedReason = "Scanning was force-stopped. Clicking Sync will auto-clear this and start a new scan.";
-      }
-
-      if (mounted) {
-        setInfo({
-          bridgeStatus,
-          agents,
-          agentCount: data.length,
-          onlineCount: online,
-          status: data.length === 0 ? "none" : online === data.length ? "online" : online > 0 ? "degraded" : "offline",
-          scanBlocked,
-          scanBlockedReason,
-        });
-      }
-    };
-
-    check();
-    const interval = setInterval(check, 15_000); // poll faster for scan status
-    return () => { mounted = false; clearInterval(interval); };
-  }, []);
-
-  return info;
+export function useAgentStatus(): AgentStatusInfo {
+  const { data } = useQuery({
+    queryKey: ["agent-status"],
+    queryFn: fetchAgentStatus,
+    refetchInterval: 15_000,
+    initialData: DEFAULT_STATUS,
+  });
+  return data;
 }

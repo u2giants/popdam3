@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
 import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
@@ -15,11 +15,12 @@ import AssetListView from "@/components/library/AssetListView";
 import AssetDetailPanel from "@/components/library/AssetDetailPanel";
 import BulkActionBar from "@/components/library/BulkActionBar";
 import PaginationBar from "@/components/library/PaginationBar";
-import { toast } from "@/hooks/use-toast";
-import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { useScanProgress } from "@/hooks/useScanProgress";
+import { useScanLifecycle } from "@/hooks/useScanLifecycle";
+import { useSelectionManager } from "@/hooks/useSelectionManager";
 import { Badge } from "@/components/ui/badge";
+import { useRef } from "react";
 
 export default function LibraryPage() {
   const queryClient = useQueryClient();
@@ -30,140 +31,63 @@ export default function LibraryPage() {
   const [libraryMode, setLibraryMode] = useState<LibraryMode>("groups");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pageSize, setPageSize] = useState(200);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
   const [detailAssetId, setDetailAssetId] = useState<string | null>(null);
-  const lastSelectedIndex = useRef<number | null>(null);
-  const [pageSize, setPageSize] = useState(200);
-  const [scanTriggered, setScanTriggered] = useState(false);
-  const [lastScanStatus, setLastScanStatus] = useState<"completed" | "completed_with_errors" | "failed" | null>(null);
-  const [lastScanTime, setLastScanTime] = useState<string | null>(null);
-  const [lastScanSummary, setLastScanSummary] = useState<string | null>(null);
+
+  // ── Agent & scan state ──────────────────────────────────────────
   const agentStatus = useAgentStatus();
   const scanProgress = useScanProgress();
-  const { pollNow: pollScanNow } = scanProgress;
+  const {
+    scanTriggered, scanRunning, scanQueued,
+    lastScanStatus, lastScanTime, lastScanSummary,
+    handleSync, handleStopScan,
+  } = useScanLifecycle(scanProgress);
 
-  const scanRunning = scanProgress.status === "running" || scanProgress.status === "stale";
-  const scanQueued = scanProgress.status === "queued";
+  // ── Data queries ────────────────────────────────────────────────
+  const { data: visibilityDate } = useVisibilityDate();
+  const { data: sgData, isLoading: sgLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
+  const { data: totalGroupCount } = useStyleGroupCount(filters, visibilityDate);
+  const { data: ungroupedCount } = useUngroupedCount();
+  const { data: totalAssets } = useTotalAssetCount();
+  const { data: assetData, isLoading: assetLoading } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize);
+  const { licensors, properties } = useFilterOptions(filters.licensorId);
+  const { data: facetCounts } = useFilterCounts(filters);
 
-  // ── Scan outcome notifications ──────────────────────────────────
-  const prevScanStatusRef = useRef(scanProgress.status);
-  useEffect(() => {
-    const prev = prevScanStatusRef.current;
-    const curr = scanProgress.status;
-    prevScanStatusRef.current = curr;
+  const isGroupsMode = libraryMode === "groups";
+  const groups = sgData?.groups ?? [];
+  const assets = assetData?.assets ?? [];
+  const isLoading = isGroupsMode ? sgLoading : assetLoading;
+  const count = isGroupsMode
+    ? (totalGroupCount ?? sgData?.totalCount ?? 0)
+    : (assetData?.totalCount ?? 0);
 
-    if (prev === curr) return;
+  // ── Selection ───────────────────────────────────────────────────
+  const currentItems = isGroupsMode ? groups : assets;
+  const { selectedIds, setSelectedIds, handleSelect: rawHandleSelect, clearSelection } = useSelectionManager(currentItems);
 
-    // Scan started running
-    if (curr === "running" && (prev === "queued" || prev === "idle")) {
-      toast({ title: "Scan started", description: "The Bridge Agent is scanning the NAS…" });
-    }
-
-    // Scan completed (including completed_with_errors)
-    if (curr === "completed" || curr === "completed_with_errors" || (curr === "idle" && (prev === "running" || prev === "queued"))) {
-      setScanTriggered(false);
-      const c = scanProgress.counters;
-      let summary = "";
-      if (c) {
-        const parts: string[] = [];
-        if (c.files_checked) parts.push(`${c.files_checked.toLocaleString()} files checked`);
-        if (c.ingested_new) parts.push(`${c.ingested_new} new`);
-        if (c.updated_existing) parts.push(`${c.updated_existing} updated`);
-        if (c.moved_detected) parts.push(`${c.moved_detected} moved`);
-        if (c.errors && curr === "completed_with_errors") parts.push(`${c.errors} errors`);
-        summary = parts.length > 0 ? parts.join(", ") : "Nothing new to sync";
-        
-        if (curr === "completed_with_errors") {
-          toast({
-            title: "Scan completed with errors",
-            description: (
-              <span>
-                {summary}.{" "}
-                <a href="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline">
-                  View details
-                </a>
-              </span>
-            ),
-          });
-        } else {
-          toast({ title: "Scan complete", description: summary });
-        }
+  const handleSelect = useCallback((id: string, event: React.MouseEvent) => {
+    rawHandleSelect(id, event, (clickedId) => {
+      if (isGroupsMode) {
+        setDetailGroupId((prev) => (prev === clickedId ? null : clickedId));
+        setDetailAssetId(null);
       } else {
-        summary = "Nothing new to sync — all assets are up to date.";
-        toast({ title: "Scan complete", description: summary });
+        setDetailAssetId((prev) => (prev === clickedId ? null : clickedId));
+        setDetailGroupId(null);
       }
-      
-      // Store persistent scan result
-      setLastScanStatus(curr === "completed_with_errors" ? "completed_with_errors" : "completed");
-      setLastScanTime(new Date().toISOString());
-      setLastScanSummary(summary);
-      
-      // Refresh library data
-      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      queryClient.invalidateQueries({ queryKey: ["filter-counts"] });
-    }
+    });
+  }, [rawHandleSelect, isGroupsMode]);
 
-    // Scan failed
-    if (curr === "failed") {
-      setScanTriggered(false);
-      toast({
-        title: "Scan failed",
-        description: (
-          <span>
-            Something went wrong.{" "}
-            <a href="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline">
-              View diagnostics
-            </a>
-          </span>
-        ),
-        variant: "destructive",
-      });
-      
-      // Store persistent scan result
-      setLastScanStatus("failed");
-      setLastScanTime(scanProgress.updated_at || new Date().toISOString());
-      setLastScanSummary("Scan failed — check diagnostics");
-    }
-
-    // Stale detection
-    if (curr === "stale" && prev === "running") {
-      toast({
-        title: "Scan appears stuck",
-        description: "No progress in 3+ minutes. Use 'Reset Scan State' in Settings if needed.",
-        variant: "destructive",
-      });
-    }
-  }, [scanProgress.status, scanProgress.counters, scanProgress.updated_at, queryClient]);
-
-  // Reset selection & detail when switching modes
+  // ── Mode switching ──────────────────────────────────────────────
   const handleLibraryModeChange = useCallback((mode: LibraryMode) => {
     setLibraryMode(mode);
-    setSelectedIds(new Set());
+    clearSelection();
     setDetailGroupId(null);
     setDetailAssetId(null);
     setPage(0);
-    lastSelectedIndex.current = null;
-  }, []);
+  }, [clearSelection]);
 
-  // Clear scanTriggered once the scan is actually picked up (running/queued)
-  useEffect(() => {
-    if (scanTriggered && (scanProgress.status === "running" || scanProgress.status === "queued")) {
-      setScanTriggered(false);
-    }
-  }, [scanTriggered, scanProgress.status]);
-
-  useEffect(() => {
-    if (!scanTriggered) return;
-    const timer = setTimeout(() => {
-      setScanTriggered(false);
-    }, 120_000);
-    return () => clearTimeout(timer);
-  }, [scanTriggered]);
-
-
-  // Debounced search
+  // ── Search ──────────────────────────────────────────────────────
   const [searchInput, setSearchInput] = useState("");
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -181,91 +105,6 @@ export default function LibraryPage() {
     setPage(0);
   }, []);
 
-  const { data: visibilityDate } = useVisibilityDate();
-
-  // Style groups data (always fetch for counts in top bar)
-  const { data: sgData, isLoading: sgLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
-  const { data: totalGroupCount } = useStyleGroupCount(filters, visibilityDate);
-  const { data: ungroupedCount } = useUngroupedCount();
-  const { data: totalAssets } = useTotalAssetCount();
-
-  // Individual assets data (only fetch when in assets mode)
-  const { data: assetData, isLoading: assetLoading } = useAssets(
-    filters, sortField, sortDirection, page, visibilityDate, pageSize,
-  );
-
-  const { licensors, properties } = useFilterOptions(filters.licensorId);
-  const { data: facetCounts } = useFilterCounts(filters);
-
-  // Determine active data based on library mode
-  const isGroupsMode = libraryMode === "groups";
-  const groups = sgData?.groups ?? [];
-  const assets = assetData?.assets ?? [];
-  const isLoading = isGroupsMode ? sgLoading : assetLoading;
-  const count = isGroupsMode
-    ? (totalGroupCount ?? sgData?.totalCount ?? 0)
-    : (assetData?.totalCount ?? 0);
-
-  const handleSelect = useCallback((id: string, event: React.MouseEvent) => {
-    const items = isGroupsMode ? groups : assets;
-    const clickedIndex = items.findIndex((item) => item.id === id);
-
-    if (event.shiftKey && lastSelectedIndex.current !== null && clickedIndex >= 0) {
-      const start = Math.min(lastSelectedIndex.current, clickedIndex);
-      const end = Math.max(lastSelectedIndex.current, clickedIndex);
-      const rangeIds = items.slice(start, end + 1).map((item) => item.id);
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        rangeIds.forEach((rid) => next.add(rid));
-        return next;
-      });
-      return;
-    }
-
-    if (!event.metaKey && !event.ctrlKey) {
-      if (isGroupsMode) {
-        setDetailGroupId((prev) => (prev === id ? null : id));
-        setDetailAssetId(null);
-      } else {
-        setDetailAssetId((prev) => (prev === id ? null : id));
-        setDetailGroupId(null);
-      }
-      setSelectedIds(new Set([id]));
-      lastSelectedIndex.current = clickedIndex;
-      return;
-    }
-
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    lastSelectedIndex.current = clickedIndex;
-  }, [isGroupsMode, groups, assets]);
-
-  const { call } = useAdminApi();
-  const handleSync = async () => {
-    try {
-      await call("trigger-scan");
-      setScanTriggered(true);
-      // Force immediate poll so the UI shows "queued" right away
-      setTimeout(() => pollScanNow(), 500);
-      toast({ title: "Scan triggered", description: "The Bridge Agent will start scanning on its next poll (~30s)." });
-    } catch (e) {
-      toast({ title: "Failed to trigger scan", description: (e as Error).message, variant: "destructive" });
-    }
-  };
-
-  const handleStopScan = async () => {
-    try {
-      await call("stop-scan");
-      toast({ title: "Stop requested", description: "The agent will abort the current scan shortly." });
-    } catch (e) {
-      toast({ title: "Failed to stop scan", description: (e as Error).message, variant: "destructive" });
-    }
-  };
-
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["style-groups"] });
     queryClient.invalidateQueries({ queryKey: ["style-group-count"] });
@@ -275,16 +114,16 @@ export default function LibraryPage() {
   }, [queryClient]);
 
   const activeFilterCount = countActiveFilters(filters);
-  const selectedGroups = groups.filter(g => selectedIds.has(g.id));
+  const selectedGroups = groups.filter((g) => selectedIds.has(g.id));
 
   const detailGroup = useMemo(
     () => (detailGroupId ? groups.find((g) => g.id === detailGroupId) ?? null : null),
-    [detailGroupId, groups]
+    [detailGroupId, groups],
   );
 
   const detailAsset = useMemo(
     () => (detailAssetId ? assets.find((a) => a.id === detailAssetId) ?? null : null),
-    [detailAssetId, assets]
+    [detailAssetId, assets],
   );
 
   return (
