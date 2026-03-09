@@ -1938,59 +1938,7 @@ async function handleTriggerWindowsUpdate(
 
 // ── retry-failed-renders, request-path-test, requeue-all-no-preview: moved to _shared/admin-handlers/agent-handlers.ts ──
 
-// ── backfill-sku-names ──────────────────────────────────────────────
-
-async function handleBackfillSkuNames() {
-  const db = serviceClient();
-  const BATCH = 500;
-  let updated = 0;
-  let groupsUpdated = 0;
-  let offset = 0;
-  const MAX = 10000;
-
-  while (offset < MAX) {
-    const { data: assets, error } = await db
-      .from("assets")
-      .select("id, filename, licensor_code, licensor_name, property_code, property_name, style_group_id")
-      .eq("is_deleted", false)
-      .not("sku", "is", null)
-      .not("licensor_code", "is", null)
-      .order("id")
-      .range(offset, offset + BATCH - 1);
-
-    if (error) return err(error.message, 500);
-    if (!assets || assets.length === 0) break;
-    offset += assets.length;
-
-    // Filter to only those where name = code (needs backfill)
-    const needsBackfill = assets.filter((a: any) => (a.licensor_name === a.licensor_code) || (a.property_name === a.property_code));
-
-    for (const asset of needsBackfill) {
-      const parsed = await parseSku(asset.filename);
-      if (!parsed) continue;
-
-      const updates: Record<string, unknown> = {};
-      if (parsed.licensor_name && asset.licensor_name === asset.licensor_code) {
-        updates.licensor_name = parsed.licensor_name;
-      }
-      if (parsed.property_name && asset.property_name === asset.property_code) {
-        updates.property_name = parsed.property_name;
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await db.from("assets").update(updates).eq("id", asset.id);
-        updated++;
-
-        if (asset.style_group_id) {
-          await db.from("style_groups").update(updates).eq("id", asset.style_group_id);
-          groupsUpdated++;
-        }
-      }
-    }
-  }
-
-  return json({ ok: true, assets_updated: updated, groups_updated: groupsUpdated, assets_checked: offset });
-}
+// ── backfill-sku-names: moved to _shared/admin-handlers/metadata-handlers.ts ──
 
 // ── TIFF Hygiene Actions ────────────────────────────────────────────
 
