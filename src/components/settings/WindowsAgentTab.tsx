@@ -886,15 +886,18 @@ function RenderJobsTable() {
           <TooltipProvider>
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead>Filename</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Completed</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead className="w-16"></TableHead>
-                </TableRow>
+                <FilterableHeaderRow
+                  columns={renderCols}
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  filters={filters}
+                  suggestions={suggestions}
+                  onSort={toggleSort}
+                  onFilter={setFilter}
+                  onClearFilter={clearFilter}
+                  prefixCells={[{ header: null, filter: null }]}
+                  suffixCells={[{ header: null, filter: null }]}
+                />
               </TableHeader>
               <TableBody>
                 {visibleJobs.map((job: Record<string, unknown>) => {
