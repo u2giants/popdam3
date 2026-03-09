@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
-import type { BulkOperationsMap, OpState, OpStatus } from "../_shared/types.ts";
+import type { OpState } from "../_shared/types.ts";
+import { classifyInterruptionReason, getLane, OP_ACTIONS } from "../_shared/operation-constants.ts";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -26,26 +27,6 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
 };
 
-// ── Parallel Lane System ────────────────────────────────────────────
-// Operations in DIFFERENT lanes can run simultaneously.
-// Operations in the SAME lane are mutually exclusive.
-// This prevents DB conflicts while maximizing throughput.
-const OP_LANES: Record<string, string> = {
-  "ai-tag-untagged": "ai-tagging",
-  "ai-tag-all": "ai-tagging",
-  "ai-tag-groups": "ai-tagging",
-  "rebuild-style-groups": "style-groups",
-  "reconcile-style-group-stats": "style-groups",
-  "reprocess-metadata": "metadata",
-  "backfill-sku-names": "metadata",
-  "erp-enrichment": "erp",
-  "erp-classify": "erp",
-};
-
-function getLane(opKey: string): string {
-  return OP_LANES[opKey] ?? opKey; // fallback: each unknown op is its own lane
-}
-
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
   maxAttempts: 5,
@@ -58,32 +39,6 @@ const AUTO_RESUME_MAX_ATTEMPTS_BY_OP: Record<string, number> = {
   // Allow substantially more resumptions so very large runs (e.g. 90k+) don't stall.
   "erp-classify": 1000,
 };
-
-// Maps operation key → admin-api action name
-const OP_ACTIONS: Record<string, string> = {
-  "reprocess-metadata": "reprocess-asset-metadata",
-  "backfill-sku-names": "backfill-sku-names",
-  "rebuild-style-groups": "rebuild-style-groups",
-  "ai-tag-untagged": "bulk-ai-tag",
-  "ai-tag-all": "bulk-ai-tag-all",
-  "ai-tag-groups": "bulk-ai-tag-all",
-  "reconcile-style-group-stats": "reconcile-style-group-stats",
-  "erp-enrichment": "apply-erp-enrichment",
-  "erp-classify": "classify-erp-categories",
-};
-
-// ── Interruption reason codes ───────────────────────────────────────
-
-function classifyInterruptionReason(statusCode: number | null, errorMsg: string): string {
-  if (!errorMsg && !statusCode) return "unknown";
-  const msg = (errorMsg || "").toLowerCase();
-  if (statusCode === 429 || msg.includes("rate limit exceeded")) return "rate_limited";
-  if (statusCode && [502, 503, 504].includes(statusCode)) return "gateway_timeout";
-  if (msg.includes("57014") || msg.includes("statement timeout")) return "statement_timeout";
-  if (msg.includes("user_stop") || msg.includes("stopped by user")) return "user_stop";
-  if (msg.includes("connection reset") || msg.includes("connection error")) return "connection_error";
-  return "unknown";
-}
 
 // ── Progress accumulators ───────────────────────────────────────────
 

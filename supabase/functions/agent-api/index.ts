@@ -114,7 +114,7 @@ async function handleHeartbeat(
   const diagnostics = body.diagnostics as Record<string, unknown> | undefined;
   const db = serviceClient();
 
-  // ── Update agent metadata ──
+  // ── Fetch agent metadata (needed for update) ──
   const { data: agent } = await db
     .from("agent_registrations")
     .select("metadata")
@@ -167,6 +167,7 @@ async function handleHeartbeat(
     // Clear trigger_update flag once delivered (below)
   };
 
+  // ── Update agent metadata ──
   const { error: updateErr } = await db
     .from("agent_registrations")
     .update({
@@ -177,37 +178,53 @@ async function handleHeartbeat(
 
   if (updateErr) return err(updateErr.message, 500);
 
-  // ── Cleanup expired/used bootstrap tokens ──
-  try {
-    const { data: tokenRow } = await db
-      .from("admin_config")
-      .select("value")
-      .eq("key", "WINDOWS_BOOTSTRAP_TOKEN")
-      .maybeSingle();
+  // ── PARALLELIZED: Fetch config, cleanup tokens, get windows agents, and render queue count ──
+  const now = new Date();
 
-    if (tokenRow) {
-      const tokenVal = tokenRow.value as Record<string, unknown>;
-      if (tokenVal) {
-        const isExpired = tokenVal.expires_at && new Date(tokenVal.expires_at as string).getTime() < Date.now();
-        const isUsed = tokenVal.used === true;
-        if (isExpired || isUsed) {
-          await db.from("admin_config").delete().eq("key", "WINDOWS_BOOTSTRAP_TOKEN");
+  const [configResult, _tokenCleanup, windowsAgentsResult, renderQueueResult] = await Promise.all([
+    // 1. Fetch cloud config
+    db.from("admin_config")
+      .select("key, value")
+      .in("key", HEARTBEAT_CONFIG_KEYS),
+
+    // 2. Cleanup expired/used bootstrap tokens (fire-and-forget style, errors non-fatal)
+    (async () => {
+      try {
+        const { data: tokenRow } = await db
+          .from("admin_config")
+          .select("value")
+          .eq("key", "WINDOWS_BOOTSTRAP_TOKEN")
+          .maybeSingle();
+
+        if (tokenRow) {
+          const tokenVal = tokenRow.value as Record<string, unknown>;
+          if (tokenVal) {
+            const isExpired = tokenVal.expires_at && new Date(tokenVal.expires_at as string).getTime() < Date.now();
+            const isUsed = tokenVal.used === true;
+            if (isExpired || isUsed) {
+              await db.from("admin_config").delete().eq("key", "WINDOWS_BOOTSTRAP_TOKEN");
+            }
+          }
         }
+      } catch (cleanupErr) {
+        console.error("Bootstrap token cleanup failed:", cleanupErr);
       }
-    }
-  } catch (cleanupErr) {
-    // Non-fatal — log and continue
-    console.error("Bootstrap token cleanup failed:", cleanupErr);
-  }
+    })(),
 
-  // ── Fetch cloud config ──
-  const { data: configRows } = await db
-    .from("admin_config")
-    .select("key, value")
-    .in("key", HEARTBEAT_CONFIG_KEYS);
+    // 3. Windows agent health check
+    db.from("agent_registrations")
+      .select("agent_type, last_heartbeat, metadata")
+      .eq("agent_type", "windows-render"),
 
+    // 4. Pending render jobs count
+    db.from("render_queue")
+      .select("*", { count: "exact", head: true })
+      .in("status", ["pending", "claimed", "processing"]),
+  ]);
+
+  // Process config rows
   const configMap: Record<string, unknown> = {};
-  for (const row of configRows || []) {
+  for (const row of configResult.data || []) {
     configMap[row.key] = row.value;
   }
 
@@ -227,7 +244,6 @@ async function handleHeartbeat(
     memory_limit_mb: guard.default_memory_limit_mb ?? 512,
     concurrency: guard.default_thumb_concurrency ?? 2,
   };
-  const now = new Date();
 
   if (schedules && schedules.length > 0) {
     const dayOfWeek = now.getUTCDay();
@@ -342,13 +358,8 @@ async function handleHeartbeat(
     }
   }
 
-  // ── Windows agent health + pending render jobs (for bridge policy decisions) ──
-  const { data: allAgents } = await db
-    .from("agent_registrations")
-    .select("agent_type, last_heartbeat, metadata")
-    .eq("agent_type", "windows-render");
-
-  const windowsAgents = allAgents || [];
+  // ── Windows agent health + pending render jobs ──
+  const windowsAgents = windowsAgentsResult.data || [];
   let windowsHealthy = false;
   if (windowsAgents.length > 0) {
     const WINDOWS_OFFLINE_MS = 5 * 60 * 1000;
@@ -361,10 +372,7 @@ async function handleHeartbeat(
     });
   }
 
-  const { count: pendingRenderJobs } = await db
-    .from("render_queue")
-    .select("*", { count: "exact", head: true })
-    .in("status", ["pending", "claimed", "processing"]);
+  const pendingRenderJobs = renderQueueResult.count ?? 0;
 
   // ── Build response ──
   const responsePayload = {
