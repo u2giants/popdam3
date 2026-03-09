@@ -402,6 +402,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
 
 export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDetailPanelProps) {
   const queryClient = useQueryClient();
+  const { call: adminApi } = useAdminApi();
   const [localPrimaryId, setLocalPrimaryId] = useState<string | null>(group.primary_asset_id);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
