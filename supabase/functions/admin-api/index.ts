@@ -1047,7 +1047,7 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
 
   if (error) return err(error.message, 500);
   if (!assets || assets.length === 0) {
-    return json({ ok: true, tagged: 0, failed: 0, skipped: 0, failure_samples: [], done: true, nextOffset: offset });
+    return json({ ok: true, tagged: 0, failed: 0, skipped: 0, failure_samples: [], skip_samples: [], done: true, nextOffset: offset });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1062,8 +1062,18 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
     asset_id: string;
     filename: string;
     relative_path: string;
+    thumbnail_url?: string;
     http_status?: number;
     error: string;
+  }> = [];
+
+  const skipSamples: Array<{
+    at: string;
+    asset_id: string;
+    filename: string;
+    relative_path: string;
+    thumbnail_url?: string;
+    reason: string;
   }> = [];
 
   const parseErrorBody = (text: string): string => {
