@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, AlertTriangle, CheckCircle2, XCircle, Clock, Square, Ban } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Loader2, AlertTriangle, CheckCircle2, XCircle, Clock, Square, Ban, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
