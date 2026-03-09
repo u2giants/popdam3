@@ -108,7 +108,7 @@ export default function LibraryPage() {
       // Store persistent scan result
       setLastScanStatus("failed");
       setLastScanTime(scanProgress.updated_at || new Date().toISOString());
-      setLastScanSummary(summary);
+      setLastScanSummary("Scan failed — check diagnostics");
     }
 
     // Stale detection
