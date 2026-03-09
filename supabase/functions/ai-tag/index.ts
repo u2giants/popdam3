@@ -357,6 +357,11 @@ ${
       return err("Failed to parse AI tag response", 500);
     }
 
+    // UUID validation helper — AI models sometimes return "null", descriptive text, or malformed strings
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isValidUuid = (v: unknown): v is string =>
+      typeof v === "string" && UUID_RE.test(v);
+
     const updates: Record<string, unknown> = {
       status: "tagged",
       ai_tagged_at: new Date().toISOString(),
@@ -369,16 +374,26 @@ ${
     if (tagData.art_source) updates.art_source = tagData.art_source;
     if (tagData.design_style) updates.design_style = tagData.design_style;
     if (tagData.design_ref) updates.design_ref = tagData.design_ref;
-    if (tagData.licensor_id) updates.licensor_id = tagData.licensor_id;
-    if (tagData.property_id) updates.property_id = tagData.property_id;
+    // Only write UUID foreign-key fields if the AI returned a valid UUID
+    if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
+    if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
     if (tagData.designer_name) updates.designer_name = tagData.designer_name;
     if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
     if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
 
-    const { error: updateErr } = await db
+    let { error: updateErr } = await db
       .from("assets")
       .update(updates)
       .eq("id", assetId);
+
+    // If FK constraint fails (AI hallucinated a licensor/property UUID), retry without FK fields
+    if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
+      console.warn("ai-tag: FK/type error, retrying without licensor_id/property_id:", updateErr.message);
+      delete updates.licensor_id;
+      delete updates.property_id;
+      const retry = await db.from("assets").update(updates).eq("id", assetId);
+      updateErr = retry.error;
+    }
 
     if (updateErr) {
       console.error("Failed to update asset:", updateErr);
@@ -412,13 +427,16 @@ ${
     });
 
     if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
-      const charLinks = (tagData.character_ids as string[]).map((cid) => ({
-        asset_id: assetId,
-        character_id: cid,
-      }));
-      await db.from("asset_characters").upsert(charLinks, {
-        onConflict: "asset_id,character_id",
-      });
+      const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
+      if (validCharIds.length > 0) {
+        const charLinks = validCharIds.map((cid) => ({
+          asset_id: assetId,
+          character_id: cid,
+        }));
+        await db.from("asset_characters").upsert(charLinks, {
+          onConflict: "asset_id,character_id",
+        });
+      }
     }
 
     return json({
