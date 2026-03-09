@@ -170,11 +170,13 @@ export default function ScanDiagnosticsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 {isFailed ? <XCircle className="h-4 w-4 text-destructive" /> :
+                 isCompletedWithErrors ? <AlertTriangle className="h-4 w-4 text-[hsl(var(--warning))]" /> :
                  status === "completed" || status === "done" ? <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" /> :
                  <Clock className="h-4 w-4" />}
                 Scan Status
-                <Badge variant={isFailed ? "destructive" : status === "completed" || status === "done" ? "secondary" : "outline"}>
-                  {status}
+                <Badge variant={isFailed ? "destructive" : isCompletedWithErrors ? "outline" : status === "completed" || status === "done" ? "secondary" : "outline"}
+                  className={isCompletedWithErrors ? "border-[hsl(var(--warning))] text-[hsl(var(--warning))]" : ""}>
+                  {isCompletedWithErrors ? "completed with errors" : status}
                 </Badge>
               </CardTitle>
             </CardHeader>
