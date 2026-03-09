@@ -741,6 +741,10 @@ serve(async (req: Request) => {
         return await handleBulkAiTag(body, true);
       case "count-untagged-assets":
         return await handleCountUntaggedAssets();
+      case "bulk-propagate-group-tags":
+        return await handleBulkPropagateGroupTags(body);
+      case "count-groups-for-propagation":
+        return await handleCountGroupsForPropagation();
 
       // ── Tag propagation ──
       case "sync-group-tags": {
