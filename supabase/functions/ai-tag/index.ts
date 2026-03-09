@@ -438,10 +438,22 @@ ${
       }
     }
 
+    // ── Propagate product-level tags to style group siblings ──
+    let propagation: { siblings_updated: number; tags_propagated: number; characters_propagated: number } | null = null;
+    if (asset.style_group_id) {
+      try {
+        const { propagateGroupTags } = await import("../_shared/tag-propagation.ts");
+        propagation = await propagateGroupTags(assetId, asset.style_group_id, { onlyUntagged: true });
+      } catch (propErr) {
+        console.error("tag-propagation error (non-fatal):", propErr);
+      }
+    }
+
     return json({
       ok: true,
       asset_id: assetId,
       tag_data: tagData,
+      propagation,
     });
   } catch (e) {
     console.error("ai-tag error:", e);
