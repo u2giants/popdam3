@@ -1117,12 +1117,13 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
 
     for (const r of results) {
       if (r.status === "fulfilled") {
-        if (r.value.outcome === "tagged") tagged++;
-        else if (r.value.outcome === "skipped") skipped++;
-        else {
+        const v = r.value;
+        if (v.outcome === "tagged") tagged++;
+        else if (v.outcome === "skipped") skipped++;
+        else if (v.outcome === "failed") {
           failed++;
-          console.error("bulk-ai-tag asset failed", { assetId: r.value.asset_id, httpStatus: r.value.http_status });
-          failureSamples.push(r.value);
+          console.error("bulk-ai-tag asset failed", { assetId: v.asset_id, httpStatus: v.http_status });
+          failureSamples.push({ at: v.at, asset_id: v.asset_id, filename: v.filename, relative_path: v.relative_path, http_status: v.http_status, error: v.error });
         }
       } else {
         failed++;
