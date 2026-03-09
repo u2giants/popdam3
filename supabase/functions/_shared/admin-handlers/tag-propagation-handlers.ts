@@ -9,7 +9,7 @@ import { propagateGroupTags } from "../tag-propagation.ts";
 
 export async function handleBulkPropagateGroupTags(body: Record<string, unknown>) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
-  const BATCH_SIZE = 5;
+  const BATCH_SIZE = 2;
   const db = serviceClient();
 
   // Fetch a batch of style groups that have at least one tagged asset
