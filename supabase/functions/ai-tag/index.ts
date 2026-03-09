@@ -381,10 +381,19 @@ ${
     if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
     if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
 
-    const { error: updateErr } = await db
+    let { error: updateErr } = await db
       .from("assets")
       .update(updates)
       .eq("id", assetId);
+
+    // If FK constraint fails (AI hallucinated a licensor/property UUID), retry without FK fields
+    if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
+      console.warn("ai-tag: FK/type error, retrying without licensor_id/property_id:", updateErr.message);
+      delete updates.licensor_id;
+      delete updates.property_id;
+      const retry = await db.from("assets").update(updates).eq("id", assetId);
+      updateErr = retry.error;
+    }
 
     if (updateErr) {
       console.error("Failed to update asset:", updateErr);
