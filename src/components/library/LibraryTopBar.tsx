@@ -236,13 +236,13 @@ export default function LibraryTopBar({
                 variant="outline" 
                 className={cn(
                   "gap-1 text-[10px]",
-                  lastScanStatus === "completed" && "border-emerald-500/50 text-emerald-600",
+                  lastScanStatus === "completed" && "border-[hsl(var(--success))]/50 text-[hsl(var(--success))]",
                   lastScanStatus === "failed" && "border-destructive/50 text-destructive"
                 )}
               >
                 <span className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  lastScanStatus === "completed" && "bg-emerald-500",
+                  lastScanStatus === "completed" && "bg-[hsl(var(--success))]",
                   lastScanStatus === "failed" && "bg-destructive"
                 )} />
                 Last: {lastScanStatus === "completed" ? "Success" : "Failed"}
