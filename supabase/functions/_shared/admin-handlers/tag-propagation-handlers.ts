@@ -4,7 +4,7 @@
  */
 
 import { serviceClient } from "../service-client.ts";
-import { json, err } from "../http.ts";
+import { err, json } from "../http.ts";
 import { propagateGroupTags } from "../tag-propagation.ts";
 
 export async function handleBulkPropagateGroupTags(body: Record<string, unknown>) {
