@@ -811,6 +811,18 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                     <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Add tag…" className="h-7 text-xs bg-background" />
                     <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
                   </form>
+                  {(groupAssets?.length ?? 0) > 1 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs w-full"
+                      onClick={handleSyncGroupTags}
+                      disabled={syncingTags}
+                    >
+                      {syncingTags ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Tag className="h-3 w-3 mr-1" />}
+                      Sync Tags to All Group Members
+                    </Button>
+                  )}
                 </section>
               </>
             )}
