@@ -2832,9 +2832,10 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
 
   if (!candidates || candidates.length === 0) {
     // All items in this window were filtered out (no matching assets or already classified).
-    // Advance cursor past this window so the runner tries the next page.
+    // If the window was full (50 items), advance cursor. Otherwise we've exhausted the table.
+    const isLastPage = rawItems.length < 50;
     const nextOffset = offset + rawItems.length;
-    return json({ ok: true, done: false, classified: 0, skipped_unclassifiable: 0, total: nextOffset, nextOffset });
+    return json({ ok: true, done: isLastPage, classified: 0, skipped_unclassifiable: 0, total: nextOffset, nextOffset });
   }
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
