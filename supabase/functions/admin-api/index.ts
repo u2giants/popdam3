@@ -1123,7 +1123,14 @@ async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
         else if (v.outcome === "failed") {
           failed++;
           console.error("bulk-ai-tag asset failed", { assetId: v.asset_id, httpStatus: v.http_status });
-          failureSamples.push({ at: v.at, asset_id: v.asset_id, filename: v.filename, relative_path: v.relative_path, http_status: v.http_status, error: v.error });
+          failureSamples.push({
+            at: v.at,
+            asset_id: v.asset_id,
+            filename: v.filename,
+            relative_path: v.relative_path,
+            http_status: v.http_status,
+            error: v.error,
+          });
         }
       } else {
         failed++;
