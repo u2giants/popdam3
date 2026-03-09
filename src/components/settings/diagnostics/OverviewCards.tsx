@@ -168,7 +168,7 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
           </p>
         )}
         {isFailed && (
-          <div className="bg-destructive/10 border border-destructive/30 rounded-md p-2 text-xs text-destructive font-mono">
+          <div className="bg-destructive/10 border border-destructive/30 rounded-md p-2 text-xs text-destructive">
             <div className="flex items-center justify-between gap-2 mb-1">
               <span className="font-semibold">Scan Error</span>
               {progress.updated_at && (
@@ -178,7 +178,13 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
                 </span>
               )}
             </div>
-            {progress.error || "Scan failed — check agent logs for details."}
+            <p className="font-mono">{progress.error || "Scan failed"}</p>
+            <Link
+              to="/settings/scan-diagnostics"
+              className="inline-flex items-center gap-1 mt-1.5 text-destructive underline underline-offset-2 hover:no-underline font-sans"
+            >
+              <ExternalLink className="h-3 w-3" /> View full diagnostics
+            </Link>
           </div>
         )}
       </CardContent>

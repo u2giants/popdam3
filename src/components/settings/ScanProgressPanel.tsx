@@ -215,8 +215,10 @@ export function ScanProgressPanel({
       {/* Stale warning */}
       {isStale && (
         <p className="text-[hsl(var(--warning))]">
-          No update from the agent in {formatElapsed(now - lastUpdate)}. The agent may have crashed,
-          Illustrator may be hung on a file, or the agent lost connectivity. Check agent logs.
+          No update from the agent in {formatElapsed(now - lastUpdate)}. The agent may have crashed or lost connectivity.{" "}
+          <Link to="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline inline-flex items-center gap-1">
+            <ExternalLink className="h-3 w-3" /> View diagnostics
+          </Link>
         </p>
       )}
 
