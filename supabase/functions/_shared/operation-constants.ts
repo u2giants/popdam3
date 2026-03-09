@@ -78,4 +78,5 @@ export const OP_ACTIONS: Record<string, string> = {
   "reconcile-style-group-stats": "reconcile-style-group-stats",
   "erp-enrichment": "apply-erp-enrichment",
   "erp-classify": "classify-erp-categories",
+  "propagate-group-tags": "bulk-propagate-group-tags",
 };
