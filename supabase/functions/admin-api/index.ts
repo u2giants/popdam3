@@ -2790,9 +2790,9 @@ async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 
 async function handleClassifyErpCategories(body: Record<string, unknown>) {
   const batchSize = 5;
-  const scanWindow = 500;
-  const maxScanWindows = 20; // max 10k ERP rows scanned per invocation
-  const offset = typeof body.offset === "number" && body.offset >= 0 ? body.offset : 0;
+  // Keep IN() filters small to avoid oversized PostgREST URLs.
+  const scanWindow = 80;
+  const maxScanWindows = 50; // max 4k ERP rows scanned per invocation
 
   const db = serviceClient();
 
