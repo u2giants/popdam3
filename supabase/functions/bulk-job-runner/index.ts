@@ -25,6 +25,7 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
   "rebuild-style-groups": 1000,
   "reconcile-style-group-stats": 1000,
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
+  "propagate-group-tags": 1500, // Heavy per-group DB work; avoid CPU exhaustion (WORKER_LIMIT)
 };
 
 const AUTO_RESUME_DEFAULTS = {
@@ -38,6 +39,8 @@ const AUTO_RESUME_MAX_ATTEMPTS_BY_OP: Record<string, number> = {
   // Long-running ERP classification can hit intermittent gateway timeouts at scale.
   // Allow substantially more resumptions so very large runs (e.g. 90k+) don't stall.
   "erp-classify": 1000,
+  // Propagation iterates many groups with heavy per-group queries; transient WORKER_LIMIT is common.
+  "propagate-group-tags": 50,
 };
 
 // ── Progress accumulators ───────────────────────────────────────────
