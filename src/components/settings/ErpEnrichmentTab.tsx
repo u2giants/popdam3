@@ -638,7 +638,6 @@ function ReviewQueue() {
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
   };
-  const canReject = statusFilter === "pending" || statusFilter === "auto_applied";
 
   return (
     <TooltipProvider delayDuration={200}>
