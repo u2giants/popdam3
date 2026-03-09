@@ -263,9 +263,10 @@ export default function LibraryTopBar({
                 <span className={cn(
                   "h-1.5 w-1.5 rounded-full",
                   lastScanStatus === "completed" && "bg-[hsl(var(--success))]",
+                  lastScanStatus === "completed_with_errors" && "bg-[hsl(var(--warning))]",
                   lastScanStatus === "failed" && "bg-destructive"
                 )} />
-                Last: {lastScanStatus === "completed" ? "Success" : "Failed"}
+                Last: {lastScanStatus === "completed" ? "Success" : lastScanStatus === "completed_with_errors" ? "Done (with errors)" : "Failed"}
               </Badge>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[300px]">
