@@ -82,8 +82,6 @@ export default function TiffHygieneTab() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
   const [filter, setFilter] = useState<"all" | "uncompressed" | "compressed" | "processed" | "failed">("all");
-  const [sortField, setSortField] = useState<"relative_path" | "file_size" | "file_modified_at" | "compression_type">("relative_path");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [scanPending, setScanPending] = useState(false);
   const scanPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -99,37 +97,49 @@ export default function TiffHygieneTab() {
   const rawFiles: TiffFile[] = data?.files || [];
   const summary = data?.summary || {};
 
-  // Sort files client-side
-  const files = useMemo(() => {
-    const sorted = [...rawFiles];
-    sorted.sort((a, b) => {
-      let cmp = 0;
-      switch (sortField) {
-        case "file_size":
-          cmp = (a.file_size ?? 0) - (b.file_size ?? 0);
-          break;
-        case "file_modified_at":
-          cmp = new Date(a.file_modified_at).getTime() - new Date(b.file_modified_at).getTime();
-          break;
-        case "compression_type":
-          cmp = a.compression_type.localeCompare(b.compression_type);
-          break;
-        default:
-          cmp = a.relative_path.localeCompare(b.relative_path);
-      }
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return sorted;
-  }, [rawFiles, sortField, sortDir]);
+  // Filterable + sortable column definitions
+  const tiffCols: ColumnDef[] = useMemo(() => [
+    { key: "relative_path", label: "File", sortable: true, filterable: true },
+    { key: "file_size", label: "Size", sortable: true, width: 80 },
+    { key: "compression_type", label: "Compression", sortable: true, filterable: true, width: 96 },
+    { key: "file_modified_at", label: "Modified", sortable: true, width: 96 },
+    { key: "file_created_at", label: "Created", width: 96 },
+    { key: "status", label: "Status", sortable: true, filterable: true, width: 80 },
+    { key: "new_file_size", label: "New Size", width: 80 },
+    { key: "new_file_modified_at", label: "New Modified", width: 96 },
+    { key: "new_file_created_at", label: "New Created", width: 96 },
+    { key: "savings", label: "Savings", width: 64 },
+  ], []);
 
-  const toggleSort = useCallback((field: typeof sortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDir(field === "file_size" ? "desc" : "asc");
+  const getTiffCell = useCallback((f: TiffFile, key: string): string => {
+    switch (key) {
+      case "relative_path": return f.relative_path;
+      case "file_size": return String(f.file_size);
+      case "compression_type": return f.compression_type;
+      case "file_modified_at": return f.file_modified_at;
+      case "file_created_at": return f.file_created_at || "";
+      case "status": return f.status;
+      case "new_file_size": return f.new_file_size ? String(f.new_file_size) : "";
+      case "new_file_modified_at": return f.new_file_modified_at || "";
+      case "new_file_created_at": return f.new_file_created_at || "";
+      case "savings":
+        if (f.new_file_size && f.file_size > 0) return String(Math.round((1 - f.new_file_size / f.file_size) * 100));
+        return "";
+      default: return "";
     }
-  }, [sortField]);
+  }, []);
+
+  const {
+    processed: files,
+    sortKey: sortField,
+    sortDir,
+    filters: tiffFilters,
+    suggestions: tiffSuggestions,
+    toggleSort,
+    setFilter: setTiffFilter,
+    clearFilter: clearTiffFilter,
+    hasActiveFilters: tiffHasActiveFilters,
+  } = useTableFilterSort(rawFiles, tiffCols, getTiffCell, { key: "relative_path", dir: "asc" });
 
   // Check TIFF_SCAN_REQUEST status to show pending state
   const { data: scanReqData } = useQuery({
