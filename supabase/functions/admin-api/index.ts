@@ -45,6 +45,20 @@ import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-han
 
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_shared/admin-handlers/erp-handlers.ts";
 
+import { handleReprocessAssetMetadata, handleBackfillSkuNames } from "../_shared/admin-handlers/metadata-handlers.ts";
+
+import { handlePurgeOldAssets } from "../_shared/admin-handlers/purge-handlers.ts";
+
+import {
+  handleTriggerErpSync,
+  handleErpSyncRuns,
+  handleErpEnrichmentStats,
+  handleErpReviewQueue,
+  handleErpReviewAction,
+  handleErpItemsBrowse,
+  handleErpItemsDismiss,
+} from "../_shared/admin-handlers/erp-browse-handlers.ts";
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 // serviceClient, requireString, optionalString are now imported from shared modules
