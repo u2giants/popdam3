@@ -126,6 +126,8 @@ function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperat
   const elapsedMs = s.started_at ? endTime - new Date(s.started_at).getTime() : 0;
   const rate = calcRate(done, elapsedMs);
 
+  const canResume = (s.status === "failed" || s.status === "interrupted") && typeof s.cursor === "number" && s.cursor > 0;
+
   return (
     <div className="space-y-2 rounded-md border border-border/50 p-3">
       <div className="flex items-center justify-between text-sm">
@@ -144,6 +146,16 @@ function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperat
           {op.isActive && (
             <Button variant="ghost" size="sm" className="h-5 px-1.5 text-destructive hover:text-destructive" onClick={() => op.stop()}>
               <XCircle className="h-3 w-3" />
+            </Button>
+          )}
+          {canResume && (
+            <Button
+              variant="ghost" size="sm" className="h-5 px-2 text-xs text-primary hover:text-primary"
+              onClick={() => op.start({
+                confirmMessage: `Resume propagation from group ${s.cursor?.toLocaleString()}? (${((p.propagated as number) || 0) + ((p.skipped as number) || 0)} already processed)`,
+              })}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" /> Resume
             </Button>
           )}
           {!op.isActive && s.status !== "idle" && (
