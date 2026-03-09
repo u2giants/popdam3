@@ -38,6 +38,7 @@ const App = () => (
                 <Route path="/" element={<Index />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/ai-tagging-failures" element={<AiTaggingFailuresPage />} />
+                <Route path="/settings/ai-tagging-detail" element={<AiTaggingDetailPage />} />
                 <Route path="/settings/scan-diagnostics" element={<ScanDiagnosticsPage />} />
                 <Route path="/downloads" element={<DownloadsPage />} />
                 <Route path="/setup" element={<SetupPage />} />
