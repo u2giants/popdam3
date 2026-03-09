@@ -2837,12 +2837,8 @@ async function handleClassifyErpCategories(body: Record<string, unknown>) {
     const erpItemIds = rows.map((r) => r.id);
 
     const [assetMatchRes, groupMatchRes, existingPredictionsRes] = await Promise.all([
-      styleNumbers.length
-        ? db.from("assets").select("sku").in("sku", styleNumbers).eq("is_deleted", false)
-        : Promise.resolve({ data: [], error: null }),
-      styleNumbers.length
-        ? db.from("style_groups").select("sku").in("sku", styleNumbers)
-        : Promise.resolve({ data: [], error: null }),
+      styleNumbers.length ? db.from("assets").select("sku").in("sku", styleNumbers).eq("is_deleted", false) : Promise.resolve({ data: [], error: null }),
+      styleNumbers.length ? db.from("style_groups").select("sku").in("sku", styleNumbers) : Promise.resolve({ data: [], error: null }),
       erpItemIds.length
         ? db.from("product_category_predictions").select("erp_item_id,status").in("erp_item_id", erpItemIds)
         : Promise.resolve({ data: [], error: null }),
