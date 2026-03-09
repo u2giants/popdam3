@@ -3005,15 +3005,18 @@ Use the provided tool to return your classification.`;
     }
   }
 
-  // Done when the query returned fewer than batchSize items (exhausted candidates)
-  const done = candidates.length < batchSize;
+  // Done only when the raw query returned fewer than 50 rows (we've exhausted the table).
+  // Previously this checked candidates.length < batchSize, but candidates is a small
+  // filtered slice — a sparse window could yield 0-1 candidates while thousands remain.
+  const isLastPage = rawItems.length < 50;
+  const nextOffset = offset + rawItems.length;
   return json({
     ok: true,
-    done,
-    nextOffset: offset + candidates.length,
+    done: isLastPage,
+    nextOffset,
     classified,
     skipped_unclassifiable: skippedUnclassifiable,
-    total: offset + candidates.length,
+    total: nextOffset,
   });
 }
 
