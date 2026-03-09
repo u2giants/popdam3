@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "./useAdminApi";
 import type { ScanCounters } from "./useAgentStatus";
 
@@ -15,103 +16,92 @@ export interface ScanProgress {
 
 const STALE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
 
-const POLL_IDLE_MS = 15_000;
-const POLL_ACTIVE_MS = 5_000;
-const POLL_QUEUED_MS = 5_000;
+const DEFAULT_PROGRESS: ScanProgress = { status: "idle" };
+
+function parseScanProgress(
+  raw: unknown,
+  rawRequest: unknown,
+): ScanProgress {
+  if (raw && typeof raw === "object") {
+    const sp = raw as Record<string, unknown>;
+    let status = (sp.status as ScanProgressStatus) || "idle";
+    const updatedAt = sp.updated_at as string | undefined;
+
+    // Staleness detection
+    if (status === "running" && updatedAt) {
+      const elapsed = Date.now() - new Date(updatedAt).getTime();
+      if (elapsed > STALE_THRESHOLD_MS) {
+        status = "stale";
+      }
+    }
+
+    // Synthetic "queued" status
+    if (
+      (status === "idle" || !status) &&
+      rawRequest &&
+      typeof rawRequest === "object"
+    ) {
+      const reqStatus = (rawRequest as Record<string, unknown>).status as string | undefined;
+      if (reqStatus === "pending" || reqStatus === "claimed") {
+        status = "queued";
+      }
+    }
+
+    return {
+      status,
+      session_id: sp.session_id as string | undefined,
+      counters: sp.counters as ScanCounters | undefined,
+      current_path: sp.current_path as string | undefined,
+      updated_at: updatedAt,
+      skipped_dirs: Array.isArray(sp.skipped_dirs) ? sp.skipped_dirs as string[] : undefined,
+    };
+  }
+
+  // No SCAN_PROGRESS — check if there's a pending request
+  let status: ScanProgressStatus = "idle";
+  if (rawRequest && typeof rawRequest === "object") {
+    const reqStatus = (rawRequest as Record<string, unknown>).status as string | undefined;
+    if (reqStatus === "pending" || reqStatus === "claimed") {
+      status = "queued";
+    }
+  }
+  return { status };
+}
 
 /**
- * Polls admin-api get-config for SCAN_PROGRESS + SCAN_REQUEST every 5-15s.
- * Returns the current scan progress state, including a synthetic "queued"
- * status when a scan request exists but progress hasn't started yet.
+ * Polls admin-api get-config for SCAN_PROGRESS + SCAN_REQUEST.
+ * Uses React Query with adaptive refetchInterval:
+ *   - 5s when scan is active (running/queued/stale)
+ *   - 15s when idle
  */
 export function useScanProgress(): ScanProgress & { pollNow: () => void } {
-  const [progress, setProgress] = useState<ScanProgress>({ status: "idle" });
   const { call } = useAdminApi();
-  const prevStatusRef = useRef<ScanProgressStatus>("idle");
-  const pollNowRef = useRef<(() => void) | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let mounted = true;
-    let timerId: ReturnType<typeof setTimeout>;
-
-    const poll = async () => {
+  const { data } = useQuery({
+    queryKey: ["scan-progress"],
+    queryFn: async (): Promise<ScanProgress> => {
       try {
-        const data = await call("get-config", { keys: ["SCAN_PROGRESS", "SCAN_REQUEST"] });
-        if (!mounted) return;
-
-        const raw = data?.config?.SCAN_PROGRESS?.value ?? data?.config?.SCAN_PROGRESS;
-        const rawRequest = data?.config?.SCAN_REQUEST?.value ?? data?.config?.SCAN_REQUEST;
-
-        if (raw && typeof raw === "object") {
-          const sp = raw as Record<string, unknown>;
-          let status = (sp.status as ScanProgressStatus) || "idle";
-          const updatedAt = sp.updated_at as string | undefined;
-
-          // Staleness detection: if "running" but no update in 3+ minutes
-          if (status === "running" && updatedAt) {
-            const elapsed = Date.now() - new Date(updatedAt).getTime();
-            if (elapsed > STALE_THRESHOLD_MS) {
-              status = "stale";
-            }
-          }
-
-          // Synthetic "queued" status: request exists but progress is idle
-          if (
-            (status === "idle" || !status) &&
-            rawRequest &&
-            typeof rawRequest === "object"
-          ) {
-            const reqStatus = (rawRequest as Record<string, unknown>).status as string | undefined;
-            if (reqStatus === "pending" || reqStatus === "claimed") {
-              status = "queued";
-            }
-          }
-
-          setProgress({
-            status,
-            session_id: sp.session_id as string | undefined,
-            counters: sp.counters as ScanCounters | undefined,
-            current_path: sp.current_path as string | undefined,
-            updated_at: updatedAt,
-            skipped_dirs: Array.isArray(sp.skipped_dirs) ? sp.skipped_dirs as string[] : undefined,
-          });
-          prevStatusRef.current = status;
-        } else {
-          // No SCAN_PROGRESS — check if there's a pending request
-          let status: ScanProgressStatus = "idle";
-          if (rawRequest && typeof rawRequest === "object") {
-            const reqStatus = (rawRequest as Record<string, unknown>).status as string | undefined;
-            if (reqStatus === "pending" || reqStatus === "claimed") {
-              status = "queued";
-            }
-          }
-          setProgress({ status });
-          prevStatusRef.current = status;
-        }
+        const result = await call("get-config", { keys: ["SCAN_PROGRESS", "SCAN_REQUEST"] });
+        const raw = result?.config?.SCAN_PROGRESS?.value ?? result?.config?.SCAN_PROGRESS;
+        const rawRequest = result?.config?.SCAN_REQUEST?.value ?? result?.config?.SCAN_REQUEST;
+        return parseScanProgress(raw, rawRequest);
       } catch {
-        // silently ignore polling errors
+        // Silently ignore polling errors — return previous or default
+        return queryClient.getQueryData<ScanProgress>(["scan-progress"]) ?? DEFAULT_PROGRESS;
       }
-
-      if (!mounted) return;
-      const interval =
-        prevStatusRef.current === "running" ? POLL_ACTIVE_MS :
-        prevStatusRef.current === "queued" ? POLL_QUEUED_MS :
-        POLL_IDLE_MS;
-      timerId = setTimeout(poll, interval);
-    };
-
-    pollNowRef.current = poll;
-    poll();
-    return () => {
-      mounted = false;
-      pollNowRef.current = null;
-      clearTimeout(timerId);
-    };
-  }, [call]);
+    },
+    refetchInterval: (query) => {
+      const status = query.state.data?.status ?? "idle";
+      if (status === "running" || status === "stale" || status === "queued") return 5_000;
+      return 15_000;
+    },
+    initialData: DEFAULT_PROGRESS,
+  });
 
   const pollNow = useCallback(() => {
-    pollNowRef.current?.();
-  }, []);
+    queryClient.invalidateQueries({ queryKey: ["scan-progress"] });
+  }, [queryClient]);
 
-  return { ...progress, pollNow };
+  return { ...(data ?? DEFAULT_PROGRESS), pollNow };
 }
