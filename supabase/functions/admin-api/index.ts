@@ -1903,9 +1903,11 @@ async function handleErpItemsBrowse(body: Record<string, unknown>) {
         sortAsc ? "ASC" : "DESC"
       } NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
 
-    const { data: countResult } = await db.rpc("execute_readonly_query", { query_text: countSql });
+    const { data: countResult, error: countErr } = await db.rpc("execute_readonly_query", { query_text: countSql });
+    if (countErr) console.error("ERP browse count query failed:", countErr.message);
     const total = Array.isArray(countResult) ? (countResult[0]?.cnt ?? 0) : 0;
-    const { data: rows } = await db.rpc("execute_readonly_query", { query_text: dataSql });
+    const { data: rows, error: dataErr } = await db.rpc("execute_readonly_query", { query_text: dataSql });
+    if (dataErr) return err(`ERP browse query failed: ${dataErr.message}`, 500);
 
     return json({
       ok: true,
