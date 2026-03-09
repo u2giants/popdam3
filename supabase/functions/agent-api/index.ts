@@ -800,7 +800,7 @@ async function handleIngest(
   // processing_queue inserts removed — thumbnails are handled by render_queue trigger,
   // AI tagging by bulk-job-runner
 
-  assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, db).catch(() => {});
+  assignToStyleGroup(relativePath, newAsset.id, skuFields, derived, db).catch((e) => console.error(`assignToStyleGroup failed for new asset ${newAsset.id}:`, e));
 
   return json({ ok: true, action: "created", asset_id: newAsset.id, needs_group_rebuild: true });
 }
