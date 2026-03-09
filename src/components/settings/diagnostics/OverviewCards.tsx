@@ -1,10 +1,11 @@
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Database, Clock, Monitor, AlertTriangle, Activity,
-  Loader2, CheckCircle2, XCircle, ChevronDown, Wrench,
+  Loader2, CheckCircle2, XCircle, ChevronDown, Wrench, ExternalLink,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
