@@ -66,10 +66,7 @@ export async function propagateGroupTags(
   styleGroupId: string,
   options: { onlyUntagged?: boolean } = {},
 ): Promise<PropagationResult> {
-  const db = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const db = serviceClient();
 
   // 1. Fetch the source asset's product-level fields
   const { data: source, error: srcErr } = await db
