@@ -570,6 +570,23 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     updateAsset.mutate({ tags: detailAsset.tags.filter((t) => t !== tag) });
   };
 
+  // Sync group tags
+  const handleSyncGroupTags = async () => {
+    setSyncingTags(true);
+    try {
+      const result = await adminApi("sync-group-tags", { group_id: group.id });
+      queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
+      toast({
+        title: "Tags synced across group",
+        description: `${result.siblings_updated} assets updated, ${result.tags_propagated} tags propagated`,
+      });
+    } catch (e: any) {
+      toast({ title: "Sync failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSyncingTags(false);
+    }
+  };
+
   // Reset tag input when asset changes
   useEffect(() => {
     setTagInput("");
