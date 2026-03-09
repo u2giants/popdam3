@@ -352,7 +352,9 @@ function EnrichmentControls() {
               ? "border-primary bg-primary/5"
               : classifyOp.state.status === "interrupted"
                 ? "border-[hsl(var(--warning))] bg-[hsl(var(--warning)/0.08)]"
-                : "border-border"
+                : classifyOp.state.status === "failed"
+                  ? "border-destructive/60 bg-destructive/5"
+                  : "border-border"
           }`}
         >
           <div className="flex items-center justify-between">
@@ -369,6 +371,12 @@ function EnrichmentControls() {
                   RETRYING
                 </div>
               )}
+              {classifyOp.state.status === "failed" && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-[10px] font-medium">
+                  <AlertCircle className="h-3 w-3" />
+                  FAILED
+                </div>
+              )}
               <div>
                 <p className="text-sm font-medium">AI Classification</p>
                 <p className="text-xs text-muted-foreground">Classify legacy items missing mgCategory into 7 product categories</p>
@@ -379,9 +387,9 @@ function EnrichmentControls() {
                 <Button size="sm" variant="destructive" onClick={() => classifyOp.stop()} className="gap-1.5">
                   <X className="h-3.5 w-3.5" /> Stop
                 </Button>
-              ) : classifyOp.state.status === "interrupted" ? (
+              ) : classifyOp.state.status === "interrupted" || classifyOp.state.status === "failed" ? (
                 <Button size="sm" variant="secondary" onClick={handleClassify} className="gap-1.5">
-                  <Play className="h-3.5 w-3.5" /> Resume
+                  <Play className="h-3.5 w-3.5" /> Retry
                 </Button>
               ) : (
                 <Button
@@ -405,10 +413,10 @@ function EnrichmentControls() {
                 <span className="text-muted-foreground">
                   <span className="font-medium text-foreground">{String(classifyOp.state.progress?.classified || 0)}</span> classified
                   {" · "}
-                  <span className="font-medium text-foreground">{String(classifyOp.state.progress?.skipped_unclassifiable || 0)}</span> skipped
+                  <span className="font-medium text-foreground">{String(classifyOp.state.progress?.skipped_unclassifiable || 0)}</span> unclassifiable
                 </span>
                 <span className="text-muted-foreground">
-                  Batch <span className="font-medium text-foreground">{String(classifyOp.state.progress?.total || "?")}</span> scanned
+                  <span className="font-medium text-foreground">{String(classifyOp.state.progress?.total || "?")}</span> scanned
                 </span>
               </div>
               {classifyOp.state.status === "interrupted" && classifyOp.state.error && (
@@ -420,6 +428,12 @@ function EnrichmentControls() {
             <div className="flex items-center gap-1.5 text-xs text-[hsl(var(--success))]">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {classifyOp.state.result_message}
+            </div>
+          )}
+          {classifyOp.state.status === "failed" && classifyOp.state.error && (
+            <div className="flex items-center gap-1.5 text-xs text-destructive">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {classifyOp.state.error}
             </div>
           )}
           <ClassificationLiveLog
