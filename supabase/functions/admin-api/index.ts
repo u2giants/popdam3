@@ -267,10 +267,12 @@ async function handleSetConfig(
     }),
   );
 
-  for (const row of upserts) {
-    const { error } = await db.from("admin_config").upsert(row);
-    if (error) return err(`Failed to set ${row.key}: ${error.message}`, 500);
-  }
+  // Parallel upserts — independent config keys don't conflict
+  const results = await Promise.all(
+    upserts.map((row) => db.from("admin_config").upsert(row)),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) return err(`Failed to set config: ${failed.error.message}`, 500);
 
   return json({ ok: true });
 }
