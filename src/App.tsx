@@ -12,6 +12,7 @@ import SettingsPage from "./pages/SettingsPage";
 import DownloadsPage from "./pages/DownloadsPage";
 import SetupPage from "./pages/SetupPage";
 import AiTaggingFailuresPage from "./pages/AiTaggingFailuresPage";
+import ScanDiagnosticsPage from "./pages/ScanDiagnosticsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/" element={<Index />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/ai-tagging-failures" element={<AiTaggingFailuresPage />} />
+                <Route path="/settings/scan-diagnostics" element={<ScanDiagnosticsPage />} />
                 <Route path="/downloads" element={<DownloadsPage />} />
                 <Route path="/setup" element={<SetupPage />} />
               </Route>
