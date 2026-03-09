@@ -16,7 +16,7 @@
  *   - design_ref
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serviceClient } from "./service-client.ts";
 
 // Tags that describe the file itself, not the product — skip during propagation
 const FILE_SPECIFIC_TAGS = new Set([
@@ -66,10 +66,7 @@ export async function propagateGroupTags(
   styleGroupId: string,
   options: { onlyUntagged?: boolean } = {},
 ): Promise<PropagationResult> {
-  const db = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const db = serviceClient();
 
   // 1. Fetch the source asset's product-level fields
   const { data: source, error: srcErr } = await db
