@@ -1,12 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { parseSku } from "../_shared/sku-parser.ts";
-import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { corsHeaders, err, json } from "../_shared/http.ts";
-import { unwrapConfigString } from "../_shared/config-utils.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalString, requireString } from "../_shared/validators.ts";
-import { DEFAULT_WORKFLOW_FOLDER_MAP, deriveMetadataFromPath } from "../_shared/metadata-derivation.ts";
 
 // ── Extracted handler modules ───────────────────────────────────────
 import {
