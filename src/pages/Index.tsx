@@ -60,8 +60,8 @@ export default function LibraryPage() {
       toast({ title: "Scan started", description: "The Bridge Agent is scanning the NAS…" });
     }
 
-    // Scan completed
-    if (curr === "completed" || (curr === "idle" && (prev === "running" || prev === "queued"))) {
+    // Scan completed (including completed_with_errors)
+    if (curr === "completed" || curr === "completed_with_errors" || (curr === "idle" && (prev === "running" || prev === "queued"))) {
       setScanTriggered(false);
       const c = scanProgress.counters;
       let summary = "";
@@ -71,15 +71,31 @@ export default function LibraryPage() {
         if (c.ingested_new) parts.push(`${c.ingested_new} new`);
         if (c.updated_existing) parts.push(`${c.updated_existing} updated`);
         if (c.moved_detected) parts.push(`${c.moved_detected} moved`);
+        if (c.errors && curr === "completed_with_errors") parts.push(`${c.errors} errors`);
         summary = parts.length > 0 ? parts.join(", ") : "Nothing new to sync";
-        toast({ title: "Scan complete", description: summary });
+        
+        if (curr === "completed_with_errors") {
+          toast({
+            title: "Scan completed with errors",
+            description: (
+              <span>
+                {summary}.{" "}
+                <a href="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline">
+                  View details
+                </a>
+              </span>
+            ),
+          });
+        } else {
+          toast({ title: "Scan complete", description: summary });
+        }
       } else {
         summary = "Nothing new to sync — all assets are up to date.";
         toast({ title: "Scan complete", description: summary });
       }
       
       // Store persistent scan result
-      setLastScanStatus("completed");
+      setLastScanStatus(curr === "completed_with_errors" ? "completed_with_errors" : "completed");
       setLastScanTime(new Date().toISOString());
       setLastScanSummary(summary);
       
