@@ -33,7 +33,7 @@ serve(async (req: Request) => {
 
     const { data: asset, error: fetchErr } = await db
       .from("assets")
-      .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku")
+      .select("id, filename, relative_path, file_type, tags, licensor_id, property_id, thumbnail_url, status, ai_tagged_at, sku, style_group_id")
       .eq("id", assetId)
       .single();
 
