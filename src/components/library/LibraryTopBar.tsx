@@ -236,14 +236,14 @@ export default function LibraryTopBar({
                 variant="outline" 
                 className={cn(
                   "gap-1 text-[10px]",
-                  lastScanStatus === "completed" && "border-green-500/50 text-green-600",
-                  lastScanStatus === "failed" && "border-red-500/50 text-red-600"
+                  lastScanStatus === "completed" && "border-emerald-500/50 text-emerald-600",
+                  lastScanStatus === "failed" && "border-destructive/50 text-destructive"
                 )}
               >
                 <span className={cn(
                   "h-1.5 w-1.5 rounded-full",
-                  lastScanStatus === "completed" && "bg-green-500",
-                  lastScanStatus === "failed" && "bg-red-500"
+                  lastScanStatus === "completed" && "bg-emerald-500",
+                  lastScanStatus === "failed" && "bg-destructive"
                 )} />
                 Last: {lastScanStatus === "completed" ? "Success" : "Failed"}
               </Badge>
