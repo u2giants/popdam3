@@ -128,6 +128,7 @@ export function ScanStatusCard({ progress }: { progress: ScanProgress | null }) 
   const status = progress.status || "idle";
   const isRunning = status === "running" || status === "scanning";
   const isCompleted = status === "completed" || status === "done";
+  const isCompletedWithErrors = status === "completed_with_errors";
   const isFailed = status === "failed" || status === "error";
   const counters = progress.counters;
 
