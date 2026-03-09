@@ -36,7 +36,7 @@ export default function LibraryPage() {
   const lastSelectedIndex = useRef<number | null>(null);
   const [pageSize, setPageSize] = useState(200);
   const [scanTriggered, setScanTriggered] = useState(false);
-  const [lastScanStatus, setLastScanStatus] = useState<"completed" | "failed" | null>(null);
+  const [lastScanStatus, setLastScanStatus] = useState<"completed" | "completed_with_errors" | "failed" | null>(null);
   const [lastScanTime, setLastScanTime] = useState<string | null>(null);
   const [lastScanSummary, setLastScanSummary] = useState<string | null>(null);
   const agentStatus = useAgentStatus();
