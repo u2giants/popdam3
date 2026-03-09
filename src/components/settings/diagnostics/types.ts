@@ -69,6 +69,7 @@ export const OP_NAMES: Record<string, string> = {
   "reconcile-style-group-stats": "Reconcile Stats",
   "erp-enrichment": "ERP Enrichment",
   "erp-classify": "ERP Classify",
+  "propagate-group-tags": "Propagate Group Tags",
 };
 
 // Operations in DIFFERENT lanes can run simultaneously.
@@ -83,6 +84,7 @@ export const OP_LANES: Record<string, string> = {
   "backfill-sku-names": "metadata",
   "erp-enrichment": "erp",
   "erp-classify": "erp",
+  "propagate-group-tags": "ai-tagging",
 };
 
 export function getLane(opKey: string): string {

@@ -15,6 +15,7 @@ export const OP_NAMES: Record<string, string> = {
   "reconcile-style-group-stats": "Reconcile Stats",
   "erp-enrichment": "ERP Enrichment",
   "erp-classify": "ERP Classify",
+  "propagate-group-tags": "Propagate Group Tags",
 };
 
 // ── Parallel Lane System ────────────────────────────────────────────
@@ -31,6 +32,7 @@ export const OP_LANES: Record<string, string> = {
   "backfill-sku-names": "metadata",
   "erp-enrichment": "erp",
   "erp-classify": "erp",
+  "propagate-group-tags": "ai-tagging",
 };
 
 export function getLane(opKey: string): string {
@@ -76,4 +78,5 @@ export const OP_ACTIONS: Record<string, string> = {
   "reconcile-style-group-stats": "reconcile-style-group-stats",
   "erp-enrichment": "apply-erp-enrichment",
   "erp-classify": "classify-erp-categories",
+  "propagate-group-tags": "bulk-propagate-group-tags",
 };

@@ -117,6 +117,12 @@ function buildProgress(
         skipped_unclassifiable: ((prev.skipped_unclassifiable as number) || 0) + ((batch.skipped_unclassifiable as number) || 0),
         total: ((prev.total as number) || 0) + ((batch.total as number) || 0),
       };
+    case "propagate-group-tags":
+      return {
+        propagated: ((prev.propagated as number) || 0) + ((batch.propagated as number) || 0),
+        skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
+        total: prev.total || 0,
+      };
     default:
       return { ...prev, ...batch };
   }
@@ -142,6 +148,8 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
       return `Enriched ${progress.assets_updated || 0} assets, ${progress.groups_updated || 0} groups`;
     case "erp-classify":
       return `AI-classified ${progress.classified || 0} items (${progress.skipped_unclassifiable || 0} unclassifiable)`;
+    case "propagate-group-tags":
+      return `Propagated tags across ${progress.propagated || 0} groups (${progress.skipped || 0} skipped)`;
     default:
       return "Operation completed";
   }

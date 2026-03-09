@@ -39,6 +39,8 @@ import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_sh
 
 import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
+import { handleBulkPropagateGroupTags, handleCountGroupsForPropagation } from "../_shared/admin-handlers/tag-propagation-handlers.ts";
+
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_shared/admin-handlers/erp-handlers.ts";
 
 import { handleBackfillSkuNames, handleReprocessAssetMetadata } from "../_shared/admin-handlers/metadata-handlers.ts";
@@ -739,6 +741,10 @@ serve(async (req: Request) => {
         return await handleBulkAiTag(body, true);
       case "count-untagged-assets":
         return await handleCountUntaggedAssets();
+      case "bulk-propagate-group-tags":
+        return await handleBulkPropagateGroupTags(body);
+      case "count-groups-for-propagation":
+        return await handleCountGroupsForPropagation();
 
       // ── Tag propagation ──
       case "sync-group-tags": {
