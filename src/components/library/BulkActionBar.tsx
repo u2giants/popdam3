@@ -134,7 +134,8 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
                 size="sm"
                 className="h-8 gap-1.5"
                 onClick={handleBulkAiTag}
-                disabled={false}
+                disabled={op.isActive || selectedGroups.length === 0}
+                title={selectedGroups.length === 0 ? "Select groups to AI tag" : op.isActive ? "AI tagging in progress..." : "AI tag selected groups"}
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 AI Tag

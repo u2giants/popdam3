@@ -40,6 +40,8 @@ interface LibraryTopBarProps {
   lastScanStatus?: "completed" | "failed" | null;
   lastScanTime?: string;
   lastScanSummary?: string;
+  scanBlocked: boolean;
+  scanBlockedReason: string | null;
 }
 
 function truncatePath(p: string | undefined): string {
@@ -83,7 +85,17 @@ export default function LibraryTopBar({
   lastScanStatus,
   lastScanTime,
   lastScanSummary,
+  scanBlocked,
+  scanBlockedReason,
 }: LibraryTopBarProps) {
+  const syncDisabled = scanPending || scanRunning || scanQueued || scanBlocked;
+  const syncTitle = scanBlocked ? scanBlockedReason || "Scan blocked" 
+    : scanStale ? "Scan appears stuck — use Reset Scan State in Settings" 
+    : scanRunning ? "Scanning…" 
+    : scanQueued ? "Queued, waiting for agent…" 
+    : scanPending ? "Waiting for agent…" 
+    : "Trigger scan";
+
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-overlay px-4 py-3">
       {/* Filters toggle — far left so it sits above the sidebar */}
@@ -189,17 +201,25 @@ export default function LibraryTopBar({
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onRefresh} title="Refresh library">
         <RotateCcw className="h-4 w-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-9 gap-1.5 relative"
-        onClick={onSync}
-        disabled={scanPending || scanRunning || scanQueued}
-        title={scanStale ? "Scan appears stuck — use Reset Scan State in Settings" : scanRunning ? "Scanning…" : scanQueued ? "Queued, waiting for agent…" : scanPending ? "Waiting for agent…" : "Trigger scan"}
-      >
-        <RefreshCw className={cn("h-4 w-4", scanRunning && !scanStale && "animate-spin")} />
-        {scanStale ? "Scan stuck" : scanRunning ? truncatePath(scanCurrentPath) : scanQueued ? "Queued…" : "Sync"}
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 gap-1.5 relative"
+              onClick={onSync}
+              disabled={syncDisabled}
+            >
+              <RefreshCw className={cn("h-4 w-4", scanRunning && !scanStale && "animate-spin")} />
+              {scanStale ? "Scan stuck" : scanRunning ? truncatePath(scanCurrentPath) : scanQueued ? "Queued…" : "Sync"}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-[280px]">
+            {syncTitle}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       {scanQueued && (
         <Badge variant="outline" className="gap-1 text-[10px] border-[hsl(var(--warning))]/50 text-[hsl(var(--warning))] animate-pulse">
           <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--warning))]" />

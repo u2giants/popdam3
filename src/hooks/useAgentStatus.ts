@@ -32,6 +32,8 @@ export interface AgentRecord {
   lastCounters: ScanCounters | null;
   /** Most recent counter_history entry timestamp */
   lastActivityAt: string | null;
+  /** Whether force_stop is set on this agent */
+  forceStop: boolean;
 }
 
 export interface AgentStatusInfo {
@@ -40,6 +42,10 @@ export interface AgentStatusInfo {
   status: "online" | "degraded" | "offline" | "none";
   agentCount: number;
   onlineCount: number;
+  /** True if any bridge agent has force_stop or scan_abort set */
+  scanBlocked: boolean;
+  /** Reason scanning is blocked, if any */
+  scanBlockedReason: string | null;
 }
 
 const TWO_MIN = 2 * 60 * 1000;
@@ -79,6 +85,8 @@ export function useAgentStatus(): AgentStatusInfo {
     status: "none",
     agentCount: 0,
     onlineCount: 0,
+    scanBlocked: true,
+    scanBlockedReason: "Loading agent status...",
   });
 
   useEffect(() => {
@@ -90,7 +98,15 @@ export function useAgentStatus(): AgentStatusInfo {
         .select("id, agent_name, agent_type, last_heartbeat, metadata");
 
       if (error || !data) {
-        if (mounted) setInfo({ bridgeStatus: "none", agents: [], status: "none", agentCount: 0, onlineCount: 0 });
+        if (mounted) setInfo({ 
+          bridgeStatus: "none", 
+          agents: [], 
+          status: "none", 
+          agentCount: 0, 
+          onlineCount: 0,
+          scanBlocked: true,
+          scanBlockedReason: "Failed to load agent status",
+        });
         return;
       }
 
@@ -110,6 +126,7 @@ export function useAgentStatus(): AgentStatusInfo {
           lastActivityAt: lastEntry && typeof (lastEntry as Record<string, unknown>).ts === "string"
             ? (lastEntry as Record<string, unknown>).ts as string
             : null,
+          forceStop: meta.force_stop === true || meta.scan_abort === true,
         };
       });
 
@@ -119,6 +136,18 @@ export function useAgentStatus(): AgentStatusInfo {
 
       const online = agents.filter((a) => a.isOnline).length;
 
+      // Check if any bridge agent has force_stop / scan_abort
+      const blockedBridge = bridgeAgents.find((a) => a.forceStop);
+      const scanBlocked = bridgeStatus === "none" || (bridgeStatus === "offline" && bridgeAgents.length > 0) || !!blockedBridge;
+      let scanBlockedReason: string | null = null;
+      if (bridgeStatus === "none") {
+        scanBlockedReason = "No Bridge Agent registered. Go to Settings → Setup to connect one.";
+      } else if (bridgeStatus === "offline") {
+        scanBlockedReason = "Bridge Agent is offline. Check that the Docker container is running on your NAS.";
+      } else if (blockedBridge) {
+        scanBlockedReason = "Scanning was force-stopped. Clicking Sync will auto-clear this and start a new scan.";
+      }
+
       if (mounted) {
         setInfo({
           bridgeStatus,
@@ -126,6 +155,8 @@ export function useAgentStatus(): AgentStatusInfo {
           agentCount: data.length,
           onlineCount: online,
           status: data.length === 0 ? "none" : online === data.length ? "online" : online > 0 ? "degraded" : "offline",
+          scanBlocked,
+          scanBlockedReason,
         });
       }
     };

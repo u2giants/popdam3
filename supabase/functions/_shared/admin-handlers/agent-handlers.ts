@@ -144,6 +144,26 @@ export async function handleTriggerScan(
   const db = serviceClient();
   const requestId = crypto.randomUUID();
 
+  // Auto-clear force_stop / scan_abort on all agents when user explicitly
+  // triggers a scan — the user's intent is unambiguous.
+  const { data: agents } = await db
+    .from("agent_registrations")
+    .select("id, metadata");
+
+  let anyCleared = false;
+  for (const a of agents || []) {
+    const metadata = (a.metadata as Record<string, unknown>) || {};
+    if (metadata.force_stop === true || metadata.scan_abort === true) {
+      await db
+        .from("agent_registrations")
+        .update({
+          metadata: { ...metadata, scan_abort: false, force_stop: false },
+        })
+        .eq("id", a.id);
+      anyCleared = true;
+    }
+  }
+
   const { error } = await db.from("admin_config").upsert({
     key: "SCAN_REQUEST",
     value: {
@@ -158,7 +178,7 @@ export async function handleTriggerScan(
   });
 
   if (error) return err(error.message, 500);
-  return json({ ok: true, request_id: requestId });
+  return json({ ok: true, request_id: requestId, force_stop_cleared: anyCleared });
 }
 
 // ── stop-scan ───────────────────────────────────────────────────────

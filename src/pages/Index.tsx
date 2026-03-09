@@ -296,6 +296,8 @@ export default function LibraryPage() {
         lastScanStatus={lastScanStatus}
         lastScanTime={lastScanTime}
         lastScanSummary={lastScanSummary}
+        scanBlocked={agentStatus.scanBlocked}
+        scanBlockedReason={agentStatus.scanBlockedReason}
       />
 
       <ScanMonitorBanner scanProgress={scanProgress} onStopScan={handleStopScan} />
