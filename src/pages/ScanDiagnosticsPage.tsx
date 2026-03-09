@@ -228,6 +228,29 @@ export default function ScanDiagnosticsPage() {
             </Card>
           )}
 
+          {/* Completed with errors — soft warning */}
+          {isCompletedWithErrors && (
+            <Card className="border-[hsl(var(--warning))]/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2 text-[hsl(var(--warning))]">
+                  <AlertTriangle className="h-4 w-4" />
+                  Scan completed with {counters.errors ?? 0} file-level error{(counters.errors ?? 0) !== 1 ? "s" : ""}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm">
+                  The scan finished processing all directories successfully, but {counters.errors ?? 0} individual
+                  file{(counters.errors ?? 0) !== 1 ? "s" : ""} failed during ingestion (hashing, thumbnailing, or upload).
+                  All other files were processed normally.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  This is typically caused by corrupted files, extremely large files exceeding memory limits,
+                  or transient network issues during thumbnail upload. These files will be retried on the next scan.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Counters */}
           {Object.keys(counters).length > 0 && (
             <Card>
