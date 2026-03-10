@@ -244,201 +244,36 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
     });
   }
 
-  // ── Stage 3: assign assets → groups ───────────────────────────────
+  // ── Stage 3: assign assets → groups (via DB function) ─────────────
   if (state.stage === "rebuild_assets") {
-    const FETCH_MAX_ATTEMPTS = 5;
-    const WRITE_MAX_ATTEMPTS = 4;
-    const cursorLabel = state.last_rebuild_asset_id ?? "start";
-
     try {
-      const fetchResult = await withRetry(
-        async () => {
-          let q = db
-            .from("assets")
-            .select(
-              "id, relative_path, filename, file_type, created_at, modified_at, workflow_status, is_licensed, licensor_id, licensor_code, licensor_name, property_id, property_code, property_name, product_category, division_code, division_name, mg01_code, mg01_name, mg02_code, mg02_name, mg03_code, mg03_name, size_code, size_name",
-            )
-            .eq("is_deleted", false)
-            .order("id", { ascending: true })
-            .limit(rebuildBatch);
-
-          if (state.last_rebuild_asset_id) q = q.gt("id", state.last_rebuild_asset_id);
-
-          const { data, error: fetchErr } = await q;
-          if (fetchErr) throw new Error(formatPostgrestError(fetchErr));
-          return data;
-        },
-        FETCH_MAX_ATTEMPTS,
-        500,
-        `rebuild_assets/fetch cursor=${cursorLabel}`,
-      );
-
-      const assets = fetchResult ?? [];
-      if (assets.length === 0) {
-        const nextState: RebuildState = { ...state, stage: "finalize_stats", last_stats_group_id: null };
-        await saveState(nextState);
-        return json({
-          ok: true,
-          stage: "rebuild_assets",
-          groups_created: 0,
-          assets_assigned: 0,
-          assets_ungrouped: 0,
-          total_processed: nextState.total_processed ?? 0,
-          total_assets: nextState.total_assets ?? 0,
-          done: false,
-          nextOffset: offset + 1,
-          resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
-        });
-      }
-
-      let processUntil = assets.length;
-      if (rebuildMaxGroupsPerCall > 0) {
-        const seenSkus = new Set<string>();
-        for (let i = 0; i < assets.length; i++) {
-          const sku = extractSkuFolder(assets[i].relative_path);
-          if (!sku) continue;
-          if (!seenSkus.has(sku) && seenSkus.size >= rebuildMaxGroupsPerCall) {
-            processUntil = i;
-            break;
-          }
-          seenSkus.add(sku);
-        }
-      }
-
-      const processBatch = assets.slice(0, Math.max(1, processUntil));
-      const skuMap = new Map<string, typeof processBatch>();
-      let ungrouped = 0;
-
-      for (const asset of processBatch) {
-        const sku = extractSkuFolder(asset.relative_path);
-        if (!sku) {
-          ungrouped++;
-          continue;
-        }
-        if (!skuMap.has(sku)) skuMap.set(sku, []);
-        skuMap.get(sku)!.push(asset);
-      }
-
-      const groupRows = Array.from(skuMap.entries()).map(([sku, members]) => {
-        const skuUpper = sku.toUpperCase();
-        const first = members.find((m) => m.filename.toUpperCase().includes(skuUpper)) ?? members[0];
-        const pathParts = first.relative_path.split("/");
-        const skuIdx = pathParts.lastIndexOf(sku);
-        const folderPath = skuIdx >= 0 ? pathParts.slice(0, skuIdx + 1).join("/") : pathParts.slice(0, -1).join("/");
-
-        return {
-          sku,
-          folder_path: folderPath,
-          is_licensed: first.is_licensed ?? false,
-          licensor_id: (first as { licensor_id?: string | null }).licensor_id ?? null,
-          licensor_code: first.licensor_code,
-          licensor_name: first.licensor_name,
-          property_id: (first as { property_id?: string | null }).property_id ?? null,
-          property_code: first.property_code,
-          property_name: first.property_name,
-          product_category: first.product_category,
-          division_code: first.division_code,
-          division_name: first.division_name,
-          mg01_code: first.mg01_code,
-          mg01_name: first.mg01_name,
-          mg02_code: first.mg02_code,
-          mg02_name: first.mg02_name,
-          mg03_code: first.mg03_code,
-          mg03_name: first.mg03_name,
-          size_code: first.size_code,
-          size_name: first.size_name,
-        };
+      const rpcCursor = state.last_rebuild_asset_id ?? null;
+      const { data: rpcResult, error: rpcErr } = await db.rpc("rebuild_style_groups_batch", {
+        p_last_asset_id: rpcCursor,
+        p_batch_size: rebuildBatch,
       });
 
-      let groupsCreated = 0;
-      let assetsAssigned = 0;
-
-      if (groupRows.length > 0) {
-        const allUpsertedGroups: Array<{ id: string; sku: string }> = [];
-        let groupCursor = 0;
-        let groupChunkSize = Math.min(100, groupRows.length);
-        const GROUP_CHUNK_MIN = 10;
-
-        while (groupCursor < groupRows.length) {
-          await sleep(50);
-          const chunk = groupRows.slice(groupCursor, groupCursor + groupChunkSize);
-          const upsertResult = await withRetry(
-            async () => {
-              const { data: upsertedGroups, error: upsertErr } = await db
-                .from("style_groups")
-                .upsert(chunk, { onConflict: "sku" })
-                .select("id, sku");
-              if (upsertErr) throw new Error(formatPostgrestError(upsertErr));
-              return upsertedGroups as Array<{ id: string; sku: string }>;
-            },
-            WRITE_MAX_ATTEMPTS,
-            400,
-            `rebuild_assets/upsert_groups cursor=${cursorLabel} chunk@${groupCursor}`,
-          ).catch((e) => {
-            const msg = ((e as Error).message || "").toLowerCase();
-            if (isStatementTimeout(msg) && groupChunkSize > GROUP_CHUNK_MIN) return null;
-            throw e;
-          });
-
-          if (upsertResult === null) {
-            groupChunkSize = Math.max(GROUP_CHUNK_MIN, Math.ceil(groupChunkSize / 2));
-            continue;
-          }
-
-          allUpsertedGroups.push(...(upsertResult ?? []));
-          groupCursor += chunk.length;
-        }
-
-        const groupIdBySku = new Map<string, string>(allUpsertedGroups.map((g) => [g.sku, g.id]));
-
-        const assignments: Array<{ asset_id: string; style_group_id: string }> = [];
-        for (const [sku, members] of skuMap) {
-          const groupId = groupIdBySku.get(sku);
-          if (!groupId) continue;
-          for (const m of members) assignments.push({ asset_id: m.id, style_group_id: groupId });
-        }
-
-        if (assignments.length > 0) {
-          let assignCursor = 0;
-          let assignChunkSize = Math.min(200, assignments.length);
-          const ASSIGN_CHUNK_MIN = 25;
-
-          while (assignCursor < assignments.length) {
-            await sleep(50);
-            const chunk = assignments.slice(assignCursor, assignCursor + assignChunkSize);
-            const assignedCount = await withRetry(
-              async () => {
-                const { data, error: assignErr } = await db.rpc("bulk_assign_style_groups", { p_assignments: chunk });
-                if (assignErr) throw new Error(formatPostgrestError(assignErr));
-                return typeof data === "number" ? data : chunk.length;
-              },
-              WRITE_MAX_ATTEMPTS,
-              400,
-              `rebuild_assets/assign cursor=${cursorLabel} chunk@${assignCursor}`,
-            ).catch((e) => {
-              const msg = ((e as Error).message || "").toLowerCase();
-              if (isStatementTimeout(msg) && assignChunkSize > ASSIGN_CHUNK_MIN) return null;
-              throw e;
-            });
-
-            if (assignedCount === null) {
-              assignChunkSize = Math.max(ASSIGN_CHUNK_MIN, Math.ceil(assignChunkSize / 2));
-              continue;
-            }
-
-            assetsAssigned += assignedCount;
-            assignCursor += chunk.length;
-          }
-        }
-
-        groupsCreated = allUpsertedGroups.length;
+      if (rpcErr) {
+        const msg = formatPostgrestError(rpcErr);
+        console.error(`rebuild-style-groups stage 3 rpc error:`, msg);
+        return json({ ok: false, error: msg, stage: "rebuild_assets", substage: "rpc" }, 500);
       }
 
-      const totalProcessed = (state.total_processed ?? 0) + processBatch.length;
-      const reachedEnd = assets.length < rebuildBatch;
+      const row = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+      if (!row) {
+        return json({ ok: false, error: "No result from rebuild_style_groups_batch", stage: "rebuild_assets", substage: "rpc" }, 500);
+      }
+
+      const groupsCreated = row.groups_created ?? 0;
+      const assetsAssigned = row.assets_assigned ?? 0;
+      const ungrouped = row.assets_ungrouped ?? 0;
+      const reachedEnd = row.done ?? true;
+      const nextCursor = row.next_cursor ?? null;
+
+      const totalProcessed = (state.total_processed ?? 0) + rebuildBatch;
       const nextState: RebuildState = reachedEnd
         ? { ...state, stage: "finalize_stats", last_stats_group_id: null, total_processed: totalProcessed }
-        : { ...state, stage: "rebuild_assets", last_rebuild_asset_id: processBatch[processBatch.length - 1].id, total_processed: totalProcessed };
+        : { ...state, stage: "rebuild_assets", last_rebuild_asset_id: nextCursor, total_processed: totalProcessed };
 
       await saveState(nextState);
 
@@ -457,10 +292,8 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       });
     } catch (e) {
       const msg = (e as Error).message || "Unknown error in rebuild stage 3";
-      const isBodyRead = msg.toLowerCase().includes("error reading a body");
-      const substage = isBodyRead ? "fetch_assets" : "unhandled";
-      console.error(`rebuild-style-groups stage 3 error (${substage}):`, msg);
-      return json({ ok: false, error: msg, stage: "rebuild_assets", substage }, 500);
+      console.error(`rebuild-style-groups stage 3 error:`, msg);
+      return json({ ok: false, error: msg, stage: "rebuild_assets", substage: "unhandled" }, 500);
     }
   }
 

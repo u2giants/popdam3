@@ -1387,6 +1387,16 @@ export type Database = {
           skipped: number
         }[]
       }
+      rebuild_style_groups_batch: {
+        Args: { p_batch_size?: number; p_last_asset_id?: string }
+        Returns: {
+          assets_assigned: number
+          assets_ungrouped: number
+          done: boolean
+          groups_created: number
+          next_cursor: string
+        }[]
+      }
       refresh_style_group_counts: { Args: never; Returns: undefined }
       refresh_style_group_counts_batch: {
         Args: { p_group_ids: string[] }
