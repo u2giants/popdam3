@@ -1,86 +1,47 @@
 /**
- * Bulk tag propagation handler — iterates style groups in batches,
- * propagating product-level tags from the primary/tagged asset to siblings.
+ * Tag propagation handlers — thin wrappers around the
+ * propagate_group_tags_batch database function.
+ *
+ * The heavy logic now lives entirely in plpgsql (zero network hops).
  */
 
 import { serviceClient } from "../service-client.ts";
 import { err, json } from "../http.ts";
-import { propagateGroupTags } from "../tag-propagation.ts";
 
+/**
+ * Bulk propagate: calls the DB function directly.
+ * Accepts `offset` (uuid cursor) from the bulk-job-runner.
+ */
 export async function handleBulkPropagateGroupTags(body: Record<string, unknown>) {
-  const offset = typeof body.offset === "number" ? body.offset : 0;
-  const BATCH_SIZE = 10;
+  const cursor = typeof body.offset === "string" && body.offset !== "0"
+    ? body.offset
+    : null;
+  const batchSize = typeof body.batch_size === "number" ? body.batch_size : 200;
   const db = serviceClient();
 
-  // Fetch a batch of style groups that have at least one tagged asset
-  const { data: groups, error } = await db
-    .from("style_groups")
-    .select("id, primary_asset_id")
-    .order("id")
-    .range(offset, offset + BATCH_SIZE - 1);
+  const { data, error } = await db.rpc("propagate_group_tags_batch", {
+    p_cursor: cursor,
+    p_batch_size: batchSize,
+  });
 
   if (error) return err(error.message, 500);
-  if (!groups || groups.length === 0) {
-    return json({ ok: true, propagated: 0, skipped: 0, done: true, nextOffset: offset });
-  }
 
-  let propagated = 0;
-  let skipped = 0;
+  // The RPC returns an array of one row
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return err("No result from propagate_group_tags_batch", 500);
 
-  for (const group of groups) {
-    // Find source: primary asset if tagged, else first tagged asset
-    let sourceId: string | null = group.primary_asset_id;
-
-    if (sourceId) {
-      const { data: src } = await db
-        .from("assets")
-        .select("id, ai_tagged_at")
-        .eq("id", sourceId)
-        .eq("is_deleted", false)
-        .single();
-      if (!src?.ai_tagged_at) sourceId = null;
-    }
-
-    if (!sourceId) {
-      const { data: tagged } = await db
-        .from("assets")
-        .select("id")
-        .eq("style_group_id", group.id)
-        .eq("is_deleted", false)
-        .not("ai_tagged_at", "is", null)
-        .order("primary_sort_tier", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      sourceId = tagged?.id ?? null;
-    }
-
-    if (!sourceId) {
-      skipped++;
-      continue;
-    }
-
-    const result = await propagateGroupTags(sourceId, group.id, { onlyUntagged: false });
-    if (result.siblings_updated > 0 || result.tags_propagated > 0 || result.characters_propagated > 0) {
-      propagated++;
-    } else {
-      skipped++;
-    }
-  }
-
-  const done = groups.length < BATCH_SIZE;
   return json({
     ok: true,
-    propagated,
-    skipped,
-    done,
-    nextOffset: offset + groups.length,
+    propagated: row.propagated ?? 0,
+    skipped: row.skipped ?? 0,
+    done: row.done ?? true,
+    nextOffset: row.next_cursor ?? cursor,
   });
 }
 
 export async function handleCountGroupsForPropagation() {
   const db = serviceClient();
 
-  // Count style groups that have at least one tagged asset
   const { count, error } = await db
     .from("style_groups")
     .select("*", { count: "exact", head: true });

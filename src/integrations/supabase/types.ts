@@ -1378,6 +1378,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      propagate_group_tags_batch: {
+        Args: { p_batch_size?: number; p_cursor?: string }
+        Returns: {
+          done: boolean
+          next_cursor: string
+          propagated: number
+          skipped: number
+        }[]
+      }
       refresh_style_group_counts: { Args: never; Returns: undefined }
       refresh_style_group_counts_batch: {
         Args: { p_group_ids: string[] }
