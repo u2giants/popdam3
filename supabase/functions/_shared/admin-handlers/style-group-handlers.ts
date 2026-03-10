@@ -476,147 +476,37 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 }
 
 // ── reconcile-style-group-stats ─────────────────────────────────────
+// Thin wrapper for manual single-batch trigger from UI.
+// The bulk-job-runner calls reconcile_style_group_stats_batch RPC directly.
 
 export async function handleReconcileStyleGroupStats(body: Record<string, unknown>) {
   try {
-    const offset = typeof body.offset === "number" ? body.offset : 0;
     const db = serviceClient();
-    const STATE_KEY = "RECONCILE_STYLE_GROUPS_STATE";
+    const sub = typeof body.sub === "string" ? body.sub : "counts";
+    const cursor = typeof body.cursor === "string" ? body.cursor : null;
+    const batchSize = typeof body.batch_size === "number" ? body.batch_size : 200;
 
-    type ReconcileState = {
-      sub: "counts" | "primaries";
-      cursor: number;
-      total_groups?: number;
-    };
+    const { data, error: rpcErr } = await db.rpc("reconcile_style_group_stats_batch", {
+      p_cursor: cursor,
+      p_batch_size: batchSize,
+      p_sub: sub,
+    });
 
-    const { data: stateRow } = await db
-      .from("admin_config")
-      .select("value")
-      .eq("key", STATE_KEY)
-      .maybeSingle();
+    if (rpcErr) return err(formatPostgrestError(rpcErr), 500);
 
-    let state = (stateRow?.value as ReconcileState | null) ?? { sub: "counts", cursor: 0 };
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return err("No result from reconcile_style_group_stats_batch", 500);
 
-    if (offset === 0 && !stateRow) {
-      state = { sub: "counts", cursor: 0 };
-    }
-
-    const BATCH = 100;
-
-    async function saveRecState(s: ReconcileState) {
-      await db.from("admin_config").upsert({
-        key: STATE_KEY,
-        value: s,
-        updated_at: new Date().toISOString(),
-        updated_by: null,
-      });
-    }
-
-    if (state.sub === "counts") {
-      // Fetch total once and cache it in state
-      if (typeof state.total_groups !== "number") {
-        try {
-          const { count } = await db.from("style_groups").select("id", { count: "exact", head: true });
-          state.total_groups = count ?? 0;
-          await saveRecState(state);
-        } catch { /* Non-fatal — UI will show count without denominator */ }
-      }
-
-      const { data: groupIds, error: fetchErr } = await db
-        .from("style_groups")
-        .select("id")
-        .order("id")
-        .range(state.cursor, state.cursor + BATCH - 1);
-
-      if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "reconcile", substage: "counts" }, 500);
-
-      if (!groupIds || groupIds.length === 0) {
-        state = { sub: "primaries", cursor: 0 };
-        await saveRecState(state);
-        return json({
-          ok: true,
-          sub: "counts_done",
-          counts_processed: state.cursor,
-          total_groups: state.total_groups ?? 0,
-          done: false,
-          nextOffset: offset + 1,
-        });
-      }
-
-      const ids = groupIds.map((g: { id: string }) => g.id);
-      let batchIds = ids;
-      while (batchIds.length > 0) {
-        await sleep(100);
-        const { error: countErr } = await db.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
-        if (!countErr) break;
-
-        const msg = formatPostgrestError(countErr);
-        if (isStatementTimeout(msg) && batchIds.length > 1) {
-          batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
-          continue;
-        }
-
-        return json({ ok: false, error: msg, stage: "reconcile", substage: "counts", attempted_batch_size: batchIds.length }, 500);
-      }
-
-      state.cursor += batchIds.length;
-      await saveRecState(state);
-      return json({ ok: true, sub: "counts", counts_processed: state.cursor, total_groups: state.total_groups ?? 0, done: false, nextOffset: offset + 1 });
-    }
-
-    if (state.sub === "primaries") {
-      const { data: groupIds, error: fetchErr } = await db
-        .from("style_groups")
-        .select("id")
-        .order("id")
-        .range(state.cursor, state.cursor + BATCH - 1);
-
-      if (fetchErr) return json({ ok: false, error: formatPostgrestError(fetchErr), stage: "reconcile", substage: "primaries" }, 500);
-
-      if (!groupIds || groupIds.length === 0) {
-        await db.from("admin_config").delete().eq("key", STATE_KEY);
-        return json({
-          ok: true,
-          sub: "complete",
-          primaries_processed: state.cursor,
-          total_groups: state.total_groups ?? 0,
-          done: true,
-          nextOffset: offset + 1,
-        });
-      }
-
-      const ids = groupIds.map((g: { id: string }) => g.id);
-      let batchIds = ids;
-      while (batchIds.length > 0) {
-        await sleep(100);
-        const { error: primErr } = await db.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
-        if (!primErr) break;
-
-        const msg = formatPostgrestError(primErr);
-        if (isStatementTimeout(msg) && batchIds.length > 1) {
-          batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
-          continue;
-        }
-
-        return json({ ok: false, error: msg, stage: "reconcile", substage: "primaries", attempted_batch_size: batchIds.length }, 500);
-      }
-
-      state.cursor += batchIds.length;
-      await saveRecState(state);
-      return json({
-        ok: true,
-        sub: "primaries",
-        primaries_processed: state.cursor,
-        total_groups: state.total_groups ?? 0,
-        done: false,
-        nextOffset: offset + 1,
-      });
-    }
-
-    return json({ ok: false, error: "Unknown reconcile sub-stage", stage: "reconcile", substage: "unknown" }, 500);
+    return json({
+      ok: true,
+      sub: row.sub,
+      processed: row.processed,
+      next_cursor: row.next_cursor,
+      done: row.done,
+    });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : formatPostgrestError(e);
-    console.error("reconcile-style-group-stats unhandled:", msg);
-    return json({ ok: false, error: msg || "Internal server error", stage: "reconcile", substage: "unhandled" }, 500);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("reconcile-style-group-stats error:", msg);
+    return err(msg || "Internal server error", 500);
   }
 }

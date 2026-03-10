@@ -18,11 +18,19 @@ Created plpgsql function that replaces `tag-propagation.ts` + `tag-propagation-h
 
 Expected: 200 groups/batch, ~2-5s per call, 8,342 groups in ~2-4 minutes total.
 
-### 1B. `rebuild_style_groups_batch` — TODO
+### ✅ 1B. `rebuild_style_groups_batch` — DONE
 
-### 1C. `reconcile_style_group_stats_batch` — TODO
+### ✅ 1C. `reconcile_style_group_stats_batch` — DONE
 
-### 1D. Simplify `bulk-job-runner` — PARTIALLY DONE (propagation path complete)
+Created plpgsql wrapper function that handles keyset pagination over style_groups:
+- Accepts `p_cursor uuid, p_batch_size int, p_sub text` ('counts' or 'primaries')
+- Calls existing `refresh_style_group_counts_batch` and `refresh_style_group_primaries` internally
+- Returns `(next_cursor, processed, sub, done)` with automatic sub-stage transitions
+- Handler simplified to thin `db.rpc()` wrapper
+- `bulk-job-runner` calls `db.rpc()` directly (bypasses admin-api HTTP entirely)
+- Inter-call delay reduced to 100ms (was 1000ms)
+
+### ✅ 1D. Simplify `bulk-job-runner` — DONE (all three operations now use direct RPC)
 
 ---
 
