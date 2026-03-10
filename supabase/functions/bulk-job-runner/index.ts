@@ -509,7 +509,9 @@ serve(async (req: Request) => {
             if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
               transientRetries++;
               const delayMs = (isRateLimit || isRateLimitMessage) ? Math.min(5000 * transientRetries, 30000) : 1000 * transientRetries;
-              console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
+              console.warn(
+                `bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`,
+              );
               await sleep(delayMs);
               continue;
             }

@@ -13,9 +13,7 @@ import { err, json } from "../http.ts";
  * Accepts `offset` (uuid cursor) from the bulk-job-runner.
  */
 export async function handleBulkPropagateGroupTags(body: Record<string, unknown>) {
-  const cursor = typeof body.offset === "string" && body.offset !== "0"
-    ? body.offset
-    : null;
+  const cursor = typeof body.offset === "string" && body.offset !== "0" ? body.offset : null;
   const batchSize = typeof body.batch_size === "number" ? body.batch_size : 200;
   const db = serviceClient();
 
