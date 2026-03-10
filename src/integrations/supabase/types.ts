@@ -1397,6 +1397,15 @@ export type Database = {
           next_cursor: string
         }[]
       }
+      reconcile_style_group_stats_batch: {
+        Args: { p_batch_size?: number; p_cursor?: string; p_sub?: string }
+        Returns: {
+          done: boolean
+          next_cursor: string
+          processed: number
+          sub: string
+        }[]
+      }
       refresh_style_group_counts: { Args: never; Returns: undefined }
       refresh_style_group_counts_batch: {
         Args: { p_group_ids: string[] }
