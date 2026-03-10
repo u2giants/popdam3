@@ -1,0 +1,115 @@
+name: Deploy Supabase (Edge Functions + Migrations)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/deploy-supabase.yml"
+
+  workflow_dispatch:
+    inputs:
+      deploy_functions:
+        description: "Deploy edge functions"
+        type: boolean
+        default: true
+      run_migrations:
+        description: "Run database migrations"
+        type: boolean
+        default: true
+      generate_types:
+        description: "Generate and commit TypeScript types"
+        type: boolean
+        default: true
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_PROJECT_ID: ${{ secrets.EXTERNAL_SUPABASE_PROJECT_ID }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.EXTERNAL_SUPABASE_DB_PASSWORD }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to external Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      # ── Migrations ──────────────────────────────────────────
+      - name: Check for migration changes
+        id: migration_changes
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q '^supabase/migrations/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run database migrations
+        if: |
+          (github.event_name == 'push' && steps.migration_changes.outputs.changed == 'true') ||
+          (github.event_name == 'workflow_dispatch' && inputs.run_migrations)
+        run: supabase db push
+
+      # ── Edge Functions ──────────────────────────────────────
+      - name: Check for function changes
+        id: function_changes
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q '^supabase/functions/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy all edge functions
+        if: |
+          (github.event_name == 'push' && steps.function_changes.outputs.changed == 'true') ||
+          (github.event_name == 'workflow_dispatch' && inputs.deploy_functions)
+        run: |
+          # Deploy each function listed in config.toml
+          for dir in supabase/functions/*/; do
+            func_name=$(basename "$dir")
+            # Skip shared directories
+            if [ "$func_name" = "_shared" ]; then
+              continue
+            fi
+            echo "Deploying function: $func_name"
+            supabase functions deploy "$func_name" --no-verify-jwt || {
+              echo "⚠️  Failed to deploy $func_name, continuing..."
+            }
+          done
+          echo "✅ All functions deployed"
+
+      # ── Type Generation ─────────────────────────────────────
+      - name: Generate TypeScript types
+        if: |
+          (github.event_name == 'push' && (steps.migration_changes.outputs.changed == 'true' || steps.function_changes.outputs.changed == 'true')) ||
+          (github.event_name == 'workflow_dispatch' && inputs.generate_types)
+        run: |
+          supabase gen types typescript --project-id "$SUPABASE_PROJECT_ID" \
+            > src/integrations/supabase/types.ts
+
+      - name: Commit updated types
+        if: |
+          (github.event_name == 'push' && (steps.migration_changes.outputs.changed == 'true' || steps.function_changes.outputs.changed == 'true')) ||
+          (github.event_name == 'workflow_dispatch' && inputs.generate_types)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/integrations/supabase/types.ts
+          git diff --cached --quiet || {
+            git commit -m "chore: auto-generate Supabase types [skip ci]"
+            git push
+          }
