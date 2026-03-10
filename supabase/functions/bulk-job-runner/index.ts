@@ -546,8 +546,8 @@ serve(async (req: Request) => {
         }
 
         // Capture stage/substage from success response
-        if (result.stage) lastStage = result.stage;
-        if (result.sub || result.substage) lastSubstage = result.sub || result.substage;
+        if (result.stage) lastStage = result.stage as string;
+        if (result.sub || result.substage) lastSubstage = (result.sub || result.substage) as string;
 
         progress = buildProgress(opKey, result, progress);
         batchCount++;
