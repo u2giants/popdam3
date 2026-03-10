@@ -459,6 +459,11 @@ serve(async (req: Request) => {
               nextOffset: row.next_cursor ?? rpcCursor,
             };
           } else if (opKey === "reconcile-style-group-stats") {
+            // Fetch total_groups once for progress display
+            if (!progress.total_groups) {
+              const { count } = await db.from("style_groups").select("id", { count: "exact", head: true });
+              progress.total_groups = count ?? 0;
+            }
             // Determine sub-stage from progress
             const currentSub = (progress.stage as string) || "counts";
             const rpcSub = currentSub === "counts_done" ? "primaries" : (currentSub === "complete" ? "counts" : currentSub);
