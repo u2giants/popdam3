@@ -23,13 +23,13 @@ const PERSIST_EVERY_OVERRIDES: Record<string, number> = {
 // Supabase allows ~60 admin-api calls/minute. These delays keep us safely under.
 const INTER_CALL_DELAY_MS: Record<string, number> = {
   "rebuild-style-groups": 200, // Stage 3 now uses DB function — reduced delay
-  "reconcile-style-group-stats": 1000,
+  "reconcile-style-group-stats": 100, // Now runs via DB function — minimal delay needed
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
   "propagate-group-tags": 100, // Now runs via DB function — minimal delay needed
 };
 
 // Operations that bypass admin-api HTTP and call db.rpc() directly
-const RPC_DIRECT_OPS = new Set(["propagate-group-tags"]);
+const RPC_DIRECT_OPS = new Set(["propagate-group-tags", "reconcile-style-group-stats"]);
 
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
