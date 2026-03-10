@@ -71,8 +71,8 @@ Move from Lovable Cloud Supabase to a user-managed Supabase project at supabase.
 │  ├── Auth (users, sessions)                         │
 │  └── Dashboard (full access)                        │
 ├─────────────────────────────────────────────────────┤
-│  Lovable Cloud Supabase (dormant)                   │
-│  └── Still connected, unused — all traffic bypasses │
+│  Lovable Cloud Supabase (unused, can't be removed)  │
+│  └── Still wired in but zero traffic hits it        │
 └─────────────────────────────────────────────────────┘
 ```
 
