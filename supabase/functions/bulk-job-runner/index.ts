@@ -25,8 +25,11 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
   "rebuild-style-groups": 1000,
   "reconcile-style-group-stats": 1000,
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
-  "propagate-group-tags": 500, // Optimised: bulk queries per group, safe at higher throughput
+  "propagate-group-tags": 100, // Now runs via DB function — minimal delay needed
 };
+
+// Operations that bypass admin-api HTTP and call db.rpc() directly
+const RPC_DIRECT_OPS = new Set(["propagate-group-tags"]);
 
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
