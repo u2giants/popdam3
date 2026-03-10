@@ -458,6 +458,43 @@ serve(async (req: Request) => {
               done: row.done ?? true,
               nextOffset: row.next_cursor ?? rpcCursor,
             };
+          } else if (opKey === "reconcile-style-group-stats") {
+            // Determine sub-stage from progress
+            const currentSub = (progress.stage as string) || "counts";
+            const rpcSub = currentSub === "counts_done" ? "primaries" : (currentSub === "complete" ? "counts" : currentSub);
+            const rpcCursor = (typeof cursor === "string" && cursor !== "0" && cursor !== "") ? cursor as string : null;
+            const { data, error: rpcErr } = await db.rpc("reconcile_style_group_stats_batch", {
+              p_cursor: rpcCursor,
+              p_batch_size: 200,
+              p_sub: rpcSub,
+            });
+            if (rpcErr) {
+              lastError = `rpc error: ${rpcErr.message}`;
+              const msg = rpcErr.message.toLowerCase();
+              isTransientFailure = msg.includes("timeout") || msg.includes("57014");
+              break;
+            }
+            const row = Array.isArray(data) ? data[0] : data;
+            if (!row) {
+              lastError = "No result from reconcile_style_group_stats_batch";
+              break;
+            }
+            const returnedSub = row.sub ?? rpcSub;
+            const isDone = row.done ?? false;
+            // Track counts/primaries processed based on sub-stage
+            const batchResult: Record<string, unknown> = {
+              ok: true,
+              done: isDone,
+              sub: returnedSub,
+              nextOffset: row.next_cursor ?? null,
+              total_groups: (progress.total_groups as number) || 0,
+            };
+            if (rpcSub === "counts") {
+              batchResult.counts_processed = ((progress.counts_processed as number) || 0) + (row.processed ?? 0);
+            } else if (rpcSub === "primaries") {
+              batchResult.primaries_processed = ((progress.primaries_processed as number) || 0) + (row.processed ?? 0);
+            }
+            result = batchResult;
           } else {
             lastError = `No RPC handler for ${opKey}`;
             break;
