@@ -168,7 +168,7 @@ export async function propagateGroupTags(
     if (!sibling.cover_description && source.cover_description) metaUpdates.cover_description = source.cover_description;
 
     if (Object.keys(metaUpdates).length > 0) {
-      metaUpdatePromises.push(db.from("assets").update(metaUpdates).eq("id", sibling.id));
+      metaUpdatePromises.push(db.from("assets").update(metaUpdates).eq("id", sibling.id).then());
     }
 
     // 6b. Collect new tags
@@ -199,13 +199,13 @@ export async function propagateGroupTags(
 
   if (allNewTags.length > 0) {
     writePromises.push(
-      db.from("asset_tags").upsert(allNewTags, { onConflict: "asset_id,tag" }),
+      db.from("asset_tags").upsert(allNewTags, { onConflict: "asset_id,tag" }).then(),
     );
   }
 
   if (allNewChars.length > 0) {
     writePromises.push(
-      db.from("asset_characters").upsert(allNewChars, { onConflict: "asset_id,character_id" }),
+      db.from("asset_characters").upsert(allNewChars, { onConflict: "asset_id,character_id" }).then(),
     );
   }
 

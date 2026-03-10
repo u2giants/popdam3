@@ -546,8 +546,8 @@ serve(async (req: Request) => {
         }
 
         // Capture stage/substage from success response
-        if (result.stage) lastStage = result.stage;
-        if (result.sub || result.substage) lastSubstage = result.sub || result.substage;
+        if (result.stage) lastStage = result.stage as string;
+        if (result.sub || result.substage) lastSubstage = (result.sub || result.substage) as string;
 
         progress = buildProgress(opKey, result, progress);
         batchCount++;
@@ -557,7 +557,7 @@ serve(async (req: Request) => {
           break;
         }
 
-        cursor = result.nextOffset ?? cursor + 1;
+        cursor = (result.nextOffset as string | number) ?? (typeof cursor === "number" ? cursor + 1 : cursor);
 
         // Throttle calls to avoid Supabase Edge Function rate limits
         const interCallDelay = INTER_CALL_DELAY_MS[opKey];
