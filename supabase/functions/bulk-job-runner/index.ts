@@ -23,13 +23,13 @@ const PERSIST_EVERY_OVERRIDES: Record<string, number> = {
 // Supabase allows ~60 admin-api calls/minute. These delays keep us safely under.
 const INTER_CALL_DELAY_MS: Record<string, number> = {
   "rebuild-style-groups": 200, // Stage 3 now uses DB function — reduced delay
-  "reconcile-style-group-stats": 1000,
+  "reconcile-style-group-stats": 100, // Now runs via DB function — minimal delay needed
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
   "propagate-group-tags": 100, // Now runs via DB function — minimal delay needed
 };
 
 // Operations that bypass admin-api HTTP and call db.rpc() directly
-const RPC_DIRECT_OPS = new Set(["propagate-group-tags"]);
+const RPC_DIRECT_OPS = new Set(["propagate-group-tags", "reconcile-style-group-stats"]);
 
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
@@ -458,6 +458,48 @@ serve(async (req: Request) => {
               done: row.done ?? true,
               nextOffset: row.next_cursor ?? rpcCursor,
             };
+          } else if (opKey === "reconcile-style-group-stats") {
+            // Fetch total_groups once for progress display
+            if (!progress.total_groups) {
+              const { count } = await db.from("style_groups").select("id", { count: "exact", head: true });
+              progress.total_groups = count ?? 0;
+            }
+            // Determine sub-stage from progress
+            const currentSub = (progress.stage as string) || "counts";
+            const rpcSub = currentSub === "counts_done" ? "primaries" : (currentSub === "complete" ? "counts" : currentSub);
+            const rpcCursor = (typeof cursor === "string" && cursor !== "0" && cursor !== "") ? cursor as string : null;
+            const { data, error: rpcErr } = await db.rpc("reconcile_style_group_stats_batch", {
+              p_cursor: rpcCursor,
+              p_batch_size: 200,
+              p_sub: rpcSub,
+            });
+            if (rpcErr) {
+              lastError = `rpc error: ${rpcErr.message}`;
+              const msg = rpcErr.message.toLowerCase();
+              isTransientFailure = msg.includes("timeout") || msg.includes("57014");
+              break;
+            }
+            const row = Array.isArray(data) ? data[0] : data;
+            if (!row) {
+              lastError = "No result from reconcile_style_group_stats_batch";
+              break;
+            }
+            const returnedSub = row.sub ?? rpcSub;
+            const isDone = row.done ?? false;
+            // Track counts/primaries processed based on sub-stage
+            const batchResult: Record<string, unknown> = {
+              ok: true,
+              done: isDone,
+              sub: returnedSub,
+              nextOffset: row.next_cursor ?? null,
+              total_groups: (progress.total_groups as number) || 0,
+            };
+            if (rpcSub === "counts") {
+              batchResult.counts_processed = ((progress.counts_processed as number) || 0) + (row.processed ?? 0);
+            } else if (rpcSub === "primaries") {
+              batchResult.primaries_processed = ((progress.primaries_processed as number) || 0) + (row.processed ?? 0);
+            }
+            result = batchResult;
           } else {
             lastError = `No RPC handler for ${opKey}`;
             break;
