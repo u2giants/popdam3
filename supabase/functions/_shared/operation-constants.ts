@@ -60,7 +60,7 @@ export function classifyInterruptionReason(
   const msg = (errorMsg || "").toLowerCase();
   if (statusCode === 429 || msg.includes("rate limit exceeded")) return "rate_limited";
   if (statusCode && [502, 503, 504].includes(statusCode)) return "gateway_timeout";
-  if (msg.includes("57014") || msg.includes("statement timeout")) return "statement_timeout";
+  if (msg.includes("57014") || msg.includes("statement timeout") || msg.includes("lock timeout")) return "statement_timeout";
   if (msg.includes("user_stop") || msg.includes("stopped by user")) return "user_stop";
   if (msg.includes("connection reset") || msg.includes("connection error")) return "connection_error";
   return "unknown";
