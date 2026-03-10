@@ -84,7 +84,7 @@ export const OP_LANES: Record<string, string> = {
   "backfill-sku-names": "metadata",
   "erp-enrichment": "erp",
   "erp-classify": "erp",
-  "propagate-group-tags": "ai-tagging",
+  "propagate-group-tags": "style-groups",
 };
 
 export function getLane(opKey: string): string {
