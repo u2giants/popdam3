@@ -430,82 +430,117 @@ serve(async (req: Request) => {
       }
 
       try {
-        const requestBody: Record<string, unknown> = {
-          action,
-          offset: cursor,
-        };
+        let result: Record<string, unknown>;
 
-        if (opState.params) {
-          for (const [k, v] of Object.entries(opState.params)) {
-            if (k !== "type" && k !== "total") {
-              requestBody[k] = v;
+        // ── Direct RPC path (bypasses admin-api HTTP entirely) ──────
+        if (RPC_DIRECT_OPS.has(opKey)) {
+          if (opKey === "propagate-group-tags") {
+            const rpcCursor = (typeof cursor === "string" && cursor !== "0" && cursor !== 0) ? cursor as string : null;
+            const { data, error: rpcErr } = await db.rpc("propagate_group_tags_batch", {
+              p_cursor: rpcCursor,
+              p_batch_size: 200,
+            });
+            if (rpcErr) {
+              lastError = `rpc error: ${rpcErr.message}`;
+              const msg = rpcErr.message.toLowerCase();
+              isTransientFailure = msg.includes("timeout") || msg.includes("57014");
+              break;
+            }
+            const row = Array.isArray(data) ? data[0] : data;
+            if (!row) {
+              lastError = "No result from propagate_group_tags_batch";
+              break;
+            }
+            result = {
+              ok: true,
+              propagated: row.propagated ?? 0,
+              skipped: row.skipped ?? 0,
+              done: row.done ?? true,
+              nextOffset: row.next_cursor ?? rpcCursor,
+            };
+          } else {
+            lastError = `No RPC handler for ${opKey}`;
+            break;
+          }
+          // Reset transient retry counter on RPC success
+          transientRetries = 0;
+        } else {
+          // ── HTTP path (admin-api) ─────────────────────────────────
+          const requestBody: Record<string, unknown> = {
+            action,
+            offset: cursor,
+          };
+
+          if (opState.params) {
+            for (const [k, v] of Object.entries(opState.params)) {
+              if (k !== "type" && k !== "total") {
+                requestBody[k] = v;
+              }
             }
           }
-        }
 
-        const res = await fetch(`${supabaseUrl}/functions/v1/admin-api`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${serviceRoleKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        });
+          const res = await fetch(`${supabaseUrl}/functions/v1/admin-api`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${serviceRoleKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+          });
 
-        if (!res.ok) {
-          const isRateLimit = res.status === 429;
-          const isTransientStatus = [502, 503, 504].includes(res.status) || isRateLimit;
-          lastErrorStatus = res.status;
-          const text = await res.text();
-          let parsed: Record<string, unknown> | null = null;
-          try {
-            parsed = JSON.parse(text);
-          } catch { /* not JSON */ }
-          const stageInfo = parsed?.stage ? ` [stage=${parsed.stage}${parsed.substage ? `/substage=${parsed.substage}` : ""}]` : "";
-          lastError = `admin-api returned ${res.status}:${stageInfo} ${(parsed?.error as string) || text.slice(0, 500)}`;
+          if (!res.ok) {
+            const isRateLimit = res.status === 429;
+            const isTransientStatus = [502, 503, 504].includes(res.status) || isRateLimit;
+            lastErrorStatus = res.status;
+            const text = await res.text();
+            let parsed: Record<string, unknown> | null = null;
+            try {
+              parsed = JSON.parse(text);
+            } catch { /* not JSON */ }
+            const stageInfo = parsed?.stage ? ` [stage=${parsed.stage}${parsed.substage ? `/substage=${parsed.substage}` : ""}]` : "";
+            lastError = `admin-api returned ${res.status}:${stageInfo} ${(parsed?.error as string) || text.slice(0, 500)}`;
 
-          // Capture stage info from error response
-          if (parsed?.stage) lastStage = parsed.stage as string;
-          if (parsed?.substage) lastSubstage = parsed.substage as string;
+            if (parsed?.stage) lastStage = parsed.stage as string;
+            if (parsed?.substage) lastSubstage = parsed.substage as string;
 
-          const isRateLimitMessage = /rate limit exceeded/i.test(lastError);
-          const isTransient = isTransientStatus || isRateLimitMessage;
+            const isRateLimitMessage = /rate limit exceeded/i.test(lastError);
+            const isTransient = isTransientStatus || isRateLimitMessage;
 
-          if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
-            transientRetries++;
-            const delayMs = (isRateLimit || isRateLimitMessage) ? Math.min(5000 * transientRetries, 30000) : 1000 * transientRetries;
-            console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
-            await sleep(delayMs);
-            continue; // retry same cursor
+            if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
+              transientRetries++;
+              const delayMs = (isRateLimit || isRateLimitMessage) ? Math.min(5000 * transientRetries, 30000) : 1000 * transientRetries;
+              console.warn(`bulk-job-runner: transient ${res.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
+              await sleep(delayMs);
+              continue;
+            }
+
+            console.error(`bulk-job-runner: ${lastError}`);
+            isTransientFailure = isTransient;
+            break;
           }
 
-          console.error(`bulk-job-runner: ${lastError}`);
-          isTransientFailure = isTransient;
-          break;
-        }
+          transientRetries = 0;
 
-        // Reset transient retry counter on success
-        transientRetries = 0;
+          result = await res.json();
+          if (!result.ok) {
+            const stageInfo = result.stage ? ` [stage=${result.stage}${result.substage ? `/substage=${result.substage}` : ""}]` : "";
+            lastError = `${stageInfo} ${result.error || "admin-api returned error"}`;
+            if (result.stage) lastStage = result.stage as string;
+            if (result.substage) lastSubstage = result.substage as string;
 
-        const result = await res.json();
-        if (!result.ok) {
-          const stageInfo = result.stage ? ` [stage=${result.stage}${result.substage ? `/substage=${result.substage}` : ""}]` : "";
-          lastError = `${stageInfo} ${result.error || "admin-api returned error"}`;
-          if (result.stage) lastStage = result.stage;
-          if (result.substage) lastSubstage = result.substage;
+            const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
+            if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
+              transientRetries++;
+              const delayMs = Math.min(5000 * transientRetries, 30000);
+              console.warn(`bulk-job-runner: transient rate-limit for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
+              await sleep(delayMs);
+              continue;
+            }
 
-          const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
-          if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
-            transientRetries++;
-            const delayMs = Math.min(5000 * transientRetries, 30000);
-            console.warn(`bulk-job-runner: transient rate-limit for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
-            await sleep(delayMs);
-            continue; // retry same cursor
+            isTransientFailure = isRateLimitMessage;
+            console.error(`bulk-job-runner: ${lastError}`);
+            break;
           }
-
-          isTransientFailure = isRateLimitMessage;
-          console.error(`bulk-job-runner: ${lastError}`);
-          break;
         }
 
         // Capture stage/substage from success response
