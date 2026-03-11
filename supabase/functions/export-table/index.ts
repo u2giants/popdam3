@@ -116,7 +116,6 @@ Deno.serve(async (req) => {
       offset += CHUNK;
     }
 
-    const rows = data ?? [];
     const totalPages = Math.ceil((totalCount ?? 0) / pageSize);
 
     if (format === "json") {
