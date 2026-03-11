@@ -1,11 +1,7 @@
 // Edge function to export large tables as CSV, paginated.
 // Bypasses Lovable Cloud's 1000-row CSV export limit.
 //
-// Usage:
-//   GET /export-table?table=asset_tags&page=0&page_size=50000
-//   Returns: CSV text with headers on page 0, no headers on subsequent pages
-//
-// Auth: requires service-role key in Authorization header (not for public use)
+// Auth: requires admin JWT or service-role key
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
@@ -14,32 +10,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Allowlist of exportable tables
 const ALLOWED_TABLES = [
-  "assets",
-  "asset_tags",
-  "asset_characters",
-  "asset_path_history",
-  "style_groups",
-  "licensors",
-  "properties",
-  "characters",
-  "admin_config",
-  "invitations",
-  "processing_queue",
-  "render_queue",
-  "tiff_optimization_queue",
-  "hygiene_findings",
-  "erp_items_current",
-  "erp_items_raw",
-  "erp_sync_runs",
-  "erp_enrichment_log",
-  "product_categories",
-  "product_types",
-  "product_subtypes",
-  "product_category_predictions",
-  "agent_registrations",
-  "agent_pairings",
+  "assets", "asset_tags", "asset_characters", "asset_path_history",
+  "style_groups", "licensors", "properties", "characters",
+  "admin_config", "invitations", "processing_queue", "render_queue",
+  "tiff_optimization_queue", "hygiene_findings", "erp_items_current",
+  "erp_items_raw", "erp_sync_runs", "erp_enrichment_log",
+  "product_categories", "product_types", "product_subtypes",
+  "product_category_predictions", "agent_registrations", "agent_pairings",
 ];
 
 Deno.serve(async (req) => {
@@ -48,10 +26,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Auth: accept service role key OR admin JWT
     const authHeader = req.headers.get("authorization") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     let authorized = false;
 
     // Method 1: service role key
@@ -59,18 +37,15 @@ Deno.serve(async (req) => {
       authorized = true;
     }
 
-    // Method 2: admin JWT — verify user + check admin role
+    // Method 2: admin JWT
     if (!authorized) {
       const token = authHeader.replace(/^Bearer\s+/i, "");
-      if (token) {
-        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.1");
-        const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+      if (token && token !== serviceKey) {
         const userClient = createClient(supabaseUrl, anonKey, {
           global: { headers: { Authorization: `Bearer ${token}` } },
         });
         const { data: { user }, error: userErr } = await userClient.auth.getUser(token);
         if (user && !userErr) {
-          // Check admin role via service client
           const svc = createClient(supabaseUrl, serviceKey);
           const { data: roleRow } = await svc.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
           if (roleRow) authorized = true;
@@ -89,7 +64,7 @@ Deno.serve(async (req) => {
     const table = url.searchParams.get("table");
     const page = parseInt(url.searchParams.get("page") ?? "0", 10);
     const pageSize = Math.min(parseInt(url.searchParams.get("page_size") ?? "50000", 10), 50000);
-    const format = url.searchParams.get("format") ?? "csv"; // csv or json
+    const format = url.searchParams.get("format") ?? "csv";
 
     if (!table || !ALLOWED_TABLES.includes(table)) {
       return new Response(JSON.stringify({ error: `Table not allowed. Valid: ${ALLOWED_TABLES.join(", ")}` }), {
@@ -98,13 +73,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const db = createClient(supabaseUrl, serviceKey);
 
-    // Get total count first
     const { count: totalCount } = await db.from(table).select("*", { count: "exact", head: true });
 
-    // Fetch page
     const from = page * pageSize;
     const to = from + pageSize - 1;
     const { data, error } = await db.from(table).select("*").range(from, to);
@@ -121,15 +93,10 @@ Deno.serve(async (req) => {
 
     if (format === "json") {
       return new Response(JSON.stringify({ table, page, pageSize, totalCount, totalPages, rowsInPage: rows.length, data: rows }), {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-          "Content-Disposition": `attachment; filename="${table}_page${page}.json"`,
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Content-Disposition": `attachment; filename="${table}_page${page}.json"` },
       });
     }
 
-    // CSV format
     if (rows.length === 0) {
       return new Response(JSON.stringify({ table, page, totalCount, totalPages, rowsInPage: 0, message: "No more data" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -139,7 +106,6 @@ Deno.serve(async (req) => {
     const columns = Object.keys(rows[0]);
     const csvLines: string[] = [];
 
-    // Header on page 0 only
     if (page === 0) {
       csvLines.push(columns.map((c) => `"${c}"`).join(","));
     }
