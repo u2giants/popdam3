@@ -11,13 +11,30 @@ const corsHeaders = {
 };
 
 const ALLOWED_TABLES = [
-  "assets", "asset_tags", "asset_characters", "asset_path_history",
-  "style_groups", "licensors", "properties", "characters",
-  "admin_config", "invitations", "processing_queue", "render_queue",
-  "tiff_optimization_queue", "hygiene_findings", "erp_items_current",
-  "erp_items_raw", "erp_sync_runs", "erp_enrichment_log",
-  "product_categories", "product_types", "product_subtypes",
-  "product_category_predictions", "agent_registrations", "agent_pairings",
+  "assets",
+  "asset_tags",
+  "asset_characters",
+  "asset_path_history",
+  "style_groups",
+  "licensors",
+  "properties",
+  "characters",
+  "admin_config",
+  "invitations",
+  "processing_queue",
+  "render_queue",
+  "tiff_optimization_queue",
+  "hygiene_findings",
+  "erp_items_current",
+  "erp_items_raw",
+  "erp_sync_runs",
+  "erp_enrichment_log",
+  "product_categories",
+  "product_types",
+  "product_subtypes",
+  "product_category_predictions",
+  "agent_registrations",
+  "agent_pairings",
 ];
 
 Deno.serve(async (req) => {
