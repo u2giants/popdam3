@@ -75,6 +75,51 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
     onError: (e) => toast.error(`Repair failed: ${e.message}`),
   });
 
+  const [manifestDownloading, setManifestDownloading] = useState(false);
+
+  async function downloadManifest() {
+    setManifestDownloading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const url = `https://${projectId}.supabase.co/functions/v1/export-thumbnail-manifest`;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        let message = "Failed to export manifest";
+        try { const j = JSON.parse(text); message = j.error || message; } catch { /* use default */ }
+        throw new Error(message);
+      }
+
+      const rowCount = res.headers.get("X-Row-Count") || "?";
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = "thumbnail_manifest.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+
+      toast.success(`Thumbnail manifest downloaded — ${Number(rowCount).toLocaleString()} rows`);
+    } catch (e: any) {
+      toast.error(e.message || "Manifest download failed");
+    } finally {
+      setManifestDownloading(false);
+    }
+  }
+
   function runReprocess() {
     requestOp("reprocess-metadata", OP_NAMES["reprocess-metadata"],
       () => reprocessOp.start({ confirmMessage: "Re-derive SKU metadata for all assets. Continue?" }),
