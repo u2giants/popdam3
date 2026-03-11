@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
       if (error) return err(error.message, 500);
       if (!data || data.length === 0) break;
 
-      for (const row of data as Array<{ id: string; relative_path: string; filename: string; quick_hash: string; thumbnail_url: string }>) {
+      for (const row of (data as unknown as Array<{ id: string; relative_path: string; filename: string; quick_hash: string; thumbnail_url: string }>)) {
         chunks.push(
           [
             escapeCSV(row.id),

@@ -41,7 +41,7 @@ const App = () => (
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/" element={<Index />} />
+                <Route path="/library" element={<Index />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/ai-tagging-failures" element={<AiTaggingFailuresPage />} />
                 <Route path="/settings/ai-tagging-detail" element={<AiTaggingDetailPage />} />
