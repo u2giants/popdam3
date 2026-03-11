@@ -48,11 +48,38 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Auth check — require service role key
+    // Auth: accept service role key OR admin JWT
     const authHeader = req.headers.get("authorization") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    if (!authHeader.includes(serviceKey)) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    let authorized = false;
+
+    // Method 1: service role key
+    if (serviceKey && authHeader.includes(serviceKey)) {
+      authorized = true;
+    }
+
+    // Method 2: admin JWT — verify user + check admin role
+    if (!authorized) {
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      if (token) {
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.1");
+        const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+        const userClient = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: `Bearer ${token}` } },
+        });
+        const { data: { user }, error: userErr } = await userClient.auth.getUser(token);
+        if (user && !userErr) {
+          // Check admin role via service client
+          const svc = createClient(supabaseUrl, serviceKey);
+          const { data: roleRow } = await svc.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
+          if (roleRow) authorized = true;
+        }
+      }
+    }
+
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: "Unauthorized — requires admin role or service role key" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
