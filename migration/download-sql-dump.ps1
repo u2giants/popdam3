@@ -1,22 +1,20 @@
 # PopDAM SQL Dump Download Script (PowerShell)
 # Downloads a complete SQL dump from the export-sql-dump edge function.
 #
-# PREREQUISITES:
-#   1. The export-sql-dump edge function must be deployed
-#   2. You need the SUPABASE_SERVICE_ROLE_KEY from Lovable Cloud
+# HOW TO GET YOUR AUTH TOKEN:
+#   1. Log into PopDAM in your browser
+#   2. Open DevTools (F12) → Console
+#   3. Run:  copy((await (await import('/src/integrations/supabase/client.ts')).supabase.auth.getSession()).data.session.access_token)
+#   4. Your JWT is now on your clipboard — paste it below
 #
 # USAGE:
 #   1. Open PowerShell
-#   2. Edit the $ServiceRoleKey variable below
+#   2. Paste your JWT into the $AuthToken variable below
 #   3. Run: .\download-sql-dump.ps1
-#
-# The script will download a single .sql file that you can run directly
-# on your target Supabase project's SQL Editor (or via psql).
-# The SQL file handles FK constraints automatically.
 
 # ── CONFIGURATION ────────────────────────────────────────────────────────────
 $SupabaseUrl = "https://vklanxwmaeqjbwtmnygj.supabase.co"
-$ServiceRoleKey = "PASTE_YOUR_SERVICE_ROLE_KEY_HERE"
+$AuthToken = "PASTE_YOUR_JWT_HERE"
 $OutputFile = ".\popdam-dump.sql"
 # Set to "true" to include TRUNCATE statements (wipes target tables first)
 $IncludeTruncate = "true"
