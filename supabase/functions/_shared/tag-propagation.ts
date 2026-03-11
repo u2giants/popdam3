@@ -168,7 +168,7 @@ export async function propagateGroupTags(
     if (!sibling.cover_description && source.cover_description) metaUpdates.cover_description = source.cover_description;
 
     if (Object.keys(metaUpdates).length > 0) {
-      metaUpdatePromises.push(db.from("assets").update(metaUpdates).eq("id", sibling.id).then());
+      metaUpdatePromises.push(Promise.resolve(db.from("assets").update(metaUpdates).eq("id", sibling.id)));
     }
 
     // 6b. Collect new tags
