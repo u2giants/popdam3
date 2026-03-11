@@ -199,13 +199,13 @@ export async function propagateGroupTags(
 
   if (allNewTags.length > 0) {
     writePromises.push(
-      db.from("asset_tags").upsert(allNewTags, { onConflict: "asset_id,tag" }).then(),
+      Promise.resolve(db.from("asset_tags").upsert(allNewTags, { onConflict: "asset_id,tag" })),
     );
   }
 
   if (allNewChars.length > 0) {
     writePromises.push(
-      db.from("asset_characters").upsert(allNewChars, { onConflict: "asset_id,character_id" }).then(),
+      Promise.resolve(db.from("asset_characters").upsert(allNewChars, { onConflict: "asset_id,character_id" })),
     );
   }
 
