@@ -7,8 +7,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import {
   RefreshCw, RotateCcw, Play, Trash2, Stethoscope,
-  FileSearch, Sparkles, Loader2, Database, Wrench,
+  FileSearch, Sparkles, Loader2, Database, Wrench, Download,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
