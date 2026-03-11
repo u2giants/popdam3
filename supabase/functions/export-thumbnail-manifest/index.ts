@@ -14,7 +14,7 @@
 
 import { corsHeaders, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 async function authorizeAdmin(req: Request): Promise<boolean> {
   const authHeader = req.headers.get("authorization") ?? "";
