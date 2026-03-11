@@ -278,6 +278,21 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
               <TooltipContent side="bottom" className="max-w-[280px] text-center">Nulls out invalid property_name values (like CREATURE) for assets and style groups. Safe to re-run.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={downloadManifest}
+                  disabled={manifestDownloading}
+                >
+                  {manifestDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  Download Thumbnail Manifest
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] text-center">Exports a CSV of all assets with thumbnails (old_asset_id, relative_path, filename, quick_hash, thumbnail_url) for migration.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {reprocessOp.isInterrupted && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => reprocessOp.reset()}>Dismiss</Button>
           )}

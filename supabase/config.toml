@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.export-table]
 verify_jwt = false
+
+[functions.export-thumbnail-manifest]
+verify_jwt = false
