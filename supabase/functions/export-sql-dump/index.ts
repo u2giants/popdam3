@@ -1,21 +1,23 @@
-// Edge function: full SQL dump of all public tables as INSERT statements.
-// Generates a single .sql file that can be run on any Postgres target.
-// Handles FK constraints by wrapping everything in a transaction with
-// session_replication_role = 'replica' (disables FK checks + triggers).
-//
-// Auth: service-role key or admin JWT
-//
-// Usage:
-//   GET /functions/v1/export-sql-dump
-//   Returns: text/sql attachment
-//
-// The output SQL is self-contained:
-//   BEGIN;
-//   SET session_replication_role = 'replica';
-//   -- TRUNCATE all tables (optional, controlled by ?truncate=true)
-//   -- INSERT INTO ... VALUES (...);
-//   SET session_replication_role = 'origin';
-//   COMMIT;
+/**
+ * Chunked SQL data exporter for migration from Lovable Cloud.
+ *
+ * Two modes:
+ *   GET ?action=manifest   → JSON with table names + row counts
+ *   GET ?table=X&offset=Y  → SQL file with INSERT batch for that chunk
+ *
+ * Each chunk is a self-contained transaction:
+ *   BEGIN;
+ *   SET session_replication_role = 'replica';
+ *   INSERT INTO ...;
+ *   SET session_replication_role = 'origin';
+ *   COMMIT;
+ *
+ * Auth: admin JWT (the function uses its internal service role key for reads).
+ *
+ * Chunk sizing: default 5000 rows per request. At ~1KB/row average this
+ * keeps response size well under 50MB and execution time under 30s,
+ * safely within Supabase Edge Function limits (60s wall clock, ~150MB RAM).
+ */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
@@ -24,57 +26,89 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Tables in dependency order (parents first, children last)
+// Tables in dependency order (parents first)
 const TABLES_IN_ORDER = [
   "admin_config",
   "licensors",
   "properties",
   "characters",
   "erp_sync_runs",
-  "style_groups", // depends on licensors, properties (primary_asset_id is nullable, filled later)
-  "assets", // depends on licensors, properties, style_groups, product_subtypes
-  "asset_tags", // depends on assets
-  "asset_characters", // depends on assets, characters
-  "asset_path_history", // depends on assets
-  "processing_queue", // depends on assets
-  "render_queue", // depends on assets
+  "style_groups",
+  "assets",
+  "asset_tags",
+  "asset_characters",
+  "asset_path_history",
+  "processing_queue",
+  "render_queue",
   "tiff_optimization_queue",
-  "hygiene_findings", // depends on assets
-  "erp_items_current", // depends on erp_sync_runs
-  "erp_items_raw", // depends on erp_sync_runs
+  "hygiene_findings",
+  "erp_items_current",
+  "erp_items_raw",
   "erp_enrichment_log",
   "product_categories",
-  "product_types", // depends on product_categories
-  "product_subtypes", // depends on product_types
-  "product_category_predictions", // depends on erp_items_current
+  "product_types",
+  "product_subtypes",
+  "product_category_predictions",
   "invitations",
   "agent_registrations",
-  "agent_pairings", // depends on agent_registrations
+  "agent_pairings",
 ];
+
+const DEFAULT_CHUNK = 5000;
+const POSTGREST_PAGE = 1000; // PostgREST max per request
+
+// ── SQL escaping ────────────────────────────────────────────────────
 
 function escapeSQL(val: unknown): string {
   if (val === null || val === undefined) return "NULL";
   if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
   if (typeof val === "number") return String(val);
   if (typeof val === "object") {
-    // jsonb / arrays
     if (Array.isArray(val)) {
-      // Could be a text[] array or jsonb array
-      // For text arrays like tags, format as Postgres array literal
       const elements = val.map((v) => {
         if (v === null) return "NULL";
         return `"${String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
       });
       return `'{${elements.join(",")}}'`;
     }
-    // jsonb object
     const json = JSON.stringify(val);
     return `'${json.replace(/'/g, "''")}'::jsonb`;
   }
-  // string
-  const str = String(val);
-  return `'${str.replace(/'/g, "''")}'`;
+  return `'${String(val).replace(/'/g, "''")}'`;
 }
+
+// ── Auth helper ─────────────────────────────────────────────────────
+
+async function authorizeAdmin(req: Request): Promise<boolean> {
+  const authHeader = req.headers.get("authorization") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+
+  // Service role key (for automated calls)
+  if (serviceKey && authHeader.includes(serviceKey)) return true;
+
+  // Admin JWT
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  if (!token || token === serviceKey) return false;
+
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const { data: { user }, error } = await userClient.auth.getUser(token);
+  if (!user || error) return false;
+
+  const svc = createClient(supabaseUrl, serviceKey);
+  const { data: roleRow } = await svc
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id)
+    .eq("role", "admin")
+    .maybeSingle();
+  return !!roleRow;
+}
+
+// ── Main handler ────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -82,31 +116,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // ── Auth (same as export-table) ──
-    const authHeader = req.headers.get("authorization") ?? "";
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    let authorized = false;
-
-    if (serviceKey && authHeader.includes(serviceKey)) {
-      authorized = true;
-    }
-    if (!authorized) {
-      const token = authHeader.replace(/^Bearer\s+/i, "");
-      if (token && token !== serviceKey) {
-        const userClient = createClient(supabaseUrl, anonKey, {
-          global: { headers: { Authorization: `Bearer ${token}` } },
-        });
-        const { data: { user }, error: userErr } = await userClient.auth.getUser(token);
-        if (user && !userErr) {
-          const svc = createClient(supabaseUrl, serviceKey);
-          const { data: roleRow } = await svc.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle();
-          if (roleRow) authorized = true;
-        }
-      }
-    }
-    if (!authorized) {
+    if (!(await authorizeAdmin(req))) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -114,104 +124,107 @@ Deno.serve(async (req) => {
     }
 
     const url = new URL(req.url);
-    const includeTruncate = url.searchParams.get("truncate") === "true";
-    // Optional: export only specific tables
-    const onlyTables = url.searchParams.get("tables")?.split(",").filter(Boolean);
-
+    const action = url.searchParams.get("action");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const db = createClient(supabaseUrl, serviceKey);
 
-    const tablesToExport = onlyTables ? TABLES_IN_ORDER.filter((t) => onlyTables.includes(t)) : TABLES_IN_ORDER;
+    // ── MANIFEST ──────────────────────────────────────────────────
+    if (action === "manifest") {
+      const chunkSize = parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10);
+      const tables: { table: string; rows: number; chunks: number }[] = [];
 
+      for (const table of TABLES_IN_ORDER) {
+        const { count } = await db.from(table).select("*", { count: "exact", head: true });
+        const rows = count ?? 0;
+        tables.push({ table, rows, chunks: rows === 0 ? 0 : Math.ceil(rows / chunkSize) });
+      }
+
+      return new Response(JSON.stringify({ chunkSize, tables, generated: new Date().toISOString() }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── CHUNK EXPORT ──────────────────────────────────────────────
+    const table = url.searchParams.get("table");
+    if (!table || !TABLES_IN_ORDER.includes(table)) {
+      return new Response(
+        JSON.stringify({ error: `Provide ?table=NAME. Valid: ${TABLES_IN_ORDER.join(", ")}` }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const offset = parseInt(url.searchParams.get("offset") ?? "0", 10);
+    const chunkSize = Math.min(
+      parseInt(url.searchParams.get("chunk_size") ?? String(DEFAULT_CHUNK), 10),
+      10000,
+    );
+    const includeTruncate = url.searchParams.get("truncate") === "true" && offset === 0;
+
+    // Fetch rows in PostgREST pages
+    const rows: Record<string, unknown>[] = [];
+    let pgOffset = offset;
+    while (rows.length < chunkSize) {
+      const { data: page, error } = await db
+        .from(table)
+        .select("*")
+        .range(pgOffset, pgOffset + POSTGREST_PAGE - 1);
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!page || page.length === 0) break;
+      for (const r of page) rows.push(r as Record<string, unknown>);
+      if (page.length < POSTGREST_PAGE) break;
+      pgOffset += POSTGREST_PAGE;
+    }
+
+    // Build SQL
     const lines: string[] = [];
-    lines.push("-- PopDAM full SQL data dump");
+    const chunkIndex = Math.floor(offset / chunkSize);
+    lines.push(`-- PopDAM data export: ${table} chunk ${chunkIndex} (offset ${offset}, limit ${chunkSize})`);
     lines.push(`-- Generated: ${new Date().toISOString()}`);
-    lines.push(`-- Tables: ${tablesToExport.length}`);
     lines.push("");
     lines.push("BEGIN;");
-    lines.push("");
-    lines.push("-- Disable all triggers and FK constraint checks for import");
     lines.push("SET session_replication_role = 'replica';");
     lines.push("");
 
     if (includeTruncate) {
-      lines.push("-- Truncate tables in reverse order (children first)");
-      for (const table of [...tablesToExport].reverse()) {
-        lines.push(`TRUNCATE TABLE public.${table} CASCADE;`);
-      }
+      lines.push(`TRUNCATE TABLE public.${table} CASCADE;`);
       lines.push("");
     }
 
-    const CHUNK = 1000;
-    let totalRows = 0;
-    const tableCounts: Record<string, number> = {};
+    if (rows.length === 0) {
+      lines.push(`-- ${table}: no rows in this range`);
+    } else {
+      const columns = Object.keys(rows[0]);
+      const colList = columns.map((c) => `"${c}"`).join(", ");
 
-    for (const table of tablesToExport) {
-      // Get total count
-      const { count } = await db.from(table).select("*", { count: "exact", head: true });
-      const tableTotal = count ?? 0;
-      tableCounts[table] = tableTotal;
-
-      if (tableTotal === 0) {
-        lines.push(`-- ${table}: 0 rows (skipped)`);
-        lines.push("");
-        continue;
+      for (const row of rows) {
+        const values = columns.map((col) => escapeSQL(row[col]));
+        lines.push(`INSERT INTO public.${table} (${colList}) VALUES (${values.join(", ")});`);
       }
-
-      lines.push(`-- ━━━ ${table}: ${tableTotal} rows ━━━`);
-
-      let offset = 0;
-      let firstRow = true;
-      let columns: string[] = [];
-
-      while (offset < tableTotal) {
-        const { data: chunk, error } = await db
-          .from(table)
-          .select("*")
-          .range(offset, offset + CHUNK - 1);
-
-        if (error) {
-          lines.push(`-- ERROR on ${table} at offset ${offset}: ${error.message}`);
-          break;
-        }
-        if (!chunk || chunk.length === 0) break;
-
-        if (firstRow) {
-          columns = Object.keys(chunk[0]);
-          firstRow = false;
-        }
-
-        for (const row of chunk) {
-          const values = columns.map((col) => escapeSQL((row as Record<string, unknown>)[col]));
-          lines.push(`INSERT INTO public.${table} (${columns.map((c) => `"${c}"`).join(", ")}) VALUES (${values.join(", ")});`);
-        }
-
-        totalRows += chunk.length;
-        offset += CHUNK;
-      }
-
-      lines.push("");
     }
 
-    lines.push("-- Re-enable triggers and FK checks");
+    lines.push("");
     lines.push("SET session_replication_role = 'origin';");
-    lines.push("");
     lines.push("COMMIT;");
-    lines.push("");
-    lines.push("-- ━━━ Summary ━━━");
-    lines.push(`-- Total rows exported: ${totalRows}`);
-    for (const [t, c] of Object.entries(tableCounts)) {
-      lines.push(`--   ${t}: ${c}`);
-    }
     lines.push("");
 
     const sqlContent = lines.join("\n");
+    const filename = `${table}_chunk${String(chunkIndex).padStart(3, "0")}.sql`;
 
     return new Response(sqlContent, {
       headers: {
         ...corsHeaders,
         "Content-Type": "text/sql; charset=utf-8",
-        "Content-Disposition": `attachment; filename="popdam-dump-${new Date().toISOString().slice(0, 10)}.sql"`,
-        "X-Total-Rows": String(totalRows),
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "X-Table": table,
+        "X-Offset": String(offset),
+        "X-Rows-In-Chunk": String(rows.length),
       },
     });
   } catch (err) {
