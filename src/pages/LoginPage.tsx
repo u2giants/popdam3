@@ -54,7 +54,7 @@ export default function LoginPage() {
   }
 
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/library" replace />;
   }
 
   const handleGoogleSignIn = async () => {

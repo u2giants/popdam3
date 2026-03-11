@@ -8,6 +8,9 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/components/AppLayout";
 import Index from "./pages/Index";
 import LoginPage from "./pages/LoginPage";
+import LandingPage from "./pages/LandingPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import TermsOfServicePage from "./pages/TermsOfServicePage";
 import SettingsPage from "./pages/SettingsPage";
 import DownloadsPage from "./pages/DownloadsPage";
 import SetupPage from "./pages/SetupPage";
@@ -33,9 +36,12 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
             <Routes>
+              <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms" element={<TermsOfServicePage />} />
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/" element={<Index />} />
+                <Route path="/library" element={<Index />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/settings/ai-tagging-failures" element={<AiTaggingFailuresPage />} />
                 <Route path="/settings/ai-tagging-detail" element={<AiTaggingDetailPage />} />
