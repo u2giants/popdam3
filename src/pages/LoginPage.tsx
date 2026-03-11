@@ -204,9 +204,13 @@ export default function LoginPage() {
         </Card>
 
         {/* Invitation notice */}
-        <p className="text-center text-xs text-muted-foreground">
-          Access is by invitation only. Contact your administrator for access.
-        </p>
+        <div className="space-y-2 text-center text-xs text-muted-foreground">
+          <p>Access is by invitation only. Contact your administrator for access.</p>
+          <p className="space-x-4">
+            <a href="https://dam.designflow.app/privacy" className="text-primary hover:underline">Privacy Policy</a>
+            <a href="https://dam.designflow.app/terms" className="text-primary hover:underline">Terms of Service</a>
+          </p>
+        </div>
       </div>
     </div>
   );
