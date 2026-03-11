@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
@@ -7,8 +8,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { toast } from "sonner";
 import {
   RefreshCw, RotateCcw, Play, Trash2, Stethoscope,
-  FileSearch, Sparkles, Loader2, Database, Wrench,
+  FileSearch, Sparkles, Loader2, Database, Wrench, Download,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
@@ -73,6 +75,51 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
     },
     onError: (e) => toast.error(`Repair failed: ${e.message}`),
   });
+
+  const [manifestDownloading, setManifestDownloading] = useState(false);
+
+  async function downloadManifest() {
+    setManifestDownloading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const url = `https://${projectId}.supabase.co/functions/v1/export-thumbnail-manifest`;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        let message = "Failed to export manifest";
+        try { const j = JSON.parse(text); message = j.error || message; } catch { /* use default */ }
+        throw new Error(message);
+      }
+
+      const rowCount = res.headers.get("X-Row-Count") || "?";
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = "thumbnail_manifest.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+
+      toast.success(`Thumbnail manifest downloaded — ${Number(rowCount).toLocaleString()} rows`);
+    } catch (e: any) {
+      toast.error(e.message || "Manifest download failed");
+    } finally {
+      setManifestDownloading(false);
+    }
+  }
 
   function runReprocess() {
     requestOp("reprocess-metadata", OP_NAMES["reprocess-metadata"],
@@ -230,6 +277,21 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[280px] text-center">Nulls out invalid property_name values (like CREATURE) for assets and style groups. Safe to re-run.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5"
+                  onClick={downloadManifest}
+                  disabled={manifestDownloading}
+                >
+                  {manifestDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  Download Thumbnail Manifest
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] text-center">Exports a CSV of all assets with thumbnails (old_asset_id, relative_path, filename, quick_hash, thumbnail_url) for migration.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           {reprocessOp.isInterrupted && (

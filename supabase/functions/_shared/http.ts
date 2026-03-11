@@ -10,6 +10,7 @@ export const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-agent-key, " +
     "x-supabase-client-platform, x-supabase-client-platform-version, " +
     "x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Expose-Headers": "X-Row-Count, Content-Disposition",
 };
 
 export function json(data: unknown, status = 200): Response {
