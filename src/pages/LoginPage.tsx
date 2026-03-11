@@ -1,8 +1,7 @@
-import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +18,32 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
+
+  // Detect OAuth errors returned in URL hash or query params after redirect
+  useEffect(() => {
+    const hash = window.location.hash;
+    const params = new URLSearchParams(window.location.search);
+
+    // Supabase returns errors in the hash fragment: #error=...&error_description=...
+    if (hash) {
+      const hashParams = new URLSearchParams(hash.replace("#", ""));
+      const hashError = hashParams.get("error_description") || hashParams.get("error");
+      if (hashError) {
+        setError(decodeURIComponent(hashError));
+        // Clean the URL without triggering navigation
+        window.history.replaceState(null, "", window.location.pathname);
+        return;
+      }
+    }
+
+    // Also check query params (some error flows use ?error=...)
+    const queryError = params.get("error_description") || params.get("error");
+    if (queryError) {
+      setError(decodeURIComponent(queryError));
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [location]);
 
   if (loading) {
     return (
