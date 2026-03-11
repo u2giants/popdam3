@@ -94,15 +94,26 @@ Deno.serve(async (req) => {
 
     const { count: totalCount } = await db.from(table).select("*", { count: "exact", head: true });
 
+    // PostgREST caps at 1000 rows per request, so we paginate internally
+    const CHUNK = 1000;
     const from = page * pageSize;
-    const to = from + pageSize - 1;
-    const { data, error } = await db.from(table).select("*").range(from, to);
+    const targetRows = pageSize;
+    const rows: Record<string, unknown>[] = [];
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let offset = from;
+    while (rows.length < targetRows) {
+      const chunkEnd = offset + CHUNK - 1;
+      const { data: chunk, error: chunkErr } = await db.from(table).select("*").range(offset, chunkEnd);
+      if (chunkErr) {
+        return new Response(JSON.stringify({ error: chunkErr.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!chunk || chunk.length === 0) break;
+      for (const r of chunk) rows.push(r as Record<string, unknown>);
+      if (chunk.length < CHUNK) break; // no more data
+      offset += CHUNK;
     }
 
     const rows = data ?? [];
