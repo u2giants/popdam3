@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.bulk-job-runner]
 verify_jwt = false
+
+[functions.export-table]
+verify_jwt = false
