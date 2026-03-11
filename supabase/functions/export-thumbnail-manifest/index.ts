@@ -12,7 +12,7 @@
  * Auth: admin JWT or service role key.
  */
 
-import { corsHeaders, json, err } from "../_shared/http.ts";
+import { corsHeaders, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
@@ -82,13 +82,15 @@ Deno.serve(async (req) => {
       if (!data || data.length === 0) break;
 
       for (const row of data) {
-        chunks.push([
-          escapeCSV(row.id),
-          escapeCSV(row.relative_path),
-          escapeCSV(row.filename),
-          escapeCSV(row.quick_hash),
-          escapeCSV(row.thumbnail_url),
-        ].join(",") + "\n");
+        chunks.push(
+          [
+            escapeCSV(row.id),
+            escapeCSV(row.relative_path),
+            escapeCSV(row.filename),
+            escapeCSV(row.quick_hash),
+            escapeCSV(row.thumbnail_url),
+          ].join(",") + "\n",
+        );
       }
 
       if (data.length < PAGE) break;
