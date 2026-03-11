@@ -167,7 +167,7 @@ export default function AppHeader() {
           </SheetContent>
         </Sheet>
 
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/library" className="flex items-center gap-2">
           <span className="text-lg font-bold tracking-tight text-primary">PopDAM</span>
         </Link>
 
