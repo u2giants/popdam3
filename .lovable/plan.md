@@ -1,186 +1,162 @@
-# Migration Plan: Lovable Cloud → External Supabase Project
+## Revised Plan — Thumbnail Manifest Export and Database Rebuild
 
-## Status: Step 1 COMPLETE — Ready for execution
+### Corrections to the six points
 
----
+**1. File existence:** `supabase/functions/export-thumbnail-manifest/index.ts` **already exists** in the repo. The directory listing confirms `export-thumbnail-manifest/` is present. Your local repo snapshot may be stale. No file creation needed for the edge function itself. However, it is **not registered** in `supabase/config.toml`, so it will not deploy until the config entry is added.
 
-## What Was Built
+**2. Download approach:** Agreed. The button will use `fetch()` directly, following the same pattern as `InstallBundleTab.downloadBundle()`: get session token via `supabase.auth.getSession()`, construct the full URL using `VITE_SUPABASE_PROJECT_ID`, pass `Authorization: Bearer` + `apikey` headers, receive the blob, read `X-Row-Count` from response headers, trigger browser download.
 
-### 1. `migration/migration-schema.sql` — Complete schema script
-Contains everything needed to recreate the database from scratch:
-- 7 enums
-- 26 tables with exact column types, defaults, constraints, and foreign keys
-- 48 indexes (btree, GIN, trigram)
-- 25 database functions (all plpgsql RPCs)
-- 13 triggers (including `handle_new_user` on `auth.users`)
-- 43 RLS policies
-- pg_trgm extension
+**3. Source backend confirmation:** Yes. The export runs against the **current Lovable Cloud backend** — the one connected to this project right now. The edge function URL is derived from `VITE_SUPABASE_PROJECT_ID` which points to `vklanxwmaeqjbwtmnygj`. This export must happen **before** you change any environment variables to point at an external project. The downloaded CSV is a standalone file you save locally and later import into the new project.
 
-### 2. `supabase/functions/export-table/` — Paginated CSV export edge function
-Solves the Lovable Cloud export limit problem. Downloads any table in 50,000-row pages as CSV.
-
-### 3. `migration/export-all-tables.ps1` — PowerShell export script
-One-click script that downloads ALL 24 tables as CSVs to a local `export/` folder.
-
----
-
-## Table Sizes (actual counts)
-
-| Table | Rows | Export Method |
-|-------|------|---------------|
-| assets | 96,728 | export-table (2 pages) |
-| asset_tags | 726,333 | export-table (15 pages) |
-| asset_path_history | 219,838 | export-table (5 pages) |
-| render_queue | 231,118 | export-table (5 pages) |
-| erp_items_raw | 118,567 | export-table (3 pages) |
-| processing_queue | 105,150 | export-table (3 pages) |
-| erp_items_current | 31,425 | export-table (1 page) |
-| characters | 9,615 | export-table (1 page) |
-| product_category_predictions | 9,316 | export-table (1 page) |
-| style_groups | 8,333 | Cloud UI or export-table |
-| tiff_optimization_queue | 7,953 | Cloud UI or export-table |
-| properties | 498 | Cloud UI |
-| admin_config | 56 | Cloud UI |
-| erp_sync_runs | 25 | Cloud UI |
-| agent_pairings | 16 | Cloud UI |
-| invitations | 10 | Cloud UI |
-| licensors | 8 | Cloud UI |
-| agent_registrations | 2 | Cloud UI |
-| asset_characters | 94 | Cloud UI |
-| product_categories | 0 | skip |
-| product_types | 0 | skip |
-| product_subtypes | 0 | skip |
-| hygiene_findings | 0 | skip |
-| erp_enrichment_log | 0 | skip |
-
----
-
-## Execution Steps (Detailed)
-
-### Step 1: Run Schema on External Supabase ✅ READY
-
-1. Open your **external Supabase project** dashboard at supabase.com
-2. Click **SQL Editor** in the left sidebar
-3. Click **New query**
-4. Open the file `migration/migration-schema.sql` from this repo in a text editor (Notepad, VS Code, etc.)
-5. Copy the ENTIRE contents (Ctrl+A, Ctrl+C)
-6. Paste into the SQL Editor (Ctrl+V)
-7. Click **Run** (or press Ctrl+Enter)
-8. You should see "Success" — if you get an error about `pg_trgm`, run this first:
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS pg_trgm;
-   ```
-   Then run the full script again.
-
-### Step 2: Export Data from Lovable Cloud
-
-The `export-table` edge function will auto-deploy. Then:
-
-1. Open PowerShell on your Windows PC
-2. Navigate to where you want to save files:
-   ```powershell
-   cd C:\Users\YourName\Desktop
-   ```
-3. You need the **Service Role Key** from Lovable Cloud. This is tricky — you may need to check if it's accessible via the backend settings. If not, we can use the admin-api approach instead.
-4. Edit `migration/export-all-tables.ps1` — replace `PASTE_YOUR_SERVICE_ROLE_KEY_HERE` with the actual key
-5. Run:
-   ```powershell
-   .\export-all-tables.ps1
-   ```
-6. Wait ~5 minutes. All CSVs will appear in `.\export\`
-
-**Alternative if service role key is not accessible:**
-For small tables (<1000 rows), use Cloud UI → Database → Tables → Export.
-For large tables, we can add an authenticated admin endpoint that streams CSV.
-
-### Step 3: Import Data to External Supabase
-
-1. In your external Supabase dashboard → **SQL Editor**
-2. Run this FIRST to disable triggers during import:
-   ```sql
-   SET session_replication_role = 'replica';
-   ```
-3. Go to **Table Editor** → select each table → click **Insert** → **Import from CSV**
-4. Import in this EXACT order (foreign keys matter):
-   - `admin_config`
-   - `licensors`
-   - `properties`
-   - `characters`
-   - `erp_sync_runs`
-   - `style_groups`
-   - `assets` (largest — may need multiple CSV imports if file is huge)
-   - `asset_tags`
-   - `asset_characters`
-   - `asset_path_history`
-   - `processing_queue`
-   - `render_queue`
-   - `tiff_optimization_queue`
-   - `erp_items_current`
-   - `erp_items_raw`
-   - `product_category_predictions`
-   - `invitations`
-   - `agent_registrations`
-   - `agent_pairings`
-5. After ALL imports, re-enable triggers:
-   ```sql
-   SET session_replication_role = 'origin';
-   ```
-
-### Step 4: Secrets
-
-In external Supabase → **Project Settings** → **Edge Functions** → **Secrets**, add:
-
-| Secret | Where to find |
-|--------|---------------|
-| `BREVO_API_KEY` | Brevo dashboard → SMTP & API → API Keys |
-| `DEPLOY_WEBHOOK_KEY` | Wherever you originally created it |
-| `LOVABLE_API_KEY` | We need to figure this out — it's the Lovable AI gateway key |
-
-### Step 5: Auth — Create admin user
-
-In external Supabase SQL Editor:
-```sql
-INSERT INTO invitations (email, role) VALUES ('u2giants@gmail.com', 'admin');
-```
-Then sign up at the app with that email. The `handle_new_user` trigger will match the invitation.
-
-### Step 6: GitHub Actions Secrets
-
-In GitHub → repo → Settings → Secrets and variables → Actions, add:
-- `SUPABASE_ACCESS_TOKEN` — supabase.com → your account → Access Tokens → Generate
-- `EXTERNAL_SUPABASE_PROJECT_ID` — from your external project URL (the `ref` part)
-- `EXTERNAL_SUPABASE_DB_PASSWORD` — the password you set when creating the project
-
-### Step 7: Switch Frontend (I do this)
-
-Once data is verified, I update the env vars to point at the external project.
-
-### Step 8: Agent Re-pairing
-
-Update Bridge Agent and Windows Agent `.env`:
-- `SUPABASE_URL` → new project URL
-- Generate new pairing codes in the new dashboard and pair agents
-
----
-
-## Verification Queries (run on external Supabase after import)
+**4. Safer quick_hash fallback SQL:**
 
 ```sql
--- Counts should match the table above
-SELECT 'assets' as tbl, count(*) FROM assets
-UNION ALL SELECT 'asset_tags', count(*) FROM asset_tags
-UNION ALL SELECT 'style_groups', count(*) FROM style_groups
-UNION ALL SELECT 'asset_path_history', count(*) FROM asset_path_history
-UNION ALL SELECT 'characters', count(*) FROM characters
-UNION ALL SELECT 'licensors', count(*) FROM licensors
-UNION ALL SELECT 'properties', count(*) FROM properties
-ORDER BY 1;
+-- Fallback pass: only where quick_hash is unique on BOTH sides
+WITH unique_manifest AS (
+  SELECT quick_hash, thumbnail_url
+  FROM thumbnail_manifest
+  WHERE matched = false
+    AND quick_hash IS NOT NULL
+    AND quick_hash != ''
+  GROUP BY quick_hash, thumbnail_url
+  HAVING count(*) = 1
+),
+unique_assets AS (
+  SELECT id, quick_hash
+  FROM assets
+  WHERE thumbnail_url IS NULL
+    AND quick_hash IS NOT NULL
+    AND quick_hash != ''
+  GROUP BY id, quick_hash
+  HAVING count(*) OVER (PARTITION BY quick_hash) = 1
+)
+UPDATE assets a
+SET thumbnail_url = um.thumbnail_url
+FROM unique_assets ua
+JOIN unique_manifest um ON um.quick_hash = ua.quick_hash
+WHERE a.id = ua.id;
+
+-- Mark matched
+UPDATE thumbnail_manifest tm
+SET matched = true
+FROM assets a
+WHERE a.quick_hash = tm.quick_hash
+  AND a.thumbnail_url IS NOT NULL
+  AND tm.matched = false;
 ```
+
+This ensures the fallback only fires when a `quick_hash` value maps to exactly one manifest row AND exactly one asset row, preventing ambiguous matches.
+
+**5. Revised verification checklist — empty quick_hash:**
+
+If any exported rows have a blank or empty `quick_hash`, treat this as a **warning to investigate**. These rows can only match on `relative_path`. If the file was moved or renamed since the last scan, these rows will be unrecoverable. Before proceeding with the rebuild, investigate why the hash is missing — it may indicate the Bridge Agent was interrupted before hashing completed, or the file was too large to hash. If more than a handful of rows are affected, re-run the scan on the old backend to populate hashes before exporting.
+
+**6. Admin authorization with verify_jwt = false:**
+
+Confirmed. Setting `verify_jwt = false` in `config.toml` only disables Supabase's gateway-level JWT check. The `export-thumbnail-manifest` function **already enforces admin authorization in its own code** via the `authorizeAdmin()` function at the top of the handler. That function extracts the Bearer token, calls `auth.getUser()` to validate the session, then checks the `user_roles` table for the `admin` role. Unauthenticated or non-admin requests receive a 401 response.
 
 ---
 
-## Open Questions
+### Final Implementation Plan
 
-1. **Service Role Key access**: Can you see the service role key in Lovable Cloud backend settings? If not, we need an alternative export approach.
-2. **LOVABLE_API_KEY**: This key is used by the `ai-tag` edge function to call Lovable's AI gateway. After migration, this key may need to be re-issued or the AI integration reworked.
-3. **CSV import size limits**: Supabase Table Editor CSV import may have size limits. For the 726k-row `asset_tags` table, we may need to use `psql` COPY command instead.
+**Scope:** Two file changes. No database migrations. No schema changes.
+
+#### Change 1: Register the edge function
+
+**File:** `supabase/config.toml`
+
+Add:
+
+```toml
+[functions.export-thumbnail-manifest]
+verify_jwt = false
+```
+
+This enables deployment. The function already handles its own admin auth check.
+
+#### Change 2: Add download button to Diagnostics
+
+**File:** `src/components/settings/diagnostics/ActionsSection.tsx`
+
+Add a "Download Thumbnail Manifest" button to the existing Actions card. Implementation:
+
+- Uses `fetch()` directly (not `supabase.functions.invoke`), same pattern as `InstallBundleTab`
+- Constructs URL: `https://${VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/export-thumbnail-manifest`
+- Sends `Authorization: Bearer ${session.access_token}` and `apikey` headers
+- On success: reads `X-Row-Count` header, creates blob URL, triggers `<a>` download as `thumbnail_manifest.csv`, shows toast with row count
+- On error: shows toast with error message
+- Button shows spinner while downloading, disabled during download
+
+#### Pre-existing build errors (not part of this task)
+
+The 4 TypeScript errors in `tag-propagation.ts` and `bulk-job-runner/index.ts` are pre-existing and unrelated. They will be fixed as a separate task after this plan is approved and implemented.
+
+#### Files NOT changed
+
+- `supabase/functions/export-thumbnail-manifest/index.ts` — already correct, no modifications needed
+- No database migrations
+- No other edge functions
+- No other UI components
+
+#### User workflow after implementation
+
+1. Open PopDAM → Settings → Diagnostics tab
+2. Click **Download Thumbnail Manifest**
+3. CSV downloads automatically; toast shows row count
+4. Verify per checklist (spot-check URLs, check for empty `quick_hash` values, confirm row count)
+5. Save CSV in two locations
+6. Proceed with external project setup and rebuild per Phase 3–6 of the previously approved plan  
+  
+IMPLEMENT THIS NOW.
+  Proceed with the thumbnail manifest download feature, using the already-existing export-thumbnail-manifest edge function and adding the one-click admin-only download button in the Diagnostics Actions section.
+  Requirements:
+  1) Register the edge function
+  Update supabase/config.toml to register export-thumbnail-manifest.
+  Preferred:
+  [functions.export-thumbnail-manifest]
+  verify_jwt = true
+  If you believe verify_jwt must remain false for a specific technical reason, keep the existing server-side admin authorization in the function and explain briefly in your final summary why false was necessary.
+  2) Add the download button
+  Update src/components/settings/diagnostics/ActionsSection.tsx to add a button called:
+  Download Thumbnail Manifest
+  Implementation requirements:
+  - Use direct fetch(), not supabase.functions.invoke()
+  - Follow the same raw-download pattern used in InstallBundleTab.downloadBundle()
+  - Use the current logged-in session token from supabase.auth.getSession()
+  - Build the URL against the current Lovable Cloud source backend using VITE_SUPABASE_PROJECT_ID
+  - Send Authorization: Bearer <token>
+  - Send apikey header using VITE_SUPABASE_PUBLISHABLE_KEY
+  - Download the response as thumbnail_manifest.csv
+  - Show loading state/spinner while downloading
+  - Disable the button while downloading
+  - Show a success toast when finished
+  - Show an error toast if the request fails
+  3) Critical CORS/header fix
+  Because the button needs to read response headers in the browser, make sure the export function response exposes any headers the client needs.
+  Specifically:
+  - expose X-Row-Count
+  - expose Content-Disposition
+  If your shared CORS helper does not currently expose those headers, update the relevant shared function response utility or the function response headers so the browser can access them.
+  4) Do NOT change the manifest schema
+  The export should continue returning only rows where thumbnail_url IS NOT NULL with these columns:
+  - old_asset_id
+  - relative_path
+  - filename
+  - quick_hash
+  - thumbnail_url
+  5) Do NOT do any of the rebuild/migration steps yet
+  Only implement the one-click export capability right now.
+  Do not touch:
+  - database migrations
+  - external Supabase import steps
+  - rebuild logic
+  - reattachment SQL
+  - other edge functions
+  - unrelated TypeScript errors
+  6) Final response format
+  When done, tell me exactly:
+  A) which files you changed
+  B) whether verify_jwt was set to true or false
+  C) whether you updated shared CORS/header handling
+  D) exactly where in the UI I should click
+  E) whether the button downloads from the current Lovable Cloud source backend
