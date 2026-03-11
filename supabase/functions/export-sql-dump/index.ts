@@ -31,25 +31,25 @@ const TABLES_IN_ORDER = [
   "properties",
   "characters",
   "erp_sync_runs",
-  "style_groups",      // depends on licensors, properties (primary_asset_id is nullable, filled later)
-  "assets",            // depends on licensors, properties, style_groups, product_subtypes
-  "asset_tags",        // depends on assets
-  "asset_characters",  // depends on assets, characters
-  "asset_path_history",// depends on assets
-  "processing_queue",  // depends on assets
-  "render_queue",      // depends on assets
+  "style_groups", // depends on licensors, properties (primary_asset_id is nullable, filled later)
+  "assets", // depends on licensors, properties, style_groups, product_subtypes
+  "asset_tags", // depends on assets
+  "asset_characters", // depends on assets, characters
+  "asset_path_history", // depends on assets
+  "processing_queue", // depends on assets
+  "render_queue", // depends on assets
   "tiff_optimization_queue",
-  "hygiene_findings",  // depends on assets
+  "hygiene_findings", // depends on assets
   "erp_items_current", // depends on erp_sync_runs
-  "erp_items_raw",     // depends on erp_sync_runs
+  "erp_items_raw", // depends on erp_sync_runs
   "erp_enrichment_log",
   "product_categories",
-  "product_types",     // depends on product_categories
-  "product_subtypes",  // depends on product_types
+  "product_types", // depends on product_categories
+  "product_subtypes", // depends on product_types
   "product_category_predictions", // depends on erp_items_current
   "invitations",
   "agent_registrations",
-  "agent_pairings",    // depends on agent_registrations
+  "agent_pairings", // depends on agent_registrations
 ];
 
 function escapeSQL(val: unknown): string {
@@ -120,9 +120,7 @@ Deno.serve(async (req) => {
 
     const db = createClient(supabaseUrl, serviceKey);
 
-    const tablesToExport = onlyTables
-      ? TABLES_IN_ORDER.filter((t) => onlyTables.includes(t))
-      : TABLES_IN_ORDER;
+    const tablesToExport = onlyTables ? TABLES_IN_ORDER.filter((t) => onlyTables.includes(t)) : TABLES_IN_ORDER;
 
     const lines: string[] = [];
     lines.push("-- PopDAM full SQL data dump");
