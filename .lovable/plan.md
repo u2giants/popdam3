@@ -1,180 +1,186 @@
-# Migration Plan: Lovable Cloud → External Supabase Project  
-  
-Instructions must be very detailed for a non-sysadmin, non-programmer, non-db admin. must be step-by-step slowly - from the very beginning! i installed PGadmin / postgresql on my windows computer but that's it. i did not touch one setting, did not set one thing up as i don't know how. i did set up the project on supabase. 
+# Migration Plan: Lovable Cloud → External Supabase Project
 
-## Reality Check
-
-This migration has three categories of work:
-
-
-| Category                                             | Method                                                                  | Effort                                 |
-| ---------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
-| **Schema** (tables, functions, triggers, RLS, enums) | I generate a complete SQL script from what I can see                    | Low — run one SQL file                 |
-| **Data** (92k assets, tags, style groups, etc.)      | Table-by-table CSV export from Cloud UI, import via Supabase SQL Editor | Medium — ~20 tables, mostly mechanical |
-| **Secrets + Auth**                                   | Manual re-entry from original sources                                   | Manual — you need original API keys    |
-
-
-Things that **cannot be automated**:
-
-- Lovable Cloud does not expose a Postgres connection string
-- Secret values are encrypted and cannot be read back
-- Auth user passwords cannot be exported — users must be re-invited or reset passwords - (this is not a problem)
+## Status: Step 1 COMPLETE — Ready for execution
 
 ---
 
-## Step 1: Schema Script (I do this)
+## What Was Built
 
-I will generate a single `.sql` file containing:
+### 1. `migration/migration-schema.sql` — Complete schema script
+Contains everything needed to recreate the database from scratch:
+- 7 enums
+- 26 tables with exact column types, defaults, constraints, and foreign keys
+- 48 indexes (btree, GIN, trigram)
+- 25 database functions (all plpgsql RPCs)
+- 13 triggers (including `handle_new_user` on `auth.users`)
+- 43 RLS policies
+- pg_trgm extension
 
-- All enums (`file_type`, `asset_status`, `queue_status`, `asset_type`, `art_source`, `workflow_status`, `app_role`)
-- All 20+ tables with exact column types, defaults, and constraints
-- All indexes (btree, GIN, trigram)
-- All database functions (18 functions including `rebuild_style_groups_batch`, `propagate_group_tags_batch`, etc.)
-- All triggers (`compute_primary_sort_tier`, `sync_asset_tags_to_array`, `auto_queue_render`, `sync_primary_asset_on_thumbnail`, `sync_designer_to_style_group`, `sync_cover_description_to_style_group`, `update_updated_at_column`)
-- All RLS policies
-- `handle_new_user()` trigger on `auth.users`
+### 2. `supabase/functions/export-table/` — Paginated CSV export edge function
+Solves the Lovable Cloud export limit problem. Downloads any table in 50,000-row pages as CSV.
 
-You paste this into your external Supabase project's SQL Editor and run it.
-
----
-
-## Step 2: Data Export (You do this, from Lovable Cloud UI)
-
-In Cloud View → Database → Tables, export each table as CSV. Priority order:
-
-**Core reference tables (export first):**
-
-1. `licensors`
-2. `properties`
-3. `characters`
-4. `product_categories` → `product_types` → `product_subtypes`
-
-**Main data tables:**
-5. `assets` (92k rows — largest table)
-6. `asset_tags`
-7. `asset_characters`
-8. `style_groups` (62k rows)  
-9. `asset_path_history  - this is 219,000 records. how do we do this? lovable won't export this many records.`
-
-**Queue/operational tables (can skip or export if needed):**
-10. `processing_queue`, `render_queue`, `tiff_optimization_queue`
-11. `hygiene_findings`
-12. `erp_items_current`, `erp_items_raw`, `erp_sync_runs`, `erp_enrichment_log`
-13. `product_category_predictions`
-
-**Config:**
-14. `admin_config`
-15. `invitations`
-
-**Skip — will be recreated:**
-
-- `profiles` (created by `handle_new_user` trigger on signup)
-- `user_roles` (created by `handle_new_user` trigger on signup)
+### 3. `migration/export-all-tables.ps1` — PowerShell export script
+One-click script that downloads ALL 24 tables as CSVs to a local `export/` folder.
 
 ---
 
-## Step 3: Data Import (You do this, in external Supabase)
+## Table Sizes (actual counts)
 
-In your external Supabase dashboard → SQL Editor:
-
-1. Temporarily disable triggers to avoid cascading side effects during import:
-
-```sql
-SET session_replication_role = 'replica';
-```
-
-2. Import CSVs via Supabase dashboard Table Editor → Import CSV, or use the SQL Editor with `COPY` commands if you prefer.
-3. Re-enable triggers:
-
-```sql
-SET session_replication_role = 'origin';
-```
-
-Import order matters due to foreign key relationships: licensors → properties → characters → assets → asset_tags → asset_characters → style_groups.
-
----
-
-## Step 4: Secrets (You do this)
-
-In your external Supabase dashboard → Project Settings → Edge Functions → Secrets, add:
-
-
-| Secret               | Where to find the value                                       |
-| -------------------- | ------------------------------------------------------------- |
-| `BREVO_API_KEY`      | Brevo dashboard → SMTP & API → API Keys                       |
-| `DEPLOY_WEBHOOK_KEY` | Wherever you originally generated this                        |
-| `LOVABLE_API_KEY`    | Lovable project settings (this one may need special handling) |
-
-
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_ANON_KEY` are auto-provided by Supabase in edge functions.
+| Table | Rows | Export Method |
+|-------|------|---------------|
+| assets | 96,728 | export-table (2 pages) |
+| asset_tags | 726,333 | export-table (15 pages) |
+| asset_path_history | 219,838 | export-table (5 pages) |
+| render_queue | 231,118 | export-table (5 pages) |
+| erp_items_raw | 118,567 | export-table (3 pages) |
+| processing_queue | 105,150 | export-table (3 pages) |
+| erp_items_current | 31,425 | export-table (1 page) |
+| characters | 9,615 | export-table (1 page) |
+| product_category_predictions | 9,316 | export-table (1 page) |
+| style_groups | 8,333 | Cloud UI or export-table |
+| tiff_optimization_queue | 7,953 | Cloud UI or export-table |
+| properties | 498 | Cloud UI |
+| admin_config | 56 | Cloud UI |
+| erp_sync_runs | 25 | Cloud UI |
+| agent_pairings | 16 | Cloud UI |
+| invitations | 10 | Cloud UI |
+| licensors | 8 | Cloud UI |
+| agent_registrations | 2 | Cloud UI |
+| asset_characters | 94 | Cloud UI |
+| product_categories | 0 | skip |
+| product_types | 0 | skip |
+| product_subtypes | 0 | skip |
+| hygiene_findings | 0 | skip |
+| erp_enrichment_log | 0 | skip |
 
 ---
 
-## Step 5: Auth / Users
+## Execution Steps (Detailed)
 
-Since auth credentials can't be exported:
+### Step 1: Run Schema on External Supabase ✅ READY
 
-1. In external Supabase, insert invitation rows for your users:
+1. Open your **external Supabase project** dashboard at supabase.com
+2. Click **SQL Editor** in the left sidebar
+3. Click **New query**
+4. Open the file `migration/migration-schema.sql` from this repo in a text editor (Notepad, VS Code, etc.)
+5. Copy the ENTIRE contents (Ctrl+A, Ctrl+C)
+6. Paste into the SQL Editor (Ctrl+V)
+7. Click **Run** (or press Ctrl+Enter)
+8. You should see "Success" — if you get an error about `pg_trgm`, run this first:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+   ```
+   Then run the full script again.
 
+### Step 2: Export Data from Lovable Cloud
+
+The `export-table` edge function will auto-deploy. Then:
+
+1. Open PowerShell on your Windows PC
+2. Navigate to where you want to save files:
+   ```powershell
+   cd C:\Users\YourName\Desktop
+   ```
+3. You need the **Service Role Key** from Lovable Cloud. This is tricky — you may need to check if it's accessible via the backend settings. If not, we can use the admin-api approach instead.
+4. Edit `migration/export-all-tables.ps1` — replace `PASTE_YOUR_SERVICE_ROLE_KEY_HERE` with the actual key
+5. Run:
+   ```powershell
+   .\export-all-tables.ps1
+   ```
+6. Wait ~5 minutes. All CSVs will appear in `.\export\`
+
+**Alternative if service role key is not accessible:**
+For small tables (<1000 rows), use Cloud UI → Database → Tables → Export.
+For large tables, we can add an authenticated admin endpoint that streams CSV.
+
+### Step 3: Import Data to External Supabase
+
+1. In your external Supabase dashboard → **SQL Editor**
+2. Run this FIRST to disable triggers during import:
+   ```sql
+   SET session_replication_role = 'replica';
+   ```
+3. Go to **Table Editor** → select each table → click **Insert** → **Import from CSV**
+4. Import in this EXACT order (foreign keys matter):
+   - `admin_config`
+   - `licensors`
+   - `properties`
+   - `characters`
+   - `erp_sync_runs`
+   - `style_groups`
+   - `assets` (largest — may need multiple CSV imports if file is huge)
+   - `asset_tags`
+   - `asset_characters`
+   - `asset_path_history`
+   - `processing_queue`
+   - `render_queue`
+   - `tiff_optimization_queue`
+   - `erp_items_current`
+   - `erp_items_raw`
+   - `product_category_predictions`
+   - `invitations`
+   - `agent_registrations`
+   - `agent_pairings`
+5. After ALL imports, re-enable triggers:
+   ```sql
+   SET session_replication_role = 'origin';
+   ```
+
+### Step 4: Secrets
+
+In external Supabase → **Project Settings** → **Edge Functions** → **Secrets**, add:
+
+| Secret | Where to find |
+|--------|---------------|
+| `BREVO_API_KEY` | Brevo dashboard → SMTP & API → API Keys |
+| `DEPLOY_WEBHOOK_KEY` | Wherever you originally created it |
+| `LOVABLE_API_KEY` | We need to figure this out — it's the Lovable AI gateway key |
+
+### Step 5: Auth — Create admin user
+
+In external Supabase SQL Editor:
 ```sql
 INSERT INTO invitations (email, role) VALUES ('u2giants@gmail.com', 'admin');
--- Add other users as needed
+```
+Then sign up at the app with that email. The `handle_new_user` trigger will match the invitation.
+
+### Step 6: GitHub Actions Secrets
+
+In GitHub → repo → Settings → Secrets and variables → Actions, add:
+- `SUPABASE_ACCESS_TOKEN` — supabase.com → your account → Access Tokens → Generate
+- `EXTERNAL_SUPABASE_PROJECT_ID` — from your external project URL (the `ref` part)
+- `EXTERNAL_SUPABASE_DB_PASSWORD` — the password you set when creating the project
+
+### Step 7: Switch Frontend (I do this)
+
+Once data is verified, I update the env vars to point at the external project.
+
+### Step 8: Agent Re-pairing
+
+Update Bridge Agent and Windows Agent `.env`:
+- `SUPABASE_URL` → new project URL
+- Generate new pairing codes in the new dashboard and pair agents
+
+---
+
+## Verification Queries (run on external Supabase after import)
+
+```sql
+-- Counts should match the table above
+SELECT 'assets' as tbl, count(*) FROM assets
+UNION ALL SELECT 'asset_tags', count(*) FROM asset_tags
+UNION ALL SELECT 'style_groups', count(*) FROM style_groups
+UNION ALL SELECT 'asset_path_history', count(*) FROM asset_path_history
+UNION ALL SELECT 'characters', count(*) FROM characters
+UNION ALL SELECT 'licensors', count(*) FROM licensors
+UNION ALL SELECT 'properties', count(*) FROM properties
+ORDER BY 1;
 ```
 
-2. Users sign up fresh on the new project. The `handle_new_user()` trigger will create their profile and assign roles from the invitation.
-
 ---
 
-## Step 6: GitHub Actions Secrets
+## Open Questions
 
-In your GitHub repo → Settings → Secrets and variables → Actions, add:
-
-- `SUPABASE_ACCESS_TOKEN` — from supabase.com → Account → Access Tokens
-- `EXTERNAL_SUPABASE_PROJECT_ID` — your new project's ref ID
-- `EXTERNAL_SUPABASE_DB_PASSWORD` — the password you set when creating the Supabase project
-
----
-
-## Step 7: Switch Frontend Environment
-
-Update the Lovable project's environment to point at the new Supabase:
-
-- `VITE_SUPABASE_URL` → new project URL
-- `VITE_SUPABASE_PUBLISHABLE_KEY` → new project anon key
-- `VITE_SUPABASE_PROJECT_ID` → new project ref
-
-This is done by updating the `.env` file (though Lovable auto-manages it, so we may need to override via the code).
-
----
-
-## Step 8: Agent Re-pairing
-
-Bridge Agent and Windows Agent `.env` files need updating:
-
-- `SUPABASE_URL` → new project URL
-- `AGENT_KEY` → generate new pairing codes in the new project
-
----
-
-## What I'll Build (Implementation)
-
-1. **A complete `migration-schema.sql` file** containing every enum, table, function, trigger, index, and RLS policy — ready to paste into Supabase SQL Editor
-2. **A checklist document** with the exact export/import order and verification queries
-3. **Update `.env` handling** in the frontend to support pointing at the external project
-
----
-
-## Estimated Effort
-
-
-| Step                                 | Who  | Time       |
-| ------------------------------------ | ---- | ---------- |
-| Schema SQL generation                | Me   | Immediate  |
-| Data export (20 tables via Cloud UI) | You  | ~30-45 min |
-| Data import (Supabase dashboard)     | You  | ~30 min    |
-| Secrets re-entry                     | You  | ~10 min    |
-| GitHub secrets setup                 | You  | ~5 min     |
-| User re-invitation                   | You  | ~5 min     |
-| Agent re-pairing                     | You  | ~10 min    |
-| Frontend env switch                  | Me   | Immediate  |
-| Verification                         | Both | ~15 min    |
+1. **Service Role Key access**: Can you see the service role key in Lovable Cloud backend settings? If not, we need an alternative export approach.
+2. **LOVABLE_API_KEY**: This key is used by the `ai-tag` edge function to call Lovable's AI gateway. After migration, this key may need to be re-issued or the AI integration reworked.
+3. **CSV import size limits**: Supabase Table Editor CSV import may have size limits. For the 726k-row `asset_tags` table, we may need to use `psql` COPY command instead.
