@@ -34,7 +34,7 @@ export default function LandingPage() {
           Digital Asset Management
         </h1>
         <p className="mx-auto max-w-2xl text-lg text-muted-foreground leading-relaxed">
-          PopDAM is a digital asset manager for licensed consumer-product art.
+          PopDAM provides digital asset management for licensed consumer-product art.
           Organize, search, and manage design files across your team — securely and efficiently.
         </p>
         <Link to="/login">
