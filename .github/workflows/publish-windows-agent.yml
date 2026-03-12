@@ -439,7 +439,7 @@ jobs:
           echo "SHA256: $SHA"
 
       - name: Create versioned GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.3.2
         with:
           tag_name: windows-agent-v${{ steps.version.outputs.version }}-${{ github.sha }}
           name: Windows Render Agent v${{ steps.version.outputs.version }}
