@@ -270,7 +270,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         if (summary.errors > 0) parts.push(`${summary.errors} failed`);
         toast("Images ingested", { description: parts.join(", ") });
       } else {
-        toast({ title: "Images ingested" });
+        toast("Images ingested");
       }
       // Remove ingested images from the list
       setSiblings(prev => prev?.filter(s => !selected.has(s.relative_path)) ?? null);
