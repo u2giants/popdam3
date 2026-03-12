@@ -361,8 +361,17 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
 
   // ── NAS Config ──
   const { data: configData } = useQuery({
-    queryKey: ["admin-config"],
-    queryFn: () => call("get-config"),
+    queryKey: ["admin-config", "windows-agent-nas"],
+    queryFn: () => call("get-config", {
+      keys: [
+        "WINDOWS_AGENT_NAS_HOST",
+        "WINDOWS_AGENT_NAS_SHARE",
+        "WINDOWS_AGENT_NAS_MOUNT_PATH",
+        "WINDOWS_AGENT_NAS_USER",
+        "WINDOWS_AGENT_NAS_PASS",
+        "WINDOWS_AGENT_RENDER_CONCURRENCY",
+      ],
+    }),
   });
 
   const getConfigVal = (key: string): string => {
