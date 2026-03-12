@@ -66,7 +66,7 @@ export default function ScanMonitorBanner({ scanProgress, onStopScan }: ScanMoni
   if (!isRunning && !isStale) return null;
 
   const c = scanProgress.counters;
-  const elapsed = useElapsed(scanProgress.updated_at, isRunning || isStale);
+  const elapsed = useElapsed(isRunning || isStale);
   const truncated = truncatePath(scanProgress.current_path);
 
   return (
