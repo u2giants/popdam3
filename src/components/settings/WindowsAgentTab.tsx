@@ -204,8 +204,13 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     <div>Last heartbeat: {agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}</div>
                     <div>Pending render jobs: <span className="text-foreground font-semibold">{pendingRenders}</span></div>
                     {currentVersion && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         Version: <Badge variant="outline" className="text-[10px] h-5">{currentVersion}</Badge>
+                        {(meta?.last_updated_at || meta?.started_at) && (
+                          <span className="text-muted-foreground">
+                            deployed {new Date((meta?.last_updated_at ?? meta?.started_at) as string).toLocaleString()}
+                          </span>
+                        )}
                         {updateAvailable && latestVersion && (
                           <Badge variant="secondary" className="text-[10px] h-5 gap-1 text-[hsl(var(--warning))]">
                             <ArrowUpCircle className="h-3 w-3" />
