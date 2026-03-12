@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { X, Sparkles, ArrowRightLeft, Loader2, CheckCircle2, AlertCircle, Square } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
 import { useState } from "react";
 

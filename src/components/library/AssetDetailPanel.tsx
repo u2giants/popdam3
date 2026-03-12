@@ -6,7 +6,7 @@ import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path
 import { getOpenFolderUri } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

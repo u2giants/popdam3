@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useAdminApi } from "./useAdminApi";
 import type { ScanProgress, ScanProgressStatus } from "./useScanProgress";
 
@@ -42,7 +42,7 @@ export function useScanLifecycle(scanProgress: ScanProgress & { pollNow: () => v
 
     // Scan started running
     if (curr === "running" && (prev === "queued" || prev === "idle")) {
-      toast({ title: "Scan started", description: "The Bridge Agent is scanning the NAS…" });
+      toast("Scan started", { description: "The Bridge Agent is scanning the NAS…" });
     }
 
     // Scan completed
@@ -60,23 +60,13 @@ export function useScanLifecycle(scanProgress: ScanProgress & { pollNow: () => v
         summary = parts.length > 0 ? parts.join(", ") : "Nothing new to sync";
 
         if (curr === "completed_with_errors") {
-          toast({
-            title: "Scan completed with errors",
-            description: (
-              <span>
-                {summary}.{" "}
-                <a href="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline">
-                  View details
-                </a>
-              </span>
-            ),
-          });
+          toast.warning("Scan completed with errors", { description: summary });
         } else {
-          toast({ title: "Scan complete", description: summary });
+          toast.success("Scan complete", { description: summary });
         }
       } else {
         summary = "Nothing new to sync — all assets are up to date.";
-        toast({ title: "Scan complete", description: summary });
+        toast.success("Scan complete", { description: summary });
       }
 
       setLastScanStatus(curr === "completed_with_errors" ? "completed_with_errors" : "completed");
@@ -92,18 +82,7 @@ export function useScanLifecycle(scanProgress: ScanProgress & { pollNow: () => v
     // Scan failed
     if (curr === "failed") {
       setScanTriggered(false);
-      toast({
-        title: "Scan failed",
-        description: (
-          <span>
-            Something went wrong.{" "}
-            <a href="/settings/scan-diagnostics" className="underline underline-offset-2 hover:no-underline">
-              View diagnostics
-            </a>
-          </span>
-        ),
-        variant: "destructive",
-      });
+      toast.error("Scan failed", { description: "Something went wrong. Check Settings → Scan Diagnostics." });
       setLastScanStatus("failed");
       setLastScanTime(scanProgress.updated_at || new Date().toISOString());
       setLastScanSummary("Scan failed — check diagnostics");
@@ -111,10 +90,8 @@ export function useScanLifecycle(scanProgress: ScanProgress & { pollNow: () => v
 
     // Stale detection
     if (curr === "stale" && prev === "running") {
-      toast({
-        title: "Scan appears stuck",
+      toast.error("Scan appears stuck", {
         description: "No progress in 3+ minutes. Use 'Reset Scan State' in Settings if needed.",
-        variant: "destructive",
       });
     }
   }, [scanProgress.status, scanProgress.counters, scanProgress.updated_at, queryClient]);
@@ -138,18 +115,18 @@ export function useScanLifecycle(scanProgress: ScanProgress & { pollNow: () => v
       await call("trigger-scan");
       setScanTriggered(true);
       setTimeout(() => scanProgress.pollNow(), 500);
-      toast({ title: "Scan triggered", description: "The Bridge Agent will start scanning on its next poll (~30s)." });
+      toast("Scan triggered", { description: "The Bridge Agent will start scanning on its next poll (~30s)." });
     } catch (e) {
-      toast({ title: "Failed to trigger scan", description: (e as Error).message, variant: "destructive" });
+      toast.error("Failed to trigger scan", { description: (e as Error).message });
     }
   }, [call, scanProgress.pollNow]);
 
   const handleStopScan = useCallback(async () => {
     try {
       await call("stop-scan");
-      toast({ title: "Stop requested", description: "The agent will abort the current scan shortly." });
+      toast("Stop requested", { description: "The agent will abort the current scan shortly." });
     } catch (e) {
-      toast({ title: "Failed to stop scan", description: (e as Error).message, variant: "destructive" });
+      toast.error("Failed to stop scan", { description: (e as Error).message });
     }
   }, [call]);
 
