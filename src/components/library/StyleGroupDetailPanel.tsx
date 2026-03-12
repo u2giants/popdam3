@@ -581,7 +581,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
         description: `${result.siblings_updated} assets updated, ${result.tags_propagated} tags propagated`,
       });
     } catch (e: any) {
-      toast({ title: "Sync failed", description: e.message, variant: "destructive" });
+      toast.error("Sync failed", { description: e.message });
     } finally {
       setSyncingTags(false);
     }
