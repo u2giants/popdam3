@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { X, Sparkles, ArrowRightLeft, Loader2, CheckCircle2, AlertCircle, Square } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
 import { useState } from "react";
 
@@ -43,12 +43,12 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
       .not("thumbnail_url", "is", null);
 
     if (error) {
-      toast({ title: "Failed to count assets", description: error.message, variant: "destructive" });
+      toast.error("Failed to count assets", { description: error.message });
       return;
     }
 
     if (!count || count === 0) {
-      toast({ title: "No taggable assets", description: "Selected groups have no assets with thumbnails.", variant: "destructive" });
+      toast.error("No taggable assets", { description: "Selected groups have no assets with thumbnails." });
       return;
     }
 
@@ -57,7 +57,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
       initialProgress: { tagged: 0, skipped: 0, failed: 0, total: count },
     });
 
-    toast({ title: `AI tagging ${count} asset${count !== 1 ? "s" : ""} across ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}…` });
+    toast(`AI tagging ${count} asset${count !== 1 ? "s" : ""} across ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}…`);
   };
 
   // Invalidate queries when operation completes
@@ -94,11 +94,11 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-      toast({ title: `Workflow updated for ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}` });
+      toast(`Workflow updated for ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}`);
       setWorkflowValue("");
     },
     onError: (e) => {
-      toast({ title: "Bulk update failed", description: e.message, variant: "destructive" });
+      toast.error("Bulk update failed", { description: e.message });
     },
   });
 

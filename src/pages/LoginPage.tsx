@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const { user, loading } = useAuth();
@@ -81,8 +81,7 @@ export default function LoginPage() {
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
-        toast({
-          title: "Check your email",
+        toast("Check your email", {
           description: "A confirmation link has been sent to your email address.",
         });
       } else {

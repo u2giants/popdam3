@@ -73,20 +73,25 @@ const GS_EXE = findGhostscript();
 function findImageMagick(): string | null {
   if (process.env.IM_PATH) return process.env.IM_PATH;
 
-  const candidates = [
-    "C:\\Program Files\\ImageMagick-7.1.2-Q16-HDRI\\magick.exe",
-    "C:\\Program Files\\ImageMagick-7.1.1-Q16-HDRI\\magick.exe",
-    "C:\\Program Files\\ImageMagick-7.1.0-Q16-HDRI\\magick.exe",
-    "C:\\Program Files\\ImageMagick-7.1.0-Q16\\magick.exe",
-  ];
-
-  for (const c of candidates) {
-    if (existsSync(c)) {
-      logger.info("Found ImageMagick", { path: c });
-      return c;
+  // Dynamically scan Program Files for any ImageMagick-* installation
+  const programFiles = "C:\\Program Files";
+  try {
+    const entries = readdirSync(programFiles)
+      .filter((d: string) => d.startsWith("ImageMagick-"))
+      .sort()
+      .reverse(); // newest first
+    for (const entry of entries) {
+      const candidate = `${programFiles}\\${entry}\\magick.exe`;
+      if (existsSync(candidate)) {
+        logger.info("Found ImageMagick", { path: candidate });
+        return candidate;
+      }
     }
+  } catch {
+    /* Program Files not accessible */
   }
 
+  // Fall back to PATH
   try {
     execFileSync("magick", ["--version"], { timeout: 5000 });
     logger.info("Found ImageMagick on PATH");

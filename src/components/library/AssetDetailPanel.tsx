@@ -6,7 +6,7 @@ import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path
 import { getOpenFolderUri } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -157,10 +157,10 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assets"] });
-      toast({ title: "Asset updated" });
+      toast("Asset updated");
     },
     onError: (e) => {
-      toast({ title: "Update failed", description: e.message, variant: "destructive" });
+      toast.error("Update failed", { description: e.message });
     },
   });
 
@@ -174,9 +174,9 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["assets"] });
       queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
-      toast({ title: "AI tagging complete" });
+      toast("AI tagging complete");
     } catch (e: any) {
-      toast({ title: "AI tagging failed", description: e.message, variant: "destructive" });
+      toast.error("AI tagging failed", { description: e.message });
     } finally {
       setAiTagging(false);
     }
@@ -210,7 +210,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
       { onConflict: "asset_id,tag" }
     );
     if (error) {
-      toast({ title: "Failed to add tag", description: error.message, variant: "destructive" });
+      toast.error("Failed to add tag", { description: error.message });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["assets"] });
@@ -225,7 +225,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
       .eq("asset_id", asset.id)
       .eq("tag", tag);
     if (error) {
-      toast({ title: "Failed to remove tag", description: error.message, variant: "destructive" });
+      toast.error("Failed to remove tag", { description: error.message });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["assets"] });
@@ -318,7 +318,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
                   onClick={(e) => {
                     if (!getOpenFolderUri(asset.relative_path, nasConfig)) {
                       e.preventDefault();
-                      toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
+                      toast.error("Cannot open folder", { description: "Set your Synology Drive root in Settings → Path Tester if using remote mode." });
                     }
                   }}
                 >

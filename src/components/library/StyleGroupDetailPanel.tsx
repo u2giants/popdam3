@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   X, ImageOff, Copy, Check, Star, Loader2,
   ChevronLeft, ChevronRight, Sparkles, Clock,
@@ -163,15 +163,15 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
           setSiblings(images);
           setSelected(new Set());
           if (images.length === 0) {
-            toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+            toast("No alternative images found", { description: "No JPG/PNG files exist in this folder on the NAS." });
           } else {
-            toast({ title: `Found ${images.length} image${images.length !== 1 ? "s" : ""}` });
+            toast(`Found ${images.length} image${images.length !== 1 ? "s" : ""}`);
           }
         } else if (result?.status === "failed") {
           stopPolling();
           const msg = result.error_message || "Scan failed";
           setError(msg);
-          toast({ title: "Folder scan failed", description: msg, variant: "destructive" });
+          toast.error("Folder scan failed", { description: msg });
         }
       } catch (e) {
         console.warn("Poll error:", (e as Error).message);
@@ -218,18 +218,18 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         const images = (result.images ?? []) as SiblingImage[];
         setSiblings(images);
         if (images.length === 0) {
-          toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+          toast("No alternative images found", { description: "No JPG/PNG files exist in this folder on the NAS." });
         }
       } else if (result?.status === "failed") {
         setError(result.error_message || "Scan failed");
       } else if (result?.status === "pending") {
-        toast({ title: "Scan requested", description: "The Bridge Agent will scan this folder shortly. Waiting for results…" });
+        toast("Scan requested", { description: "The Bridge Agent will scan this folder shortly. Waiting for results…" });
         startPolling(result.request_id as string);
       }
     } catch (e) {
       const msg = (e as Error).message;
       setError(msg);
-      toast({ title: "Failed to scan folder", description: msg, variant: "destructive" });
+      toast.error("Failed to scan folder", { description: msg });
     } finally {
       setLoading(false);
     }
@@ -268,16 +268,16 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         if (summary.created > 0) parts.push(`${summary.created} added`);
         if (summary.linked > 0) parts.push(`${summary.linked} linked`);
         if (summary.errors > 0) parts.push(`${summary.errors} failed`);
-        toast({ title: "Images ingested", description: parts.join(", ") });
+        toast("Images ingested", { description: parts.join(", ") });
       } else {
-        toast({ title: "Images ingested" });
+        toast("Images ingested");
       }
       // Remove ingested images from the list
       setSiblings(prev => prev?.filter(s => !selected.has(s.relative_path)) ?? null);
       setSelected(new Set());
       onIngested?.();
     } catch (e) {
-      toast({ title: "Ingestion failed", description: (e as Error).message, variant: "destructive" });
+      toast.error("Ingestion failed", { description: (e as Error).message });
     } finally {
       setIngesting(false);
     }
@@ -516,10 +516,10 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
       setLocalPrimaryId(assetId);
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-      toast({ title: "Cover image updated" });
+      toast("Cover image updated");
     },
     onError: (e) => {
-      toast({ title: "Failed to update cover", description: (e as Error).message, variant: "destructive" });
+      toast.error("Failed to update cover", { description: (e as Error).message });
     },
   });
 
@@ -533,10 +533,10 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-      toast({ title: "Updated" });
+      toast("Updated");
     },
     onError: (e) => {
-      toast({ title: "Update failed", description: (e as Error).message, variant: "destructive" });
+      toast.error("Update failed", { description: (e as Error).message });
     },
   });
 
@@ -550,9 +550,9 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
       });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-      toast({ title: "AI tagging complete" });
+      toast("AI tagging complete");
     } catch (e: any) {
-      toast({ title: "AI tagging failed", description: e.message, variant: "destructive" });
+      toast.error("AI tagging failed", { description: e.message });
     } finally {
       setAiTagging(false);
     }
@@ -577,12 +577,11 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     try {
       const result = await adminApi("sync-group-tags", { group_id: group.id });
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-      toast({
-        title: "Tags synced across group",
+      toast("Tags synced across group", {
         description: `${result.siblings_updated} assets updated, ${result.tags_propagated} tags propagated`,
       });
     } catch (e: any) {
-      toast({ title: "Sync failed", description: e.message, variant: "destructive" });
+      toast.error("Sync failed", { description: e.message });
     } finally {
       setSyncingTags(false);
     }
@@ -765,7 +764,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                         onClick={(e) => {
                           if (!getOpenFolderUri(detailAsset.relative_path, nasConfig)) {
                             e.preventDefault();
-                            toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
+                            toast.error("Cannot open folder", { description: "Set your Synology Drive root in Settings → Path Tester if using remote mode." });
                           }
                         }}
                       >

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 const PAGE_SIZE = 200;
 
@@ -176,31 +177,10 @@ export function useFilterCounts(filters: AssetFilters) {
 }
 
 export function useFilterOptions(licensorId?: string | null) {
+  const { call } = useAdminApi();
   const { data, isLoading } = useQuery({
     queryKey: ["filter-options", licensorId ?? "all"],
-    queryFn: async () => {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session?.session?.access_token;
-      if (!token) throw new Error("Not authenticated");
-
-      const res = await fetch(
-        "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/admin-api",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
-          },
-          body: JSON.stringify({
-            action: "get-filter-options",
-            ...(licensorId ? { licensor_id: licensorId } : {}),
-          }),
-        },
-      );
-      if (!res.ok) throw new Error("Failed to fetch filter options");
-      return res.json();
-    },
+    queryFn: () => call("get-filter-options", licensorId ? { licensor_id: licensorId } : {}),
     staleTime: 30_000,
   });
 
