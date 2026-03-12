@@ -11,7 +11,7 @@ import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from ".
 
 async function authenticateAgent(
   req: Request,
-): Promise<{ agentId: string; agentName: string } | Response> {
+): Promise<{ agentId: string; agentName: string; agentType: string } | Response> {
   const agentKey = req.headers.get("x-agent-key");
   if (!agentKey) return err("Missing x-agent-key header", 401);
 
@@ -27,12 +27,12 @@ async function authenticateAgent(
 
   const { data, error } = await db
     .from("agent_registrations")
-    .select("id, agent_name")
+    .select("id, agent_name, agent_type")
     .eq("agent_key_hash", hashHex)
     .maybeSingle();
 
   if (error || !data) return err("Invalid agent key", 401);
-  return { agentId: data.id, agentName: data.agent_name };
+  return { agentId: data.id, agentName: data.agent_name, agentType: data.agent_type };
 }
 
 // ── Route: register ─────────────────────────────────────────────────
@@ -106,6 +106,7 @@ const HEARTBEAT_CONFIG_KEYS = [
 async function handleHeartbeat(
   body: Record<string, unknown>,
   agentId: string,
+  agentType: string,
 ) {
   const counters = body.counters as Record<string, unknown> | undefined;
   const lastError = optionalString(body, "last_error");
@@ -286,7 +287,8 @@ async function handleHeartbeat(
     scanRequest.status === "pending" &&
     (!scanRequest.target_agent_id ||
       scanRequest.target_agent_id === agentId) &&
-    !forceStop
+    !forceStop &&
+    agentType === "bridge"
   ) {
     const claimedValue = {
       ...scanRequest,
@@ -2274,11 +2276,11 @@ serve(async (req: Request) => {
     // All other routes require agent authentication
     const authResult = await authenticateAgent(req);
     if (authResult instanceof Response) return authResult;
-    const { agentId } = authResult;
+    const { agentId, agentType } = authResult;
 
     switch (action) {
       case "heartbeat":
-        return await handleHeartbeat(body, agentId);
+        return await handleHeartbeat(body, agentId, agentType);
       case "ingest":
         return await handleIngest(body, agentId);
       case "update-asset":

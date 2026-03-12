@@ -65,7 +65,7 @@ export async function handleGenerateAgentKey(
     error = res.error;
   }
 
-  if (error) return err(error.message, 500);
+  if (error || !data) return err(error?.message || "Failed to create agent registration", 500);
   return json({
     ok: true,
     agent_id: data.id,
