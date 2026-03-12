@@ -121,6 +121,7 @@ export default function DiagnosticsTab() {
         </Card>
       ) : diag ? (
         <>
+          <SystemStatePanel />
           <DoctorDiagnostics />
           <OverviewCards counts={diag.counts} />
           <RenderJobStats />
