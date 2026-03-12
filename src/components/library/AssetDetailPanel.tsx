@@ -160,7 +160,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
       toast("Asset updated");
     },
     onError: (e) => {
-      toast({ title: "Update failed", description: e.message, variant: "destructive" });
+      toast.error("Update failed", { description: e.message });
     },
   });
 
