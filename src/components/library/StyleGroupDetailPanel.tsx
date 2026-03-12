@@ -519,7 +519,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
       toast("Cover image updated");
     },
     onError: (e) => {
-      toast({ title: "Failed to update cover", description: (e as Error).message, variant: "destructive" });
+      toast.error("Failed to update cover", { description: (e as Error).message });
     },
   });
 
