@@ -48,7 +48,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
     }
 
     if (!count || count === 0) {
-      toast({ title: "No taggable assets", description: "Selected groups have no assets with thumbnails.", variant: "destructive" });
+      toast.error("No taggable assets", { description: "Selected groups have no assets with thumbnails." });
       return;
     }
 
