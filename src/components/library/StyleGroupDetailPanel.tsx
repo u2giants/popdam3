@@ -533,7 +533,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-      toast({ title: "Updated" });
+      toast("Updated");
     },
     onError: (e) => {
       toast({ title: "Update failed", description: (e as Error).message, variant: "destructive" });
