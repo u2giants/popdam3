@@ -145,7 +145,7 @@ async function renderWithSharp(
     ? { density: 150 }
     : { pages: -1 }; // -1 = composite all PSD layers
 
-  const img = sharp(filePath, options)
+  const img = sharp(filePath, { ...options, limitInputPixels: false })
     .flatten({ background: "#ffffff" });
 
   const resized = img.resize(
@@ -181,7 +181,7 @@ async function renderWithGhostscript(
       filePath,
     ], { timeout: 60_000 });
 
-    const resized = sharp(outPath)
+    const resized = sharp(outPath, { limitInputPixels: false })
       .flatten({ background: "#ffffff" })
       .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
         fit: "inside",
@@ -227,7 +227,7 @@ async function renderWithInkscape(
       throw new Error("Inkscape produced no output");
     }
 
-    const resized = sharp(outPath)
+    const resized = sharp(outPath, { limitInputPixels: false })
       .flatten({ background: "#ffffff" })
       .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
         fit: "inside",
@@ -272,7 +272,7 @@ async function renderWithImageMagick(
       throw new Error("ImageMagick produced no output");
     }
 
-    const buffer = await sharp(outPath).jpeg({ quality: 85 }).toBuffer();
+    const buffer = await sharp(outPath, { limitInputPixels: false }).jpeg({ quality: 85 }).toBuffer();
     const meta = await sharp(buffer).metadata();
 
     return {
