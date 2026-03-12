@@ -225,7 +225,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
       .eq("asset_id", asset.id)
       .eq("tag", tag);
     if (error) {
-      toast({ title: "Failed to remove tag", description: error.message, variant: "destructive" });
+      toast.error("Failed to remove tag", { description: error.message });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["assets"] });
