@@ -210,7 +210,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
       { onConflict: "asset_id,tag" }
     );
     if (error) {
-      toast({ title: "Failed to add tag", description: error.message, variant: "destructive" });
+      toast.error("Failed to add tag", { description: error.message });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["assets"] });
