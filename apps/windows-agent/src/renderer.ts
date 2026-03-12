@@ -181,7 +181,7 @@ async function renderWithGhostscript(
       filePath,
     ], { timeout: 60_000 });
 
-    const resized = sharp(outPath)
+    const resized = sharp(outPath, { limitInputPixels: false })
       .flatten({ background: "#ffffff" })
       .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
         fit: "inside",
