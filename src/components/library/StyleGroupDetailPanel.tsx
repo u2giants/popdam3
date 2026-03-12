@@ -277,7 +277,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
       setSelected(new Set());
       onIngested?.();
     } catch (e) {
-      toast({ title: "Ingestion failed", description: (e as Error).message, variant: "destructive" });
+      toast.error("Ingestion failed", { description: (e as Error).message });
     } finally {
       setIngesting(false);
     }
