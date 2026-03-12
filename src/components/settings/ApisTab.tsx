@@ -116,13 +116,13 @@ function TaxonomySourceEditor() {
     mutationFn: async (code: string) => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-external`;
+      const url = "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/sync-external";
       const resp = await fetch(url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
         },
         body: JSON.stringify({ action: "sync-one", licensor_code: code }),
       });
@@ -307,13 +307,13 @@ function TaxonomyApiSection() {
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-external`;
+      const url = "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/sync-external";
       const resp = await fetch(url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
         },
         body: JSON.stringify({ action: "sync-all" }),
       });

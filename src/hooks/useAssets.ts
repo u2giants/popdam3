@@ -184,13 +184,13 @@ export function useFilterOptions(licensorId?: string | null) {
       if (!token) throw new Error("Not authenticated");
 
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-api`,
+        "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/admin-api",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
           },
           body: JSON.stringify({
             action: "get-filter-options",

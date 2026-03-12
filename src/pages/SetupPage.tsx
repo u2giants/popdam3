@@ -112,7 +112,7 @@ export default function SetupPage() {
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
 
   // Pre-fill supabase URL from env
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+  const supabaseUrl = "https://ryltkzzernhwnojzouyb.supabase.co";
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config"],
