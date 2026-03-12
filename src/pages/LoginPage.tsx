@@ -86,7 +86,7 @@ export default function LoginPage() {
           description: "A confirmation link has been sent to your email address.",
         });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await externalSupabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (err: any) {
