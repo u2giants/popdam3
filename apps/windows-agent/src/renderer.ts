@@ -227,7 +227,7 @@ async function renderWithInkscape(
       throw new Error("Inkscape produced no output");
     }
 
-    const resized = sharp(outPath)
+    const resized = sharp(outPath, { limitInputPixels: false })
       .flatten({ background: "#ffffff" })
       .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
         fit: "inside",
