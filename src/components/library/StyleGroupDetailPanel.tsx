@@ -516,7 +516,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
       setLocalPrimaryId(assetId);
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-      toast({ title: "Cover image updated" });
+      toast("Cover image updated");
     },
     onError: (e) => {
       toast({ title: "Failed to update cover", description: (e as Error).message, variant: "destructive" });
