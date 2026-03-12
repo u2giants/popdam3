@@ -287,7 +287,8 @@ async function handleHeartbeat(
     scanRequest.status === "pending" &&
     (!scanRequest.target_agent_id ||
       scanRequest.target_agent_id === agentId) &&
-    !forceStop
+    !forceStop &&
+    agentType === "bridge"
   ) {
     const claimedValue = {
       ...scanRequest,
