@@ -65,7 +65,7 @@ async function handleRegister(body: Record<string, unknown>) {
         agent_key_hash: hashHex,
         last_heartbeat: new Date().toISOString(),
       },
-      { onConflict: "agent_key_hash" },
+      { onConflict: "agent_name" },
     )
     .select("id")
     .single();

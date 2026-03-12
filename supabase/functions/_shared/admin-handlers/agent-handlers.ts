@@ -36,7 +36,10 @@ export async function handleGenerateAgentKey(
   const db = serviceClient();
   const { data, error } = await db
     .from("agent_registrations")
-    .insert({ agent_name: agentName, agent_type: agentType, agent_key_hash: hashHex })
+    .upsert(
+      { agent_name: agentName, agent_type: agentType, agent_key_hash: hashHex },
+      { onConflict: "agent_name", ignoreDuplicates: false }
+    )
     .select("id")
     .single();
 
