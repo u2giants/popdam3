@@ -418,7 +418,8 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
     },
     onSuccess: () => {
       toast.success("Windows Agent NAS config saved");
-      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-config", "windows-agent-nas"] });
+      setInitialized(false);
     },
     onError: (e) => toast.error(e.message),
   });
