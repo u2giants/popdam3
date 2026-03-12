@@ -272,7 +272,7 @@ async function renderWithImageMagick(
       throw new Error("ImageMagick produced no output");
     }
 
-    const buffer = await sharp(outPath).jpeg({ quality: 85 }).toBuffer();
+    const buffer = await sharp(outPath, { limitInputPixels: false }).jpeg({ quality: 85 }).toBuffer();
     const meta = await sharp(buffer).metadata();
 
     return {
