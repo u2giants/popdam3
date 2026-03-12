@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 const PAGE_SIZE = 200;
 
