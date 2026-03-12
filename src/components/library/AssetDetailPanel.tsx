@@ -157,7 +157,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assets"] });
-      toast({ title: "Asset updated" });
+      toast("Asset updated");
     },
     onError: (e) => {
       toast({ title: "Update failed", description: e.message, variant: "destructive" });
