@@ -2276,11 +2276,11 @@ serve(async (req: Request) => {
     // All other routes require agent authentication
     const authResult = await authenticateAgent(req);
     if (authResult instanceof Response) return authResult;
-    const { agentId } = authResult;
+    const { agentId, agentType } = authResult;
 
     switch (action) {
       case "heartbeat":
-        return await handleHeartbeat(body, agentId);
+        return await handleHeartbeat(body, agentId, agentType);
       case "ingest":
         return await handleIngest(body, agentId);
       case "update-asset":
