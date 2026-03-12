@@ -84,14 +84,13 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not authenticated");
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const url = `https://${projectId}.supabase.co/functions/v1/export-thumbnail-manifest`;
+      const url = "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/export-thumbnail-manifest";
 
       const res = await fetch(url, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
         },
       });
 

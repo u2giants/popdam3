@@ -61,7 +61,7 @@ export default function LoginPage() {
     setError(null);
     const { error } = await externalSupabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: "https://dam.designflow.app" },
     });
     if (error) {
       setError(error.message || "Google sign-in failed");
