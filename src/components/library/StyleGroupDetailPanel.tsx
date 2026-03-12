@@ -268,7 +268,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         if (summary.created > 0) parts.push(`${summary.created} added`);
         if (summary.linked > 0) parts.push(`${summary.linked} linked`);
         if (summary.errors > 0) parts.push(`${summary.errors} failed`);
-        toast({ title: "Images ingested", description: parts.join(", ") });
+        toast("Images ingested", { description: parts.join(", ") });
       } else {
         toast({ title: "Images ingested" });
       }
