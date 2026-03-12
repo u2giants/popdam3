@@ -94,7 +94,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
-      toast({ title: `Workflow updated for ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}` });
+      toast(`Workflow updated for ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}`);
       setWorkflowValue("");
     },
     onError: (e) => {
