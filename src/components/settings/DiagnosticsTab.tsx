@@ -17,6 +17,7 @@ import { StyleGroupsSection } from "./diagnostics/StyleGroupsSection";
 import { DatabaseInspector } from "./diagnostics/DatabaseInspector";
 import { ConflictDialog, type ConflictState } from "./diagnostics/ConflictDialog";
 import { QueueManagerDialog } from "./diagnostics/QueueManagerDialog";
+import SystemStatePanel from "./diagnostics/SystemStatePanel";
 
 export default function DiagnosticsTab() {
   const { call } = useAdminApi();
