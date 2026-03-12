@@ -28,6 +28,7 @@ const queryClient = new QueryClient({
   },
 });
 
+// v2 – public landing page + legal routes
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
