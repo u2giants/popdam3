@@ -301,8 +301,7 @@ function WindowsAgentDownload() {
         <a href={installerUrl} target="_blank" rel="noopener noreferrer">
           <Button size="lg" className="w-full gap-2">
             <Download className="h-4 w-4" />
-            Download Windows Agent Installer
-            {version && <Badge variant="secondary" className="ml-1 text-[10px]">v{version}</Badge>}
+            {version ? `Download Windows Agent Installer v${version}` : "Download Windows Agent Installer"}
           </Button>
         </a>
         {publishedAt && (
