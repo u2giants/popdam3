@@ -75,7 +75,7 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await externalSupabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin },
