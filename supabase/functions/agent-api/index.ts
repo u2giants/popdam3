@@ -1612,12 +1612,15 @@ async function handlePair(body: Record<string, unknown>) {
   // Register the agent
   const { data: agentData, error: regError } = await db
     .from("agent_registrations")
-    .insert({
-      agent_name: finalName,
-      agent_type: pairing.agent_type,
-      agent_key_hash: hashHex,
-      last_heartbeat: new Date().toISOString(),
-    })
+    .upsert(
+      {
+        agent_name: finalName,
+        agent_type: pairing.agent_type,
+        agent_key_hash: hashHex,
+        last_heartbeat: new Date().toISOString(),
+      },
+      { onConflict: "agent_name", ignoreDuplicates: false },
+    )
     .select("id")
     .single();
 
