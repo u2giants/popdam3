@@ -218,7 +218,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         const images = (result.images ?? []) as SiblingImage[];
         setSiblings(images);
         if (images.length === 0) {
-          toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+          toast("No alternative images found", { description: "No JPG/PNG files exist in this folder on the NAS." });
         }
       } else if (result?.status === "failed") {
         setError(result.error_message || "Scan failed");
