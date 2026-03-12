@@ -163,7 +163,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
           setSiblings(images);
           setSelected(new Set());
           if (images.length === 0) {
-            toast({ title: "No alternative images found", description: "No JPG/PNG files exist in this folder on the NAS." });
+            toast("No alternative images found", { description: "No JPG/PNG files exist in this folder on the NAS." });
           } else {
             toast({ title: `Found ${images.length} image${images.length !== 1 ? "s" : ""}` });
           }
