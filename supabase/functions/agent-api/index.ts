@@ -106,6 +106,7 @@ const HEARTBEAT_CONFIG_KEYS = [
 async function handleHeartbeat(
   body: Record<string, unknown>,
   agentId: string,
+  agentType: string,
 ) {
   const counters = body.counters as Record<string, unknown> | undefined;
   const lastError = optionalString(body, "last_error");
