@@ -43,7 +43,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
       .not("thumbnail_url", "is", null);
 
     if (error) {
-      toast({ title: "Failed to count assets", description: error.message, variant: "destructive" });
+      toast.error("Failed to count assets", { description: error.message });
       return;
     }
 
