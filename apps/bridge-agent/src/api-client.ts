@@ -8,26 +8,56 @@ import { logger } from "./logger.js";
 
 async function callApi(action: string, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
   const body = JSON.stringify({ action, ...payload });
+  const maxAttempts = 5;
+  let lastError: Error | null = null;
 
-  const res = await fetch(config.agentApiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-agent-key": config.agentKey,
-    },
-    body,
-  });
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(config.agentApiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-agent-key": config.agentKey,
+        },
+        body,
+      });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`agent-api ${action} returned ${res.status}: ${text}`);
+      if (!res.ok) {
+        const text = await res.text();
+        // Don't retry client errors (4xx) — they are permanent
+        if (res.status >= 400 && res.status < 500) {
+          throw new Error(`agent-api ${action} returned ${res.status}: ${text}`);
+        }
+        // Retry server errors (5xx)
+        lastError = new Error(`agent-api ${action} returned ${res.status}: ${text}`);
+        if (attempt < maxAttempts) {
+          const delay = Math.pow(2, attempt) * 1000;
+          logger.warn(`agent-api ${action} returned ${res.status}, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw lastError;
+      }
+
+      const data = await res.json();
+      if (data && !data.ok) {
+        throw new Error(`agent-api ${action} error: ${data.error || "unknown"}`);
+      }
+      return data;
+
+    } catch (e) {
+      // Re-throw already-formatted errors (4xx or data.ok === false)
+      if (e instanceof Error && e.message.startsWith("agent-api")) throw e;
+      // Network error — retry
+      lastError = e as Error;
+      if (attempt < maxAttempts) {
+        const delay = Math.pow(2, attempt) * 1000;
+        logger.warn(`agent-api ${action} network error, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`, { error: (e as Error).message });
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
   }
-
-  const data = await res.json();
-  if (data && !data.ok) {
-    throw new Error(`agent-api ${action} error: ${data.error || "unknown"}`);
-  }
-  return data;
+  throw lastError ?? new Error(`agent-api ${action} failed after ${maxAttempts} attempts`);
 }
 
 // ── Public API ──────────────────────────────────────────────────

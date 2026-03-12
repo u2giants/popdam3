@@ -379,6 +379,10 @@ async function runScan(providedSessionId?: string) {
     // Throttled progress reporter for directory walking
     let lastProgressAt = 0;
     const PROGRESS_INTERVAL_MS = 2000;
+    // Track files processed for periodic checkpointing (every 500 files)
+    let lastCheckpointFileCount = 0;
+    const CHECKPOINT_FILE_INTERVAL = 500;
+
     const callbacks: ScanCallbacks = {
       shouldAbort: () => abortRequested,
       onDir: (dirPath) => {
@@ -394,11 +398,23 @@ async function runScan(providedSessionId?: string) {
                 api.saveCheckpoint(sessionId, currentTopLevelDir).catch((e) =>
                   logger.warn("Failed to save checkpoint", { error: (e as Error).message })
                 );
+                lastCheckpointFileCount = counters.files_checked;
               }
               currentTopLevelDir = topLevelFull;
             }
             break;
           }
+        }
+
+        // Periodic checkpoint every 500 files, regardless of directory boundaries
+        if (
+          currentTopLevelDir &&
+          counters.files_checked - lastCheckpointFileCount >= CHECKPOINT_FILE_INTERVAL
+        ) {
+          api.saveCheckpoint(sessionId, currentTopLevelDir).catch((e) =>
+            logger.warn("Failed to save periodic checkpoint", { error: (e as Error).message })
+          );
+          lastCheckpointFileCount = counters.files_checked;
         }
 
         const now = Date.now();
