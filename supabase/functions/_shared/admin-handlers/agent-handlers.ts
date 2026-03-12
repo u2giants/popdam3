@@ -38,7 +38,7 @@ export async function handleGenerateAgentKey(
     .from("agent_registrations")
     .upsert(
       { agent_name: agentName, agent_type: agentType, agent_key_hash: hashHex },
-      { onConflict: "agent_name", ignoreDuplicates: false }
+      { onConflict: "agent_name", ignoreDuplicates: false },
     )
     .select("id")
     .single();
