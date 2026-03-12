@@ -229,7 +229,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
     } catch (e) {
       const msg = (e as Error).message;
       setError(msg);
-      toast({ title: "Failed to scan folder", description: msg, variant: "destructive" });
+      toast.error("Failed to scan folder", { description: msg });
     } finally {
       setLoading(false);
     }
