@@ -577,8 +577,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     try {
       const result = await adminApi("sync-group-tags", { group_id: group.id });
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-      toast({
-        title: "Tags synced across group",
+      toast("Tags synced across group", {
         description: `${result.siblings_updated} assets updated, ${result.tags_propagated} tags propagated`,
       });
     } catch (e: any) {
