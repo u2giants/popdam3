@@ -550,7 +550,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
       });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-      toast({ title: "AI tagging complete" });
+      toast("AI tagging complete");
     } catch (e: any) {
       toast({ title: "AI tagging failed", description: e.message, variant: "destructive" });
     } finally {
