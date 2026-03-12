@@ -43,6 +43,43 @@ export interface StyleGroup {
 
 const PAGE_SIZE = 200;
 
+function applyStyleGroupFilters(query: any, filters: AssetFilters) {
+  if (filters.search) {
+    query = query.or(
+      `sku.ilike.%${filters.search}%,` +
+      `licensor_name.ilike.%${filters.search}%,` +
+      `property_name.ilike.%${filters.search}%,` +
+      `product_category.ilike.%${filters.search}%`
+    );
+  }
+  if (filters.isLicensed !== null) {
+    query = query.eq("is_licensed", filters.isLicensed);
+  }
+  if (filters.workflowStatus.length > 0) {
+    query = query.in("workflow_status", filters.workflowStatus as WorkflowStatus[]);
+  }
+  if (filters.licensorId) {
+    query = query.eq("licensor_id", filters.licensorId);
+  }
+  if (filters.propertyId) {
+    query = query.eq("property_id", filters.propertyId);
+  }
+  if (filters.fileStatus.length > 0) {
+    const orParts: string[] = [];
+    for (const fs of filters.fileStatus) {
+      if (fs === "has_preview") orParts.push("primary_thumbnail_url.not.is.null");
+      else if (fs === "no_preview_renderable") orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.is.null)");
+      else if (fs === "no_pdf_compat") orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.eq.no_pdf_compat)");
+      else if (fs === "no_preview_unsupported") orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.not.is.null,primary_thumbnail_error.neq.no_pdf_compat)");
+    }
+    if (orParts.length > 0) query = query.or(orParts.join(","));
+  }
+  if (filters.assetType.length > 0) {
+    query = query.in("primary_asset_type", filters.assetType);
+  }
+  return query;
+}
+
 export function useStyleGroups(
   filters: AssetFilters,
   sortField: string,
@@ -71,50 +108,7 @@ export function useStyleGroups(
       query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
 
       // Filters
-      if (filters.search) {
-        query = query.or(
-          `sku.ilike.%${filters.search}%,` +
-          `licensor_name.ilike.%${filters.search}%,` +
-          `property_name.ilike.%${filters.search}%,` +
-          `product_category.ilike.%${filters.search}%`
-        );
-      }
-      if (filters.isLicensed !== null) {
-        query = query.eq("is_licensed", filters.isLicensed);
-      }
-      if (filters.workflowStatus.length > 0) {
-        query = query.in("workflow_status", filters.workflowStatus as WorkflowStatus[]);
-      }
-      if (filters.licensorId) {
-        query = query.eq("licensor_id", filters.licensorId);
-      }
-      if (filters.propertyId) {
-        query = query.eq("property_id", filters.propertyId);
-      }
-
-      // File status filter — use denormalized primary_thumbnail_url/primary_thumbnail_error on style_groups
-      if (filters.fileStatus.length > 0) {
-        const orParts: string[] = [];
-        for (const fs of filters.fileStatus) {
-          if (fs === "has_preview") {
-            orParts.push("primary_thumbnail_url.not.is.null");
-          } else if (fs === "no_preview_renderable") {
-            orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.is.null)");
-          } else if (fs === "no_pdf_compat") {
-            orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.eq.no_pdf_compat)");
-          } else if (fs === "no_preview_unsupported") {
-            orParts.push("and(primary_thumbnail_url.is.null,primary_thumbnail_error.not.is.null,primary_thumbnail_error.neq.no_pdf_compat)");
-          }
-        }
-        if (orParts.length > 0) {
-          query = query.or(orParts.join(","));
-        }
-      }
-
-      // Asset type (Image Type) filter — use computed style_groups.primary_asset_type
-      if (filters.assetType.length > 0) {
-        query = query.in("primary_asset_type", filters.assetType);
-      }
+      query = applyStyleGroupFilters(query, filters);
 
       // Sort
       const sgSortField = sortField === "modified_at" ? "latest_file_date" : sortField === "filename" ? "sku" : "latest_file_date";
@@ -155,26 +149,7 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
       const minDate = visibilityDate ?? "2020-01-01";
       query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
 
-      if (filters.search) {
-        query = query.or(
-          `sku.ilike.%${filters.search}%,` +
-          `licensor_name.ilike.%${filters.search}%,` +
-          `property_name.ilike.%${filters.search}%,` +
-          `product_category.ilike.%${filters.search}%`
-        );
-      }
-      if (filters.isLicensed !== null) {
-        query = query.eq("is_licensed", filters.isLicensed);
-      }
-      if (filters.workflowStatus.length > 0) {
-        query = query.in("workflow_status", filters.workflowStatus as WorkflowStatus[]);
-      }
-      if (filters.licensorId) {
-        query = query.eq("licensor_id", filters.licensorId);
-      }
-      if (filters.propertyId) {
-        query = query.eq("property_id", filters.propertyId);
-      }
+      query = applyStyleGroupFilters(query, filters);
 
       const { count, error } = await query;
       if (error) throw error;

@@ -1,12 +1,7 @@
 /**
- * External Supabase client — used for ALL authentication.
- *
- * This deliberately bypasses the Lovable Cloud auto-generated client
- * so that auth (Google OAuth, email/password, sessions) goes through
- * the production Supabase project the team owns.
- *
- * The Lovable Cloud client (src/integrations/supabase/client.ts) is
- * still used for non-auth data queries (assets, style_groups, etc.).
+ * Single Supabase client for ALL operations — auth, data queries, and edge functions.
+ * URL and anon key are hardcoded here because the Lovable-managed .env file
+ * is auto-generated and always contains the old internal project ID, which we ignore.
  */
 import { createClient } from "@supabase/supabase-js";
 
