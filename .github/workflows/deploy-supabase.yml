@@ -111,5 +111,6 @@ jobs:
           git add src/integrations/supabase/types.ts
           git diff --cached --quiet || {
             git commit -m "chore: auto-generate Supabase types [skip ci]"
+            git pull --rebase
             git push
           }
