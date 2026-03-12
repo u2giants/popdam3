@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,8 +17,19 @@ function truncatePath(p: string | undefined): string {
   return "…/" + parts.slice(-2).join("/");
 }
 
-function useElapsed(updatedAt: string | undefined, active: boolean): string {
+function useElapsed(active: boolean): string {
+  const startRef = useRef<number | null>(null);
   const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (active) {
+      if (startRef.current === null) {
+        startRef.current = Date.now();
+      }
+    } else {
+      startRef.current = null;
+    }
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;
@@ -26,10 +37,8 @@ function useElapsed(updatedAt: string | undefined, active: boolean): string {
     return () => clearInterval(id);
   }, [active]);
 
-  if (!updatedAt) return "0:00";
-  // We approximate scan start as updated_at minus some offset,
-  // but really we just show how long since first update
-  const elapsed = Math.max(0, now - new Date(updatedAt).getTime());
+  if (!active || startRef.current === null) return "0:00";
+  const elapsed = Math.max(0, now - startRef.current);
   const totalSec = Math.floor(elapsed / 1000);
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
@@ -57,7 +66,7 @@ export default function ScanMonitorBanner({ scanProgress, onStopScan }: ScanMoni
   if (!isRunning && !isStale) return null;
 
   const c = scanProgress.counters;
-  const elapsed = useElapsed(scanProgress.updated_at, isRunning || isStale);
+  const elapsed = useElapsed(isRunning || isStale);
   const truncated = truncatePath(scanProgress.current_path);
 
   return (
