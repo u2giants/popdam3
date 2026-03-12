@@ -536,7 +536,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
       toast("Updated");
     },
     onError: (e) => {
-      toast({ title: "Update failed", description: (e as Error).message, variant: "destructive" });
+      toast.error("Update failed", { description: (e as Error).message });
     },
   });
 
