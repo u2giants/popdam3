@@ -223,7 +223,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
       } else if (result?.status === "failed") {
         setError(result.error_message || "Scan failed");
       } else if (result?.status === "pending") {
-        toast({ title: "Scan requested", description: "The Bridge Agent will scan this folder shortly. Waiting for results…" });
+        toast("Scan requested", { description: "The Bridge Agent will scan this folder shortly. Waiting for results…" });
         startPolling(result.request_id as string);
       }
     } catch (e) {
