@@ -57,7 +57,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
       initialProgress: { tagged: 0, skipped: 0, failed: 0, total: count },
     });
 
-    toast({ title: `AI tagging ${count} asset${count !== 1 ? "s" : ""} across ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}…` });
+    toast(`AI tagging ${count} asset${count !== 1 ? "s" : ""} across ${selectedGroups.length} group${selectedGroups.length !== 1 ? "s" : ""}…`);
   };
 
   // Invalidate queries when operation completes
