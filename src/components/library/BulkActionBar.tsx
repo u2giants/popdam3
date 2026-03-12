@@ -98,7 +98,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
       setWorkflowValue("");
     },
     onError: (e) => {
-      toast({ title: "Bulk update failed", description: e.message, variant: "destructive" });
+      toast.error("Bulk update failed", { description: e.message });
     },
   });
 
