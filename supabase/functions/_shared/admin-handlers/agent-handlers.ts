@@ -34,14 +34,36 @@ export async function handleGenerateAgentKey(
     .join("");
 
   const db = serviceClient();
-  const { data, error } = await db
+
+  // Check if agent already exists — explicit select+update avoids PostgREST
+  // schema-cache issues with upsert after adding a new UNIQUE constraint.
+  const { data: existing } = await db
     .from("agent_registrations")
-    .upsert(
-      { agent_name: agentName, agent_type: agentType, agent_key_hash: hashHex },
-      { onConflict: "agent_name", ignoreDuplicates: false },
-    )
     .select("id")
-    .single();
+    .eq("agent_name", agentName)
+    .maybeSingle();
+
+  let data: { id: string } | null = null;
+  let error: { message: string } | null = null;
+
+  if (existing) {
+    const res = await db
+      .from("agent_registrations")
+      .update({ agent_type: agentType, agent_key_hash: hashHex, last_heartbeat: new Date().toISOString() })
+      .eq("id", existing.id)
+      .select("id")
+      .single();
+    data = res.data;
+    error = res.error;
+  } else {
+    const res = await db
+      .from("agent_registrations")
+      .insert({ agent_name: agentName, agent_type: agentType, agent_key_hash: hashHex })
+      .select("id")
+      .single();
+    data = res.data;
+    error = res.error;
+  }
 
   if (error) return err(error.message, 500);
   return json({
