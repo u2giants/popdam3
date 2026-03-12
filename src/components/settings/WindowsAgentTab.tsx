@@ -204,8 +204,13 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     <div>Last heartbeat: {agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}</div>
                     <div>Pending render jobs: <span className="text-foreground font-semibold">{pendingRenders}</span></div>
                     {currentVersion && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         Version: <Badge variant="outline" className="text-[10px] h-5">{currentVersion}</Badge>
+                        {(meta?.last_updated_at || meta?.started_at) && (
+                          <span className="text-muted-foreground">
+                            deployed {new Date((meta?.last_updated_at ?? meta?.started_at) as string).toLocaleString()}
+                          </span>
+                        )}
                         {updateAvailable && latestVersion && (
                           <Badge variant="secondary" className="text-[10px] h-5 gap-1 text-[hsl(var(--warning))]">
                             <ArrowUpCircle className="h-3 w-3" />
@@ -222,9 +227,6 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                     )}
                     {lastUpdateCheck && (
                       <div>Last update check: {new Date(lastUpdateCheck).toLocaleString()}</div>
-                    )}
-                    {(meta?.last_updated_at || meta?.started_at) && (
-                      <div>Last updated: {new Date((meta?.last_updated_at ?? meta?.started_at) as string).toLocaleString()}</div>
                     )}
                     {updateError && (
                       <div className="text-destructive">Update error: {updateError}</div>
@@ -296,8 +298,7 @@ function WindowsAgentDownload() {
         <a href={installerUrl} target="_blank" rel="noopener noreferrer">
           <Button size="lg" className="w-full gap-2">
             <Download className="h-4 w-4" />
-            Download Windows Agent Installer
-            {version && <Badge variant="secondary" className="ml-1 text-[10px]">v{version}</Badge>}
+            {version ? `Download Windows Agent Installer v${version}` : "Download Windows Agent Installer"}
           </Button>
         </a>
         {publishedAt && (
