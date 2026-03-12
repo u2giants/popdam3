@@ -171,7 +171,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
           stopPolling();
           const msg = result.error_message || "Scan failed";
           setError(msg);
-          toast({ title: "Folder scan failed", description: msg, variant: "destructive" });
+          toast.error("Folder scan failed", { description: msg });
         }
       } catch (e) {
         console.warn("Poll error:", (e as Error).message);
