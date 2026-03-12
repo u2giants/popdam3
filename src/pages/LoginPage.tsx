@@ -81,8 +81,7 @@ export default function LoginPage() {
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
-        toast({
-          title: "Check your email",
+        toast("Check your email", {
           description: "A confirmation link has been sent to your email address.",
         });
       } else {

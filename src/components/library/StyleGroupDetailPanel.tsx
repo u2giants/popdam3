@@ -764,7 +764,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                         onClick={(e) => {
                           if (!getOpenFolderUri(detailAsset.relative_path, nasConfig)) {
                             e.preventDefault();
-                            toast({ title: "Cannot open folder", description: "Set your Synology Drive root in Settings → Path Tester if using remote mode.", variant: "destructive" });
+                            toast.error("Cannot open folder", { description: "Set your Synology Drive root in Settings → Path Tester if using remote mode." });
                           }
                         }}
                       >
