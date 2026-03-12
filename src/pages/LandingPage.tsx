@@ -34,7 +34,7 @@ export default function LandingPage() {
           Digital Asset Management
         </h1>
         <p className="mx-auto max-w-2xl text-lg text-muted-foreground leading-relaxed">
-          PopDAM is a digital asset manager for licensed consumer-product art.
+          PopDAM provides digital asset management for licensed consumer-product art.
           Organize, search, and manage design files across your team — securely and efficiently.
         </p>
         <Link to="/login">
@@ -69,8 +69,9 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-border/50 px-6 py-6 text-center text-sm text-muted-foreground space-x-6">
-        <a href="https://dam.designflow.app/privacy" className="text-primary hover:underline">Privacy Policy</a>
-        <a href="https://dam.designflow.app/terms" className="text-primary hover:underline">Terms of Service</a>
+        <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
+        <a href="/terms" className="text-primary hover:underline">Terms of Service</a>
+        <span>Contact: support@designflow.app</span>
       </footer>
     </div>
   );
