@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { externalSupabase } from "@/lib/external-supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +59,7 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await externalSupabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: window.location.origin },
     });
@@ -75,7 +75,7 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await externalSupabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin },
@@ -86,7 +86,7 @@ export default function LoginPage() {
           description: "A confirmation link has been sent to your email address.",
         });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await externalSupabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (err: any) {
