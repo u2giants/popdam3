@@ -145,7 +145,7 @@ async function renderWithSharp(
     ? { density: 150 }
     : { pages: -1 }; // -1 = composite all PSD layers
 
-  const img = sharp(filePath, options)
+  const img = sharp(filePath, { ...options, limitInputPixels: false })
     .flatten({ background: "#ffffff" });
 
   const resized = img.resize(
