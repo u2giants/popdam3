@@ -61,7 +61,10 @@ export function ConnectedAgents({ agents }: { agents: AgentInfo[] }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {agents.map((agent) => {
+        {[...agents].sort((a, b) => {
+          const order: Record<string, number> = { bridge: 0, windows: 1 };
+          return (order[a.type] ?? 2) - (order[b.type] ?? 2);
+        }).map((agent) => {
           const isOn = agent.status === "online";
           return (
             <div key={agent.id} className="border border-border rounded-md p-3 space-y-2">
