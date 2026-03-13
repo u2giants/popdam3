@@ -169,6 +169,8 @@ function startHeartbeat() {
         version: packageVersion,
         build_sha: buildSha,
       }, diagnostics);
+      // Clear stale error once a heartbeat succeeds — prevents permanently showing old errors in UI
+      lastError = undefined;
       logger.debug("Heartbeat sent");
 
       // Process config sync from heartbeat response
@@ -973,17 +975,18 @@ async function main() {
     }
   }
 
-  // 1. Register with cloud (if not already registered via pairing)
+  // 1. Register with cloud — always called on startup to refresh key hash in DB.
+  // This prevents persistent 401s after DB migrations wipe agent_registrations.
   if (!agentId) {
-    // Try to use saved agent ID first
-    if (config.savedAgentId) {
-      agentId = config.savedAgentId;
-      logger.info("Using saved agent ID", { agentId });
-    } else {
-      try {
-        agentId = await api.register(config.agentName);
-        logger.info("Registered with cloud API", { agentId });
-      } catch (e) {
+    try {
+      agentId = await api.register(config.agentName);
+      logger.info("Registered with cloud API", { agentId });
+    } catch (e) {
+      // Fall back to saved agent ID if register fails (e.g. network blip at startup)
+      if (config.savedAgentId) {
+        agentId = config.savedAgentId;
+        logger.warn("Register failed — using saved agent ID", { agentId, error: (e as Error).message });
+      } else {
         logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
         process.exit(1);
       }
