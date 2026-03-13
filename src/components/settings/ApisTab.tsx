@@ -428,7 +428,7 @@ function TaxonomyApiSection() {
 
 const MAX_INSTRUCTIONS_LENGTH = 2000;
 
-function AiTaggingInstructionsSection() {
+export function AiTaggingInstructionsSection() {
   const { call } = useAdminApi();
   const [instructions, setInstructions] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -507,7 +507,7 @@ function AiTaggingInstructionsSection() {
 
 // ── Character Stats Section ──────────────────────────────────────────
 
-function CharacterStatsSection() {
+export function CharacterStatsSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [threshold, setThreshold] = useState(3);
@@ -586,8 +586,6 @@ export default function ApisTab() {
   return (
     <div className="space-y-4">
       <TaxonomyApiSection />
-      <CharacterStatsSection />
-      <AiTaggingInstructionsSection />
     </div>
   );
 }

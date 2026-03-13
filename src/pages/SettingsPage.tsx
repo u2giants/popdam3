@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Settings as SettingsIcon, RefreshCw, Shield, Activity, Stethoscope, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Wrench, Play, StopCircle, Globe, RotateCcw, Download, Loader2, CheckCircle2 } from "lucide-react";
+import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { NasStorageTab, ImageOutputTab, ScanningTab, LiveScanMonitor, UpdateAgentButton } from "@/components/settings/WorkerManagementTab";
@@ -20,6 +21,8 @@ import DiagnosticsTab from "@/components/settings/DiagnosticsTab";
 import TiffHygieneTab from "@/components/settings/TiffHygieneTab";
 import FileHygieneTab from "@/components/settings/FileHygieneTab";
 import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
+import AiTaggingTab from "@/components/settings/AiTaggingTab";
+import OperationsTab from "@/components/settings/OperationsTab";
 
 
 function CopyButton({ text }: { text: string }) {
@@ -33,53 +36,6 @@ function CopyButton({ text }: { text: string }) {
     <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={copy}>
       {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
     </Button>
-  );
-}
-
-// ── Effective Config Section ────────────────────────────────────────
-
-function EffectiveConfigSection() {
-  const { call } = useAdminApi();
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-config"],
-    queryFn: () => call("get-config"),
-  });
-
-  const config = data?.config || {};
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <SettingsIcon className="h-4 w-4" /> Effective Configuration
-        </CardTitle>
-        <Button variant="ghost" size="icon" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        ) : (
-          <div className="space-y-2 font-mono text-xs">
-            {Object.entries(config).map(([key, entry]) => {
-              const val = (entry as { value: unknown })?.value ?? entry;
-              return (
-                <div key={key} className="flex items-start gap-2 border-b border-border pb-1">
-                  <span className="text-primary font-semibold min-w-[200px] shrink-0">{key}</span>
-                  <span className="text-muted-foreground break-all">
-                    {typeof val === "object" ? JSON.stringify(val, null, 2) : String(val)}
-                  </span>
-                </div>
-              );
-            })}
-            {Object.keys(config).length === 0 && (
-              <p className="text-muted-foreground">No config entries found.</p>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -111,7 +67,7 @@ function AgentUpdateControls({ agentId, agentName }: { agentId: string; agentNam
     setUpdateStatus(null);
     try {
       await call("trigger-agent-update", { update_action: "check" });
-      const result = await pollStatus(10, 3000); // 10 attempts, 3s each = 30s max
+      const result = await pollStatus(10, 3000);
       if (!result) {
         toast.error("Update check timed out — agent may be busy");
       }
@@ -127,8 +83,7 @@ function AgentUpdateControls({ agentId, agentName }: { agentId: string; agentNam
     try {
       await call("trigger-agent-update", { update_action: "apply" });
       toast.info("Update in progress — agent will reconnect in ~30s");
-      // Poll list-agents every 5s until agent comes back online
-      for (let i = 0; i < 12; i++) { // 60s max
+      for (let i = 0; i < 12; i++) {
         await new Promise((r) => setTimeout(r, 5000));
         try {
           const resp = await call("list-agents");
@@ -233,7 +188,6 @@ function AgentStatusSection() {
 
   const agents = data?.agents || [];
 
-  // Check if any agent has force_stop
   const anyForceStopped = agents.some((a: Record<string, unknown>) => {
     return a.force_stop === true || a.scan_abort === true;
   });
@@ -270,21 +224,36 @@ function AgentStatusSection() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <Activity className="h-4 w-4" /> Agent Status
+          <Activity className="h-4 w-4" /> Bridge Agents
         </CardTitle>
         <div className="flex items-center gap-2">
           {anyForceStopped ? (
-            <Button variant="default" size="sm" onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} className="gap-1.5">
-              <Play className="h-3.5 w-3.5" /> Resume Scanning
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="default" size="sm" onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} className="gap-1.5">
+                  <Play className="h-3.5 w-3.5" /> Resume Scanning
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Allow agents to resume ingesting new files</TooltipContent>
+            </Tooltip>
           ) : (
-            <Button variant="destructive" size="sm" onClick={() => { if (confirm("Stop all agents and block ingestion?")) stopMutation.mutate(); }} disabled={stopMutation.isPending} className="gap-1.5">
-              <StopCircle className="h-3.5 w-3.5" /> Stop All
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="destructive" size="sm" onClick={() => { if (confirm("Stop all agents and block ingestion?")) stopMutation.mutate(); }} disabled={stopMutation.isPending} className="gap-1.5">
+                  <StopCircle className="h-3.5 w-3.5" /> Stop All
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Immediately halt all agents and block any new file ingestion</TooltipContent>
+            </Tooltip>
           )}
-          <Button variant="outline" size="sm" onClick={() => { if (confirm("Reset scan state to idle? This clears any stuck scan.")) resetScanMutation.mutate(); }} disabled={resetScanMutation.isPending} className="gap-1.5">
-            <RotateCcw className="h-3.5 w-3.5" /> Reset Scan State
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => { if (confirm("Reset scan state to idle? This clears any stuck scan.")) resetScanMutation.mutate(); }} disabled={resetScanMutation.isPending} className="gap-1.5">
+                <RotateCcw className="h-3.5 w-3.5" /> Reset Scan State
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clear a stuck or stale scan so agents can start fresh</TooltipContent>
+          </Tooltip>
           <Button variant="ghost" size="icon" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
           </Button>
@@ -294,7 +263,7 @@ function AgentStatusSection() {
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : agents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No agents registered. Generate a key in the Setup Wizard to register one.</p>
+          <p className="text-sm text-muted-foreground">No agents registered. Generate a key below to register one.</p>
         ) : (
           <div className="space-y-3">
             {agents.map((agent: Record<string, unknown>) => (
@@ -323,31 +292,22 @@ function AgentStatusSection() {
                   {agent.last_error && <div className="text-destructive">Last error: {agent.last_error as string}</div>}
                   {agent.key_preview && <div>Key hash: {agent.key_preview as string}</div>}
                 </div>
-                {/* Version info for bridge agents */}
                 {(() => {
                   const vi = agent.version_info as Record<string, unknown> | null;
                   if (!vi) return null;
                   return (
                     <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
                       {vi.version && (
-                        <Badge variant="outline" className="text-[10px] font-mono gap-1">
-                          v{vi.version as string}
-                        </Badge>
+                        <Badge variant="outline" className="text-[10px] font-mono gap-1">v{vi.version as string}</Badge>
                       )}
                       {vi.image_tag && (
-                        <Badge variant="secondary" className="text-[10px] font-mono gap-1">
-                          {vi.image_tag as string}
-                        </Badge>
+                        <Badge variant="secondary" className="text-[10px] font-mono gap-1">{vi.image_tag as string}</Badge>
                       )}
                       {vi.build_sha && (
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          sha:{(vi.build_sha as string).slice(0, 7)}
-                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono">sha:{(vi.build_sha as string).slice(0, 7)}</span>
                       )}
                       {vi.last_reported_at && (
-                        <span className="text-[10px] text-muted-foreground">
-                          reported {new Date(vi.last_reported_at as string).toLocaleString()}
-                        </span>
+                        <span className="text-[10px] text-muted-foreground">reported {new Date(vi.last_reported_at as string).toLocaleString()}</span>
                       )}
                     </div>
                   );
@@ -383,24 +343,15 @@ function ScanCounters({ counters }: { counters: Record<string, number> }) {
   const statFailed = counters.files_stat_failed ?? 0;
 
   const hasData = totalEncountered > 0 || supported > 0 || errors > 0;
-
-  if (!hasData) {
-    return <p className="text-xs text-muted-foreground mt-1">No scan data yet</p>;
-  }
+  if (!hasData) return <p className="text-xs text-muted-foreground mt-1">No scan data yet</p>;
 
   const fmt = (n: number) => n.toLocaleString();
 
   return (
     <div className="mt-2 text-xs font-mono space-y-0.5">
-      <div className="font-semibold text-foreground">
-        Total files encountered: {fmt(totalEncountered)}
-      </div>
-
-      {/* Supported branch */}
+      <div className="font-semibold text-foreground">Total files encountered: {fmt(totalEncountered)}</div>
       <div className="pl-3 border-l border-border ml-1 space-y-0.5">
-        <div className="text-foreground">
-          Supported (.ai / .psd): <span className="font-semibold">{fmt(supported)}</span>
-        </div>
+        <div className="text-foreground">Supported (.ai / .psd): <span className="font-semibold">{fmt(supported)}</span></div>
         <div className="pl-3 border-l border-border ml-1 space-y-0.5">
           <div>New: <span className="text-[hsl(var(--success))]">{fmt(ingestedNew)}</span></div>
           <div>Updated: <span className="text-foreground">{fmt(updated)}</span></div>
@@ -409,19 +360,13 @@ function ScanCounters({ counters }: { counters: Record<string, number> }) {
           <div>Errors: <span className={errors > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>{fmt(errors)}</span></div>
         </div>
       </div>
-
-      {/* Rejected branch */}
       <div className="pl-3 border-l border-border ml-1 space-y-0.5">
-        <div className="text-foreground">
-          Rejected: <span className="text-muted-foreground">{fmt(totalRejected)}</span>
-        </div>
+        <div className="text-foreground">Rejected: <span className="text-muted-foreground">{fmt(totalRejected)}</span></div>
         <div className="pl-3 border-l border-border ml-1 space-y-0.5">
           <div>Wrong type (jpg, png, etc): <span className="text-muted-foreground">{fmt(rejectedWrongType)}</span></div>
           <div>Junk files (._*, __MACOSX): <span className="text-muted-foreground">{fmt(rejectedJunk)}</span></div>
         </div>
       </div>
-
-      {/* Footer stats */}
       <div className="pt-1 space-y-0.5">
         <div>Directories skipped (no permission): <span className={dirsSkippedPerm > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}>{fmt(dirsSkippedPerm)}</span></div>
         <div>Directories skipped (excluded patterns): <span className="text-muted-foreground">{fmt(dirsSkippedExcluded)}</span></div>
@@ -454,10 +399,11 @@ function AgentKeySection() {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <Key className="h-4 w-4" /> Generate Agent Key
+          <Key className="h-4 w-4" /> Generate Bridge Agent Key
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">Create an auth key for a new NAS Bridge Agent. The key is shown once — copy it before closing.</p>
         <div className="flex gap-2">
           <Input
             placeholder="Agent name (e.g. synology-bridge-1)"
@@ -481,39 +427,6 @@ function AgentKeySection() {
               <CopyButton text={generatedKey} />
             </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Doctor Diagnostics ──────────────────────────────────────────────
-
-function DoctorSection() {
-  const { call } = useAdminApi();
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["admin-doctor"],
-    queryFn: () => call("doctor"),
-    enabled: false,
-  });
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Stethoscope className="h-4 w-4" /> Doctor Diagnostics
-        </CardTitle>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-          {isLoading ? "Running..." : "Run Diagnostics"}
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {data?.diagnostic ? (
-          <pre className="text-xs font-mono text-muted-foreground bg-[hsl(var(--surface-overlay))] rounded-md p-3 max-h-[400px] overflow-auto whitespace-pre-wrap">
-            {JSON.stringify(data.diagnostic, null, 2)}
-          </pre>
-        ) : (
-          <p className="text-sm text-muted-foreground">Click "Run Diagnostics" to fetch a complete diagnostic bundle.</p>
         )}
       </CardContent>
     </Card>
@@ -554,12 +467,8 @@ function PathTesterSection() {
   })();
 
   const handleTest = () => {
-    if (!nasConfig) {
-      toast.error("NAS config not loaded");
-      return;
-    }
-    const userSync = syncRoot || null;
-    setResult(parseInputPath(inputPath, nasConfig, userSync));
+    if (!nasConfig) { toast.error("NAS config not loaded"); return; }
+    setResult(parseInputPath(inputPath, nasConfig, syncRoot || null));
   };
 
   const handleSaveSyncRoot = () => {
@@ -575,8 +484,9 @@ function PathTesterSection() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">Test how any path (UNC, container, Synology Drive, or relative) resolves in PopDAM. Also configures how "Open Folder" links work on your machine.</p>
         <div className="space-y-2">
-          <label className="text-xs text-muted-foreground">Your Synology Drive root (local, stored in browser)</label>
+          <label className="text-xs text-muted-foreground">Your Synology Drive root (saved locally in this browser)</label>
           <div className="flex gap-2">
             <Input
               placeholder="C:\Users\Albert\SynologyDrive"
@@ -589,29 +499,27 @@ function PathTesterSection() {
         </div>
         <div className="space-y-2">
           <label className="text-xs text-muted-foreground">"Open Folder" path mode (used by the popdam:// protocol handler)</label>
-          <div className="flex gap-2 items-center">
-            <select
-              value={pathMode}
-              onChange={(e) => {
-                const v = e.target.value as import("@/lib/open-folder").PathMode;
-                setPathMode(v);
-                import("@/lib/open-folder").then(m => m.setPreferredPathMode(v));
-                toast.success("Open Folder path mode saved");
-              }}
-              className="bg-secondary text-secondary-foreground rounded-md px-2 py-1.5 text-xs border border-border font-mono"
-            >
-              <option value="unc_host">UNC by hostname (\\host\share\…)</option>
-              <option value="unc_ip">UNC by IP (\\192.168.x.x\share\…)</option>
-              <option value="synology_drive">Synology Drive (local sync folder)</option>
-            </select>
-          </div>
+          <select
+            value={pathMode}
+            onChange={(e) => {
+              const v = e.target.value as import("@/lib/open-folder").PathMode;
+              setPathMode(v);
+              import("@/lib/open-folder").then(m => m.setPreferredPathMode(v));
+              toast.success("Open Folder path mode saved");
+            }}
+            className="bg-secondary text-secondary-foreground rounded-md px-2 py-1.5 text-xs border border-border font-mono"
+          >
+            <option value="unc_host">UNC by hostname (\\host\share\…)</option>
+            <option value="unc_ip">UNC by IP (\\192.168.x.x\share\…)</option>
+            <option value="synology_drive">Synology Drive (local sync folder)</option>
+          </select>
           {pathMode === "synology_drive" && !syncRoot && (
             <p className="text-[10px] text-[hsl(var(--warning))]">⚠ Set your Synology Drive root above for this mode to work.</p>
           )}
         </div>
         <div className="flex gap-2">
           <Input
-            placeholder="Paste any path (UNC, container, Synology Drive, or relative)"
+            placeholder="Paste any path to test"
             value={inputPath}
             onChange={(e) => setInputPath(e.target.value)}
             className="font-mono text-xs"
@@ -742,9 +650,7 @@ function InvitationSection() {
                   {!inv.accepted_at && (
                     <>
                       <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 text-xs gap-1"
+                        variant="outline" size="sm" className="h-6 text-xs gap-1"
                         onClick={() => handleResend(inv.id as string, inv.email as string)}
                         disabled={resendingId === inv.id}
                       >
@@ -805,7 +711,6 @@ function AgentThroughputChart() {
       }
     }
 
-    // Sort by time and take last 60 points
     return allPoints.slice(-60);
   }, [data]);
 
@@ -866,14 +771,32 @@ function AgentThroughputChart() {
   );
 }
 
+// ── Tooltip-wrapped tab trigger ─────────────────────────────────────
+
+function TipTab({ value, label, tip }: { value: string; label: string; tip: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <TabsTrigger value={value}>{label}</TabsTrigger>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{tip}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 // ── Main Settings Page ──────────────────────────────────────────────
 
 export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "nas-storage";
+  const activeTab = searchParams.get("tab") || "storage";
   const handleTabChange = useCallback((value: string) => {
     setSearchParams({ tab: value }, { replace: true });
   }, [setSearchParams]);
+
+  // Sub-tab state for merged tabs
+  const [storageSubTab, setStorageSubTab] = useState("nas");
+  const [agentsSubTab, setAgentsSubTab] = useState("bridge");
+  const [hygieneSubTab, setHygieneSubTab] = useState("tiff");
 
   return (
     <div className="container max-w-7xl py-8 space-y-6">
@@ -884,69 +807,117 @@ export default function SettingsPage() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="nas-storage">NAS & Storage</TabsTrigger>
-          <TabsTrigger value="image-output">Image Output</TabsTrigger>
-          <TabsTrigger value="scanning">Scanning</TabsTrigger>
+          <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="install-bundles">Install Bundles</TabsTrigger>
-          <TabsTrigger value="windows-agent">Windows Agent</TabsTrigger>
-          <TabsTrigger value="taxonomy">APIs & Tagging</TabsTrigger>
-          <TabsTrigger value="erp-enrichment">ERP Enrichment</TabsTrigger>
-          <TabsTrigger value="tiff-hygiene">TIFF Hygiene</TabsTrigger>
-          <TabsTrigger value="file-hygiene">File Hygiene</TabsTrigger>
+          <TipTab value="ai-tagging" label="AI Tagging" tip="Run AI tagging jobs and configure tagging behavior" />
+          <TipTab value="taxonomy" label="Taxonomy" tip="Manage licensors, properties, and characters — sync from external APIs" />
+          <TipTab value="erp" label="ERP" tip="Sync and enrich product data from your ERP system" />
+          <TipTab value="hygiene" label="Hygiene" tip="TIFF compression optimization and embedded-file quality checks" />
+          <TipTab value="operations" label="Operations" tip="Bulk data maintenance: reprocess metadata, rebuild style groups, and more" />
           <TabsTrigger value="users">Users</TabsTrigger>
-          
-          <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
+          <TipTab value="diagnostics" label="Diagnostics" tip="System health, connected agents, recent errors, and database inspector" />
         </TabsList>
 
-        <TabsContent value="nas-storage" className="space-y-4">
-          <NasStorageTab />
+        {/* ── Storage (NAS + Scanning + Image Output) ── */}
+        <TabsContent value="storage" className="space-y-4">
+          <div className="flex gap-1 border-b border-border pb-2">
+            {[
+              { id: "nas", label: "NAS & Folders" },
+              { id: "scanning", label: "Scanning" },
+              { id: "image-output", label: "Image Output" },
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setStorageSubTab(id)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${storageSubTab === id ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {storageSubTab === "nas" && <NasStorageTab />}
+          {storageSubTab === "scanning" && <ScanningTab />}
+          {storageSubTab === "image-output" && <ImageOutputTab />}
         </TabsContent>
 
-        <TabsContent value="image-output" className="space-y-4">
-          <ImageOutputTab />
-        </TabsContent>
-
-        <TabsContent value="scanning" className="space-y-4">
-          <ScanningTab />
-        </TabsContent>
-
+        {/* ── Agents (Bridge + Windows + Install) ── */}
         <TabsContent value="agents" className="space-y-4">
-          <AgentKeySection />
-          <AgentStatusSection />
-          <AgentThroughputChart />
-          <LiveScanMonitor />
-          <UpdateAgentButton />
+          <div className="flex gap-1 border-b border-border pb-2">
+            {[
+              { id: "bridge", label: "Bridge Agent (NAS)" },
+              { id: "windows", label: "Windows Render Agent" },
+              { id: "install", label: "Install Bundles" },
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setAgentsSubTab(id)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${agentsSubTab === id ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {agentsSubTab === "bridge" && (
+            <div className="space-y-4">
+              <AgentKeySection />
+              <AgentStatusSection />
+              <AgentThroughputChart />
+              <LiveScanMonitor />
+              <UpdateAgentButton />
+            </div>
+          )}
+          {agentsSubTab === "windows" && <WindowsAgentTab />}
+          {agentsSubTab === "install" && <InstallBundleTab />}
         </TabsContent>
 
-        <TabsContent value="install-bundles" className="space-y-4">
-          <InstallBundleTab />
+        {/* ── AI Tagging ── */}
+        <TabsContent value="ai-tagging" className="space-y-4">
+          <AiTaggingTab />
         </TabsContent>
 
-        <TabsContent value="windows-agent" className="space-y-4">
-          <WindowsAgentTab />
-        </TabsContent>
-
+        {/* ── Taxonomy ── */}
         <TabsContent value="taxonomy" className="space-y-4">
           <ApisTab />
         </TabsContent>
 
-        <TabsContent value="erp-enrichment" className="space-y-4">
+        {/* ── ERP ── */}
+        <TabsContent value="erp" className="space-y-4">
           <ErpEnrichmentTab />
         </TabsContent>
 
+        {/* ── Hygiene (TIFF + File) ── */}
+        <TabsContent value="hygiene" className="space-y-4">
+          <div className="flex gap-1 border-b border-border pb-2">
+            {[
+              { id: "tiff", label: "TIFF Compression" },
+              { id: "files", label: "File Quality" },
+              { id: "paths", label: "Path Tester" },
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setHygieneSubTab(id)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${hygieneSubTab === id ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {hygieneSubTab === "tiff" && <TiffHygieneTab />}
+          {hygieneSubTab === "files" && <FileHygieneTab />}
+          {hygieneSubTab === "paths" && <PathTesterSection />}
+        </TabsContent>
+
+        {/* ── Operations ── */}
+        <TabsContent value="operations" className="space-y-4">
+          <OperationsTab />
+        </TabsContent>
+
+        {/* ── Users ── */}
         <TabsContent value="users">
           <InvitationSection />
         </TabsContent>
 
-        <TabsContent value="tiff-hygiene" className="space-y-4">
-          <TiffHygieneTab />
-        </TabsContent>
-
-        <TabsContent value="file-hygiene" className="space-y-4">
-          <FileHygieneTab />
-        </TabsContent>
-
+        {/* ── Diagnostics ── */}
         <TabsContent value="diagnostics" className="space-y-4">
           <DiagnosticsTab />
         </TabsContent>
