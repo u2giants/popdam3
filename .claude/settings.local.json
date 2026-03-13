@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(supabase secrets:*)",
+      "Bash(npx supabase:*)",
+      "Bash(cat /c/PopDAM/popdam3/.env* 2>/dev/null | head -20; ls /c/PopDAM/popdam3/.env* 2>/dev/null)",
+      "Bash(powershell -Command \"Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\\\\Microsoft\\\\Windows\\\\DeviceGuard | Select-Object -Property *\" 2>&1)",
+      "Bash(wsl --status 2>&1)",
+      "Bash(wsl --install 2>&1)"
+    ]
+  }
+}

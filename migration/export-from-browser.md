@@ -30,7 +30,7 @@ Copy the ENTIRE block below, paste it into the Console, and press Enter:
 ```javascript
 // PopDAM Export Script — run in browser console while logged in as admin
 (async () => {
-  const PROJECT_ID = 'vklanxwmaeqjbwtmnygj';
+  const PROJECT_ID = 'ryltkzzernhwnojzouyb';
   const BASE_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/export-table`;
   const PAGE_SIZE = 50000;
 

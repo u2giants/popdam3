@@ -15,7 +15,7 @@
 # NOTE: JWTs expire after ~1 hour. Get a fresh one before running.
 
 # ── CONFIGURATION ────────────────────────────────────────────────────
-$SupabaseUrl  = "https://vklanxwmaeqjbwtmnygj.supabase.co"
+$SupabaseUrl  = "https://ryltkzzernhwnojzouyb.supabase.co"
 $AuthToken    = "PASTE_YOUR_JWT_HERE"
 $OutputDir    = ".\dump"
 $ChunkSize    = 5000
