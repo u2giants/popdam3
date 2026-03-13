@@ -12,9 +12,9 @@ serve(async (req: Request) => {
     return err("Missing Authorization header", 401);
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return err("LOVABLE_API_KEY not configured", 500);
+  const GOOGLE_AI_API_KEY = Deno.env.get("GOOGLE_AI_API_KEY");
+  if (!GOOGLE_AI_API_KEY) {
+    return err("GOOGLE_AI_API_KEY not configured", 500);
   }
 
   try {
@@ -202,120 +202,131 @@ ${
       characterCount: characters.length,
     });
 
-    // Retry logic for transient AI gateway errors
+    // Fetch thumbnail and encode as base64 for Gemini inlineData
+    let imageBase64: string;
+    let imageMimeType: string;
+    try {
+      const imgResp = await fetch(thumbnailUrl, { signal: AbortSignal.timeout(15_000) });
+      if (!imgResp.ok) return err(`Failed to fetch thumbnail: ${imgResp.status}`, 500);
+      const contentType = imgResp.headers.get("content-type") || "image/jpeg";
+      imageMimeType = contentType.split(";")[0].trim();
+      const bytes = new Uint8Array(await imgResp.arrayBuffer());
+      let binary = "";
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      imageBase64 = btoa(binary);
+    } catch (e) {
+      return err(`Failed to load thumbnail image: ${e instanceof Error ? e.message : e}`, 500);
+    }
+
+    // Retry logic for transient AI errors
     const MAX_AI_RETRIES = 2;
     let response: Response | null = null;
 
     for (let attempt = 0; attempt <= MAX_AI_RETRIES; attempt++) {
       response = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GOOGLE_AI_API_KEY}`,
         {
           signal: AbortSignal.timeout(25_000),
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              { role: "system", content: systemPrompt },
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [
               {
                 role: "user",
-                content: [
-                  {
-                    type: "image_url",
-                    image_url: { url: thumbnailUrl },
-                  },
-                  {
-                    type: "text",
-                    text: "Analyze this design asset image and return structured tags using the tag_asset tool.",
-                  },
+                parts: [
+                  { inlineData: { mimeType: imageMimeType, data: imageBase64 } },
+                  { text: "Analyze this design asset image and return structured tags using the tag_asset function." },
                 ],
               },
             ],
             tools: [
               {
-                type: "function",
-                function: {
-                  name: "tag_asset",
-                  description: "Return structured tagging data for this design asset.",
-                  parameters: {
-                    type: "object",
-                    properties: {
-                      tags: {
-                        type: "array",
-                        items: { type: "string" },
-                        description: "Descriptive tags: characters, styles, colors, themes",
+                functionDeclarations: [
+                  {
+                    name: "tag_asset",
+                    description: "Return structured tagging data for this design asset.",
+                    parameters: {
+                      type: "object",
+                      properties: {
+                        tags: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "Descriptive tags: characters, styles, colors, themes",
+                        },
+                        ai_description: {
+                          type: "string",
+                          description: "One-sentence description of the design asset",
+                        },
+                        cover_description: {
+                          type: "string",
+                          description:
+                            "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
+                        },
+                        scene_description: {
+                          type: "string",
+                          description: "What is depicted in the image",
+                        },
+                        asset_type: {
+                          type: "string",
+                          enum: ["art_piece", "product"],
+                        },
+                        art_source: {
+                          type: "string",
+                          enum: [
+                            "freelancer",
+                            "straight_style_guide",
+                            "style_guide_composition",
+                          ],
+                        },
+                        design_style: {
+                          type: "string",
+                          description: "e.g. flat, dimensional, vintage, modern",
+                        },
+                        design_ref: {
+                          type: "string",
+                          description: "Any style number or design reference visible",
+                        },
+                        character_ids: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "UUIDs of identified characters from taxonomy",
+                        },
+                        licensor_id: {
+                          type: "string",
+                          description: "UUID of identified licensor",
+                        },
+                        property_id: {
+                          type: "string",
+                          description: "UUID of identified property",
+                        },
+                        designer_name: {
+                          type: "string",
+                          description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
+                        },
+                        technical_designer_name: {
+                          type: "string",
+                          description: "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
+                        },
+                        freelancer_name: {
+                          type: "string",
+                          description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
+                        },
                       },
-                      ai_description: {
-                        type: "string",
-                        description: "One-sentence description of the design asset",
-                      },
-                      cover_description: {
-                        type: "string",
-                        description:
-                          "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
-                      },
-                      scene_description: {
-                        type: "string",
-                        description: "What is depicted in the image",
-                      },
-                      asset_type: {
-                        type: "string",
-                        enum: ["art_piece", "product"],
-                      },
-                      art_source: {
-                        type: "string",
-                        enum: [
-                          "freelancer",
-                          "straight_style_guide",
-                          "style_guide_composition",
-                        ],
-                      },
-                      design_style: {
-                        type: "string",
-                        description: "e.g. flat, dimensional, vintage, modern",
-                      },
-                      design_ref: {
-                        type: "string",
-                        description: "Any style number or design reference visible",
-                      },
-                      character_ids: {
-                        type: "array",
-                        items: { type: "string" },
-                        description: "UUIDs of identified characters from taxonomy",
-                      },
-                      licensor_id: {
-                        type: "string",
-                        description: "UUID of identified licensor",
-                      },
-                      property_id: {
-                        type: "string",
-                        description: "UUID of identified property",
-                      },
-                      designer_name: {
-                        type: "string",
-                        description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
-                      },
-                      technical_designer_name: {
-                        type: "string",
-                        description: "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
-                      },
-                      freelancer_name: {
-                        type: "string",
-                        description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
-                      },
+                      required: ["tags", "ai_description", "scene_description"],
                     },
-                    required: ["tags", "ai_description", "scene_description"],
-                    additionalProperties: false,
                   },
-                },
+                ],
               },
             ],
-            tool_choice: {
-              type: "function",
-              function: { name: "tag_asset" },
+            tool_config: {
+              function_calling_config: {
+                mode: "ANY",
+                allowed_function_names: ["tag_asset"],
+              },
             },
           }),
         },
@@ -327,9 +338,6 @@ ${
       if (response!.status === 429) {
         return err("AI rate limit exceeded. Try again later.", 429);
       }
-      if (response!.status === 402) {
-        return err("AI credits exhausted. Add credits in workspace settings.", 402);
-      }
 
       // Retryable: 5xx errors
       if (response!.status >= 500 && attempt < MAX_AI_RETRIES) {
@@ -339,23 +347,18 @@ ${
       }
 
       const text = await response!.text();
-      console.error("AI gateway error:", response!.status, text);
-      return err("AI gateway error", 500);
+      console.error("Gemini API error:", response!.status, text);
+      return err("AI API error", 500);
     }
 
     const aiResult = await response!.json();
-    const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+    const functionCall = aiResult.candidates?.[0]?.content?.parts?.[0]?.functionCall;
 
-    if (!toolCall?.function?.arguments) {
+    if (!functionCall?.args) {
       return err("AI did not return structured tags", 500);
     }
 
-    let tagData: Record<string, unknown>;
-    try {
-      tagData = typeof toolCall.function.arguments === "string" ? JSON.parse(toolCall.function.arguments) : toolCall.function.arguments;
-    } catch {
-      return err("Failed to parse AI tag response", 500);
-    }
+    const tagData = functionCall.args as Record<string, unknown>;
 
     // UUID validation helper — AI models sometimes return "null", descriptive text, or malformed strings
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -292,8 +292,8 @@ export async function handleClassifyErpCategories(body: Record<string, unknown>)
     });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) return err("LOVABLE_API_KEY not configured", 500);
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_API_KEY) return err("ANTHROPIC_API_KEY not configured", 500);
 
   let classified = 0;
   let skippedUnclassifiable = 0;
@@ -379,37 +379,34 @@ Product to classify:
 
 Use the provided tool to return your classification.`;
 
-      const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const aiResp = await fetch("https://api.anthropic.com/v1/messages", {
         signal: AbortSignal.timeout(20_000),
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: "You are a product classification expert for a home décor company. Classify each product into exactly one category." },
-            { role: "user", content: prompt },
-          ],
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1024,
+          system: "You are a product classification expert for a home décor company. Classify each product into exactly one category.",
+          messages: [{ role: "user", content: prompt }],
           tools: [{
-            type: "function",
-            function: {
-              name: "classify_product",
-              description: "Classify a product into one of 7 categories",
-              parameters: {
-                type: "object",
-                properties: {
-                  category: { type: "string", enum: CATEGORIES },
-                  confidence: { type: "number", minimum: 0, maximum: 1 },
-                  rationale: { type: "string", maxLength: 200 },
-                },
-                required: ["category", "confidence", "rationale"],
-                additionalProperties: false,
+            name: "classify_product",
+            description: "Classify a product into one of 7 categories",
+            input_schema: {
+              type: "object",
+              properties: {
+                category: { type: "string", enum: CATEGORIES },
+                confidence: { type: "number", minimum: 0, maximum: 1 },
+                rationale: { type: "string", maxLength: 200 },
               },
+              required: ["category", "confidence", "rationale"],
+              additionalProperties: false,
             },
           }],
-          tool_choice: { type: "function", function: { name: "classify_product" } },
+          tool_choice: { type: "tool", name: "classify_product" },
         }),
       });
 
@@ -419,15 +416,10 @@ Use the provided tool to return your classification.`;
       }
 
       const aiResult = await aiResp.json();
-      const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
-      if (!toolCall?.function?.arguments) continue;
+      const toolUse = aiResult.content?.find((c: { type: string }) => c.type === "tool_use");
+      if (!toolUse?.input) continue;
 
-      let parsed: { category: string; confidence: number; rationale: string };
-      try {
-        parsed = JSON.parse(toolCall.function.arguments);
-      } catch {
-        continue;
-      }
+      const parsed = toolUse.input as { category: string; confidence: number; rationale: string };
 
       if (!CATEGORIES.includes(parsed.category)) continue;
 
@@ -440,7 +432,7 @@ Use the provided tool to return your classification.`;
         confidence: parsed.confidence,
         rationale: parsed.rationale,
         classification_source: "ai",
-        ai_model: "google/gemini-3-flash-preview",
+        ai_model: "claude-haiku-4-5-20251001",
         ai_prompt_version: "v1",
         status,
         input_context: {
