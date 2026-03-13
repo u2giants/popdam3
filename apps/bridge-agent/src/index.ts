@@ -535,8 +535,8 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
   const filesToProcess = batch.filter((f) => changedSet.has(f.relativePath));
   const allToProcess = [...filesToProcess, ...thumbRetryFiles];
   if (allToProcess.length === 0) {
-    // Report progress even if nothing to process
-    await api.scanProgress(sessionId, "running", counters, batch[batch.length - 1]?.relativePath, skippedDirs);
+    // Report progress even if nothing to process — fire-and-forget, never kill the scan
+    api.scanProgress(sessionId, "running", counters, batch[batch.length - 1]?.relativePath, skippedDirs).catch(() => {});
     return;
   }
 
@@ -549,8 +549,8 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
     await Promise.all(chunk.map((file) => processFile(file)));
     i += concurrency;
 
-    // Report progress
-    await api.scanProgress(sessionId, "running", counters, allToProcess[Math.min(i, allToProcess.length) - 1]?.relativePath, skippedDirs);
+    // Report progress — fire-and-forget, never kill the scan
+    api.scanProgress(sessionId, "running", counters, allToProcess[Math.min(i, allToProcess.length) - 1]?.relativePath, skippedDirs).catch(() => {});
   }
 }
 
