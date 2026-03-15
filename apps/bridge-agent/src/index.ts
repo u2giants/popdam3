@@ -325,6 +325,28 @@ async function processThumbnail(
 
 // ── Scan + Ingest pipeline ──────────────────────────────────────
 
+/**
+ * Safe wrapper for scan progress reporting.
+ * Progress reports are telemetry — a network hiccup or DB timeout must never
+ * hard-stop an otherwise healthy scan. Logs failures at warn level and continues.
+ */
+async function safeScanProgress(
+  sessionId: string,
+  status: string,
+  currentCounters: api.Counters,
+  message?: string,
+  dirs?: string[],
+) {
+  try {
+    await api.scanProgress(sessionId, status, currentCounters, message, dirs);
+  } catch (e) {
+    logger.warn("Failed to report scan progress (non-fatal)", {
+      status,
+      error: (e as Error).message,
+    });
+  }
+}
+
 async function runScan(providedSessionId?: string) {
   if (isScanning) {
     logger.warn("Scan already in progress, skipping");
@@ -364,12 +386,12 @@ async function runScan(providedSessionId?: string) {
     const rootsValid = await validateScanRoots(counters, effectiveRoots, cloudMountRoot || undefined);
     if (!rootsValid) {
       logger.error("Scan aborted: invalid scan roots", { counters });
-      await api.scanProgress(sessionId, "failed", counters);
+      await safeScanProgress(sessionId, "failed", counters);
       await api.clearCheckpoint().catch(() => {});
       return;
     }
 
-    await api.scanProgress(sessionId, "running", counters, undefined, skippedDirs);
+    await safeScanProgress(sessionId, "running", counters, undefined, skippedDirs);
 
     // Collect files and process in batches
     let batch: FileCandidate[] = [];
@@ -440,7 +462,7 @@ async function runScan(providedSessionId?: string) {
     for await (const file of scanFiles(counters, effectiveRoots, callbacks, resumeFromDir, cloudMountRoot || config.nasContainerMountRoot)) {
       if (abortRequested) {
         logger.info("Scan aborted by cloud request");
-        await api.scanProgress(sessionId, "failed", counters, "Aborted by user", skippedDirs);
+        await safeScanProgress(sessionId, "failed", counters, "Aborted by user", skippedDirs);
         return;
       }
 
@@ -460,7 +482,7 @@ async function runScan(providedSessionId?: string) {
     // Check abort after scan loop completes
     if (abortRequested) {
       logger.info("Scan aborted by cloud request (post-loop)");
-      await api.scanProgress(sessionId, "failed", counters, "Aborted by user", skippedDirs);
+      await safeScanProgress(sessionId, "failed", counters, "Aborted by user", skippedDirs);
       return;
     }
 
@@ -468,20 +490,20 @@ async function runScan(providedSessionId?: string) {
     if (counters.files_checked === 0 && !resumeFromDir) {
       logger.error("Scan completed with 0 files checked — treating as error");
       counters.errors++;
-        await api.scanProgress(sessionId, "failed", counters, undefined, skippedDirs);
+      await safeScanProgress(sessionId, "failed", counters, undefined, skippedDirs);
       return;
     }
 
     // Determine final status: completed_with_errors if some files failed but scan overall succeeded
     const finalStatus = counters.errors > 0 ? "completed_with_errors" : "completed";
     logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length, finalStatus });
-    await api.scanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
+    await safeScanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
     // Clear checkpoint on successful completion
     await api.clearCheckpoint().catch(() => {});
   } catch (e) {
     lastError = (e as Error).message;
     logger.error("Scan failed with exception", { error: lastError });
-    await api.scanProgress(sessionId, "failed", counters, undefined, skippedDirs).catch(() => {});
+    await safeScanProgress(sessionId, "failed", counters, undefined, skippedDirs);
     // Don't clear checkpoint on failure — allows resume on restart
   } finally {
     isScanning = false;
