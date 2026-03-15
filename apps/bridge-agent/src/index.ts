@@ -332,7 +332,7 @@ async function processThumbnail(
  */
 async function safeScanProgress(
   sessionId: string,
-  status: string,
+  status: "running" | "completed" | "completed_with_errors" | "failed",
   currentCounters: api.Counters,
   message?: string,
   dirs?: string[],
