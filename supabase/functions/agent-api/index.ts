@@ -1191,13 +1191,38 @@ async function handleCompleteRender(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-// ── Route: trigger-scan (no-op fallback — use admin_config SCAN_REQUEST) ──
+// ── Route: trigger-scan ─────────────────────────────────────────────
 
 async function handleTriggerScan(_body: Record<string, unknown>) {
-  return json({
-    ok: true,
-    note: "Scan requests are now managed via admin_config SCAN_REQUEST",
+  const db = serviceClient();
+  const requestId = crypto.randomUUID();
+
+  // Clear abort flags on all agents
+  const { data: agents } = await db.from("agent_registrations").select("id, metadata");
+  for (const a of agents || []) {
+    const meta = (a.metadata as Record<string, unknown>) || {};
+    if (meta.force_stop === true || meta.scan_abort === true) {
+      await db.from("agent_registrations")
+        .update({ metadata: { ...meta, scan_abort: false, force_stop: false } })
+        .eq("id", a.id);
+    }
+  }
+
+  const { error } = await db.from("admin_config").upsert({
+    key: "SCAN_REQUEST",
+    value: {
+      request_id: requestId,
+      status: "pending",
+      requested_at: new Date().toISOString(),
+      requested_by: "agent-api",
+      target_agent_id: null,
+    },
+    updated_at: new Date().toISOString(),
+    updated_by: "agent-api",
   });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, request_id: requestId });
 }
 
 // ── Route: claim ────────────────────────────────────────────────────
