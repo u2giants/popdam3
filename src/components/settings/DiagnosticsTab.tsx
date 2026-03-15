@@ -53,12 +53,12 @@ export default function DiagnosticsTab() {
         </Card>
       ) : diag ? (
         <>
+          <ConnectedAgents agents={diag.agents} />
+          <ScanStatusCard progress={diag.scan_progress} />
           <SystemStatePanel />
           <DoctorDiagnostics />
           <OverviewCards counts={diag.counts} />
           <RenderJobStats />
-          <ConnectedAgents agents={diag.agents} />
-          <ScanStatusCard progress={diag.scan_progress} />
           <RecentErrors errors={diag.recent_errors} />
           <DatabaseInspector />
           <ConfigurationSection config={diag.config} />
