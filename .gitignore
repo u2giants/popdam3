@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase CLI cache
+supabase/.temp/
+
+# Claude Code local settings
+.claude/settings.local.json
