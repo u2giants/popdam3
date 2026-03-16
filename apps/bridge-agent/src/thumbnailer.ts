@@ -18,6 +18,16 @@ import { logger } from "./logger.js";
 const execFileAsync = promisify(execFile);
 
 const THUMB_MAX_DIM = 800; // px
+const SHARP_TIMEOUT_MS = 60_000; // 60 s — prevents hanging on corrupt/huge files
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`sharp timeout after ${ms}ms (${label})`)), ms)
+    ),
+  ]);
+}
 
 export interface ThumbnailResult {
   buffer: Buffer;
@@ -32,17 +42,17 @@ export interface ThumbnailResult {
 async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
   try {
     const img = sharp(filePath, { pages: -1 }).flatten({ background: "#ffffff" });
-    const meta = await img.metadata();
+    const meta = await withTimeout(img.metadata(), SHARP_TIMEOUT_MS, "psd.metadata");
     const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
-    const outMeta = await sharp(buffer).metadata();
+    const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "psd.toBuffer");
+    const outMeta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "psd.outMeta");
     return {
       buffer,
       width: outMeta.width || meta.width || 0,
       height: outMeta.height || meta.height || 0,
     };
   } catch (e) {
-  logger.warn("Sharp PSD fallback failed", { filePath, error: (e as Error).message });
+    logger.warn("Sharp PSD failed", { filePath, error: (e as Error).message });
   }
 
   // Fallback: Try sibling image in same directory
@@ -96,8 +106,8 @@ async function thumbnailFromSibling(filePath: string): Promise<ThumbnailResult> 
   const resized = sharp(siblingPath)
     .flatten({ background: "#ffffff" })
     .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-  const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
-  const meta = await sharp(buffer).metadata();
+  const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "sibling.toBuffer");
+  const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "sibling.meta");
   return {
     buffer,
     width: meta.width || 0,
@@ -121,8 +131,8 @@ async function thumbnailAiGhostscript(filePath: string): Promise<ThumbnailResult
     const resized = sharp(outPath)
       .flatten({ background: "#ffffff" })
       .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
-    const meta = await sharp(buffer).metadata();
+    const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "gs.toBuffer");
+    const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "gs.meta");
     return {
       buffer,
       width: meta.width || 0,
@@ -138,8 +148,8 @@ async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
   try {
     const img = sharp(filePath, { density: 150 }).flatten({ background: "#ffffff" });
     const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
-    const meta = await sharp(buffer).metadata();
+    const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "ai.toBuffer");
+    const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "ai.meta");
     return {
       buffer,
       width: meta.width || 0,
