@@ -6,7 +6,7 @@
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 
-async function callApi(action: string, payload: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+async function callApi(action: string, payload: Record<string, unknown> = {}, timeoutMs = 30_000): Promise<Record<string, unknown>> {
   const body = JSON.stringify({ action, ...payload });
   const maxAttempts = 5;
   let lastError: Error | null = null;
@@ -20,7 +20,7 @@ async function callApi(action: string, payload: Record<string, unknown> = {}): P
           "x-agent-key": config.agentKey,
         },
         body,
-        signal: AbortSignal.timeout(30_000), // 30s hard timeout per request — prevents hung connections stalling the scan
+        signal: AbortSignal.timeout(timeoutMs), // hard timeout per request — prevents hung connections stalling the scan
       });
 
       if (!res.ok) {
@@ -154,13 +154,16 @@ export async function heartbeat(
   versionInfo?: { image_tag?: string; version?: string; build_sha?: string },
   diagnostics?: Record<string, unknown>,
 ): Promise<HeartbeatResponse> {
+  // Heartbeat runs 4+ parallel DB queries server-side and can hit Supabase cold starts.
+  // Use a 60s timeout (vs. 30s for other calls) so slow responses don't abort prematurely
+  // and cause the force_scan command to never reach the agent.
   const data = await callApi("heartbeat", {
     agent_id: agentId,
     counters,
     last_error: lastError,
     version_info: versionInfo,
     diagnostics,
-  });
+  }, 60_000);
   return data as unknown as HeartbeatResponse;
 }
 
