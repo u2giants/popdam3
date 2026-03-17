@@ -261,8 +261,9 @@ function applyCloudConfig(cfg: CloudConfig) {
     if (cfg.scanning.batch_size) {
       cloudBatchSize = cfg.scanning.batch_size;
     }
-    if (cfg.scanning.scan_min_date) {
-      cloudScanMinDate = cfg.scanning.scan_min_date;
+    if (cfg.scanning.scan_min_date !== undefined) {
+      // Explicitly assign even when null — null means "clear the date filter"
+      cloudScanMinDate = cfg.scanning.scan_min_date ?? null;
     }
   }
 
@@ -361,19 +362,38 @@ async function runScan(providedSessionId?: string) {
   let resumeFromDir: string | undefined;
 
   // ── Check for resumable checkpoint ──
+  const CHECKPOINT_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours — beyond this, treat as stale
   try {
     const checkpoint = await api.getCheckpoint();
     if (checkpoint && checkpoint.last_completed_dir) {
-      // Resume from last completed directory regardless of session match.
-      // Same session = crashed mid-scan and restarted.
-      // Different session = previous scan crashed, new one requested.
-      logger.info("Found checkpoint, resuming scan", {
-        checkpointSession: checkpoint.session_id,
-        currentSession: sessionId,
-        lastCompletedDir: checkpoint.last_completed_dir,
-        savedAt: checkpoint.saved_at,
-      });
-      resumeFromDir = checkpoint.last_completed_dir;
+      const ageMs = Date.now() - new Date(checkpoint.saved_at).getTime();
+      const isDifferentSession = checkpoint.session_id !== sessionId;
+
+      if (isDifferentSession && ageMs > CHECKPOINT_MAX_AGE_MS) {
+        // Checkpoint is from a different scan that completed long ago — likely a failed clearCheckpoint.
+        // Discarding it prevents skipping directories on a fresh scan.
+        logger.warn("Discarding stale checkpoint (different session, too old)", {
+          checkpointSession: checkpoint.session_id,
+          currentSession: sessionId,
+          savedAt: checkpoint.saved_at,
+          ageHours: Math.round(ageMs / 3_600_000),
+        });
+        await api.clearCheckpoint().catch((e) =>
+          logger.warn("Failed to clear stale checkpoint", { error: (e as Error).message })
+        );
+      } else {
+        // Resume from last completed directory.
+        // Same session = crashed mid-scan and restarted.
+        // Different session (recent) = previous scan crashed, new one requested.
+        logger.info("Found checkpoint, resuming scan", {
+          checkpointSession: checkpoint.session_id,
+          currentSession: sessionId,
+          lastCompletedDir: checkpoint.last_completed_dir,
+          savedAt: checkpoint.saved_at,
+          ageHours: Math.round(ageMs / 3_600_000),
+        });
+        resumeFromDir = checkpoint.last_completed_dir;
+      }
     }
   } catch (e) {
     logger.warn("Failed to fetch checkpoint, starting fresh", { error: (e as Error).message });
@@ -498,8 +518,17 @@ async function runScan(providedSessionId?: string) {
     const finalStatus = counters.errors > 0 ? "completed_with_errors" : "completed";
     logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length, finalStatus });
     await safeScanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
-    // Clear checkpoint on successful completion
-    await api.clearCheckpoint().catch(() => {});
+    // Clear checkpoint on successful completion — retry once to prevent stale resume on the next scan
+    try {
+      await api.clearCheckpoint();
+    } catch (e) {
+      logger.warn("Failed to clear checkpoint (retrying once)", { error: (e as Error).message });
+      await api.clearCheckpoint().catch((e2) =>
+        logger.error("Failed to clear checkpoint after retry — next scan may skip directories", {
+          error: (e2 as Error).message,
+        })
+      );
+    }
   } catch (e) {
     lastError = (e as Error).message;
     logger.error("Scan failed with exception", { error: lastError });
@@ -544,8 +573,9 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
 
   const unchanged = batch.length - changedSet.size - needsThumbnailSet.size;
   if (unchanged > 0) {
+    // Note: files_checked was already incremented in the scanner when each file was yielded.
+    // Do NOT add unchanged here — that would double-count those files in the counter.
     logger.debug(`Skipping ${unchanged}/${batch.length} unchanged files in batch`);
-    counters.files_checked += unchanged;
   }
 
   // Files needing thumbnail retry: generate thumbnail + ingest (but they're otherwise unchanged)

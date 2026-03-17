@@ -18,7 +18,8 @@ import { logger } from "./logger.js";
 const execFileAsync = promisify(execFile);
 
 const THUMB_MAX_DIM = 800; // px
-const SHARP_TIMEOUT_MS = 60_000; // 60 s — prevents hanging on corrupt/huge files
+const SHARP_TIMEOUT_MS = 60_000; // 60 s per-step timeout — prevents hanging on corrupt/huge files
+const PSD_TOTAL_TIMEOUT_MS = 90_000; // 90 s overall cap for the full PSD pipeline (3 steps × 60 s would exceed the UI's 3-min stale threshold)
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -41,16 +42,19 @@ export interface ThumbnailResult {
  */
 async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
   try {
-    const img = sharp(filePath, { pages: -1 }).flatten({ background: "#ffffff" });
-    const meta = await withTimeout(img.metadata(), SHARP_TIMEOUT_MS, "psd.metadata");
-    const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
-    const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "psd.toBuffer");
-    const outMeta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "psd.outMeta");
-    return {
-      buffer,
-      width: outMeta.width || meta.width || 0,
-      height: outMeta.height || meta.height || 0,
+    const psdWork = async () => {
+      const img = sharp(filePath, { pages: -1 }).flatten({ background: "#ffffff" });
+      const meta = await withTimeout(img.metadata(), SHARP_TIMEOUT_MS, "psd.metadata");
+      const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
+      const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "psd.toBuffer");
+      const outMeta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "psd.outMeta");
+      return {
+        buffer,
+        width: outMeta.width || meta.width || 0,
+        height: outMeta.height || meta.height || 0,
+      };
     };
+    return await withTimeout(psdWork(), PSD_TOTAL_TIMEOUT_MS, "psd.total");
   } catch (e) {
     logger.warn("Sharp PSD failed", { filePath, error: (e as Error).message });
   }

@@ -20,6 +20,7 @@ async function callApi(action: string, payload: Record<string, unknown> = {}): P
           "x-agent-key": config.agentKey,
         },
         body,
+        signal: AbortSignal.timeout(30_000), // 30s hard timeout per request — prevents hung connections stalling the scan
       });
 
       if (!res.ok) {
@@ -125,7 +126,7 @@ export interface HeartbeatResponse {
   ok: boolean;
   config?: {
     do_spaces?: { key: string; secret: string; bucket: string; region: string; endpoint: string };
-    scanning?: { container_mount_root: string; roots: string[]; batch_size: number; adaptive_polling: { idle_seconds: number; active_seconds: number } };
+    scanning?: { container_mount_root: string; roots: string[]; batch_size: number; scan_min_date?: string | null; adaptive_polling: { idle_seconds: number; active_seconds: number } };
     resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
     windows_render_mode?: "fallback_only" | "primary";
     windows_render_policy?: WindowsRenderPolicy | null;
