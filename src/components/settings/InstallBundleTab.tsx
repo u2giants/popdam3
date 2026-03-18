@@ -267,7 +267,7 @@ export default function InstallBundleTab() {
             <span>
               <strong>Windows Render Agent:</strong> Use the NSIS installer from{" "}
               <a
-                href="https://github.com/u2giants/popdam-bridge/releases"
+                href="https://github.com/u2giants/openclaw/releases"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary underline"

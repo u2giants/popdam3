@@ -283,7 +283,7 @@ function WindowsAgentDownload() {
   });
 
   const val = (buildData?.config?.WINDOWS_LATEST_BUILD?.value ?? buildData?.config?.WINDOWS_LATEST_BUILD) as Record<string, string> | undefined;
-  const installerUrl = val?.installer_url || "https://github.com/u2giants/popdam3/releases/latest/download/popdam-windows-agent-setup.exe";
+  const installerUrl = val?.installer_url || "https://github.com/u2giants/openclaw/releases/latest/download/popdam-windows-agent-setup.exe";
   const version = val?.version;
   const publishedAt = val?.published_at;
 
