@@ -258,6 +258,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const untaggedCount = tagCounts?.untagged ?? 0;
   const totalWithThumb = tagCounts?.totalWithThumbnails ?? 0;
   const totalGroups = groupCounts?.totalGroups ?? 0;
+  const waitingForSiblings = tagCounts?.waitingForSiblings ?? 0;
 
   // Any active op in the ai-tagging lane blocks new starts
   const anyActive = tagUntaggedOp.isActive || tagAllOp.isActive || propagateOp.isActive;
