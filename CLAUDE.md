@@ -8,3 +8,12 @@ After pushing a feature branch, automatically:
 3. No need to ask for confirmation before merging
 
 Do this without prompting the user for approval.
+
+## Versioning
+
+Whenever changes are made to `apps/bridge-agent/`, bump `apps/bridge-agent/package.json` version as part of the same commit:
+- Patch (x.x.**X**): bug fixes, non-breaking changes
+- Minor (x.**X**.0): new features, behavioral changes
+- Major (**X**.0.0): breaking changes or major rewrites
+
+Always include the version bump in the commit that contains the changes — never in a separate commit.
