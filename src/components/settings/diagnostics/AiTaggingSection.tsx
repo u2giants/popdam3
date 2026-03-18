@@ -326,6 +326,11 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
           <span className="text-foreground font-semibold">{untaggedCount.toLocaleString()}</span> assets with thumbnails have not been AI tagged
           <span className="text-muted-foreground ml-1">({totalWithThumb.toLocaleString()} total with thumbnails)</span>
         </p>
+        {waitingForSiblings > 0 && (
+          <p className="text-sm text-muted-foreground">
+            <span className="text-yellow-500 font-semibold">{waitingForSiblings.toLocaleString()}</span> style groups have only packaging files — waiting for a non-packaging sibling to be added before tagging
+          </p>
+        )}
 
       <div className="flex flex-wrap gap-2 items-center">
           <Tooltip>
