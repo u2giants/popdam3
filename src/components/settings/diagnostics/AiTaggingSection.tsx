@@ -328,7 +328,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
         </p>
         {waitingForSiblings > 0 && (
           <p className="text-sm text-muted-foreground">
-            <span className="text-yellow-500 font-semibold">{waitingForSiblings.toLocaleString()}</span> style groups have only packaging files — waiting for a non-packaging sibling to be added before tagging
+            <span className="text-[hsl(var(--warning))] font-semibold">{waitingForSiblings.toLocaleString()}</span> style groups have only packaging files — waiting for a non-packaging sibling to be added before tagging
           </p>
         )}
 
