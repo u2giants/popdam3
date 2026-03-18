@@ -18,16 +18,38 @@ const STALE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
 
 const DEFAULT_PROGRESS: ScanProgress = { status: "idle" };
 
+const TERMINAL_REQUEST_STATUSES = new Set(["completed", "completed_with_errors", "failed"]);
+
 function parseScanProgress(
   raw: unknown,
   rawRequest: unknown,
 ): ScanProgress {
+  // Extract SCAN_REQUEST terminal info for cross-referencing
+  const reqObj = (rawRequest && typeof rawRequest === "object") ? rawRequest as Record<string, unknown> : null;
+  const reqStatus = reqObj?.status as string | undefined;
+  const reqSessionId = reqObj?.request_id as string | undefined;
+
   if (raw && typeof raw === "object") {
     const sp = raw as Record<string, unknown>;
     let status = (sp.status as ScanProgressStatus) || "idle";
     const updatedAt = sp.updated_at as string | undefined;
+    const progressSessionId = sp.session_id as string | undefined;
 
-    // Staleness detection
+    // ── Cross-reference fix: if SCAN_REQUEST is terminal but SCAN_PROGRESS
+    // is still "running" for the same session, trust SCAN_REQUEST.
+    // This handles the race condition where fire-and-forget "running" updates
+    // overwrite the terminal status in the database.
+    if (
+      status === "running" &&
+      reqStatus &&
+      TERMINAL_REQUEST_STATUSES.has(reqStatus) &&
+      progressSessionId &&
+      reqSessionId === progressSessionId
+    ) {
+      status = reqStatus as ScanProgressStatus;
+    }
+
+    // Staleness detection (only if still "running" after cross-reference)
     if (status === "running" && updatedAt) {
       const elapsed = Date.now() - new Date(updatedAt).getTime();
       if (elapsed > STALE_THRESHOLD_MS) {
@@ -38,10 +60,8 @@ function parseScanProgress(
     // Synthetic "queued" status
     if (
       (status === "idle" || !status) &&
-      rawRequest &&
-      typeof rawRequest === "object"
+      reqObj
     ) {
-      const reqStatus = (rawRequest as Record<string, unknown>).status as string | undefined;
       if (reqStatus === "pending" || reqStatus === "claimed") {
         status = "queued";
       }
@@ -49,7 +69,7 @@ function parseScanProgress(
 
     return {
       status,
-      session_id: sp.session_id as string | undefined,
+      session_id: progressSessionId,
       counters: sp.counters as ScanCounters | undefined,
       current_path: sp.current_path as string | undefined,
       updated_at: updatedAt,
@@ -59,8 +79,7 @@ function parseScanProgress(
 
   // No SCAN_PROGRESS — check if there's a pending request
   let status: ScanProgressStatus = "idle";
-  if (rawRequest && typeof rawRequest === "object") {
-    const reqStatus = (rawRequest as Record<string, unknown>).status as string | undefined;
+  if (reqObj) {
     if (reqStatus === "pending" || reqStatus === "claimed") {
       status = "queued";
     }

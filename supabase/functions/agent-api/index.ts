@@ -937,6 +937,27 @@ async function handleScanProgress(body: Record<string, unknown>) {
   const db = serviceClient();
 
   // Store progress in admin_config for UI consumption
+  const db2 = serviceClient();
+
+  // ── Guard: never regress a terminal status back to "running" ──
+  // Fire-and-forget "running" updates from the agent can arrive after
+  // the final "completed/failed" call due to HTTP pipelining races.
+  const TERMINAL_STATUSES = new Set(["completed", "completed_with_errors", "failed"]);
+  if (status === "running") {
+    try {
+      const { data: existing } = await db2.from("admin_config").select("value").eq("key", "SCAN_PROGRESS").maybeSingle();
+      if (existing && existing.value) {
+        const prev = existing.value as Record<string, unknown>;
+        if (prev.session_id === sessionId && TERMINAL_STATUSES.has(prev.status as string)) {
+          // Already in terminal state for this session — discard stale "running" update
+          return json({ ok: true, skipped: "terminal_status_already_set" });
+        }
+      }
+    } catch (_e) {
+      // Continue — better to risk overwrite than fail the call
+    }
+  }
+
   const progressValue: Record<string, unknown> = {
     session_id: sessionId,
     status,
