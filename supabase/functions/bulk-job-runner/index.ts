@@ -320,6 +320,7 @@ serve(async (req: Request) => {
         allOps[nextOpKey] = {
           ...nextOp,
           status: "running",
+          started_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
         runningEntries.push([nextOpKey, allOps[nextOpKey]]);
