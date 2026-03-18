@@ -353,32 +353,35 @@ async function runScan(providedSessionId?: string) {
   let resumeFromDir: string | undefined;
 
   // ── Check for resumable checkpoint ──
-  const CHECKPOINT_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours — beyond this, treat as stale
   try {
     const checkpoint = await api.getCheckpoint();
     if (checkpoint && checkpoint.last_completed_dir) {
       const ageMs = Date.now() - new Date(checkpoint.saved_at).getTime();
       const isDifferentSession = checkpoint.session_id !== sessionId;
 
-      if (isDifferentSession && ageMs > CHECKPOINT_MAX_AGE_MS) {
-        // Checkpoint is from a different scan that completed long ago — likely a failed clearCheckpoint.
-        // Discarding it prevents skipping directories on a fresh scan.
-        logger.warn("Discarding stale checkpoint (different session, too old)", {
+      if (isDifferentSession) {
+        // Checkpoint belongs to a different scan session. Never resume from it.
+        //
+        // A different-session checkpoint is typically left over from a previous scan
+        // that completed but whose clearCheckpoint call failed (network error). If we
+        // resumed from it, the new scan would skip every directory up to
+        // last_completed_dir — often ALL directories — reporting "no new assets."
+        //
+        // Resume only applies to the SAME session (agent crashed mid-scan and the
+        // same session_id was re-requested).
+        logger.warn("Discarding checkpoint from different session — starting fresh scan", {
           checkpointSession: checkpoint.session_id,
           currentSession: sessionId,
           savedAt: checkpoint.saved_at,
           ageHours: Math.round(ageMs / 3_600_000),
         });
         await api.clearCheckpoint().catch((e) =>
-          logger.warn("Failed to clear stale checkpoint", { error: (e as Error).message })
+          logger.warn("Failed to clear different-session checkpoint", { error: (e as Error).message })
         );
       } else {
-        // Resume from last completed directory.
-        // Same session = crashed mid-scan and restarted.
-        // Different session (recent) = previous scan crashed, new one requested.
-        logger.info("Found checkpoint, resuming scan", {
-          checkpointSession: checkpoint.session_id,
-          currentSession: sessionId,
+        // Same session = agent crashed mid-scan and was restarted with the same session_id.
+        // Resume from where it left off.
+        logger.info("Found checkpoint for current session, resuming scan", {
           lastCompletedDir: checkpoint.last_completed_dir,
           savedAt: checkpoint.saved_at,
           ageHours: Math.round(ageMs / 3_600_000),
@@ -1018,18 +1021,29 @@ async function main() {
     }
   }
 
-  // 1. Register with cloud — always called on startup to refresh key hash in DB.
-  // This prevents persistent 401s after DB migrations wipe agent_registrations.
+  // 1. Register with cloud — refreshes key hash in DB to prevent persistent 401s.
+  // If a saved agent ID exists (already paired), use it immediately and re-register
+  // in the background so the heartbeat starts without waiting for up to 5×30s retries.
   if (!agentId) {
-    try {
-      agentId = await api.register(config.agentName);
-      logger.info("Registered with cloud API", { agentId });
-    } catch (e) {
-      // Fall back to saved agent ID if register fails (e.g. network blip at startup)
-      if (config.savedAgentId) {
-        agentId = config.savedAgentId;
-        logger.warn("Register failed — using saved agent ID", { agentId, error: (e as Error).message });
-      } else {
+    if (config.savedAgentId) {
+      // Fast path: use persisted agent ID so heartbeat starts immediately.
+      // Background re-registration updates the key hash in DB.
+      agentId = config.savedAgentId;
+      logger.info("Using saved agent ID, re-registering in background", { agentId });
+      api.register(config.agentName)
+        .then((id) => {
+          agentId = id;
+          logger.info("Background re-registration complete", { agentId });
+        })
+        .catch((e) =>
+          logger.warn("Background re-registration failed (non-fatal)", { error: (e as Error).message })
+        );
+    } else {
+      // First-time startup: must register synchronously (no saved ID to fall back on).
+      try {
+        agentId = await api.register(config.agentName);
+        logger.info("Registered with cloud API", { agentId });
+      } catch (e) {
         logger.error("Failed to register with cloud API — exiting", { error: (e as Error).message });
         process.exit(1);
       }

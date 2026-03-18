@@ -301,7 +301,7 @@ function AgentStatusSection() {
                       {vi.version && (
                         <Badge variant="outline" className="text-[10px] font-mono gap-1">v{vi.version as string}</Badge>
                       )}
-                      {vi.image_tag && (
+                      {vi.image_tag && vi.image_tag !== `v${vi.version}` && vi.image_tag !== vi.version && (
                         <Badge variant="secondary" className="text-[10px] font-mono gap-1">{vi.image_tag as string}</Badge>
                       )}
                       {vi.build_sha && (
