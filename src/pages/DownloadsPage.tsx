@@ -104,7 +104,7 @@ export default function DownloadsPage() {
 
             <Button variant="outline" size="sm" asChild>
               <a
-                href="https://github.com/u2giants/popdam3/pkgs/container/popdam-bridge"
+                href="https://github.com/u2giants/openclaw/pkgs/container/popdam-bridge"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2"
@@ -146,7 +146,7 @@ export default function DownloadsPage() {
 
             <Button variant="outline" size="sm" asChild>
               <a
-                href="https://github.com/u2giants/popdam3/releases"
+                href="https://github.com/u2giants/openclaw/releases"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2"

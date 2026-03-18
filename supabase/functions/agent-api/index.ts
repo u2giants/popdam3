@@ -1577,7 +1577,7 @@ async function handleGetLatestBuild(
     .maybeSingle();
 
   if (!row?.value) {
-    const repoBase = "https://github.com/u2giants/popdam3/releases";
+    const repoBase = "https://github.com/u2giants/openclaw/releases";
     return json({
       ok: true,
       latest_version: "0.0.0",
