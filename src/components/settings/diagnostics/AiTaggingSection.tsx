@@ -239,7 +239,11 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
     queryKey: ["untagged-asset-count"],
     queryFn: async () => {
       const r = await call("count-untagged-assets");
-      return { untagged: r.count as number, totalWithThumbnails: r.totalWithThumbnails as number };
+      return {
+        untagged: r.count as number,
+        totalWithThumbnails: r.totalWithThumbnails as number,
+        waitingForSiblings: (r.waitingForSiblings as number) || 0,
+      };
     },
   });
 
@@ -254,6 +258,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const untaggedCount = tagCounts?.untagged ?? 0;
   const totalWithThumb = tagCounts?.totalWithThumbnails ?? 0;
   const totalGroups = groupCounts?.totalGroups ?? 0;
+  const waitingForSiblings = tagCounts?.waitingForSiblings ?? 0;
 
   // Any active op in the ai-tagging lane blocks new starts
   const anyActive = tagUntaggedOp.isActive || tagAllOp.isActive || propagateOp.isActive;
@@ -321,6 +326,11 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
           <span className="text-foreground font-semibold">{untaggedCount.toLocaleString()}</span> assets with thumbnails have not been AI tagged
           <span className="text-muted-foreground ml-1">({totalWithThumb.toLocaleString()} total with thumbnails)</span>
         </p>
+        {waitingForSiblings > 0 && (
+          <p className="text-sm text-muted-foreground">
+            <span className="text-[hsl(var(--warning))] font-semibold">{waitingForSiblings.toLocaleString()}</span> style groups have only packaging files — waiting for a non-packaging sibling to be added before tagging
+          </p>
+        )}
 
       <div className="flex flex-wrap gap-2 items-center">
           <Tooltip>

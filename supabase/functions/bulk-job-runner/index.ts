@@ -546,7 +546,9 @@ serve(async (req: Request) => {
             .from("assets")
             .select("id, thumbnail_url, filename, relative_path, style_group_id")
             .eq("is_deleted", false)
-            .not("thumbnail_url", "is", null);
+            .not("thumbnail_url", "is", null)
+            // Skip packaging files — if a group only has packaging, it stays "waiting for siblings"
+            .not("primary_sort_tier", "in", "(4,8)");
 
           if (Array.isArray(groupIds) && groupIds.length > 0) {
             query = query.in("style_group_id", groupIds);

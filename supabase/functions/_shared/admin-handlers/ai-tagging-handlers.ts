@@ -34,7 +34,9 @@ export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boo
     .from("assets")
     .select("id, thumbnail_url, filename, relative_path")
     .eq("is_deleted", false)
-    .not("thumbnail_url", "is", null);
+    .not("thumbnail_url", "is", null)
+    // Skip packaging files — groups with only packaging wait for better siblings
+    .not("primary_sort_tier", "in", "(4,8)");
 
   // Optional group filter (for BulkActionBar group-based tagging)
   if (groupIds && groupIds.length > 0) {
@@ -194,6 +196,7 @@ export async function handleCountUntaggedAssets() {
     .select("*", { count: "exact", head: true })
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null)
+    .not("primary_sort_tier", "in", "(4,8)")
     .neq("status", "tagged");
 
   const { count: totalWithThumb } = await db
@@ -202,5 +205,36 @@ export async function handleCountUntaggedAssets() {
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null);
 
-  return json({ ok: true, count: untaggedCount ?? 0, totalWithThumbnails: totalWithThumb ?? 0 });
+  // Count style groups where ALL assets are packaging (primary_sort_tier IN (4,8))
+  // These groups are "waiting for siblings" — a non-packaging asset to be added
+  const { data: packagingOnlyGroups } = await db.rpc("execute_readonly_query", {
+    query_text: `
+      SELECT count(*) AS cnt FROM (
+        SELECT sg.id
+        FROM style_groups sg
+        WHERE sg.asset_count > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM assets a
+            WHERE a.style_group_id = sg.id
+              AND a.is_deleted = false
+              AND a.primary_sort_tier NOT IN (4, 8)
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM assets a
+            WHERE a.style_group_id = sg.id
+              AND a.is_deleted = false
+              AND a.status = 'tagged'
+          )
+      ) sub
+    `,
+  });
+
+  const waitingForSiblings = packagingOnlyGroups?.[0]?.cnt ?? 0;
+
+  return json({
+    ok: true,
+    count: untaggedCount ?? 0,
+    totalWithThumbnails: totalWithThumb ?? 0,
+    waitingForSiblings: Number(waitingForSiblings),
+  });
 }

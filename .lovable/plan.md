@@ -10,17 +10,23 @@
 - Reduces ~81K AI calls to ~7K (one per style group + ungrouped assets)
 - Falls back to ungrouped assets when all grouped assets are handled
 
-### 2. 3x parallel AI calls (bulk-job-runner)
+### 2. Packaging-only groups skip ("waiting for siblings")
+- Assets with `primary_sort_tier` IN (4, 8) — i.e. packaging files — are excluded from AI tagging queries
+- Style groups that ONLY contain packaging files are never tagged; they wait for a non-packaging sibling
+- UI shows count of packaging-only groups as "waiting for siblings" in the AI Tagging section
+- Saves money by not wasting AI calls on packaging-only groups with poor representative images
+
+### 3. 3x parallel AI calls (bulk-job-runner)
 - Fetches 3 assets per iteration instead of 1
 - Fires all 3 `ai-tag` calls concurrently via `Promise.allSettled`
 - Accumulates results and advances cursor by batch size
 - Rate-limit handling still works (retries on 429)
 
-### 3. Representative priority ordering
+### 4. Representative priority ordering
 - Assets ordered by `primary_sort_tier` (ascending) so best representatives are tagged first
-- Tier order: mockup-with-thumb(1) > art-with-thumb(2) > generic-with-thumb(3) > packaging-with-thumb(4)
+- Tier order: mockup-with-thumb(1) > art-with-thumb(2) > generic-with-thumb(3) > packaging-with-thumb(4, SKIPPED)
 
-### 4. Tag + Propagate combo button (UI)
+### 5. Tag + Propagate combo button (UI)
 - New primary button in AI Tagging section
 - Starts "Tag All Untagged" (with smart-skip), then auto-queues "Propagate Group Tags"
 - One-click workflow for the complete tagging pipeline
@@ -32,3 +38,4 @@
 | Before | 81,000 | ~12 days |
 | After (smart-skip + 3x parallel) | ~7,000 | ~8 hours |
 | After propagation | 0 remaining | minutes |
+| Packaging-only groups | 0 (skipped) | waiting for siblings |
