@@ -286,17 +286,20 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
 
   function runTagAndPropagate() {
     const total = untaggedCount;
+    // Start tagging, then queue propagation to run automatically after
     requestOp("ai-tag-untagged", OP_NAMES["ai-tag-untagged"],
-      () => tagUntaggedOp.start({
-        confirmMessage: `Smart Tag + Propagate: AI-tag ~${Math.min(total, 7000).toLocaleString()} representative assets (one per style group), then propagate tags to all siblings. This is the fastest way to tag everything. Continue?`,
-        initialProgress: { total },
-        onComplete: () => {
-          // Auto-queue propagation after tagging completes
-          propagateOp.start({
-            initialProgress: { total: totalGroups },
-          });
-        },
-      }),
+      () => {
+        tagUntaggedOp.start({
+          confirmMessage: `Smart Tag + Propagate: AI-tag representative assets (one per style group, ~3x parallel), then propagate tags to all siblings. Continue?`,
+          initialProgress: { total },
+        });
+        // Queue propagation to auto-start when tagging finishes (different lane won't conflict)
+        // Actually propagation is in style-groups lane, tagging is in ai-tagging lane — they can coexist
+        // But we want sequential: tag first, then propagate. Queue it.
+        setTimeout(() => {
+          propagateOp.queue({ initialProgress: { total: totalGroups } });
+        }, 500);
+      },
       () => tagUntaggedOp.queue({ initialProgress: { total } }),
     );
   }
