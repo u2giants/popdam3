@@ -34,7 +34,9 @@ export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boo
     .from("assets")
     .select("id, thumbnail_url, filename, relative_path")
     .eq("is_deleted", false)
-    .not("thumbnail_url", "is", null);
+    .not("thumbnail_url", "is", null)
+    // Skip packaging files — groups with only packaging wait for better siblings
+    .not("primary_sort_tier", "in", "(4,8)");
 
   // Optional group filter (for BulkActionBar group-based tagging)
   if (groupIds && groupIds.length > 0) {
