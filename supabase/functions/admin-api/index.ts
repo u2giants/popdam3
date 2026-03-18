@@ -281,8 +281,8 @@ async function handleSetConfig(
   const entries = rawEntries && typeof rawEntries === "object" && !Array.isArray(rawEntries)
     ? rawEntries as Record<string, unknown>
     : legacyKey
-      ? { [legacyKey]: body.value }
-      : null;
+    ? { [legacyKey]: body.value }
+    : null;
 
   if (!entries) {
     return err("entries must be an object of { key: value } pairs", 400);
