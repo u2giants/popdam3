@@ -284,6 +284,23 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
     );
   }
 
+  function runTagAndPropagate() {
+    const total = untaggedCount;
+    requestOp("ai-tag-untagged", OP_NAMES["ai-tag-untagged"],
+      () => tagUntaggedOp.start({
+        confirmMessage: `Smart Tag + Propagate: AI-tag ~${Math.min(total, 7000).toLocaleString()} representative assets (one per style group), then propagate tags to all siblings. This is the fastest way to tag everything. Continue?`,
+        initialProgress: { total },
+        onComplete: () => {
+          // Auto-queue propagation after tagging completes
+          propagateOp.start({
+            initialProgress: { total: totalGroups },
+          });
+        },
+      }),
+      () => tagUntaggedOp.queue({ initialProgress: { total } }),
+    );
+  }
+
   // Determine which ops have non-idle state (show progress for each independently)
   const showTagUntagged = tagUntaggedOp.state.status !== "idle" && tagUntaggedOp.state.progress;
   const showTagAll = tagAllOp.state.status !== "idle" && tagAllOp.state.progress;
