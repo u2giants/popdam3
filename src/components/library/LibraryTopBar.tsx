@@ -253,22 +253,33 @@ export default function LibraryTopBar({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge 
-                variant="outline" 
-                className={cn(
-                  "gap-1 text-[10px]",
-                  lastScanStatus === "completed" && "border-[hsl(var(--success))]/50 text-[hsl(var(--success))]",
-                  lastScanStatus === "failed" && "border-destructive/50 text-destructive"
-                )}
-              >
-                <span className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  lastScanStatus === "completed" && "bg-[hsl(var(--success))]",
-                  lastScanStatus === "completed_with_errors" && "bg-[hsl(var(--warning))]",
-                  lastScanStatus === "failed" && "bg-destructive"
-                )} />
-                Last: {lastScanStatus === "completed" ? "Success" : lastScanStatus === "completed_with_errors" ? "Done (with errors)" : "Failed"}
-              </Badge>
+              {lastScanStatus !== "completed" ? (
+                <Link to="/settings/scan-diagnostics">
+                  <Badge 
+                    variant="outline" 
+                    className={cn(
+                      "gap-1 text-[10px] cursor-pointer hover:bg-accent/50 transition-colors",
+                      lastScanStatus === "completed_with_errors" && "border-[hsl(var(--warning))]/50 text-[hsl(var(--warning))]",
+                      lastScanStatus === "failed" && "border-destructive/50 text-destructive"
+                    )}
+                  >
+                    <span className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      lastScanStatus === "completed_with_errors" && "bg-[hsl(var(--warning))]",
+                      lastScanStatus === "failed" && "bg-destructive"
+                    )} />
+                    Last: {lastScanStatus === "completed_with_errors" ? "Done (with errors)" : "Failed"}
+                  </Badge>
+                </Link>
+              ) : (
+                <Badge 
+                  variant="outline" 
+                  className="gap-1 text-[10px] border-[hsl(var(--success))]/50 text-[hsl(var(--success))]"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--success))]" />
+                  Last: Success
+                </Badge>
+              )}
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[300px]">
               <div className="space-y-1">
