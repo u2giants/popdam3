@@ -10,8 +10,8 @@ import { err, json } from "../http.ts";
 export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
   const groupIds = Array.isArray(body.group_ids) ? body.group_ids as string[] : null;
-  const BATCH_SIZE = 6;
-  const CONCURRENCY = 2; // 2 concurrent calls keeps edge function memory under limits
+  const BATCH_SIZE = 3; // Reduced from 6 to avoid exceeding 30s gateway timeout
+  const CONCURRENCY = 3; // Process the batch in a single parallel wave
   const db = serviceClient();
 
   let query = db
