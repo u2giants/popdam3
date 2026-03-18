@@ -30,3 +30,8 @@ supabase/.temp/
 .claude/settings.local.json
 .claude/settings.json
 oc_logs.txt
+
+# Environment files with secrets - NEVER commit these
+.env
+.env.local
+.env*.local
