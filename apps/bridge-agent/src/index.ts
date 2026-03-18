@@ -84,6 +84,7 @@ function resetCounters() {
   counters.rejected_junk_file = 0;
   counters.noop_unchanged = 0;
   counters.rejected_subfolder = 0;
+  counters.skipped_before_min_date = 0;
 }
 
 // ── Cloud Config State (overridden by heartbeat config sync) ────────
