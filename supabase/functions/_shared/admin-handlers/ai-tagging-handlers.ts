@@ -14,6 +14,22 @@ export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boo
   const CONCURRENCY = 3; // Process the batch in a single parallel wave
   const db = serviceClient();
 
+  // Smart-skip: for untagged mode, exclude style groups that already have a tagged representative
+  let excludeGroupIds: string[] = [];
+  if (!tagAll && !groupIds) {
+    const { data: taggedGroups } = await db
+      .from("assets")
+      .select("style_group_id")
+      .eq("is_deleted", false)
+      .eq("status", "tagged")
+      .not("style_group_id", "is", null)
+      .not("ai_tagged_at", "is", null)
+      .limit(1000);
+    if (taggedGroups) {
+      excludeGroupIds = [...new Set(taggedGroups.map((r: { style_group_id: string }) => r.style_group_id))];
+    }
+  }
+
   let query = db
     .from("assets")
     .select("id, thumbnail_url, filename, relative_path")
@@ -27,6 +43,11 @@ export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boo
 
   if (!tagAll && !groupIds) {
     query = query.neq("status", "tagged");
+  }
+
+  // Exclude groups that already have a tagged representative
+  if (excludeGroupIds.length > 0 && excludeGroupIds.length <= 200) {
+    query = query.not("style_group_id", "in", `(${excludeGroupIds.join(",")})`);
   }
 
   const { data: assets, error } = await query

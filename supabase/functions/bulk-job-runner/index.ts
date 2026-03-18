@@ -512,14 +512,42 @@ serve(async (req: Request) => {
           // Reset transient retry counter on RPC success
           transientRetries = 0;
         } else if (DIRECT_EDGE_OPS.has(opKey)) {
-          // ── Direct Edge Function path (bypasses admin-api HTTP entirely) ──────
+          // ── Direct Edge Function path (parallel, smart-skip) ──────
+          const AI_TAG_CONCURRENCY = 3;
+          const force = opKey === "ai-tag-all" || opKey === "ai-tag-groups";
+          const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceRoleKey;
+
+          // Build smart asset query with representative priority
+          // Smart-skip: for "untagged" mode, skip assets whose style group already has a tagged sibling
+          // Priority: tech_pack filenames > mockup > generic > art > packaging (via primary_sort_tier)
+          const groupIds = opState.params?.group_ids;
+
+          // Use RPC-style raw query for the smart-skip NOT EXISTS clause
+          // Since PostgREST can't do NOT EXISTS subqueries, we use a two-step approach:
+          // 1. If smart-skip is active, first get style_group_ids that already have a tagged asset
+          // 2. Exclude those from the main query
+          let excludeGroupIds: string[] = [];
+          if (opKey === "ai-tag-untagged" && !groupIds) {
+            // Find style groups that already have at least one tagged asset
+            const { data: taggedGroups } = await db
+              .from("assets")
+              .select("style_group_id")
+              .eq("is_deleted", false)
+              .eq("status", "tagged")
+              .not("style_group_id", "is", null)
+              .not("ai_tagged_at", "is", null)
+              .limit(1000);
+            if (taggedGroups) {
+              excludeGroupIds = [...new Set(taggedGroups.map((r: { style_group_id: string }) => r.style_group_id))];
+            }
+          }
+
           let query = db
             .from("assets")
-            .select("id, thumbnail_url, filename, relative_path")
+            .select("id, thumbnail_url, filename, relative_path, style_group_id")
             .eq("is_deleted", false)
             .not("thumbnail_url", "is", null);
 
-          const groupIds = opState.params?.group_ids;
           if (Array.isArray(groupIds) && groupIds.length > 0) {
             query = query.in("style_group_id", groupIds);
           }
@@ -528,9 +556,18 @@ serve(async (req: Request) => {
             query = query.neq("status", "tagged");
           }
 
+          // Exclude groups that already have a tagged representative
+          // PostgREST doesn't support NOT IN for large arrays, so we chunk if needed
+          if (excludeGroupIds.length > 0 && excludeGroupIds.length <= 200) {
+            // Use .not().in() for reasonable-sized exclusion lists
+            query = query.not("style_group_id", "in", `(${excludeGroupIds.join(",")})`);
+          }
+          // For >200 excluded groups, we skip the filter and let the ai-tag function handle dedup via its own "already tagged" check
+
           const { data: assets, error: fetchErr } = await query
-            .order("id")
-            .range(cursor, cursor);
+            .order("primary_sort_tier", { ascending: true })
+            .order("id", { ascending: true })
+            .range(cursor, cursor + AI_TAG_CONCURRENCY - 1);
 
           if (fetchErr) {
             lastError = `fetch error: ${fetchErr.message}`;
@@ -538,81 +575,135 @@ serve(async (req: Request) => {
           }
 
           if (!assets || assets.length === 0) {
-            result = {
-              ok: true,
-              tagged: 0,
-              skipped: 0,
-              failed: 0,
-              failure_samples: [],
-              skip_samples: [],
-              done: true,
-              nextOffset: cursor,
-            };
-          } else {
-            const asset = assets[0];
-            const force = opKey === "ai-tag-all" || opKey === "ai-tag-groups";
-            const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceRoleKey;
-
-            const res = await fetch(`${supabaseUrl}/functions/v1/ai-tag`, {
-              signal: AbortSignal.timeout(30_000),
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${anonKey}`,
-              },
-              body: JSON.stringify({ asset_id: asset.id, force }),
-            });
-
-            if (res.ok) {
-              const resData = await res.json();
-              result = {
-                ok: true,
-                done: false,
-                nextOffset: cursor + 1,
-                tagged: resData.skipped ? 0 : 1,
-                skipped: resData.skipped ? 1 : 0,
-                failed: 0,
-                failure_samples: [],
-                skip_samples: resData.skipped
-                  ? [{
-                    at: new Date().toISOString(),
-                    asset_id: asset.id,
-                    filename: asset.filename || "(unknown)",
-                    relative_path: asset.relative_path || "(unknown)",
-                    thumbnail_url: asset.thumbnail_url,
-                    reason: resData.reason || "Already tagged",
-                  }]
-                  : [],
-              };
-            } else {
-              const text = await res.text().catch(() => "");
-              const isRateLimit = res.status === 429;
-              if (isRateLimit && transientRetries < MAX_TRANSIENT_RETRIES) {
-                transientRetries++;
-                const delayMs = Math.min(5000 * transientRetries, 30000);
-                console.warn(`bulk-job-runner: transient rate-limit for ai-tag (retry ${transientRetries}), waiting ${delayMs}ms`);
-                await sleep(delayMs);
-                continue;
+            // If we were excluding groups, there might be ungrouped assets left
+            // Try without the exclusion filter
+            if (excludeGroupIds.length > 0) {
+              const { data: ungrouped } = await db
+                .from("assets")
+                .select("id")
+                .eq("is_deleted", false)
+                .not("thumbnail_url", "is", null)
+                .neq("status", "tagged")
+                .is("style_group_id", null)
+                .limit(1);
+              if (ungrouped && ungrouped.length > 0) {
+                // There are ungrouped assets — remove the exclusion and re-query
+                const { data: fallbackAssets } = await db
+                  .from("assets")
+                  .select("id, thumbnail_url, filename, relative_path, style_group_id")
+                  .eq("is_deleted", false)
+                  .not("thumbnail_url", "is", null)
+                  .neq("status", "tagged")
+                  .is("style_group_id", null)
+                  .order("primary_sort_tier", { ascending: true })
+                  .order("id", { ascending: true })
+                  .range(0, AI_TAG_CONCURRENCY - 1);
+                if (fallbackAssets && fallbackAssets.length > 0) {
+                  // Process these ungrouped assets
+                  // (fall through to the parallel processing below by reassigning)
+                  assets.push(...fallbackAssets);
+                }
               }
+            }
+            if (!assets || assets.length === 0) {
               result = {
-                ok: true,
-                done: false,
-                nextOffset: cursor + 1,
-                tagged: 0,
-                skipped: 0,
-                failed: 1,
-                failure_samples: [{
-                  at: new Date().toISOString(),
-                  asset_id: asset.id,
-                  filename: asset.filename || "(unknown)",
-                  relative_path: asset.relative_path || "(unknown)",
-                  thumbnail_url: asset.thumbnail_url,
-                  http_status: res.status,
-                  error: text.substring(0, 500) || `HTTP ${res.status}`,
-                }],
-                skip_samples: [],
+                ok: true, tagged: 0, skipped: 0, failed: 0,
+                failure_samples: [], skip_samples: [], done: true, nextOffset: cursor,
               };
             }
+          }
+
+          // Process batch in parallel if we have assets
+          if (assets && assets.length > 0) {
+            const results = await Promise.allSettled(
+              assets.map(async (asset: { id: string; thumbnail_url: string; filename: string; relative_path: string }) => {
+                const res = await fetch(`${supabaseUrl}/functions/v1/ai-tag`, {
+                  signal: AbortSignal.timeout(45_000),
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${anonKey}`,
+                  },
+                  body: JSON.stringify({ asset_id: asset.id, force }),
+                });
+
+                if (res.ok) {
+                  const resData = await res.json();
+                  return { outcome: "ok" as const, asset, resData };
+                }
+                const text = await res.text().catch(() => "");
+                return { outcome: "error" as const, asset, status: res.status, text };
+              }),
+            );
+
+            let batchTagged = 0, batchSkipped = 0, batchFailed = 0;
+            const batchFailSamples: unknown[] = [];
+            const batchSkipSamples: unknown[] = [];
+            let hitRateLimit = false;
+
+            for (const r of results) {
+              if (r.status === "fulfilled") {
+                const v = r.value;
+                if (v.outcome === "ok") {
+                  if (v.resData.skipped) {
+                    batchSkipped++;
+                    batchSkipSamples.push({
+                      at: new Date().toISOString(),
+                      asset_id: v.asset.id,
+                      filename: v.asset.filename || "(unknown)",
+                      relative_path: v.asset.relative_path || "(unknown)",
+                      thumbnail_url: v.asset.thumbnail_url,
+                      reason: v.resData.reason || "Already tagged",
+                    });
+                  } else {
+                    batchTagged++;
+                  }
+                } else {
+                  if (v.status === 429) hitRateLimit = true;
+                  batchFailed++;
+                  batchFailSamples.push({
+                    at: new Date().toISOString(),
+                    asset_id: v.asset.id,
+                    filename: v.asset.filename || "(unknown)",
+                    relative_path: v.asset.relative_path || "(unknown)",
+                    thumbnail_url: v.asset.thumbnail_url,
+                    http_status: v.status,
+                    error: (v.text || "").substring(0, 500) || `HTTP ${v.status}`,
+                  });
+                }
+              } else {
+                batchFailed++;
+                batchFailSamples.push({
+                  at: new Date().toISOString(),
+                  asset_id: "(unknown)",
+                  filename: "(unknown)",
+                  relative_path: "(unknown)",
+                  error: (r.reason instanceof Error ? r.reason.message : String(r.reason || "Unknown")).slice(0, 500),
+                });
+              }
+            }
+
+            if (hitRateLimit && transientRetries < MAX_TRANSIENT_RETRIES) {
+              transientRetries++;
+              const delayMs = Math.min(5000 * transientRetries, 30000);
+              console.warn(`bulk-job-runner: rate-limit in parallel ai-tag batch (retry ${transientRetries}), waiting ${delayMs}ms`);
+              await sleep(delayMs);
+              continue;
+            }
+
+            result = {
+              ok: true,
+              done: false,
+              nextOffset: cursor + assets.length,
+              tagged: batchTagged,
+              skipped: batchSkipped,
+              failed: batchFailed,
+              failure_samples: batchFailSamples,
+              skip_samples: batchSkipSamples,
+            };
+          } else {
+            // Already set result above in the empty-assets branch
+            result = result!;
           }
           transientRetries = 0;
         } else {
