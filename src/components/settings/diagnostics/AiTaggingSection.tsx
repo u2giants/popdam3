@@ -284,6 +284,26 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
     );
   }
 
+  function runTagAndPropagate() {
+    const total = untaggedCount;
+    // Start tagging, then queue propagation to run automatically after
+    requestOp("ai-tag-untagged", OP_NAMES["ai-tag-untagged"],
+      () => {
+        tagUntaggedOp.start({
+          confirmMessage: `Smart Tag + Propagate: AI-tag representative assets (one per style group, ~3x parallel), then propagate tags to all siblings. Continue?`,
+          initialProgress: { total },
+        });
+        // Queue propagation to auto-start when tagging finishes (different lane won't conflict)
+        // Actually propagation is in style-groups lane, tagging is in ai-tagging lane — they can coexist
+        // But we want sequential: tag first, then propagate. Queue it.
+        setTimeout(() => {
+          propagateOp.queue({ initialProgress: { total: totalGroups } });
+        }, 500);
+      },
+      () => tagUntaggedOp.queue({ initialProgress: { total } }),
+    );
+  }
+
   // Determine which ops have non-idle state (show progress for each independently)
   const showTagUntagged = tagUntaggedOp.state.status !== "idle" && tagUntaggedOp.state.progress;
   const showTagAll = tagAllOp.state.status !== "idle" && tagAllOp.state.progress;
@@ -302,7 +322,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
           <span className="text-muted-foreground ml-1">({totalWithThumb.toLocaleString()} total with thumbnails)</span>
         </p>
 
-        <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -314,7 +334,24 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
                 {tagUntaggedOp.isInterrupted ? "Tag Untagged (interrupted)" : "Tag All Untagged"}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[240px] text-center">AI-tag only assets that haven't been tagged yet. Existing tags are preserved.</TooltipContent>
+            <TooltipContent side="bottom" className="max-w-[240px] text-center">
+              AI-tag one representative per style group (smart-skip), then use Propagate to copy tags to siblings. ~3x parallel calls.
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default" size="sm" className="gap-1.5"
+                onClick={() => runTagAndPropagate()}
+                disabled={anyActive || (untaggedCount === 0 && totalGroups === 0)}
+              >
+                {(tagUntaggedOp.isActive || propagateOp.isActive) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Sparkles className="h-3.5 w-3.5" /><Share2 className="h-3.5 w-3.5" /></>}
+                Tag + Propagate
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[280px] text-center">
+              One-click workflow: AI-tag one representative per group (smart-skip), then automatically propagate tags to all siblings. Fastest way to tag everything.
+            </TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
