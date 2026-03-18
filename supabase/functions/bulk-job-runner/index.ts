@@ -26,10 +26,15 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
   "reconcile-style-group-stats": 100, // Now runs via DB function — minimal delay needed
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
   "propagate-group-tags": 100, // Now runs via DB function — minimal delay needed
+  "ai-tag-untagged": 500,
+  "ai-tag-all": 500,
+  "ai-tag-groups": 500,
 };
 
 // Operations that bypass admin-api HTTP and call db.rpc() directly
 const RPC_DIRECT_OPS = new Set(["propagate-group-tags", "reconcile-style-group-stats"]);
+// Operations that bypass admin-api HTTP and call their edge function directly
+const DIRECT_EDGE_OPS = new Set(["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"]);
 
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
@@ -505,6 +510,108 @@ serve(async (req: Request) => {
             break;
           }
           // Reset transient retry counter on RPC success
+          transientRetries = 0;
+        } else if (DIRECT_EDGE_OPS.has(opKey)) {
+          // ── Direct Edge Function path (bypasses admin-api HTTP entirely) ──────
+          let query = db
+            .from("assets")
+            .select("id, thumbnail_url, filename, relative_path")
+            .eq("is_deleted", false)
+            .not("thumbnail_url", "is", null);
+
+          const groupIds = opState.params?.group_ids;
+          if (Array.isArray(groupIds) && groupIds.length > 0) {
+            query = query.in("style_group_id", groupIds);
+          }
+
+          if (opKey !== "ai-tag-all" && !groupIds) {
+            query = query.neq("status", "tagged");
+          }
+
+          const { data: assets, error: fetchErr } = await query
+            .order("id")
+            .range(cursor, cursor);
+
+          if (fetchErr) {
+            lastError = `fetch error: ${fetchErr.message}`;
+            break;
+          }
+
+          if (!assets || assets.length === 0) {
+            result = {
+              ok: true,
+              tagged: 0,
+              skipped: 0,
+              failed: 0,
+              failure_samples: [],
+              skip_samples: [],
+              done: true,
+              nextOffset: cursor,
+            };
+          } else {
+            const asset = assets[0];
+            const force = opKey === "ai-tag-all" || opKey === "ai-tag-groups";
+            const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceRoleKey;
+
+            const res = await fetch(`${supabaseUrl}/functions/v1/ai-tag`, {
+              signal: AbortSignal.timeout(30_000),
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${anonKey}`,
+              },
+              body: JSON.stringify({ asset_id: asset.id, force }),
+            });
+
+            if (res.ok) {
+              const resData = await res.json();
+              result = {
+                ok: true,
+                done: false,
+                nextOffset: cursor + 1,
+                tagged: resData.skipped ? 0 : 1,
+                skipped: resData.skipped ? 1 : 0,
+                failed: 0,
+                failure_samples: [],
+                skip_samples: resData.skipped ? [{
+                  at: new Date().toISOString(),
+                  asset_id: asset.id,
+                  filename: asset.filename || "(unknown)",
+                  relative_path: asset.relative_path || "(unknown)",
+                  thumbnail_url: asset.thumbnail_url,
+                  reason: resData.reason || "Already tagged",
+                }] : [],
+              };
+            } else {
+              const text = await res.text().catch(() => "");
+              const isRateLimit = res.status === 429;
+              if (isRateLimit && transientRetries < MAX_TRANSIENT_RETRIES) {
+                transientRetries++;
+                const delayMs = Math.min(5000 * transientRetries, 30000);
+                console.warn(`bulk-job-runner: transient rate-limit for ai-tag (retry ${transientRetries}), waiting ${delayMs}ms`);
+                await sleep(delayMs);
+                continue;
+              }
+              result = {
+                ok: true,
+                done: false,
+                nextOffset: cursor + 1,
+                tagged: 0,
+                skipped: 0,
+                failed: 1,
+                failure_samples: [{
+                  at: new Date().toISOString(),
+                  asset_id: asset.id,
+                  filename: asset.filename || "(unknown)",
+                  relative_path: asset.relative_path || "(unknown)",
+                  thumbnail_url: asset.thumbnail_url,
+                  http_status: res.status,
+                  error: text.substring(0, 500) || `HTTP ${res.status}`,
+                }],
+                skip_samples: [],
+              };
+            }
+          }
           transientRetries = 0;
         } else {
           // ── HTTP path (admin-api) ─────────────────────────────────
