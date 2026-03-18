@@ -275,17 +275,25 @@ async function handleSetConfig(
   body: Record<string, unknown>,
   userId: string,
 ) {
-  const entries = body.entries;
-  if (!entries || typeof entries !== "object" || Array.isArray(entries)) {
-    return err("entries must be an object of { key: value } pairs");
+  const rawEntries = body.entries;
+  const legacyKey = typeof body.key === "string" ? body.key.trim() : "";
+
+  const entries = rawEntries && typeof rawEntries === "object" && !Array.isArray(rawEntries)
+    ? rawEntries as Record<string, unknown>
+    : legacyKey
+      ? { [legacyKey]: body.value }
+      : null;
+
+  if (!entries) {
+    return err("entries must be an object of { key: value } pairs", 400);
   }
 
   const db = serviceClient();
   const now = new Date().toISOString();
-  const upserts = Object.entries(entries as Record<string, unknown>).map(
+  const upserts = Object.entries(entries).map(
     ([key, value]) => ({
       key,
-      value: value,
+      value,
       updated_at: now,
       updated_by: userId,
     }),
