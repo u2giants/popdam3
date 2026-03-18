@@ -64,6 +64,7 @@ const counters: api.Counters = {
   rejected_junk_file: 0,
   noop_unchanged: 0,
   rejected_subfolder: 0,
+  skipped_before_min_date: 0,
 };
 
 function resetCounters() {
@@ -83,6 +84,7 @@ function resetCounters() {
   counters.rejected_junk_file = 0;
   counters.noop_unchanged = 0;
   counters.rejected_subfolder = 0;
+  counters.skipped_before_min_date = 0;
 }
 
 // ── Cloud Config State (overridden by heartbeat config sync) ────────
@@ -603,7 +605,7 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
 async function processFile(file: FileCandidate) {
   // Skip files older than the configured scan min date
   if (cloudScanMinDate && file.modifiedAt < new Date(cloudScanMinDate)) {
-    counters.noop_unchanged++;
+    counters.skipped_before_min_date++;
     return;
   }
 

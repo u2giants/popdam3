@@ -110,6 +110,9 @@ export default function ScanMonitorBanner({ scanProgress, onStopScan }: ScanMoni
             <CounterChip label="new" value={c.ingested_new} />
             <CounterChip label="updated" value={c.updated_existing} />
             <CounterChip label="moved" value={c.moved_detected} />
+            {(c.skipped_before_min_date ?? 0) > 0 && (
+              <CounterChip label="too old" value={c.skipped_before_min_date} />
+            )}
             <CounterChip label="errors" value={c.errors} variant="error" />
           </div>
         )}
