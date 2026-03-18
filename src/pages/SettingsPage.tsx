@@ -175,6 +175,7 @@ function AgentStatusSection() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["admin-agents"],
     queryFn: () => call("list-agents"),
+    refetchInterval: 30_000,
   });
 
   const revokeMutation = useMutation({

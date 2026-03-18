@@ -129,101 +129,92 @@ function getEffectiveConcurrency(): number {
 
 // ── Heartbeat (runs on its own timer, never blocked by scanning) ──
 
+async function sendHeartbeat() {
+  const effectiveRoots = getEffectiveScanRoots();
+  const effectiveMountRoot = cloudMountRoot || config.nasContainerMountRoot;
+  const diagnostics: Record<string, unknown> = {
+    mount_root_path: effectiveMountRoot,
+    scan_roots: effectiveRoots,
+  };
+
+  try {
+    await stat(effectiveMountRoot);
+    diagnostics.mount_root_exists = true;
+  } catch {
+    diagnostics.mount_root_exists = false;
+  }
+
+  const unreadableRoots: string[] = [];
+  const readableRoots: string[] = [];
+  for (const root of effectiveRoots) {
+    try {
+      await stat(root);
+      readableRoots.push(root);
+    } catch {
+      unreadableRoots.push(root);
+    }
+  }
+  diagnostics.readable_roots = readableRoots;
+  diagnostics.unreadable_roots = unreadableRoots;
+  diagnostics.scan_roots_readable = unreadableRoots.length === 0;
+
+  const response = await api.heartbeat(agentId, { ...counters }, lastError, {
+    image_tag: imageTag,
+    version: packageVersion,
+    build_sha: buildSha,
+  }, diagnostics);
+  lastError = undefined;
+  logger.debug("Heartbeat sent");
+
+  if (response.config) {
+    applyCloudConfig(response.config);
+  }
+
+  if (response.commands) {
+    if (response.commands.abort_scan && isScanning) {
+      logger.info("Abort requested via heartbeat");
+      abortRequested = true;
+    }
+    if (!isScanning && response.commands.force_scan) {
+      const sessionId = response.commands.scan_session_id || undefined;
+      logger.info("Scan requested via heartbeat config sync", { sessionId });
+      runScan(sessionId).catch((e) => logger.error("Scan error", { error: (e as Error).message }));
+    }
+    if (response.commands.test_paths) {
+      handlePathTest(response.commands.test_paths).catch((e) =>
+        logger.error("Path test failed", { error: (e as Error).message })
+      );
+    }
+    if (response.commands.check_update) {
+      handleCheckUpdate().catch((e) =>
+        logger.error("Update check failed", { error: (e as Error).message })
+      );
+    }
+    if (response.commands.apply_update) {
+      handleApplyUpdate();
+    }
+  }
+
+  processSiblingScanRequests().catch((e) =>
+    logger.error("Sibling scan processing failed", { error: (e as Error).message })
+  );
+
+  if (autoScanEnabled && !isScanning) {
+    const elapsedMs = Date.now() - lastScanCompletedAt;
+    const intervalMs = autoScanIntervalHours * 60 * 60 * 1000;
+    if (elapsedMs >= intervalMs) {
+      logger.info("Auto-scan triggered", { intervalHours: autoScanIntervalHours, elapsedMs });
+      runScan().catch((e) => logger.error("Auto-scan error", { error: (e as Error).message }));
+    }
+  }
+}
+
 function startHeartbeat() {
   const INTERVAL_MS = 30_000;
-  setInterval(async () => {
-    try {
-      // Build diagnostics payload for Doctor
-      const effectiveRoots = getEffectiveScanRoots();
-      const effectiveMountRoot = cloudMountRoot || config.nasContainerMountRoot;
-      const diagnostics: Record<string, unknown> = {
-        mount_root_path: effectiveMountRoot,
-        scan_roots: effectiveRoots,
-      };
-
-      // Validate mount root exists
-      try {
-        await stat(effectiveMountRoot);
-        diagnostics.mount_root_exists = true;
-      } catch {
-        diagnostics.mount_root_exists = false;
-      }
-
-      // Check each scan root
-      const unreadableRoots: string[] = [];
-      const readableRoots: string[] = [];
-      for (const root of effectiveRoots) {
-        try {
-          await stat(root);
-          readableRoots.push(root);
-        } catch {
-          unreadableRoots.push(root);
-        }
-      }
-      diagnostics.readable_roots = readableRoots;
-      diagnostics.unreadable_roots = unreadableRoots;
-      diagnostics.scan_roots_readable = unreadableRoots.length === 0;
-
-      const response = await api.heartbeat(agentId, { ...counters }, lastError, {
-        image_tag: imageTag,
-        version: packageVersion,
-        build_sha: buildSha,
-      }, diagnostics);
-      // Clear stale error once a heartbeat succeeds — prevents permanently showing old errors in UI
-      lastError = undefined;
-      logger.debug("Heartbeat sent");
-
-      // Process config sync from heartbeat response
-      if (response.config) {
-        applyCloudConfig(response.config);
-      }
-
-      // Process commands
-      if (response.commands) {
-        if (response.commands.abort_scan && isScanning) {
-          logger.info("Abort requested via heartbeat");
-          abortRequested = true;
-        }
-        if (!isScanning && response.commands.force_scan) {
-          const sessionId = response.commands.scan_session_id || undefined;
-          logger.info("Scan requested via heartbeat config sync", { sessionId });
-          runScan(sessionId).catch((e) => logger.error("Scan error", { error: (e as Error).message }));
-        }
-        // Handle path test command
-        if (response.commands.test_paths) {
-          handlePathTest(response.commands.test_paths).catch((e) =>
-            logger.error("Path test failed", { error: (e as Error).message })
-          );
-        }
-
-        // Handle update commands
-        if (response.commands.check_update) {
-          handleCheckUpdate().catch((e) =>
-            logger.error("Update check failed", { error: (e as Error).message })
-          );
-        }
-        if (response.commands.apply_update) {
-          handleApplyUpdate();
-        }
-      }
-
-      // ── Process sibling scan requests ──
-      processSiblingScanRequests().catch((e) =>
-        logger.error("Sibling scan processing failed", { error: (e as Error).message })
-      );
-
-      // Auto-scan: trigger if enabled + not scanning + interval elapsed
-      if (autoScanEnabled && !isScanning) {
-        const elapsedMs = Date.now() - lastScanCompletedAt;
-        const intervalMs = autoScanIntervalHours * 60 * 60 * 1000;
-        if (elapsedMs >= intervalMs) {
-          logger.info("Auto-scan triggered", { intervalHours: autoScanIntervalHours, elapsedMs });
-          runScan().catch((e) => logger.error("Auto-scan error", { error: (e as Error).message }));
-        }
-      }
-    } catch (e) {
-      logger.error("Heartbeat failed", { error: (e as Error).message });
-    }
+  // Fire immediately on startup so the UI reflects the new version/state right away
+  sendHeartbeat().catch((e) => logger.error("Heartbeat failed", { error: (e as Error).message }));
+  setInterval(() => {
+    sendHeartbeat().catch((e) => logger.error("Heartbeat failed", { error: (e as Error).message }));
   }, INTERVAL_MS);
   logger.info("Heartbeat started (30s interval)");
 }
