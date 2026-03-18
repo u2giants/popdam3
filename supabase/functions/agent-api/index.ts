@@ -282,43 +282,50 @@ async function handleHeartbeat(
   let forceScan = false;
   let scanSessionId: string | null = null;
 
+  const isPending = scanRequest?.status === "pending";
+  // Also re-trigger if the request was claimed by THIS agent but the scan never started
+  // (e.g. agent restarted after claiming — common after a container rebuild).
+  const isOrphanedClaim = scanRequest?.status === "claimed" && scanRequest?.claimed_by === agentId;
+
   if (
     scanRequest &&
-    scanRequest.status === "pending" &&
+    (isPending || isOrphanedClaim) &&
     (!scanRequest.target_agent_id ||
       scanRequest.target_agent_id === agentId) &&
     !forceStop &&
     agentType === "bridge"
   ) {
-    const claimedValue = {
-      ...scanRequest,
-      status: "claimed",
-      claimed_by: agentId,
-      claimed_at: new Date().toISOString(),
-    };
-    const { error: claimErr } = await db
-      .from("admin_config")
-      .update({
-        value: claimedValue,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("key", "SCAN_REQUEST");
-
-    if (!claimErr) {
-      forceScan = true;
-      scanSessionId = scanRequest.request_id as string;
-
-      // Clear any previous stop flags so the new scan can ingest
-      const clearedMeta = {
-        ...newMetadata,
-        force_stop: false,
-        scan_abort: false,
+    if (isPending) {
+      // Claim the pending request
+      const claimedValue = {
+        ...scanRequest,
+        status: "claimed",
+        claimed_by: agentId,
+        claimed_at: new Date().toISOString(),
       };
       await db
-        .from("agent_registrations")
-        .update({ metadata: clearedMeta })
-        .eq("id", agentId);
+        .from("admin_config")
+        .update({
+          value: claimedValue,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("key", "SCAN_REQUEST");
     }
+    // For orphaned claims: leave status as "claimed" — just re-deliver force_scan command
+
+    forceScan = true;
+    scanSessionId = scanRequest.request_id as string;
+
+    // Clear any previous stop flags so the new scan can ingest
+    const clearedMeta = {
+      ...newMetadata,
+      force_stop: false,
+      scan_abort: false,
+    };
+    await db
+      .from("agent_registrations")
+      .update({ metadata: clearedMeta })
+      .eq("id", agentId);
   }
 
   // ── Path test request ──
