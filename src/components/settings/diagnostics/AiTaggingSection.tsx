@@ -239,7 +239,11 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
     queryKey: ["untagged-asset-count"],
     queryFn: async () => {
       const r = await call("count-untagged-assets");
-      return { untagged: r.count as number, totalWithThumbnails: r.totalWithThumbnails as number };
+      return {
+        untagged: r.count as number,
+        totalWithThumbnails: r.totalWithThumbnails as number,
+        waitingForSiblings: (r.waitingForSiblings as number) || 0,
+      };
     },
   });
 
