@@ -154,7 +154,7 @@ export function usePersistentOperation(operationKey: string) {
         status: "queued",
         cursor: shouldResume ? state.cursor : 0,
         params: shouldResume ? (state.params ?? options?.params) : options?.params,
-        started_at: shouldResume ? (state.started_at ?? now) : now,
+        started_at: now,
         updated_at: now,
         progress: shouldResume
           ? (state.progress ?? options?.initialProgress ?? {})

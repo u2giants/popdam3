@@ -122,7 +122,7 @@ function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperat
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
 
   const isTerminal = s.status === "completed" || s.status === "failed";
-  const endTime = isTerminal && s.updated_at ? new Date(s.updated_at).getTime() : Date.now();
+  const endTime = !op.isActive && s.updated_at ? new Date(s.updated_at).getTime() : Date.now();
   const elapsedMs = s.started_at ? endTime - new Date(s.started_at).getTime() : 0;
   const rate = calcRate(done, elapsedMs);
 
