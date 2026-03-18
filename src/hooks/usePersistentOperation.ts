@@ -122,7 +122,9 @@ export function usePersistentOperation(operationKey: string) {
         status: "running",
         cursor: shouldResume ? state.cursor : 0,
         params: shouldResume ? (state.params ?? options?.params) : options?.params,
-        started_at: shouldResume ? (state.started_at ?? now) : now,
+        // Reset timing on resume so rate/ETA reflect the current active run,
+        // not wall-clock downtime from a previous interrupted session.
+        started_at: now,
         updated_at: now,
         progress: shouldResume
           ? (state.progress ?? options?.initialProgress ?? {})
@@ -152,7 +154,7 @@ export function usePersistentOperation(operationKey: string) {
         status: "queued",
         cursor: shouldResume ? state.cursor : 0,
         params: shouldResume ? (state.params ?? options?.params) : options?.params,
-        started_at: shouldResume ? (state.started_at ?? now) : now,
+        started_at: now,
         updated_at: now,
         progress: shouldResume
           ? (state.progress ?? options?.initialProgress ?? {})

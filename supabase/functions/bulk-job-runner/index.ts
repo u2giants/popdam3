@@ -292,6 +292,7 @@ serve(async (req: Request) => {
         allOps[key] = {
           ...op,
           status: "running",
+          started_at: new Date().toISOString(),
           auto_resume_attempts: attempts + 1,
           last_auto_resume_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -320,6 +321,7 @@ serve(async (req: Request) => {
         allOps[nextOpKey] = {
           ...nextOp,
           status: "running",
+          started_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
         runningEntries.push([nextOpKey, allOps[nextOpKey]]);
