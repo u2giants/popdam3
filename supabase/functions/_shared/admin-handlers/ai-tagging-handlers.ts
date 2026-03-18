@@ -191,25 +191,22 @@ export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boo
 export async function handleCountUntaggedAssets() {
   const db = serviceClient();
 
-  const { count: untaggedCount } = await db
-    .from("assets")
-    .select("*", { count: "exact", head: true })
-    .eq("is_deleted", false)
-    .not("thumbnail_url", "is", null)
-    .not("primary_sort_tier", "in", "(4,8)")
-    .neq("status", "tagged");
-
-  const { count: totalWithThumb } = await db
-    .from("assets")
-    .select("*", { count: "exact", head: true })
-    .eq("is_deleted", false)
-    .not("thumbnail_url", "is", null);
-
-  // Count style groups where ALL assets are packaging (primary_sort_tier IN (4,8))
-  // These groups are "waiting for siblings" — a non-packaging asset to be added
-  const { data: packagingOnlyGroups } = await db.rpc("execute_readonly_query", {
+  // Smart count: reflects what bulk-ai-tag will actually process
+  // = groups needing a tagged representative + ungrouped untagged assets
+  const { data: smartCounts } = await db.rpc("execute_readonly_query", {
     query_text: `
-      SELECT count(*) AS cnt FROM (
+      WITH
+      -- Groups that already have at least one tagged asset (will be skipped)
+      tagged_groups AS (
+        SELECT DISTINCT style_group_id
+        FROM assets
+        WHERE is_deleted = false
+          AND status = 'tagged'
+          AND ai_tagged_at IS NOT NULL
+          AND style_group_id IS NOT NULL
+      ),
+      -- Groups where ALL assets are packaging (waiting for siblings)
+      packaging_only_groups AS (
         SELECT sg.id
         FROM style_groups sg
         WHERE sg.asset_count > 0
@@ -219,21 +216,47 @@ export async function handleCountUntaggedAssets() {
               AND a.is_deleted = false
               AND a.primary_sort_tier NOT IN (4, 8)
           )
-          AND NOT EXISTS (
-            SELECT 1 FROM assets a
-            WHERE a.style_group_id = sg.id
-              AND a.is_deleted = false
-              AND a.status = 'tagged'
-          )
-      ) sub
+          AND sg.id NOT IN (SELECT style_group_id FROM tagged_groups)
+      ),
+      -- Groups needing tagging: have untagged non-packaging assets, no tagged rep yet
+      groups_needing_tag AS (
+        SELECT DISTINCT a.style_group_id
+        FROM assets a
+        WHERE a.is_deleted = false
+          AND a.thumbnail_url IS NOT NULL
+          AND a.primary_sort_tier NOT IN (4, 8)
+          AND a.style_group_id IS NOT NULL
+          AND a.style_group_id NOT IN (SELECT style_group_id FROM tagged_groups)
+          AND a.style_group_id NOT IN (SELECT id FROM packaging_only_groups)
+      ),
+      -- Ungrouped untagged assets (each counts as 1 AI call)
+      ungrouped_untagged AS (
+        SELECT count(*) AS cnt
+        FROM assets
+        WHERE is_deleted = false
+          AND thumbnail_url IS NOT NULL
+          AND primary_sort_tier NOT IN (4, 8)
+          AND status != 'tagged'
+          AND style_group_id IS NULL
+      )
+      SELECT
+        (SELECT count(*)::int FROM groups_needing_tag) + (SELECT cnt::int FROM ungrouped_untagged) AS smart_count,
+        (SELECT count(*)::int FROM packaging_only_groups) AS waiting_for_siblings
     `,
   });
 
-  const waitingForSiblings = packagingOnlyGroups?.[0]?.cnt ?? 0;
+  const smartCount = smartCounts?.[0]?.smart_count ?? 0;
+  const waitingForSiblings = smartCounts?.[0]?.waiting_for_siblings ?? 0;
+
+  const { count: totalWithThumb } = await db
+    .from("assets")
+    .select("*", { count: "exact", head: true })
+    .eq("is_deleted", false)
+    .not("thumbnail_url", "is", null);
 
   return json({
     ok: true,
-    count: untaggedCount ?? 0,
+    count: Number(smartCount),
     totalWithThumbnails: totalWithThumb ?? 0,
     waitingForSiblings: Number(waitingForSiblings),
   });
