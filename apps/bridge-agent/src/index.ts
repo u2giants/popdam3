@@ -64,6 +64,7 @@ const counters: api.Counters = {
   rejected_junk_file: 0,
   noop_unchanged: 0,
   rejected_subfolder: 0,
+  skipped_before_min_date: 0,
 };
 
 function resetCounters() {
