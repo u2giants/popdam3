@@ -22,7 +22,7 @@ export default function SystemStatePanel() {
   const handleClear = useCallback(async (key: string, resetValue: unknown) => {
     setClearing(key);
     try {
-      await call("set-config", { key, value: resetValue });
+      await call("set-config", { entries: { [key]: resetValue } });
       queryClient.invalidateQueries({ queryKey: ["system-state-raw"] });
       toast.success(`${key} cleared`);
     } catch (e) {
