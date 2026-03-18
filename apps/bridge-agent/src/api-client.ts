@@ -110,6 +110,7 @@ export interface Counters {
   rejected_junk_file: number;
   noop_unchanged: number;
   rejected_subfolder: number;
+  skipped_before_min_date: number;
 }
 
 export interface WindowsRenderPolicy {

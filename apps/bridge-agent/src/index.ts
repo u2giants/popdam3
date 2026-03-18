@@ -603,7 +603,7 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
 async function processFile(file: FileCandidate) {
   // Skip files older than the configured scan min date
   if (cloudScanMinDate && file.modifiedAt < new Date(cloudScanMinDate)) {
-    counters.noop_unchanged++;
+    counters.skipped_before_min_date++;
     return;
   }
 
