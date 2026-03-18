@@ -39,7 +39,7 @@ export function useAdminApi() {
       try {
         const { data, error } = await supabase.functions.invoke("admin-api", {
           body: { action, ...payload },
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
 
         if (error) {
