@@ -573,14 +573,16 @@ serve(async (req: Request) => {
                 skipped: resData.skipped ? 1 : 0,
                 failed: 0,
                 failure_samples: [],
-                skip_samples: resData.skipped ? [{
-                  at: new Date().toISOString(),
-                  asset_id: asset.id,
-                  filename: asset.filename || "(unknown)",
-                  relative_path: asset.relative_path || "(unknown)",
-                  thumbnail_url: asset.thumbnail_url,
-                  reason: resData.reason || "Already tagged",
-                }] : [],
+                skip_samples: resData.skipped
+                  ? [{
+                    at: new Date().toISOString(),
+                    asset_id: asset.id,
+                    filename: asset.filename || "(unknown)",
+                    relative_path: asset.relative_path || "(unknown)",
+                    thumbnail_url: asset.thumbnail_url,
+                    reason: resData.reason || "Already tagged",
+                  }]
+                  : [],
               };
             } else {
               const text = await res.text().catch(() => "");
