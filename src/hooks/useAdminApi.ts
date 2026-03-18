@@ -7,8 +7,30 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export function useAdminApi() {
   const call = useCallback(async (action: string, payload: Record<string, unknown> = {}) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Not authenticated");
+    // Use getUser() to force token refresh if expired, then fall back to getSession()
+    let accessToken: string | undefined;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      accessToken = session?.access_token;
+      // If token looks expired (JWT exp check), force refresh
+      if (accessToken) {
+        try {
+          const parts = accessToken.split(".");
+          if (parts.length === 3) {
+            const payload64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+            const claims = JSON.parse(atob(payload64));
+            if (claims.exp && claims.exp * 1000 < Date.now() + 30_000) {
+              // Token expires within 30s — force refresh
+              const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+              if (refreshed?.access_token) accessToken = refreshed.access_token;
+            }
+          }
+        } catch { /* JWT parse failed, proceed with existing token */ }
+      }
+    } catch {
+      accessToken = undefined;
+    }
+    if (!accessToken) throw new Error("Not authenticated");
 
     const MAX_RETRIES = 2;
     let lastError: Error | null = null;
@@ -17,7 +39,7 @@ export function useAdminApi() {
       try {
         const { data, error } = await supabase.functions.invoke("admin-api", {
           body: { action, ...payload },
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
 
         if (error) {
