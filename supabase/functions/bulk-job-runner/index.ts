@@ -607,8 +607,14 @@ serve(async (req: Request) => {
             }
             if (!assets || assets.length === 0) {
               result = {
-                ok: true, tagged: 0, skipped: 0, failed: 0,
-                failure_samples: [], skip_samples: [], done: true, nextOffset: cursor,
+                ok: true,
+                tagged: 0,
+                skipped: 0,
+                failed: 0,
+                failure_samples: [],
+                skip_samples: [],
+                done: true,
+                nextOffset: cursor,
               };
             }
           }
