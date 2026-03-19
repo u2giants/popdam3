@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { unwrapConfigValue } from "../_shared/config-utils.ts";
+import { handleRebuildStyleGroups } from "../_shared/admin-handlers/style-group-handlers.ts";
 import type { OpState, OpStatus } from "../_shared/types.ts";
 import { classifyInterruptionReason, getLane, OP_ACTIONS } from "../_shared/operation-constants.ts";
 
@@ -33,6 +34,8 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
 
 // Operations that bypass admin-api HTTP and call db.rpc() directly
 const RPC_DIRECT_OPS = new Set(["propagate-group-tags", "reconcile-style-group-stats"]);
+// Operations that run locally in-process to avoid an extra Edge gateway hop
+const LOCAL_HANDLER_OPS = new Set(["rebuild-style-groups"]);
 // Operations that bypass admin-api HTTP and call their edge function directly
 const DIRECT_EDGE_OPS = new Set(["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"]);
 
