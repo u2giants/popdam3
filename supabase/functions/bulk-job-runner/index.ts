@@ -515,7 +515,7 @@ serve(async (req: Request) => {
           transientRetries = 0;
         } else if (DIRECT_EDGE_OPS.has(opKey)) {
           // ── Direct Edge Function path (parallel, smart-skip) ──────
-          const AI_TAG_CONCURRENCY = 3;
+          const AI_TAG_CONCURRENCY = 2;
           const force = opKey === "ai-tag-all" || opKey === "ai-tag-groups";
           const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceRoleKey;
 
