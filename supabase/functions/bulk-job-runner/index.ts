@@ -518,6 +518,86 @@ serve(async (req: Request) => {
           }
           // Reset transient retry counter on RPC success
           transientRetries = 0;
+        } else if (LOCAL_HANDLER_OPS.has(opKey)) {
+          if (opKey === "rebuild-style-groups") {
+            const requestBody: Record<string, unknown> = {
+              action,
+              offset: cursor,
+            };
+
+            if (opState.params) {
+              for (const [k, v] of Object.entries(opState.params)) {
+                if (k !== "type" && k !== "total") {
+                  requestBody[k] = v;
+                }
+              }
+            }
+
+            const localResponse = await handleRebuildStyleGroups(requestBody);
+            const responseText = await localResponse.text();
+            let parsed: Record<string, unknown> | null = null;
+            try {
+              parsed = JSON.parse(responseText);
+            } catch {
+              parsed = null;
+            }
+
+            if (!localResponse.ok) {
+              const isRateLimit = localResponse.status === 429;
+              const isTransientStatus = [502, 503, 504].includes(localResponse.status) || isRateLimit;
+              lastErrorStatus = localResponse.status;
+              const stageInfo = parsed?.stage ? ` [stage=${parsed.stage}${parsed.substage ? `/substage=${parsed.substage}` : ""}]` : "";
+              lastError = `local rebuild handler returned ${localResponse.status}:${stageInfo} ${(parsed?.error as string) || responseText.slice(0, 500)}`;
+
+              if (parsed?.stage) lastStage = parsed.stage as string;
+              if (parsed?.substage) lastSubstage = parsed.substage as string;
+
+              const isRateLimitMessage = /rate limit exceeded/i.test(lastError);
+              const isTransient = isTransientStatus || isRateLimitMessage;
+
+              if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
+                transientRetries++;
+                const delayMs = (isRateLimit || isRateLimitMessage)
+                  ? Math.min(5000 * transientRetries, 30000)
+                  : 1000 * transientRetries;
+                console.warn(
+                  `bulk-job-runner: transient ${localResponse.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`,
+                );
+                await sleep(delayMs);
+                continue;
+              }
+
+              console.error(`bulk-job-runner: ${lastError}`);
+              isTransientFailure = isTransient;
+              break;
+            }
+
+            transientRetries = 0;
+            result = parsed ?? { ok: false, error: "Local rebuild handler returned invalid JSON" };
+
+            if (!result.ok) {
+              const stageInfo = result.stage ? ` [stage=${result.stage}${result.substage ? `/substage=${result.substage}` : ""}]` : "";
+              lastError = `${stageInfo} ${result.error || "Local rebuild handler returned error"}`;
+              if (result.stage) lastStage = result.stage as string;
+              if (result.substage) lastSubstage = result.substage as string;
+
+              const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
+              if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
+                transientRetries++;
+                const delayMs = Math.min(5000 * transientRetries, 30000);
+                console.warn(`bulk-job-runner: transient rate-limit for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
+                await sleep(delayMs);
+                continue;
+              }
+
+              isTransientFailure = isRateLimitMessage;
+              console.error(`bulk-job-runner: ${lastError}`);
+              break;
+            }
+          } else {
+            lastError = `No local handler for ${opKey}`;
+            break;
+          }
         } else if (DIRECT_EDGE_OPS.has(opKey)) {
           // ── Direct Edge Function path (parallel, smart-skip) ──────
           const AI_TAG_CONCURRENCY = 2;
