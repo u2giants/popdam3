@@ -557,9 +557,7 @@ serve(async (req: Request) => {
 
               if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
                 transientRetries++;
-                const delayMs = (isRateLimit || isRateLimitMessage)
-                  ? Math.min(5000 * transientRetries, 30000)
-                  : 1000 * transientRetries;
+                const delayMs = (isRateLimit || isRateLimitMessage) ? Math.min(5000 * transientRetries, 30000) : 1000 * transientRetries;
                 console.warn(
                   `bulk-job-runner: transient ${localResponse.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`,
                 );
