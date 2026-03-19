@@ -49,6 +49,8 @@ const AUTO_RESUME_MAX_ATTEMPTS_BY_OP: Record<string, number> = {
   "erp-classify": 1000,
   // Propagation iterates many groups with heavy per-group queries; transient WORKER_LIMIT is common.
   "propagate-group-tags": 50,
+  // Rebuild processes 90k+ assets across 4 stages; rate limits and timeouts are expected.
+  "rebuild-style-groups": 50,
 };
 
 // ── Progress accumulators ───────────────────────────────────────────
