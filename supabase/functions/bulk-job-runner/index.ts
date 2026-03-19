@@ -22,7 +22,7 @@ const PERSIST_EVERY_OVERRIDES: Record<string, number> = {
 // Inter-call delay (ms) per operation to avoid Edge Function rate limits.
 // Supabase allows ~60 admin-api calls/minute. These delays keep us safely under.
 const INTER_CALL_DELAY_MS: Record<string, number> = {
-  "rebuild-style-groups": 200, // Stage 3 now uses DB function — reduced delay
+  "rebuild-style-groups": 500, // Balance between speed and rate-limit avoidance
   "reconcile-style-group-stats": 100, // Now runs via DB function — minimal delay needed
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
   "propagate-group-tags": 100, // Now runs via DB function — minimal delay needed
