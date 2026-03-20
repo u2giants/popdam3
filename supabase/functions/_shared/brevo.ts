@@ -33,7 +33,7 @@ export async function sendBrevoEmail(params: SendEmailParams): Promise<BrevoResu
 
   const sender = {
     name: params.senderName ?? "PopDAM",
-    email: params.senderEmail ?? "noreply@popheadquarters.com",
+    email: params.senderEmail ?? "noreply@designflow.app",
   };
 
   const body = {
