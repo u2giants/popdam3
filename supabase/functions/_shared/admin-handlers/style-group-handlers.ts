@@ -9,6 +9,12 @@ import { unwrapConfigValue } from "../config-utils.ts";
 import { err, formatPostgrestError, isStatementTimeout, json, serviceClient, withRetry } from "../admin-utils.ts";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const CLEAR_STAGE_MAX_SUBBATCHES = 5;
+const CLEAR_STAGE_MAX_RUN_MS = 20_000;
+
+function isRateLimitMessage(msg: string): boolean {
+  return /rate limit exceeded/i.test(msg || "");
+}
 
 // ── rebuild-style-groups ────────────────────────────────────────────
 
@@ -124,47 +130,77 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
   // ── Stage 1: clear style_group_id ─────────────────────────────────
   if (state.stage === "clear_assets") {
-    let batchSize = Math.max(clearMinBatch, clearBatch);
-    let result: { cleared_count?: number; last_id?: string | null; has_more?: boolean } | null = null;
-    let lastErr: string | null = null;
+    const stageStartedAt = Date.now();
+    let lastId = state.last_asset_id ?? null;
+    let hasMore = true;
+    let totalClearedCount = 0;
+    let completedSubbatches = 0;
+    let lastBatchSizeUsed = Math.max(clearMinBatch, clearBatch);
 
-    while (batchSize >= clearMinBatch) {
-      await sleep(100);
-      const { data: rpcResult, error: rpcErr } = await db.rpc("clear_style_group_batch", {
-        p_last_id: state.last_asset_id ?? null,
-        p_batch_size: batchSize,
-      });
+    while (
+      hasMore &&
+      completedSubbatches < CLEAR_STAGE_MAX_SUBBATCHES &&
+      Date.now() - stageStartedAt < CLEAR_STAGE_MAX_RUN_MS
+    ) {
+      let batchSize = Math.max(clearMinBatch, clearBatch);
+      let result: { cleared_count?: number; last_id?: string | null; has_more?: boolean } | null = null;
+      let lastErr: string | null = null;
 
-      if (!rpcErr) {
-        result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
-        break;
+      while (batchSize >= clearMinBatch) {
+        await sleep(100);
+        const { data: rpcResult, error: rpcErr } = await db.rpc("clear_style_group_batch", {
+          p_last_id: lastId,
+          p_batch_size: batchSize,
+        });
+
+        if (!rpcErr) {
+          result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+          lastBatchSizeUsed = batchSize;
+          break;
+        }
+
+        const msg = formatPostgrestError(rpcErr);
+        lastErr = msg;
+
+        if (isRateLimitMessage(msg)) {
+          return json({
+            ok: false,
+            error: msg,
+            stage: "clear_assets",
+            substage: "rpc_rate_limit",
+            attempted_batch_size: batchSize,
+            min_batch_size: clearMinBatch,
+          }, 429);
+        }
+
+        if (!isStatementTimeout(msg) || batchSize === clearMinBatch) {
+          return json({ ok: false, error: msg, stage: "clear_assets", substage: "rpc", attempted_batch_size: batchSize, min_batch_size: clearMinBatch }, 500);
+        }
+
+        const nextBatch = Math.max(clearMinBatch, Math.floor(batchSize / 2));
+        console.warn(`clear_assets timeout at batch=${batchSize}, retrying with batch=${nextBatch}`);
+        if (nextBatch === batchSize) break;
+        batchSize = nextBatch;
       }
 
-      const msg = formatPostgrestError(rpcErr);
-      lastErr = msg;
-      if (!isStatementTimeout(msg) || batchSize === clearMinBatch) {
-        return json({ ok: false, error: msg, stage: "clear_assets", substage: "rpc", attempted_batch_size: batchSize, min_batch_size: clearMinBatch }, 500);
+      if (!result) {
+        return json({
+          ok: false,
+          error: lastErr || "clear_assets failed after adaptive retries",
+          stage: "clear_assets",
+          substage: "adaptive_retry",
+          min_batch_size: clearMinBatch,
+        }, 500);
       }
 
-      const nextBatch = Math.max(clearMinBatch, Math.floor(batchSize / 2));
-      console.warn(`clear_assets timeout at batch=${batchSize}, retrying with batch=${nextBatch}`);
-      if (nextBatch === batchSize) break;
-      batchSize = nextBatch;
-    }
+      const clearedCount = result.cleared_count ?? 0;
+      totalClearedCount += clearedCount;
+      lastId = result.last_id ?? lastId;
+      hasMore = result.has_more ?? false;
+      completedSubbatches += 1;
 
-    if (!result) {
-      return json({
-        ok: false,
-        error: lastErr || "clear_assets failed after adaptive retries",
-        stage: "clear_assets",
-        substage: "adaptive_retry",
-        min_batch_size: clearMinBatch,
-      }, 500);
+      if (clearedCount === 0) break;
     }
-
-    const clearedCount = result?.cleared_count ?? 0;
-    const lastId = result?.last_id ?? null;
-    const hasMore = result?.has_more ?? false;
 
     let totalGroupsBeforeDelete: number | undefined;
     if (!hasMore) {
@@ -193,8 +229,9 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
       substage: null,
       done: false,
       nextOffset: offset + 1,
-      cleared_assets: clearedCount,
-      clear_batch_size_used: batchSize,
+      cleared_assets: totalClearedCount,
+      clear_batch_size_used: lastBatchSizeUsed,
+      clear_subbatches_completed: completedSubbatches,
       total_processed: nextState.total_processed ?? 0,
       total_assets: nextState.total_assets ?? 0,
       resumed: offset === 0 && !forceRestart && !!existingStateRow?.value,
