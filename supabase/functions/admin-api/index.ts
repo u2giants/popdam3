@@ -349,19 +349,24 @@ async function handleInviteUser(
 
   if (error) return err(error.message, 500);
 
-  // Send invite via Supabase Auth — no external email service required
-  const adminClient = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  );
-  const { error: inviteErr } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { role: roleStr },
+  // Send invite email via Brevo API
+  const { sendBrevoEmail, buildInviteHtml } = await import("../_shared/brevo.ts");
+  const appUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "")
+    ? "https://popdam.lovable.app"
+    : "https://popdam.lovable.app";
+  const signUpUrl = `${appUrl}/login?signup=true`;
+  const htmlContent = buildInviteHtml(signUpUrl, roleStr);
+
+  const emailResult = await sendBrevoEmail({
+    to: email,
+    subject: "You've been invited to PopDAM",
+    htmlContent,
   });
-  if (inviteErr) {
+
+  if (!emailResult.ok) {
     // Roll back the invitation row so the admin can retry
     await db.from("invitations").delete().eq("id", data.id);
-    return err(`Failed to send invitation email: ${inviteErr.message}`, 500);
+    return err(`Failed to send invitation email: ${emailResult.error}`, 500);
   }
 
   return json({ ok: true, invitation: data });
