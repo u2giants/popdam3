@@ -13,7 +13,19 @@ interface SendEmailParams {
   senderEmail?: string;
 }
 
-export async function sendBrevoEmail(params: SendEmailParams): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+export interface BrevoResult {
+  ok: boolean;
+  messageId?: string;
+  error?: string;
+  /** Raw HTTP status from Brevo API */
+  httpStatus?: number;
+  /** Warning when Brevo returns 2xx but no messageId */
+  warning?: string;
+  /** Raw response body for debugging */
+  rawBody?: string;
+}
+
+export async function sendBrevoEmail(params: SendEmailParams): Promise<BrevoResult> {
   const apiKey = Deno.env.get("BREVO_API_KEY");
   if (!apiKey) {
     return { ok: false, error: "Email delivery is not configured (BREVO_API_KEY missing)" };
@@ -31,24 +43,68 @@ export async function sendBrevoEmail(params: SendEmailParams): Promise<{ ok: boo
     htmlContent: params.htmlContent,
   };
 
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "api-key": apiKey,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  console.log(`[brevo] Sending email to=${params.to} from=${sender.email} subject="${params.subject}"`);
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`Brevo API error [${res.status}]:`, text);
-    return { ok: false, error: `Brevo API error [${res.status}]: ${text.slice(0, 200)}` };
+  let res: Response;
+  try {
+    res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (fetchErr) {
+    const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    console.error(`[brevo] Network error: ${msg}`);
+    return { ok: false, error: `Network error calling Brevo: ${msg}` };
   }
 
-  const data = await res.json();
-  return { ok: true, messageId: data.messageId };
+  const rawText = await res.text();
+  console.log(`[brevo] HTTP ${res.status} — raw response: ${rawText}`);
+
+  if (!res.ok) {
+    console.error(`[brevo] API error [${res.status}]:`, rawText);
+    return {
+      ok: false,
+      error: `Brevo API error [${res.status}]: ${rawText.slice(0, 300)}`,
+      httpStatus: res.status,
+      rawBody: rawText.slice(0, 500),
+    };
+  }
+
+  // Parse the response body
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    console.warn(`[brevo] Could not parse JSON response: ${rawText}`);
+    return {
+      ok: true,
+      httpStatus: res.status,
+      rawBody: rawText.slice(0, 500),
+      warning: "Brevo returned 2xx but response was not valid JSON",
+    };
+  }
+
+  const messageId = data.messageId as string | undefined;
+
+  if (!messageId) {
+    console.warn(`[brevo] Brevo returned ${res.status} but NO messageId. Full response:`, rawText);
+    return {
+      ok: true,
+      httpStatus: res.status,
+      rawBody: rawText.slice(0, 500),
+      warning: "Brevo accepted the request (HTTP 2xx) but returned no messageId. " +
+        "This usually means the sender email/domain is not verified in your Brevo account. " +
+        "Check Settings → Senders & IPs → Domains in Brevo.",
+    };
+  }
+
+  console.log(`[brevo] Success — messageId: ${messageId}`);
+  return { ok: true, messageId, httpStatus: res.status };
 }
 
 /**
