@@ -39,6 +39,7 @@ const LOCAL_HANDLER_OPS = new Set(["rebuild-style-groups"]);
 // Operations that bypass admin-api HTTP and call their edge function directly
 const DIRECT_EDGE_OPS = new Set(["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"]);
 
+
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
   maxAttempts: 5,
@@ -50,6 +51,11 @@ const AUTO_RESUME_MAX_ATTEMPTS_BY_OP: Record<string, number> = {
   // Long-running ERP classification can hit intermittent gateway timeouts at scale.
   // Allow substantially more resumptions so very large runs (e.g. 90k+) don't stall.
   "erp-classify": 1000,
+  // AI tagging at 81k+ assets will run for many hours; allow unlimited auto-resumes.
+  // Without this, the default limit of 5 causes permanent stall after ~30 minutes.
+  "ai-tag-untagged": 1000,
+  "ai-tag-all": 1000,
+  "ai-tag-groups": 1000,
   // Propagation iterates many groups with heavy per-group queries; transient WORKER_LIMIT is common.
   "propagate-group-tags": 50,
   // Rebuild processes 90k+ assets across 4 stages; rate limits and timeouts are expected.
