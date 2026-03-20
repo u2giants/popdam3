@@ -27,9 +27,9 @@ const INTER_CALL_DELAY_MS: Record<string, number> = {
   "reconcile-style-group-stats": 100, // Now runs via DB function — minimal delay needed
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
   "propagate-group-tags": 100, // Now runs via DB function — minimal delay needed
-  "ai-tag-untagged": 500,
-  "ai-tag-all": 500,
-  "ai-tag-groups": 500,
+  "ai-tag-untagged": 0, // Direct edge path — no admin-api rate limit to respect
+  "ai-tag-all": 0,
+  "ai-tag-groups": 0,
 };
 
 // Operations that bypass admin-api HTTP and call db.rpc() directly
@@ -602,8 +602,8 @@ serve(async (req: Request) => {
             break;
           }
         } else if (DIRECT_EDGE_OPS.has(opKey)) {
-          // ── Direct Edge Function path (single 2-wide chunk, smart-skip) ──────
-          const AI_TAG_CONCURRENCY = 2;
+          // ── Direct Edge Function path (smart-skip, 4-wide concurrency) ──────
+          const AI_TAG_CONCURRENCY = 4;
           const AI_TAG_REQUEST_TIMEOUT_MS = 25_000;
           const force = opKey === "ai-tag-all" || opKey === "ai-tag-groups";
           const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceRoleKey;
@@ -1110,6 +1110,21 @@ serve(async (req: Request) => {
       }
 
       await db.rpc("update_bulk_operations_batch", { p_updates: finalUpdates });
+    }
+
+    // Self-continue: when the time budget is exhausted with work still remaining, immediately
+    // fire the next invocation so there's no ~15s idle gap waiting for the next pg_cron tick.
+    // The per-op atomic lock (p_only_if_status:"running") prevents double-processing if pg_cron
+    // also fires during the overlap.
+    if (!done && !lastError) {
+      const selfFetch = fetch(`${supabaseUrl}/functions/v1/bulk-job-runner`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${serviceRoleKey}`, "Content-Type": "application/json" },
+        body: "{}",
+      }).catch(() => {});
+      if (typeof (globalThis as any).EdgeRuntime !== "undefined") {
+        (globalThis as any).EdgeRuntime.waitUntil(selfFetch);
+      }
     }
 
     return json({
