@@ -10,8 +10,9 @@ import { err, json } from "../http.ts";
 export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boolean) {
   const offset = typeof body.offset === "number" ? body.offset : 0;
   const groupIds = Array.isArray(body.group_ids) ? body.group_ids as string[] : null;
-  const BATCH_SIZE = 3; // Reduced from 6 to avoid exceeding 30s gateway timeout
-  const CONCURRENCY = 3; // Process the batch in a single parallel wave
+  const BATCH_SIZE = 2; // One 2-wide chunk per admin-api invocation to stay under gateway budget
+  const CONCURRENCY = 2; // Single parallel wave matching batch size
+  const AI_TAG_TIMEOUT_MS = 25_000;
   const db = serviceClient();
 
   // Smart-skip: for untagged mode, exclude style groups that already have a tagged representative
@@ -106,7 +107,7 @@ export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boo
     const results = await Promise.allSettled(
       chunk.map(async (asset) => {
         const res = await fetch(`${supabaseUrl}/functions/v1/ai-tag`, {
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(AI_TAG_TIMEOUT_MS),
           method: "POST",
           headers: {
             "Content-Type": "application/json",
