@@ -39,7 +39,6 @@ const LOCAL_HANDLER_OPS = new Set(["rebuild-style-groups"]);
 // Operations that bypass admin-api HTTP and call their edge function directly
 const DIRECT_EDGE_OPS = new Set(["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"]);
 
-
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
   maxAttempts: 5,
