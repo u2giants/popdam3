@@ -404,6 +404,11 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const queryClient = useQueryClient();
   const { call: adminApi } = useAdminApi();
   const [localPrimaryId, setLocalPrimaryId] = useState<string | null>(group.primary_asset_id);
+
+  // Keep localPrimaryId in sync when the group prop changes (e.g. after rebuild/refetch)
+  useEffect(() => {
+    setLocalPrimaryId(group.primary_asset_id);
+  }, [group.primary_asset_id]);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
