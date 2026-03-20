@@ -23,7 +23,7 @@ const PERSIST_EVERY_OVERRIDES: Record<string, number> = {
 // Inter-call delay (ms) per operation to avoid Edge Function rate limits.
 // Supabase allows ~60 admin-api calls/minute. These delays keep us safely under.
 const INTER_CALL_DELAY_MS: Record<string, number> = {
-  "rebuild-style-groups": 1500, // Rebuild now does more work per invocation; slower pacing avoids function rate limits
+  "rebuild-style-groups": 15_000, // Clear/rebuild phases are gateway-sensitive; keep steady spacing between invocations
   "reconcile-style-group-stats": 100, // Now runs via DB function — minimal delay needed
   "erp-classify": 1000, // 5 AI calls per batch (~40s), give breathing room between batches
   "propagate-group-tags": 100, // Now runs via DB function — minimal delay needed
@@ -38,6 +38,17 @@ const RPC_DIRECT_OPS = new Set(["propagate-group-tags", "reconcile-style-group-s
 const LOCAL_HANDLER_OPS = new Set(["rebuild-style-groups"]);
 // Operations that bypass admin-api HTTP and call their edge function directly
 const DIRECT_EDGE_OPS = new Set(["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"]);
+
+const RATE_LIMIT_COOLDOWN_MS: Record<string, number> = {
+  "rebuild-style-groups": 15_000,
+};
+
+function getRetryDelayMs(opKey: string, errorText: string, transientRetries: number, fallbackMs = 5_000): number {
+  const retryAfterMatch = errorText.match(/retry after\s+(\d+)ms/i);
+  const retryAfterMs = retryAfterMatch ? parseInt(retryAfterMatch[1], 10) : 0;
+  const opFloor = RATE_LIMIT_COOLDOWN_MS[opKey] ?? fallbackMs;
+  return Math.max(retryAfterMs, Math.min(opFloor * transientRetries, 30_000));
+}
 
 const AUTO_RESUME_DEFAULTS = {
   enabled: true,
@@ -562,10 +573,8 @@ serve(async (req: Request) => {
 
               if (isTransient && transientRetries < MAX_TRANSIENT_RETRIES) {
                 transientRetries++;
-                const retryAfterMatch = lastError.match(/retry after\s+(\d+)ms/i);
-                const retryAfterMs = retryAfterMatch ? parseInt(retryAfterMatch[1], 10) : 0;
                 const delayMs = (isRateLimit || isRateLimitMessage)
-                  ? Math.max(retryAfterMs, Math.min(5000 * transientRetries, 30000))
+                  ? getRetryDelayMs(opKey, lastError, transientRetries)
                   : 1000 * transientRetries;
                 console.warn(
                   `bulk-job-runner: transient ${localResponse.status} for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`,
@@ -591,12 +600,17 @@ serve(async (req: Request) => {
               const isRateLimitMessage = /rate limit exceeded/i.test(String(result.error || ""));
               if (isRateLimitMessage && transientRetries < MAX_TRANSIENT_RETRIES) {
                 transientRetries++;
-                const retryAfterMatch = String(result.error || "").match(/retry after\s+(\d+)ms/i);
-                const retryAfterMs = retryAfterMatch ? parseInt(retryAfterMatch[1], 10) : 0;
-                const delayMs = Math.max(retryAfterMs, Math.min(5000 * transientRetries, 30000));
+                const delayMs = getRetryDelayMs(opKey, String(result.error || ""), transientRetries);
                 console.warn(`bulk-job-runner: transient rate-limit for '${opKey}' (retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}), waiting ${delayMs}ms`);
                 await sleep(delayMs);
                 continue;
+              }
+
+              if (result.rate_limited === true) {
+                const delayMs = getRetryDelayMs(opKey, String(result.error || result.retry_after_ms || ""), 1);
+                console.warn(`bulk-job-runner: '${opKey}' hit handler-managed rate-limit pause, waiting ${delayMs}ms before yielding`);
+                await sleep(delayMs);
+                break;
               }
 
               isTransientFailure = isRateLimitMessage;
