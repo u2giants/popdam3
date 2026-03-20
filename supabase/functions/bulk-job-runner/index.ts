@@ -597,8 +597,9 @@ serve(async (req: Request) => {
             break;
           }
         } else if (DIRECT_EDGE_OPS.has(opKey)) {
-          // ── Direct Edge Function path (parallel, smart-skip) ──────
+          // ── Direct Edge Function path (single 2-wide chunk, smart-skip) ──────
           const AI_TAG_CONCURRENCY = 2;
+          const AI_TAG_REQUEST_TIMEOUT_MS = 25_000;
           const force = opKey === "ai-tag-all" || opKey === "ai-tag-groups";
           const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || serviceRoleKey;
 
@@ -711,7 +712,7 @@ serve(async (req: Request) => {
             const results = await Promise.allSettled(
               assets.map(async (asset: { id: string; thumbnail_url: string; filename: string; relative_path: string }) => {
                 const res = await fetch(`${supabaseUrl}/functions/v1/ai-tag`, {
-                  signal: AbortSignal.timeout(45_000),
+                  signal: AbortSignal.timeout(AI_TAG_REQUEST_TIMEOUT_MS),
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
