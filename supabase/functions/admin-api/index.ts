@@ -349,21 +349,19 @@ async function handleInviteUser(
 
   if (error) return err(error.message, 500);
 
-  // Fire-and-forget invite email
-  try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    await fetch(`${supabaseUrl}/functions/v1/send-invite-email`, {
-      signal: AbortSignal.timeout(10_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, invitation_id: data.id }),
-    });
-  } catch (e) {
-    console.error("Failed to trigger invite email:", e);
+  // Send invite via Supabase Auth — no external email service required
+  const adminClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+  const { error: inviteErr } = await adminClient.auth.admin.inviteUserByEmail(email, {
+    data: { role: roleStr },
+  });
+  if (inviteErr) {
+    // Roll back the invitation row so the admin can retry
+    await db.from("invitations").delete().eq("id", data.id);
+    return err(`Failed to send invitation email: ${inviteErr.message}`, 500);
   }
 
   return json({ ok: true, invitation: data });
@@ -390,7 +388,7 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
 
   const { data: invite } = await db
     .from("invitations")
-    .select("accepted_at")
+    .select("email, accepted_at")
     .eq("id", invitationId)
     .single();
 
@@ -405,6 +403,22 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
     .eq("id", invitationId);
 
   if (error) return err(error.message, 500);
+
+  // Also delete the pending auth user so they can't sign in with the invite link
+  const adminClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+  const { data: profile } = await db
+    .from("profiles")
+    .select("user_id")
+    .eq("email", invite.email)
+    .maybeSingle();
+  if (profile?.user_id) {
+    await adminClient.auth.admin.deleteUser(profile.user_id).catch(() => {});
+  }
+
   return json({ ok: true });
 }
 
