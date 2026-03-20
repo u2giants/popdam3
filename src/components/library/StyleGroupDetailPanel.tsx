@@ -626,6 +626,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                     className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
+                      setSelectedAssetId(null);
                       setCarouselIndex((i) => (i === 0 ? thumbStrip.length - 1 : i - 1));
                     }}
                   >
@@ -635,6 +636,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
+                      setSelectedAssetId(null);
                       setCarouselIndex((i) => (i === thumbStrip.length - 1 ? 0 : i + 1));
                     }}
                   >
@@ -659,7 +661,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                         ? "border-primary"
                         : "border-transparent hover:border-muted-foreground/30",
                     )}
-                    onClick={() => setCarouselIndex(idx)}
+                    onClick={() => { setSelectedAssetId(null); setCarouselIndex(idx); }}
                   >
                     <img src={a.thumbnail_url!} alt={a.filename} className="h-full w-full object-cover" />
                   </button>
