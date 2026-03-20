@@ -591,10 +591,10 @@ function InvitationSection() {
         body: { email: invEmail, invitation_id: invitationId },
       });
       if (error) throw error;
-      if (fnData?.skipped) {
-        toast.warning("Email delivery is not configured (BREVO_API_KEY missing)");
+      if (fnData?.ok === false) {
+        toast.error(fnData.error || "Failed to send invite");
       } else {
-        toast.success(`Reminder sent to ${invEmail}`);
+        toast.success(`Invite re-sent to ${invEmail}`);
       }
     } catch (e) {
       toast.error((e as Error).message || "Failed to resend invitation");
