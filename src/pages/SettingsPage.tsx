@@ -587,7 +587,8 @@ function InvitationSection() {
   const handleResend = async (invitationId: string, invEmail: string) => {
     setResendingId(invitationId);
     try {
-      const { data: fnData, error } = await (await import("@/integrations/supabase/client")).supabase.functions.invoke("send-invite-email", {
+      const { externalSupabase } = await import("@/lib/external-supabase");
+      const { data: fnData, error } = await externalSupabase.functions.invoke("send-invite-email", {
         body: { email: invEmail, invitation_id: invitationId },
       });
       if (error) throw error;
