@@ -351,9 +351,7 @@ async function handleInviteUser(
 
   // Send invite email via Brevo API
   const { sendBrevoEmail, buildInviteHtml } = await import("../_shared/brevo.ts");
-  const appUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "")
-    ? "https://popdam.lovable.app"
-    : "https://popdam.lovable.app";
+  const appUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "") ? "https://popdam.lovable.app" : "https://popdam.lovable.app";
   const signUpUrl = `${appUrl}/login?signup=true`;
   const htmlContent = buildInviteHtml(signUpUrl, roleStr);
 

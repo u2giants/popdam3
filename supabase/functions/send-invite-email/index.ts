@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, json } from "../_shared/http.ts";
-import { sendBrevoEmail, buildInviteHtml } from "../_shared/brevo.ts";
+import { buildInviteHtml, sendBrevoEmail } from "../_shared/brevo.ts";
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
