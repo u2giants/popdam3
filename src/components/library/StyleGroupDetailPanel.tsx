@@ -661,7 +661,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                         ? "border-primary"
                         : "border-transparent hover:border-muted-foreground/30",
                     )}
-                    onClick={() => setCarouselIndex(idx)}
+                    onClick={() => { setSelectedAssetId(null); setCarouselIndex(idx); }}
                   >
                     <img src={a.thumbnail_url!} alt={a.filename} className="h-full w-full object-cover" />
                   </button>
