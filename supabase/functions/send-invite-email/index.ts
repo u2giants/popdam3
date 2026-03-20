@@ -23,11 +23,24 @@ serve(async (req: Request) => {
     });
 
     if (!result.ok) {
-      console.error("Re-invite failed:", result.error);
-      return json({ ok: false, error: result.error }, 500);
+      console.error("Invite email failed:", result.error);
+      return json({
+        ok: false,
+        error: result.error,
+        httpStatus: result.httpStatus,
+        rawBody: result.rawBody,
+      }, 500);
     }
 
-    return json({ ok: true, sent: true, messageId: result.messageId });
+    // Return full diagnostics so the frontend can show delivery proof
+    return json({
+      ok: true,
+      sent: true,
+      messageId: result.messageId ?? null,
+      httpStatus: result.httpStatus,
+      warning: result.warning ?? null,
+      rawBody: result.rawBody ?? null,
+    });
   } catch (e) {
     console.error("send-invite-email error:", e);
     return json({ ok: false, error: e instanceof Error ? e.message : "Unknown error" }, 500);

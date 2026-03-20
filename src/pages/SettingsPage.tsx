@@ -593,9 +593,18 @@ function InvitationSection() {
       });
       if (error) throw error;
       if (fnData?.ok === false) {
-        toast.error(fnData.error || "Failed to send invite");
+        toast.error(fnData.error || "Failed to send invite", {
+          description: fnData.rawBody ? `Brevo response: ${fnData.rawBody}` : undefined,
+          duration: 10000,
+        });
+      } else if (fnData?.warning) {
+        toast.warning(`Invite sent to ${invEmail} — but with a warning`, {
+          description: fnData.warning,
+          duration: 15000,
+        });
       } else {
-        toast.success(`Invite re-sent to ${invEmail}`);
+        const brevoId = fnData?.messageId ? ` (Brevo ID: ${fnData.messageId})` : "";
+        toast.success(`Invite sent to ${invEmail}${brevoId}`, { duration: 8000 });
       }
     } catch (e) {
       toast.error((e as Error).message || "Failed to resend invitation");
