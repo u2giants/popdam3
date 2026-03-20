@@ -626,6 +626,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                     className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
+                      setSelectedAssetId(null);
                       setCarouselIndex((i) => (i === 0 ? thumbStrip.length - 1 : i - 1));
                     }}
                   >
