@@ -238,6 +238,8 @@ serve(async (req: Request) => {
             licensor_code: item.licensor || item.licensorCode || null,
             property_code: item.property || item.propertyCode || null,
             division_code: item.divisionCode || null,
+            prepack_code: item.prepackCode || null,
+            prepack_codes: Array.isArray(item.prepackCodes) && item.prepackCodes.length > 0 ? item.prepackCodes : null,
             erp_updated_at: erpDate,
             sync_run_id: runId,
             synced_at: new Date().toISOString(),

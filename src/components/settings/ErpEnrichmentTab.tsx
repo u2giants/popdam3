@@ -503,6 +503,15 @@ function EnrichmentControls() {
                   {dryRunResult.sample_updates.map((row: any, idx: number) => (
                     <div key={`${row.external_id}-${idx}`} className="rounded border border-border/60 bg-background/60 p-2 text-[11px] font-mono">
                       <div>SKU: <span className="text-foreground">{row.sku}</span> · ERP ID: <span className="text-foreground">{row.external_id}</span></div>
+                      {row.description && <div className="text-muted-foreground truncate">Desc: <span className="text-foreground">{row.description}</span></div>}
+                      <div>
+                        AI category: <span className="text-foreground font-semibold">{row.predicted_category ?? "—"}</span>
+                        {row.prediction_status && row.prediction_status !== "erp" && (
+                          <span className={`ml-1.5 ${row.prediction_status === "pending" ? "text-yellow-500" : row.prediction_status === "auto_applied" ? "text-green-500" : "text-muted-foreground"}`}>
+                            [{row.prediction_status}]
+                          </span>
+                        )}
+                      </div>
                       <div>Matches → assets: <span className="text-foreground">{row.matching_asset_count ?? 0}</span>, groups: <span className="text-foreground">{row.matching_group_count ?? 0}</span></div>
                       <div>Source: <span className="text-foreground">{row.classification_source}</span> · Confidence: <span className="text-foreground">{typeof row.confidence === "number" ? `${Math.round(row.confidence * 100)}%` : "—"}</span></div>
                       <pre className="mt-1 whitespace-pre-wrap break-all text-[10px] text-muted-foreground">{JSON.stringify(row.proposed_fields ?? {}, null, 2)}</pre>
@@ -1051,6 +1060,8 @@ function ErpItemsBrowser() {
     { key: "licensor_code", label: "Licensor" },
     { key: "property_code", label: "Property" },
     { key: "division_code", label: "Division" },
+    { key: "prepack_code", label: "Prepack" },
+    { key: "prepack_codes", label: "Prepack Codes" },
   ];
 
   return (
@@ -1249,6 +1260,8 @@ function ErpItemsBrowser() {
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
+                              ) : col.key === "prepack_codes" && Array.isArray(item[col.key]) ? (
+                                <span className="text-foreground">{(item[col.key] as string[]).join(", ")}</span>
                               ) : item[col.key] ? (
                                 <span className="text-foreground">{item[col.key]}</span>
                               ) : (
