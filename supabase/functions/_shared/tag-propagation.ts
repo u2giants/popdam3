@@ -76,7 +76,7 @@ export async function propagateGroupTags(
   // 1. Fetch the source asset's product-level fields
   const { data: source, error: srcErr } = await db
     .from("assets")
-    .select("id, licensor_id, property_id, is_licensed, big_theme, little_theme, design_style, cover_description, style_group_id")
+    .select("id, licensor_id, property_id, is_licensed, big_theme, little_theme, design_style, cover_description, ai_description, style_group_id")
     .eq("id", sourceAssetId)
     .single();
 
@@ -110,7 +110,7 @@ export async function propagateGroupTags(
   // 4. Find siblings — fetch their metadata in the SAME query to avoid N+1
   let siblingQuery = db
     .from("assets")
-    .select("id, ai_tagged_at, licensor_id, property_id, is_licensed, big_theme, little_theme, design_style, cover_description")
+    .select("id, ai_tagged_at, licensor_id, property_id, is_licensed, big_theme, little_theme, design_style, cover_description, ai_description")
     .eq("style_group_id", styleGroupId)
     .eq("is_deleted", false)
     .neq("id", sourceAssetId);
@@ -166,6 +166,7 @@ export async function propagateGroupTags(
     if (!sibling.little_theme && source.little_theme) metaUpdates.little_theme = source.little_theme;
     if (!sibling.design_style && source.design_style) metaUpdates.design_style = source.design_style;
     if (!sibling.cover_description && source.cover_description) metaUpdates.cover_description = source.cover_description;
+    if (!sibling.ai_description && source.ai_description) metaUpdates.ai_description = source.ai_description;
 
     if (Object.keys(metaUpdates).length > 0) {
       metaUpdatePromises.push(Promise.resolve(db.from("assets").update(metaUpdates).eq("id", sibling.id)));
