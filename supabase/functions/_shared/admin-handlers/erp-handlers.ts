@@ -14,16 +14,57 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
 
   const db = serviceClient();
 
-  // Fetch ERP items that have MG category fields
-  const { data: erpItems, error: erpErr } = await db
-    .from("erp_items_current")
-    .select(
-      "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code",
-    )
-    .not("style_number", "is", null)
-    .neq("style_number", "")
-    .order("external_id")
-    .range(offset, offset + batchSize - 1);
+  // For dry-run: fetch items that actually match assets/groups so the sample is meaningful.
+  // For apply: process all items in external_id order (pagination via offset).
+  let erpItems:
+    | Array<{
+      id: string;
+      external_id: string;
+      style_number: string | null;
+      item_description: string | null;
+      mg_category: string | null;
+      mg01_code: string | null;
+      mg02_code: string | null;
+      mg03_code: string | null;
+      size_code: string | null;
+      licensor_code: string | null;
+      property_code: string | null;
+      division_code: string | null;
+    }>
+    | null = null;
+  let erpErr: { message: string } | null = null;
+
+  if (mode === "dry-run") {
+    // Pull ERP items whose SKU exists in assets or style_groups (limit 50 for the sample)
+    const { data, error } = await db.rpc("execute_readonly_query", {
+      query_text: `
+        SELECT e.id, e.external_id, e.style_number, e.item_description,
+               e.mg_category, e.mg01_code, e.mg02_code, e.mg03_code,
+               e.size_code, e.licensor_code, e.property_code, e.division_code
+        FROM erp_items_current e
+        WHERE e.style_number IS NOT NULL AND e.style_number <> ''
+          AND EXISTS (
+            SELECT 1 FROM assets a WHERE a.sku = e.style_number AND a.is_deleted = false
+          )
+        ORDER BY e.mg_category NULLS LAST, e.external_id
+        LIMIT 50
+      `,
+    });
+    erpItems = (data as typeof erpItems) ?? null;
+    erpErr = error ? { message: error.message } : null;
+  } else {
+    const { data, error } = await db
+      .from("erp_items_current")
+      .select(
+        "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code",
+      )
+      .not("style_number", "is", null)
+      .neq("style_number", "")
+      .order("external_id")
+      .range(offset, offset + batchSize - 1);
+    erpItems = data;
+    erpErr = error;
+  }
 
   if (erpErr) return err(erpErr.message, 500);
   if (!erpItems || erpItems.length === 0) {
@@ -49,11 +90,17 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     property_code: string | null;
     division_code: string | null;
   }): Promise<
-    { updates: Record<string, unknown>; classification_source: string; confidence: number; predicted_category: string | null; prediction_status: string | null }
+    {
+      updates: Record<string, unknown>;
+      classification_source: string | null;
+      confidence: number | null;
+      predicted_category: string | null;
+      prediction_status: string | null;
+    }
   > {
     const updates: Record<string, unknown> = {};
-    let classificationSource = "erp";
-    let confidence = 1.0;
+    let classificationSource: string | null = null;
+    let confidence: number | null = null;
     let productCategory: string | null = null;
     let predictedCategory: string | null = null;
     let predictionStatus: string | null = null;
@@ -80,6 +127,8 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       productCategory = erpItem.mg_category;
       predictedCategory = erpItem.mg_category;
       predictionStatus = "erp";
+      classificationSource = "erp";
+      confidence = 1.0;
     }
 
     // Apply ERP fields
