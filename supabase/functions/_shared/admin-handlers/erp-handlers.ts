@@ -17,7 +17,7 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   // Fetch ERP items that have MG category fields
   const { data: erpItems, error: erpErr } = await db
     .from("erp_items_current")
-    .select("id, external_id, style_number, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
+    .select("id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
     .not("style_number", "is", null)
     .neq("style_number", "")
     .order("external_id")
@@ -37,6 +37,7 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     id: string;
     external_id: string;
     style_number: string | null;
+    item_description: string | null;
     mg_category: string | null;
     mg01_code: string | null;
     mg02_code: string | null;
@@ -45,11 +46,13 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     licensor_code: string | null;
     property_code: string | null;
     division_code: string | null;
-  }): Promise<{ updates: Record<string, unknown>; classification_source: string; confidence: number }> {
+  }): Promise<{ updates: Record<string, unknown>; classification_source: string; confidence: number; predicted_category: string | null; prediction_status: string | null }> {
     const updates: Record<string, unknown> = {};
     let classificationSource = "erp";
     let confidence = 1.0;
     let productCategory: string | null = null;
+    let predictedCategory: string | null = null;
+    let predictionStatus: string | null = null;
 
     // Try AI prediction if no ERP category
     if (!erpItem.mg_category) {
@@ -57,15 +60,22 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
         .from("product_category_predictions")
         .select("predicted_category, confidence, classification_source, status")
         .eq("erp_item_id", erpItem.id)
+        .order("created_at", { ascending: false })
         .maybeSingle();
 
-      if (predictionRow && ["approved", "auto_applied"].includes(predictionRow.status)) {
-        productCategory = predictionRow.predicted_category;
-        classificationSource = predictionRow.classification_source || "ai";
-        confidence = predictionRow.confidence ?? 0.8;
+      if (predictionRow) {
+        predictedCategory = predictionRow.predicted_category;
+        predictionStatus = predictionRow.status;
+        if (["approved", "auto_applied"].includes(predictionRow.status)) {
+          productCategory = predictionRow.predicted_category;
+          classificationSource = predictionRow.classification_source || "ai";
+          confidence = predictionRow.confidence ?? 0.8;
+        }
       }
     } else {
       productCategory = erpItem.mg_category;
+      predictedCategory = erpItem.mg_category;
+      predictionStatus = "erp";
     }
 
     // Apply ERP fields
@@ -82,6 +92,8 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       updates,
       classification_source: classificationSource,
       confidence,
+      predicted_category: predictedCategory,
+      prediction_status: predictionStatus,
     };
   }
 
@@ -128,14 +140,17 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     const sample_updates: Array<Record<string, unknown>> = [];
     for (const erpItem of erpItems.slice(0, 20)) {
       if (!erpItem.style_number) continue;
-      const { updates, classification_source, confidence } = await buildProposedUpdates(erpItem);
-      if (Object.keys(updates).length === 0) continue;
+      const { updates, classification_source, confidence, predicted_category, prediction_status } = await buildProposedUpdates(erpItem);
+      if (Object.keys(updates).length === 0 && !predicted_category) continue;
 
       sample_updates.push({
         external_id: erpItem.external_id,
         sku: erpItem.style_number,
+        description: erpItem.item_description ?? null,
         classification_source,
         confidence,
+        predicted_category,
+        prediction_status,
         proposed_fields: updates,
         matching_asset_count: assetCountBySku.get(erpItem.style_number) ?? 0,
         matching_group_count: groupCountBySku.get(erpItem.style_number) ?? 0,
