@@ -63,23 +63,44 @@ function ErpSyncSection() {
   };
 
   return (
+    <TooltipProvider delayDuration={200}>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Database className="h-4 w-4" /> ERP Data Sync
-        </CardTitle>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CardTitle className="text-base flex items-center gap-2 cursor-help">
+              <Database className="h-4 w-4" /> ERP Data Sync
+            </CardTitle>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-xs">Pulls product data from the ERP system (api.item.designflow.app) into the local erp_items_current table. Run incrementally to get new/changed items, or Full Sync to re-download everything.</TooltipContent>
+        </Tooltip>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => refetchRuns()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => handleSync(true)} disabled={syncing} className="gap-1.5">
-            <Database className="h-3.5 w-3.5" />
-            Full Sync
-          </Button>
-          <Button size="sm" onClick={() => handleSync(false)} disabled={syncing} className="gap-1.5">
-            {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-            {syncing ? "Syncing..." : "Incremental Sync"}
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => refetchRuns()}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh sync history</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => handleSync(true)} disabled={syncing} className="gap-1.5">
+                <Database className="h-3.5 w-3.5" />
+                Full Sync
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">Re-download ALL items from the ERP regardless of date — slower but ensures nothing is missed</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" onClick={() => handleSync(false)} disabled={syncing} className="gap-1.5">
+                {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                {syncing ? "Syncing..." : "Incremental Sync"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">Download only items changed since the last sync watermark date — fast, runs in seconds</TooltipContent>
+          </Tooltip>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -137,6 +158,7 @@ function ErpSyncSection() {
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
 
@@ -152,14 +174,25 @@ function QualityDashboard() {
   const s = stats || {};
 
   return (
+    <TooltipProvider delayDuration={200}>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" /> Enrichment Quality
-        </CardTitle>
-        <Button variant="ghost" size="icon" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CardTitle className="text-base flex items-center gap-2 cursor-help">
+              <BarChart3 className="h-4 w-4" /> Enrichment Quality
+            </CardTitle>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-xs">Overview of how many ERP items have been classified and how many of your assets/groups they match</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh stats</TooltipContent>
+        </Tooltip>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -167,15 +200,15 @@ function QualityDashboard() {
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="ERP Items Synced" value={s.total_erp_items ?? 0} icon={<Database className="h-4 w-4" />} />
-              <StatCard label="Has mgCategory" value={s.with_mg_category ?? 0} icon={<CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />} />
-              <StatCard label="Legacy (pre-cutoff)" value={s.legacy_items ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} />
-              <StatCard label="Rule-Classified" value={s.rule_classified ?? 0} icon={<Zap className="h-4 w-4 text-primary" />} />
-              <StatCard label="AI-Classified" value={s.ai_classified ?? 0} icon={<Bot className="h-4 w-4 text-[hsl(var(--info))]" />} />
-              <StatCard label="Needs AI" value={s.needs_ai ?? 0} icon={<AlertCircle className="h-4 w-4 text-[hsl(var(--warning))]" />} />
-              <StatCard label="Pending Review" value={s.pending_review ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} />
-              <StatCard label="SKU Matched" value={s.sku_matched ?? 0} icon={<CheckCircle2 className="h-4 w-4" />} />
-              <StatCard label="Unmatched SKUs" value={s.unmatched_skus ?? 0} icon={<AlertCircle className="h-4 w-4 text-destructive" />} />
+              <StatCard label="ERP Items Synced" value={s.total_erp_items ?? 0} icon={<Database className="h-4 w-4" />} tooltip="Total number of product records pulled from the ERP system" />
+              <StatCard label="Has mgCategory" value={s.with_mg_category ?? 0} icon={<CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />} tooltip="ERP items where the ERP system itself provides a product category (mg_category field) — no AI needed" />
+              <StatCard label="Legacy (pre-cutoff)" value={s.legacy_items ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="Items created before the category cutoff date — their mg_category was nulled because the coding logic changed on that date; these need AI classification" />
+              <StatCard label="Rule-Classified" value={s.rule_classified ?? 0} icon={<Zap className="h-4 w-4 text-primary" />} tooltip="Items whose product category was determined by deterministic code rules (e.g. 'Clock' items always map to the Clock category) — no AI call needed" />
+              <StatCard label="AI-Classified" value={s.ai_classified ?? 0} icon={<Bot className="h-4 w-4 text-[hsl(var(--info))]" />} tooltip="Items where Claude AI looked at the description and MG codes and predicted a product category" />
+              <StatCard label="Needs AI" value={s.needs_ai ?? 0} icon={<AlertCircle className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="Items with no category yet that have a matching SKU in your asset library — eligible for AI classification. Run 'Classify Now' to process these." />
+              <StatCard label="Pending Review" value={s.pending_review ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="AI predictions with confidence below 65% — Claude wasn't sure enough to auto-apply. These appear in the Review Queue for you to approve or reject." />
+              <StatCard label="SKU Matched" value={s.sku_matched ?? 0} icon={<CheckCircle2 className="h-4 w-4" />} tooltip="ERP items whose style_number (SKU) exists in at least one asset or style group — these can actually be enriched" />
+              <StatCard label="Unmatched SKUs" value={s.unmatched_skus ?? 0} icon={<AlertCircle className="h-4 w-4 text-destructive" />} tooltip="ERP items whose SKU doesn't match any asset or style group — enrichment has no effect on these until the assets are uploaded" />
             </div>
             {s.category_cutoff && (
               <p className="text-xs text-muted-foreground mt-2">
@@ -186,18 +219,26 @@ function QualityDashboard() {
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
 
-function StatCard({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
-  return (
-    <div className="border border-border rounded-md p-3 space-y-1">
+function StatCard({ label, value, icon, tooltip }: { label: string; value: number; icon: React.ReactNode; tooltip?: string }) {
+  const card = (
+    <div className={`border border-border rounded-md p-3 space-y-1 ${tooltip ? "cursor-help" : ""}`}>
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {icon}
         {label}
       </div>
       <div className="text-xl font-semibold">{value.toLocaleString()}</div>
     </div>
+  );
+  if (!tooltip) return card;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{card}</TooltipTrigger>
+      <TooltipContent className="max-w-xs text-xs">{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -300,6 +341,107 @@ function ClassificationLiveLog({ active }: { active: boolean }) {
   );
 }
 
+// ── Enrichment Apply Live Log ─────────────────────────────────────────
+
+const ENRICHED_FIELDS: Array<{ key: string; label: string }> = [
+  { key: "product_category", label: "Category" },
+  { key: "mg01_code", label: "MG01" },
+  { key: "mg02_code", label: "MG02" },
+  { key: "mg03_code", label: "MG03" },
+  { key: "size_code", label: "Size" },
+  { key: "licensor_code", label: "Licensor" },
+  { key: "property_code", label: "Property" },
+  { key: "division_code", label: "Division" },
+];
+
+function EnrichmentApplyLiveLog({ active, startedAt }: { active: boolean; startedAt?: string }) {
+  const [entries, setEntries] = useState<Array<{
+    id: string;
+    sku: string | null;
+    updated_at: string;
+    product_category: string | null;
+    mg01_code: string | null;
+    mg02_code: string | null;
+    mg03_code: string | null;
+    size_code: string | null;
+    licensor_code: string | null;
+    property_code: string | null;
+    division_code: string | null;
+  }>>([]);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!active || !startedAt) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      const { data } = await supabase
+        .from("assets")
+        .select("id, sku, updated_at, product_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
+        .gte("updated_at", startedAt)
+        .eq("is_deleted", false)
+        .order("updated_at", { ascending: false })
+        .limit(200);
+
+      if (cancelled || !data) return;
+      setEntries(prev => {
+        const newIds = data.map((r: any) => r.id).join(",");
+        const oldIds = prev.map(r => r.id).join(",");
+        if (newIds === oldIds) return prev;
+        return data as typeof prev;
+      });
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [active, startedAt]);
+
+  if (entries.length === 0) return null;
+
+  // Group by SKU to show one row per style
+  const bySku = new Map<string, typeof entries>();
+  for (const e of entries) {
+    const k = e.sku ?? "(no SKU)";
+    if (!bySku.has(k)) bySku.set(k, []);
+    bySku.get(k)!.push(e);
+  }
+  const skuRows = [...bySku.entries()].slice(0, expanded ? undefined : 10);
+
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <List className="h-3 w-3" /> Recently Updated Assets ({entries.length})
+        </p>
+        {bySku.size > 10 && (
+          <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => setExpanded(!expanded)}>
+            {expanded ? "Collapse" : `Show all ${bySku.size} SKUs`}
+          </Button>
+        )}
+      </div>
+      <div className={`overflow-auto border border-border rounded-md bg-background/80 ${expanded ? "max-h-72" : "max-h-48"}`}>
+        <div className="divide-y divide-border">
+          {skuRows.map(([sku, assets]) => {
+            const sample = assets[0];
+            const setFields = ENRICHED_FIELDS.filter(f => sample[f.key as keyof typeof sample]);
+            return (
+              <div key={sku} className="px-2.5 py-1.5 text-[11px] font-mono flex items-start gap-3">
+                <span className="shrink-0 w-14 text-muted-foreground">{new Date(sample.updated_at).toLocaleTimeString()}</span>
+                <span className="shrink-0 font-semibold text-foreground w-28 truncate" title={sku}>{sku}</span>
+                <span className="shrink-0 text-muted-foreground w-16">{assets.length} asset{assets.length !== 1 ? "s" : ""}</span>
+                <span className="flex-1 text-muted-foreground truncate">
+                  {setFields.map(f => `${f.label}=${sample[f.key as keyof typeof sample]}`).join(" · ") || "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Enrichment Controls ──────────────────────────────────────────────
 
 function EnrichmentControls() {
@@ -338,11 +480,17 @@ function EnrichmentControls() {
   };
 
   return (
+    <TooltipProvider delayDuration={200}>
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Zap className="h-4 w-4" /> Enrichment Controls
-        </CardTitle>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CardTitle className="text-base flex items-center gap-2 cursor-help">
+              <Zap className="h-4 w-4" /> Enrichment Controls
+            </CardTitle>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-xs">Two-step process: (1) AI Classification assigns a product category to ERP items that lack one; (2) Apply Enrichment writes ERP attributes (category, MG codes, size, licensor…) to matching assets and style groups</TooltipContent>
+        </Tooltip>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* AI Classification */}
@@ -384,22 +532,32 @@ function EnrichmentControls() {
             </div>
             <div className="flex items-center gap-2">
               {(classifyOp.state.status === "running" || classifyOp.state.status === "queued") ? (
-                <Button size="sm" variant="destructive" onClick={() => classifyOp.stop()} className="gap-1.5">
-                  <X className="h-3.5 w-3.5" /> Stop
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="destructive" onClick={() => classifyOp.stop()} className="gap-1.5">
+                      <X className="h-3.5 w-3.5" /> Stop
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Stop the classification run after the current batch finishes</TooltipContent>
+                </Tooltip>
               ) : classifyOp.state.status === "interrupted" || classifyOp.state.status === "failed" ? (
-                <Button size="sm" variant="secondary" onClick={handleClassify} className="gap-1.5">
-                  <Play className="h-3.5 w-3.5" /> Retry
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="secondary" onClick={handleClassify} className="gap-1.5">
+                      <Play className="h-3.5 w-3.5" /> Retry
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Resume classification from where it stopped</TooltipContent>
+                </Tooltip>
               ) : (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleClassify}
-                  className="gap-1.5"
-                >
-                  <Bot className="h-3.5 w-3.5" /> Classify Now
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="secondary" onClick={handleClassify} className="gap-1.5">
+                      <Bot className="h-3.5 w-3.5" /> Classify Now
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">Send unclassified ERP items to Claude AI (Haiku). Items with confidence ≥65% are auto-applied; lower confidence goes to the Review Queue for you to approve.</TooltipContent>
+                </Tooltip>
               )}
             </div>
           </div>
@@ -447,43 +605,91 @@ function EnrichmentControls() {
         </div>
 
         {/* Enrichment Apply */}
-        <div className="border border-border rounded-md p-3 space-y-2">
+        <div className={`border rounded-md p-3 space-y-2 ${enrichOp.isActive ? "border-primary bg-primary/5" : "border-border"}`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Apply Enrichment</p>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="text-sm font-medium cursor-help">Apply Enrichment</p>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs">
+                  Walks every ERP item in batches of 100. For each item's style number (SKU), finds all matching assets and style groups and writes: product_category, mg01/02/03_code, size_code, licensor_code, property_code, division_code. One ERP item = one SKU = potentially many assets updated.
+                </TooltipContent>
+              </Tooltip>
               <p className="text-xs text-muted-foreground">Map ERP attributes to existing assets & style groups</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={handleDryRun} className="gap-1.5">
-                <Eye className="h-3.5 w-3.5" /> Dry Run
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="sm" variant="outline" onClick={handleDryRun} className="gap-1.5">
+                    <Eye className="h-3.5 w-3.5" /> Dry Run
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs">Preview what would be updated without writing anything — shows sample items, proposed field values, and match counts</TooltipContent>
+              </Tooltip>
               {enrichOp.isActive ? (
-                <Button size="sm" variant="destructive" onClick={() => enrichOp.stop()} className="gap-1.5">
-                  <X className="h-3.5 w-3.5" /> Stop
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="destructive" onClick={() => enrichOp.stop()} className="gap-1.5">
+                      <X className="h-3.5 w-3.5" /> Stop
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Stop after the current batch of 100 ERP items finishes</TooltipContent>
+                </Tooltip>
               ) : (
                 <>
-                  <Button size="sm" onClick={() => handleApply(false)} className="gap-1.5">
-                    <Play className="h-3.5 w-3.5" /> Apply
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleApply(true)} className="gap-1.5 text-xs">
-                    Force
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="sm" onClick={() => handleApply(false)} className="gap-1.5">
+                        <Play className="h-3.5 w-3.5" /> Apply
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">Write ERP fields to all matching assets and style groups. Only overwrites if the ERP value has higher confidence than the existing value.</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="sm" variant="destructive" onClick={() => handleApply(true)} className="gap-1.5 text-xs">
+                        Force
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">Force-write ALL ERP fields, overwriting existing values regardless of confidence. Use when you want ERP data to win unconditionally.</TooltipContent>
+                  </Tooltip>
                 </>
               )}
             </div>
           </div>
-          {enrichOp.isActive && enrichOp.state.progress && (
-            <div className="space-y-1">
-              <Progress value={((enrichOp.state.progress.updated as number || 0) / Math.max(enrichOp.state.progress.total as number || 1, 1)) * 100} className="h-2" />
-              <p className="text-xs text-muted-foreground">
-                {String(enrichOp.state.progress.updated || 0)} / {String(enrichOp.state.progress.total || "?")} updated
-              </p>
+          {(enrichOp.isActive || enrichOp.state.status === "interrupted") && enrichOp.state.progress && (
+            <div className="space-y-1.5">
+              <Progress value={100} className="h-1.5 animate-pulse" />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help">
+                      <span className="font-medium text-foreground">{(enrichOp.state.progress.total as number || 0).toLocaleString()}</span> ERP items scanned
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">Number of ERP product records processed so far. Each "item" is one SKU/style number from the ERP system.</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help">
+                      <span className="font-medium text-foreground">{(enrichOp.state.progress.assets_updated as number || 0).toLocaleString()}</span> assets
+                      {" · "}
+                      <span className="font-medium text-foreground">{(enrichOp.state.progress.groups_updated as number || 0).toLocaleString()}</span> groups updated
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">Total individual database rows updated — one SKU can match many assets and groups, so this is typically much larger than "ERP items scanned"</TooltipContent>
+                </Tooltip>
+              </div>
             </div>
           )}
           {enrichOp.state.status === "completed" && (
             <p className="text-xs text-[hsl(var(--success))]">{enrichOp.state.result_message}</p>
           )}
+          <EnrichmentApplyLiveLog
+            active={enrichOp.isActive}
+            startedAt={enrichOp.state.started_at}
+          />
         </div>
 
         {/* Dry Run Results */}
@@ -524,6 +730,7 @@ function EnrichmentControls() {
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
 
@@ -608,12 +815,12 @@ function ReviewQueue() {
 
   const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
   const STATUS_TABS = [
-    { key: "pending", label: "Pending" },
-    { key: "low_confidence", label: "Low Confidence (<50%)" },
-    { key: "auto_applied", label: "Auto-Applied" },
-    { key: "approved", label: "Approved" },
-    { key: "rejected", label: "Rejected" },
-    { key: "unclassifiable", label: "Unclassifiable" },
+    { key: "pending", label: "Pending", tooltip: "AI predictions with 50–64% confidence — Claude had some doubt. Review and approve or reject each one." },
+    { key: "low_confidence", label: "Low Confidence (<50%)", tooltip: "AI predictions where Claude was less than 50% confident — likely ambiguous or junk product descriptions. These will not be auto-applied." },
+    { key: "auto_applied", label: "Auto-Applied", tooltip: "Predictions with ≥65% confidence that were automatically accepted — 'Apply Enrichment' will use these as the product_category. You can still revert them to Pending." },
+    { key: "approved", label: "Approved", tooltip: "Predictions you manually approved (or overrode with a different category). These are treated the same as Auto-Applied." },
+    { key: "rejected", label: "Rejected", tooltip: "Predictions you marked as wrong. The item can still be re-classified by running AI Classification again." },
+    { key: "unclassifiable", label: "Unclassifiable", tooltip: "Items where the product description was too vague or nonsensical for the AI to classify — e.g. a description that is just a style number, or 'TEST'." },
   ];
 
   const canRevert = statusFilter === "auto_applied" || statusFilter === "approved";
@@ -676,10 +883,15 @@ function ReviewQueue() {
     <TooltipProvider delayDuration={200}>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" /> Review Queue
-          <Badge variant="secondary" className="text-xs">{total}</Badge>
-        </CardTitle>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <CardTitle className="text-base flex items-center gap-2 cursor-help">
+              <AlertCircle className="h-4 w-4" /> Review Queue
+              <Badge variant="secondary" className="text-xs">{total}</Badge>
+            </CardTitle>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-xs">AI predictions that need human review before being applied to your assets. Only populated after running "AI Classification". Items auto-applied at ≥65% confidence bypass this queue.</TooltipContent>
+        </Tooltip>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && canReject && (
             <>
@@ -713,27 +925,36 @@ function ReviewQueue() {
               </Tooltip>
             </>
           )}
-          <Button variant="ghost" size="icon" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh the queue</TooltipContent>
+          </Tooltip>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Status tabs */}
         <div className="flex flex-wrap gap-1">
           {STATUS_TABS.map((tab) => (
-            <Button
-              key={tab.key}
-              size="sm"
-              variant={statusFilter === tab.key ? "default" : "outline"}
-              className="text-xs h-7 gap-1"
-              onClick={() => { setStatusFilter(tab.key); setPage(1); setSelectedIds(new Set()); }}
-            >
-              {tab.label}
-              {typeof statusCounts[tab.key] === "number" && (
-                <span className="text-[10px] opacity-70">({statusCounts[tab.key]})</span>
-              )}
-            </Button>
+            <Tooltip key={tab.key}>
+              <TooltipTrigger asChild>
+                <Button
+                  size="sm"
+                  variant={statusFilter === tab.key ? "default" : "outline"}
+                  className="text-xs h-7 gap-1"
+                  onClick={() => { setStatusFilter(tab.key); setPage(1); setSelectedIds(new Set()); }}
+                >
+                  {tab.label}
+                  {typeof statusCounts[tab.key] === "number" && (
+                    <span className="text-[10px] opacity-70">({statusCounts[tab.key]})</span>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">{tab.tooltip}</TooltipContent>
+            </Tooltip>
           ))}
         </div>
 
