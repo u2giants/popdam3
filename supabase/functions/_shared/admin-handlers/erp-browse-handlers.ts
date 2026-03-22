@@ -331,7 +331,7 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const countSql = `SELECT count(*)::int as cnt FROM erp_items_current ${whereClause}`;
     const dataSql =
-      `SELECT id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, external_id, dismissed FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${
+      `SELECT id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, prepack_code, prepack_codes, erp_updated_at, synced_at, raw_mg_fields, external_id, dismissed FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${
         sortAsc ? "ASC" : "DESC"
       } NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
 
@@ -362,7 +362,7 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
 
   let dataQuery = db.from("erp_items_current")
     .select(
-      "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, erp_updated_at, synced_at, raw_mg_fields, dismissed",
+      "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, prepack_code, prepack_codes, erp_updated_at, synced_at, raw_mg_fields, dismissed",
     )
     .order(effectiveSort, { ascending: sortAsc, nullsFirst: false })
     .range(offset, offset + pageSize - 1);

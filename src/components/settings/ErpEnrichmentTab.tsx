@@ -1060,6 +1060,8 @@ function ErpItemsBrowser() {
     { key: "licensor_code", label: "Licensor" },
     { key: "property_code", label: "Property" },
     { key: "division_code", label: "Division" },
+    { key: "prepack_code", label: "Prepack" },
+    { key: "prepack_codes", label: "Prepack Codes" },
   ];
 
   return (
@@ -1258,6 +1260,8 @@ function ErpItemsBrowser() {
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
+                              ) : col.key === "prepack_codes" && Array.isArray(item[col.key]) ? (
+                                <span className="text-foreground">{(item[col.key] as string[]).join(", ")}</span>
                               ) : item[col.key] ? (
                                 <span className="text-foreground">{item[col.key]}</span>
                               ) : (
