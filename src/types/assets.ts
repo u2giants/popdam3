@@ -21,6 +21,7 @@ export interface AssetFilters {
   artSource: string[];
   tagFilter: string;
   fileStatus: FileStatusFilter[];
+  productCategory: string[];
 }
 
 export const defaultFilters: AssetFilters = {
@@ -35,6 +36,7 @@ export const defaultFilters: AssetFilters = {
   artSource: [],
   tagFilter: "",
   fileStatus: [],
+  productCategory: [],
 };
 
 export interface FacetCounts {
@@ -56,7 +58,8 @@ export function hasActiveFilters(filters: AssetFilters): boolean {
     filters.assetType.length > 0 ||
     filters.artSource.length > 0 ||
     filters.tagFilter !== "" ||
-    filters.fileStatus.length > 0
+    filters.fileStatus.length > 0 ||
+    filters.productCategory.length > 0
   );
 }
 
@@ -72,5 +75,6 @@ export function countActiveFilters(filters: AssetFilters): number {
   if (filters.artSource.length > 0) count++;
   if (filters.tagFilter) count++;
   if (filters.fileStatus.length > 0) count++;
+  if (filters.productCategory.length > 0) count++;
   return count;
 }
