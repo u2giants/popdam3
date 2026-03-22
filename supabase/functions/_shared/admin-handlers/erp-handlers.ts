@@ -17,9 +17,7 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   // Fetch ERP items that have MG category fields
   const { data: erpItems, error: erpErr } = await db
     .from("erp_items_current")
-    .select(
-      "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code",
-    )
+    .select("id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
     .not("style_number", "is", null)
     .neq("style_number", "")
     .order("external_id")
@@ -48,9 +46,7 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
     licensor_code: string | null;
     property_code: string | null;
     division_code: string | null;
-  }): Promise<
-    { updates: Record<string, unknown>; classification_source: string; confidence: number; predicted_category: string | null; prediction_status: string | null }
-  > {
+  }): Promise<{ updates: Record<string, unknown>; classification_source: string; confidence: number; predicted_category: string | null; prediction_status: string | null }> {
     const updates: Record<string, unknown> = {};
     let classificationSource = "erp";
     let confidence = 1.0;
