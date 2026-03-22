@@ -23,6 +23,8 @@ import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handler
 const CONFIG_KEY = "BULK_OPERATIONS";
 const STALE_RUN_MINUTES = 10;
 const INTERRUPT_CHECK_EVERY = 10;
+/** Yield after this many batches so the round-robin can serve other operations */
+const MAX_BATCHES_PER_TICK = 5;
 
 // Lane isolation — operations in the same lane are mutually exclusive
 const OP_LANES: Record<string, string> = {
@@ -352,6 +354,12 @@ export async function tick(): Promise<void> {
         updated_at: new Date().toISOString(),
       });
       return;
+    }
+
+    // Yield after MAX_BATCHES_PER_TICK so other operations get a turn
+    if (batchCount >= MAX_BATCHES_PER_TICK) {
+      logger.info("tick: yielding after max batches", { opKey, batches: batchCount, cursor });
+      return; // State already saved above; main loop re-enters tick()
     }
   }
 }
