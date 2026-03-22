@@ -77,6 +77,9 @@ function applyStyleGroupFilters(query: any, filters: AssetFilters) {
   if (filters.assetType.length > 0) {
     query = query.in("primary_asset_type", filters.assetType);
   }
+  if (filters.productCategory.length > 0) {
+    query = query.in("product_category", filters.productCategory);
+  }
   return query;
 }
 

@@ -56,6 +56,9 @@ function applyFilters(query: any, filters: AssetFilters) {
   if (filters.artSource.length > 0) {
     query = query.in("art_source", filters.artSource);
   }
+  if (filters.productCategory.length > 0) {
+    query = query.in("product_category", filters.productCategory);
+  }
   if (filters.tagFilter) {
     query = query.contains("tags", [filters.tagFilter]);
   }

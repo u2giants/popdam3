@@ -232,6 +232,7 @@ export default function FilterSidebar({
       artSource: [],
       tagFilter: "",
       fileStatus: [],
+      productCategory: [],
     });
 
   const licensorOptions: ComboOption[] = licensors.map((l) => ({
@@ -392,6 +393,15 @@ export default function FilterSidebar({
             value={filters.propertyId}
             onChange={(id) => update({ propertyId: id })}
             placeholder="Search properties…"
+          />
+
+          {/* Product Category */}
+          <Separator />
+          <CheckboxGroup
+            label="Product Category"
+            options={["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"]}
+            selected={filters.productCategory}
+            onChange={(v) => update({ productCategory: v })}
           />
 
           {/* Image Type */}
