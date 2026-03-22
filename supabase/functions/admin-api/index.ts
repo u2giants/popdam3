@@ -434,7 +434,7 @@ async function handleRunQuery(body: Record<string, unknown>) {
   }
 
   const trimmed = sql.trim().replace(/;+\s*$/, "");
-  if (!/^select\s/i.test(trimmed)) {
+  if (!/^(select|with)\s/i.test(trimmed)) {
     return err("Only SELECT queries are allowed");
   }
 
