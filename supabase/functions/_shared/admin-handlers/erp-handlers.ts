@@ -5,6 +5,17 @@
 import { serviceClient } from "../service-client.ts";
 import { err, json } from "../http.ts";
 
+/** Derive a short card label from an ERP item_description.
+ *  "Lapdesk_Solid Blue_23.5x10" x15.5"" → "Lapdesk Solid Blue"
+ */
+function deriveErpCoverDescription(itemDescription: string | null): string | null {
+  if (!itemDescription?.trim()) return null;
+  let s = itemDescription.replace(/_/g, " ");
+  s = s.replace(/\b\d+\.?\d*["″]?\s*[xX×]\s*\d+\.?\d*["″]?(?:\s*[xX×]\s*\d+\.?\d*["″]?)*/g, "");
+  s = s.replace(/\s+/g, " ").replace(/^[\s\-_,]+|[\s\-_,]+$/g, "").trim();
+  return s || null;
+}
+
 // ── Route: apply-erp-enrichment ─────────────────────────────────────
 
 export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
@@ -256,6 +267,18 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       .eq("sku", erpItem.style_number)
       .select("id");
     groupsUpdated += groupRows?.length ?? 0;
+
+    // Populate cover_description on untagged assets from ERP item_description.
+    // Only writes where cover_description IS NULL so AI-tagged values are never overwritten.
+    // The sync_cover_description_to_style_group trigger propagates it to style_groups.
+    const coverDesc = deriveErpCoverDescription(erpItem.item_description ?? null);
+    if (coverDesc) {
+      await db.from("assets")
+        .update({ cover_description: coverDesc })
+        .eq("sku", erpItem.style_number)
+        .eq("is_deleted", false)
+        .is("cover_description", null);
+    }
   }
 
   const done = erpItems.length < batchSize;

@@ -17,6 +17,18 @@ import type { BatchResult, OpState } from "../types.js";
 
 // ── ERP Enrichment ───────────────────────────────────────────────────────────
 
+/** Derive a short card label from an ERP item_description.
+ *  "Lapdesk_Solid Blue_23.5x10" x15.5"" → "Lapdesk Solid Blue"
+ */
+function deriveErpCoverDescription(itemDescription: string | null): string | null {
+  if (!itemDescription?.trim()) return null;
+  let s = itemDescription.replace(/_/g, " ");
+  // Strip dimension patterns: 23.5x10" x15.5", 10x15, etc.
+  s = s.replace(/\b\d+\.?\d*["″]?\s*[xX×]\s*\d+\.?\d*["″]?(?:\s*[xX×]\s*\d+\.?\d*["″]?)*/g, "");
+  s = s.replace(/\s+/g, " ").replace(/^[\s\-_,]+|[\s\-_,]+$/g, "").trim();
+  return s || null;
+}
+
 export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchResult> {
   const client = db();
   const mode = (opState.params?.mode as string) || "apply";
@@ -25,7 +37,7 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
 
   const { data: erpItems, error: erpErr } = await client
     .from("erp_items_current")
-    .select("id, external_id, style_number, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
+    .select("id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
     .not("style_number", "is", null)
     .neq("style_number", "")
     .order("external_id")
@@ -85,6 +97,19 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
         .eq("sku", erpItem.style_number)
         .select("id");
       groupsUpdated += groupRows?.length ?? 0;
+
+      // Populate cover_description on untagged assets from ERP item_description.
+      // Only writes where cover_description IS NULL so AI-tagged values are never overwritten.
+      // The sync_cover_description_to_style_group trigger propagates it to style_groups.
+      const coverDesc = deriveErpCoverDescription(erpItem.item_description ?? null);
+      if (coverDesc) {
+        await client
+          .from("assets")
+          .update({ cover_description: coverDesc })
+          .eq("sku", erpItem.style_number)
+          .eq("is_deleted", false)
+          .is("cover_description", null);
+      }
     }
   }
 
