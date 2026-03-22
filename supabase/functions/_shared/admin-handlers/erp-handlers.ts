@@ -35,23 +35,33 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   let erpErr: { message: string } | null = null;
 
   if (mode === "dry-run") {
-    // Pull ERP items whose SKU exists in assets or style_groups (limit 50 for the sample)
-    const { data, error } = await db.rpc("execute_readonly_query", {
-      query_text: `
-        SELECT e.id, e.external_id, e.style_number, e.item_description,
-               e.mg_category, e.mg01_code, e.mg02_code, e.mg03_code,
-               e.size_code, e.licensor_code, e.property_code, e.division_code
-        FROM erp_items_current e
-        WHERE e.style_number IS NOT NULL AND e.style_number <> ''
-          AND EXISTS (
-            SELECT 1 FROM assets a WHERE a.sku = e.style_number AND a.is_deleted = false
-          )
-        ORDER BY e.mg_category NULLS LAST, e.external_id
-        LIMIT 50
-      `,
-    });
-    erpItems = (data as typeof erpItems) ?? null;
-    erpErr = error ? { message: error.message } : null;
+    // Fetch a candidate batch of ERP items (mg_category first), then filter to those
+    // that have a matching asset SKU — avoids execute_readonly_query RPC restrictions.
+    const { data: candidates, error: candidateErr } = await db
+      .from("erp_items_current")
+      .select(
+        "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code",
+      )
+      .not("style_number", "is", null)
+      .neq("style_number", "")
+      .order("mg_category", { ascending: true, nullsFirst: false })
+      .order("external_id", { ascending: true })
+      .limit(300);
+
+    if (candidateErr) {
+      erpItems = null;
+      erpErr = { message: candidateErr.message };
+    } else {
+      const candidateSkus = (candidates ?? []).map((c) => c.style_number).filter(Boolean) as string[];
+      const { data: matchedAssets } = await db
+        .from("assets")
+        .select("sku")
+        .in("sku", candidateSkus.length > 0 ? candidateSkus : ["__none__"])
+        .eq("is_deleted", false);
+      const matchedSkuSet = new Set((matchedAssets ?? []).map((a) => a.sku).filter(Boolean));
+      erpItems = (candidates ?? []).filter((c) => c.style_number && matchedSkuSet.has(c.style_number)).slice(0, 50);
+      erpErr = null;
+    }
   } else {
     const { data, error } = await db
       .from("erp_items_current")
