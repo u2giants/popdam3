@@ -268,16 +268,15 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       .select("id");
     groupsUpdated += groupRows?.length ?? 0;
 
-    // Populate cover_description on untagged assets from ERP item_description.
-    // Only writes where cover_description IS NULL so AI-tagged values are never overwritten.
+    // Populate cover_description on assets from ERP item_description.
+    // ERP always takes precedence — overwrites AI-tagged values.
     // The sync_cover_description_to_style_group trigger propagates it to style_groups.
     const coverDesc = deriveErpCoverDescription(erpItem.item_description ?? null);
     if (coverDesc) {
       await db.from("assets")
         .update({ cover_description: coverDesc })
         .eq("sku", erpItem.style_number)
-        .eq("is_deleted", false)
-        .is("cover_description", null);
+        .eq("is_deleted", false);
     }
   }
 
