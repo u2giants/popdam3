@@ -12,7 +12,7 @@ function deriveErpCoverDescription(itemDescription: string | null): string | nul
   if (!itemDescription?.trim()) return null;
   let s = itemDescription.replace(/_/g, " ");
   s = s.replace(/\b\d+\.?\d*["″]?\s*[xX×]\s*\d+\.?\d*["″]?(?:\s*[xX×]\s*\d+\.?\d*["″]?)*/g, "");
-  s = s.replace(/\s+/g, " ").replace(/^[\s\-_,]+|[\s\-_,]+$/g, "").trim();
+  s = s.replace(/\s+/g, " ").replace(/^[\s\-_,"″]+|[\s\-_,"″]+$/g, "").trim();
   return s || null;
 }
 
