@@ -25,7 +25,7 @@ function deriveErpCoverDescription(itemDescription: string | null): string | nul
   let s = itemDescription.replace(/_/g, " ");
   // Strip dimension patterns: 23.5x10" x15.5", 10x15, etc.
   s = s.replace(/\b\d+\.?\d*["″]?\s*[xX×]\s*\d+\.?\d*["″]?(?:\s*[xX×]\s*\d+\.?\d*["″]?)*/g, "");
-  s = s.replace(/\s+/g, " ").replace(/^[\s\-_,]+|[\s\-_,]+$/g, "").trim();
+  s = s.replace(/\s+/g, " ").replace(/^[\s\-_,"″]+|[\s\-_,"″]+$/g, "").trim();
   return s || null;
 }
 
