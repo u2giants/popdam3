@@ -468,8 +468,8 @@ jobs:
         shell: bash
         continue-on-error: true
         run: |
-          DOWNLOAD_URL="https://github.com/u2giants/openclaw/releases/download/windows-agent-latest/popdam-windows-agent-dist.zip"
-          INSTALLER_URL="https://github.com/u2giants/openclaw/releases/download/windows-agent-latest/popdam-windows-agent-setup.exe"
+          DOWNLOAD_URL="https://github.com/u2giants/popdam3/releases/download/windows-agent-latest/popdam-windows-agent-dist.zip"
+          INSTALLER_URL="https://github.com/u2giants/popdam3/releases/download/windows-agent-latest/popdam-windows-agent-setup.exe"
           curl -sS -X POST \
             "${{ secrets.SUPABASE_URL }}/functions/v1/agent-api" \
             -H "Content-Type: application/json" \
