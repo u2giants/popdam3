@@ -34,6 +34,9 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
   const mode = (opState.params?.mode as string) || "apply";
   const batchSize = 100;
   const offset = typeof opState.cursor === "number" ? opState.cursor : 0;
+  const runId = typeof opState.run_id === "string" && opState.run_id.length > 0
+    ? opState.run_id
+    : crypto.randomUUID();
 
   const { data: erpItems, error: erpErr } = await client
     .from("erp_items_current")
@@ -56,6 +59,8 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
 
     const updates: Record<string, unknown> = {};
     let productCategory: string | null = null;
+    let classificationSource = "erp";
+    let confidence: number | null = null;
 
     if (!erpItem.mg_category) {
       const { data: predictionRow } = await client
@@ -66,9 +71,13 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
 
       if (predictionRow && ["approved", "auto_applied"].includes(predictionRow.status)) {
         productCategory = predictionRow.predicted_category;
+        classificationSource = predictionRow.classification_source || "ai";
+        confidence = predictionRow.confidence ?? null;
       }
     } else {
       productCategory = erpItem.mg_category;
+      classificationSource = "erp";
+      confidence = 1;
     }
 
     if (erpItem.mg01_code) updates.mg01_code = erpItem.mg01_code;
@@ -80,9 +89,28 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
     if (erpItem.division_code) updates.division_code = erpItem.division_code;
     if (productCategory) updates.product_category = productCategory;
 
+    const coverDesc = deriveErpCoverDescription(erpItem.item_description ?? null);
+    if (coverDesc) updates.cover_description = coverDesc;
+
     if (Object.keys(updates).length === 0) continue;
 
     if (mode !== "dry-run") {
+      const updateFields = Object.keys(updates);
+
+      const [{ data: currentAssets }, { data: currentGroups }] = await Promise.all([
+        client
+          .from("assets")
+          .select(`id, ${updateFields.join(", ")}`)
+          .eq("sku", erpItem.style_number)
+          .eq("is_deleted", false)
+          .limit(1),
+        client
+          .from("style_groups")
+          .select(`id, ${updateFields.join(", ")}`)
+          .eq("sku", erpItem.style_number)
+          .limit(1),
+      ]);
+
       const { data: assetRows } = await client
         .from("assets")
         .update(updates)
@@ -98,16 +126,46 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
         .select("id");
       groupsUpdated += groupRows?.length ?? 0;
 
-      // Populate cover_description on assets from ERP item_description.
-      // ERP always takes precedence — overwrites AI-tagged values.
-      // The sync_cover_description_to_style_group trigger propagates it to style_groups.
-      const coverDesc = deriveErpCoverDescription(erpItem.item_description ?? null);
-      if (coverDesc) {
-        await client
-          .from("assets")
-          .update({ cover_description: coverDesc })
-          .eq("sku", erpItem.style_number)
-          .eq("is_deleted", false);
+      const representative = currentAssets?.[0] ?? currentGroups?.[0] ?? null;
+      const targetId = assetRows?.[0]?.id ?? groupRows?.[0]?.id ?? erpItem.id;
+      const targetType = assetRows?.length ? "asset" : groupRows?.length ? "style_group" : "erp_item";
+
+      const logEntries = updateFields
+        .map((field) => {
+          const oldVal = representative?.[field as keyof typeof representative];
+          const newVal = updates[field];
+          if (String(oldVal ?? "") === String(newVal ?? "")) return null;
+          return {
+            target_type: targetType,
+            target_id: targetId,
+            field_name: field,
+            old_value: oldVal != null ? String(oldVal) : null,
+            new_value: newVal != null ? String(newVal) : null,
+            source: classificationSource,
+            confidence,
+            run_id: runId,
+          };
+        })
+        .filter((entry): entry is {
+          target_type: string;
+          target_id: string;
+          field_name: string;
+          old_value: string | null;
+          new_value: string | null;
+          source: string;
+          confidence: number | null;
+          run_id: string;
+        } => entry !== null);
+
+      if (logEntries.length > 0) {
+        const { error: logErr } = await client.from("erp_enrichment_log").insert(logEntries);
+        if (logErr) {
+          logger.warn("erp-enrichment: failed to insert audit log entries", {
+            sku: erpItem.style_number,
+            error: logErr.message,
+            count: logEntries.length,
+          });
+        }
       }
     }
   }
