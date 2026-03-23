@@ -22,9 +22,8 @@ function StyleGroupCard({
   onSelect: (e: React.MouseEvent) => void;
 }) {
   const [imgError, setImgError] = useState(false);
-  const subtitle = group.is_licensed
-    ? [group.licensor_name, group.property_name].filter(Boolean).join(" · ")
-    : group.product_category || null;
+  const subtitle = group.product_category
+    || (group.is_licensed ? [group.licensor_name, group.property_name].filter(Boolean).join(" · ") : null);
   const isStatsPending = !group.latest_file_date && (group.asset_count === 0 || group.asset_count == null);
 
   return (
