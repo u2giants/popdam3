@@ -78,7 +78,7 @@ export default function StyleGroupListView({ groups, selectedIds, onSelect, isLo
         <TableRow>
           <TableHead className="w-[56px]" />
           <TableHead>SKU</TableHead>
-          <TableHead>Licensor / Property</TableHead>
+          <TableHead>Category</TableHead>
           <TableHead>Workflow</TableHead>
           <TableHead className="text-right">Files</TableHead>
           <TableHead>Latest Date</TableHead>
@@ -88,9 +88,9 @@ export default function StyleGroupListView({ groups, selectedIds, onSelect, isLo
       <TableBody>
         {groups.map((group) => {
           const selected = selectedIds.has(group.id);
-          const subtitle = group.is_licensed
-            ? [group.licensor_name, group.property_name].filter(Boolean).join(" · ")
-            : group.product_category || "—";
+          const subtitle = group.product_category
+            || (group.is_licensed ? [group.licensor_name, group.property_name].filter(Boolean).join(" · ") : null)
+            || "—";
 
           return (
             <TableRow
