@@ -343,98 +343,123 @@ function ClassificationLiveLog({ active }: { active: boolean }) {
 
 // ── Enrichment Apply Live Log ─────────────────────────────────────────
 
-const ENRICHED_FIELDS: Array<{ key: string; label: string }> = [
-  { key: "cover_description", label: "Description" },
-  { key: "product_category", label: "Category" },
-  { key: "mg01_code", label: "MG01" },
-  { key: "mg02_code", label: "MG02" },
-  { key: "mg03_code", label: "MG03" },
-  { key: "size_code", label: "Size" },
-  { key: "licensor_code", label: "Licensor" },
-  { key: "property_code", label: "Property" },
-  { key: "division_code", label: "Division" },
-];
+const FIELD_LABELS: Record<string, string> = {
+  cover_description: "Description",
+  product_category: "Category",
+  mg01_code: "MG01",
+  mg02_code: "MG02",
+  mg03_code: "MG03",
+  size_code: "Size",
+  licensor_code: "Licensor",
+  property_code: "Property",
+  division_code: "Division",
+};
+
+interface EnrichmentLogEntry {
+  id: string;
+  target_type: string;
+  target_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  source: string;
+  confidence: number | null;
+  run_id: string | null;
+  applied_at: string;
+}
 
 function EnrichmentApplyLiveLog({ active, startedAt }: { active: boolean; startedAt?: string }) {
-  const [entries, setEntries] = useState<Array<{
-    id: string;
-    sku: string | null;
-    updated_at: string;
-    cover_description: string | null;
-    product_category: string | null;
-    mg01_code: string | null;
-    mg02_code: string | null;
-    mg03_code: string | null;
-    size_code: string | null;
-    licensor_code: string | null;
-    property_code: string | null;
-    division_code: string | null;
-  }>>([]);
+  const [entries, setEntries] = useState<EnrichmentLogEntry[]>([]);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    if (!active || !startedAt) return;
+    if (!startedAt) return;
     let cancelled = false;
 
     const poll = async () => {
       const { data } = await supabase
-        .from("assets")
-        .select("id, sku, updated_at, cover_description, product_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
-        .gte("updated_at", startedAt)
-        .eq("is_deleted", false)
-        .order("updated_at", { ascending: false })
-        .limit(200);
+        .from("erp_enrichment_log")
+        .select("id, target_type, target_id, field_name, old_value, new_value, source, confidence, run_id, applied_at")
+        .gte("applied_at", startedAt)
+        .order("applied_at", { ascending: false })
+        .limit(500);
 
       if (cancelled || !data) return;
       setEntries(prev => {
         const newIds = data.map((r: any) => r.id).join(",");
         const oldIds = prev.map(r => r.id).join(",");
         if (newIds === oldIds) return prev;
-        return data as typeof prev;
+        return data as EnrichmentLogEntry[];
       });
     };
 
     poll();
-    const interval = setInterval(poll, 3000);
-    return () => { cancelled = true; clearInterval(interval); };
+    // Poll while active, stop polling once completed
+    if (active) {
+      const interval = setInterval(poll, 3000);
+      return () => { cancelled = true; clearInterval(interval); };
+    }
+    return () => { cancelled = true; };
   }, [active, startedAt]);
 
   if (entries.length === 0) return null;
 
-  // Group by SKU to show one row per style
-  const bySku = new Map<string, typeof entries>();
+  // Group by run_id + target_id to show one row per SKU/target
+  const byTarget = new Map<string, EnrichmentLogEntry[]>();
   for (const e of entries) {
-    const k = e.sku ?? "(no SKU)";
-    if (!bySku.has(k)) bySku.set(k, []);
-    bySku.get(k)!.push(e);
+    const k = `${e.run_id ?? ""}:${e.target_id}`;
+    if (!byTarget.has(k)) byTarget.set(k, []);
+    byTarget.get(k)!.push(e);
   }
-  const skuRows = [...bySku.entries()].slice(0, expanded ? undefined : 10);
+  const targetRows = [...byTarget.entries()].slice(0, expanded ? undefined : 12);
+  const totalTargets = byTarget.size;
 
   return (
     <div className="mt-2 space-y-1">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-          <List className="h-3 w-3" /> Recently Updated Assets ({entries.length})
+          <List className="h-3 w-3" /> Enrichment Log ({entries.length} changes across {totalTargets} targets)
         </p>
-        {bySku.size > 10 && (
+        {totalTargets > 12 && (
           <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => setExpanded(!expanded)}>
-            {expanded ? "Collapse" : `Show all ${bySku.size} SKUs`}
+            {expanded ? "Collapse" : `Show all ${totalTargets}`}
           </Button>
         )}
       </div>
-      <div className={`overflow-auto border border-border rounded-md bg-background/80 ${expanded ? "max-h-72" : "max-h-48"}`}>
+      <div className={`overflow-auto border border-border rounded-md bg-background/80 ${expanded ? "max-h-80" : "max-h-48"}`}>
         <div className="divide-y divide-border">
-          {skuRows.map(([sku, assets]) => {
-            const sample = assets[0];
-            const setFields = ENRICHED_FIELDS.filter(f => sample[f.key as keyof typeof sample]);
+          {targetRows.map(([key, fields]) => {
+            const sample = fields[0];
+            const fieldSummary = fields
+              .map(f => {
+                const label = FIELD_LABELS[f.field_name] || f.field_name;
+                const arrow = f.old_value ? `${f.old_value}→${f.new_value}` : f.new_value;
+                return `${label}: ${arrow}`;
+              })
+              .join(" · ");
+
             return (
-              <div key={sku} className="px-2.5 py-1.5 text-[11px] font-mono flex items-start gap-3">
-                <span className="shrink-0 w-14 text-muted-foreground">{new Date(sample.updated_at).toLocaleTimeString()}</span>
-                <span className="shrink-0 font-semibold text-foreground w-28 truncate" title={sku}>{sku}</span>
-                <span className="shrink-0 text-muted-foreground w-16">{assets.length} asset{assets.length !== 1 ? "s" : ""}</span>
-                <span className="flex-1 text-muted-foreground truncate">
-                  {setFields.map(f => `${f.label}=${sample[f.key as keyof typeof sample]}`).join(" · ") || "—"}
+              <div key={key} className="px-2.5 py-1.5 text-[11px] font-mono flex items-start gap-3">
+                <span className="shrink-0 w-14 text-muted-foreground">
+                  {new Date(sample.applied_at).toLocaleTimeString()}
                 </span>
+                <Badge variant="outline" className="shrink-0 text-[9px] h-4 px-1">
+                  {sample.target_type === "asset" ? "AST" : sample.target_type === "style_group" ? "GRP" : "ERP"}
+                </Badge>
+                <span className="shrink-0 w-8 text-muted-foreground text-right">
+                  {fields.length}f
+                </span>
+                <span className="flex-1 text-muted-foreground truncate" title={fieldSummary}>
+                  {fieldSummary}
+                </span>
+                {sample.source && (
+                  <Badge
+                    variant={sample.source === "erp" ? "default" : "secondary"}
+                    className="shrink-0 text-[9px] h-4 px-1"
+                  >
+                    {sample.source}
+                  </Badge>
+                )}
               </div>
             );
           })}

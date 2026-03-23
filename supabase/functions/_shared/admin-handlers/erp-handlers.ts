@@ -243,15 +243,32 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
   }
 
   // Apply mode
+  const runId = crypto.randomUUID();
+
   for (const erpItem of erpItems) {
     if (!erpItem.style_number) continue;
 
-    const { updates } = await buildProposedUpdates(erpItem);
+    const { updates, classification_source, confidence } = await buildProposedUpdates(erpItem);
+
+    // Add cover_description to updates if derivable
+    const coverDesc = deriveErpCoverDescription(erpItem.item_description ?? null);
+    if (coverDesc) {
+      updates.cover_description = coverDesc;
+    }
 
     if (Object.keys(updates).length === 0) {
       skipped++;
       continue;
     }
+
+    // Fetch current asset values for the first matching asset (for old_value logging)
+    const updateFields = Object.keys(updates);
+    const { data: currentAssets } = await db.from("assets")
+      .select("id, " + updateFields.join(", "))
+      .eq("sku", erpItem.style_number)
+      .eq("is_deleted", false)
+      .limit(1);
+    const currentValues = currentAssets?.[0] ?? {};
 
     // Update assets
     const { data: assetRows } = await db.from("assets")
@@ -268,15 +285,42 @@ export async function handleApplyErpEnrichment(body: Record<string, unknown>) {
       .select("id");
     groupsUpdated += groupRows?.length ?? 0;
 
-    // Populate cover_description on assets from ERP item_description.
-    // ERP always takes precedence — overwrites AI-tagged values.
-    // The sync_cover_description_to_style_group trigger propagates it to style_groups.
-    const coverDesc = deriveErpCoverDescription(erpItem.item_description ?? null);
-    if (coverDesc) {
-      await db.from("assets")
-        .update({ cover_description: coverDesc })
-        .eq("sku", erpItem.style_number)
-        .eq("is_deleted", false);
+    // Write per-field audit log entries
+    const logEntries: Array<{
+      target_type: string;
+      target_id: string;
+      field_name: string;
+      old_value: string | null;
+      new_value: string | null;
+      source: string;
+      confidence: number | null;
+      run_id: string;
+    }> = [];
+
+    // Log one entry per changed field, using first asset as representative target
+    const targetId = assetRows?.[0]?.id ?? groupRows?.[0]?.id ?? erpItem.id;
+    const targetType = assetRows?.length ? "asset" : groupRows?.length ? "style_group" : "erp_item";
+
+    for (const field of updateFields) {
+      const oldVal = (currentValues as Record<string, unknown>)?.[field];
+      const newVal = updates[field];
+      // Only log if value actually changed
+      if (String(oldVal ?? "") !== String(newVal ?? "")) {
+        logEntries.push({
+          target_type: targetType,
+          target_id: targetId,
+          field_name: field,
+          old_value: oldVal != null ? String(oldVal) : null,
+          new_value: newVal != null ? String(newVal) : null,
+          source: classification_source ?? "erp",
+          confidence: confidence,
+          run_id: runId,
+        });
+      }
+    }
+
+    if (logEntries.length > 0) {
+      await db.from("erp_enrichment_log").insert(logEntries);
     }
   }
 
