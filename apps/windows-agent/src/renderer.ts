@@ -4,8 +4,9 @@
  * Fallback chain for AI files:
  *   1. Sharp        — fast, handles PDF-compat .ai
  *   2. Ghostscript  — complex .ai that Sharp can't read
- *   3. Inkscape     — independent engine (no GS dependency), handles Adobe-specific .ai
- *   4. Sibling image — any .jpg/.png in same folder with matching name
+ *   3. Poppler      — alternative PDF engine (pdftoppm), handles GS edge-cases
+ *   4. Inkscape     — independent engine (no PDF dependency), handles Adobe-specific .ai
+ *   5. Sibling image — any .jpg/.png in same folder with matching name
  *
  * Fallback chain for PSD files:
  *   1. Sharp        — fast, handles most .psd
@@ -15,6 +16,7 @@
  * Inkscape is NOT used for PSD (it doesn't read PSD natively).
  * ImageMagick is NOT used for AI (it delegates to Ghostscript internally,
  * so it would fail on the same files GS already failed on).
+ * Poppler is NOT used for PSD (it is a PDF engine only).
  */
 
 import sharp from "sharp";
@@ -140,6 +142,75 @@ function findInkscape(): string | null {
 
 const INKSCAPE_EXE = findInkscape();
 
+// ── Poppler path discovery ───────────────────────────────────────
+
+function findPoppler(): string | null {
+  // POPPLER_PATH may point to the pdftoppm binary directly, or to the bin/ directory
+  if (process.env.POPPLER_PATH) {
+    const p = process.env.POPPLER_PATH;
+    const exe = p.toLowerCase().endsWith("pdftoppm.exe") ? p : path.join(p, "pdftoppm.exe");
+    if (existsSync(exe)) {
+      logger.info("Found Poppler (pdftoppm) via POPPLER_PATH", { path: exe });
+      return exe;
+    }
+    logger.warn("POPPLER_PATH set but pdftoppm.exe not found there", { POPPLER_PATH: p });
+  }
+
+  // Scan common Windows install locations
+  const candidates: string[] = [];
+
+  // Extracted release zips from github.com/oschwartz10612/poppler-windows
+  const programFiles = "C:\\Program Files";
+  const localAppData = process.env.LOCALAPPDATA || "";
+  const programData = process.env.ProgramData || "C:\\ProgramData";
+  const userProfile = process.env.USERPROFILE || "";
+
+  try {
+    for (const root of [programFiles, "C:\\poppler", "C:\\tools\\poppler"]) {
+      try {
+        readdirSync(root)
+          .filter((d) => d.toLowerCase().startsWith("poppler"))
+          .sort().reverse()
+          .forEach((d) => candidates.push(path.join(root, d, "Library", "bin", "pdftoppm.exe")));
+      } catch { /* not found */ }
+    }
+  } catch { /* ignore */ }
+
+  // Conda environments
+  for (const base of [
+    path.join(programData, "miniconda3", "Library", "bin"),
+    path.join(programData, "anaconda3", "Library", "bin"),
+    path.join(localAppData, "miniconda3", "Library", "bin"),
+    path.join(localAppData, "anaconda3", "Library", "bin"),
+    path.join(userProfile, "miniconda3", "Library", "bin"),
+    path.join(userProfile, "anaconda3", "Library", "bin"),
+  ]) {
+    candidates.push(path.join(base, "pdftoppm.exe"));
+  }
+
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      logger.info("Found Poppler (pdftoppm)", { path: c });
+      return c;
+    }
+  }
+
+  // Fall back to PATH
+  try {
+    execFileSync("pdftoppm", ["-v"], { timeout: 5000 });
+    logger.info("Found Poppler (pdftoppm) on PATH");
+    return "pdftoppm";
+  } catch {
+    logger.warn(
+      "Poppler not found. Download from github.com/oschwartz10612/poppler-windows " +
+      "or install via `choco install poppler`. AI fallback rendering will skip Poppler."
+    );
+    return null;
+  }
+}
+
+const POPPLER_EXE = findPoppler();
+
 // ── Step 1: Sharp ───────────────────────────────────────────────
 
 async function renderWithSharp(
@@ -252,7 +323,56 @@ async function renderWithInkscape(
   }
 }
 
-// ── Step 2c: ImageMagick (PSD) ──────────────────────────────────
+// ── Step 2c: Poppler/pdftoppm (AI only — alternative PDF engine) ─
+
+async function renderWithPoppler(
+  filePath: string,
+): Promise<RenderResult> {
+  if (!POPPLER_EXE) throw new Error("Poppler not installed");
+
+  const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-poppler-"));
+  const outPrefix = path.join(tmpDir, "thumb");
+
+  try {
+    // pdftoppm renders the first page of the PDF stream embedded in the .ai file.
+    // Output files are named <prefix>-<N>.jpg (zero-padded based on total pages).
+    await execFileAsync(POPPLER_EXE, [
+      "-r", "150",
+      "-jpeg",
+      "-jpegopt", "quality=85",
+      "-f", "1",
+      "-l", "1",
+      filePath,
+      outPrefix,
+    ], { timeout: 60_000 });
+
+    // Find the output file — naming varies (thumb-1.jpg or thumb-01.jpg, etc.)
+    const files = (await readdir(tmpDir)).filter((f) => f.endsWith(".jpg") || f.endsWith(".jpeg"));
+    if (files.length === 0) throw new Error("Poppler produced no output");
+
+    const outFile = path.join(tmpDir, files[0]);
+
+    const resized = sharp(outFile, { limitInputPixels: false })
+      .flatten({ background: "#ffffff" })
+      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
+        fit: "inside",
+        withoutEnlargement: true,
+      });
+
+    const buffer = await resized.jpeg({ quality: 85 }).toBuffer();
+    const meta = await sharp(buffer).metadata();
+
+    return {
+      buffer,
+      width: meta.width || 0,
+      height: meta.height || 0,
+    };
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// ── Step 2d: ImageMagick (PSD) ──────────────────────────────────
 
 async function renderWithImageMagick(
   filePath: string,
@@ -368,7 +488,20 @@ export async function renderFile(
     }
   }
 
-  // Step 2b: Inkscape (AI only — independent engine, does NOT use Ghostscript)
+  // Step 2c: Poppler/pdftoppm (AI only — different PDF engine, handles GS edge-cases)
+  if (fileType === "ai") {
+    try {
+      const result = await renderWithPoppler(uncPath);
+      logger.info("Poppler render succeeded", { uncPath });
+      return result;
+    } catch (e) {
+      const msg = (e as Error).message;
+      failures.push(`poppler: ${msg}`);
+      logger.warn("Poppler failed", { uncPath, error: msg });
+    }
+  }
+
+  // Step 2d: Inkscape (AI only — independent engine, no PDF dependency)
   if (fileType === "ai") {
     try {
       const result = await renderWithInkscape(uncPath);
@@ -381,7 +514,7 @@ export async function renderFile(
     }
   }
 
-  // Step 2c: ImageMagick (PSD only — handles 16-bit, smart objects, complex layers)
+  // Step 2e: ImageMagick (PSD only — handles 16-bit, smart objects, complex layers)
   // NOTE: ImageMagick is NOT used for .ai because it delegates to Ghostscript
   // internally, so it would fail on the same files GS already failed on.
   if (fileType === "psd") {
