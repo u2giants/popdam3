@@ -344,6 +344,7 @@ function ClassificationLiveLog({ active }: { active: boolean }) {
 // ── Enrichment Apply Live Log ─────────────────────────────────────────
 
 const ENRICHED_FIELDS: Array<{ key: string; label: string }> = [
+  { key: "cover_description", label: "Description" },
   { key: "product_category", label: "Category" },
   { key: "mg01_code", label: "MG01" },
   { key: "mg02_code", label: "MG02" },
@@ -359,6 +360,7 @@ function EnrichmentApplyLiveLog({ active, startedAt }: { active: boolean; starte
     id: string;
     sku: string | null;
     updated_at: string;
+    cover_description: string | null;
     product_category: string | null;
     mg01_code: string | null;
     mg02_code: string | null;
@@ -377,7 +379,7 @@ function EnrichmentApplyLiveLog({ active, startedAt }: { active: boolean; starte
     const poll = async () => {
       const { data } = await supabase
         .from("assets")
-        .select("id, sku, updated_at, product_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
+        .select("id, sku, updated_at, cover_description, product_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
         .gte("updated_at", startedAt)
         .eq("is_deleted", false)
         .order("updated_at", { ascending: false })
