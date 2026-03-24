@@ -419,6 +419,35 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
 
   const cursor = typeof opState.cursor === "number" ? opState.cursor : 0;
   const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;
+  const assetIds = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
+
+  // Fast path: tag specific assets by ID (used for single-asset re-tag from UI)
+  if (assetIds && assetIds.length > 0) {
+    let tagged = 0, skipped = 0, failed = 0;
+    const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
+
+    for (let i = 0; i < assetIds.length; i += CONCURRENCY) {
+      const chunk = assetIds.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map(async (id) => {
+          const outcome = await tagSingleAsset(id, tagAll);
+          return { outcome, asset_id: id };
+        }),
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          if (r.value.outcome === "tagged") tagged++;
+          else if (r.value.outcome === "skipped") skipped++;
+          else { failed++; failureSamples.push({ at: new Date().toISOString(), asset_id: r.value.asset_id, filename: "", relative_path: "", error: "Gemini call failed" }); }
+        } else {
+          failed++;
+          failureSamples.push({ at: new Date().toISOString(), asset_id: "(unknown)", filename: "", relative_path: "", error: String(r.reason).slice(0, 500) });
+        }
+      }
+    }
+
+    return { ok: true, done: true, tagged, skipped, failed, failure_samples: failureSamples, skip_samples: [], nextOffset: cursor };
+  }
 
   // Smart-skip: for untagged mode, exclude groups that already have a tagged representative
   let excludeGroupIds: string[] = [];
