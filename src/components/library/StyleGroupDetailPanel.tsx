@@ -545,17 +545,53 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     },
   });
 
-  // AI Tag
+  // AI Tag — routes through the Railway worker via persistent operation
   const handleAiTag = async () => {
     if (!detailAsset) return;
     setAiTagging(true);
     try {
-      const { error } = await supabase.functions.invoke("ai-tag", {
-        body: { assetId: detailAsset.id },
+      const opKey = `ai-tag-single-${detailAsset.id}`;
+      const now = new Date().toISOString();
+      const { error } = await supabase.rpc("update_bulk_operation", {
+        p_op_key: opKey,
+        p_op_state: {
+          status: "running",
+          cursor: 0,
+          params: { type: "bulk-ai-tag-all", asset_ids: [detailAsset.id], total: 1 },
+          started_at: now,
+          updated_at: now,
+          progress: { tagged: 0, skipped: 0, failed: 0, total: 1 },
+        },
       });
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-      toast("AI tagging complete");
+
+      // Poll for completion (worker picks it up within ~5s)
+      const maxWaitMs = 90_000;
+      const pollMs = 2_000;
+      const start = Date.now();
+      while (Date.now() - start < maxWaitMs) {
+        await new Promise((r) => setTimeout(r, pollMs));
+        const { data: configRow } = await supabase
+          .from("admin_config")
+          .select("value")
+          .eq("key", "BULK_OPERATIONS")
+          .maybeSingle();
+        const ops = configRow?.value as Record<string, any> | undefined;
+        const op = ops?.[opKey];
+        if (!op || op.status === "completed") {
+          try { await supabase.rpc("update_bulk_operation", {
+            p_op_key: opKey,
+            p_op_state: { status: "idle" },
+          }); } catch { /* best-effort cleanup */ }
+          queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
+          toast("AI tagging complete");
+          return;
+        }
+        if (op.status === "failed" || op.status === "interrupted") {
+          throw new Error(op.error || "AI tagging failed");
+        }
+      }
+      toast("AI tagging is still running — check back shortly");
     } catch (e: any) {
       toast.error("AI tagging failed", { description: e.message });
     } finally {

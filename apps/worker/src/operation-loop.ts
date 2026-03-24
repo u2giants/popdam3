@@ -41,6 +41,7 @@ const OP_LANES: Record<string, string> = {
 };
 
 function getLane(opKey: string): string {
+  if (opKey.startsWith("ai-tag-single-")) return "ai-tagging";
   return OP_LANES[opKey] ?? opKey;
 }
 
@@ -54,7 +55,9 @@ function detectStaleRun(op: OpState): boolean {
 // ── Progress accumulator — mirrors buildProgress() in bulk-job-runner ────────
 
 function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: BatchResult): Record<string, unknown> {
-  switch (opKey) {
+  // Normalize dynamic keys for matching
+  const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
+  switch (normalizedKey) {
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups": {
@@ -118,7 +121,8 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
 }
 
 function buildResultMessage(opKey: string, progress: Record<string, unknown>): string {
-  switch (opKey) {
+  const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
+  switch (normalizedKey) {
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":
@@ -141,6 +145,11 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 
 async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
+  // Handle dynamic single-asset tagging keys (ai-tag-single-{uuid})
+  if (opKey.startsWith("ai-tag-single-")) {
+    return handleBulkAiTag(opState, true);
+  }
+
   switch (opKey) {
     case "ai-tag-untagged":
       return handleBulkAiTag(opState, false);
