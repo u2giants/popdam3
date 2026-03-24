@@ -771,7 +771,7 @@ async function handleIngest(
 
     if (updateError) return err(updateError.message, 500);
 
-    // processing_queue inserts removed — AI tagging is now handled by bulk-job-runner
+    // processing_queue inserts removed — AI tagging is now handled by the Railway worker
 
     assignToStyleGroup(relativePath, existingByPath.id, skuFields, derived, db).catch((e) =>
       console.error(`assignToStyleGroup failed for updated asset ${existingByPath.id}:`, e)
