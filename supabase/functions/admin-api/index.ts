@@ -695,9 +695,7 @@ serve(async (req: Request) => {
     console.log(`admin-api action: ${action}`);
 
     // Choose auth level: some actions are open to all authenticated users
-    const authResult = USER_ACCESSIBLE_ACTIONS.has(action)
-      ? await authenticateUser(req)
-      : await authenticateAdmin(req);
+    const authResult = USER_ACCESSIBLE_ACTIONS.has(action) ? await authenticateUser(req) : await authenticateAdmin(req);
     if (authResult instanceof Response) return authResult;
     const { userId } = authResult;
 
