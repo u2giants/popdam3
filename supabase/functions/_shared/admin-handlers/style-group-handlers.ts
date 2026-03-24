@@ -537,7 +537,7 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 
 // ── reconcile-style-group-stats ─────────────────────────────────────
 // Thin wrapper for manual single-batch trigger from UI.
-// The bulk-job-runner calls reconcile_style_group_stats_batch RPC directly.
+// The Railway worker calls reconcile_style_group_stats_batch RPC directly.
 
 export async function handleReconcileStyleGroupStats(body: Record<string, unknown>) {
   try {

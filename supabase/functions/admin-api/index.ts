@@ -96,7 +96,7 @@ async function authenticateUser(
 
   const token = authHeader.replace("Bearer ", "");
 
-  // Service role key bypass — allows server-to-server calls (e.g., bulk-job-runner)
+  // Service role key bypass — allows server-to-server calls (e.g., Railway worker)
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (serviceRoleKey && token === serviceRoleKey) {
     return { userId: "system" };

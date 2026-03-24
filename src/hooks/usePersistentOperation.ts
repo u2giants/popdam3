@@ -4,9 +4,9 @@ import { useAdminApi } from "./useAdminApi";
 /**
  * Server-side persistent operation hook.
  *
- * Operations are processed by the `bulk-job-runner` edge function (invoked
- * every minute by pg_cron). The UI just writes "running" state and polls
- * for progress — no client-side batch loops required.
+ * Operations are processed by the Railway worker (apps/worker), which polls
+ * admin_config.BULK_OPERATIONS every 5 seconds. The UI just writes "running"
+ * state and polls for progress — no client-side batch loops required.
  */
 
 export interface OperationProgress {

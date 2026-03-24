@@ -10,7 +10,7 @@ import { err, json } from "../http.ts";
 
 /**
  * Bulk propagate: calls the DB function directly.
- * Accepts `offset` (uuid cursor) from the bulk-job-runner.
+ * Accepts `offset` (uuid cursor) from the Railway worker.
  */
 export async function handleBulkPropagateGroupTags(body: Record<string, unknown>) {
   const cursor = typeof body.offset === "string" && body.offset !== "0" ? body.offset : null;
