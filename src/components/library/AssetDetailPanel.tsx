@@ -206,10 +206,10 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
         const op = ops?.[opKey];
         if (!op || op.status === "completed") {
           // Clean up the single-use operation key
-          await supabase.rpc("update_bulk_operation", {
+          try { await supabase.rpc("update_bulk_operation", {
             p_op_key: opKey,
             p_op_state: { status: "idle" },
-          }).catch(() => {});
+          }); } catch { /* best-effort cleanup */ }
           queryClient.invalidateQueries({ queryKey: ["assets"] });
           queryClient.invalidateQueries({ queryKey: ["asset-tags", asset.id] });
           toast("AI tagging complete");

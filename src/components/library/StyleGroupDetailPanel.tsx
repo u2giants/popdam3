@@ -579,10 +579,10 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
         const ops = configRow?.value as Record<string, any> | undefined;
         const op = ops?.[opKey];
         if (!op || op.status === "completed") {
-          await supabase.rpc("update_bulk_operation", {
+          try { await supabase.rpc("update_bulk_operation", {
             p_op_key: opKey,
             p_op_state: { status: "idle" },
-          }).catch(() => {});
+          }); } catch { /* best-effort cleanup */ }
           queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
           toast("AI tagging complete");
           return;
