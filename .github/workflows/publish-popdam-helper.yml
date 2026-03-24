@@ -1,0 +1,117 @@
+name: Publish PopDAM Helper
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/popdam-helper/**"
+      - ".github/workflows/publish-popdam-helper.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Windows — Node.js + pkg ───────────────────────────────────────
+  build-windows:
+    name: Build Windows helper
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/popdam-helper
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Package with pkg
+        run: npx pkg dist/index.js --target node18-win-x64 --output popdam-helper.exe
+
+      - name: Verify exe exists
+        shell: powershell
+        run: |
+          if (!(Test-Path 'popdam-helper.exe')) {
+            Write-Error 'popdam-helper.exe not found'
+            exit 1
+          }
+          Write-Host "popdam-helper.exe built successfully"
+
+      - name: Create Install.bat
+        shell: powershell
+        run: |
+          $bat = @'
+          @echo off
+          echo Installing PopDAM Helper...
+          "%~dp0popdam-helper.exe" --register
+          if %errorlevel% neq 0 (
+            echo Registration failed. Try running as Administrator.
+            pause
+            exit /b 1
+          )
+          echo.
+          echo Done! The popdam:// protocol is registered.
+          echo You can now use "Open Containing Folder" in the PopDAM web app.
+          pause
+          '@
+          Set-Content -Path Install.bat -Value $bat -Encoding ASCII
+
+      - name: Zip release
+        shell: powershell
+        run: |
+          Compress-Archive -Path popdam-helper.exe, Install.bat -DestinationPath popdam-helper-windows-x64.zip
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: popdam-helper-latest
+          name: PopDAM Helper (latest)
+          body: |
+            Lightweight protocol handler for the PopDAM web app.
+            Handles `popdam://` URLs to open NAS folders in Explorer (Windows) or Finder (Mac).
+
+            **Windows**: unzip, run `Install.bat` once.
+            **Mac**: unzip, move `.app` to Applications, open it once.
+          files: apps/popdam-helper/popdam-helper-windows-x64.zip
+          prerelease: false
+
+  # ── Mac — Swift ───────────────────────────────────────────────────
+  build-mac:
+    name: Build Mac helper
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/popdam-helper
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile Swift binary
+        run: |
+          swiftc -framework Cocoa platform/mac/main.swift -o "PopDAM Helper"
+
+      - name: Assemble .app bundle
+        run: |
+          mkdir -p "PopDAM Helper.app/Contents/MacOS"
+          cp "PopDAM Helper" "PopDAM Helper.app/Contents/MacOS/"
+          cp platform/mac/Info.plist "PopDAM Helper.app/Contents/"
+
+      - name: Zip release
+        run: |
+          zip -r popdam-helper-mac.zip "PopDAM Helper.app"
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: popdam-helper-latest
+          name: PopDAM Helper (latest)
+          files: apps/popdam-helper/popdam-helper-mac.zip
+          prerelease: false

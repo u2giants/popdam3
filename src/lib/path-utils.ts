@@ -42,11 +42,20 @@ export function getPathDisplayModes(
   const backslashed = toBackslash(relativePath);
   const share = config.NAS_SHARE;
 
+  // Detect whether the sync root is a Windows path (e.g. "C:\...") or a
+  // Mac/Linux POSIX path (e.g. "/Users/..."). Use the appropriate separator
+  // so the generated path is valid on the user's OS.
+  const isWindowsSyncRoot = userSyncRoot
+    ? /^[A-Za-z]:[/\\]/.test(userSyncRoot)
+    : false;
+  const remoteRelative = isWindowsSyncRoot ? `${share}\\${backslashed}` : `${share}/${relativePath}`;
+  const remoteSep = isWindowsSyncRoot ? "\\" : "/";
+
   return {
     uncHost: `\\\\${config.NAS_HOST}\\${share}\\${backslashed}`,
     uncIp: `\\\\${config.NAS_IP}\\${share}\\${backslashed}`,
     remote: userSyncRoot
-      ? `${userSyncRoot.replace(/[/\\]$/, "")}\\${share}\\${backslashed}`
+      ? `${userSyncRoot.replace(/[/\\]$/, "")}${remoteSep}${remoteRelative}`
       : null,
     container: config.NAS_CONTAINER_MOUNT_ROOT
       ? `${config.NAS_CONTAINER_MOUNT_ROOT.replace(/\/$/, "")}/${relativePath}`

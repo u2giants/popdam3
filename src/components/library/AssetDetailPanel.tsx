@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Asset } from "@/types/assets";
-import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
-import { getOpenFolderUri } from "@/lib/open-folder";
+import { getPathDisplayModes, getUserSyncRoot, setUserSyncRoot, type NasConfig } from "@/lib/path-utils";
+import { getOpenFolderUri, getPreferredPathMode, setPreferredPathMode, type PathMode } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -21,6 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   X,
   Copy,
   Check,
@@ -33,6 +38,7 @@ import {
   History,
   Loader2,
   FolderOpen,
+  Settings2,
 } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
@@ -90,6 +96,8 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
   const [editingTags, setEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [aiTagging, setAiTagging] = useState(false);
+  const [pathMode, setPathModeState] = useState<PathMode>(getPreferredPathMode);
+  const [syncRoot, setSyncRootState] = useState<string>(getUserSyncRoot() ?? "");
 
   // Fetch NAS config for path display
   const { data: nasConfig } = useQuery({
@@ -307,25 +315,83 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
               <HardDrive className="h-3.5 w-3.5" /> Paths
             </h4>
             {nasConfig && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs h-7 w-full"
-                asChild
-              >
-                <a
-                  href={getOpenFolderUri(asset.relative_path, nasConfig) ?? "#"}
-                  onClick={(e) => {
-                    if (!getOpenFolderUri(asset.relative_path, nasConfig)) {
-                      e.preventDefault();
-                      toast.error("Cannot open folder", { description: "Set your Synology Drive root in Settings → Path Tester if using remote mode." });
-                    }
-                  }}
+              <div className="flex gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7 flex-1"
+                  asChild
                 >
-                  <FolderOpen className="h-3 w-3" />
-                  Open Containing Folder
-                </a>
-              </Button>
+                  <a
+                    href={getOpenFolderUri(asset.relative_path, nasConfig, pathMode) ?? "#"}
+                    onClick={(e) => {
+                      if (!getOpenFolderUri(asset.relative_path, nasConfig, pathMode)) {
+                        e.preventDefault();
+                        toast.error("Cannot open folder", {
+                          description: pathMode === "synology_drive"
+                            ? "Set your Synology Drive sync root below (the gear icon)."
+                            : "NAS config missing.",
+                        });
+                      }
+                    }}
+                  >
+                    <FolderOpen className="h-3 w-3" />
+                    Open Containing Folder
+                  </a>
+                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-7 w-7 shrink-0">
+                      <Settings2 className="h-3 w-3" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-3 space-y-3" align="end">
+                    <p className="text-xs font-medium">Open Folder Settings</p>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground tracking-wider">Path mode</Label>
+                      <Select
+                        value={pathMode}
+                        onValueChange={(v) => {
+                          setPathModeState(v as PathMode);
+                          setPreferredPathMode(v as PathMode);
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unc_host" className="text-xs">Office — UNC hostname</SelectItem>
+                          <SelectItem value="unc_ip" className="text-xs">Office — UNC IP address</SelectItem>
+                          <SelectItem value="synology_drive" className="text-xs">Remote — Synology Drive (Mac/PC)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[10px] text-muted-foreground">
+                        {pathMode === "synology_drive"
+                          ? "For designers working remotely via Synology Drive."
+                          : "For designers on the office network."}
+                      </p>
+                    </div>
+                    {pathMode === "synology_drive" && (
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground tracking-wider">Your Synology Drive sync root</Label>
+                        <Input
+                          className="h-7 text-xs font-mono"
+                          value={syncRoot}
+                          onChange={(e) => setSyncRootState(e.target.value)}
+                          onBlur={() => setUserSyncRoot(syncRoot)}
+                          placeholder="/Users/you/Synology Drive"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          The local folder where Synology Drive syncs files. Mac example: <span className="font-mono">/Users/you/Synology Drive</span>
+                        </p>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-muted-foreground border-t pt-2">
+                      Requires the <strong>PopDAM Helper</strong> app installed on this computer. Download it from Settings → Install Bundles.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              </div>
             )}
             <CopyButton label="Relative" value={asset.relative_path} />
             {paths && (

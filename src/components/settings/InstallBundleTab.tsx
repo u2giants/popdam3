@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import {
   Download, Server, Plus, Trash2, Package,
-  Loader2, AlertTriangle, FolderPlus,
+  Loader2, AlertTriangle, FolderPlus, FolderOpen, Monitor, Apple,
 } from "lucide-react";
 
 // ── Shared download helper ──────────────────────────────────────────
@@ -245,6 +245,81 @@ function BridgeAgentBundle() {
   );
 }
 
+// ── PopDAM Helper ───────────────────────────────────────────────────
+
+function PopDamHelperCard() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <FolderOpen className="h-4 w-4" />
+          PopDAM Helper
+          <Badge variant="secondary" className="text-[10px]">Windows &amp; Mac</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          A tiny background app that handles the <span className="font-mono text-xs">popdam://</span> protocol.
+          Install it once and the <strong>Open Containing Folder</strong> button in the asset panel will open
+          Explorer or Finder directly to the file — no full render agent required.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Windows */}
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <Monitor className="h-3.5 w-3.5" /> Windows
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>Download and unzip</li>
+              <li>Run <span className="font-mono">Install.bat</span> once (registers protocol)</li>
+              <li>Done — button works in any browser</li>
+            </ol>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 w-full" asChild>
+              <a
+                href="https://github.com/u2giants/popdam3/releases/tag/popdam-helper-latest"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Download className="h-3 w-3" />
+                Download for Windows
+              </a>
+            </Button>
+          </div>
+
+          {/* Mac */}
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <Apple className="h-3.5 w-3.5" /> Mac
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>Download and unzip</li>
+              <li>Move <span className="font-mono">PopDAM Helper.app</span> to Applications</li>
+              <li>Open it once to register</li>
+              <li>Set path mode to <em>Synology Drive</em> in asset panel</li>
+            </ol>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 w-full" asChild>
+              <a
+                href="https://github.com/u2giants/popdam3/releases/tag/popdam-helper-latest"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Download className="h-3 w-3" />
+                Download for Mac
+              </a>
+            </Button>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          After installing, click the gear icon next to <strong>Open Containing Folder</strong> in any asset
+          panel to choose your path mode (office UNC, or Synology Drive for remote work).
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Tab ────────────────────────────────────────────────────────
 
 export default function InstallBundleTab() {
@@ -259,6 +334,7 @@ export default function InstallBundleTab() {
           Generate ready-to-run install packages for new agents. Each bundle contains a one-time pairing code — no manual .env editing required.
         </p>
       </div>
+      <PopDamHelperCard />
       <BridgeAgentBundle />
       <Card className="border-dashed">
         <CardContent className="py-4">
