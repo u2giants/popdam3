@@ -1598,11 +1598,11 @@ async function handleGetLatestBuild(
     .maybeSingle();
 
   if (!row?.value) {
-    const repoBase = "https://github.com/u2giants/openclaw/releases";
+    const repoBase = "https://github.com/u2giants/popdam3/releases";
     return json({
       ok: true,
       latest_version: "0.0.0",
-      download_url: agentType === "bridge" ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz` : `${repoBase}/latest/download/popdam-windows-agent.zip`,
+      download_url: agentType === "bridge" ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz` : `${repoBase}/latest/download/popdam-windows-agent-dist.zip`,
       checksum_sha256: "",
       release_notes: "",
       published_at: null,
