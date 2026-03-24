@@ -1,4 +1,4 @@
-import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen, Terminal } from "lucide-react";
+import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen, Terminal, Apple } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -173,6 +173,61 @@ export default function DownloadsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          {/* Pre-built Binaries (Recommended) */}
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-3">Recommended: Pre-Built Binaries</h4>
+            <div className="grid gap-3 md:grid-cols-2">
+              {/* Windows Pre-Built */}
+              <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[10px]">Windows</Badge>
+                </div>
+                <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
+                  <li>Download and unzip</li>
+                  <li>Run <span className="font-mono text-[10px]">Install.bat</span> once</li>
+                  <li>Done — works in any browser</li>
+                </ol>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 w-full" asChild>
+                  <a
+                    href="https://github.com/u2giants/popdam3/releases/download/popdam-helper-latest/popdam-helper-windows-x64.zip"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download for Windows
+                  </a>
+                </Button>
+              </div>
+
+              {/* Mac Pre-Built */}
+              <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[10px]">Mac</Badge>
+                </div>
+                <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
+                  <li>Download and unzip</li>
+                  <li>Move <span className="font-mono text-[10px]">PopDAM Helper.app</span> to Applications</li>
+                  <li>Open it once to register</li>
+                </ol>
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 w-full" asChild>
+                  <a
+                    href="https://github.com/u2giants/popdam3/releases/download/popdam-helper-latest/popdam-helper-mac.zip"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download for Mac
+                  </a>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <h4 className="text-sm font-semibold text-foreground mb-3">Alternative: Manual Setup</h4>
+            <p className="text-xs text-muted-foreground mb-3">If you prefer not to install the pre-built app, you can manually register the protocol using PowerShell or shell scripts.</p>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             {/* Windows */}
             <div className="border border-border rounded-md p-4 space-y-3">
