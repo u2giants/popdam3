@@ -276,7 +276,7 @@ export async function handleGenerateInstallBundle(
       "",
       "── STEP 2: Download & extract agent ────────────────",
       "Download the latest agent zip from GitHub Releases:",
-      "  https://github.com/u2giants/openclaw/releases",
+      "  https://github.com/u2giants/popdam3/releases",
       "Extract into C:\\Program Files\\PopDAM\\WindowsAgent\\",
       "",
       "── STEP 3: Start the agent ─────────────────────────",
