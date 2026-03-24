@@ -40,6 +40,8 @@ const BLOCKLIST = new Set([
   ".svn",
   "recovered",
   "adobe premiere pro auto-save",
+  "_old",
+  "sample",
 ]);
 
 // ── Prefix characters that trigger automatic skip (Rule A) ──────────

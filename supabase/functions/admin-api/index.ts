@@ -84,9 +84,9 @@ import {
   handleUpdateHygieneFindings,
 } from "../_shared/admin-handlers/hygiene-handlers.ts";
 
-// ── Auth: JWT validation + admin role check ─────────────────────────
+// ── Auth: JWT validation only (any authenticated user) ──────────────
 
-async function authenticateAdmin(
+async function authenticateUser(
   req: Request,
 ): Promise<{ userId: string } | Response> {
   const authHeader = req.headers.get("Authorization");
@@ -101,13 +101,13 @@ async function authenticateAdmin(
   if (serviceRoleKey && token === serviceRoleKey) {
     return { userId: "system" };
   }
+
   const anonClient = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
     { global: { headers: { Authorization: authHeader } } },
   );
 
-  let userId: string;
   try {
     let sub: string | undefined;
     const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
@@ -125,12 +125,22 @@ async function authenticateAdmin(
     } else {
       sub = user.id;
     }
-    userId = sub;
-    console.log("Authenticated userId:", userId);
+    console.log("Authenticated userId:", sub);
+    return { userId: sub };
   } catch (e) {
     console.error("Token validation error:", e);
     return err("Invalid or expired token", 401);
   }
+}
+
+// ── Auth: JWT validation + admin role check ─────────────────────────
+
+async function authenticateAdmin(
+  req: Request,
+): Promise<{ userId: string } | Response> {
+  const authResult = await authenticateUser(req);
+  if (authResult instanceof Response) return authResult;
+  const { userId } = authResult;
 
   // Check admin role using service client (bypasses RLS)
   const db = serviceClient();
@@ -161,6 +171,15 @@ async function authenticateAdmin(
 
   return { userId };
 }
+
+// ── Actions accessible to any authenticated user (not admin-only) ────
+
+const USER_ACCESSIBLE_ACTIONS = new Set([
+  "list-sibling-images",
+  "get-sibling-scan-result",
+  "get-sibling-scan-by-folder",
+  "ingest-sibling-images",
+]);
 
 // ── Retry helper for transient connection / body-read errors ────────
 
@@ -661,10 +680,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const authResult = await authenticateAdmin(req);
-    if (authResult instanceof Response) return authResult;
-    const { userId } = authResult;
-
+    // Parse body first so we can determine the action before selecting auth level
     let body: Record<string, unknown>;
     try {
       body = await req.json();
@@ -677,6 +693,13 @@ serve(async (req: Request) => {
     const route = pathSegments[pathSegments.length - 1] || "";
     const action = (body.action as string) || route;
     console.log(`admin-api action: ${action}`);
+
+    // Choose auth level: some actions are open to all authenticated users
+    const authResult = USER_ACCESSIBLE_ACTIONS.has(action)
+      ? await authenticateUser(req)
+      : await authenticateAdmin(req);
+    if (authResult instanceof Response) return authResult;
+    const { userId } = authResult;
 
     switch (action) {
       // ── Config ──

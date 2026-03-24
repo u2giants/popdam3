@@ -30,6 +30,8 @@ const BLOCKLIST = new Set([
   ".svn",
   "recovered",
   "adobe premiere pro auto-save",
+  "_old",
+  "sample",
 ]);
 
 const SKIP_PREFIXES = [".", "$", "@", "#"];
