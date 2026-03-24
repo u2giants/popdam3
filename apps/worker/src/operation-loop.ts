@@ -141,6 +141,11 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 
 async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
+  // Handle dynamic single-asset tagging keys (ai-tag-single-{uuid})
+  if (opKey.startsWith("ai-tag-single-")) {
+    return handleBulkAiTag(opState, true);
+  }
+
   switch (opKey) {
     case "ai-tag-untagged":
       return handleBulkAiTag(opState, false);
