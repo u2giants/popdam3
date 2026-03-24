@@ -562,7 +562,9 @@ async function handleGetLatestAgentBuild(body: Record<string, unknown>) {
     return json({
       ok: true,
       latest_version: "0.0.0",
-      download_url: agentType === "bridge" ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz` : `${repoBase}/latest/download/popdam-windows-agent-dist.zip`,
+      download_url: agentType === "bridge"
+        ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz`
+        : `${repoBase}/latest/download/popdam-windows-agent-dist.zip`,
       checksum_sha256: "",
       release_notes: "",
       published_at: null,
