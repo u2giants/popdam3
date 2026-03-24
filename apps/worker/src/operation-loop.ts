@@ -41,6 +41,7 @@ const OP_LANES: Record<string, string> = {
 };
 
 function getLane(opKey: string): string {
+  if (opKey.startsWith("ai-tag-single-")) return "ai-tagging";
   return OP_LANES[opKey] ?? opKey;
 }
 
