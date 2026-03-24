@@ -55,7 +55,9 @@ function detectStaleRun(op: OpState): boolean {
 // ── Progress accumulator — mirrors buildProgress() in bulk-job-runner ────────
 
 function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: BatchResult): Record<string, unknown> {
-  switch (opKey) {
+  // Normalize dynamic keys for matching
+  const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
+  switch (normalizedKey) {
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups": {
