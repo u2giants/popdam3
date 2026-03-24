@@ -1,0 +1,19 @@
+{
+  "name": "popdam-helper",
+  "version": "1.0.0",
+  "description": "PopDAM local protocol handler — opens NAS folders in Explorer/Finder from the web app",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "pkg": "pkg dist/index.js --target node18-win-x64 --output popdam-helper.exe"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "pkg": "^5.8.1",
+    "typescript": "^5.0.0"
+  },
+  "pkg": {
+    "assets": [],
+    "targets": ["node18-win-x64"]
+  }
+}
