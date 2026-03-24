@@ -121,7 +121,8 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
 }
 
 function buildResultMessage(opKey: string, progress: Record<string, unknown>): string {
-  switch (opKey) {
+  const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
+  switch (normalizedKey) {
     case "ai-tag-untagged":
     case "ai-tag-all":
     case "ai-tag-groups":
