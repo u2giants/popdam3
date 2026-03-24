@@ -24,7 +24,7 @@ jobs:
       - name: Build path-filters package
         working-directory: packages/path-filters
         run: |
-          npm install --save-dev typescript
+          npm install --save-dev typescript@5
           npx tsc
           echo "path-filters built successfully"
 
