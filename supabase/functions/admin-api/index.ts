@@ -992,6 +992,8 @@ serve(async (req: Request) => {
         return await handleTriggerStyleGuideCrawl(userId);
       case "get-style-guide-crawl-status":
         return await handleGetStyleGuideCrawlStatus();
+      case "browse-style-guide-files":
+        return await handleBrowseStyleGuideFiles(body);
 
       default:
         return err(`Unknown action: ${action}`, 404);
