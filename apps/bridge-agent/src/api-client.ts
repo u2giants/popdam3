@@ -303,3 +303,29 @@ export async function completeSiblingScan(
     error_message: errorMessage,
   });
 }
+
+// ── Style Guide Crawl ──────────────────────────────────────────────
+
+export async function claimStyleGuideCrawl(): Promise<{ run_id: string; roots: string[] } | null> {
+  const data = await callApi("claim-style-guide-crawl", {});
+  if (!data.run_id) return null;
+  return { run_id: data.run_id as string, roots: (data.roots as string[]) || [] };
+}
+
+import type { StyleGuideFileRecord } from "./style-guide-crawler.js";
+
+export async function completeStyleGuideCrawl(
+  runId: string,
+  files: StyleGuideFileRecord[],
+  done: boolean,
+  totalFiles?: number,
+  error?: string,
+): Promise<void> {
+  await callApi("complete-style-guide-crawl", {
+    run_id: runId,
+    files,
+    done,
+    total_files: totalFiles,
+    error,
+  });
+}
