@@ -314,6 +314,11 @@ function applyCloudConfig(cfg: CloudConfig) {
   if (cfg.pending_render_jobs !== undefined) {
     pendingRenderJobs = typeof cfg.pending_render_jobs === "number" ? cfg.pending_render_jobs : 0;
   }
+
+  // Update style guide scanning roots
+  if (cfg.style_guide_scanning?.roots) {
+    cloudStyleGuideRoots = cfg.style_guide_scanning.roots;
+  }
 }
 
 // ── Thumbnail pipeline (bounded concurrency) ────────────────────
