@@ -36,6 +36,15 @@ export interface ThumbnailResult {
   height: number;
 }
 
+export interface PdfThumbnailResult extends ThumbnailResult {
+  /** High-res page 1 image (1500px) for AI/OCR readability */
+  hiresPage1Buffer: Buffer;
+  /** High-res page 2 image (1500px) — undefined if PDF has only 1 page */
+  hiresPage2Buffer?: Buffer;
+  hiresPage2Width?: number;
+  hiresPage2Height?: number;
+}
+
 /**
  * Generate a thumbnail for a PSD file.
  * Sharp can read PSD files directly (flattened composite).
