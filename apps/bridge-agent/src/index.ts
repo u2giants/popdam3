@@ -628,7 +628,7 @@ async function processFile(file: FileCandidate) {
     const { quick_hash, quick_hash_version } = await computeQuickHash(file.absolutePath);
 
     // 2. Thumbnail strategy — uses new policy if set, else legacy mode
-    let thumb: { thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number } = {};
+    let thumb: { thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number; pdfPage2Url?: string } = {};
     const effectiveMode = windowsRenderPolicy?.mode ?? windowsRenderMode;
     const policy = windowsRenderPolicy;
 
