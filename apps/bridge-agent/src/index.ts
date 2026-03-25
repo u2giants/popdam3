@@ -199,6 +199,15 @@ async function sendHeartbeat() {
     if (response.commands.apply_update) {
       handleApplyUpdate();
     }
+    // Style guide crawl
+    if (response.commands.trigger_style_guide_crawl && !isCrawlingStyleGuides) {
+      isCrawlingStyleGuides = true;
+      const roots = cloudStyleGuideRoots.length > 0 ? cloudStyleGuideRoots : [];
+      logger.info("Style guide crawl requested via heartbeat", { roots });
+      crawlStyleGuides(roots).finally(() => {
+        isCrawlingStyleGuides = false;
+      });
+    }
   }
 
   processSiblingScanRequests().catch((e) =>
