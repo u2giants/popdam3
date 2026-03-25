@@ -1215,6 +1215,110 @@ export type Database = {
           },
         ]
       }
+      style_guide_crawl_runs: {
+        Row: {
+          agent_id: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          files_found: number | null
+          id: string
+          roots_scanned: string[] | null
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          agent_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          files_found?: number | null
+          id?: string
+          roots_scanned?: string[] | null
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          agent_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          files_found?: number | null
+          id?: string
+          roots_scanned?: string[] | null
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      style_guide_files: {
+        Row: {
+          basename_no_ext: string
+          crawl_run_id: string | null
+          created_at: string
+          directory_path: string
+          file_extension: string | null
+          filename: string
+          grandparent_folder: string | null
+          id: string
+          is_active: boolean
+          last_seen_at: string
+          modified_at: string | null
+          normalized_name: string
+          normalized_parent_folder: string
+          parent_folder: string
+          relative_path: string
+          root_label: string
+          size_bytes: number | null
+        }
+        Insert: {
+          basename_no_ext: string
+          crawl_run_id?: string | null
+          created_at?: string
+          directory_path: string
+          file_extension?: string | null
+          filename: string
+          grandparent_folder?: string | null
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string
+          modified_at?: string | null
+          normalized_name: string
+          normalized_parent_folder: string
+          parent_folder: string
+          relative_path: string
+          root_label: string
+          size_bytes?: number | null
+        }
+        Update: {
+          basename_no_ext?: string
+          crawl_run_id?: string | null
+          created_at?: string
+          directory_path?: string
+          file_extension?: string | null
+          filename?: string
+          grandparent_folder?: string | null
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string
+          modified_at?: string | null
+          normalized_name?: string
+          normalized_parent_folder?: string
+          parent_folder?: string
+          relative_path?: string
+          root_label?: string
+          size_bytes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_files_crawl_run_id_fkey"
+            columns: ["crawl_run_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_crawl_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiff_optimization_queue: {
         Row: {
           claimed_at: string | null
