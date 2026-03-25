@@ -197,6 +197,12 @@ async function* scanDirectory(
       continue;
     }
 
+    // PDF keyword filter: only accept PDFs matching specific document types
+    if (ext === ".pdf" && !isPdfCandidate(entry.name)) {
+      counters.rejected_wrong_type++;
+      continue;
+    }
+
     counters.files_checked++;
 
     try {
@@ -208,11 +214,13 @@ async function* scanDirectory(
       relPath = relPath.split("\\").join("/"); // Ensure POSIX
       if (relPath.startsWith("/")) relPath = relPath.slice(1);
 
+      const fileType: "psd" | "ai" | "pdf" = ext === ".psd" ? "psd" : ext === ".ai" ? "ai" : "pdf";
+
       const candidate: FileCandidate = {
         absolutePath: fullPath,
         relativePath: relPath,
         filename: basename(entry.name),
-        fileType: ext === ".psd" ? "psd" : "ai",
+        fileType,
         fileSize: s.size,
         // modifiedAt = mtime (last content modification, NOT access time)
         // fileCreatedAt = birthtime (original creation time, may be null on Linux)
