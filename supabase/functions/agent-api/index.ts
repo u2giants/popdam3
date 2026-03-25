@@ -804,6 +804,7 @@ async function handleIngest(
     thumbnail_error: thumbnailError,
     workflow_status: derived.workflow_status,
     is_licensed: derived.is_licensed,
+    ...(pdfPage2Url ? { pdf_page2_url: pdfPage2Url } : {}),
     ...skuFields,
   };
   // Path-derived names fill in when ColdLion didn't resolve
