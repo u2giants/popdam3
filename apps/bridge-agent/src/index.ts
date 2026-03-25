@@ -981,23 +981,34 @@ async function handleCheckUpdate() {
 }
 
 function handleApplyUpdate() {
-  logger.info("Self-update requested — pulling and restarting container");
-  const tag = imageTag !== "unknown" ? imageTag : "stable";
-  const pullImage = `ghcr.io/u2giants/popdam-bridge:${tag}`;
+  logger.info("Self-update requested — pulling latest image and recreating container");
   const composePath = process.env.POPDAM_COMPOSE_PATH || "/volume1/docker/popdam/docker-compose.yml";
   logger.info("Using compose path for restart", { composePath });
   const { exec } = require("node:child_process");
-  // Fire and forget — container will stop mid-execution
-  exec([
-    `docker pull ${pullImage}`,
-    "docker stop popdam-bridge",
-    "docker rm popdam-bridge",
-    `docker compose -f ${composePath} up -d`,
-  ].join(" && "), (err: Error | null) => {
-    if (err) {
-      logger.error("Self-update exec failed", { error: err.message });
+
+  // Report status before starting
+  api.reportUpdateStatus({
+    status: "updating",
+    started_at: new Date().toISOString(),
+  }).catch(() => {});
+
+  // Use docker compose to pull + recreate in one atomic operation.
+  // The current container will be stopped and replaced by compose.
+  exec(
+    `docker compose -f ${composePath} pull && docker compose -f ${composePath} up -d --force-recreate`,
+    { timeout: 300_000 },
+    (err: Error | null) => {
+      if (err) {
+        logger.error("Self-update exec failed", { error: err.message });
+        api.reportUpdateStatus({
+          status: "failed",
+          error: err.message,
+          failed_at: new Date().toISOString(),
+        }).catch(() => {});
+      }
+      // On success the container is replaced — this process exits naturally
     }
-  });
+  );
 }
 
 // Legacy polling loop removed.
