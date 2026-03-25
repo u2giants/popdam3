@@ -163,7 +163,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
           setSiblings(images);
           setSelected(new Set());
           if (images.length === 0) {
-            toast("No alternative images found", { description: "No JPG/PNG files exist in this folder on the NAS." });
+            toast("No alternative images found", { description: "No JPG, PNG, or eligible PDF files exist in this folder on the NAS." });
           } else {
             toast(`Found ${images.length} image${images.length !== 1 ? "s" : ""}`);
           }
@@ -218,7 +218,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         const images = (result.images ?? []) as SiblingImage[];
         setSiblings(images);
         if (images.length === 0) {
-          toast("No alternative images found", { description: "No JPG/PNG files exist in this folder on the NAS." });
+          toast("No alternative images found", { description: "No JPG, PNG, or eligible PDF files exist in this folder on the NAS." });
         }
       } else if (result?.status === "failed") {
         setError(result.error_message || "Scan failed");
