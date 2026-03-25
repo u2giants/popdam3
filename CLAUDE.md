@@ -41,6 +41,31 @@ gh pr create --repo u2giants/popdam3 --head <branch> --base main --title "..." -
 gh pr merge <number> --repo u2giants/popdam3 --squash --delete-branch
 ```
 
+## Supabase Migrations
+
+### CRITICAL: Always match the local filename timestamp to what the DB records
+
+When applying a migration via MCP (`mcp__Supabase__apply_migration`), Supabase records it in the
+migration history table using the **actual clock time at the moment of the call** — not any
+timestamp you choose. If the local filename uses a different timestamp, `supabase db push` will see
+a local file it can't find in history, try to re-apply it, and fail (e.g. "policy already exists").
+
+**Safe workflow — do this in order:**
+
+1. Decide on the SQL content first.
+2. Call `mcp__Supabase__apply_migration` to apply it to the remote DB.
+3. Immediately check `mcp__Supabase__list_migrations` to see the exact timestamp Supabase recorded.
+4. Create the local file in `supabase/migrations/` using **that exact timestamp** as the filename prefix.
+
+**If the mismatch has already happened:**
+
+- Both the old-timestamp file and a new-timestamp file may end up on `main` after squash merges (the rename becomes an add without removing the original).
+- Check which timestamp is in the remote DB history: `mcp__Supabase__list_migrations`.
+- Delete the file whose timestamp is **not** in the DB history.
+- Commit and merge to `main` — the deploy workflow will then skip the already-applied migration.
+
+**Never apply via MCP and create a local file in the same step without verifying the timestamps match.**
+
 ## Versioning
 
 Whenever changes are made to `apps/bridge-agent/`, bump `apps/bridge-agent/package.json` version as part of the same commit:
