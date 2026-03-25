@@ -34,7 +34,7 @@ export interface FileCandidate {
   absolutePath: string;
   relativePath: string; // POSIX canonical (no leading slash)
   filename: string;
-  fileType: "psd" | "ai";
+  fileType: "psd" | "ai" | "pdf";
   fileSize: number;
   modifiedAt: Date;
   fileCreatedAt: Date | null;
