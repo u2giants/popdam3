@@ -897,6 +897,10 @@ serve(async (req: Request) => {
         return await handleGetLatestAgentBuild(body);
       case "trigger-windows-update":
         return await handleTriggerWindowsUpdate(body, userId);
+      case "trigger-style-guide-crawl":
+        return await handleTriggerStyleGuideCrawl(userId);
+      case "get-style-guide-crawl-status":
+        return await handleGetStyleGuideCrawlStatus();
 
       default:
         return err(`Unknown action: ${action}`, 404);

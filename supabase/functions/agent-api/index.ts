@@ -2417,6 +2417,10 @@ serve(async (req: Request) => {
         return await handleClaimHygieneScan(body, agentId);
       case "report-hygiene-findings":
         return await handleReportHygieneFindings(body);
+      case "claim-style-guide-crawl":
+        return await handleClaimStyleGuideCrawl(body, agentId);
+      case "complete-style-guide-crawl":
+        return await handleCompleteStyleGuideCrawl(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
