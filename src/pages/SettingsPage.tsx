@@ -285,6 +285,9 @@ function AgentStatusSection() {
               const isUpdating = vi?.updating === true;
               const updateError = vi?.update_error as string | null;
               const deployedAt = vi?.last_reported_at as string | null;
+              const buildData = (agent.type as string) === "bridge" ? bridgeBuildData : windowsBuildData;
+              const latestVersion = buildData?.latest_version as string | null;
+              const latestPublishedAt = buildData?.published_at as string | null;
               const updateAvailable = latestVersion && currentVersion && latestVersion !== "0.0.0" && latestVersion !== currentVersion;
 
               return (
