@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,8 +8,8 @@ import {
   Database, Clock, Monitor, AlertTriangle, Activity,
   Loader2, CheckCircle2, XCircle, ChevronDown, Wrench, ExternalLink,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { useAdminApi } from "@/hooks/useAdminApi";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import type { AgentInfo, Counts, ProcessingError, ScanProgress } from "./types";
 import { timeAgo, AGENT_TYPE_LABELS, SENSITIVE_PATTERNS, categorizeKey } from "./types";
 
@@ -252,24 +253,38 @@ export function RecentErrors({ errors }: { errors: ProcessingError[] }) {
 // ── Render Job Stats ────────────────────────────────────────────────
 
 export function RenderJobStats() {
-  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
 
   const { data: stats } = useQuery({
     queryKey: ["render-job-stats"],
     queryFn: async () => {
+      const minus24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const [pendingRes, completed24hRes, failed24hRes] = await Promise.all([
-        call("run-query", { sql: "SELECT COUNT(*) as count FROM render_queue WHERE status IN ('pending', 'claimed')" }),
-        call("run-query", { sql: "SELECT COUNT(*) as count FROM render_queue WHERE status = 'completed' AND completed_at >= now() - interval '24 hours'" }),
-        call("run-query", { sql: "SELECT COUNT(*) as count FROM render_queue WHERE status = 'failed' AND completed_at >= now() - interval '24 hours'" }),
+        supabase.from("render_queue").select("id", { count: "exact", head: true }).in("status", ["pending", "claimed"]),
+        supabase.from("render_queue").select("id", { count: "exact", head: true }).eq("status", "completed").gte("completed_at", minus24h),
+        supabase.from("render_queue").select("id", { count: "exact", head: true }).eq("status", "failed").gte("completed_at", minus24h),
       ]);
       return {
-        pending: Number(pendingRes.rows?.[0]?.count ?? 0),
-        completed24h: Number(completed24hRes.rows?.[0]?.count ?? 0),
-        failed24h: Number(failed24hRes.rows?.[0]?.count ?? 0),
+        pending: pendingRes.count ?? 0,
+        completed24h: completed24hRes.count ?? 0,
+        failed24h: failed24hRes.count ?? 0,
       };
     },
-    refetchInterval: 15_000,
+    staleTime: Infinity,
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("render-job-stats-realtime")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "render_queue",
+      }, () => queryClient.invalidateQueries({ queryKey: ["render-job-stats"] }))
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   return (
     <Card>

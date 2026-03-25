@@ -1,6 +1,6 @@
-import { useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAdminApi } from "./useAdminApi";
+import { supabase } from "@/integrations/supabase/client";
 import type { ScanCounters } from "./useAgentStatus";
 
 export type ScanProgressStatus = "idle" | "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "stale";
@@ -87,36 +87,56 @@ function parseScanProgress(
   return { status };
 }
 
+async function fetchScanProgress(): Promise<ScanProgress> {
+  const { data, error } = await supabase
+    .from("admin_config")
+    .select("key, value")
+    .in("key", ["SCAN_PROGRESS", "SCAN_REQUEST"]);
+
+  if (error) throw error;
+
+  const config: Record<string, unknown> = {};
+  for (const row of data ?? []) {
+    config[row.key] = row.value;
+  }
+
+  return parseScanProgress(config.SCAN_PROGRESS, config.SCAN_REQUEST);
+}
+
 /**
- * Polls admin-api get-config for SCAN_PROGRESS + SCAN_REQUEST.
- * Uses React Query with adaptive refetchInterval:
- *   - 5s when scan is active (running/queued/stale)
- *   - 15s when idle
+ * Reads SCAN_PROGRESS + SCAN_REQUEST directly from admin_config via Supabase JS client.
+ * Realtime subscription pushes invalidations on any change — no polling.
+ * admin_config has USING (true) SELECT RLS so all authenticated users can read it.
  */
 export function useScanProgress(): ScanProgress & { pollNow: () => void } {
-  const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
   const { data } = useQuery({
     queryKey: ["scan-progress"],
-    queryFn: async (): Promise<ScanProgress> => {
-      try {
-        const result = await call("get-config", { keys: ["SCAN_PROGRESS", "SCAN_REQUEST"] });
-        const raw = result?.config?.SCAN_PROGRESS?.value ?? result?.config?.SCAN_PROGRESS;
-        const rawRequest = result?.config?.SCAN_REQUEST?.value ?? result?.config?.SCAN_REQUEST;
-        return parseScanProgress(raw, rawRequest);
-      } catch {
-        // Silently ignore polling errors — return previous or default
-        return queryClient.getQueryData<ScanProgress>(["scan-progress"]) ?? DEFAULT_PROGRESS;
-      }
-    },
-    refetchInterval: (query) => {
-      const status = query.state.data?.status ?? "idle";
-      if (status === "running" || status === "stale" || status === "queued") return 5_000;
-      return 15_000;
-    },
+    queryFn: fetchScanProgress,
+    staleTime: Infinity,
     initialData: DEFAULT_PROGRESS,
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("scan-progress-realtime")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "admin_config",
+        filter: "key=eq.SCAN_PROGRESS",
+      }, () => queryClient.invalidateQueries({ queryKey: ["scan-progress"] }))
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "admin_config",
+        filter: "key=eq.SCAN_REQUEST",
+      }, () => queryClient.invalidateQueries({ queryKey: ["scan-progress"] }))
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const pollNow = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["scan-progress"] });
