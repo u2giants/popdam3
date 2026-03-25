@@ -15,8 +15,8 @@
 import { config } from "./config";
 import { logger } from "./logger";
 import * as api from "./api-client";
-import { renderFile } from "./renderer";
-import { uploadThumbnail, reinitializeS3Client } from "./uploader";
+import { renderFile, type PdfRenderResult } from "./renderer";
+import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
 import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
