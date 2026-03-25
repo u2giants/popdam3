@@ -687,6 +687,7 @@ async function processFile(file: FileCandidate) {
       thumbnail_error: thumb.thumbnailError,
       width: thumb.width,
       height: thumb.height,
+      pdf_page2_url: thumb.pdfPage2Url,
     });
 
     // Update counters based on API response
