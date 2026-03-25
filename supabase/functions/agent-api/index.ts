@@ -855,6 +855,7 @@ const ALLOWED_UPDATE_FIELDS = [
   "little_theme",
   "design_ref",
   "design_style",
+  "pdf_page2_url",
 ];
 
 async function handleUpdateAsset(body: Record<string, unknown>) {
