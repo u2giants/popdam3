@@ -423,6 +423,9 @@ async function handleHeartbeat(
         nas_mount_path: (configMap.WINDOWS_AGENT_NAS_MOUNT_PATH as string) || "",
         render_concurrency: parseInt((configMap.WINDOWS_AGENT_RENDER_CONCURRENCY as string) || "0") || 0,
       },
+      style_guide_scanning: {
+        roots: (configMap.STYLE_GUIDE_SCAN_ROOTS as string[]) || [],
+      },
     },
     commands: {
       force_scan: forceScan,
@@ -432,6 +435,13 @@ async function handleHeartbeat(
       check_update: checkUpdate,
       apply_update: applyUpdate,
       trigger_update: (newMetadata as Record<string, unknown>).trigger_update === true,
+      trigger_style_guide_crawl: (() => {
+        // Deliver crawl command if a pending request exists and agent is a bridge
+        if (agentType !== "bridge") return false;
+        const crawlReq = configMap.STYLE_GUIDE_CRAWL_REQUEST as Record<string, unknown> | undefined;
+        if (!crawlReq) return false;
+        return crawlReq.status === "pending" || (crawlReq.status === "claimed" && crawlReq.claimed_by === agentId);
+      })(),
     },
   };
 
