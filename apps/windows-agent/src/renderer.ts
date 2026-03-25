@@ -31,11 +31,19 @@ import { logger } from "./logger";
 const execFileAsync = promisify(execFile);
 
 const THUMB_MAX_DIM = 800;
+const PDF_HIRES_DIM = 1500;
 
 export interface RenderResult {
   buffer: Buffer;
   width: number;
   height: number;
+}
+
+export interface PdfRenderResult extends RenderResult {
+  hiresPage1Buffer: Buffer;
+  hiresPage2Buffer?: Buffer;
+  hiresPage2Width?: number;
+  hiresPage2Height?: number;
 }
 
 // ── Ghostscript path discovery ──────────────────────────────────
