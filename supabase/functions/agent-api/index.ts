@@ -757,6 +757,7 @@ async function handleIngest(
       last_seen_at: new Date().toISOString(),
       workflow_status: derived.workflow_status,
       is_licensed: derived.is_licensed,
+      ...(pdfPage2Url ? { pdf_page2_url: pdfPage2Url } : {}),
       ...thumbnailFields,
       ...skuFields,
     };
