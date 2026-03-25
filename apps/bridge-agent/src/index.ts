@@ -4,8 +4,8 @@
  * Lifecycle:
  *   1. Validate config (fail-fast on missing env vars)
  *   2. Register with cloud API (get agent_id)
- *   3. Start heartbeat timer (every 30s, independent of scanning)
- *   4. Poll for scan requests (idle: 30s, active: 5s)
+ *   3. Start heartbeat timer (every 30s — fallback command channel)
+ *   4. Start Realtime watcher (instant SCAN_REQUEST delivery via Supabase Realtime)
  *   5. When scan requested: validate roots → scan → hash → thumbnail → upload → ingest
  *   6. Report progress throughout
  *
@@ -23,6 +23,7 @@ import { generateThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
+import { startRealtimeWatcher } from "./realtime-watcher.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -219,6 +220,22 @@ function startHeartbeat() {
     sendHeartbeat().catch((e) => logger.error("Heartbeat failed", { error: (e as Error).message }));
   }, INTERVAL_MS);
   logger.info("Heartbeat started (30s interval)");
+}
+
+// ── Realtime wake callback ───────────────────────────────────────
+// Called by startRealtimeWatcher when a SCAN_REQUEST lands in admin_config.
+// Fires an immediate heartbeat so the agent picks up the force_scan command
+// in milliseconds instead of waiting up to 30s for the next scheduled beat.
+// Debounced to 2s so a rapid double-write doesn't send two concurrent heartbeats.
+
+let _lastRealtimeWakeMs = 0;
+function onRealtimeScanRequest() {
+  const now = Date.now();
+  if (now - _lastRealtimeWakeMs < 2_000) return; // debounce
+  _lastRealtimeWakeMs = now;
+  sendHeartbeat().catch((e) =>
+    logger.error("Realtime-triggered heartbeat failed", { error: (e as Error).message }),
+  );
 }
 
 interface CloudConfig {
@@ -1067,11 +1084,14 @@ async function main() {
     }
   }
 
-  // 2. Start heartbeat (independent timer)
+  // 2. Start heartbeat (independent timer — fallback command channel)
   startHeartbeat();
 
-  // 3. Ready — all scan/abort commands come via heartbeat
-  logger.info("Agent ready (all commands via heartbeat)");
+  // 3. Start Realtime watcher (instant scan-request delivery when SUPABASE_ANON_KEY is set)
+  startRealtimeWatcher(config.supabaseUrl, config.supabaseAnonKey, agentId, onRealtimeScanRequest);
+
+  // 4. Ready
+  logger.info("Agent ready");
 }
 
 main().catch((e) => {

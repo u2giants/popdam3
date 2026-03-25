@@ -57,6 +57,10 @@ export const config = {
   agentKey: optional("AGENT_KEY", ""),
   agentName: optional("AGENT_NAME", "bridge-agent"),
 
+  // Supabase anon key — used by the Realtime watcher for instant scan-request delivery.
+  // Optional: if absent the agent falls back to heartbeat-only mode (30s latency).
+  supabaseAnonKey: optional("SUPABASE_ANON_KEY", ""),
+
   // Pairing code (one-time use, consumed on first startup)
   pairingCode: optional("POPDAM_PAIRING_CODE", optional("PAIRING_CODE", "")),
 
