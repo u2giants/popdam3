@@ -24,6 +24,7 @@ import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { startRealtimeWatcher } from "./realtime-watcher.js";
+import { crawlStyleGuides } from "./style-guide-crawler.js";
 
 // ── State ───────────────────────────────────────────────────────
 
