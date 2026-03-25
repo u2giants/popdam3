@@ -23,7 +23,7 @@ import FileHygieneTab from "@/components/settings/FileHygieneTab";
 import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
 import AiTaggingTab from "@/components/settings/AiTaggingTab";
 import OperationsTab from "@/components/settings/OperationsTab";
-
+import StyleGuideCrawlTab from "@/components/settings/StyleGuideCrawlTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -928,6 +928,7 @@ export default function SettingsPage() {
               <AgentThroughputChart />
               <LiveScanMonitor />
               <UpdateAgentButton />
+              <StyleGuideCrawlTab />
             </div>
           )}
           {agentsSubTab === "windows" && <WindowsAgentTab />}

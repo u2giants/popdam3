@@ -133,6 +133,7 @@ export interface HeartbeatResponse {
     windows_render_policy?: WindowsRenderPolicy | null;
     windows_healthy?: boolean;
     pending_render_jobs?: number;
+    style_guide_scanning?: { roots: string[] };
   };
   commands?: {
     force_scan: boolean;
@@ -145,6 +146,7 @@ export interface HeartbeatResponse {
     } | null;
     check_update?: boolean;
     apply_update?: boolean;
+    trigger_style_guide_crawl?: boolean;
   };
 }
 
@@ -301,5 +303,31 @@ export async function completeSiblingScan(
     status,
     images,
     error_message: errorMessage,
+  });
+}
+
+// ── Style Guide Crawl ──────────────────────────────────────────────
+
+export async function claimStyleGuideCrawl(): Promise<{ run_id: string; roots: string[] } | null> {
+  const data = await callApi("claim-style-guide-crawl", {});
+  if (!data.run_id) return null;
+  return { run_id: data.run_id as string, roots: (data.roots as string[]) || [] };
+}
+
+import type { StyleGuideFileRecord } from "./style-guide-crawler.js";
+
+export async function completeStyleGuideCrawl(
+  runId: string,
+  files: StyleGuideFileRecord[],
+  done: boolean,
+  totalFiles?: number,
+  error?: string,
+): Promise<void> {
+  await callApi("complete-style-guide-crawl", {
+    run_id: runId,
+    files,
+    done,
+    total_files: totalFiles,
+    error,
   });
 }

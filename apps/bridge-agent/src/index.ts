@@ -24,6 +24,7 @@ import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { startRealtimeWatcher } from "./realtime-watcher.js";
+import { crawlStyleGuides } from "./style-guide-crawler.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ let abortRequested = false;
 let lastError: string | undefined;
 const MAX_SKIPPED_DIRS = 500;
 let skippedDirs: string[] = [];
+let isCrawlingStyleGuides = false;
 
 // ── Version info (injected via Docker build args or package.json) ──
 const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
@@ -95,6 +97,7 @@ let cloudMountRoot: string | null = null;
 let cloudBatchSize: number | null = null;
 let cloudConcurrency: number | null = null;
 let cloudScanMinDate: string | null = null;
+let cloudStyleGuideRoots: string[] = [];
 
 // Auto-scan state
 let autoScanEnabled = false;
@@ -196,6 +199,15 @@ async function sendHeartbeat() {
     if (response.commands.apply_update) {
       handleApplyUpdate();
     }
+    // Style guide crawl
+    if (response.commands.trigger_style_guide_crawl && !isCrawlingStyleGuides) {
+      isCrawlingStyleGuides = true;
+      const roots = cloudStyleGuideRoots.length > 0 ? cloudStyleGuideRoots : [];
+      logger.info("Style guide crawl requested via heartbeat", { roots });
+      crawlStyleGuides(roots).finally(() => {
+        isCrawlingStyleGuides = false;
+      });
+    }
   }
 
   processSiblingScanRequests().catch((e) =>
@@ -247,6 +259,7 @@ interface CloudConfig {
   windows_render_policy?: WindowsRenderPolicy | null;
   windows_healthy?: boolean;
   pending_render_jobs?: number;
+  style_guide_scanning?: { roots: string[] };
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
@@ -309,6 +322,11 @@ function applyCloudConfig(cfg: CloudConfig) {
   }
   if (cfg.pending_render_jobs !== undefined) {
     pendingRenderJobs = typeof cfg.pending_render_jobs === "number" ? cfg.pending_render_jobs : 0;
+  }
+
+  // Update style guide scanning roots
+  if (cfg.style_guide_scanning?.roots) {
+    cloudStyleGuideRoots = cfg.style_guide_scanning.roots;
   }
 }
 

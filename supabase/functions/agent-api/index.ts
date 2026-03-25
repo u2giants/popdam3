@@ -101,6 +101,8 @@ const HEARTBEAT_CONFIG_KEYS = [
   "WINDOWS_RENDER_POLICY",
   "TIFF_SCAN_REQUEST",
   "HYGIENE_SCAN_REQUEST",
+  "STYLE_GUIDE_SCAN_ROOTS",
+  "STYLE_GUIDE_CRAWL_REQUEST",
 ];
 
 async function handleHeartbeat(
@@ -421,6 +423,9 @@ async function handleHeartbeat(
         nas_mount_path: (configMap.WINDOWS_AGENT_NAS_MOUNT_PATH as string) || "",
         render_concurrency: parseInt((configMap.WINDOWS_AGENT_RENDER_CONCURRENCY as string) || "0") || 0,
       },
+      style_guide_scanning: {
+        roots: (configMap.STYLE_GUIDE_SCAN_ROOTS as string[]) || [],
+      },
     },
     commands: {
       force_scan: forceScan,
@@ -430,6 +435,13 @@ async function handleHeartbeat(
       check_update: checkUpdate,
       apply_update: applyUpdate,
       trigger_update: (newMetadata as Record<string, unknown>).trigger_update === true,
+      trigger_style_guide_crawl: (() => {
+        // Deliver crawl command if a pending request exists and agent is a bridge
+        if (agentType !== "bridge") return false;
+        const crawlReq = configMap.STYLE_GUIDE_CRAWL_REQUEST as Record<string, unknown> | undefined;
+        if (!crawlReq) return false;
+        return crawlReq.status === "pending" || (crawlReq.status === "claimed" && crawlReq.claimed_by === agentId);
+      })(),
     },
   };
 
@@ -2292,7 +2304,154 @@ async function handleReportHygieneFindings(body: Record<string, unknown>) {
   return json({ ok: true, inserted, cancelled: isCancelled });
 }
 
-serve(async (req: Request) => {
+// ── Route: claim-style-guide-crawl ──────────────────────────────────
+
+async function handleClaimStyleGuideCrawl(_body: Record<string, unknown>, agentId: string) {
+  const db = serviceClient();
+
+  const { data: reqRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "STYLE_GUIDE_CRAWL_REQUEST")
+    .maybeSingle();
+
+  if (!reqRow?.value) return json({ ok: true, run_id: null });
+
+  const req = reqRow.value as Record<string, unknown>;
+  const isPending = req.status === "pending";
+  const isOrphan = req.status === "claimed" && req.claimed_by === agentId;
+
+  if (!isPending && !isOrphan) return json({ ok: true, run_id: null });
+
+  // Read roots
+  const { data: rootsRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "STYLE_GUIDE_SCAN_ROOTS")
+    .maybeSingle();
+
+  const roots = (rootsRow?.value as string[]) || [];
+
+  // Claim the request
+  await db.from("admin_config").upsert({
+    key: "STYLE_GUIDE_CRAWL_REQUEST",
+    value: { ...req, status: "claimed", claimed_by: agentId, claimed_at: new Date().toISOString() },
+    updated_at: new Date().toISOString(),
+  });
+
+  // Create crawl run
+  const { data: run, error: runErr } = await db
+    .from("style_guide_crawl_runs")
+    .insert({
+      status: "running",
+      agent_id: agentId,
+      roots_scanned: roots,
+      started_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (runErr) return err(runErr.message, 500);
+
+  console.log(`[claim-style-guide-crawl] Agent ${agentId} claimed crawl, run_id=${run.id}`);
+  return json({ ok: true, run_id: run.id, roots });
+}
+
+// ── Route: complete-style-guide-crawl ───────────────────────────────
+
+async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const runId = body.run_id as string;
+  const files = (body.files as Record<string, unknown>[]) || [];
+  const done = body.done === true;
+  const totalFiles = body.total_files as number | undefined;
+  const crawlError = body.error as string | undefined;
+
+  if (!runId) return err("run_id is required");
+
+  // Upsert files in batch
+  if (files.length > 0) {
+    const rows = files.map((f) => ({
+      crawl_run_id: runId,
+      root_label: f.root_label as string,
+      relative_path: f.relative_path as string,
+      directory_path: f.directory_path as string,
+      filename: f.filename as string,
+      basename_no_ext: f.basename_no_ext as string,
+      file_extension: (f.file_extension as string) || null,
+      parent_folder: f.parent_folder as string,
+      grandparent_folder: (f.grandparent_folder as string) || null,
+      normalized_name: f.normalized_name as string,
+      normalized_parent_folder: f.normalized_parent_folder as string,
+      size_bytes: (f.size_bytes as number) || null,
+      modified_at: (f.modified_at as string) || null,
+      last_seen_at: new Date().toISOString(),
+      is_active: true,
+    }));
+
+    const { error: upsertErr } = await db
+      .from("style_guide_files")
+      .upsert(rows, { onConflict: "root_label,relative_path" });
+
+    if (upsertErr) {
+      console.error("[complete-style-guide-crawl] Upsert error:", upsertErr);
+      return err(`File upsert failed: ${upsertErr.message}`, 500);
+    }
+  }
+
+  if (done) {
+    if (crawlError) {
+      await db.from("style_guide_crawl_runs").update({
+        status: "failed",
+        error_message: crawlError,
+        completed_at: new Date().toISOString(),
+        files_found: totalFiles ?? 0,
+      }).eq("id", runId);
+
+      await db.from("admin_config").upsert({
+        key: "STYLE_GUIDE_CRAWL_REQUEST",
+        value: { status: "failed", error: crawlError, completed_at: new Date().toISOString() },
+        updated_at: new Date().toISOString(),
+      });
+    } else {
+      await db.from("style_guide_crawl_runs").update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        files_found: totalFiles ?? 0,
+      }).eq("id", runId);
+
+      // Mark stale files
+      const { data: runData } = await db
+        .from("style_guide_crawl_runs")
+        .select("roots_scanned")
+        .eq("id", runId)
+        .single();
+
+      if (runData?.roots_scanned) {
+        // Files from previous runs for the same roots that weren't seen in this run
+        for (const root of runData.roots_scanned) {
+          const rootLabel = root.split("/").filter(Boolean).pop() || root;
+          await db
+            .from("style_guide_files")
+            .update({ is_active: false })
+            .eq("root_label", rootLabel)
+            .neq("crawl_run_id", runId);
+        }
+      }
+
+      await db.from("admin_config").upsert({
+        key: "STYLE_GUIDE_CRAWL_REQUEST",
+        value: { status: "completed", completed_at: new Date().toISOString(), files_found: totalFiles },
+        updated_at: new Date().toISOString(),
+      });
+    }
+    console.log(`[complete-style-guide-crawl] Run ${runId} done=${done}, files=${totalFiles}, error=${crawlError || "none"}`);
+  }
+
+  return json({ ok: true });
+}
+
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -2405,6 +2564,10 @@ serve(async (req: Request) => {
         return await handleClaimHygieneScan(body, agentId);
       case "report-hygiene-findings":
         return await handleReportHygieneFindings(body);
+      case "claim-style-guide-crawl":
+        return await handleClaimStyleGuideCrawl(body, agentId);
+      case "complete-style-guide-crawl":
+        return await handleCompleteStyleGuideCrawl(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
