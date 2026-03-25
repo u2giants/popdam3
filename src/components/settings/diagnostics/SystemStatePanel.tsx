@@ -1,10 +1,29 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Database, RefreshCw, Loader2, Trash2 } from "lucide-react";
+import { Database, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+
+const STATE_KEYS = ["SCAN_REQUEST", "SCAN_PROGRESS", "BULK_OPERATIONS"] as const;
+type StateKey = typeof STATE_KEYS[number];
+
+async function fetchSystemState(): Promise<Record<StateKey, unknown>> {
+  const { data, error } = await supabase
+    .from("admin_config")
+    .select("key, value")
+    .in("key", STATE_KEYS as unknown as string[]);
+
+  if (error) throw error;
+
+  const result = {} as Record<StateKey, unknown>;
+  for (const row of data ?? []) {
+    result[row.key as StateKey] = row.value;
+  }
+  return result;
+}
 
 export default function SystemStatePanel() {
   const { call } = useAdminApi();
@@ -13,11 +32,35 @@ export default function SystemStatePanel() {
 
   const { data, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["system-state-raw"],
-    queryFn: () => call("get-config", { keys: ["SCAN_REQUEST", "SCAN_PROGRESS", "BULK_OPERATIONS"] }),
-    refetchInterval: 5_000,
+    queryFn: fetchSystemState,
+    staleTime: Infinity,
   });
 
-  const config = data?.config as Record<string, unknown> | undefined;
+  useEffect(() => {
+    const channel = supabase
+      .channel("system-state-realtime")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "admin_config",
+        filter: "key=eq.SCAN_REQUEST",
+      }, () => queryClient.invalidateQueries({ queryKey: ["system-state-raw"] }))
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "admin_config",
+        filter: "key=eq.SCAN_PROGRESS",
+      }, () => queryClient.invalidateQueries({ queryKey: ["system-state-raw"] }))
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "admin_config",
+        filter: "key=eq.BULK_OPERATIONS",
+      }, () => queryClient.invalidateQueries({ queryKey: ["system-state-raw"] }))
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const handleClear = useCallback(async (key: string, resetValue: unknown) => {
     setClearing(key);
@@ -31,8 +74,6 @@ export default function SystemStatePanel() {
       setClearing(null);
     }
   }, [call, queryClient]);
-
-  const keys = ["SCAN_REQUEST", "SCAN_PROGRESS", "BULK_OPERATIONS"] as const;
 
   return (
     <Card>
@@ -50,11 +91,8 @@ export default function SystemStatePanel() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {keys.map((key) => {
-          const raw = config?.[key];
-          const value = (raw && typeof raw === "object" && "value" in (raw as any))
-            ? (raw as any).value
-            : raw;
+        {STATE_KEYS.map((key) => {
+          const value = data?.[key];
           return (
             <div key={key} className="space-y-1.5">
               <div className="flex items-center justify-between">

@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type AgentOnlineStatus = "online" | "offline";
@@ -147,12 +148,32 @@ async function fetchAgentStatus(): Promise<AgentStatusInfo> {
   };
 }
 
+/**
+ * Reads agent_registrations directly via Supabase JS client.
+ * Realtime subscription pushes invalidations on any change — no polling.
+ */
 export function useAgentStatus(): AgentStatusInfo {
+  const queryClient = useQueryClient();
+
   const { data } = useQuery({
     queryKey: ["agent-status"],
     queryFn: fetchAgentStatus,
-    refetchInterval: 15_000,
+    staleTime: Infinity,
     initialData: DEFAULT_STATUS,
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("agent-status-realtime")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "agent_registrations",
+      }, () => queryClient.invalidateQueries({ queryKey: ["agent-status"] }))
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
+
   return data;
 }
