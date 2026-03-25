@@ -928,6 +928,7 @@ export default function SettingsPage() {
               <AgentThroughputChart />
               <LiveScanMonitor />
               <UpdateAgentButton />
+              <StyleGuideCrawlTab />
             </div>
           )}
           {agentsSubTab === "windows" && <WindowsAgentTab />}
