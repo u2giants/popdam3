@@ -19,8 +19,8 @@ import { readFileSync } from "node:fs";
 import { stat, readdir, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
-import { generateThumbnail } from "./thumbnailer.js";
-import { uploadThumbnail, reinitializeS3Client } from "./uploader.js";
+import { generateThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
+import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 
