@@ -250,6 +250,7 @@ export type Database = {
           mg03_code: string | null
           mg03_name: string | null
           modified_at: string
+          pdf_page2_url: string | null
           primary_sort_tier: number
           product_category: string | null
           product_subtype_id: string | null
@@ -310,6 +311,7 @@ export type Database = {
           mg03_code?: string | null
           mg03_name?: string | null
           modified_at: string
+          pdf_page2_url?: string | null
           primary_sort_tier?: number
           product_category?: string | null
           product_subtype_id?: string | null
@@ -372,6 +374,7 @@ export type Database = {
           mg03_code?: string | null
           mg03_name?: string | null
           modified_at?: string
+          pdf_page2_url?: string | null
           primary_sort_tier?: number
           product_category?: string | null
           product_subtype_id?: string | null
@@ -1438,7 +1441,7 @@ export type Database = {
         | "packaging"
         | "tech_pack"
         | "photography"
-      file_type: "psd" | "ai" | "jpg" | "png"
+      file_type: "psd" | "ai" | "jpg" | "png" | "pdf"
       queue_status:
         | "pending"
         | "claimed"
@@ -1596,7 +1599,7 @@ export const Constants = {
         "tech_pack",
         "photography",
       ],
-      file_type: ["psd", "ai", "jpg", "png"],
+      file_type: ["psd", "ai", "jpg", "png", "pdf"],
       queue_status: ["pending", "claimed", "processing", "completed", "failed"],
       workflow_status: [
         "product_ideas",
