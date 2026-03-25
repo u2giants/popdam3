@@ -126,6 +126,17 @@ export async function completeRender(
   });
 }
 
+
+/**
+ * Update an asset's fields (e.g. pdf_page2_url after PDF rendering).
+ */
+export async function updateAsset(
+  assetId: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  await callApi("update-asset", { asset_id: assetId, ...fields });
+}
+
 // ── Pairing (unauthenticated — uses one-time pairing code) ─────────
 
 export async function pair(
