@@ -45,7 +45,7 @@ import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_share
 
 import { handleBackfillSkuNames, handleReprocessAssetMetadata } from "../_shared/admin-handlers/metadata-handlers.ts";
 
-import { handlePurgeOldAssets, handlePurgeExcludedSubfolderAssets } from "../_shared/admin-handlers/purge-handlers.ts";
+import { handlePurgeExcludedSubfolderAssets, handlePurgeOldAssets } from "../_shared/admin-handlers/purge-handlers.ts";
 
 import {
   handleErpEnrichmentStats,
