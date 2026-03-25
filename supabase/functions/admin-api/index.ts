@@ -657,6 +657,37 @@ async function handleTriggerWindowsUpdate(
   return json({ ok: true });
 }
 
+// ── Route: trigger-style-guide-crawl ────────────────────────────────
+
+async function handleTriggerStyleGuideCrawl(userId: string) {
+  const db = serviceClient();
+  const requestId = crypto.randomUUID();
+  await db.from("admin_config").upsert({
+    key: "STYLE_GUIDE_CRAWL_REQUEST",
+    value: { request_id: requestId, status: "pending", requested_at: new Date().toISOString(), requested_by: userId },
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  });
+  return json({ ok: true, request_id: requestId });
+}
+
+// ── Route: get-style-guide-crawl-status ─────────────────────────────
+
+async function handleGetStyleGuideCrawlStatus() {
+  const db = serviceClient();
+
+  const { data: reqRow } = await db.from("admin_config").select("value").eq("key", "STYLE_GUIDE_CRAWL_REQUEST").maybeSingle();
+  const request = (reqRow?.value as Record<string, unknown>) || null;
+
+  const { data: lastRun } = await db.from("style_guide_crawl_runs")
+    .select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+  const { count: totalActive } = await db.from("style_guide_files")
+    .select("*", { count: "exact", head: true }).eq("is_active", true);
+
+  return json({ ok: true, request, last_run: lastRun, total_active_files: totalActive ?? 0 });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
