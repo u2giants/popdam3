@@ -179,6 +179,7 @@ const USER_ACCESSIBLE_ACTIONS = new Set([
   "get-sibling-scan-result",
   "get-sibling-scan-by-folder",
   "ingest-sibling-images",
+  "sync-group-tags",
 ]);
 
 // ── Retry helper for transient connection / body-read errors ────────
