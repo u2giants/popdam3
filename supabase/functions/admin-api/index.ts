@@ -699,7 +699,10 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
   const extension = (body.extension as string || "").trim();
 
   let query = db.from("style_guide_files")
-    .select("id,root_label,relative_path,directory_path,filename,basename_no_ext,file_extension,parent_folder,grandparent_folder,size_bytes,modified_at,is_active", { count: "exact" })
+    .select(
+      "id,root_label,relative_path,directory_path,filename,basename_no_ext,file_extension,parent_folder,grandparent_folder,size_bytes,modified_at,is_active",
+      { count: "exact" },
+    )
     .eq("is_active", true)
     .order("directory_path", { ascending: true })
     .order("filename", { ascending: true })
