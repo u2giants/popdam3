@@ -16,13 +16,25 @@ import { logger } from "./logger.js";
 import type { Counters } from "./api-client.js";
 import { shouldSkipFolder, shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 
-const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai"]);
+const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai", ".pdf"]);
+
+// PDF keyword filter: only ingest PDFs whose filename matches these keywords
+const PDF_KEYWORDS = [
+  "tech pack", "tech_pack", "techpack", "tech-pack",
+  "licensing sheet", "licensing-sheet", "licensing_sheet",
+  "_comp view", "_compview",
+];
+
+function isPdfCandidate(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return PDF_KEYWORDS.some(kw => lower.includes(kw));
+}
 
 export interface FileCandidate {
   absolutePath: string;
   relativePath: string; // POSIX canonical (no leading slash)
   filename: string;
-  fileType: "psd" | "ai";
+  fileType: "psd" | "ai" | "pdf";
   fileSize: number;
   modifiedAt: Date;
   fileCreatedAt: Date | null;
@@ -185,6 +197,12 @@ async function* scanDirectory(
       continue;
     }
 
+    // PDF keyword filter: only accept PDFs matching specific document types
+    if (ext === ".pdf" && !isPdfCandidate(entry.name)) {
+      counters.rejected_wrong_type++;
+      continue;
+    }
+
     counters.files_checked++;
 
     try {
@@ -196,11 +214,13 @@ async function* scanDirectory(
       relPath = relPath.split("\\").join("/"); // Ensure POSIX
       if (relPath.startsWith("/")) relPath = relPath.slice(1);
 
+      const fileType: "psd" | "ai" | "pdf" = ext === ".psd" ? "psd" : ext === ".ai" ? "ai" : "pdf";
+
       const candidate: FileCandidate = {
         absolutePath: fullPath,
         relativePath: relPath,
         filename: basename(entry.name),
-        fileType: ext === ".psd" ? "psd" : "ai",
+        fileType,
         fileSize: s.size,
         // modifiedAt = mtime (last content modification, NOT access time)
         // fileCreatedAt = birthtime (original creation time, may be null on Linux)

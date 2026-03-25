@@ -601,8 +601,10 @@ async function handleIngest(
   const width = optionalNumber(body, "width") ?? 0;
   const height = optionalNumber(body, "height") ?? 0;
 
-  if (!["psd", "ai"].includes(fileType)) {
-    return err("file_type must be 'psd' or 'ai'");
+  const pdfPage2Url = optionalString(body, "pdf_page2_url");
+
+  if (!["psd", "ai", "pdf"].includes(fileType)) {
+    return err("file_type must be 'psd', 'ai', or 'pdf'");
   }
 
   const db = serviceClient();
@@ -755,6 +757,7 @@ async function handleIngest(
       last_seen_at: new Date().toISOString(),
       workflow_status: derived.workflow_status,
       is_licensed: derived.is_licensed,
+      ...(pdfPage2Url ? { pdf_page2_url: pdfPage2Url } : {}),
       ...thumbnailFields,
       ...skuFields,
     };
@@ -802,6 +805,7 @@ async function handleIngest(
     thumbnail_error: thumbnailError,
     workflow_status: derived.workflow_status,
     is_licensed: derived.is_licensed,
+    ...(pdfPage2Url ? { pdf_page2_url: pdfPage2Url } : {}),
     ...skuFields,
   };
   // Path-derived names fill in when ColdLion didn't resolve
@@ -851,6 +855,7 @@ const ALLOWED_UPDATE_FIELDS = [
   "little_theme",
   "design_ref",
   "design_style",
+  "pdf_page2_url",
 ];
 
 async function handleUpdateAsset(body: Record<string, unknown>) {

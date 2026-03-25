@@ -31,11 +31,19 @@ import { logger } from "./logger";
 const execFileAsync = promisify(execFile);
 
 const THUMB_MAX_DIM = 800;
+const PDF_HIRES_DIM = 1500;
 
 export interface RenderResult {
   buffer: Buffer;
   width: number;
   height: number;
+}
+
+export interface PdfRenderResult extends RenderResult {
+  hiresPage1Buffer: Buffer;
+  hiresPage2Buffer?: Buffer;
+  hiresPage2Width?: number;
+  hiresPage2Height?: number;
 }
 
 // ── Ghostscript path discovery ──────────────────────────────────
@@ -456,12 +464,78 @@ async function renderFromSibling(
   throw new Error("no_sibling_image");
 }
 
+/**
+ * Render a PDF file: 800px thumbnail + 1500px hi-res pages 1-2.
+ */
+export async function renderPdf(
+  filePath: string,
+): Promise<PdfRenderResult> {
+  const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-pdf-"));
+
+  try {
+    // Render first 2 pages at 200 DPI via Ghostscript
+    await execFileAsync(GS_EXE, [
+      "-dNOPAUSE", "-dBATCH", "-dSAFER",
+      "-sDEVICE=png16m",
+      "-r200",
+      "-dFirstPage=1", "-dLastPage=2",
+      `-sOutputFile=${path.join(tmpDir, "page-%d.png")}`,
+      filePath,
+    ], { timeout: 90_000 });
+
+    const page1Path = path.join(tmpDir, "page-1.png");
+
+    // 800px thumbnail
+    const thumbBuffer = await sharp(page1Path, { limitInputPixels: false })
+      .flatten({ background: "#ffffff" })
+      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 }).toBuffer();
+    const thumbMeta = await sharp(thumbBuffer).metadata();
+
+    // 1500px hi-res page 1
+    const hiresPage1Buffer = await sharp(page1Path, { limitInputPixels: false })
+      .flatten({ background: "#ffffff" })
+      .resize(PDF_HIRES_DIM, PDF_HIRES_DIM, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 90 }).toBuffer();
+
+    const result: PdfRenderResult = {
+      buffer: thumbBuffer,
+      width: thumbMeta.width || 0,
+      height: thumbMeta.height || 0,
+      hiresPage1Buffer,
+    };
+
+    // Try page 2
+    const page2Path = path.join(tmpDir, "page-2.png");
+    try {
+      const hiresPage2Buffer = await sharp(page2Path, { limitInputPixels: false })
+        .flatten({ background: "#ffffff" })
+        .resize(PDF_HIRES_DIM, PDF_HIRES_DIM, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 90 }).toBuffer();
+      const p2Meta = await sharp(hiresPage2Buffer).metadata();
+      result.hiresPage2Buffer = hiresPage2Buffer;
+      result.hiresPage2Width = p2Meta.width || 0;
+      result.hiresPage2Height = p2Meta.height || 0;
+    } catch {
+      // Single-page PDF
+    }
+
+    return result;
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 // ── Main entry: full fallback chain ─────────────────────────────
 
 export async function renderFile(
   uncPath: string,
-  fileType: "ai" | "psd",
-): Promise<RenderResult> {
+  fileType: "ai" | "psd" | "pdf",
+): Promise<RenderResult | PdfRenderResult> {
+  if (fileType === "pdf") {
+    return renderPdf(uncPath);
+  }
+
   const failures: string[] = [];
 
   // Step 1: Sharp (both AI and PSD)

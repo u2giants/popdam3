@@ -19,8 +19,8 @@ import { readFileSync } from "node:fs";
 import { stat, readdir, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
-import { generateThumbnail } from "./thumbnailer.js";
-import { uploadThumbnail, reinitializeS3Client } from "./uploader.js";
+import { generateThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
+import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 
@@ -300,11 +300,25 @@ function applyCloudConfig(cfg: CloudConfig) {
 async function processThumbnail(
   file: FileCandidate,
   tempAssetId: string,
-): Promise<{ thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number }> {
+): Promise<{ thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number; pdfPage2Url?: string }> {
   try {
     const result = await generateThumbnail(file.absolutePath, file.fileType);
     const url = await uploadThumbnail(tempAssetId, result.buffer);
-    return { thumbnailUrl: url, width: result.width, height: result.height };
+
+    let pdfPage2Url: string | undefined;
+
+    // For PDFs, upload hi-res page images
+    if ("hiresPage1Buffer" in result) {
+      const pdfResult = result as PdfThumbnailResult;
+      // Upload hi-res page 1
+      await uploadPdfPage(tempAssetId, 1, pdfResult.hiresPage1Buffer);
+      // Upload hi-res page 2 if available
+      if (pdfResult.hiresPage2Buffer) {
+        pdfPage2Url = await uploadPdfPage(tempAssetId, 2, pdfResult.hiresPage2Buffer);
+      }
+    }
+
+    return { thumbnailUrl: url, width: result.width, height: result.height, pdfPage2Url };
   } catch (e) {
     const errorMsg = (e as Error).message;
     logger.warn("Thumbnail generation failed", { file: file.relativePath, error: errorMsg });
@@ -673,6 +687,7 @@ async function processFile(file: FileCandidate) {
       thumbnail_error: thumb.thumbnailError,
       width: thumb.width,
       height: thumb.height,
+      pdf_page2_url: thumb.pdfPage2Url,
     });
 
     // Update counters based on API response
