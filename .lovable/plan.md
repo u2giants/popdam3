@@ -1,42 +1,99 @@
+## Add PDF Ingestion for Specific Document Types (Full-Page Images, First 2 Pages)
 
+### Summary
 
-# Fix: Invite Email Delivery Proof & Diagnostics
+Ingest `.pdf` files whose filenames match specific keywords (tech pack, licensing sheet, comp view). Render the first 2 pages as high-res images (1500px) to be clear enough for OCR (not used as the default thumbnail/preview image) and a 800px thumbnail size image to be used in the ui, and upload them to DigitalOcean Spaces. The page images become the asset's thumbnail (page 1) and a secondary stored image (page 2).
 
-## Problem
+### What Changes
 
-The `send-invite-email` edge function returns `{"ok": true}` but emails never arrive. The function is deployed on the external Supabase project, and I **cannot** see its logs (my tools only access the Lovable-internal project). The response is 38 bytes — suspiciously small, possibly missing a real `messageId`.
+**1. Database migration — add `pdf` to `file_type` enum**
 
-Two likely root causes:
+```sql
+ALTER TYPE public.file_type ADD VALUE IF NOT EXISTS 'pdf';
+```
 
-1. **Sender not verified in Brevo**: The code sends from `noreply@popheadquarters.com`. Brevo accepts the API call (HTTP 200) but silently drops the email if that sender email/domain isn't authorized in your Brevo account. This is the most probable cause.
+**2. Bridge Agent scanner (`apps/bridge-agent/src/scanner.ts`)**
 
-2. **No delivery proof captured**: The function doesn't log the full Brevo response, so there's no way to verify what Brevo actually returned.
+- Add `.pdf` to `SUPPORTED_EXTENSIONS`
+- Add keyword filter: only accept PDFs whose filename (case-insensitive) contains one of the specified keywords
+- Non-matching PDFs increment `rejected_wrong_type` and are skipped
+- Update `FileCandidate.fileType` union to include `"pdf"`
 
-## Plan
+```typescript
+const PDF_KEYWORDS = [
+  "tech pack", "tech_pack", "techpack", "tech-pack",
+  "licensing sheet", "licensing-sheet", "licensing_sheet",
+  "_comp view", "_compview",
+];
 
-### 1. Add full Brevo response logging to `sendBrevoEmail` (brevo.ts)
-- Log the raw HTTP status, response headers, and full JSON body from Brevo before returning
-- Capture and return Brevo's exact `messageId` (string like `<uuid@smtp-relay.brevo.com>`)
-- If the response is 200 but `messageId` is missing/empty, treat it as a warning
+function isPdfCandidate(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return PDF_KEYWORDS.some(kw => lower.includes(kw));
+}
+```
 
-### 2. Surface Brevo diagnostics in `send-invite-email` response
-- Return the Brevo HTTP status code, messageId, and any warning to the frontend
-- The frontend toast will show: "Email queued — Brevo ID: xxx" or "Brevo accepted but no messageId returned (check sender verification)"
+**3. Bridge Agent thumbnailer (`apps/bridge-agent/src/thumbnailer.ts`)**
 
-### 3. Update SettingsPage resend handler
-- Display the Brevo messageId in the success toast so you can cross-reference with Brevo logs
-- On failure, show the specific Brevo error (e.g., "unauthorized sender")
+- Add `thumbnailPdf()` function that renders pages 1-2 at 1500px max dimension using Ghostscript (`-r200` for higher DPI)
+- Return a `ThumbnailResult` with page 1 as the primary buffer
+- New extended result type to carry page 2 buffer separately
 
-### 4. Document sender verification requirement
-- Add a console.warn at startup if the sender domain doesn't match common verified patterns
-- The fix note: **You must verify `noreply@popheadquarters.com` (or the entire `popheadquarters.com` domain) in your Brevo account under Settings → Senders & IPs → Domains**. Without this, Brevo accepts the API call but never sends.
+```typescript
+export interface PdfThumbnailResult extends ThumbnailResult {
+  page2Buffer?: Buffer;
+  page2Width?: number;
+  page2Height?: number;
+}
+```
 
-## Regarding log access
+- Add `"pdf"` case to `generateThumbnail()` entry point
 
-I can only query logs/analytics for the **Lovable-internal** Supabase project (`vklanxwmaeqjbwtmnygj`), not your external project (`ryltkzzernhwnojzouyb`). That's why my log queries return empty. Connecting the Supabase MCP connector would not help — it connects to the Lovable-managed project, not your external one. For external project logs, you'll need the Supabase dashboard directly.
+and this functionality integrated into the Windows Render Agent
 
-## Files changed
-- `supabase/functions/_shared/brevo.ts` — verbose logging + richer return value
-- `supabase/functions/send-invite-email/index.ts` — pass diagnostics through
-- `src/pages/SettingsPage.tsx` — show Brevo messageId/warnings in toast
+**4. Bridge Agent uploader (`apps/bridge-agent/src/uploader.ts`)**
 
+- Add `uploadPdfPage()` function that stores under `pdf-pages/{assetId}_p{pageNum}.jpg`
+- Returns the CDN URL for each page
+
+and this functionality integrated into the Windows Render Agent
+
+**5. Bridge Agent main (`apps/bridge-agent/src/index.ts`)**
+
+- Update `processThumbnail()` to handle the PDF case: upload page 1 as the normal thumbnail, upload page 2 as a secondary image
+- Store page 2 URL in the ingest payload (new optional field `pdf_page2_url`)
+
+**6. Agent API validation (`supabase/functions/agent-api/index.ts`)**
+
+- Add `"pdf"` to the accepted `file_type` values in the ingest endpoint
+- Accept optional `pdf_page2_url` field and store it on the asset
+
+**7. Database — store page 2 URL**
+
+- Add `pdf_page2_url text` column to `assets` table (nullable, only populated for PDFs)
+
+**8. Sibling scan handler (`supabase/functions/_shared/admin-handlers/sibling-scan-handlers.ts`)**
+
+- Add `pdf: "pdf"` to the extension map
+- &nbsp;
+
+### What Does NOT Change
+
+- AI tagging pipeline — works on thumbnails, PDFs with page images will be taggable
+- Style grouping — SKU parsing works on folder paths, unaffected
+- UI — `pdf` will appear in file type filters automatically
+- ERP enrichment — works on SKU, unaffected
+
+### Deployment
+
+1. Database migration deploys automatically
+2. Bridge Agent requires Docker rebuild + redeploy on Synology
+3. What Bridge Agent Functions should also be added to the Windows Render Agent?
+4. Edge functions deploy via GitHub Actions
+
+### Technical Details
+
+- Ghostscript renders at 200 DPI for readable text at 1500px
+- JPEG quality 90 (higher than normal thumbnails) for text legibility
+- Max dimension 1500px (vs 800px for normal thumbnails) so text in tech packs is readable by AI
+- Only first 2 pages captured per user preference
+- The `pdf_page2_url` column allows future UI to show a "page 2" preview or feed both pages to AI tagging
