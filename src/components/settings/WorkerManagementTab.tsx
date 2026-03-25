@@ -1249,6 +1249,29 @@ export function UpdateAgentButton() {
   const { call } = useAdminApi();
   const [isPending, setIsPending] = useState(false);
 
+  const { data: agentsData } = useQuery({
+    queryKey: ["admin-agents"],
+    queryFn: () => call("list-agents"),
+    refetchInterval: 30_000,
+  });
+
+  const { data: latestBuildData } = useQuery({
+    queryKey: ["bridge-latest-build"],
+    queryFn: () => call("get-latest-agent-build", { agent_type: "bridge" }),
+    staleTime: 60_000,
+  });
+
+  const bridgeAgents = (agentsData?.agents || []).filter(
+    (a: Record<string, unknown>) => a.type === "bridge"
+  );
+  const bridgeAgent = bridgeAgents[0] as Record<string, unknown> | undefined;
+  const vi = bridgeAgent?.version_info as Record<string, unknown> | null;
+  const currentVersion = vi?.version as string | null;
+  const deployedAt = vi?.last_reported_at as string | null;
+  const latestVersion = latestBuildData?.latest_version as string | null;
+  const latestPublishedAt = latestBuildData?.published_at as string | null;
+  const updateAvailable = latestVersion && currentVersion && latestVersion !== "0.0.0" && latestVersion !== currentVersion;
+
   const handleUpdate = async () => {
     setIsPending(true);
     try {
@@ -1269,12 +1292,32 @@ export function UpdateAgentButton() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {currentVersion && (
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-muted-foreground">Installed:</span>
+            <Badge variant="outline" className="text-[10px] h-5 font-mono">v{currentVersion}</Badge>
+            {deployedAt && (
+              <span className="text-muted-foreground">deployed {new Date(deployedAt).toLocaleString()}</span>
+            )}
+          </div>
+        )}
+        {latestVersion && latestVersion !== "0.0.0" && (
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="text-muted-foreground">Latest:</span>
+            <Badge variant={updateAvailable ? "secondary" : "outline"} className={`text-[10px] h-5 font-mono ${updateAvailable ? "text-[hsl(var(--warning))]" : ""}`}>
+              v{latestVersion}
+            </Badge>
+            {latestPublishedAt && (
+              <span className="text-muted-foreground">published {new Date(latestPublishedAt).toLocaleString()}</span>
+            )}
+          </div>
+        )}
         <p className="text-xs text-muted-foreground">
           Pull the latest Docker image from GHCR and restart the bridge agent container.
           The agent will be unavailable for ~60 seconds during the restart.
         </p>
         <Button
-          variant="outline"
+          variant={updateAvailable ? "default" : "outline"}
           size="sm"
           onClick={handleUpdate}
           disabled={isPending}
@@ -1283,7 +1326,7 @@ export function UpdateAgentButton() {
           {isPending ? (
             <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Requesting...</>
           ) : (
-            <><RefreshCw className="h-3.5 w-3.5" /> Update to Latest</>
+            <><RefreshCw className="h-3.5 w-3.5" /> {updateAvailable ? `Update to v${latestVersion}` : "Update to Latest"}</>
           )}
         </Button>
       </CardContent>

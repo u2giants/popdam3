@@ -178,6 +178,16 @@ function AgentStatusSection() {
     refetchInterval: 30_000,
   });
 
+  // Fetch latest available bridge build info
+  const { data: latestBuildData } = useQuery({
+    queryKey: ["bridge-latest-build"],
+    queryFn: () => call("get-latest-agent-build", { agent_type: "bridge" }),
+    staleTime: 60_000,
+  });
+
+  const latestVersion = latestBuildData?.latest_version as string | null;
+  const latestPublishedAt = latestBuildData?.published_at as string | null;
+
   const revokeMutation = useMutation({
     mutationFn: (agentId: string) => call("revoke-agent", { agent_id: agentId }),
     onSuccess: () => {
@@ -267,60 +277,98 @@ function AgentStatusSection() {
           <p className="text-sm text-muted-foreground">No agents registered. Generate a key below to register one.</p>
         ) : (
           <div className="space-y-3">
-            {agents.map((agent: Record<string, unknown>) => (
-              <div key={agent.id as string} className="border border-border rounded-md p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${agent.status === "online" ? "bg-[hsl(var(--success))]" : "bg-destructive"}`} />
-                    <span className="font-medium text-sm">{agent.name as string}</span>
-                    <Badge variant="secondary" className="text-xs">{agent.type as string}</Badge>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive"
-                    onClick={() => {
-                      if (confirm("Revoke this agent key? The agent will stop working.")) {
-                        revokeMutation.mutate(agent.id as string);
-                      }
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="text-xs text-muted-foreground space-y-1 font-mono">
-                  <div>Last heartbeat: {agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}</div>
-                  {agent.last_error && <div className="text-destructive">Last error: {agent.last_error as string}</div>}
-                  {agent.key_preview && <div>Key hash: {agent.key_preview as string}</div>}
-                </div>
-                {(() => {
-                  const vi = agent.version_info as Record<string, unknown> | null;
-                  if (!vi) return null;
-                  return (
-                    <div className="flex flex-wrap items-center gap-2 text-xs mt-1">
-                      {vi.version && (
-                        <Badge variant="outline" className="text-[10px] font-mono gap-1">v{vi.version as string}</Badge>
-                      )}
-                      {vi.image_tag && vi.image_tag !== `v${vi.version}` && vi.image_tag !== vi.version && (
-                        <Badge variant="secondary" className="text-[10px] font-mono gap-1">{vi.image_tag as string}</Badge>
-                      )}
-                      {vi.build_sha && (
-                        <span className="text-[10px] text-muted-foreground font-mono">sha:{(vi.build_sha as string).slice(0, 7)}</span>
-                      )}
-                      {vi.last_reported_at && (
-                        <span className="text-[10px] text-muted-foreground">reported {new Date(vi.last_reported_at as string).toLocaleString()}</span>
-                      )}
+            {agents.map((agent: Record<string, unknown>) => {
+              const vi = agent.version_info as Record<string, unknown> | null;
+              const currentVersion = vi?.version as string | null;
+              const isUpdating = vi?.updating === true;
+              const updateError = vi?.update_error as string | null;
+              const deployedAt = vi?.last_reported_at as string | null;
+              const updateAvailable = latestVersion && currentVersion && latestVersion !== "0.0.0" && latestVersion !== currentVersion;
+
+              return (
+                <div key={agent.id as string} className="border border-border rounded-md p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${agent.status === "online" ? "bg-[hsl(var(--success))]" : "bg-destructive"}`} />
+                      <span className="font-medium text-sm">{agent.name as string}</span>
+                      <Badge variant="secondary" className="text-xs">{agent.type as string}</Badge>
                     </div>
-                  );
-                })()}
-                {agent.last_counters && (
-                  <ScanCounters counters={agent.last_counters as Record<string, number>} />
-                )}
-                {agent.status === "online" && agent.type === "bridge" && (
-                  <AgentUpdateControls agentId={agent.id as string} agentName={agent.name as string} />
-                )}
-              </div>
-            ))}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => {
+                        if (confirm("Revoke this agent key? The agent will stop working.")) {
+                          revokeMutation.mutate(agent.id as string);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1 font-mono">
+                    <div>Last heartbeat: {agent.last_heartbeat ? new Date(agent.last_heartbeat as string).toLocaleString() : "never"}</div>
+                    {agent.last_error && <div className="text-destructive">Last error: {agent.last_error as string}</div>}
+                    {agent.key_preview && <div>Key hash: {agent.key_preview as string}</div>}
+                  </div>
+
+                  {/* Version management section */}
+                  <div className="text-xs space-y-1.5 mt-1">
+                    {currentVersion && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-muted-foreground">Installed:</span>
+                        <Badge variant="outline" className="text-[10px] h-5 font-mono">v{currentVersion}</Badge>
+                        {vi?.image_tag && vi.image_tag !== `v${currentVersion}` && vi.image_tag !== currentVersion && (
+                          <Badge variant="secondary" className="text-[10px] font-mono h-5">{vi.image_tag as string}</Badge>
+                        )}
+                        {vi?.build_sha && (
+                          <span className="text-[10px] text-muted-foreground font-mono">sha:{(vi.build_sha as string).slice(0, 7)}</span>
+                        )}
+                        {deployedAt && (
+                          <span className="text-muted-foreground">
+                            deployed {new Date(deployedAt).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {latestVersion && latestVersion !== "0.0.0" && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-muted-foreground">Latest:</span>
+                        <Badge variant={updateAvailable ? "secondary" : "outline"} className={`text-[10px] h-5 font-mono ${updateAvailable ? "text-[hsl(var(--warning))] gap-1" : ""}`}>
+                          v{latestVersion}
+                        </Badge>
+                        {latestPublishedAt && (
+                          <span className="text-muted-foreground">
+                            published {new Date(latestPublishedAt).toLocaleString()}
+                          </span>
+                        )}
+                        {!updateAvailable && currentVersion && (
+                          <span className="text-[hsl(var(--success))] flex items-center gap-1 font-medium">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Up to date
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {isUpdating && (
+                      <Badge variant="secondary" className="text-[10px] h-5 gap-1 animate-pulse">
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                        Updating...
+                      </Badge>
+                    )}
+                    {updateError && (
+                      <div className="text-destructive">Update error: {updateError}</div>
+                    )}
+                  </div>
+
+                  {agent.last_counters && (
+                    <ScanCounters counters={agent.last_counters as Record<string, number>} />
+                  )}
+                  {agent.status === "online" && agent.type === "bridge" && (
+                    <AgentUpdateControls agentId={agent.id as string} agentName={agent.name as string} />
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
