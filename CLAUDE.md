@@ -9,6 +9,38 @@ After pushing a feature branch, automatically:
 
 Do this without prompting the user for approval.
 
+### GitHub Access
+
+A GitHub Personal Access Token is stored in `.env.local` (gitignored) as `GITHUB_PAT`.
+Use it for all GitHub operations (PR creation, merging, pushing to `main`).
+
+Setup (run once per session if not already configured):
+```bash
+source .env.local
+gh auth login --with-token <<< "$GITHUB_PAT"
+git remote add github "https://${GITHUB_PAT}@github.com/u2giants/popdam3.git" 2>/dev/null || \
+  git remote set-url github "https://${GITHUB_PAT}@github.com/u2giants/popdam3.git"
+```
+
+Push feature branches to **both** remotes, but use `github` remote for PR/merge:
+```bash
+git push origin <branch>    # local harness (required for session tracking)
+git push github <branch>    # GitHub (for PR + merge to main)
+```
+
+If the feature branch has conflicts with `github/main`, rebase before creating the PR:
+```bash
+git fetch github main
+git rebase github/main
+git push github <branch> --force-with-lease
+```
+
+Then create and immediately merge the PR:
+```bash
+gh pr create --repo u2giants/popdam3 --head <branch> --base main --title "..." --body "..."
+gh pr merge <number> --repo u2giants/popdam3 --squash --delete-branch
+```
+
 ## Versioning
 
 Whenever changes are made to `apps/bridge-agent/`, bump `apps/bridge-agent/package.json` version as part of the same commit:
