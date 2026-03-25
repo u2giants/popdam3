@@ -98,7 +98,7 @@ jobs:
       - name: Update BRIDGE_LATEST_BUILD in admin_config
         if: success()
         env:
-          SUPABASE_URL: ${{ secrets.EXTERNAL_SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           VERSION="${{ steps.pkg.outputs.version }}"
