@@ -133,6 +133,7 @@ export interface HeartbeatResponse {
     windows_render_policy?: WindowsRenderPolicy | null;
     windows_healthy?: boolean;
     pending_render_jobs?: number;
+    style_guide_scanning?: { roots: string[] };
   };
   commands?: {
     force_scan: boolean;
@@ -145,6 +146,7 @@ export interface HeartbeatResponse {
     } | null;
     check_update?: boolean;
     apply_update?: boolean;
+    trigger_style_guide_crawl?: boolean;
   };
 }
 
