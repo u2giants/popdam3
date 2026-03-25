@@ -241,6 +241,7 @@ export default function LibraryPage() {
         {isGroupsMode && detailGroup && (
           <div className="h-full max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
             <StyleGroupDetailPanel
+              key={detailGroup.id}
               group={detailGroup}
               onClose={() => setDetailGroupId(null)}
             />
