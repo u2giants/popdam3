@@ -2451,7 +2451,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
-
+serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
