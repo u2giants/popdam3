@@ -94,3 +94,32 @@ jobs:
           build-args: |
             POPDAM_IMAGE_TAG=v${{ steps.pkg.outputs.version }}
             POPDAM_BUILD_SHA=${{ github.sha }}
+
+      - name: Update BRIDGE_LATEST_BUILD in admin_config
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.EXTERNAL_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          VERSION="${{ steps.pkg.outputs.version }}"
+          SHA="${{ github.sha }}"
+          PUBLISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Upsert BRIDGE_LATEST_BUILD via PostgREST
+          curl -sf -X POST \
+            "${SUPABASE_URL}/rest/v1/admin_config" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates" \
+            -d "{
+              \"key\": \"BRIDGE_LATEST_BUILD\",
+              \"value\": {
+                \"version\": \"${VERSION}\",
+                \"sha\": \"${SHA}\",
+                \"published_at\": \"${PUBLISHED_AT}\",
+                \"release_notes\": \"Auto-published from CI\"
+              }
+            }"
+
+          echo "✅ Updated BRIDGE_LATEST_BUILD to v${VERSION}"
