@@ -16,7 +16,19 @@ import { logger } from "./logger.js";
 import type { Counters } from "./api-client.js";
 import { shouldSkipFolder, shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 
-const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai"]);
+const SUPPORTED_EXTENSIONS = new Set([".psd", ".ai", ".pdf"]);
+
+// PDF keyword filter: only ingest PDFs whose filename matches these keywords
+const PDF_KEYWORDS = [
+  "tech pack", "tech_pack", "techpack", "tech-pack",
+  "licensing sheet", "licensing-sheet", "licensing_sheet",
+  "_comp view", "_compview",
+];
+
+function isPdfCandidate(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return PDF_KEYWORDS.some(kw => lower.includes(kw));
+}
 
 export interface FileCandidate {
   absolutePath: string;
