@@ -178,15 +178,17 @@ function AgentStatusSection() {
     refetchInterval: 30_000,
   });
 
-  // Fetch latest available bridge build info
-  const { data: latestBuildData } = useQuery({
+  // Fetch latest available build info for both agent types
+  const { data: bridgeBuildData } = useQuery({
     queryKey: ["bridge-latest-build"],
     queryFn: () => call("get-latest-agent-build", { agent_type: "bridge" }),
     staleTime: 60_000,
   });
-
-  const latestVersion = latestBuildData?.latest_version as string | null;
-  const latestPublishedAt = latestBuildData?.published_at as string | null;
+  const { data: windowsBuildData } = useQuery({
+    queryKey: ["windows-latest-build-agents"],
+    queryFn: () => call("get-latest-agent-build", { agent_type: "windows-render" }),
+    staleTime: 60_000,
+  });
 
   const revokeMutation = useMutation({
     mutationFn: (agentId: string) => call("revoke-agent", { agent_id: agentId }),
