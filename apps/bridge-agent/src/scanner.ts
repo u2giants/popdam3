@@ -25,7 +25,7 @@ const PDF_KEYWORDS = [
   "_comp view", "_compview",
 ];
 
-function isPdfCandidate(filename: string): boolean {
+export function isPdfCandidate(filename: string): boolean {
   const lower = filename.toLowerCase();
   return PDF_KEYWORDS.some(kw => lower.includes(kw));
 }

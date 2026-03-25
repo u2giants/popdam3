@@ -17,7 +17,7 @@ import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { readFileSync } from "node:fs";
 import { stat, readdir, writeFile, mkdir } from "node:fs/promises";
-import { validateScanRoots, scanFiles, type FileCandidate, type ScanCallbacks } from "./scanner.js";
+import { validateScanRoots, scanFiles, isPdfCandidate, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
@@ -830,6 +830,9 @@ async function processSiblingScanRequests() {
       const ext = "." + entry.name.split(".").pop()?.toLowerCase();
       if (!extensions.has(ext)) continue;
 
+      // Apply the same PDF keyword filter used by the main scanner
+      if (ext === ".pdf" && !isPdfCandidate(entry.name)) continue;
+
       try {
         const filePath = `${resolved}/${entry.name}`;
         const fileStat = await stat(filePath);
@@ -841,12 +844,18 @@ async function processSiblingScanRequests() {
 
         // Generate and upload a small thumbnail for preview
         try {
-          const sharp = (await import("sharp")).default;
-          const buffer = await sharp(filePath)
-            .flatten({ background: "#ffffff" })
-            .resize(400, 400, { fit: "inside", withoutEnlargement: true })
-            .jpeg({ quality: 75 })
-            .toBuffer();
+          let buffer: Buffer;
+          if (ext === ".pdf") {
+            const thumbResult = await generateThumbnail(filePath, "pdf");
+            buffer = thumbResult.buffer;
+          } else {
+            const sharp = (await import("sharp")).default;
+            buffer = await sharp(filePath)
+              .flatten({ background: "#ffffff" })
+              .resize(400, 400, { fit: "inside", withoutEnlargement: true })
+              .jpeg({ quality: 75 })
+              .toBuffer();
+          }
 
           // Upload to DO Spaces under siblings/ prefix using a hash of relative_path
           const { createHash } = await import("node:crypto");

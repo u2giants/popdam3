@@ -76,7 +76,7 @@ export async function handleListSiblingImages(body: Record<string, unknown>) {
       style_group_id: styleGroupId,
       requested_at: new Date().toISOString(),
       status: "pending",
-      extensions: [".jpg", ".jpeg", ".png"],
+      extensions: [".jpg", ".jpeg", ".png", ".pdf"],
     },
     updated_at: new Date().toISOString(),
   });
