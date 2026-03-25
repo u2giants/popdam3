@@ -116,7 +116,7 @@ export interface Counters {
 export interface WindowsRenderPolicy {
   mode: "fallback_only" | "shared" | "primary";
   shared_percent: number;
-  shared_types: ("psd" | "ai")[];
+  shared_types: ("psd" | "ai" | "pdf")[];
   shared_min_mb: number;
   require_windows_healthy: boolean;
   max_pending_jobs: number;
@@ -171,7 +171,7 @@ export async function heartbeat(
 export interface IngestPayload {
   relative_path: string;
   filename: string;
-  file_type: "psd" | "ai";
+  file_type: "psd" | "ai" | "pdf";
   file_size: number;
   modified_at: string;
   file_created_at: string | null;
@@ -181,6 +181,7 @@ export interface IngestPayload {
   thumbnail_error?: string;
   width?: number;
   height?: number;
+  pdf_page2_url?: string;
 }
 
 export interface IngestResult {
