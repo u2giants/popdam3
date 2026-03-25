@@ -45,7 +45,7 @@ import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_share
 
 import { handleBackfillSkuNames, handleReprocessAssetMetadata } from "../_shared/admin-handlers/metadata-handlers.ts";
 
-import { handlePurgeOldAssets } from "../_shared/admin-handlers/purge-handlers.ts";
+import { handlePurgeOldAssets, handlePurgeExcludedSubfolderAssets } from "../_shared/admin-handlers/purge-handlers.ts";
 
 import {
   handleErpEnrichmentStats,
@@ -818,6 +818,8 @@ serve(async (req: Request) => {
       // ── Purge (from purge-handlers.ts) ──
       case "purge-old-assets":
         return await handlePurgeOldAssets(body);
+      case "purge-excluded-subfolder-assets":
+        return await handlePurgeExcludedSubfolderAssets();
 
       // ── ERP (from erp-handlers.ts + erp-browse-handlers.ts) ──
       case "trigger-erp-sync":

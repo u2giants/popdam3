@@ -77,6 +77,7 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
   });
 
   const [manifestDownloading, setManifestDownloading] = useState(false);
+  const [isPurgingExcluded, setIsPurgingExcluded] = useState(false);
 
   async function downloadManifest() {
     setManifestDownloading(true);
@@ -117,6 +118,35 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
       toast.error(e.message || "Manifest download failed");
     } finally {
       setManifestDownloading(false);
+    }
+  }
+
+  async function handlePurgeExcludedSubfolders() {
+    if (!confirm(
+      "This will remove all assets ingested from '_old' or 'SAMPLE' subfolders. " +
+      "Empty style groups will be deleted. This cannot be undone. Continue?"
+    )) return;
+    setIsPurgingExcluded(true);
+    let totalPurged = 0;
+    let totalGroupsRemoved = 0;
+    let totalGroupsUpdated = 0;
+    try {
+      while (true) {
+        const result = await call("purge-excluded-subfolder-assets");
+        totalPurged += result.assets_purged ?? 0;
+        totalGroupsRemoved += result.groups_removed ?? 0;
+        totalGroupsUpdated += result.groups_updated ?? 0;
+        if (result.done) break;
+      }
+      toast.success(
+        `Removed ${totalPurged.toLocaleString()} assets from _old/_SAMPLE folders. ` +
+        `Deleted ${totalGroupsRemoved} empty groups, updated ${totalGroupsUpdated} groups.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["style-groups"] });
+    } catch (e: any) {
+      toast.error(e.message || "Purge failed");
+    } finally {
+      setIsPurgingExcluded(false);
     }
   }
 
@@ -276,6 +306,21 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[280px] text-center">Nulls out invalid property_name values (like CREATURE) for assets and style groups. Safe to re-run.</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" size="sm" className="gap-1.5 text-destructive"
+                  onClick={handlePurgeExcludedSubfolders}
+                  disabled={isPurgingExcluded}
+                >
+                  {isPurgingExcluded ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  {isPurgingExcluded ? "Purging…" : "Purge _old / SAMPLE Assets"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] text-center">Removes all ingested assets whose path contains a subfolder named _old or SAMPLE (any case). Empty style groups are deleted.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <TooltipProvider>
