@@ -34,6 +34,7 @@ let abortRequested = false;
 let lastError: string | undefined;
 const MAX_SKIPPED_DIRS = 500;
 let skippedDirs: string[] = [];
+let isCrawlingStyleGuides = false;
 
 // ── Version info (injected via Docker build args or package.json) ──
 const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
