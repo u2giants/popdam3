@@ -228,7 +228,7 @@ export async function handleIngestSiblingImages(body: Record<string, unknown>, u
 
     // Determine file_type from extension
     const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-    const extMap: Record<string, string> = { psd: "psd", ai: "ai", jpg: "jpg", jpeg: "jpg", png: "png" };
+    const extMap: Record<string, string> = { psd: "psd", ai: "ai", jpg: "jpg", jpeg: "jpg", png: "png", pdf: "pdf" };
     const fileType = extMap[ext] ?? "jpg";
 
     const { data: inserted, error: insertErr } = await db

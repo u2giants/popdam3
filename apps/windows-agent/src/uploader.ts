@@ -73,7 +73,23 @@ export async function uploadThumbnail(
   buffer: Buffer,
 ): Promise<string> {
   const key = `thumbnails/${assetId}.jpg`;
+  return uploadToSpaces(key, buffer);
+}
 
+/**
+ * Upload a PDF page image to Spaces (high-res for AI/OCR).
+ * Stored under pdf-pages/ prefix.
+ */
+export async function uploadPdfPage(
+  assetId: string,
+  pageNum: number,
+  buffer: Buffer,
+): Promise<string> {
+  const key = `pdf-pages/${assetId}_p${pageNum}.jpg`;
+  return uploadToSpaces(key, buffer);
+}
+
+async function uploadToSpaces(key: string, buffer: Buffer): Promise<string> {
   const client = getClient();
   await client.send(
     new PutObjectCommand({
@@ -87,6 +103,6 @@ export async function uploadThumbnail(
   );
 
   const url = `https://${currentCredentials.bucket}.${currentCredentials.region}.digitaloceanspaces.com/${key}`;
-  logger.info("Thumbnail uploaded", { assetId, url });
+  logger.info("Thumbnail uploaded", { key, url });
   return url;
 }

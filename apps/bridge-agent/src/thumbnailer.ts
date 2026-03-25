@@ -190,13 +190,82 @@ async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
 }
 
 /**
+ * Generate a thumbnail for a PDF file.
+ * Renders page 1 as an 800px thumbnail + 1500px hi-res images for pages 1-2.
+ */
+async function thumbnailPdf(filePath: string): Promise<PdfThumbnailResult> {
+  const PDF_HIRES_DIM = 1500;
+  const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-pdf-"));
+
+  try {
+    // Render first 2 pages at 200 DPI via Ghostscript
+    await execFileAsync("gs", [
+      "-dNOPAUSE", "-dBATCH", "-dSAFER",
+      "-sDEVICE=png16m",
+      "-r200",
+      "-dFirstPage=1", "-dLastPage=2",
+      `-sOutputFile=${path.join(tmpDir, "page-%d.png")}`,
+      filePath,
+    ], { timeout: 90_000 });
+
+    // Read page 1 output
+    const page1Path = path.join(tmpDir, "page-1.png");
+    const page1Img = sharp(page1Path).flatten({ background: "#ffffff" });
+
+    // 800px thumbnail (standard UI size)
+    const thumbBuffer = await withTimeout(
+      page1Img.clone().resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 85 }).toBuffer(),
+      SHARP_TIMEOUT_MS, "pdf.thumb"
+    );
+    const thumbMeta = await withTimeout(sharp(thumbBuffer).metadata(), SHARP_TIMEOUT_MS, "pdf.thumbMeta");
+
+    // 1500px hi-res page 1 (for AI/OCR)
+    const hiresPage1Buffer = await withTimeout(
+      page1Img.clone().resize(PDF_HIRES_DIM, PDF_HIRES_DIM, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 90 }).toBuffer(),
+      SHARP_TIMEOUT_MS, "pdf.hires1"
+    );
+
+    const result: PdfThumbnailResult = {
+      buffer: thumbBuffer,
+      width: thumbMeta.width || 0,
+      height: thumbMeta.height || 0,
+      hiresPage1Buffer,
+    };
+
+    // Try page 2 (may not exist for single-page PDFs)
+    const page2Path = path.join(tmpDir, "page-2.png");
+    try {
+      const page2Img = sharp(page2Path).flatten({ background: "#ffffff" });
+      const hiresPage2Buffer = await withTimeout(
+        page2Img.resize(PDF_HIRES_DIM, PDF_HIRES_DIM, { fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 90 }).toBuffer(),
+        SHARP_TIMEOUT_MS, "pdf.hires2"
+      );
+      const p2Meta = await withTimeout(sharp(hiresPage2Buffer).metadata(), SHARP_TIMEOUT_MS, "pdf.hires2Meta");
+      result.hiresPage2Buffer = hiresPage2Buffer;
+      result.hiresPage2Width = p2Meta.width || 0;
+      result.hiresPage2Height = p2Meta.height || 0;
+    } catch {
+      logger.debug("PDF has only 1 page (no page 2)", { filePath });
+    }
+
+    return result;
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
  * Main entry: generate thumbnail based on file type.
  */
 export async function generateThumbnail(
   filePath: string,
-  fileType: "psd" | "ai",
-): Promise<ThumbnailResult> {
+  fileType: "psd" | "ai" | "pdf",
+): Promise<ThumbnailResult | PdfThumbnailResult> {
   if (fileType === "psd") return thumbnailPsd(filePath);
   if (fileType === "ai") return thumbnailAi(filePath);
+  if (fileType === "pdf") return thumbnailPdf(filePath);
   throw new Error(`Unsupported file type: ${fileType}`);
 }

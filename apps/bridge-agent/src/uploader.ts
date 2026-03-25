@@ -127,7 +127,20 @@ export async function uploadSiblingThumbnail(
   return uploadToSpaces(key, buffer);
 }
 
-async function uploadToSpaces(key: string, buffer: Buffer): Promise<string> {
+/**
+ * Upload a PDF page image to Spaces (high-res for AI/OCR).
+ * Stored under pdf-pages/ prefix.
+ */
+export async function uploadPdfPage(
+  assetId: string,
+  pageNum: number,
+  buffer: Buffer,
+): Promise<string> {
+  const key = `pdf-pages/${assetId}_p${pageNum}.jpg`;
+  return uploadToSpaces(key, buffer, 90);
+}
+
+async function uploadToSpaces(key: string, buffer: Buffer, quality?: number): Promise<string> {
   const bucket = getCurrentBucket();
   const region = getCurrentRegion();
 
