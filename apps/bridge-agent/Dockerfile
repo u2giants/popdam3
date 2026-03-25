@@ -59,14 +59,26 @@ FROM node:20-bookworm-slim AS runtime
 ARG POPDAM_IMAGE_TAG=latest
 ARG POPDAM_BUILD_SHA=unknown
 
-# Install runtime dependencies
+# Install runtime dependencies + Docker CLI for self-update via Docker socket
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     dumb-init \
     libvips42 \
     ghostscript \
     graphicsmagick \
   && rm -rf /var/lib/apt/lists/*
+
+# Install Docker CLI (no daemon) for self-update support
+RUN curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-27.4.1.tgz \
+    | tar xz --strip-components=1 -C /usr/local/bin docker/docker \
+  && docker --version
+
+# Install Docker Compose plugin
+RUN mkdir -p /usr/local/lib/docker/cli-plugins \
+  && curl -fsSL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-x86_64" \
+     -o /usr/local/lib/docker/cli-plugins/docker-compose \
+  && chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 WORKDIR /app
 
@@ -82,9 +94,8 @@ RUN node -e "require('@popdam/path-filters');console.log('RUNTIME CHECK: @popdam
 ENV POPDAM_IMAGE_TAG=${POPDAM_IMAGE_TAG}
 ENV POPDAM_BUILD_SHA=${POPDAM_BUILD_SHA}
 
-# Non-root user for security
-RUN groupadd --system popdam && useradd --system --gid popdam popdam
-USER popdam
+# Run as root to access Docker socket for self-update.
+# This is a private NAS appliance, not a public-facing service.
 
 # Health check — process must be running
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
