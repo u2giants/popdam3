@@ -326,7 +326,7 @@ function AgentStatusSection() {
                         )}
                         {deployedAt && (
                           <span className="text-muted-foreground">
-                            deployed {new Date(deployedAt).toLocaleString()}
+                            last seen {new Date(deployedAt).toLocaleString()}
                           </span>
                         )}
                       </div>
