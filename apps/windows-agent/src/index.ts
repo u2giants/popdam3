@@ -301,9 +301,25 @@ async function processJob(job: api.RenderJob): Promise<void> {
   }
 
   try {
-    const fileType = (job.file_type === "psd") ? "psd" : "ai" as const;
+    const fileType = (job.file_type === "psd") ? "psd" : (job.file_type === "pdf") ? "pdf" : "ai" as const;
     const result = await renderFile(uncPath, fileType);
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
+
+    // For PDFs, upload hi-res page images
+    if ("hiresPage1Buffer" in result) {
+      const pdfResult = result as PdfRenderResult;
+      await uploadPdfPage(job.asset_id, 1, pdfResult.hiresPage1Buffer);
+      if (pdfResult.hiresPage2Buffer) {
+        const page2Url = await uploadPdfPage(job.asset_id, 2, pdfResult.hiresPage2Buffer);
+        // Update asset with page 2 URL via separate update call
+        try {
+          await api.updateAsset(job.asset_id, { pdf_page2_url: page2Url });
+        } catch (e) {
+          logger.warn("Failed to set pdf_page2_url", { assetId: job.asset_id, error: (e as Error).message });
+        }
+      }
+    }
+
     await api.completeRender(job.job_id, true, thumbnailUrl);
     jobsCompleted++;
     logger.info("Render job completed", { jobId: job.job_id, assetId: job.asset_id, thumbnailUrl });
