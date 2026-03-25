@@ -250,6 +250,7 @@ interface CloudConfig {
   windows_render_policy?: WindowsRenderPolicy | null;
   windows_healthy?: boolean;
   pending_render_jobs?: number;
+  style_guide_scanning?: { roots: string[] };
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
