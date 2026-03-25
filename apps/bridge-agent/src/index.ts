@@ -96,6 +96,7 @@ let cloudMountRoot: string | null = null;
 let cloudBatchSize: number | null = null;
 let cloudConcurrency: number | null = null;
 let cloudScanMinDate: string | null = null;
+let cloudStyleGuideRoots: string[] = [];
 
 // Auto-scan state
 let autoScanEnabled = false;
