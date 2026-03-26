@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2, Eye, Users } from "lucide-react";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
@@ -623,6 +624,68 @@ function PathTesterSection() {
   );
 }
 
+// ── User List + Impersonation ────────────────────────────────────────
+
+interface UserRecord {
+  id: string;
+  email: string;
+  full_name: string | null;
+  created_at: string;
+  isAdmin: boolean;
+}
+
+function UsersSection() {
+  const { call } = useAdminApi();
+  const { startImpersonation } = useImpersonation();
+  const navigate = useNavigate();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: () => call("list-users").then((r) => r.users as UserRecord[]),
+    staleTime: 60_000,
+  });
+
+  const handleImpersonate = (u: UserRecord) => {
+    startImpersonation({ id: u.id, email: u.email, isAdmin: u.isAdmin });
+    navigate("/library");
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Users className="h-4 w-4" /> Active Users
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading && <p className="text-xs text-muted-foreground">Loading…</p>}
+        {!isLoading && (!data || data.length === 0) && (
+          <p className="text-xs text-muted-foreground">No users found.</p>
+        )}
+        <div className="space-y-2">
+          {data?.map((u) => (
+            <div key={u.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{u.email}</p>
+                <p className="text-xs text-muted-foreground">{u.isAdmin ? "Admin" : "User"}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-3 shrink-0 gap-1.5"
+                onClick={() => handleImpersonate(u)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                View as
+              </Button>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Invitation Manager ──────────────────────────────────────────────
 
 function InvitationSection() {
@@ -998,7 +1061,8 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* ── Users ── */}
-        <TabsContent value="users">
+        <TabsContent value="users" className="space-y-4">
+          <UsersSection />
           <InvitationSection />
         </TabsContent>
 

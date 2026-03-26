@@ -1,18 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useImpersonation } from "@/hooks/useImpersonation";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 
 /**
  * Returns whether the current user has the 'admin' role.
- * Queries user_roles table directly (RLS must allow reads for own rows).
- * If impersonation is active, masks the admin role client-side.
+ * When impersonating, returns the impersonated user's role instead.
  */
 export function useIsAdmin() {
   const { user } = useAuth();
-  const { impersonatedRole } = useImpersonation();
+  const { impersonating } = useImpersonation();
 
-  const { data: isRealAdmin = false, isLoading } = useQuery({
+  const { data: isAdmin = false, isLoading } = useQuery({
     queryKey: ["is-admin", user?.id],
     queryFn: async () => {
       if (!user) return false;
@@ -25,11 +24,13 @@ export function useIsAdmin() {
       if (error) return false;
       return !!data;
     },
-    enabled: !!user,
+    enabled: !!user && impersonating === null,
     staleTime: 5 * 60 * 1000,
   });
 
-  const isAdmin = impersonatedRole === "member" ? false : isRealAdmin;
+  if (impersonating !== null) {
+    return { isAdmin: impersonating.isAdmin, isLoading: false };
+  }
 
-  return { isAdmin, isRealAdmin, isLoading };
+  return { isAdmin, isLoading };
 }
