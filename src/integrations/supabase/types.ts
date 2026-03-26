@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -528,8 +528,6 @@ export type Database = {
           mg04_code: string | null
           mg05_code: string | null
           mg06_code: string | null
-          prepack_code: string | null
-          prepack_codes: Json | null
           property_code: string | null
           raw_mg_fields: Json | null
           size_code: string | null
@@ -555,8 +553,6 @@ export type Database = {
           mg04_code?: string | null
           mg05_code?: string | null
           mg06_code?: string | null
-          prepack_code?: string | null
-          prepack_codes?: Json | null
           property_code?: string | null
           raw_mg_fields?: Json | null
           size_code?: string | null
@@ -582,8 +578,6 @@ export type Database = {
           mg04_code?: string | null
           mg05_code?: string | null
           mg06_code?: string | null
-          prepack_code?: string | null
-          prepack_codes?: Json | null
           property_code?: string | null
           raw_mg_fields?: Json | null
           size_code?: string | null
@@ -1229,7 +1223,6 @@ export type Database = {
           error_message: string | null
           files_found: number | null
           id: string
-          inaccessible_roots: string[] | null
           roots_scanned: string[] | null
           started_at: string | null
           status: string
@@ -1241,7 +1234,6 @@ export type Database = {
           error_message?: string | null
           files_found?: number | null
           id?: string
-          inaccessible_roots?: string[] | null
           roots_scanned?: string[] | null
           started_at?: string | null
           status?: string
@@ -1253,7 +1245,6 @@ export type Database = {
           error_message?: string | null
           files_found?: number | null
           id?: string
-          inaccessible_roots?: string[] | null
           roots_scanned?: string[] | null
           started_at?: string | null
           status?: string
