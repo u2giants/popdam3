@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -271,6 +271,7 @@ export type Database = {
           technical_designer_name: string | null
           thumbnail_error: string | null
           thumbnail_url: string | null
+          updated_at: string | null
           width: number | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
         }
@@ -332,6 +333,7 @@ export type Database = {
           technical_designer_name?: string | null
           thumbnail_error?: string | null
           thumbnail_url?: string | null
+          updated_at?: string | null
           width?: number | null
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
@@ -395,6 +397,7 @@ export type Database = {
           technical_designer_name?: string | null
           thumbnail_error?: string | null
           thumbnail_url?: string | null
+          updated_at?: string | null
           width?: number | null
           workflow_status?:
             | Database["public"]["Enums"]["workflow_status"]
@@ -528,6 +531,8 @@ export type Database = {
           mg04_code: string | null
           mg05_code: string | null
           mg06_code: string | null
+          prepack_code: string | null
+          prepack_codes: Json | null
           property_code: string | null
           raw_mg_fields: Json | null
           size_code: string | null
@@ -553,6 +558,8 @@ export type Database = {
           mg04_code?: string | null
           mg05_code?: string | null
           mg06_code?: string | null
+          prepack_code?: string | null
+          prepack_codes?: Json | null
           property_code?: string | null
           raw_mg_fields?: Json | null
           size_code?: string | null
@@ -578,6 +585,8 @@ export type Database = {
           mg04_code?: string | null
           mg05_code?: string | null
           mg06_code?: string | null
+          prepack_code?: string | null
+          prepack_codes?: Json | null
           property_code?: string | null
           raw_mg_fields?: Json | null
           size_code?: string | null
@@ -1223,6 +1232,7 @@ export type Database = {
           error_message: string | null
           files_found: number | null
           id: string
+          inaccessible_roots: string[] | null
           roots_scanned: string[] | null
           started_at: string | null
           status: string
@@ -1234,6 +1244,7 @@ export type Database = {
           error_message?: string | null
           files_found?: number | null
           id?: string
+          inaccessible_roots?: string[] | null
           roots_scanned?: string[] | null
           started_at?: string | null
           status?: string
@@ -1245,6 +1256,7 @@ export type Database = {
           error_message?: string | null
           files_found?: number | null
           id?: string
+          inaccessible_roots?: string[] | null
           roots_scanned?: string[] | null
           started_at?: string | null
           status?: string
