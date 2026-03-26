@@ -2366,6 +2366,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   const done = body.done === true;
   const totalFiles = body.total_files as number | undefined;
   const crawlError = body.error as string | undefined;
+  const inaccessibleRoots = (body.inaccessible_roots as string[]) || [];
 
   if (!runId) return err("run_id is required");
 
@@ -2406,11 +2407,12 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         error_message: crawlError,
         completed_at: new Date().toISOString(),
         files_found: totalFiles ?? 0,
+        ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
       }).eq("id", runId);
 
       await db.from("admin_config").upsert({
         key: "STYLE_GUIDE_CRAWL_REQUEST",
-        value: { status: "failed", error: crawlError, completed_at: new Date().toISOString() },
+        value: { status: "failed", error: crawlError, completed_at: new Date().toISOString(), inaccessible_roots: inaccessibleRoots },
         updated_at: new Date().toISOString(),
       });
     } else {
@@ -2418,6 +2420,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         status: "completed",
         completed_at: new Date().toISOString(),
         files_found: totalFiles ?? 0,
+        ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
       }).eq("id", runId);
 
       // Mark stale files
@@ -2441,7 +2444,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
 
       await db.from("admin_config").upsert({
         key: "STYLE_GUIDE_CRAWL_REQUEST",
-        value: { status: "completed", completed_at: new Date().toISOString(), files_found: totalFiles },
+        value: { status: "completed", completed_at: new Date().toISOString(), files_found: totalFiles, inaccessible_roots: inaccessibleRoots },
         updated_at: new Date().toISOString(),
       });
     }
