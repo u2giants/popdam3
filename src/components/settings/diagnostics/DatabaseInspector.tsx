@@ -103,7 +103,7 @@ export function DatabaseInspector() {
           <Button
             variant="outline" size="sm" className="gap-1.5"
             onClick={() => runQuery()}
-            disabled={isRunning || !sql.trim()}
+            disabled={isRunning || !sql.trim()} title={isRunning ? "Query running…" : !sql.trim() ? "Enter a SQL query first" : undefined}
           >
             {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             Run Query

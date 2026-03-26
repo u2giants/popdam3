@@ -103,7 +103,7 @@ export default function SystemStatePanel() {
                     size="sm"
                     className="h-6 gap-1 text-[10px] text-destructive hover:text-destructive"
                     onClick={() => handleClear(key, { status: "idle" })}
-                    disabled={clearing === key}
+                    disabled={clearing === key} title={clearing === key ? "Clearing…" : undefined}
                   >
                     {clearing === key ? (
                       <Loader2 className="h-3 w-3 animate-spin" />

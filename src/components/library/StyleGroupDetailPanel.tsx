@@ -297,6 +297,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         className="gap-1.5 text-xs h-7"
         onClick={handleFind}
         disabled={loading || polling}
+        title={loading ? "Scanning folder…" : polling ? "Waiting for agent response…" : undefined}
       >
         {loading || polling ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSearch className="h-3 w-3" />}
         {loading ? "Scanning…" : polling ? "Waiting for results…" : siblings ? "Re-scan Folder" : "Find JPG/PNG in Folder"}
@@ -372,6 +373,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
               className="w-full gap-1.5 text-xs h-7"
               onClick={handleIngest}
               disabled={ingesting}
+              title={ingesting ? "Adding images to group, please wait…" : undefined}
             >
               {ingesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
               Add {selected.size} Image{selected.size !== 1 ? "s" : ""} to Group
@@ -860,6 +862,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                       className="h-7 text-xs w-full"
                       onClick={handleSyncGroupTags}
                       disabled={syncingTags}
+                      title={syncingTags ? "Syncing tags to all group members, please wait…" : undefined}
                     >
                       {syncingTags ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Tag className="h-3 w-3 mr-1" />}
                       Sync Tags to All Group Members
@@ -889,7 +892,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                           <p className="text-xs text-foreground/80 leading-relaxed mt-0.5">{detailAsset.scene_description}</p>
                         </div>
                       )}
-                      <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={handleAiTag} disabled={aiTagging || !detailAsset.thumbnail_url}>
+                      <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={handleAiTag} disabled={aiTagging || !detailAsset.thumbnail_url} title={aiTagging ? "AI tagging in progress…" : !detailAsset.thumbnail_url ? "Requires a thumbnail to run AI analysis" : undefined}>
                         {aiTagging ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                         {aiTagging ? "Re-tagging…" : "Re-tag"}
                       </Button>
@@ -897,7 +900,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                   ) : (
                     <div className="rounded-lg border border-dashed border-border p-3 text-center space-y-2">
                       <p className="text-xs text-muted-foreground">No AI analysis yet</p>
-                      <Button variant="outline" size="sm" className="gap-1.5" onClick={handleAiTag} disabled={aiTagging || !detailAsset.thumbnail_url}>
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={handleAiTag} disabled={aiTagging || !detailAsset.thumbnail_url} title={aiTagging ? "Generating AI description…" : !detailAsset.thumbnail_url ? "Requires a thumbnail to run AI analysis" : undefined}>
                         {aiTagging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                         {aiTagging ? "Generating…" : "Generate AI Description"}
                       </Button>

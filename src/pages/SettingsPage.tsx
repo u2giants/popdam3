@@ -118,6 +118,7 @@ function AgentUpdateControls({ agentId, agentName }: { agentId: string; agentNam
         className="gap-1.5 text-xs h-7"
         onClick={handleCheck}
         disabled={checking || applying}
+        title={applying ? "Applying update…" : checking ? "Checking for updates…" : undefined}
       >
         {checking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
         Check for Update
@@ -139,7 +140,7 @@ function AgentUpdateControls({ agentId, agentName }: { agentId: string; agentNam
             size="sm"
             className="gap-1.5 text-xs h-7"
             onClick={handleApply}
-            disabled={applying}
+            disabled={applying} title={applying ? "Applying update…" : undefined}
           >
             {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
             {applying ? "Updating..." : "Apply Update"}
@@ -153,7 +154,7 @@ function AgentUpdateControls({ agentId, agentName }: { agentId: string; agentNam
           size="sm"
           className="gap-1.5 text-xs h-7 text-muted-foreground"
           onClick={handleApply}
-          disabled={applying}
+          disabled={applying} title={applying ? "Applying update…" : undefined}
         >
           {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
           {applying ? "Updating..." : "Force Update"}
@@ -243,7 +244,7 @@ function AgentStatusSection() {
           {anyForceStopped ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="default" size="sm" onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} className="gap-1.5">
+                <Button variant="default" size="sm" onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending} title={resumeMutation.isPending ? "Resuming…" : undefined} className="gap-1.5">
                   <Play className="h-3.5 w-3.5" /> Resume Scanning
                 </Button>
               </TooltipTrigger>
@@ -252,7 +253,7 @@ function AgentStatusSection() {
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="destructive" size="sm" onClick={() => { if (confirm("Stop all agents and block ingestion?")) stopMutation.mutate(); }} disabled={stopMutation.isPending} className="gap-1.5">
+                <Button variant="destructive" size="sm" onClick={() => { if (confirm("Stop all agents and block ingestion?")) stopMutation.mutate(); }} disabled={stopMutation.isPending} title={stopMutation.isPending ? "Stopping all agents…" : undefined} className="gap-1.5">
                   <StopCircle className="h-3.5 w-3.5" /> Stop All
                 </Button>
               </TooltipTrigger>
@@ -261,7 +262,7 @@ function AgentStatusSection() {
           )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" onClick={() => { if (confirm("Reset scan state to idle? This clears any stuck scan.")) resetScanMutation.mutate(); }} disabled={resetScanMutation.isPending} className="gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => { if (confirm("Reset scan state to idle? This clears any stuck scan.")) resetScanMutation.mutate(); }} disabled={resetScanMutation.isPending} title={resetScanMutation.isPending ? "Resetting scan state…" : undefined} className="gap-1.5">
                 <RotateCcw className="h-3.5 w-3.5" /> Reset Scan State
               </Button>
             </TooltipTrigger>
@@ -468,6 +469,7 @@ function AgentKeySection() {
           <Button
             onClick={() => generateMutation.mutate()}
             disabled={!agentName.trim() || generateMutation.isPending}
+            title={!agentName.trim() ? "Enter an agent name first" : generateMutation.isPending ? "Generating key…" : undefined}
             size="sm"
           >
             Generate
@@ -578,7 +580,7 @@ function PathTesterSection() {
             onChange={(e) => setInputPath(e.target.value)}
             className="font-mono text-xs"
           />
-          <Button size="sm" onClick={handleTest} disabled={!inputPath.trim()}>Test</Button>
+          <Button size="sm" onClick={handleTest} disabled={!inputPath.trim()} title={!inputPath.trim() ? "Enter a path to test first" : undefined}>Test</Button>
         </div>
         {result && (
           <div className={`text-xs font-mono rounded-md p-3 space-y-1 ${result.valid ? "bg-[hsl(var(--success)/0.1)] border border-[hsl(var(--success)/0.3)]" : "bg-destructive/10 border border-destructive/30"}`}>
@@ -691,7 +693,7 @@ function InvitationSection() {
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
-          <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={!email.trim()}>
+          <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={!email.trim()} title={!email.trim() ? "Enter an email address first" : undefined}>
             Invite
           </Button>
         </div>
@@ -717,6 +719,7 @@ function InvitationSection() {
                         variant="outline" size="sm" className="h-6 text-xs gap-1"
                         onClick={() => handleResend(inv.id as string, inv.email as string)}
                         disabled={resendingId === inv.id}
+                        title={resendingId === inv.id ? "Sending invitation…" : undefined}
                       >
                         {resendingId === inv.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                         Resend

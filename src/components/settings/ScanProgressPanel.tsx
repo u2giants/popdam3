@@ -156,6 +156,7 @@ export function ScanProgressPanel({
               className="h-6 text-[10px] gap-1 px-2"
               onClick={onStop}
               disabled={stopPending}
+              title={stopPending ? "Stop request sent, waiting for agent…" : undefined}
             >
               <Square className="h-2.5 w-2.5" /> Stop
             </Button>

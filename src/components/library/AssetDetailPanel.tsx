@@ -527,6 +527,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
                   className="h-6 text-[10px] gap-1"
                   onClick={handleAiTag}
                   disabled={aiTagging || !asset.thumbnail_url}
+                  title={aiTagging ? "Re-tagging in progress…" : !asset.thumbnail_url ? "Requires a thumbnail to run AI analysis" : undefined}
                 >
                   {aiTagging ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                   {aiTagging ? "Re-tagging…" : "Re-tag"}
@@ -541,6 +542,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
                   className="gap-1.5"
                   onClick={handleAiTag}
                   disabled={aiTagging || !asset.thumbnail_url}
+                  title={aiTagging ? "Generating AI description…" : !asset.thumbnail_url ? "Requires a thumbnail to run AI analysis" : undefined}
                 >
                   {aiTagging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                   {aiTagging ? "Generating…" : "Generate AI Description"}

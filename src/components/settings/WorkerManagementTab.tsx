@@ -114,7 +114,7 @@ function SpacesConfigSettings() {
           Stored securely in your private database. Delivered to the agent automatically — no .env editing required.
         </p>
         {isDirty && (
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
             <Save className="h-3.5 w-3.5 mr-1.5" /> Save Spaces Config
           </Button>
         )}
@@ -184,6 +184,7 @@ function PathTestButton({ hostPath, mountRoot, scanRoots }: { hostPath: string; 
         size="sm"
         onClick={startTest}
         disabled={status === "waiting" || !mountRoot}
+        title={!mountRoot ? "Enter a container mount path above first" : status === "waiting" ? "Waiting for agent response…" : undefined}
         className="gap-1.5"
       >
         {status === "waiting" ? (
@@ -457,7 +458,7 @@ function FolderManager() {
           )}
           <PathTestButton hostPath={hostPathValue} mountRoot={mountRootValue} scanRoots={roots} />
           {pathsDirty && (
-            <Button size="sm" onClick={() => savePathsMutation.mutate()} disabled={savePathsMutation.isPending}>
+            <Button size="sm" onClick={() => savePathsMutation.mutate()} disabled={savePathsMutation.isPending} title={savePathsMutation.isPending ? "Saving…" : undefined}>
               <Save className="h-3.5 w-3.5 mr-1.5" /> Save Mapping
             </Button>
           )}
@@ -481,7 +482,7 @@ function FolderManager() {
             placeholder="Decor/Projects"
             onKeyDown={(e) => e.key === "Enter" && addFolder()}
           />
-          <Button size="sm" onClick={addFolder} disabled={!newFolder.trim()}>
+          <Button size="sm" onClick={addFolder} disabled={!newFolder.trim()} title={!newFolder.trim() ? "Enter a folder path first" : undefined}>
             <FolderPlus className="h-3.5 w-3.5 mr-1.5" /> Add Folder
           </Button>
         </div>
@@ -525,7 +526,7 @@ function FolderManager() {
             placeholder="Character Licensed"
             onKeyDown={(e) => e.key === "Enter" && addSubfilter()}
           />
-          <Button size="sm" onClick={addSubfilter} disabled={!newSubfilter.trim()}>
+          <Button size="sm" onClick={addSubfilter} disabled={!newSubfilter.trim()} title={!newSubfilter.trim() ? "Enter a value first" : undefined}>
             Add
           </Button>
         </div>
@@ -759,7 +760,7 @@ function ResourceGuardSettings() {
         </div>
 
         {dirty && (
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
             <Save className="h-3.5 w-3.5 mr-1.5" /> Save Resource Guard
           </Button>
         )}
@@ -826,7 +827,7 @@ function PollingConfig() {
           </div>
         </div>
         {form && (
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
             <Save className="h-3.5 w-3.5 mr-1.5" /> Save Polling Config
           </Button>
         )}
@@ -970,7 +971,7 @@ function DateCutoffSettings() {
         </div>
         <div className="flex flex-wrap gap-2">
           {dirty && (
-            <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
               <Save className="h-3.5 w-3.5 mr-1.5" /> Save Date Cutoffs
             </Button>
           )}
@@ -979,6 +980,7 @@ function DateCutoffSettings() {
             size="sm"
             onClick={handlePurge}
             disabled={isPurging || !thumbVal || !purgePreview}
+            title={isPurging ? "Purge in progress…" : !thumbVal ? "Configure a thumbnail storage setting first" : !purgePreview ? "Preview the purge results first" : undefined}
           >
             {isPurging ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
             Purge {purgePreview?.toLocaleString() ?? "…"} assets older than {thumbVal}
@@ -1089,7 +1091,7 @@ function ImageOutputSettings() {
         </div>
 
         {dirty && (
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
             <Save className="h-3.5 w-3.5 mr-1.5" /> Save Image Settings
           </Button>
         )}
@@ -1220,7 +1222,7 @@ function AutoScanSettings() {
               How often the agent re-scans all configured folders. Default: 6 hours.
             </p>
             {intervalHours !== null && (
-              <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
                 <Save className="h-3.5 w-3.5 mr-1.5" /> Save Interval
               </Button>
             )}
@@ -1321,6 +1323,7 @@ export function UpdateAgentButton() {
           size="sm"
           onClick={handleUpdate}
           disabled={isPending}
+          title={isPending ? "Update request in progress…" : undefined}
           className="gap-1.5"
         >
           {isPending ? (

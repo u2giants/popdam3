@@ -85,7 +85,7 @@ function ConnectivityTest({ agentName }: { agentName: string }) {
     <div className="border border-border rounded-md p-3 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-muted-foreground">Connectivity Test</span>
-        <Button size="sm" variant="outline" onClick={check} disabled={status === "checking"} className="gap-1.5 text-xs">
+        <Button size="sm" variant="outline" onClick={check} disabled={status === "checking"} title={status === "checking" ? "Checking connection…" : undefined} className="gap-1.5 text-xs">
           {status === "checking" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
           Test Connection
         </Button>
@@ -388,7 +388,7 @@ services:
                   <Button
                     size="sm"
                     onClick={() => generateKeyMutation.mutate()}
-                    disabled={generateKeyMutation.isPending}
+                    disabled={generateKeyMutation.isPending} title={generateKeyMutation.isPending ? "Generating key…" : undefined}
                   >
                     Generate Agent Key for "{state.agentName}"
                   </Button>
@@ -431,7 +431,7 @@ services:
         <Button
           variant="outline"
           onClick={() => setStep(Math.max(0, step - 1))}
-          disabled={step === 0}
+          disabled={step === 0} title={step === 0 ? "Already on the first step" : undefined}
           className="gap-1"
         >
           <ChevronLeft className="h-4 w-4" /> Previous
@@ -439,7 +439,7 @@ services:
         {step < STEPS.length - 1 && (
           <Button
             onClick={() => setStep(step + 1)}
-            disabled={!canAdvance()}
+            disabled={!canAdvance()} title={!canAdvance() ? "Complete the required fields on this step first" : undefined}
             className="gap-1"
           >
             Next <ChevronRight className="h-4 w-4" />
