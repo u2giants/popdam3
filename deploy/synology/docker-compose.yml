@@ -12,5 +12,9 @@ services:
     volumes:
       - /volume1/nas-share:/mnt/nas/mac:ro  # host-path:container-path
       - /volume1/styleguides:/mnt/nas/styleguides:ro  # Style Guides folder (read-only crawl)
+      # Persistent data volume: preserves agent key (agent-config.json) across rebuilds.
+      # Without this, the agent re-pairs on every container recreate, invalidating the old
+      # key mid-flight and causing 401 errors on any in-progress API calls.
+      - /volume1/docker/popdam/data:/data
       # Docker socket: required for remote updates from PopDAM UI
       - /var/run/docker.sock:/var/run/docker.sock
