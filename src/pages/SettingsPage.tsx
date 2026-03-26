@@ -234,6 +234,15 @@ function AgentStatusSection() {
     onError: (e) => toast.error(e.message),
   });
 
+  const triggerScanMutation = useMutation({
+    mutationFn: () => call("trigger-scan"),
+    onSuccess: () => {
+      toast.success("Scan triggered", { description: "Bridge Agent will start scanning on its next poll (~30s)." });
+      queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+    },
+    onError: (e) => toast.error("Failed to trigger scan", { description: e.message }),
+  });
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -260,6 +269,14 @@ function AgentStatusSection() {
               <TooltipContent>Immediately halt all agents and block any new file ingestion</TooltipContent>
             </Tooltip>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => triggerScanMutation.mutate()} disabled={triggerScanMutation.isPending} title={triggerScanMutation.isPending ? "Triggering scan…" : undefined} className="gap-1.5">
+                <RefreshCw className={`h-3.5 w-3.5 ${triggerScanMutation.isPending ? "animate-spin" : ""}`} /> Sync Now
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Trigger an immediate NAS scan on the Bridge Agent</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="sm" onClick={() => { if (confirm("Reset scan state to idle? This clears any stuck scan.")) resetScanMutation.mutate(); }} disabled={resetScanMutation.isPending} title={resetScanMutation.isPending ? "Resetting scan state…" : undefined} className="gap-1.5">
