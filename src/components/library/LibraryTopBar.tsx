@@ -202,19 +202,22 @@ export default function LibraryTopBar({
       <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onRefresh} title="Refresh library">
         <RotateCcw className="h-4 w-4" />
       </Button>
-      <TooltipProvider>
+      <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 gap-1.5 relative"
-              onClick={onSync}
-              disabled={syncDisabled}
-            >
-              <RefreshCw className={cn("h-4 w-4", scanRunning && !scanStale && "animate-spin")} />
-              {scanStale ? "Scan stuck" : scanRunning ? truncatePath(scanCurrentPath) : scanQueued ? "Queued…" : "Sync"}
-            </Button>
+            <span className={cn("inline-flex", syncDisabled && "cursor-not-allowed")}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 gap-1.5 relative"
+                onClick={onSync}
+                disabled={syncDisabled}
+                style={syncDisabled ? { pointerEvents: "none" } : undefined}
+              >
+                <RefreshCw className={cn("h-4 w-4", scanRunning && !scanStale && "animate-spin")} />
+                {scanStale ? "Scan stuck" : scanRunning ? truncatePath(scanCurrentPath) : scanQueued ? "Queued…" : "Sync"}
+              </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-[280px]">
             {syncTitle}
