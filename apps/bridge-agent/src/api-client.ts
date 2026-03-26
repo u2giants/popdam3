@@ -322,6 +322,7 @@ export async function completeStyleGuideCrawl(
   done: boolean,
   totalFiles?: number,
   error?: string,
+  inaccessibleRoots?: string[],
 ): Promise<void> {
   await callApi("complete-style-guide-crawl", {
     run_id: runId,
@@ -329,5 +330,6 @@ export async function completeStyleGuideCrawl(
     done,
     total_files: totalFiles,
     error,
+    inaccessible_roots: inaccessibleRoots?.length ? inaccessibleRoots : undefined,
   });
 }

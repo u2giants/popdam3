@@ -122,6 +122,21 @@ export default function StyleGuideCrawlTab() {
             </div>
           )}
 
+          {/* Inaccessible roots warning */}
+          {(() => {
+            const inaccessible = (request?.inaccessible_roots || lastRun?.inaccessible_roots) as string[] | undefined;
+            if (!inaccessible?.length) return null;
+            return (
+              <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-2 space-y-1">
+                <div className="font-medium">⚠ Path not accessible in container — volume mount missing?</div>
+                {inaccessible.map((p) => (
+                  <div key={p} className="font-mono">{p}</div>
+                ))}
+                <div className="text-muted-foreground">Add the corresponding volume mount to your docker-compose.yml and recreate the container.</div>
+              </div>
+            );
+          })()}
+
           {/* Results */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-muted/50 rounded-md p-3 text-center">

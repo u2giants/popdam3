@@ -162,6 +162,7 @@ export async function crawlStyleGuides(roots: string[]): Promise<void> {
 
   let totalFiles = 0;
   let batch: StyleGuideFileRecord[] = [];
+  const inaccessibleRoots: string[] = [];
 
   try {
     for (const root of roots) {
@@ -173,12 +174,14 @@ export async function crawlStyleGuides(roots: string[]): Promise<void> {
         const s = await lstat(resolvedRoot);
         if (!s.isDirectory()) {
           logger.warn("Style guide crawl: root is not a directory", { root });
+          inaccessibleRoots.push(root);
           continue;
         }
       } catch (e) {
         logger.warn("Style guide crawl: root inaccessible", {
           root, error: (e as Error).message,
         });
+        inaccessibleRoots.push(root);
         continue;
       }
 
@@ -197,14 +200,14 @@ export async function crawlStyleGuides(roots: string[]): Promise<void> {
     }
 
     // Send final batch
-    await api.completeStyleGuideCrawl(runId, batch, true, totalFiles);
-    logger.info("Style guide crawl completed", { totalFiles });
+    await api.completeStyleGuideCrawl(runId, batch, true, totalFiles, undefined, inaccessibleRoots);
+    logger.info("Style guide crawl completed", { totalFiles, inaccessibleRoots });
 
   } catch (e) {
     const errorMsg = (e as Error).message;
     logger.error("Style guide crawl failed", { error: errorMsg });
     try {
-      await api.completeStyleGuideCrawl(runId, [], true, totalFiles, errorMsg);
+      await api.completeStyleGuideCrawl(runId, [], true, totalFiles, errorMsg, inaccessibleRoots);
     } catch (e2) {
       logger.error("Style guide crawl: failed to report error", { error: (e2 as Error).message });
     }
