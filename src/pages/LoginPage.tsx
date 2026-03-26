@@ -68,6 +68,20 @@ export default function LoginPage() {
     }
   };
 
+  const handleMicrosoftSignIn = async () => {
+    setError(null);
+    const { error } = await externalSupabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        scopes: "email",
+        redirectTo: "https://popdam.designflow.app",
+      },
+    });
+    if (error) {
+      setError(error.message || "Microsoft sign-in failed");
+    }
+  };
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -140,6 +154,22 @@ export default function LoginPage() {
                 />
               </svg>
               Continue with Google
+            </Button>
+
+            {/* Microsoft OAuth */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleMicrosoftSignIn}
+              type="button"
+            >
+              <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21">
+                <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+              </svg>
+              Continue with Microsoft
             </Button>
 
             <div className="relative">
