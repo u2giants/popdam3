@@ -159,7 +159,7 @@ export function useAgentStatus(): AgentStatusInfo {
     queryKey: ["agent-status"],
     queryFn: fetchAgentStatus,
     staleTime: Infinity,
-    initialData: DEFAULT_STATUS,
+    placeholderData: DEFAULT_STATUS,
   });
 
   useEffect(() => {
@@ -175,5 +175,5 @@ export function useAgentStatus(): AgentStatusInfo {
     return () => { supabase.removeChannel(channel); };
   }, [queryClient]);
 
-  return data;
+  return data ?? DEFAULT_STATUS;
 }
