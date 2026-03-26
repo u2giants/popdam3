@@ -115,7 +115,7 @@ export function useScanProgress(): ScanProgress & { pollNow: () => void } {
     queryKey: ["scan-progress"],
     queryFn: fetchScanProgress,
     staleTime: Infinity,
-    initialData: DEFAULT_PROGRESS,
+    placeholderData: DEFAULT_PROGRESS,
   });
 
   useEffect(() => {
