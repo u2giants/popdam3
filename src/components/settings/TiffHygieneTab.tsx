@@ -288,7 +288,7 @@ export default function TiffHygieneTab() {
             <FileImage className="h-4 w-4" /> TIFF Compression Hygiene
           </CardTitle>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading} title={isLoading ? "Loading…" : undefined}>
               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
@@ -296,6 +296,7 @@ export default function TiffHygieneTab() {
               variant="default" size="sm"
               onClick={() => scanMutation.mutate()}
               disabled={scanMutation.isPending || isAgentScanning}
+              title={isAgentScanning ? "Agent is already scanning" : scanMutation.isPending ? "Scan requested, please wait…" : undefined}
               className="gap-1.5"
             >
               {(scanMutation.isPending || isAgentScanning) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
@@ -317,6 +318,7 @@ export default function TiffHygieneTab() {
                 }
               }}
               disabled={refreshDatesMutation.isPending}
+              title={refreshDatesMutation.isPending ? "Refreshing…" : undefined}
               className="gap-1.5"
             >
               {refreshDatesMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
@@ -328,7 +330,7 @@ export default function TiffHygieneTab() {
                   <TooltipTrigger asChild>
                     <Button variant="ghost" size="sm" onClick={() => {
                       if (confirm("Clear all TIFF scan results?")) clearMutation.mutate();
-                    }} disabled={clearMutation.isPending} className="text-destructive">
+                    }} disabled={clearMutation.isPending} title={clearMutation.isPending ? "Clearing…" : undefined} className="text-destructive">
                       <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear
                     </Button>
                   </TooltipTrigger>
@@ -398,7 +400,7 @@ export default function TiffHygieneTab() {
                               .map((f) => f.id);
                             if (ids.length > 0) queueMutation.mutate({ ids, mode: "test" });
                           }}
-                          disabled={queueMutation.isPending}
+                          disabled={queueMutation.isPending} title={queueMutation.isPending ? "Queuing…" : undefined}
                         >
                           <TestTube className="h-3 w-3" /> Test
                         </Button>
@@ -420,7 +422,7 @@ export default function TiffHygieneTab() {
                             if (ids.length > 0 && confirm(`Process ${ids.length} file(s)? Originals will be replaced in-place.`))
                               queueMutation.mutate({ ids, mode: "process" });
                           }}
-                          disabled={queueMutation.isPending}
+                          disabled={queueMutation.isPending} title={queueMutation.isPending ? "Queuing…" : undefined}
                         >
                           <Play className="h-3 w-3" /> Process
                         </Button>
@@ -445,7 +447,7 @@ export default function TiffHygieneTab() {
                           if (ids.length > 0 && confirm(`Delete ${ids.length} original (_big) backup(s)?`))
                             deleteMutation.mutate(ids);
                         }}
-                        disabled={deleteMutation.isPending}
+                        disabled={deleteMutation.isPending} title={deleteMutation.isPending ? "Deleting…" : undefined}
                       >
                         <Trash2 className="h-3 w-3" /> Delete Originals
                       </Button>

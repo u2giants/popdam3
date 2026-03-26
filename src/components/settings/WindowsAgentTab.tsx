@@ -119,7 +119,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
             Live
           </Badge>
         </CardTitle>
-        <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+        <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isRefetching} title={isRefetching ? "Refreshing…" : "Refresh"}>
           <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
         </Button>
       </CardHeader>
@@ -176,7 +176,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                           size="sm"
                           className="gap-1 h-7 text-xs"
                           onClick={() => triggerUpdateMutation.mutate(agent.id as string)}
-                          disabled={triggerUpdateMutation.isPending}
+                          disabled={triggerUpdateMutation.isPending} title={triggerUpdateMutation.isPending ? "Requesting update…" : undefined}
                         >
                           <ArrowUpCircle className="h-3 w-3" />
                           Update Now
@@ -192,7 +192,7 @@ function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
                               removeAgentMutation.mutate(agent.id as string);
                             }
                           }}
-                          disabled={removeAgentMutation.isPending}
+                          disabled={removeAgentMutation.isPending} title={removeAgentMutation.isPending ? "Removing agent…" : undefined}
                         >
                           <Trash2 className="h-3 w-3" />
                           Remove
@@ -516,7 +516,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
                 size="sm"
                 className="gap-1.5"
                 onClick={() => generateTokenMutation.mutate()}
-                disabled={generateTokenMutation.isPending}
+                disabled={generateTokenMutation.isPending} title={generateTokenMutation.isPending ? "Generating token…" : undefined}
               >
                 <KeyRound className="h-3.5 w-3.5" />
                 Generate New Token
@@ -527,7 +527,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
               size="sm"
               className="gap-1.5"
               onClick={() => generateTokenMutation.mutate()}
-              disabled={generateTokenMutation.isPending}
+              disabled={generateTokenMutation.isPending} title={generateTokenMutation.isPending ? "Generating token…" : undefined}
             >
               <KeyRound className="h-3.5 w-3.5" />
               {generateTokenMutation.isPending ? "Generating..." : "Generate Install Token"}
@@ -601,7 +601,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
             </div>
             <p className="text-xs text-muted-foreground">Stored in your private database. Delivered to the agent automatically — no file editing required.</p>
           </div>
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
             Save NAS Settings
           </Button>
         </div>
@@ -632,6 +632,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
             className="gap-1.5"
             onClick={sendTestJob}
             disabled={testStatus === "sending" || testStatus === "polling"}
+            title={testStatus === "sending" ? "Sending test job…" : testStatus === "polling" ? "Waiting for test result…" : undefined}
           >
             <Play className="h-3.5 w-3.5" />
             {testStatus === "sending" ? "Sending..." : testStatus === "polling" ? "Waiting for result..." : "Send Test Job"}
@@ -834,7 +835,7 @@ function RenderJobsTable() {
                 requeueAllMutation.mutate();
               }
             }}
-            disabled={requeueAllMutation.isPending}
+            disabled={requeueAllMutation.isPending} title={requeueAllMutation.isPending ? "Requeueing…" : undefined}
           >
             <RotateCcw className="h-3.5 w-3.5" />
             {requeueAllMutation.isPending ? "Queueing..." : "Requeue All No-Preview"}
@@ -844,7 +845,7 @@ function RenderJobsTable() {
             size="sm"
             className="gap-1.5"
             onClick={() => clearJunkMutation.mutate()}
-            disabled={clearJunkMutation.isPending}
+            disabled={clearJunkMutation.isPending} title={clearJunkMutation.isPending ? "Clearing…" : undefined}
           >
             <Trash2 className="h-3.5 w-3.5" />
             {clearJunkMutation.isPending ? "Clearing..." : "Clear Junk Files"}
@@ -854,7 +855,7 @@ function RenderJobsTable() {
             size="sm"
             className="gap-1.5 text-destructive"
             onClick={() => clearFailedMutation.mutate()}
-            disabled={clearFailedMutation.isPending}
+            disabled={clearFailedMutation.isPending} title={clearFailedMutation.isPending ? "Clearing…" : undefined}
           >
             <Trash2 className="h-3.5 w-3.5" /> Clear Failed
           </Button>
@@ -980,7 +981,7 @@ function RenderJobsTable() {
                                     e.stopPropagation();
                                     requeueMutation.mutate(jobId);
                                   }}
-                                  disabled={requeueMutation.isPending}
+                                  disabled={requeueMutation.isPending} title={requeueMutation.isPending ? "Requeueing…" : undefined}
                                 >
                                   <RotateCcw className="h-3.5 w-3.5" />
                                 </Button>
@@ -1206,7 +1207,7 @@ function RenderPolicyEditor() {
         </div>
 
         {isDirty && (
-          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} title={saveMutation.isPending ? "Saving…" : undefined}>
             <Save className="h-3.5 w-3.5 mr-1.5" /> Save Policy
           </Button>
         )}

@@ -85,7 +85,7 @@ function ErpSyncSection() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="outline" size="sm" onClick={() => handleSync(true)} disabled={syncing} className="gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => handleSync(true)} disabled={syncing} title={syncing ? "Sync in progress…" : undefined} className="gap-1.5">
                 <Database className="h-3.5 w-3.5" />
                 Full Sync
               </Button>
@@ -94,7 +94,7 @@ function ErpSyncSection() {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="sm" onClick={() => handleSync(false)} disabled={syncing} className="gap-1.5">
+              <Button size="sm" onClick={() => handleSync(false)} disabled={syncing} title={syncing ? "Sync in progress…" : undefined} className="gap-1.5">
                 {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                 {syncing ? "Syncing..." : "Incremental Sync"}
               </Button>
@@ -929,7 +929,7 @@ function ReviewQueue() {
                     variant="outline"
                     className="text-xs gap-1"
                     onClick={() => bulkRejectMutation.mutate([...selectedIds])}
-                    disabled={bulkRejectMutation.isPending}
+                    disabled={bulkRejectMutation.isPending} title={bulkRejectMutation.isPending ? "Processing…" : undefined}
                   >
                     Reject {selectedIds.size}
                   </Button>
@@ -943,7 +943,7 @@ function ReviewQueue() {
                     variant="destructive"
                     className="text-xs gap-1"
                     onClick={() => bulkDismissMutation.mutate([...selectedIds])}
-                    disabled={bulkDismissMutation.isPending}
+                    disabled={bulkDismissMutation.isPending} title={bulkDismissMutation.isPending ? "Processing…" : undefined}
                   >
                     Dismiss {selectedIds.size}
                   </Button>
@@ -1075,7 +1075,7 @@ function ReviewQueue() {
                                   variant="ghost"
                                   className="h-6 w-6 p-0 text-[hsl(var(--success))]"
                                   onClick={() => actionMutation.mutate({ id: item.id, action: "approve" })}
-                                  disabled={actionMutation.isPending}
+                                  disabled={actionMutation.isPending} title={actionMutation.isPending ? "Processing…" : undefined}
                                 >
                                   <Check className="h-3.5 w-3.5" />
                                 </Button>
@@ -1113,7 +1113,7 @@ function ReviewQueue() {
                                   variant="ghost"
                                   className="h-6 w-6 p-0 text-destructive"
                                   onClick={() => actionMutation.mutate({ id: item.id, action: "reject" })}
-                                  disabled={actionMutation.isPending}
+                                  disabled={actionMutation.isPending} title={actionMutation.isPending ? "Processing…" : undefined}
                                 >
                                   <X className="h-3.5 w-3.5" />
                                 </Button>
@@ -1129,7 +1129,7 @@ function ReviewQueue() {
                                   variant="ghost"
                                   className="h-6 text-xs text-[hsl(var(--warning))] gap-1"
                                   onClick={() => actionMutation.mutate({ id: item.id, action: "revert" })}
-                                  disabled={actionMutation.isPending}
+                                  disabled={actionMutation.isPending} title={actionMutation.isPending ? "Processing…" : undefined}
                                 >
                                   <Undo2 className="h-3 w-3" /> Undo
                                 </Button>
@@ -1153,10 +1153,10 @@ function ReviewQueue() {
               Page {page} of {totalPages} ({total} items)
             </span>
             <div className="flex items-center gap-1">
-              <Button size="sm" variant="outline" className="h-7" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              <Button size="sm" variant="outline" className="h-7" disabled={page <= 1} title={page <= 1 ? "Already on the first page" : undefined} onClick={() => setPage((p) => p - 1)}>
                 <ChevronLeft className="h-3 w-3" />
               </Button>
-              <Button size="sm" variant="outline" className="h-7" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+              <Button size="sm" variant="outline" className="h-7" disabled={page >= totalPages} title={page >= totalPages ? "Already on the last page" : undefined} onClick={() => setPage((p) => p + 1)}>
                 <ChevronRight className="h-3 w-3" />
               </Button>
             </div>
@@ -1327,7 +1327,7 @@ function ErpItemsBrowser() {
                 variant="destructive"
                 className="text-xs gap-1"
                 onClick={() => dismissMutation.mutate({ ids: [...selectedIds], dismiss: true })}
-                disabled={dismissMutation.isPending}
+                disabled={dismissMutation.isPending} title={dismissMutation.isPending ? "Dismissing…" : undefined}
               >
                 <X className="h-3.5 w-3.5" />
                 Dismiss {selectedIds.size}
@@ -1338,7 +1338,7 @@ function ErpItemsBrowser() {
                   variant="outline"
                   className="text-xs gap-1"
                   onClick={() => dismissMutation.mutate({ ids: [...selectedIds], dismiss: false })}
-                  disabled={dismissMutation.isPending}
+                  disabled={dismissMutation.isPending} title={dismissMutation.isPending ? "Dismissing…" : undefined}
                 >
                   <Undo2 className="h-3.5 w-3.5" />
                   Restore {selectedIds.size}
@@ -1570,11 +1570,11 @@ function ErpItemsBrowser() {
                 Showing {((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, total)} of {total.toLocaleString()}
               </span>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page <= 1} title={page <= 1 ? "Already on the first page" : undefined} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="px-2">Page {page} of {totalPages}</span>
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page >= totalPages} title={page >= totalPages ? "Already on the last page" : undefined} onClick={() => setPage(page + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

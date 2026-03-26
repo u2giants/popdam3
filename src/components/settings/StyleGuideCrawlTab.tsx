@@ -82,6 +82,7 @@ export default function StyleGuideCrawlTab() {
             className="gap-1.5"
             onClick={() => triggerMutation.mutate()}
             disabled={isActive || triggerMutation.isPending}
+            title={isActive ? "Crawl is already running" : triggerMutation.isPending ? "Starting crawl…" : undefined}
           >
             {isActive ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -267,10 +268,10 @@ export default function StyleGuideCrawlTab() {
                   {((page - 1) * 50 + 1).toLocaleString()}–{Math.min(page * 50, totalFiles).toLocaleString()} of {totalFiles.toLocaleString()}
                 </span>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page <= 1} title={page <= 1 ? "Already on the first page" : undefined} onClick={() => setPage(page - 1)}>
                     <ChevronLeft className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page >= totalPages} title={page >= totalPages ? "Already on the last page" : undefined} onClick={() => setPage(page + 1)}>
                     <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>

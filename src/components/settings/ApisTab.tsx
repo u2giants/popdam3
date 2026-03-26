@@ -164,6 +164,7 @@ function TaxonomySourceEditor() {
             className="text-xs shrink-0"
             onClick={() => syncMutation.mutate(src.code)}
             disabled={syncMutation.isPending || !src.enabled}
+            title={!src.enabled ? "Enable this integration first" : syncMutation.isPending ? "Sync in progress…" : undefined}
           >
             Sync
           </Button>
@@ -214,7 +215,7 @@ function TaxonomySourceEditor() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleAdd} disabled={saving}>
+            <Button size="sm" onClick={handleAdd} disabled={saving} title={saving ? "Saving…" : undefined}>
               {saving ? "Saving…" : "Save Source"}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
@@ -342,7 +343,7 @@ function TaxonomyApiSection() {
           variant="outline"
           size="sm"
           onClick={() => syncAllMutation.mutate()}
-          disabled={syncAllMutation.isPending}
+          disabled={syncAllMutation.isPending} title={syncAllMutation.isPending ? "Sync in progress…" : undefined}
           className="gap-1.5"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${syncAllMutation.isPending ? "animate-spin" : ""}`} />
@@ -495,6 +496,7 @@ export function AiTaggingInstructionsSection() {
             className="gap-1.5"
             onClick={save}
             disabled={saving || !isDirty}
+            title={!isDirty ? "No unsaved changes" : saving ? "Saving…" : undefined}
           >
             <Save className="h-3.5 w-3.5" />
             {saving ? "Saving…" : "Save Instructions"}
@@ -570,7 +572,7 @@ export function CharacterStatsSection() {
           variant="outline"
           className="gap-1.5"
           onClick={() => rebuildMutation.mutate()}
-          disabled={rebuildMutation.isPending}
+          disabled={rebuildMutation.isPending} title={rebuildMutation.isPending ? "Rebuilding…" : undefined}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${rebuildMutation.isPending ? "animate-spin" : ""}`} />
           {rebuildMutation.isPending ? "Rebuilding…" : "Rebuild Stats"}

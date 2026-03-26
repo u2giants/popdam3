@@ -66,10 +66,10 @@ export function QueueManagerDialog({ open, onOpenChange, queuedItems, onQueueCha
                   <span className="text-xs text-muted-foreground ml-2">#{index + 1}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={index === 0} onClick={() => handleReorderQueue(index, -1)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={index === 0} title={index === 0 ? "Already at the top of the queue" : undefined} onClick={() => handleReorderQueue(index, -1)}>
                     <ArrowUp className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={index === queuedItems.length - 1} onClick={() => handleReorderQueue(index, 1)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={index === queuedItems.length - 1} title={index === queuedItems.length - 1 ? "Already at the bottom of the queue" : undefined} onClick={() => handleReorderQueue(index, 1)}>
                     <ArrowDown className="h-3.5 w-3.5" />
                   </Button>
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleRemoveFromQueue(key)}>

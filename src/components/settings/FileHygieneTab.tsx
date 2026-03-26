@@ -236,7 +236,7 @@ export default function FileHygieneTab() {
             <ShieldAlert className="h-4 w-4" /> File Hygiene
           </CardTitle>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading} title={isLoading ? "Loading…" : undefined}>
               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
@@ -244,6 +244,7 @@ export default function FileHygieneTab() {
               variant="default" size="sm"
               onClick={() => scanMutation.mutate()}
               disabled={scanMutation.isPending || isAgentScanning}
+              title={isAgentScanning ? "Agent is already scanning" : scanMutation.isPending ? "Scan requested, please wait…" : undefined}
               className="gap-1.5"
             >
               {(scanMutation.isPending || isAgentScanning)
@@ -309,14 +310,14 @@ export default function FileHygieneTab() {
               <Button
                 variant="outline" size="sm" className="gap-1.5 text-xs h-7"
                 onClick={() => dismissMutation.mutate([...selectedIds])}
-                disabled={dismissMutation.isPending}
+                disabled={dismissMutation.isPending} title={dismissMutation.isPending ? "Dismissing…" : undefined}
               >
                 <EyeOff className="h-3 w-3" /> Dismiss
               </Button>
               <Button
                 variant="default" size="sm" className="gap-1.5 text-xs h-7"
                 onClick={() => resolveMutation.mutate([...selectedIds])}
-                disabled={resolveMutation.isPending}
+                disabled={resolveMutation.isPending} title={resolveMutation.isPending ? "Resolving…" : undefined}
               >
                 <CheckCircle2 className="h-3 w-3" /> Resolve
               </Button>
