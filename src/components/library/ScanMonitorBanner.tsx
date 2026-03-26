@@ -95,10 +95,10 @@ export default function ScanMonitorBanner({ scanProgress, onStopScan }: ScanMoni
           />
           <span className="font-medium">
             {isStale ? (
-              <TooltipProvider>
+              <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="underline decoration-dotted cursor-help">Scan stuck</span>
+                    <button type="button" className="underline decoration-dotted cursor-help bg-transparent border-none p-0 text-inherit font-inherit">Scan stuck</button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-[280px] text-center">
                     No progress received for 3+ minutes. The Bridge Agent may have crashed or is hung on a large directory. Use Settings → Diagnostics → "Force Clear" to reset.
