@@ -445,6 +445,30 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: list-users ───────────────────────────────────────────────
+
+async function handleListUsers() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("profiles")
+    .select("user_id, email, full_name, created_at, user_roles(role)")
+    .order("created_at", { ascending: false });
+
+  if (error) return err(error.message, 500);
+
+  return json({
+    ok: true,
+    users: (data ?? []).map((u) => ({
+      id: u.user_id,
+      email: u.email,
+      full_name: u.full_name,
+      created_at: u.created_at,
+      isAdmin: Array.isArray(u.user_roles) &&
+        (u.user_roles as { role: string }[]).some((r) => r.role === "admin"),
+    })),
+  });
+}
+
 // ── Route: run-query ─────────────────────────────────────────────────
 
 async function handleRunQuery(body: Record<string, unknown>) {
@@ -808,6 +832,8 @@ serve(async (req: Request) => {
         return await handleListInvites();
       case "revoke-invite":
         return await handleRevokeInvite(body);
+      case "list-users":
+        return await handleListUsers();
 
       // ── Agents (from agent-handlers.ts) ──
       case "generate-agent-key":
