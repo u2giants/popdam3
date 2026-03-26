@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAgentStatus, type AgentRecord } from "@/hooks/useAgentStatus";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
@@ -8,6 +10,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -20,7 +25,7 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw, Menu } from "lucide-react";
+import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw, Menu, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
