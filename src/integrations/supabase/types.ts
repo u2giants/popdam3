@@ -1229,6 +1229,7 @@ export type Database = {
           error_message: string | null
           files_found: number | null
           id: string
+          inaccessible_roots: string[] | null
           roots_scanned: string[] | null
           started_at: string | null
           status: string
@@ -1240,6 +1241,7 @@ export type Database = {
           error_message?: string | null
           files_found?: number | null
           id?: string
+          inaccessible_roots?: string[] | null
           roots_scanned?: string[] | null
           started_at?: string | null
           status?: string
@@ -1251,6 +1253,7 @@ export type Database = {
           error_message?: string | null
           files_found?: number | null
           id?: string
+          inaccessible_roots?: string[] | null
           roots_scanned?: string[] | null
           started_at?: string | null
           status?: string
