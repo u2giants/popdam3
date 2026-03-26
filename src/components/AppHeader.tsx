@@ -133,6 +133,8 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
 
 export default function AppHeader() {
   const { user, signOut } = useAuth();
+  const { isRealAdmin } = useIsAdmin();
+  const { impersonatedRole, startImpersonating, stopImpersonating } = useImpersonation();
   const agent = useAgentStatus();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -143,111 +145,147 @@ export default function AppHeader() {
     : "No agent";
 
   return (
-    <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-surface-overlay px-4">
-      {/* Left: Logo + Nav */}
-      <div className="flex items-center gap-4 md:gap-6">
-        {/* Mobile hamburger */}
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden h-8 w-8">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-56 p-4 pt-10">
-            <nav className="flex flex-col gap-1">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === "/"}
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  activeClassName="bg-accent text-foreground"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-          </SheetContent>
-        </Sheet>
+    <>
+      {/* Impersonation banner */}
+      {impersonatedRole && (
+        <div className="sticky top-0 z-[51] flex items-center justify-center gap-3 bg-warning/90 px-4 py-1.5 text-warning-foreground text-xs font-medium">
+          <Eye className="h-3.5 w-3.5" />
+          Viewing as <span className="font-bold capitalize">{impersonatedRole}</span>
+          <button
+            onClick={stopImpersonating}
+            className="ml-1 rounded bg-warning-foreground/20 px-2 py-0.5 text-[11px] font-semibold hover:bg-warning-foreground/30 transition-colors"
+          >
+            Stop
+          </button>
+        </div>
+      )}
 
-        <Link to="/library" className="flex items-center gap-2">
-          <span className="text-lg font-bold tracking-tight text-primary">PopDAM</span>
-        </Link>
+      <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-surface-overlay px-4">
+        {/* Left: Logo + Nav */}
+        <div className="flex items-center gap-4 md:gap-6">
+          {/* Mobile hamburger */}
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden h-8 w-8">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-56 p-4 pt-10">
+              <nav className="flex flex-col gap-1">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === "/"}
+                    className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    activeClassName="bg-accent text-foreground"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </nav>
+            </SheetContent>
+          </Sheet>
 
-        <nav className="hidden items-center gap-1 md:flex">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-              activeClassName="bg-accent text-foreground"
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      </div>
+          <Link to="/library" className="flex items-center gap-2">
+            <span className="text-lg font-bold tracking-tight text-primary">PopDAM</span>
+          </Link>
 
-      {/* Right: Scan indicator + Agent status + User menu */}
-      <div className="flex items-center gap-3">
-        {/* Scan running indicator */}
-        {/* Scan indicator now driven by useScanProgress in Index.tsx */}
+          <nav className="hidden items-center gap-1 md:flex">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/"}
+                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                activeClassName="bg-accent text-foreground"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
 
-        {/* Bridge agent status — click for full agent list */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
-              title={agent.bridgeStatus === "online" ? "Synology connected" : agent.bridgeStatus === "offline" ? "Synology offline" : "No bridge agent"}
-            >
-              <span className={cn("h-2.5 w-2.5 rounded-full", dotColor[agent.bridgeStatus])} />
-              <span className="hidden sm:inline">{bridgeLabel}</span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-72 p-3">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-foreground">Agent Status</p>
-              <span className="text-[10px] text-muted-foreground">
-                {agent.onlineCount}/{agent.agentCount} online
-              </span>
-            </div>
-            {agent.agents.length === 0 && (
-              <p className="text-xs text-muted-foreground">No agents registered.</p>
-            )}
-            <div className="space-y-2">
-              {agent.agents.map((a) => (
-                <AgentDetail key={a.id} agent={a} />
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
+        {/* Right: Agent status + User menu */}
+        <div className="flex items-center gap-3">
+          {/* Bridge agent status */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
+                title={agent.bridgeStatus === "online" ? "Synology connected" : agent.bridgeStatus === "offline" ? "Synology offline" : "No bridge agent"}
+              >
+                <span className={cn("h-2.5 w-2.5 rounded-full", dotColor[agent.bridgeStatus])} />
+                <span className="hidden sm:inline">{bridgeLabel}</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 p-3">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-foreground">Agent Status</p>
+                <span className="text-[10px] text-muted-foreground">
+                  {agent.onlineCount}/{agent.agentCount} online
+                </span>
+              </div>
+              {agent.agents.length === 0 && (
+                <p className="text-xs text-muted-foreground">No agents registered.</p>
+              )}
+              <div className="space-y-2">
+                {agent.agents.map((a) => (
+                  <AgentDetail key={a.id} agent={a} />
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
 
-        {/* User dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-sm text-muted-foreground">
-              <User className="h-4 w-4" />
-              <span className="hidden max-w-[140px] truncate sm:inline">
-                {user?.email ?? "User"}
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem className="text-xs text-muted-foreground" disabled>
-              {user?.email}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </header>
+          {/* User dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-sm text-muted-foreground">
+                <User className="h-4 w-4" />
+                <span className="hidden max-w-[140px] truncate sm:inline">
+                  {user?.email ?? "User"}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem className="text-xs text-muted-foreground" disabled>
+                {user?.email}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+
+              {/* Impersonation controls — only for real admins */}
+              {isRealAdmin && !impersonatedRole && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2">
+                    <Eye className="h-4 w-4" />
+                    Impersonate
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem onClick={() => startImpersonating("member")}>
+                      Member
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              {isRealAdmin && impersonatedRole && (
+                <DropdownMenuItem onClick={stopImpersonating} className="gap-2 text-warning">
+                  <EyeOff className="h-4 w-4" />
+                  Stop Impersonating
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+    </>
   );
 }
