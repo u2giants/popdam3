@@ -442,6 +442,16 @@ async function handleHeartbeat(
         if (!crawlReq) return false;
         return crawlReq.status === "pending" || (crawlReq.status === "claimed" && crawlReq.claimed_by === agentId);
       })(),
+      ...(() => {
+        // Deliver PDF text sample command if pending and agent is a bridge
+        if (agentType !== "bridge") return {};
+        const sampleReq = configMap.PDF_TEXT_SAMPLE_REQUEST as Record<string, unknown> | undefined;
+        if (!sampleReq || sampleReq.status !== "pending") return {};
+        return {
+          trigger_pdf_text_sample: true,
+          pdf_text_sample_assets: (sampleReq.assets as unknown[]) || [],
+        };
+      })(),
     },
   };
 
@@ -2454,6 +2464,46 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: complete-pdf-text-sample ─────────────────────────────────
+
+async function handleCompletePdfTextSample(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const results = (body.results as Record<string, unknown>[]) || [];
+
+  if (results.length === 0) return json({ ok: true });
+
+  // Clear existing sample rows then insert fresh results
+  await db.from("pdf_text_samples").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+  const rows = results.map((r) => ({
+    asset_id: (r.asset_id as string) || null,
+    filename: r.filename as string,
+    relative_path: r.relative_path as string,
+    extraction_method: r.extraction_method as string,
+    extracted_text: (r.extracted_text as string) || null,
+    page_count: (r.page_count as number) || null,
+    char_count: (r.char_count as number) || 0,
+    extraction_error: (r.extraction_error as string) || null,
+    sampled_at: new Date().toISOString(),
+  }));
+
+  const { error } = await db.from("pdf_text_samples").insert(rows);
+  if (error) {
+    console.error("[complete-pdf-text-sample] Insert error:", error);
+    return err(`Insert failed: ${error.message}`, 500);
+  }
+
+  // Mark the request as completed
+  await db.from("admin_config").upsert({
+    key: "PDF_TEXT_SAMPLE_REQUEST",
+    value: { status: "completed", completed_at: new Date().toISOString(), count: rows.length },
+    updated_at: new Date().toISOString(),
+  });
+
+  console.log(`[complete-pdf-text-sample] Stored ${rows.length} results`);
+  return json({ ok: true });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -2571,6 +2621,8 @@ serve(async (req) => {
         return await handleClaimStyleGuideCrawl(body, agentId);
       case "complete-style-guide-crawl":
         return await handleCompleteStyleGuideCrawl(body);
+      case "complete-pdf-text-sample":
+        return await handleCompletePdfTextSample(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

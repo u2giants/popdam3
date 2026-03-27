@@ -315,6 +315,7 @@ export async function claimStyleGuideCrawl(): Promise<{ run_id: string; roots: s
 }
 
 import type { StyleGuideFileRecord } from "./style-guide-crawler.js";
+import type { PdfTextSampleResult } from "./pdf-text-sampler.js";
 
 export async function completeStyleGuideCrawl(
   runId: string,
@@ -332,4 +333,12 @@ export async function completeStyleGuideCrawl(
     error,
     inaccessible_roots: inaccessibleRoots?.length ? inaccessibleRoots : undefined,
   });
+}
+
+// ── PDF Text Sample ────────────────────────────────────────────────
+
+export async function completePdfTextSample(
+  results: PdfTextSampleResult[],
+): Promise<void> {
+  await callApi("complete-pdf-text-sample", { results }, 60_000);
 }

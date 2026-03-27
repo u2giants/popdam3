@@ -1331,6 +1331,45 @@ export type Database = {
           },
         ]
       }
+      pdf_text_samples: {
+        Row: {
+          id: string
+          asset_id: string | null
+          filename: string
+          relative_path: string
+          extraction_method: string
+          extracted_text: string | null
+          page_count: number | null
+          char_count: number
+          extraction_error: string | null
+          sampled_at: string
+        }
+        Insert: {
+          id?: string
+          asset_id?: string | null
+          filename: string
+          relative_path: string
+          extraction_method: string
+          extracted_text?: string | null
+          page_count?: number | null
+          char_count?: number
+          extraction_error?: string | null
+          sampled_at?: string
+        }
+        Update: {
+          id?: string
+          asset_id?: string | null
+          filename?: string
+          relative_path?: string
+          extraction_method?: string
+          extracted_text?: string | null
+          page_count?: number | null
+          char_count?: number
+          extraction_error?: string | null
+          sampled_at?: string
+        }
+        Relationships: []
+      }
       tiff_optimization_queue: {
         Row: {
           claimed_at: string | null
