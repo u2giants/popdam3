@@ -775,6 +775,66 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
   });
 }
 
+// ── Route: trigger-pdf-text-sample ──────────────────────────────────
+
+async function handleTriggerPdfTextSample() {
+  const db = serviceClient();
+
+  // Pick 25 random active PDF assets
+  const { data: assets, error } = await db
+    .from("assets")
+    .select("id, relative_path, filename")
+    .eq("file_type", "pdf")
+    .eq("is_active", true)
+    .limit(25);
+
+  if (error) return err(error.message, 500);
+  if (!assets || assets.length === 0) return err("No active PDF assets found", 404);
+
+  // Shuffle client-side for random selection (Supabase doesn't support ORDER BY random() in client SDK)
+  const shuffled = [...assets].sort(() => Math.random() - 0.5).slice(0, 25);
+
+  await db.from("admin_config").upsert({
+    key: "PDF_TEXT_SAMPLE_REQUEST",
+    value: {
+      status: "pending",
+      assets: shuffled.map((a) => ({ id: a.id, relative_path: a.relative_path, filename: a.filename })),
+      requested_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  return json({ ok: true, queued: shuffled.length });
+}
+
+// ── Route: get-pdf-text-samples ──────────────────────────────────────
+
+async function handleGetPdfTextSamples() {
+  const db = serviceClient();
+
+  // Get request status
+  const { data: configRow } = await db
+    .from("admin_config")
+    .select("value, updated_at")
+    .eq("key", "PDF_TEXT_SAMPLE_REQUEST")
+    .maybeSingle();
+
+  // Get results
+  const { data: samples, error } = await db
+    .from("pdf_text_samples")
+    .select("id,asset_id,filename,relative_path,extraction_method,extracted_text,page_count,char_count,extraction_error,sampled_at")
+    .order("sampled_at", { ascending: false })
+    .limit(25);
+
+  if (error) return err(error.message, 500);
+
+  return json({
+    ok: true,
+    request: configRow?.value ?? null,
+    samples: samples ?? [],
+  });
+}
+
 // ── Main router ─────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -1023,6 +1083,10 @@ serve(async (req: Request) => {
         return await handleGetStyleGuideCrawlStatus();
       case "browse-style-guide-files":
         return await handleBrowseStyleGuideFiles(body);
+      case "trigger-pdf-text-sample":
+        return await handleTriggerPdfTextSample();
+      case "get-pdf-text-samples":
+        return await handleGetPdfTextSamples();
 
       default:
         return err(`Unknown action: ${action}`, 404);

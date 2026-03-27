@@ -25,6 +25,7 @@ import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
 import AiTaggingTab from "@/components/settings/AiTaggingTab";
 import OperationsTab from "@/components/settings/OperationsTab";
 import StyleGuideCrawlTab from "@/components/settings/StyleGuideCrawlTab";
+import PdfTextSamplesTab from "@/components/settings/PdfTextSamplesTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -956,6 +957,7 @@ export default function SettingsPage() {
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TipTab value="pdf-text" label="PDF Text" tip="Extract and inspect text content from tech pack and licensing sheet PDFs" />
           <TipTab value="ai-tagging" label="AI Tagging" tip="Run AI tagging jobs and configure tagging behavior" />
           <TipTab value="taxonomy" label="Taxonomy" tip="Manage licensors, properties, and characters — sync from external APIs" />
           <TipTab value="erp" label="ERP" tip="Sync and enrich product data from your ERP system" />
@@ -1016,6 +1018,11 @@ export default function SettingsPage() {
           )}
           {agentsSubTab === "windows" && <WindowsAgentTab />}
           {agentsSubTab === "install" && <InstallBundleTab />}
+        </TabsContent>
+
+        {/* ── PDF Text Extraction ── */}
+        <TabsContent value="pdf-text" className="space-y-4">
+          <PdfTextSamplesTab />
         </TabsContent>
 
         {/* ── AI Tagging ── */}

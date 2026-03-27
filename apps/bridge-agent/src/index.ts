@@ -25,6 +25,7 @@ import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { startRealtimeWatcher } from "./realtime-watcher.js";
 import { crawlStyleGuides } from "./style-guide-crawler.js";
+import { runPdfTextSample, type PdfSampleAsset } from "./pdf-text-sampler.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ let lastError: string | undefined;
 const MAX_SKIPPED_DIRS = 500;
 let skippedDirs: string[] = [];
 let isCrawlingStyleGuides = false;
+let isSamplingPdfText = false;
 
 // ── Version info (injected via Docker build args or package.json) ──
 const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
@@ -198,6 +200,15 @@ async function sendHeartbeat() {
     }
     if (response.commands.apply_update) {
       handleApplyUpdate();
+    }
+    // PDF text sample
+    if (response.commands.trigger_pdf_text_sample && !isSamplingPdfText) {
+      const assets = (response.commands.pdf_text_sample_assets as PdfSampleAsset[]) || [];
+      isSamplingPdfText = true;
+      logger.info("PDF text sample requested via heartbeat", { count: assets.length });
+      runPdfTextSample(assets, config.mountRoot).finally(() => {
+        isSamplingPdfText = false;
+      });
     }
     // Style guide crawl
     if (response.commands.trigger_style_guide_crawl && !isCrawlingStyleGuides) {
