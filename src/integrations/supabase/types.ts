@@ -1271,17 +1271,17 @@ export type Database = {
           directory_path: string
           file_extension: string | null
           filename: string
-          property_folder: string | null
           id: string
           is_active: boolean
           last_seen_at: string
           modified_at: string | null
           normalized_name: string
-          normalized_style_guide_folder: string | null
-          style_guide_folder: string | null
+          normalized_style_guide_folder: string
+          property_folder: string | null
           relative_path: string
           root_label: string
           size_bytes: number | null
+          style_guide_folder: string | null
         }
         Insert: {
           basename_no_ext: string
@@ -1290,17 +1290,17 @@ export type Database = {
           directory_path: string
           file_extension?: string | null
           filename: string
-          property_folder?: string | null
           id?: string
           is_active?: boolean
           last_seen_at?: string
           modified_at?: string | null
           normalized_name: string
-          normalized_style_guide_folder?: string | null
-          style_guide_folder?: string | null
+          normalized_style_guide_folder: string
+          property_folder?: string | null
           relative_path: string
           root_label: string
           size_bytes?: number | null
+          style_guide_folder?: string | null
         }
         Update: {
           basename_no_ext?: string
@@ -1309,17 +1309,17 @@ export type Database = {
           directory_path?: string
           file_extension?: string | null
           filename?: string
-          property_folder?: string | null
           id?: string
           is_active?: boolean
           last_seen_at?: string
           modified_at?: string | null
           normalized_name?: string
-          normalized_style_guide_folder?: string | null
-          style_guide_folder?: string | null
+          normalized_style_guide_folder?: string
+          property_folder?: string | null
           relative_path?: string
           root_label?: string
           size_bytes?: number | null
+          style_guide_folder?: string | null
         }
         Relationships: [
           {
