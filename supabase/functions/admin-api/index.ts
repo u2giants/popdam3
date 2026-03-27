@@ -719,24 +719,24 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
   const page = Math.max(1, Number(body.page) || 1);
   const pageSize = Math.min(100, Math.max(10, Number(body.page_size) || 50));
   const search = (body.search as string || "").trim();
-  const parentFolder = (body.parent_folder as string || "").trim();
+  const styleGuideFolder = (body.style_guide_folder as string || "").trim();
   const extension = (body.extension as string || "").trim();
 
   let query = db.from("style_guide_files")
     .select(
-      "id,root_label,relative_path,directory_path,filename,basename_no_ext,file_extension,parent_folder,grandparent_folder,size_bytes,modified_at,is_active",
+      "id,root_label,relative_path,directory_path,filename,basename_no_ext,file_extension,property_folder,style_guide_folder,size_bytes,modified_at,is_active",
       { count: "exact" },
     )
     .eq("is_active", true)
-    .order("directory_path", { ascending: true })
+    .order("style_guide_folder", { ascending: true })
     .order("filename", { ascending: true })
     .range((page - 1) * pageSize, page * pageSize - 1);
 
   if (search) {
     query = query.ilike("filename", `%${search}%`);
   }
-  if (parentFolder) {
-    query = query.eq("parent_folder", parentFolder);
+  if (styleGuideFolder) {
+    query = query.eq("style_guide_folder", styleGuideFolder);
   }
   if (extension) {
     query = query.eq("file_extension", extension.toLowerCase());
@@ -745,14 +745,14 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
   const { data: files, count, error: qErr } = await query;
   if (qErr) throw qErr;
 
-  // Get distinct parent folders for filter dropdown
+  // Get distinct style guide folders for filter dropdown
   const { data: folders } = await db.from("style_guide_files")
-    .select("parent_folder")
+    .select("style_guide_folder")
     .eq("is_active", true)
-    .order("parent_folder")
+    .order("style_guide_folder")
     .limit(500);
 
-  const uniqueFolders = [...new Set((folders || []).map((f: { parent_folder: string }) => f.parent_folder))];
+  const uniqueFolders = [...new Set((folders || []).map((f: { style_guide_folder: string | null }) => f.style_guide_folder).filter(Boolean))];
 
   // Get distinct extensions
   const { data: exts } = await db.from("style_guide_files")

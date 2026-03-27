@@ -44,7 +44,7 @@ export default function StyleGuideCrawlTab() {
       page,
       page_size: 50,
       search: search || undefined,
-      parent_folder: folderFilter || undefined,
+      style_guide_folder: folderFilter || undefined,
       extension: extFilter || undefined,
     }),
     enabled: showFiles,
@@ -245,8 +245,8 @@ export default function StyleGuideCrawlTab() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-xs">Filename</TableHead>
-                      <TableHead className="text-xs">Parent Folder</TableHead>
-                      <TableHead className="text-xs">Grandparent</TableHead>
+                      <TableHead className="text-xs">Style Guide</TableHead>
+                      <TableHead className="text-xs">Property</TableHead>
                       <TableHead className="text-xs">Ext</TableHead>
                       <TableHead className="text-xs text-right">Size</TableHead>
                     </TableRow>
@@ -258,10 +258,10 @@ export default function StyleGuideCrawlTab() {
                           {f.basename_no_ext as string}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {f.parent_folder as string}
+                          {(f.style_guide_folder as string) || "—"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {(f.grandparent_folder as string) || "—"}
+                          {(f.property_folder as string) || "—"}
                         </TableCell>
                         <TableCell className="text-xs">
                           {f.file_extension ? `.${f.file_extension}` : "—"}

@@ -58,10 +58,10 @@ export interface StyleGuideFileRecord {
   filename: string;
   basename_no_ext: string;
   file_extension: string | null;
-  parent_folder: string;
-  grandparent_folder: string | null;
+  property_folder: string | null;    // segments[1] from root — licensor's property name
+  style_guide_folder: string | null; // segments[2] from root — style guide name (key field)
   normalized_name: string;
-  normalized_parent_folder: string;
+  normalized_style_guide_folder: string | null;
   size_bytes: number | null;
   modified_at: string | null;
 }
@@ -110,8 +110,12 @@ async function* walkDirectory(
 
       const dirRelPath = relPath.split("/").slice(0, -1).join("/");
       const segments = dirRelPath.split("/").filter(Boolean);
-      const parentFolder = segments.length > 0 ? segments[segments.length - 1] : rootLabel;
-      const grandparentFolder = segments.length > 1 ? segments[segments.length - 2] : null;
+      // Top-down fixed-depth extraction:
+      // segments[0] = licensor (skip — already known from SKU)
+      // segments[1] = property (maybe useful for matching)
+      // segments[2] = style guide name (the key identifier)
+      const propertyFolder = segments.length > 1 ? segments[1] : null;
+      const styleGuideFolder = segments.length > 2 ? segments[2] : null;
 
       const ext = extname(entry.name);
       const basenameNoExt = basename(entry.name, ext);
@@ -124,10 +128,10 @@ async function* walkDirectory(
         filename: entry.name,
         basename_no_ext: basenameNoExt,
         file_extension: fileExtension,
-        parent_folder: parentFolder,
-        grandparent_folder: grandparentFolder,
+        property_folder: propertyFolder,
+        style_guide_folder: styleGuideFolder,
         normalized_name: normalizeName(basenameNoExt),
-        normalized_parent_folder: normalizeName(parentFolder),
+        normalized_style_guide_folder: styleGuideFolder ? normalizeName(styleGuideFolder) : null,
         size_bytes: stats.size,
         modified_at: stats.mtime.toISOString(),
       };
