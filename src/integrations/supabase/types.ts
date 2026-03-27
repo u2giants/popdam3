@@ -790,6 +790,53 @@ export type Database = {
         }
         Relationships: []
       }
+      pdf_text_samples: {
+        Row: {
+          asset_id: string | null
+          char_count: number
+          extracted_text: string | null
+          extraction_error: string | null
+          extraction_method: string
+          filename: string
+          id: string
+          page_count: number | null
+          relative_path: string
+          sampled_at: string
+        }
+        Insert: {
+          asset_id?: string | null
+          char_count?: number
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_method: string
+          filename: string
+          id?: string
+          page_count?: number | null
+          relative_path: string
+          sampled_at?: string
+        }
+        Update: {
+          asset_id?: string | null
+          char_count?: number
+          extracted_text?: string | null
+          extraction_error?: string | null
+          extraction_method?: string
+          filename?: string
+          id?: string
+          page_count?: number | null
+          relative_path?: string
+          sampled_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdf_text_samples_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processing_queue: {
         Row: {
           agent_id: string | null
@@ -1330,45 +1377,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      pdf_text_samples: {
-        Row: {
-          id: string
-          asset_id: string | null
-          filename: string
-          relative_path: string
-          extraction_method: string
-          extracted_text: string | null
-          page_count: number | null
-          char_count: number
-          extraction_error: string | null
-          sampled_at: string
-        }
-        Insert: {
-          id?: string
-          asset_id?: string | null
-          filename: string
-          relative_path: string
-          extraction_method: string
-          extracted_text?: string | null
-          page_count?: number | null
-          char_count?: number
-          extraction_error?: string | null
-          sampled_at?: string
-        }
-        Update: {
-          id?: string
-          asset_id?: string | null
-          filename?: string
-          relative_path?: string
-          extraction_method?: string
-          extracted_text?: string | null
-          page_count?: number | null
-          char_count?: number
-          extraction_error?: string | null
-          sampled_at?: string
-        }
-        Relationships: []
       }
       tiff_optimization_queue: {
         Row: {
