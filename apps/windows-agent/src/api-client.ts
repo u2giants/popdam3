@@ -62,6 +62,8 @@ export interface WindowsHeartbeatResponse {
   };
   commands?: {
     trigger_update?: boolean;
+    trigger_pdf_text_sample?: boolean;
+    pdf_text_sample_assets?: unknown[];
   };
 }
 
@@ -126,6 +128,10 @@ export async function completeRender(
   });
 }
 
+
+export async function completePdfTextSample(results: unknown[]): Promise<void> {
+  await callApi("complete-pdf-text-sample", { results });
+}
 
 /**
  * Update an asset's fields (e.g. pdf_page2_url after PDF rendering).

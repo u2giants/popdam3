@@ -443,8 +443,8 @@ async function handleHeartbeat(
         return crawlReq.status === "pending" || (crawlReq.status === "claimed" && crawlReq.claimed_by === agentId);
       })(),
       ...(() => {
-        // Deliver PDF text sample command if pending and agent is a bridge
-        if (agentType !== "bridge") return {};
+        // Deliver PDF text sample command if pending and agent is a windows-render
+        if (agentType !== "windows-render") return {};
         const sampleReq = configMap.PDF_TEXT_SAMPLE_REQUEST as Record<string, unknown> | undefined;
         if (!sampleReq || sampleReq.status !== "pending") return {};
         return {

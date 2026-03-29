@@ -27,11 +27,13 @@ import { shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
+import { runPdfTextSample, type PdfSampleAsset } from "./pdf-text-sampler";
 
 // ── State ───────────────────────────────────────────────────────
 
 let agentId: string = "";
 let activeJobs = 0;
+let isSamplingPdfText = false;
 let lastError: string | undefined;
 let jobsCompleted = 0;
 let jobsFailed = 0;
@@ -254,6 +256,17 @@ function startHeartbeat() {
         update_error: updateState.lastError,
       });
       applyCloudConfig(response);
+
+      // PDF text extraction sample
+      if (response.commands?.trigger_pdf_text_sample && !isSamplingPdfText) {
+        const assets = (response.commands.pdf_text_sample_assets as PdfSampleAsset[]) || [];
+        const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
+        isSamplingPdfText = true;
+        logger.info("PDF text sample requested via heartbeat", { count: assets.length });
+        runPdfTextSample(assets, mountRoot).finally(() => {
+          isSamplingPdfText = false;
+        });
+      }
 
       // Check if cloud requests immediate update
       if (response.commands?.trigger_update) {
