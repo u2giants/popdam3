@@ -785,7 +785,7 @@ async function handleTriggerPdfTextSample() {
     .from("assets")
     .select("id, relative_path, filename")
     .eq("file_type", "pdf")
-    .eq("is_active", true)
+    .eq("is_deleted", false)
     .limit(25);
 
   if (error) return err(error.message, 500);
