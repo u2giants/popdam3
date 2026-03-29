@@ -147,6 +147,8 @@ export interface HeartbeatResponse {
     check_update?: boolean;
     apply_update?: boolean;
     trigger_style_guide_crawl?: boolean;
+    trigger_pdf_text_sample?: boolean;
+    pdf_text_sample_assets?: unknown[];
   };
 }
 
