@@ -23,6 +23,8 @@ const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string; numpages: number }>;
 
+import mupdf from "mupdf";
+
 export interface PdfSampleAsset {
   id: string;
   relative_path: string;
@@ -59,13 +61,34 @@ export async function runPdfTextSample(
 
     try {
       const buffer = await readFile(fullPath);
-      const parsed = await Promise.race([
-        pdfParse(buffer),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("pdf-parse timed out after 30s")), 30_000)
-        ),
-      ]);
-      const text = (parsed.text || "").trim();
+
+      let rawText: string;
+      let numPages: number;
+
+      try {
+        const parsed = await Promise.race([
+          pdfParse(buffer),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("pdf-parse timed out after 30s")), 30_000)
+          ),
+        ]);
+        rawText = parsed.text || "";
+        numPages = parsed.numpages;
+      } catch (primaryErr) {
+        logger.warn("PDF text sample: pdf-parse failed, trying mupdf fallback", {
+          filename: asset.filename,
+          error: (primaryErr as Error).message,
+        });
+        const doc = mupdf.Document.openDocument(buffer, "application/pdf");
+        numPages = doc.countPages();
+        const parts: string[] = [];
+        for (let p = 0; p < numPages; p++) {
+          parts.push(doc.loadPage(p).toStructuredText("preserve-whitespace").asText());
+        }
+        rawText = parts.join("\n");
+      }
+
+      const text = rawText.trim();
       const charCount = text.length;
       const method: PdfTextSampleResult["extraction_method"] =
         charCount >= 100 ? "pdf_text" : charCount > 0 ? "likely_scanned" : "failed";
@@ -76,7 +99,7 @@ export async function runPdfTextSample(
         relative_path: asset.relative_path,
         extraction_method: method,
         extracted_text: charCount > 0 ? text : null,
-        page_count: parsed.numpages || null,
+        page_count: numPages || null,
         char_count: charCount,
         extraction_error: null,
       };
@@ -85,7 +108,7 @@ export async function runPdfTextSample(
         filename: asset.filename,
         method,
         chars: charCount,
-        pages: parsed.numpages,
+        pages: numPages,
       });
     } catch (e) {
       const errMsg = (e as Error).message;
