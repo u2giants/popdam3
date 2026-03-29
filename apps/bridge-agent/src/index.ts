@@ -206,7 +206,7 @@ async function sendHeartbeat() {
       const assets = (response.commands.pdf_text_sample_assets as PdfSampleAsset[]) || [];
       isSamplingPdfText = true;
       logger.info("PDF text sample requested via heartbeat", { count: assets.length });
-      runPdfTextSample(assets, config.mountRoot).finally(() => {
+      runPdfTextSample(assets, config.nasContainerMountRoot).finally(() => {
         isSamplingPdfText = false;
       });
     }
