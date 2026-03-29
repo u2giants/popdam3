@@ -59,7 +59,12 @@ export async function runPdfTextSample(
 
     try {
       const buffer = await readFile(fullPath);
-      const parsed = await pdfParse(buffer);
+      const parsed = await Promise.race([
+        pdfParse(buffer),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("pdf-parse timed out after 30s")), 30_000)
+        ),
+      ]);
       const text = (parsed.text || "").trim();
       const charCount = text.length;
       const method: PdfTextSampleResult["extraction_method"] =
