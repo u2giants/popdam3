@@ -109,6 +109,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "OPENAI_API_KEY",
   "AI_MODELS",
   "PDF_EXTRACTION_CONFIG",
+  "PDF_TEXT_SAMPLE_REQUEST",
   "WINDOWS_REPAIR_CODE",
 ];
 
@@ -116,6 +117,7 @@ async function handleHeartbeat(
   body: Record<string, unknown>,
   agentId: string,
   agentType: string,
+  agentName: string,
 ) {
   const counters = body.counters as Record<string, unknown> | undefined;
   const lastError = optionalString(body, "last_error");
@@ -395,6 +397,55 @@ async function handleHeartbeat(
 
   const pendingRenderJobs = renderQueueResult.count ?? 0;
 
+  // ── PDF text sample claim/dispatch ──
+  let pdfTextSampleCommand: Record<string, unknown> = {};
+  const sampleReq = configMap.PDF_TEXT_SAMPLE_REQUEST as Record<string, unknown> | undefined;
+  if (sampleReq && sampleReq.status === "pending") {
+    const policy = (configMap.WINDOWS_RENDER_POLICY as Record<string, unknown> | null) || null;
+    const policyMode = (policy?.mode as string) || "primary";
+    const requireWindowsHealthy = policy?.require_windows_healthy === true;
+
+    let targetAgentType: string;
+    if (policyMode === "fallback_only") {
+      targetAgentType = "bridge";
+    } else if (requireWindowsHealthy && !windowsHealthy) {
+      targetAgentType = "bridge";
+    } else {
+      targetAgentType = "windows-render";
+    }
+
+    if (agentType === targetAgentType) {
+      const nowIso = new Date().toISOString();
+      const assets = Array.isArray(sampleReq.assets) ? (sampleReq.assets as unknown[]) : [];
+      const claimedSampleReq: Record<string, unknown> = {
+        ...sampleReq,
+        status: "processing",
+        claimed_by_agent_id: agentId,
+        claimed_by_agent_name: agentName,
+        claimed_at: nowIso,
+        progress: {
+          processed: 0,
+          total: assets.length,
+          current_file: null,
+          current_step: "starting",
+          file_results: [],
+          updated_at: nowIso,
+        },
+      };
+
+      await db.from("admin_config").upsert({
+        key: "PDF_TEXT_SAMPLE_REQUEST",
+        value: claimedSampleReq,
+        updated_at: nowIso,
+      });
+
+      pdfTextSampleCommand = {
+        trigger_pdf_text_sample: true,
+        pdf_text_sample_assets: assets,
+      };
+    }
+  }
+
   // ── Build response ──
   const responsePayload = {
     ok: true,
@@ -463,33 +514,7 @@ async function handleHeartbeat(
         if (!crawlReq) return false;
         return crawlReq.status === "pending" || (crawlReq.status === "claimed" && crawlReq.claimed_by === agentId);
       })(),
-      ...(() => {
-        // Deliver PDF text sample command based on Windows Render Policy.
-        // primary/shared (or no policy) → windows-render handles it
-        // fallback_only → bridge handles it
-        // If windows is required-healthy but unhealthy → fall back to bridge
-        const sampleReq = configMap.PDF_TEXT_SAMPLE_REQUEST as Record<string, unknown> | undefined;
-        if (!sampleReq || sampleReq.status !== "pending") return {};
-
-        const policy = (configMap.WINDOWS_RENDER_POLICY as Record<string, unknown> | null) || null;
-        const policyMode = (policy?.mode as string) || "primary";
-        const requireWindowsHealthy = policy?.require_windows_healthy === true;
-
-        let targetAgentType: string;
-        if (policyMode === "fallback_only") {
-          targetAgentType = "bridge";
-        } else if (requireWindowsHealthy && !windowsHealthy) {
-          targetAgentType = "bridge"; // windows should handle but is unhealthy
-        } else {
-          targetAgentType = "windows-render";
-        }
-
-        if (agentType !== targetAgentType) return {};
-        return {
-          trigger_pdf_text_sample: true,
-          pdf_text_sample_assets: (sampleReq.assets as unknown[]) || [],
-        };
-      })(),
+      ...pdfTextSampleCommand,
     },
   };
 
@@ -509,18 +534,12 @@ async function handleHeartbeat(
     delete cleanMeta.update_requested_by;
     delete cleanMeta.update_requested_at;
 
-    const clearOps: Promise<unknown>[] = [
-      db.from("agent_registrations").update({ metadata: cleanMeta }).eq("id", agentId),
-    ];
+    await db.from("agent_registrations").update({ metadata: cleanMeta }).eq("id", agentId);
 
     // Clear WINDOWS_REPAIR_CODE from admin_config after delivery
     if (configMap.WINDOWS_REPAIR_CODE) {
-      clearOps.push(
-        db.from("admin_config").delete().eq("key", "WINDOWS_REPAIR_CODE"),
-      );
+      await db.from("admin_config").delete().eq("key", "WINDOWS_REPAIR_CODE");
     }
-
-    await Promise.all(clearOps);
   }
 
   return json(responsePayload);
@@ -2561,6 +2580,67 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+async function handlePdfTextSampleProgress(
+  body: Record<string, unknown>,
+  agentId: string,
+  agentName: string,
+) {
+  const db = serviceClient();
+
+  const processed = Math.max(0, optionalNumber(body, "processed") ?? 0);
+  const total = Math.max(0, optionalNumber(body, "total") ?? 0);
+  const currentFile = optionalString(body, "current_file") ?? null;
+  const currentStep = optionalString(body, "current_step") ?? null;
+  const errorMsg = optionalString(body, "error") ?? null;
+  const fileResults = Array.isArray(body.file_results)
+    ? (body.file_results as unknown[]).slice(-25)
+    : [];
+
+  const { data: reqRow, error: reqErr } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "PDF_TEXT_SAMPLE_REQUEST")
+    .maybeSingle();
+
+  if (reqErr) return err(reqErr.message, 500);
+  if (!reqRow?.value) return json({ ok: true, ignored: true, reason: "no_active_request" });
+
+  const existing = (reqRow.value as Record<string, unknown>) || {};
+  if (existing.status === "completed") {
+    return json({ ok: true, ignored: true, reason: "already_completed" });
+  }
+
+  const nowIso = new Date().toISOString();
+  const updatedValue: Record<string, unknown> = {
+    ...existing,
+    status: errorMsg ? "error" : "processing",
+    claimed_by_agent_id: (existing.claimed_by_agent_id as string) || agentId,
+    claimed_by_agent_name: (existing.claimed_by_agent_name as string) || agentName,
+    progress: {
+      processed,
+      total,
+      current_file: currentFile,
+      current_step: currentStep,
+      file_results: fileResults,
+      updated_at: nowIso,
+    },
+  };
+
+  if (errorMsg) {
+    updatedValue.error = errorMsg.slice(0, 500);
+  } else {
+    delete updatedValue.error;
+  }
+
+  await db.from("admin_config").upsert({
+    key: "PDF_TEXT_SAMPLE_REQUEST",
+    value: updatedValue,
+    updated_at: nowIso,
+  });
+
+  return json({ ok: true });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -2616,11 +2696,11 @@ serve(async (req) => {
     // All other routes require agent authentication
     const authResult = await authenticateAgent(req);
     if (authResult instanceof Response) return authResult;
-    const { agentId, agentType } = authResult;
+    const { agentId, agentType, agentName } = authResult;
 
     switch (action) {
       case "heartbeat":
-        return await handleHeartbeat(body, agentId, agentType);
+        return await handleHeartbeat(body, agentId, agentType, agentName);
       case "ingest":
         return await handleIngest(body, agentId);
       case "update-asset":
@@ -2688,6 +2768,8 @@ serve(async (req) => {
         return await handleCompleteStyleGuideCrawl(body);
       case "complete-pdf-text-sample":
         return await handleCompletePdfTextSample(body);
+      case "pdf-text-sample-progress":
+        return await handlePdfTextSampleProgress(body, agentId, agentName);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
