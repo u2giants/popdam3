@@ -441,16 +441,18 @@ export function AiModelsConfigSection() {
   const queryClient = useQueryClient();
 
   const { data: configData } = useQuery({
-    queryKey: ["admin-config", "AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY"],
-    queryFn: () => call("get-config", { keys: ["AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY"] }),
+    queryKey: ["admin-config", "AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"],
+    queryFn: () => call("get-config", { keys: ["AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"] }),
     staleTime: 30_000,
   });
 
   const [googleKey, setGoogleKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
   const [modelsJson, setModelsJson] = useState("");
   const [showGoogle, setShowGoogle] = useState(false);
   const [showAnthropic, setShowAnthropic] = useState(false);
+  const [showOpenai, setShowOpenai] = useState(false);
   const [jsonError, setJsonError] = useState("");
   const [loaded, setLoaded] = useState(false);
 
@@ -459,6 +461,7 @@ export function AiModelsConfigSection() {
     const cfg = configData.config ?? {};
     setGoogleKey(((cfg.GOOGLE_AI_API_KEY as Record<string, unknown>)?.value ?? cfg.GOOGLE_AI_API_KEY ?? "") as string);
     setAnthropicKey(((cfg.ANTHROPIC_API_KEY as Record<string, unknown>)?.value ?? cfg.ANTHROPIC_API_KEY ?? "") as string);
+    setOpenaiKey(((cfg.OPENAI_API_KEY as Record<string, unknown>)?.value ?? cfg.OPENAI_API_KEY ?? "") as string);
     const models = (cfg.AI_MODELS as Record<string, unknown>)?.value ?? cfg.AI_MODELS;
     setModelsJson(models ? JSON.stringify(models, null, 2) : "");
     setLoaded(true);
@@ -485,11 +488,12 @@ export function AiModelsConfigSection() {
       const entries: Record<string, unknown> = { AI_MODELS: models };
       if (googleKey.trim()) entries.GOOGLE_AI_API_KEY = googleKey.trim();
       if (anthropicKey.trim()) entries.ANTHROPIC_API_KEY = anthropicKey.trim();
+      if (openaiKey.trim()) entries.OPENAI_API_KEY = openaiKey.trim();
       return call("set-config", { entries });
     },
     onSuccess: () => {
       toast.success("AI configuration saved");
-      queryClient.invalidateQueries({ queryKey: ["admin-config", "AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-config", "AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"] });
       queryClient.invalidateQueries({ queryKey: ["admin-config", "AI_MODELS", "PDF_EXTRACTION_CONFIG"] });
       setLoaded(false);
     },
@@ -498,9 +502,10 @@ export function AiModelsConfigSection() {
 
   const savedGoogleKey = ((configData?.config?.GOOGLE_AI_API_KEY as Record<string, unknown>)?.value ?? configData?.config?.GOOGLE_AI_API_KEY ?? "") as string;
   const savedAnthropicKey = ((configData?.config?.ANTHROPIC_API_KEY as Record<string, unknown>)?.value ?? configData?.config?.ANTHROPIC_API_KEY ?? "") as string;
+  const savedOpenaiKey = ((configData?.config?.OPENAI_API_KEY as Record<string, unknown>)?.value ?? configData?.config?.OPENAI_API_KEY ?? "") as string;
   const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
   const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
-  const isDirty = loaded && (googleKey !== savedGoogleKey || anthropicKey !== savedAnthropicKey || modelsJson !== savedModelsJson);
+  const isDirty = loaded && (googleKey !== savedGoogleKey || anthropicKey !== savedAnthropicKey || openaiKey !== savedOpenaiKey || modelsJson !== savedModelsJson);
 
   return (
     <Card>
@@ -515,7 +520,7 @@ export function AiModelsConfigSection() {
           Keys are stored in admin_config and sent to the Windows agent via heartbeat.
         </p>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Google AI API Key</Label>
             <div className="relative">
@@ -551,6 +556,25 @@ export function AiModelsConfigSection() {
                 onClick={() => setShowAnthropic((v) => !v)}
               >
                 {showAnthropic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">OpenAI API Key</Label>
+            <div className="relative">
+              <Input
+                type={showOpenai ? "text" : "password"}
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+                placeholder="sk-proj-…"
+                className="h-8 text-xs pr-8 font-mono"
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowOpenai((v) => !v)}
+              >
+                {showOpenai ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               </button>
             </div>
           </div>
