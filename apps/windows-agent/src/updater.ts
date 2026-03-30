@@ -198,6 +198,8 @@ async function checkForUpdate(agentId: string, forceApply = false): Promise<void
     logger.info("Checking for updates...");
     const info = await api.getLatestBuild();
 
+    // Clear any previous error — we successfully contacted the server
+    state.lastError = null;
     state.lastCheckAt = new Date().toISOString();
     state.latestVersion = info.latest_version;
 
