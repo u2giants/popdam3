@@ -890,7 +890,7 @@ async function handleGetPdfTextSamples() {
 
   if (request) {
     const status = request.status as string;
-    const PENDING_TIMEOUT_MS = 3 * 60 * 1000;  // 3 min
+    const PENDING_TIMEOUT_MS = 3 * 60 * 1000; // 3 min
     const PROCESSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 min
 
     if (status === "pending") {
@@ -958,7 +958,9 @@ async function handleGetPdfTextSamples() {
         const claimingAgentId = request.claimed_by_agent_id as string | undefined;
         const claimingAgent = agentStatus.find((a) => a.id === claimingAgentId);
         if (claimingAgent && !claimingAgent.online) {
-          detail += ` Agent "${claimingAgent.name}" is now OFFLINE (last heartbeat ${claimingAgent.last_heartbeat_seconds_ago !== null ? Math.round(claimingAgent.last_heartbeat_seconds_ago / 60) + "m ago" : "never"}).`;
+          detail += ` Agent "${claimingAgent.name}" is now OFFLINE (last heartbeat ${
+            claimingAgent.last_heartbeat_seconds_ago !== null ? Math.round(claimingAgent.last_heartbeat_seconds_ago / 60) + "m ago" : "never"
+          }).`;
         } else if (!claimingAgent) {
           detail += ` Claiming agent (ID: ${claimingAgentId?.slice(0, 8)}…) not found in registrations.`;
         }
