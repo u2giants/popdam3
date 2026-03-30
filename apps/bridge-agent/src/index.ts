@@ -981,9 +981,10 @@ async function handleCheckUpdate() {
   const { promisify } = await import("node:util");
   const execFileAsync = promisify(execFile);
 
-  // Use the tag the container was built with, falling back to "stable"
-  const tag = imageTag !== "unknown" ? imageTag : "stable";
-  const pullImage = `ghcr.io/u2giants/popdam-bridge:${tag}`;
+  // Always check :stable — never use the running container's version tag,
+  // which would always compare against itself and never detect a newer image.
+  const checkTag = "stable";
+  const pullImage = `ghcr.io/u2giants/popdam-bridge:${checkTag}`;
 
   try {
     await execFileAsync("docker", ["pull", pullImage, "--quiet"]);
@@ -1001,11 +1002,11 @@ async function handleCheckUpdate() {
       current_digest: currentDigest.trim(),
       latest_digest: latestDigest.trim(),
       update_available: updateAvailable,
-      checked_tag: tag,
+      checked_tag: checkTag,
       checked_at: new Date().toISOString(),
     });
 
-    logger.info("Update check complete", { updateAvailable, tag, currentDigest: currentDigest.trim(), latestDigest: latestDigest.trim() });
+    logger.info("Update check complete", { updateAvailable, tag: checkTag, currentDigest: currentDigest.trim(), latestDigest: latestDigest.trim() });
   } catch (e) {
     logger.error("Update check failed", { error: (e as Error).message });
     await api.reportUpdateStatus({
@@ -1028,10 +1029,10 @@ function handleApplyUpdate() {
     started_at: new Date().toISOString(),
   }).catch(() => {});
 
-  // Use docker compose to pull + recreate in one atomic operation.
-  // The current container will be stopped and replaced by compose.
+  // Pull :stable explicitly first so we get the latest image regardless of what
+  // tag the compose file pins, then recreate the container.
   exec(
-    `docker compose -f ${composePath} pull && docker compose -f ${composePath} up -d --force-recreate`,
+    `docker pull ghcr.io/u2giants/popdam-bridge:stable && docker compose -f ${composePath} pull && docker compose -f ${composePath} up -d --force-recreate`,
     { timeout: 300_000 },
     (err: Error | null) => {
       if (err) {
