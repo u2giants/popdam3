@@ -13,12 +13,12 @@
  */
 
 import { config } from "./config";
-import { logger } from "./logger";
+import { logger, getLogTail } from "./logger";
 import * as api from "./api-client";
 import { renderFile, type PdfRenderResult } from "./renderer";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
-import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate } from "./updater";
+import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate, RESTART_EXIT_CODE } from "./updater";
 import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
 import { inspectAiFile } from "./ai-raster-inspector";
 import { captureTimestamps } from "./tiff-timestamps";
@@ -38,6 +38,8 @@ let lastError: string | undefined;
 let jobsCompleted = 0;
 let jobsFailed = 0;
 let configReceived = false;
+let stopAcceptingJobs = false;
+let consecutiveHeartbeatFailures = 0;
 
 // ── Health state ────────────────────────────────────────────────
 
@@ -168,6 +170,18 @@ function startPreflightRecheck() {
   const loop = async () => {
     if (!healthStatus.healthy) {
       logger.info("Re-running preflight (currently unhealthy)...");
+      // Attempt to re-map NAS before re-running preflight
+      if (cloudNasHost) {
+        const remapResult = await ensureNasMapped(cloudNasMountPath, {
+          host: cloudNasHost,
+          share: cloudNasShare,
+          username: cloudNasUsername,
+          password: cloudNasPassword,
+        });
+        if (!remapResult.ok) {
+          logger.warn("NAS remap failed during health recovery", { error: remapResult.error });
+        }
+      }
       await runHealthCheck();
     }
     setTimeout(loop, PREFLIGHT_RECHECK_MS);
@@ -269,8 +283,9 @@ function startHeartbeat() {
         last_update_check: updateState.lastCheckAt,
         updating: updateState.updating,
         update_error: updateState.lastError,
-      });
+      }, getLogTail(50));
       applyCloudConfig(response);
+      consecutiveHeartbeatFailures = 0;
 
       // PDF text extraction sample
       if (response.commands?.trigger_pdf_text_sample && !isSamplingPdfText) {
@@ -288,7 +303,7 @@ function startHeartbeat() {
         });
       }
 
-      // Check if cloud requests immediate update
+      // Check if cloud requests immediate update (standard — respects idle check)
       if (response.commands?.trigger_update) {
         logger.info("Cloud requested immediate update check");
         triggerImmediateUpdate(agentId).catch((e) =>
@@ -296,14 +311,80 @@ function startHeartbeat() {
         );
       }
 
+      // Force apply update — bypass activeJobs guard
+      if (response.commands?.force_apply_update) {
+        logger.info("Cloud requested force update — bypassing active-jobs guard");
+        triggerImmediateUpdate(agentId, true).catch((e) =>
+          logger.error("Force update failed", { error: (e as Error).message })
+        );
+      }
+
+      // Force restart — exit immediately, launcher restarts us
+      if (response.commands?.force_restart) {
+        logger.info("Cloud requested force restart — exiting now");
+        process.exit(RESTART_EXIT_CODE);
+      }
+
+      // Force stop jobs — stop claiming, drain current jobs, then restart
+      if (response.commands?.force_stop_jobs) {
+        logger.info("Cloud requested stop — halting job claims and draining");
+        stopAcceptingJobs = true;
+        waitForIdleThenRestart();
+      }
+
+      // Remote re-pairing — cloud sent a new pairing code
+      if (response.commands?.repair_pairing_code) {
+        const code = response.commands.repair_pairing_code;
+        logger.info("Cloud sent repair pairing code — re-pairing agent");
+        try {
+          (config as Record<string, unknown>).pairingCode = code;
+          await doPairing();
+          logger.info("Agent re-paired successfully via remote repair");
+        } catch (pairErr) {
+          logger.error("Remote re-pairing failed", { error: (pairErr as Error).message });
+        }
+      }
+
       logger.debug("Heartbeat sent");
     } catch (e) {
-      logger.error("Heartbeat failed", { error: (e as Error).message });
+      consecutiveHeartbeatFailures++;
+      logger.error("Heartbeat failed", {
+        error: (e as Error).message,
+        consecutiveFailures: consecutiveHeartbeatFailures,
+      });
+      // Restart after 10 consecutive failures (5 minutes) — likely a stuck state
+      if (consecutiveHeartbeatFailures >= 10) {
+        logger.error("10 consecutive heartbeat failures — restarting agent to recover");
+        process.exit(RESTART_EXIT_CODE);
+      }
     }
     setTimeout(loop, HEARTBEAT_MS);
   };
   setTimeout(loop, HEARTBEAT_MS);
   logger.info("Heartbeat started (30s interval)");
+}
+
+/**
+ * Stop claiming new jobs, wait for in-flight jobs to finish (up to 60s), then restart.
+ */
+function waitForIdleThenRestart() {
+  const MAX_WAIT_MS = 60_000;
+  const CHECK_INTERVAL_MS = 5_000;
+  const start = Date.now();
+
+  const check = () => {
+    if (activeJobs === 0) {
+      logger.info("All jobs drained — restarting after force_stop_jobs");
+      process.exit(RESTART_EXIT_CODE);
+    }
+    if (Date.now() - start >= MAX_WAIT_MS) {
+      logger.warn("Timeout waiting for jobs to drain — forcing restart", { activeJobs });
+      process.exit(RESTART_EXIT_CODE);
+    }
+    logger.info("Waiting for jobs to drain before restart", { activeJobs });
+    setTimeout(check, CHECK_INTERVAL_MS);
+  };
+  check();
 }
 
 // ── Job processing ──────────────────────────────────────────────
@@ -381,6 +462,8 @@ function startPolling() {
       logger.debug("Skipping poll — agent is unhealthy", {
         nasHealthy: healthStatus.nasHealthy,
       });
+    } else if (stopAcceptingJobs) {
+      logger.debug("Skipping poll — job claiming halted (force_stop_jobs active)");
     } else {
       // Fill all available slots
       while (activeJobs < maxConcurrency) {
@@ -1023,14 +1106,15 @@ function startHygieneScanChecker() {
   logger.info("Hygiene scan checker started (30s interval)");
 }
 
-// ── Global error handlers (prevent crash loops) ─────────────────
+// ── Global error handlers ────────────────────────────────────────
 
 process.on("uncaughtException", (err) => {
-  logger.error("Uncaught exception (process will continue)", {
+  logger.error("Uncaught exception — restarting agent to recover", {
     error: err.message,
     stack: err.stack,
   });
-  // Do NOT call process.exit — let timers/polling continue
+  // Exit with restart code so launcher.bat restarts us immediately
+  process.exit(RESTART_EXIT_CODE);
 });
 
 process.on("unhandledRejection", (reason) => {

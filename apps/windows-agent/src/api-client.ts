@@ -70,6 +70,10 @@ export interface WindowsHeartbeatResponse {
     trigger_update?: boolean;
     trigger_pdf_text_sample?: boolean;
     pdf_text_sample_assets?: unknown[];
+    force_restart?: boolean;
+    force_apply_update?: boolean;
+    force_stop_jobs?: boolean;
+    repair_pairing_code?: string | null;
   };
 }
 
@@ -94,6 +98,7 @@ export async function heartbeat(
   lastError?: string,
   health?: AgentHealthPayload,
   versionInfo?: WindowsVersionInfo,
+  logTail?: string[],
 ): Promise<WindowsHeartbeatResponse> {
   const data = await callApi("heartbeat", {
     agent_id: agentId,
@@ -101,6 +106,7 @@ export async function heartbeat(
     last_error: lastError,
     health: health ?? undefined,
     version_info: versionInfo ?? undefined,
+    log_tail: logTail ?? undefined,
   });
   return data as unknown as WindowsHeartbeatResponse;
 }

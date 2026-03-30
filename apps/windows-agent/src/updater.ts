@@ -84,8 +84,8 @@ export function initUpdater(opts: {
   logger.info("Self-updater initialized", { checkIntervalMinutes: 10 });
 }
 
-export async function triggerImmediateUpdate(agentId: string): Promise<void> {
-  await checkForUpdate(agentId, true);
+export async function triggerImmediateUpdate(agentId: string, bypassIdleCheck = false): Promise<void> {
+  await checkForUpdate(agentId, true, bypassIdleCheck);
 }
 
 // ── Version comparison ──────────────────────────────────────────────
@@ -188,7 +188,7 @@ function restartAgent(reason: string): never {
 
 // ── Check + download + swap ─────────────────────────────────────────
 
-async function checkForUpdate(agentId: string, forceApply = false): Promise<void> {
+async function checkForUpdate(agentId: string, forceApply = false, bypassIdleCheck = false): Promise<void> {
   if (state.updating) {
     logger.debug("Update already in progress, skipping check");
     return;
@@ -223,13 +223,18 @@ async function checkForUpdate(agentId: string, forceApply = false): Promise<void
       });
     }
 
-    // Wait for idle (no active render jobs)
-    if (activeJobsRef() > 0) {
+    // Wait for idle (no active render jobs) — unless bypass requested
+    if (!bypassIdleCheck && activeJobsRef() > 0) {
       logger.info("Deferring update — render jobs active", {
         activeJobs: activeJobsRef(),
       });
       setTimeout(() => checkForUpdate(agentId, forceApply), 30_000);
       return;
+    }
+    if (bypassIdleCheck && activeJobsRef() > 0) {
+      logger.warn("Forcing update despite active render jobs (force_apply_update command)", {
+        activeJobs: activeJobsRef(),
+      });
     }
 
     await applyUpdate(info, agentId);

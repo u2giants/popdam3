@@ -108,6 +108,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "GOOGLE_AI_API_KEY",
   "AI_MODELS",
   "PDF_EXTRACTION_CONFIG",
+  "WINDOWS_REPAIR_CODE",
 ];
 
 async function handleHeartbeat(
@@ -120,6 +121,7 @@ async function handleHeartbeat(
   const health = body.health as Record<string, unknown> | undefined;
   const versionInfo = body.version_info as Record<string, unknown> | undefined;
   const diagnostics = body.diagnostics as Record<string, unknown> | undefined;
+  const logTail = Array.isArray(body.log_tail) ? (body.log_tail as string[]).slice(-50) : undefined;
   const db = serviceClient();
 
   // ── Fetch agent metadata (needed for update) ──
@@ -172,6 +174,8 @@ async function handleHeartbeat(
         last_reported_at: new Date().toISOString(),
       }
       : metadata.diagnostics,
+    // Recent log lines from Windows agent — stored for remote viewing
+    log_tail: logTail ?? metadata.log_tail,
     // Clear trigger_update flag once delivered (below)
   };
 
@@ -446,6 +450,10 @@ async function handleHeartbeat(
       check_update: checkUpdate,
       apply_update: applyUpdate,
       trigger_update: (newMetadata as Record<string, unknown>).trigger_update === true,
+      force_restart: (newMetadata as Record<string, unknown>).force_restart === true,
+      force_apply_update: (newMetadata as Record<string, unknown>).force_apply_update === true,
+      force_stop_jobs: (newMetadata as Record<string, unknown>).force_stop_jobs === true,
+      repair_pairing_code: (configMap.WINDOWS_REPAIR_CODE as string) || null,
       trigger_style_guide_crawl: (() => {
         // Deliver crawl command if a pending request exists and agent is a bridge
         if (agentType !== "bridge") return false;
@@ -483,15 +491,34 @@ async function handleHeartbeat(
     },
   };
 
-  // Clear trigger_update flag BEFORE returning (so it only fires once)
-  if ((newMetadata as Record<string, unknown>).trigger_update === true) {
-    const cleanMeta = { ...newMetadata, trigger_update: false } as Record<string, unknown>;
+  // Clear one-shot command flags BEFORE returning (so they only fire once)
+  const meta = newMetadata as Record<string, unknown>;
+  const needsClear = meta.trigger_update === true || meta.force_restart === true ||
+    meta.force_apply_update === true || meta.force_stop_jobs === true;
+
+  if (needsClear || configMap.WINDOWS_REPAIR_CODE) {
+    const cleanMeta: Record<string, unknown> = {
+      ...meta,
+      trigger_update: false,
+      force_restart: false,
+      force_apply_update: false,
+      force_stop_jobs: false,
+    };
     delete cleanMeta.update_requested_by;
     delete cleanMeta.update_requested_at;
-    await db
-      .from("agent_registrations")
-      .update({ metadata: cleanMeta })
-      .eq("id", agentId);
+
+    const clearOps: Promise<unknown>[] = [
+      db.from("agent_registrations").update({ metadata: cleanMeta }).eq("id", agentId),
+    ];
+
+    // Clear WINDOWS_REPAIR_CODE from admin_config after delivery
+    if (configMap.WINDOWS_REPAIR_CODE) {
+      clearOps.push(
+        db.from("admin_config").delete().eq("key", "WINDOWS_REPAIR_CODE"),
+      );
+    }
+
+    await Promise.all(clearOps);
   }
 
   return json(responsePayload);
