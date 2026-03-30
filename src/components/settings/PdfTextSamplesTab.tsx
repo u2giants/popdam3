@@ -157,6 +157,13 @@ function SampleRow({ sample }: { sample: PdfSample }) {
 // ── Live progress panel ──────────────────────────────────────────────────────
 
 function LiveProgressPanel({ request }: { request: Record<string, unknown> }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const status = request.status as string;
   const agentName = (request.claimed_by_agent_name as string) ?? null;
   const progress = request.progress as ProgressInfo | undefined;
@@ -176,7 +183,7 @@ function LiveProgressPanel({ request }: { request: Record<string, unknown> }) {
 
   // Time since requested
   const elapsed = requestedAt
-    ? Math.round((Date.now() - new Date(requestedAt).getTime()) / 1000)
+    ? Math.round((nowMs - new Date(requestedAt).getTime()) / 1000)
     : 0;
   const elapsedStr = elapsed > 60
     ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
