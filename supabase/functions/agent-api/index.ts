@@ -104,6 +104,9 @@ const HEARTBEAT_CONFIG_KEYS = [
   "STYLE_GUIDE_SCAN_ROOTS",
   "STYLE_GUIDE_CRAWL_REQUEST",
   "ANTHROPIC_API_KEY",
+  "GOOGLE_AI_API_KEY",
+  "AI_MODELS",
+  "PDF_EXTRACTION_CONFIG",
 ];
 
 async function handleHeartbeat(
@@ -429,6 +432,9 @@ async function handleHeartbeat(
       },
       ai: {
         anthropic_api_key: (configMap.ANTHROPIC_API_KEY as string) || "",
+        google_ai_api_key: (configMap.GOOGLE_AI_API_KEY as string) || "",
+        models: (configMap.AI_MODELS as unknown[]) || [],
+        pdf_extraction: (configMap.PDF_EXTRACTION_CONFIG as Record<string, unknown>) || null,
       },
     },
     commands: {

@@ -61,6 +61,9 @@ export interface WindowsHeartbeatResponse {
     };
     ai?: {
       anthropic_api_key?: string;
+      google_ai_api_key?: string;
+      models?: Array<{ id: string; provider: string; apiModel: string; capabilities: string[] }>;
+      pdf_extraction?: { ai_vision_model_id?: string } | null;
     };
   };
   commands?: {

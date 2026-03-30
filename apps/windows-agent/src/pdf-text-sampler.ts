@@ -3,9 +3,8 @@ import { join } from "node:path";
 import { logger } from "./logger";
 import * as api from "./api-client";
 
-// pdf-parse, mupdf, tesseract.js, and @anthropic-ai/sdk are only available after
-// a full installer run, not OTA dist updates. Load them lazily inside the function
-// so a missing module never crashes startup.
+// OTA-safe: mupdf, tesseract.js, and @anthropic-ai/sdk are only available after
+// a full installer run, not OTA dist updates. Load them lazily inside the function.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dynamicImport = new Function("m", "return import(m)") as (m: string) => Promise<any>;
 
@@ -25,6 +24,20 @@ export interface PdfSampleAsset {
   filename: string;
 }
 
+export interface AiModelDef {
+  id: string;
+  provider: string;
+  apiModel: string;
+  capabilities: string[];
+}
+
+export interface AiConfig {
+  models: AiModelDef[];
+  pdf_extraction: { ai_vision_model_id: string } | null;
+  googleApiKey: string;
+  anthropicApiKey: string;
+}
+
 export interface PdfTextSampleResult {
   asset_id: string;
   filename: string;
@@ -36,10 +49,87 @@ export interface PdfTextSampleResult {
   extraction_error: string | null;
 }
 
+// ── AI vision call (provider-agnostic, resolved from model catalog) ──────────
+
+async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
+  const modelId = aiConfig.pdf_extraction?.ai_vision_model_id;
+  if (!modelId) return "";
+
+  const modelDef = aiConfig.models.find((m) => m.id === modelId);
+  if (!modelDef) {
+    logger.warn("PDF text sample: ai vision model not found in catalog", { modelId });
+    return "";
+  }
+  if (!modelDef.capabilities.includes("vision")) {
+    logger.warn("PDF text sample: selected model has no vision capability", { modelId });
+    return "";
+  }
+
+  const base64 = pngBuffer.toString("base64");
+
+  if (modelDef.provider === "google") {
+    if (!aiConfig.googleApiKey) {
+      logger.warn("PDF text sample: GOOGLE_AI_API_KEY not configured");
+      return "";
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelDef.apiModel}:generateContent?key=${aiConfig.googleApiKey}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({
+        contents: [{
+          role: "user",
+          parts: [
+            { inlineData: { mimeType: "image/png", data: base64 } },
+            { text: "Extract all text from this document page. Return only the raw extracted text with no commentary." },
+          ],
+        }],
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini API ${res.status}: ${errText.slice(0, 200)}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await res.json() as any;
+    return (data?.candidates?.[0]?.content?.parts?.[0]?.text as string || "").trim();
+
+  } else if (modelDef.provider === "anthropic") {
+    if (!aiConfig.anthropicApiKey) {
+      logger.warn("PDF text sample: ANTHROPIC_API_KEY not configured");
+      return "";
+    }
+    const AnthropicLib = tryRequire("@anthropic-ai/sdk");
+    if (!AnthropicLib) throw new Error("@anthropic-ai/sdk not installed");
+    const Anthropic = AnthropicLib.default ?? AnthropicLib;
+    const anthropic = new Anthropic({ apiKey: aiConfig.anthropicApiKey });
+    const aiResponse = await anthropic.messages.create({
+      model: modelDef.apiModel,
+      max_tokens: 2048,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
+          { type: "text", text: "Extract all text from this document page. Return only the raw extracted text with no commentary." },
+        ],
+      }],
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const first = aiResponse.content[0] as any;
+    return (first?.type === "text" ? (first.text as string) : "").trim();
+  }
+
+  logger.warn("PDF text sample: unsupported ai vision provider", { provider: modelDef.provider });
+  return "";
+}
+
+// ── Main sampler ──────────────────────────────────────────────────────────────
+
 export async function runPdfTextSample(
   assets: PdfSampleAsset[],
   mountRoot: string,
-  anthropicApiKey?: string,
+  aiConfig: AiConfig,
 ): Promise<void> {
   if (assets.length === 0) {
     logger.info("PDF text sample: no assets to process");
@@ -64,48 +154,28 @@ export async function runPdfTextSample(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let mupdfDoc: any = null;
 
-      // ── Step 1: pdf-parse (primary text extraction) ──────────────────
+      // ── Step 1: mupdf text extraction (primary) ─────────────────────────────
       try {
-        const pdfParse = tryRequire("pdf-parse") as ((buf: Buffer) => Promise<{ text: string; numpages: number }>) | null;
-        if (!pdfParse) throw new Error("pdf-parse not installed");
-        const parsed = await Promise.race([
-          pdfParse(buffer),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("pdf-parse timed out after 30s")), 30_000)
-          ),
-        ]);
-        rawText = parsed.text || "";
-        numPages = parsed.numpages;
-      } catch (primaryErr) {
-        logger.warn("PDF text sample: pdf-parse failed, trying mupdf text extraction", {
-          filename: asset.filename,
-          error: (primaryErr as Error).message,
-        });
-
-        // ── Step 2: mupdf text extraction (fallback) ──────────────────
-        try {
-          mupdfRef = await dynamicImport("mupdf").catch(() => null);
-          if (!mupdfRef) throw new Error("mupdf not installed");
-          mupdfDoc = mupdfRef.Document.openDocument(buffer, "application/pdf");
-          numPages = mupdfDoc.countPages();
-          const parts: string[] = [];
-          for (let p = 0; p < numPages; p++) {
-            parts.push(mupdfDoc.loadPage(p).toStructuredText("preserve-whitespace").asText());
-          }
-          rawText = parts.join("\n");
-        } catch (mupdfErr) {
-          logger.warn("PDF text sample: mupdf text extraction also failed", {
-            filename: asset.filename,
-            error: (mupdfErr as Error).message,
-          });
+        mupdfRef = await dynamicImport("mupdf").catch(() => null);
+        if (!mupdfRef) throw new Error("mupdf not installed");
+        mupdfDoc = mupdfRef.Document.openDocument(buffer, "application/pdf");
+        numPages = mupdfDoc.countPages();
+        const parts: string[] = [];
+        for (let p = 0; p < numPages; p++) {
+          parts.push(mupdfDoc.loadPage(p).toStructuredText("preserve-whitespace").asText());
         }
+        rawText = parts.join("\n");
+      } catch (mupdfErr) {
+        logger.warn("PDF text sample: mupdf text extraction failed", {
+          filename: asset.filename,
+          error: (mupdfErr as Error).message,
+        });
       }
 
       const text = rawText.trim();
       const charCount = text.length;
 
       if (charCount >= 100) {
-        // Sufficient native text — done
         result = {
           asset_id: asset.id,
           filename: asset.filename,
@@ -116,15 +186,15 @@ export async function runPdfTextSample(
           char_count: charCount,
           extraction_error: null,
         };
-        logger.info("PDF text sample: extracted via text", {
+        logger.info("PDF text sample: extracted via mupdf text", {
           filename: asset.filename,
           chars: charCount,
           pages: numPages,
         });
       } else {
-        // Sparse or no text — try OCR then AI vision
+        // Sparse or no text — render page 0 for OCR + AI vision
 
-        // ── Step 3: render page 0 to PNG via mupdf (used by OCR + AI) ──
+        // ── Step 2: render page 0 to PNG via mupdf ────────────────────────────
         let pngBuffer: Buffer | null = null;
         try {
           if (!mupdfRef) mupdfRef = await dynamicImport("mupdf").catch(() => null);
@@ -145,7 +215,7 @@ export async function runPdfTextSample(
           });
         }
 
-        // ── Step 4: OCR via tesseract.js ──────────────────────────────
+        // ── Step 3: OCR via tesseract.js ──────────────────────────────────────
         let ocrText = "";
         if (pngBuffer) {
           try {
@@ -180,41 +250,12 @@ export async function runPdfTextSample(
             chars: ocrText.length,
           });
         } else {
-          // ── Step 5: AI vision via Claude ──────────────────────────────
+          // ── Step 4: AI vision ─────────────────────────────────────────────
           let aiText = "";
           let aiErrMsg = "";
-          if (pngBuffer && anthropicApiKey) {
+          if (pngBuffer) {
             try {
-              const AnthropicLib = tryRequire("@anthropic-ai/sdk");
-              if (!AnthropicLib) throw new Error("@anthropic-ai/sdk not installed");
-              const Anthropic = AnthropicLib.default ?? AnthropicLib;
-              const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-              const aiResponse = await anthropic.messages.create({
-                model: "claude-haiku-4-5-20251001",
-                max_tokens: 2048,
-                messages: [{
-                  role: "user",
-                  content: [
-                    {
-                      type: "image",
-                      source: {
-                        type: "base64",
-                        media_type: "image/png",
-                        data: pngBuffer.toString("base64"),
-                      },
-                    },
-                    {
-                      type: "text",
-                      text: "Extract all text from this document page. Return only the raw extracted text with no commentary.",
-                    },
-                  ],
-                }],
-              });
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const first = aiResponse.content[0] as any;
-              if (first && first.type === "text") {
-                aiText = (first.text as string).trim();
-              }
+              aiText = await callAiVision(pngBuffer, aiConfig);
             } catch (aiErr) {
               aiErrMsg = (aiErr as Error).message;
               logger.warn("PDF text sample: AI vision failed", {
@@ -238,9 +279,9 @@ export async function runPdfTextSample(
             logger.info("PDF text sample: extracted via AI vision", {
               filename: asset.filename,
               chars: aiText.length,
+              model: aiConfig.pdf_extraction?.ai_vision_model_id,
             });
           } else {
-            // All methods exhausted — use best available text
             const finalText = ocrText.length > 0 ? ocrText : text;
             const finalCount = finalText.length;
             const method: "pdf_text" | "likely_scanned" | "failed" =
