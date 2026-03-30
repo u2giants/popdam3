@@ -554,6 +554,14 @@ export default function PdfTextSamplesTab() {
             Results show how each PDF is classified.
           </p>
 
+          {/* Agent status (always visible) */}
+          {!isActive && agentStatuses.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground mb-1.5">Agent connectivity (target: {targetAgentType === "windows-render" ? "Windows" : "Bridge"})</p>
+              <AgentStatusBadges agents={agentStatuses} targetType={targetAgentType} />
+            </div>
+          )}
+
           {/* Live progress panel when active */}
           {isActive && request && (
             <LiveProgressPanel
