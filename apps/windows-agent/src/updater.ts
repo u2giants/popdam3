@@ -28,7 +28,7 @@ import { createHash } from "node:crypto";
 import { execSync, spawn } from "node:child_process";
 import path from "node:path";
 
-// ── Types ───────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────
 
 export interface UpdateInfo {
   latest_version: string;
@@ -46,7 +46,7 @@ export interface UpdateState {
   lastError: string | null;
 }
 
-// ── Module state ────────────────────────────────────────────────────
+// ── Module state ────────────────────────────────────────────
 
 const CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
@@ -63,7 +63,7 @@ let state: UpdateState = {
 let activeJobsRef: () => number = () => 0;
 let checkTimer: ReturnType<typeof setInterval> | null = null;
 
-// ── Public API ──────────────────────────────────────────────────────
+// ── Public API ───────────────────────────────────────────────
 
 export function getUpdateState(): UpdateState {
   return { ...state };
@@ -84,11 +84,11 @@ export function initUpdater(opts: {
   logger.info("Self-updater initialized", { checkIntervalMinutes: 10 });
 }
 
-export async function triggerImmediateUpdate(agentId: string): Promise<void> {
-  await checkForUpdate(agentId, true);
+export async function triggerImmediateUpdate(agentId: string, bypassIdleCheck = false): Promise<void> {
+  await checkForUpdate(agentId, true, bypassIdleCheck);
 }
 
-// ── Version comparison ──────────────────────────────────────────────
+// ── Version comparison ──────────────────────────────────────────
 
 function parseVersion(v: string): number[] {
   return v.replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
@@ -106,7 +106,7 @@ function isNewer(remote: string, local: string): boolean {
   return false;
 }
 
-// ── Install directory detection ─────────────────────────────────────
+// ── Install directory detection ───────────────────────────────────
 
 /**
  * The agent is installed at: $INSTDIR/dist/index.js run by $INSTDIR/node.exe
@@ -117,7 +117,7 @@ function getInstallDir(): string {
   return path.dirname(__dirname);
 }
 
-// ── Detect launcher supervision ────────────────────────────────────
+// ── Detect launcher supervision ──────────────────────────────
 
 const TASK_NAME = "PopDAM Windows Render Agent";
 
@@ -186,9 +186,9 @@ function restartAgent(reason: string): never {
   }
 }
 
-// ── Check + download + swap ─────────────────────────────────────────
+// ── Check + download + swap ─────────────────────────────────────
 
-async function checkForUpdate(agentId: string, forceApply = false): Promise<void> {
+async function checkForUpdate(agentId: string, forceApply = false, bypassIdleCheck = false): Promise<void> {
   if (state.updating) {
     logger.debug("Update already in progress, skipping check");
     return;
@@ -223,13 +223,18 @@ async function checkForUpdate(agentId: string, forceApply = false): Promise<void
       });
     }
 
-    // Wait for idle (no active render jobs)
-    if (activeJobsRef() > 0) {
+    // Wait for idle (no active render jobs) — unless bypass requested
+    if (!bypassIdleCheck && activeJobsRef() > 0) {
       logger.info("Deferring update — render jobs active", {
         activeJobs: activeJobsRef(),
       });
       setTimeout(() => checkForUpdate(agentId, forceApply), 30_000);
       return;
+    }
+    if (bypassIdleCheck && activeJobsRef() > 0) {
+      logger.warn("Forcing update despite active render jobs (force_apply_update command)", {
+        activeJobs: activeJobsRef(),
+      });
     }
 
     await applyUpdate(info, agentId);
@@ -400,7 +405,7 @@ async function applyUpdate(info: UpdateInfo, agentId: string): Promise<void> {
   }
 }
 
-// ── Post-restart health check + rollback ────────────────────────────
+// ── Post-restart health check + rollback ──────────────────────────
 
 export async function postRestartHealthCheck(agentId: string): Promise<void> {
   const rollbackInfoPath = path.join(config.agentConfigDir, "rollback-info.json");
