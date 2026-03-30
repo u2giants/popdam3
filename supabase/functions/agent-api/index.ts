@@ -31,7 +31,8 @@ async function authenticateAgent(
     .eq("agent_key_hash", hashHex)
     .maybeSingle();
 
-  if (error || !data) return err("Invalid agent key", 401);
+  if (error) return err(`Auth lookup failed: ${error.message}`, 500);
+  if (!data) return err("Invalid agent key", 401);
   return { agentId: data.id, agentName: data.agent_name, agentType: data.agent_type };
 }
 
@@ -2572,6 +2573,17 @@ serve(async (req) => {
       return await handleNotifyBuild(body, req);
     }
 
+    // get-latest-build is read-only (returns public GitHub release URLs) — no auth needed.
+    // Keeping it unauthenticated ensures OTA updates work even during transient DB auth failures.
+    if (action === "get-latest-build") {
+      return await handleGetLatestBuild(body, "");
+    }
+
+    // report-update-status is best-effort telemetry — allow without auth so updates complete
+    if (action === "report-update-status") {
+      return await handleReportUpdateStatus(body);
+    }
+
     // All other routes require agent authentication
     const authResult = await authenticateAgent(req);
     if (authResult instanceof Response) return authResult;
@@ -2620,10 +2632,7 @@ serve(async (req) => {
         return await handleGetCheckpoint(agentId);
       case "clear-checkpoint":
         return await handleClearCheckpoint();
-      case "report-update-status":
-        return await handleReportUpdateStatus(body);
-      case "get-latest-build":
-        return await handleGetLatestBuild(body, agentId);
+      // report-update-status and get-latest-build handled above (before auth)
       case "claim-tiff-scan":
         return await handleClaimTiffScan(body, agentId);
       case "report-tiff-scan":
