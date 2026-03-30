@@ -145,6 +145,10 @@ export async function completePdfTextSample(results: unknown[]): Promise<void> {
   await callApi("complete-pdf-text-sample", { results });
 }
 
+export async function reportPdfTextSampleProgress(payload: Record<string, unknown>): Promise<void> {
+  await callApi("pdf-text-sample-progress", payload);
+}
+
 /**
  * Update an asset's fields (e.g. pdf_page2_url after PDF rendering).
  */
