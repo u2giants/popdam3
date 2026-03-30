@@ -350,3 +350,7 @@ export async function completePdfTextSample(
 ): Promise<void> {
   await callApi("complete-pdf-text-sample", { results }, 60_000);
 }
+
+export async function reportPdfTextSampleProgress(payload: Record<string, unknown>): Promise<void> {
+  await callApi("pdf-text-sample-progress", payload);
+}

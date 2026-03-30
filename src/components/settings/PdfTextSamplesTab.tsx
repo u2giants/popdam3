@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -33,9 +34,41 @@ interface PdfSample {
   sampled_at: string;
 }
 
+interface FileProgressEntry {
+  filename: string;
+  status: "success" | "failed";
+  method: string;
+  chars: number;
+  error?: string;
+}
+
+interface ProgressInfo {
+  processed: number;
+  total: number;
+  current_file: string | null;
+  current_step: string | null;
+  file_results: FileProgressEntry[];
+  updated_at: string;
+}
+
+// ── Step label helper ─────────────────────────────────────────────────────────
+
+function stepLabel(step: string | null): string {
+  switch (step) {
+    case "starting": return "Starting…";
+    case "reading": return "Reading file";
+    case "mupdf": return "mupdf text extraction";
+    case "rendering": return "Rendering page to PNG";
+    case "ocr": return "OCR (tesseract.js)";
+    case "ai_vision": return "AI vision";
+    case "done": return "Done";
+    default: return step ?? "";
+  }
+}
+
 // ── Method badge ───────────────────────────────────────────────────────────────
 
-function MethodBadge({ method }: { method: PdfSample["extraction_method"] }) {
+function MethodBadge({ method }: { method: PdfSample["extraction_method"] | string }) {
   if (method === "pdf_text") {
     return (
       <Badge className="bg-green-100 text-green-800 gap-1 text-xs">
@@ -118,6 +151,128 @@ function SampleRow({ sample }: { sample: PdfSample }) {
         </TableRow>
       )}
     </>
+  );
+}
+
+// ── Live progress panel ──────────────────────────────────────────────────────
+
+function LiveProgressPanel({ request }: { request: Record<string, unknown> }) {
+  const status = request.status as string;
+  const agentName = (request.claimed_by_agent_name as string) ?? null;
+  const progress = request.progress as ProgressInfo | undefined;
+  const requestedAt = request.requested_at as string | undefined;
+  const errorMsg = request.error as string | undefined;
+
+  const isProcessing = status === "processing";
+  const isPending = status === "pending";
+  const isError = status === "error";
+
+  const processed = progress?.processed ?? 0;
+  const total = progress?.total ?? 0;
+  const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+  const currentFile = progress?.current_file ?? null;
+  const currentStep = progress?.current_step ?? null;
+  const fileResults = progress?.file_results ?? [];
+
+  // Time since requested
+  const elapsed = requestedAt
+    ? Math.round((Date.now() - new Date(requestedAt).getTime()) / 1000)
+    : 0;
+  const elapsedStr = elapsed > 60
+    ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
+    : `${elapsed}s`;
+
+  return (
+    <div className="mt-3 space-y-2">
+      {/* Agent + status line */}
+      <div className="flex items-center gap-3 text-sm">
+        {isPending && !agentName && (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+            <span className="text-amber-600">
+              Waiting for agent to pick up… ({elapsedStr})
+            </span>
+          </>
+        )}
+        {(isProcessing || (isPending && agentName)) && (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span className="text-foreground">
+              Processing on{" "}
+              <span className="font-medium inline-flex items-center gap-1">
+                {agentName?.includes("windows") || agentName?.includes("Windows") ? (
+                  <><Monitor className="h-3.5 w-3.5" /> {agentName}</>
+                ) : (
+                  <><Server className="h-3.5 w-3.5" /> {agentName ?? "agent"}</>
+                )}
+              </span>
+            </span>
+          </>
+        )}
+        {isError && (
+          <>
+            <XCircle className="h-4 w-4 text-destructive" />
+            <span className="text-destructive">
+              Error: {errorMsg ?? "Unknown error"}
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      {total > 0 && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>{processed} / {total} PDFs</span>
+            <span>{pct}%</span>
+          </div>
+          <Progress value={pct} className="h-2" />
+        </div>
+      )}
+
+      {/* Current file + step */}
+      {currentFile && currentStep && currentStep !== "done" && (
+        <p className="text-xs text-muted-foreground">
+          <span className="font-mono">{currentFile}</span>
+          {" — "}
+          <span className="italic">{stepLabel(currentStep)}</span>
+        </p>
+      )}
+
+      {/* Live file results */}
+      {fileResults.length > 0 && (
+        <div className="border rounded-md overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-xs py-1">File</TableHead>
+                <TableHead className="text-xs py-1">Result</TableHead>
+                <TableHead className="text-xs py-1 text-center">Chars</TableHead>
+                <TableHead className="text-xs py-1">Error</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {fileResults.map((fr, i) => (
+                <TableRow key={i}>
+                  <TableCell className="text-xs font-mono py-1 max-w-[200px] truncate">
+                    {fr.filename}
+                  </TableCell>
+                  <TableCell className="py-1">
+                    <MethodBadge method={fr.method} />
+                  </TableCell>
+                  <TableCell className="text-xs text-center py-1 text-muted-foreground">
+                    {fr.chars.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-xs py-1 text-red-600 max-w-[200px] truncate">
+                    {fr.error ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -231,7 +386,9 @@ export default function PdfTextSamplesTab() {
     queryFn: () => call("get-pdf-text-samples"),
     refetchInterval: (query) => {
       const req = query.state.data?.request as Record<string, unknown> | null;
-      return req?.status === "pending" ? 5000 : false;
+      if (!req) return false;
+      const status = req.status as string;
+      return (status === "pending" || status === "processing") ? 3000 : false;
     },
   });
 
@@ -255,13 +412,14 @@ export default function PdfTextSamplesTab() {
 
   const request = data?.request as Record<string, unknown> | null;
   const samples = (data?.samples ?? []) as PdfSample[];
-  const isPending = request?.status === "pending";
+  const isActive = request?.status === "pending" || request?.status === "processing" || request?.status === "error";
 
-  // Detect stuck: pending for more than 10 minutes
+  // Detect stuck: pending (not processing) for more than 10 minutes
   const isStuck = (() => {
-    if (!isPending) return false;
-    const requestedAt = (request as Record<string, unknown>)?.requested_at as string | undefined;
-    if (!requestedAt) return true; // no timestamp = assume stuck
+    if (request?.status !== "pending") return false;
+    if (request?.progress) return false; // has progress = agent picked it up
+    const requestedAt = request?.requested_at as string | undefined;
+    if (!requestedAt) return true;
     return Date.now() - new Date(requestedAt).getTime() > 10 * 60 * 1000;
   })();
 
@@ -281,7 +439,7 @@ export default function PdfTextSamplesTab() {
               PDF Text Extraction Sample
             </CardTitle>
             <div className="flex items-center gap-2">
-              {isPending && (
+              {isActive && (
                 <Button
                   size="sm"
                   variant="destructive"
@@ -295,9 +453,9 @@ export default function PdfTextSamplesTab() {
               <Button
                 size="sm"
                 onClick={() => triggerMutation.mutate()}
-                disabled={triggerMutation.isPending || isPending}
+                disabled={triggerMutation.isPending || isActive}
               >
-                {triggerMutation.isPending || isPending ? (
+                {triggerMutation.isPending || isActive ? (
                   <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Running…</>
                 ) : (
                   "Run Sample (25 PDFs)"
@@ -311,13 +469,17 @@ export default function PdfTextSamplesTab() {
             Picks 25 random tech pack / licensing sheet PDFs and attempts text extraction via mupdf → OCR → AI vision cascade.
             Results show how each PDF is classified.
           </p>
-          {isPending && (
-            <div className="mt-3 flex items-center gap-2 text-sm text-amber-600">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {isStuck
-                ? "Stuck — the Bridge Agent may not be running or doesn't support this operation. Click Force Reset to clear."
-                : "Processing… (checks every 5s)"}
-            </div>
+
+          {/* Live progress panel when active */}
+          {isActive && request && (
+            isStuck ? (
+              <div className="mt-3 flex items-center gap-2 text-sm text-amber-600">
+                <AlertTriangle className="h-4 w-4" />
+                Stuck — no agent has picked up this request in 10+ minutes. Check that the Bridge Agent or Windows Agent is running. Click Force Reset to clear.
+              </div>
+            ) : (
+              <LiveProgressPanel request={request} />
+            )
           )}
         </CardContent>
       </Card>
