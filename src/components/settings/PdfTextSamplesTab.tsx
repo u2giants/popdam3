@@ -154,9 +154,69 @@ function SampleRow({ sample }: { sample: PdfSample }) {
   );
 }
 
+// ── Agent status badge ───────────────────────────────────────────────────────
+
+interface AgentStatusInfo {
+  id: string;
+  name: string;
+  type: string;
+  online: boolean;
+  last_heartbeat_seconds_ago: number | null;
+  last_heartbeat: string | null;
+  healthy: boolean | null;
+  version: string | null;
+}
+
+function AgentStatusBadges({ agents, targetType }: { agents: AgentStatusInfo[]; targetType: string }) {
+  if (agents.length === 0) {
+    return (
+      <div className="text-xs text-destructive bg-destructive/10 rounded px-2 py-1">
+        ⚠ No agents registered. Deploy a Bridge Agent or Windows Agent first.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {agents.map((a) => {
+        const isTarget = a.type === targetType;
+        const agoStr = a.last_heartbeat_seconds_ago !== null
+          ? a.last_heartbeat_seconds_ago < 60
+            ? `${a.last_heartbeat_seconds_ago}s ago`
+            : `${Math.round(a.last_heartbeat_seconds_ago / 60)}m ago`
+          : "never";
+
+        return (
+          <div
+            key={a.id}
+            className={`flex items-center gap-1.5 text-xs rounded px-2 py-1 border ${
+              a.online
+                ? "border-green-300 bg-green-50 text-green-800"
+                : "border-red-300 bg-red-50 text-red-800"
+            }`}
+          >
+            {a.type === "windows-render" ? <Monitor className="h-3 w-3" /> : <Server className="h-3 w-3" />}
+            <span className="font-medium">{a.name}</span>
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.online ? "bg-green-500" : "bg-red-500"}`} />
+            <span className="text-muted-foreground">({agoStr})</span>
+            {isTarget && (
+              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">target</Badge>
+            )}
+            {a.version && <span className="text-muted-foreground text-[10px]">v{a.version}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Live progress panel ──────────────────────────────────────────────────────
 
-function LiveProgressPanel({ request }: { request: Record<string, unknown> }) {
+function LiveProgressPanel({ request, agentStatuses, targetAgentType }: {
+  request: Record<string, unknown>;
+  agentStatuses: AgentStatusInfo[];
+  targetAgentType: string;
+}) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -189,16 +249,36 @@ function LiveProgressPanel({ request }: { request: Record<string, unknown> }) {
     ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
     : `${elapsed}s`;
 
+  // Check if target agents are online
+  const targetAgents = agentStatuses.filter((a) => a.type === targetAgentType);
+  const anyTargetOnline = targetAgents.some((a) => a.online);
+
   return (
-    <div className="mt-3 space-y-2">
-      {/* Agent + status line */}
+    <div className="mt-3 space-y-3">
+      {/* Agent connectivity status */}
+      <AgentStatusBadges agents={agentStatuses} targetType={targetAgentType} />
+
+      {/* Status line */}
       <div className="flex items-center gap-3 text-sm">
         {isPending && !agentName && (
           <>
             <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-            <span className="text-amber-600">
-              Waiting for agent to pick up… ({elapsedStr})
-            </span>
+            <div className="space-y-0.5">
+              <span className="text-amber-600">
+                Waiting for {targetAgentType === "windows-render" ? "Windows" : "Bridge"} agent to claim… ({elapsedStr})
+              </span>
+              {!anyTargetOnline && targetAgents.length > 0 && (
+                <p className="text-xs text-destructive">
+                  ⚠ Target agent{targetAgents.length > 1 ? "s" : ""} ({targetAgents.map((a) => a.name).join(", ")}) {targetAgents.length > 1 ? "are" : "is"} OFFLINE.
+                  {" "}Request will auto-timeout at 3 minutes.
+                </p>
+              )}
+              {targetAgents.length === 0 && (
+                <p className="text-xs text-destructive">
+                  ⚠ No {targetAgentType} agents registered. This request cannot be claimed. Will auto-timeout at 3 minutes.
+                </p>
+              )}
+            </div>
           </>
         )}
         {(isProcessing || (isPending && agentName)) && (
@@ -207,22 +287,26 @@ function LiveProgressPanel({ request }: { request: Record<string, unknown> }) {
             <span className="text-foreground">
               Processing on{" "}
               <span className="font-medium inline-flex items-center gap-1">
-                {agentName?.includes("windows") || agentName?.includes("Windows") ? (
+                {agentName?.toLowerCase().includes("windows") ? (
                   <><Monitor className="h-3.5 w-3.5" /> {agentName}</>
                 ) : (
                   <><Server className="h-3.5 w-3.5" /> {agentName ?? "agent"}</>
                 )}
               </span>
+              <span className="text-muted-foreground ml-2">({elapsedStr})</span>
             </span>
           </>
         )}
         {isError && (
-          <>
-            <XCircle className="h-4 w-4 text-destructive" />
-            <span className="text-destructive">
-              Error: {errorMsg ?? "Unknown error"}
-            </span>
-          </>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <span className="text-destructive font-medium">Failed</span>
+            </div>
+            <p className="text-xs text-destructive/90 bg-destructive/5 rounded p-2 font-mono whitespace-pre-wrap">
+              {errorMsg ?? "Unknown error"}
+            </p>
+          </div>
         )}
       </div>
 
