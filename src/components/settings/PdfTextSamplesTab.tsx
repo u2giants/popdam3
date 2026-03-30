@@ -503,16 +503,9 @@ export default function PdfTextSamplesTab() {
 
   const request = data?.request as Record<string, unknown> | null;
   const samples = (data?.samples ?? []) as PdfSample[];
+  const agentStatuses = (data?.agent_status ?? []) as AgentStatusInfo[];
+  const targetAgentType = (data?.target_agent_type ?? "bridge") as string;
   const isActive = request?.status === "pending" || request?.status === "processing" || request?.status === "error";
-
-  // Detect stuck: pending (not processing) for more than 10 minutes
-  const isStuck = (() => {
-    if (request?.status !== "pending") return false;
-    if (request?.progress) return false; // has progress = agent picked it up
-    const requestedAt = request?.requested_at as string | undefined;
-    if (!requestedAt) return true;
-    return Date.now() - new Date(requestedAt).getTime() > 10 * 60 * 1000;
-  })();
 
   const nativeText = samples.filter((s) => s.extraction_method === "pdf_text").length;
   const ocrText = samples.filter((s) => s.extraction_method === "ocr_text").length;
@@ -563,14 +556,11 @@ export default function PdfTextSamplesTab() {
 
           {/* Live progress panel when active */}
           {isActive && request && (
-            isStuck ? (
-              <div className="mt-3 flex items-center gap-2 text-sm text-amber-600">
-                <AlertTriangle className="h-4 w-4" />
-                Stuck — no agent has picked up this request in 10+ minutes. Check that the Bridge Agent or Windows Agent is running. Click Force Reset to clear.
-              </div>
-            ) : (
-              <LiveProgressPanel request={request} />
-            )
+            <LiveProgressPanel
+              request={request}
+              agentStatuses={agentStatuses}
+              targetAgentType={targetAgentType}
+            />
           )}
         </CardContent>
       </Card>
