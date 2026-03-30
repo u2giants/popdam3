@@ -509,7 +509,7 @@ async function handleHeartbeat(
     delete cleanMeta.update_requested_by;
     delete cleanMeta.update_requested_at;
 
-    const clearOps: Promise<unknown>[] = [
+    const clearOps = [
       db.from("agent_registrations").update({ metadata: cleanMeta }).eq("id", agentId),
     ];
 
