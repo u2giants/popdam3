@@ -2519,6 +2519,52 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: pdf-text-sample-progress ─────────────────────────────────
+
+async function handlePdfTextSampleProgress(body: Record<string, unknown>, agentId: string, agentName: string) {
+  const db = serviceClient();
+  const processed = (body.processed as number) ?? 0;
+  const total = (body.total as number) ?? 0;
+  const currentFile = (body.current_file as string) ?? null;
+  const currentStep = (body.current_step as string) ?? null; // "mupdf" | "ocr" | "ai_vision" | "done"
+  const fileResults = (body.file_results as Record<string, unknown>[]) ?? [];
+  const errorMessage = (body.error as string) ?? null;
+
+  // Update the request with live progress
+  const { data: configRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "PDF_TEXT_SAMPLE_REQUEST")
+    .maybeSingle();
+
+  if (!configRow) return json({ ok: true }); // request was force-reset
+
+  const existing = (configRow.value as Record<string, unknown>) || {};
+  const updatedValue = {
+    ...existing,
+    status: errorMessage ? "error" : "processing",
+    claimed_by_agent_id: agentId,
+    claimed_by_agent_name: agentName,
+    progress: {
+      processed,
+      total,
+      current_file: currentFile,
+      current_step: currentStep,
+      file_results: fileResults,
+      updated_at: new Date().toISOString(),
+    },
+    ...(errorMessage ? { error: errorMessage } : {}),
+  };
+
+  await db.from("admin_config").upsert({
+    key: "PDF_TEXT_SAMPLE_REQUEST",
+    value: updatedValue,
+    updated_at: new Date().toISOString(),
+  });
+
+  return json({ ok: true });
+}
+
 // ── Route: complete-pdf-text-sample ─────────────────────────────────
 
 async function handleCompletePdfTextSample(body: Record<string, unknown>) {
