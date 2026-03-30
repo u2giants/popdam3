@@ -2730,6 +2730,8 @@ serve(async (req) => {
         return await handleClaimStyleGuideCrawl(body, agentId);
       case "complete-style-guide-crawl":
         return await handleCompleteStyleGuideCrawl(body);
+      case "pdf-text-sample-progress":
+        return await handlePdfTextSampleProgress(body, auth.agentId, auth.agentName);
       case "complete-pdf-text-sample":
         return await handleCompletePdfTextSample(body);
       default:
