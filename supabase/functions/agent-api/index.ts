@@ -2660,7 +2660,7 @@ serve(async (req) => {
     // All other routes require agent authentication
     const authResult = await authenticateAgent(req);
     if (authResult instanceof Response) return authResult;
-    const { agentId, agentType } = authResult;
+    const { agentId, agentName, agentType } = authResult;
 
     switch (action) {
       case "heartbeat":
