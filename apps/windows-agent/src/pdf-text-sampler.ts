@@ -161,7 +161,7 @@ export async function runPdfTextSample(
         mupdfDoc = mupdfRef.Document.openDocument(buffer, "application/pdf");
         numPages = mupdfDoc.countPages();
         const parts: string[] = [];
-        for (let p = 0; p < numPages; p++) {
+        for (let p = 0; p < (numPages ?? 0); p++) {
           parts.push(mupdfDoc.loadPage(p).toStructuredText("preserve-whitespace").asText());
         }
         rawText = parts.join("\n");
