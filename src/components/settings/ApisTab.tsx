@@ -425,6 +425,167 @@ function TaxonomyApiSection() {
   );
 }
 
+// ── AI Models & API Keys Section ─────────────────────────────────────
+
+const DEFAULT_MODELS_PLACEHOLDER = JSON.stringify(
+  [
+    { id: "gemini-flash", provider: "google", apiModel: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash", capabilities: ["vision", "text"] },
+    { id: "claude-haiku", provider: "anthropic", apiModel: "claude-haiku-4-5-20251001", displayName: "Claude Haiku 4.5", capabilities: ["vision", "text"] },
+  ],
+  null,
+  2,
+);
+
+export function AiModelsConfigSection() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+
+  const { data: configData } = useQuery({
+    queryKey: ["admin-config", "AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY"],
+    queryFn: () => call("get-config", { keys: ["AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY"] }),
+    staleTime: 30_000,
+  });
+
+  const [googleKey, setGoogleKey] = useState("");
+  const [anthropicKey, setAnthropicKey] = useState("");
+  const [modelsJson, setModelsJson] = useState("");
+  const [showGoogle, setShowGoogle] = useState(false);
+  const [showAnthropic, setShowAnthropic] = useState(false);
+  const [jsonError, setJsonError] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!configData || loaded) return;
+    const cfg = configData.config ?? {};
+    setGoogleKey(((cfg.GOOGLE_AI_API_KEY as Record<string, unknown>)?.value ?? cfg.GOOGLE_AI_API_KEY ?? "") as string);
+    setAnthropicKey(((cfg.ANTHROPIC_API_KEY as Record<string, unknown>)?.value ?? cfg.ANTHROPIC_API_KEY ?? "") as string);
+    const models = (cfg.AI_MODELS as Record<string, unknown>)?.value ?? cfg.AI_MODELS;
+    setModelsJson(models ? JSON.stringify(models, null, 2) : "");
+    setLoaded(true);
+  }, [configData, loaded]);
+
+  function handleModelsChange(val: string) {
+    setModelsJson(val);
+    try {
+      if (val.trim()) JSON.parse(val);
+      setJsonError("");
+    } catch {
+      setJsonError("Invalid JSON");
+    }
+  }
+
+  const save = useMutation({
+    mutationFn: async () => {
+      let models: unknown;
+      try {
+        models = modelsJson.trim() ? JSON.parse(modelsJson) : [];
+      } catch {
+        throw new Error("Invalid JSON in AI Models");
+      }
+      const entries: Record<string, unknown> = { AI_MODELS: models };
+      if (googleKey.trim()) entries.GOOGLE_AI_API_KEY = googleKey.trim();
+      if (anthropicKey.trim()) entries.ANTHROPIC_API_KEY = anthropicKey.trim();
+      return call("set-config", { entries });
+    },
+    onSuccess: () => {
+      toast.success("AI configuration saved");
+      queryClient.invalidateQueries({ queryKey: ["admin-config", "AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-config", "AI_MODELS", "PDF_EXTRACTION_CONFIG"] });
+      setLoaded(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const savedGoogleKey = ((configData?.config?.GOOGLE_AI_API_KEY as Record<string, unknown>)?.value ?? configData?.config?.GOOGLE_AI_API_KEY ?? "") as string;
+  const savedAnthropicKey = ((configData?.config?.ANTHROPIC_API_KEY as Record<string, unknown>)?.value ?? configData?.config?.ANTHROPIC_API_KEY ?? "") as string;
+  const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
+  const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
+  const isDirty = loaded && (googleKey !== savedGoogleKey || anthropicKey !== savedAnthropicKey || modelsJson !== savedModelsJson);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Sparkles className="h-4 w-4" /> AI Models &amp; API Keys
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          API keys and model definitions used by the Windows agent for AI vision (PDF extraction fallback) and by AI tagging operations.
+          Keys are stored in admin_config and sent to the Windows agent via heartbeat.
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Google AI API Key</Label>
+            <div className="relative">
+              <Input
+                type={showGoogle ? "text" : "password"}
+                value={googleKey}
+                onChange={(e) => setGoogleKey(e.target.value)}
+                placeholder="AIza…"
+                className="h-8 text-xs pr-8 font-mono"
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowGoogle((v) => !v)}
+              >
+                {showGoogle ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Anthropic API Key</Label>
+            <div className="relative">
+              <Input
+                type={showAnthropic ? "text" : "password"}
+                value={anthropicKey}
+                onChange={(e) => setAnthropicKey(e.target.value)}
+                placeholder="sk-ant-…"
+                className="h-8 text-xs pr-8 font-mono"
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowAnthropic((v) => !v)}
+              >
+                {showAnthropic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">AI Models (JSON array)</Label>
+          <Textarea
+            value={modelsJson}
+            onChange={(e) => handleModelsChange(e.target.value)}
+            placeholder={DEFAULT_MODELS_PLACEHOLDER}
+            className="font-mono text-xs min-h-[140px] resize-y"
+            spellCheck={false}
+          />
+          {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
+          <p className="text-xs text-muted-foreground">
+            Each model: <code className="text-[10px]">{"{ id, provider, apiModel, displayName, capabilities[] }"}</code>.
+            Capabilities: <code className="text-[10px]">vision</code>, <code className="text-[10px]">text</code>.
+          </p>
+        </div>
+
+        <Button
+          size="sm"
+          className="gap-1.5 h-8 text-xs"
+          onClick={() => save.mutate()}
+          disabled={save.isPending || !!jsonError || !isDirty}
+        >
+          <Save className="h-3.5 w-3.5" />
+          {save.isPending ? "Saving…" : "Save"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── AI Tagging Instructions Section ─────────────────────────────────
 
 const MAX_INSTRUCTIONS_LENGTH = 2000;

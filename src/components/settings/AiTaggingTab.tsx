@@ -8,7 +8,7 @@ import { OP_NAMES, getLane } from "./diagnostics/types";
 import { AiTaggingSection } from "./diagnostics/AiTaggingSection";
 import { ConflictDialog, type ConflictState } from "./diagnostics/ConflictDialog";
 import { QueueManagerDialog } from "./diagnostics/QueueManagerDialog";
-import { AiTaggingInstructionsSection, CharacterStatsSection } from "./ApisTab";
+import { AiTaggingInstructionsSection, CharacterStatsSection, AiModelsConfigSection } from "./ApisTab";
 
 export default function AiTaggingTab() {
   const { call } = useAdminApi();
@@ -78,6 +78,7 @@ export default function AiTaggingTab() {
       </div>
 
       <AiTaggingSection requestOp={requestOp} />
+      <AiModelsConfigSection />
       <AiTaggingInstructionsSection />
       <CharacterStatsSection />
 
