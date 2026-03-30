@@ -244,9 +244,26 @@ export default function PdfTextSamplesTab() {
     onError: (e) => toast.error(`Failed: ${(e as Error).message}`),
   });
 
+  const resetMutation = useMutation({
+    mutationFn: () => call("reset-pdf-text-sample"),
+    onSuccess: () => {
+      toast.success("PDF sample request reset");
+      queryClient.invalidateQueries({ queryKey: ["pdf-text-samples"] });
+    },
+    onError: (e) => toast.error(`Failed: ${(e as Error).message}`),
+  });
+
   const request = data?.request as Record<string, unknown> | null;
   const samples = (data?.samples ?? []) as PdfSample[];
   const isPending = request?.status === "pending";
+
+  // Detect stuck: pending for more than 10 minutes
+  const isStuck = (() => {
+    if (!isPending) return false;
+    const requestedAt = (request as Record<string, unknown>)?.requested_at as string | undefined;
+    if (!requestedAt) return true; // no timestamp = assume stuck
+    return Date.now() - new Date(requestedAt).getTime() > 10 * 60 * 1000;
+  })();
 
   const nativeText = samples.filter((s) => s.extraction_method === "pdf_text").length;
   const ocrText = samples.filter((s) => s.extraction_method === "ocr_text").length;
@@ -263,17 +280,30 @@ export default function PdfTextSamplesTab() {
               <FileText className="h-4 w-4" />
               PDF Text Extraction Sample
             </CardTitle>
-            <Button
-              size="sm"
-              onClick={() => triggerMutation.mutate()}
-              disabled={triggerMutation.isPending || isPending}
-            >
-              {triggerMutation.isPending || isPending ? (
-                <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Running…</>
-              ) : (
-                "Run Sample (25 PDFs)"
+            <div className="flex items-center gap-2">
+              {isPending && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => resetMutation.mutate()}
+                  disabled={resetMutation.isPending}
+                >
+                  {resetMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <XCircle className="mr-1.5 h-3.5 w-3.5" />}
+                  Force Reset
+                </Button>
               )}
-            </Button>
+              <Button
+                size="sm"
+                onClick={() => triggerMutation.mutate()}
+                disabled={triggerMutation.isPending || isPending}
+              >
+                {triggerMutation.isPending || isPending ? (
+                  <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Running…</>
+                ) : (
+                  "Run Sample (25 PDFs)"
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -281,10 +311,12 @@ export default function PdfTextSamplesTab() {
             Picks 25 random tech pack / licensing sheet PDFs and attempts text extraction via mupdf → OCR → AI vision cascade.
             Results show how each PDF is classified.
           </p>
-          {request?.status === "pending" && (
+          {isPending && (
             <div className="mt-3 flex items-center gap-2 text-sm text-amber-600">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Processing… (checks every 5s)
+              {isStuck
+                ? "Stuck — the Bridge Agent may not be running or doesn't support this operation. Click Force Reset to clear."
+                : "Processing… (checks every 5s)"}
             </div>
           )}
         </CardContent>

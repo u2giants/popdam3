@@ -1093,6 +1093,11 @@ serve(async (req: Request) => {
         return await handleTriggerPdfTextSample();
       case "get-pdf-text-samples":
         return await handleGetPdfTextSamples();
+      case "reset-pdf-text-sample": {
+        const db = serviceClient();
+        await db.from("admin_config").delete().eq("key", "PDF_TEXT_SAMPLE_REQUEST");
+        return json({ ok: true });
+      }
 
       default:
         return err(`Unknown action: ${action}`, 404);
