@@ -509,18 +509,12 @@ async function handleHeartbeat(
     delete cleanMeta.update_requested_by;
     delete cleanMeta.update_requested_at;
 
-    const clearOps = [
-      db.from("agent_registrations").update({ metadata: cleanMeta }).eq("id", agentId),
-    ];
+    await db.from("agent_registrations").update({ metadata: cleanMeta }).eq("id", agentId);
 
     // Clear WINDOWS_REPAIR_CODE from admin_config after delivery
     if (configMap.WINDOWS_REPAIR_CODE) {
-      clearOps.push(
-        db.from("admin_config").delete().eq("key", "WINDOWS_REPAIR_CODE"),
-      );
+      await db.from("admin_config").delete().eq("key", "WINDOWS_REPAIR_CODE");
     }
-
-    await Promise.all(clearOps);
   }
 
   return json(responsePayload);
