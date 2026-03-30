@@ -100,6 +100,7 @@ let cloudBatchSize: number | null = null;
 let cloudConcurrency: number | null = null;
 let cloudScanMinDate: string | null = null;
 let cloudStyleGuideRoots: string[] = [];
+let cloudAnthropicApiKey = "";
 
 // Auto-scan state
 let autoScanEnabled = false;
@@ -206,7 +207,7 @@ async function sendHeartbeat() {
       const assets = (response.commands.pdf_text_sample_assets as PdfSampleAsset[]) || [];
       isSamplingPdfText = true;
       logger.info("PDF text sample requested via heartbeat", { count: assets.length });
-      runPdfTextSample(assets, config.nasContainerMountRoot).finally(() => {
+      runPdfTextSample(assets, config.nasContainerMountRoot, cloudAnthropicApiKey || undefined).finally(() => {
         isSamplingPdfText = false;
       });
     }
@@ -271,6 +272,7 @@ interface CloudConfig {
   windows_healthy?: boolean;
   pending_render_jobs?: number;
   style_guide_scanning?: { roots: string[] };
+  ai?: { anthropic_api_key?: string };
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
@@ -338,6 +340,11 @@ function applyCloudConfig(cfg: CloudConfig) {
   // Update style guide scanning roots
   if (cfg.style_guide_scanning?.roots) {
     cloudStyleGuideRoots = cfg.style_guide_scanning.roots;
+  }
+
+  // Update Anthropic API key
+  if (cfg.ai?.anthropic_api_key) {
+    cloudAnthropicApiKey = cfg.ai.anthropic_api_key;
   }
 }
 

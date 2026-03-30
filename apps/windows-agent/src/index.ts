@@ -62,6 +62,7 @@ let cloudSpacesKey = config.doSpacesKey;
 let cloudSpacesSecret = config.doSpacesSecret;
 let cloudNasUsername = "";
 let cloudNasPassword = "";
+let cloudAnthropicApiKey = "";
 
 // ── Pairing ─────────────────────────────────────────────────────
 
@@ -240,6 +241,11 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
       spacesSecret: cloudSpacesSecret ? "(set)" : "(missing)",
     });
   }
+
+  // Update Anthropic API key
+  if (response.config?.ai?.anthropic_api_key) {
+    cloudAnthropicApiKey = response.config.ai.anthropic_api_key;
+  }
 }
 
 function startHeartbeat() {
@@ -263,7 +269,7 @@ function startHeartbeat() {
         const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
         isSamplingPdfText = true;
         logger.info("PDF text sample requested via heartbeat", { count: assets.length });
-        runPdfTextSample(assets, mountRoot).finally(() => {
+        runPdfTextSample(assets, mountRoot, cloudAnthropicApiKey || undefined).finally(() => {
           isSamplingPdfText = false;
         });
       }
