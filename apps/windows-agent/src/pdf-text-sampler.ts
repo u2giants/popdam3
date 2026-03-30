@@ -3,20 +3,19 @@ import { join } from "node:path";
 import { logger } from "./logger";
 import * as api from "./api-client";
 
-// pdf-parse is CJS-compatible
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string; numpages: number }>;
-
-// mupdf is pure ESM. TypeScript's "moduleResolution: node" can't resolve its exports
-// field, so we bypass static analysis with new Function to get a dynamic import.
+// pdf-parse and mupdf are only available after a full installer run, not OTA dist updates.
+// Load them lazily inside the function so a missing module never crashes startup.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dynamicImport = new Function("m", "return import(m)") as (m: string) => Promise<any>;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _mupdf: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getMupdf(): Promise<any> {
-  if (!_mupdf) _mupdf = await dynamicImport("mupdf");
-  return _mupdf;
+function tryRequire(mod: string): any | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require(mod);
+  } catch {
+    return null;
+  }
 }
 
 export interface PdfSampleAsset {
@@ -60,6 +59,8 @@ export async function runPdfTextSample(
       let numPages: number;
 
       try {
+        const pdfParse = tryRequire("pdf-parse") as ((buf: Buffer) => Promise<{ text: string; numpages: number }>) | null;
+        if (!pdfParse) throw new Error("pdf-parse not installed");
         const parsed = await Promise.race([
           pdfParse(buffer),
           new Promise<never>((_, reject) =>
@@ -73,7 +74,9 @@ export async function runPdfTextSample(
           filename: asset.filename,
           error: (primaryErr as Error).message,
         });
-        const mupdf = await getMupdf();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mupdf: any = await dynamicImport("mupdf").catch(() => null);
+        if (!mupdf) throw new Error("mupdf not installed");
         const doc = mupdf.Document.openDocument(buffer, "application/pdf");
         numPages = doc.countPages();
         const parts: string[] = [];
