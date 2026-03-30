@@ -30,7 +30,7 @@ export async function callApi(action: string, payload: Record<string, unknown> =
   return data;
 }
 
-// ── Public API ──────────────────────────────────────────────────
+// ── Public API ───────────────────────────────────────────────
 
 export async function register(agentName: string): Promise<string> {
   const data = await callApi("register", {
@@ -155,7 +155,7 @@ export async function updateAsset(
   await callApi("update-asset", { asset_id: assetId, ...fields });
 }
 
-// ── Pairing (unauthenticated — uses one-time pairing code) ─────────
+// ── Pairing (unauthenticated — uses one-time pairing code) ─────
 
 export async function pair(
   pairingCode: string,
@@ -247,7 +247,7 @@ export async function pair(
   return { agent_id: data.agent_id as string, agent_key: data.agent_key as string };
 }
 
-// ── Self-update API ────────────────────────────────────────────────
+// ── Self-update API ────────────────────────────────────
 
 export interface LatestBuildInfo {
   latest_version: string;
@@ -274,7 +274,7 @@ export async function reportUpdateStatus(payload: UpdateStatusPayload): Promise<
   await callApi("report-update-status", payload as unknown as Record<string, unknown>);
 }
 
-// ── Legacy bootstrap compat ────────────────────────────────────────
+// ── Legacy bootstrap compat ────────────────────────────
 
 export async function bootstrap(
   bootstrapToken: string,
