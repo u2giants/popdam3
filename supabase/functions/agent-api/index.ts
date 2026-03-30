@@ -2592,9 +2592,7 @@ async function handlePdfTextSampleProgress(
   const currentFile = optionalString(body, "current_file") ?? null;
   const currentStep = optionalString(body, "current_step") ?? null;
   const errorMsg = optionalString(body, "error") ?? null;
-  const fileResults = Array.isArray(body.file_results)
-    ? (body.file_results as unknown[]).slice(-25)
-    : [];
+  const fileResults = Array.isArray(body.file_results) ? (body.file_results as unknown[]).slice(-25) : [];
 
   const { data: reqRow, error: reqErr } = await db
     .from("admin_config")
