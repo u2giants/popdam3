@@ -33,6 +33,8 @@ import {
   handleStopScan,
   handleTriggerAgentUpdate,
   handleTriggerScan,
+  handleSetAgentCommand,
+  handleGenerateRepairCode,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
 import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_shared/admin-handlers/style-group-handlers.ts";
@@ -1077,6 +1079,10 @@ serve(async (req: Request) => {
         return await handleGetLatestAgentBuild(body);
       case "trigger-windows-update":
         return await handleTriggerWindowsUpdate(body, userId);
+      case "set-agent-command":
+        return await handleSetAgentCommand(body, userId);
+      case "generate-repair-code":
+        return await handleGenerateRepairCode(body, userId);
       case "trigger-style-guide-crawl":
         return await handleTriggerStyleGuideCrawl(userId);
       case "get-style-guide-crawl-status":

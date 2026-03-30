@@ -797,6 +797,103 @@ export async function handleRetryFailedRenders() {
   return json({ ok: true, requeued_count: data?.length ?? 0 });
 }
 
+// ── set-agent-command ───────────────────────────────────────────────
+// Delivers a one-shot command to a specific Windows agent via metadata.
+// Commands are delivered on the next heartbeat and auto-cleared.
+
+type AgentCommand = "force_restart" | "force_apply_update" | "force_stop_jobs";
+const VALID_COMMANDS: AgentCommand[] = ["force_restart", "force_apply_update", "force_stop_jobs"];
+
+export async function handleSetAgentCommand(
+  body: Record<string, unknown>,
+  userId: string,
+) {
+  const agentId = requireString(body, "agent_id");
+  const command = requireString(body, "command") as AgentCommand;
+
+  if (!VALID_COMMANDS.includes(command)) {
+    return err(`command must be one of: ${VALID_COMMANDS.join(", ")}`);
+  }
+
+  const db = serviceClient();
+  const { data: agent } = await db
+    .from("agent_registrations")
+    .select("metadata")
+    .eq("id", agentId)
+    .maybeSingle();
+
+  if (!agent) return err("Agent not found", 404);
+
+  const meta = (agent.metadata as Record<string, unknown>) || {};
+  await db
+    .from("agent_registrations")
+    .update({
+      metadata: {
+        ...meta,
+        [command]: true,
+        command_requested_by: userId,
+        command_requested_at: new Date().toISOString(),
+      },
+    })
+    .eq("id", agentId);
+
+  return json({ ok: true, command, queued_at: new Date().toISOString() });
+}
+
+// ── generate-repair-code ────────────────────────────────────────────
+// Generates a one-time pairing code and stores it in admin_config as
+// WINDOWS_REPAIR_CODE. The Windows agent will pick it up on the next
+// heartbeat and use it to re-pair without reinstalling.
+
+export async function handleGenerateRepairCode(
+  body: Record<string, unknown>,
+  userId: string,
+) {
+  const agentId = optionalString(body, "agent_id");
+  const db = serviceClient();
+
+  // Verify the agent exists if an ID was given
+  if (agentId) {
+    const { data: agent } = await db
+      .from("agent_registrations")
+      .select("id")
+      .eq("id", agentId)
+      .maybeSingle();
+    if (!agent) return err("Agent not found", 404);
+  }
+
+  // Generate a new pairing code and register it in agent_pairings
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let raw = "";
+  for (let i = 0; i < 16; i++) raw += chars[bytes[i] % chars.length];
+  const pairingCode = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}`;
+
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-min TTL
+
+  // Register pairing code
+  const { error: pairErr } = await db.from("agent_pairings").insert({
+    pairing_code: pairingCode,
+    agent_type: "windows-render",
+    agent_name: "windows-render-agent",
+    status: "pending",
+    created_by: userId,
+    expires_at: expiresAt.toISOString(),
+  });
+  if (pairErr) return err(pairErr.message, 500);
+
+  // Store as WINDOWS_REPAIR_CODE in admin_config — delivered via heartbeat
+  const { error: cfgErr } = await db.from("admin_config").upsert({
+    key: "WINDOWS_REPAIR_CODE",
+    value: pairingCode,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "key" });
+  if (cfgErr) return err(cfgErr.message, 500);
+
+  return json({ ok: true, expires_at: expiresAt.toISOString() });
+}
+
 // ── requeue-all-no-preview ──────────────────────────────────────────
 
 export async function handleRequeueAllNoPreview() {
