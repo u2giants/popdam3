@@ -14,6 +14,7 @@ import {
   handleDoctor,
   handleGenerateAgentKey,
   handleGenerateBootstrapToken,
+  handleGenerateRepairCode,
   handleGetFilterOptions,
   handleGetUpdateStatus,
   handleListAgents,
@@ -30,11 +31,10 @@ import {
   handleRetryFailedRenders,
   handleRevokeAgent,
   handleSendTestRender,
+  handleSetAgentCommand,
   handleStopScan,
   handleTriggerAgentUpdate,
   handleTriggerScan,
-  handleSetAgentCommand,
-  handleGenerateRepairCode,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
 import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_shared/admin-handlers/style-group-handlers.ts";
