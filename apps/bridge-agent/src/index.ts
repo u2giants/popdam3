@@ -25,7 +25,7 @@ import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { startRealtimeWatcher } from "./realtime-watcher.js";
 import { crawlStyleGuides } from "./style-guide-crawler.js";
-import { runPdfTextSample, type PdfSampleAsset } from "./pdf-text-sampler.js";
+import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -101,6 +101,9 @@ let cloudConcurrency: number | null = null;
 let cloudScanMinDate: string | null = null;
 let cloudStyleGuideRoots: string[] = [];
 let cloudAnthropicApiKey = "";
+let cloudGoogleAiApiKey = "";
+let cloudAiModels: AiModelDef[] = [];
+let cloudPdfExtractionConfig: { ai_vision_model_id: string } | null = null;
 
 // Auto-scan state
 let autoScanEnabled = false;
@@ -207,7 +210,12 @@ async function sendHeartbeat() {
       const assets = (response.commands.pdf_text_sample_assets as PdfSampleAsset[]) || [];
       isSamplingPdfText = true;
       logger.info("PDF text sample requested via heartbeat", { count: assets.length });
-      runPdfTextSample(assets, config.nasContainerMountRoot, cloudAnthropicApiKey || undefined).finally(() => {
+      runPdfTextSample(assets, config.nasContainerMountRoot, {
+        models: cloudAiModels,
+        pdf_extraction: cloudPdfExtractionConfig,
+        googleApiKey: cloudGoogleAiApiKey,
+        anthropicApiKey: cloudAnthropicApiKey,
+      }).finally(() => {
         isSamplingPdfText = false;
       });
     }
@@ -272,7 +280,12 @@ interface CloudConfig {
   windows_healthy?: boolean;
   pending_render_jobs?: number;
   style_guide_scanning?: { roots: string[] };
-  ai?: { anthropic_api_key?: string };
+  ai?: {
+    anthropic_api_key?: string;
+    google_ai_api_key?: string;
+    models?: Array<{ id: string; provider: string; apiModel: string; capabilities: string[] }>;
+    pdf_extraction?: { ai_vision_model_id?: string } | null;
+  };
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
@@ -342,9 +355,14 @@ function applyCloudConfig(cfg: CloudConfig) {
     cloudStyleGuideRoots = cfg.style_guide_scanning.roots;
   }
 
-  // Update Anthropic API key
-  if (cfg.ai?.anthropic_api_key) {
-    cloudAnthropicApiKey = cfg.ai.anthropic_api_key;
+  // Update AI config
+  if (cfg.ai) {
+    if (cfg.ai.anthropic_api_key) cloudAnthropicApiKey = cfg.ai.anthropic_api_key;
+    if (cfg.ai.google_ai_api_key) cloudGoogleAiApiKey = cfg.ai.google_ai_api_key;
+    if (Array.isArray(cfg.ai.models) && cfg.ai.models.length > 0) cloudAiModels = cfg.ai.models as AiModelDef[];
+    if (cfg.ai.pdf_extraction !== undefined) {
+      cloudPdfExtractionConfig = (cfg.ai.pdf_extraction as { ai_vision_model_id: string } | null) ?? null;
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@popdam/windows-agent",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "main": "dist/index.js",
   "scripts": {
@@ -14,7 +14,6 @@
     "dotenv": "^16.4.5",
     "@anthropic-ai/sdk": "^0.30.0",
     "mupdf": "^1.26.0",
-    "pdf-parse": "^1.1.1",
     "sharp": "^0.33.0",
     "tesseract.js": "^5.0.0"
   },

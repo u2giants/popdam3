@@ -27,7 +27,7 @@ import { shouldSkipPath, resetSkipWarnings } from "@popdam/path-filters";
 import { startJanitor } from "./janitor";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
-import { runPdfTextSample, type PdfSampleAsset } from "./pdf-text-sampler";
+import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -63,6 +63,9 @@ let cloudSpacesSecret = config.doSpacesSecret;
 let cloudNasUsername = "";
 let cloudNasPassword = "";
 let cloudAnthropicApiKey = "";
+let cloudGoogleAiApiKey = "";
+let cloudAiModels: AiModelDef[] = [];
+let cloudPdfExtractionConfig: { ai_vision_model_id: string } | null = null;
 
 // ── Pairing ─────────────────────────────────────────────────────
 
@@ -242,9 +245,15 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     });
   }
 
-  // Update Anthropic API key
-  if (response.config?.ai?.anthropic_api_key) {
-    cloudAnthropicApiKey = response.config.ai.anthropic_api_key;
+  // Update AI config
+  if (response.config?.ai) {
+    const ai = response.config.ai;
+    if (ai.anthropic_api_key) cloudAnthropicApiKey = ai.anthropic_api_key;
+    if (ai.google_ai_api_key) cloudGoogleAiApiKey = ai.google_ai_api_key;
+    if (Array.isArray(ai.models) && ai.models.length > 0) cloudAiModels = ai.models as AiModelDef[];
+    if (ai.pdf_extraction !== undefined) {
+      cloudPdfExtractionConfig = (ai.pdf_extraction as { ai_vision_model_id: string } | null) ?? null;
+    }
   }
 }
 
@@ -269,7 +278,12 @@ function startHeartbeat() {
         const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
         isSamplingPdfText = true;
         logger.info("PDF text sample requested via heartbeat", { count: assets.length });
-        runPdfTextSample(assets, mountRoot, cloudAnthropicApiKey || undefined).finally(() => {
+        runPdfTextSample(assets, mountRoot, {
+          models: cloudAiModels,
+          pdf_extraction: cloudPdfExtractionConfig,
+          googleApiKey: cloudGoogleAiApiKey,
+          anthropicApiKey: cloudAnthropicApiKey,
+        }).finally(() => {
           isSamplingPdfText = false;
         });
       }

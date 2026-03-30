@@ -1,7 +1,7 @@
 {
   "name": "popdam-bridge-agent",
 
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "PopDAM Bridge Agent — NAS filesystem scanner, thumbnail generator, and cloud sync worker",
   "type": "module",
   "main": "dist/index.js",
@@ -14,7 +14,6 @@
     "@aws-sdk/client-s3": "^3.600.0",
     "@anthropic-ai/sdk": "^0.30.0",
     "mupdf": "^1.26.0",
-    "pdf-parse": "^1.1.1",
     "tesseract.js": "^5.0.0",
     "@popdam/path-filters": "file:../../packages/path-filters",
     "@supabase/supabase-js": "^2.46.0",
