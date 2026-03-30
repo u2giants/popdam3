@@ -814,32 +814,179 @@ async function handleTriggerPdfTextSample() {
 async function handleGetPdfTextSamples() {
   const db = serviceClient();
 
-  // Get request status
-  const { data: configRow } = await db
-    .from("admin_config")
-    .select("value, updated_at")
-    .eq("key", "PDF_TEXT_SAMPLE_REQUEST")
-    .maybeSingle();
+  // Parallel: get request status, samples, and agent heartbeats
+  const [configResult, samplesResult, agentsResult, policyResult] = await Promise.all([
+    db.from("admin_config")
+      .select("value, updated_at")
+      .eq("key", "PDF_TEXT_SAMPLE_REQUEST")
+      .maybeSingle(),
+    (async () => {
+      try {
+        const { data, error } = await db
+          .from("pdf_text_samples")
+          .select("id,asset_id,filename,relative_path,extraction_method,extracted_text,page_count,char_count,extraction_error,sampled_at")
+          .order("sampled_at", { ascending: false })
+          .limit(25);
+        if (!error) return data ?? [];
+        console.warn("pdf_text_samples query failed (table may not exist):", error.message);
+        return [];
+      } catch (e) {
+        console.warn("pdf_text_samples query exception:", e);
+        return [];
+      }
+    })(),
+    db.from("agent_registrations")
+      .select("id, agent_name, agent_type, last_heartbeat, metadata"),
+    db.from("admin_config")
+      .select("value")
+      .eq("key", "WINDOWS_RENDER_POLICY")
+      .maybeSingle(),
+  ]);
 
-  // Get results — table may not exist yet (bridge agent creates it)
-  let samples: unknown[] = [];
-  try {
-    const { data, error } = await db
-      .from("pdf_text_samples")
-      .select("id,asset_id,filename,relative_path,extraction_method,extracted_text,page_count,char_count,extraction_error,sampled_at")
-      .order("sampled_at", { ascending: false })
-      .limit(25);
+  const samples = samplesResult;
+  const agents = agentsResult.data ?? [];
+  const now = Date.now();
+  const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 min
 
-    if (!error) samples = data ?? [];
-    else console.warn("pdf_text_samples query failed (table may not exist):", error.message);
-  } catch (e) {
-    console.warn("pdf_text_samples query exception:", e);
+  // Build agent status summary
+  const agentStatus = agents.map((a) => {
+    const lastHb = a.last_heartbeat ? new Date(a.last_heartbeat).getTime() : 0;
+    const secAgo = lastHb > 0 ? Math.round((now - lastHb) / 1000) : null;
+    const online = lastHb > 0 && (now - lastHb) < OFFLINE_THRESHOLD_MS;
+    const meta = (a.metadata as Record<string, unknown>) || {};
+    const health = meta.health as Record<string, unknown> | undefined;
+    const versionInfo = meta.version_info as Record<string, unknown> | undefined;
+    return {
+      id: a.id,
+      name: a.agent_name,
+      type: a.agent_type,
+      online,
+      last_heartbeat_seconds_ago: secAgo,
+      last_heartbeat: a.last_heartbeat,
+      healthy: health?.healthy ?? null,
+      version: versionInfo?.version ?? null,
+    };
+  });
+
+  // Determine which agent type should handle PDF samples
+  const policy = (policyResult.data?.value as Record<string, unknown> | null) || null;
+  const policyMode = (policy?.mode as string) || "primary";
+  const bridgeOnline = agentStatus.some((a) => a.type === "bridge" && a.online);
+  const windowsOnline = agentStatus.some((a) => a.type === "windows-render" && a.online);
+
+  let targetAgentType: string;
+  if (policyMode === "fallback_only") {
+    targetAgentType = "bridge";
+  } else if (policy?.require_windows_healthy === true && !windowsOnline) {
+    targetAgentType = "bridge";
+  } else {
+    targetAgentType = "windows-render";
+  }
+
+  const targetOnline = targetAgentType === "bridge" ? bridgeOnline : windowsOnline;
+
+  // ── Auto-timeout stuck requests ──
+  let request = configResult.data?.value as Record<string, unknown> | null;
+
+  if (request) {
+    const status = request.status as string;
+    const PENDING_TIMEOUT_MS = 3 * 60 * 1000;  // 3 min
+    const PROCESSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 min
+
+    if (status === "pending") {
+      const requestedAt = request.requested_at as string | undefined;
+      const elapsed = requestedAt ? now - new Date(requestedAt).getTime() : Infinity;
+
+      if (elapsed > PENDING_TIMEOUT_MS) {
+        // Build a specific reason
+        const reasons: string[] = [];
+        if (agents.length === 0) {
+          reasons.push("No agents registered at all.");
+        } else {
+          const targetAgents = agentStatus.filter((a) => a.type === targetAgentType);
+          if (targetAgents.length === 0) {
+            reasons.push(`No ${targetAgentType} agents registered. Policy mode: "${policyMode}".`);
+          } else {
+            for (const a of targetAgents) {
+              if (!a.online) {
+                const ago = a.last_heartbeat_seconds_ago !== null
+                  ? `last heartbeat ${Math.round(a.last_heartbeat_seconds_ago / 60)}m ago`
+                  : "never heartbeated";
+                reasons.push(`${a.name} (${a.type}) is OFFLINE — ${ago}.`);
+              }
+            }
+            if (reasons.length === 0) {
+              reasons.push(`${targetAgentType} agent is online but did not claim the request within 3 minutes. Check agent logs.`);
+            }
+          }
+        }
+
+        const errorMsg = `Auto-timeout: No agent claimed this request after 3 minutes. ${reasons.join(" ")}`;
+        const timedOut = {
+          ...request,
+          status: "error",
+          error: errorMsg,
+          timed_out_at: new Date().toISOString(),
+        };
+        await db.from("admin_config").upsert({
+          key: "PDF_TEXT_SAMPLE_REQUEST",
+          value: timedOut,
+          updated_at: new Date().toISOString(),
+        });
+        request = timedOut;
+      }
+    } else if (status === "processing") {
+      const progress = request.progress as Record<string, unknown> | undefined;
+      const lastProgressUpdate = progress?.updated_at as string | undefined;
+      const claimedAt = request.claimed_at as string | undefined;
+      const lastActivity = lastProgressUpdate || claimedAt;
+      const elapsed = lastActivity ? now - new Date(lastActivity).getTime() : Infinity;
+
+      if (elapsed > PROCESSING_TIMEOUT_MS) {
+        const claimedBy = request.claimed_by_agent_name as string || "unknown agent";
+        const processed = (progress?.processed as number) ?? 0;
+        const total = (progress?.total as number) ?? 0;
+        const currentFile = progress?.current_file as string || null;
+        const currentStep = progress?.current_step as string || null;
+
+        let detail = `Agent "${claimedBy}" stopped reporting progress after ${Math.round(elapsed / 60000)}m.`;
+        detail += ` Processed ${processed}/${total} PDFs.`;
+        if (currentFile) detail += ` Last file: "${currentFile}".`;
+        if (currentStep) detail += ` Last step: "${currentStep}".`;
+
+        // Check if claiming agent is still online
+        const claimingAgentId = request.claimed_by_agent_id as string | undefined;
+        const claimingAgent = agentStatus.find((a) => a.id === claimingAgentId);
+        if (claimingAgent && !claimingAgent.online) {
+          detail += ` Agent "${claimingAgent.name}" is now OFFLINE (last heartbeat ${claimingAgent.last_heartbeat_seconds_ago !== null ? Math.round(claimingAgent.last_heartbeat_seconds_ago / 60) + "m ago" : "never"}).`;
+        } else if (!claimingAgent) {
+          detail += ` Claiming agent (ID: ${claimingAgentId?.slice(0, 8)}…) not found in registrations.`;
+        }
+
+        const errorMsg = `Auto-timeout: ${detail}`;
+        const timedOut = {
+          ...request,
+          status: "error",
+          error: errorMsg,
+          timed_out_at: new Date().toISOString(),
+        };
+        await db.from("admin_config").upsert({
+          key: "PDF_TEXT_SAMPLE_REQUEST",
+          value: timedOut,
+          updated_at: new Date().toISOString(),
+        });
+        request = timedOut;
+      }
+    }
   }
 
   return json({
     ok: true,
-    request: configRow?.value ?? null,
+    request,
     samples,
+    agent_status: agentStatus,
+    target_agent_type: targetAgentType,
+    target_agent_online: targetOnline,
   });
 }
 
