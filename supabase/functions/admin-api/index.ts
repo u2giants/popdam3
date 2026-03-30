@@ -821,19 +821,25 @@ async function handleGetPdfTextSamples() {
     .eq("key", "PDF_TEXT_SAMPLE_REQUEST")
     .maybeSingle();
 
-  // Get results
-  const { data: samples, error } = await db
-    .from("pdf_text_samples")
-    .select("id,asset_id,filename,relative_path,extraction_method,extracted_text,page_count,char_count,extraction_error,sampled_at")
-    .order("sampled_at", { ascending: false })
-    .limit(25);
+  // Get results — table may not exist yet (bridge agent creates it)
+  let samples: unknown[] = [];
+  try {
+    const { data, error } = await db
+      .from("pdf_text_samples")
+      .select("id,asset_id,filename,relative_path,extraction_method,extracted_text,page_count,char_count,extraction_error,sampled_at")
+      .order("sampled_at", { ascending: false })
+      .limit(25);
 
-  if (error) return err(error.message, 500);
+    if (!error) samples = data ?? [];
+    else console.warn("pdf_text_samples query failed (table may not exist):", error.message);
+  } catch (e) {
+    console.warn("pdf_text_samples query exception:", e);
+  }
 
   return json({
     ok: true,
     request: configRow?.value ?? null,
-    samples: samples ?? [],
+    samples,
   });
 }
 
