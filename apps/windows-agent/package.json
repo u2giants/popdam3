@@ -1,6 +1,6 @@
 {
   "name": "@popdam/windows-agent",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "private": true,
   "main": "dist/index.js",
   "scripts": {
@@ -12,9 +12,11 @@
     "@aws-sdk/client-s3": "^3.600.0",
     "@popdam/path-filters": "file:../../packages/path-filters",
     "dotenv": "^16.4.5",
+    "@anthropic-ai/sdk": "^0.30.0",
     "mupdf": "^1.26.0",
     "pdf-parse": "^1.1.1",
-    "sharp": "^0.33.0"
+    "sharp": "^0.33.0",
+    "tesseract.js": "^5.0.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

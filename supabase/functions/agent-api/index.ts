@@ -103,6 +103,7 @@ const HEARTBEAT_CONFIG_KEYS = [
   "HYGIENE_SCAN_REQUEST",
   "STYLE_GUIDE_SCAN_ROOTS",
   "STYLE_GUIDE_CRAWL_REQUEST",
+  "ANTHROPIC_API_KEY",
 ];
 
 async function handleHeartbeat(
@@ -426,6 +427,9 @@ async function handleHeartbeat(
       style_guide_scanning: {
         roots: (configMap.STYLE_GUIDE_SCAN_ROOTS as string[]) || [],
       },
+      ai: {
+        anthropic_api_key: (configMap.ANTHROPIC_API_KEY as string) || "",
+      },
     },
     commands: {
       force_scan: forceScan,
@@ -443,10 +447,27 @@ async function handleHeartbeat(
         return crawlReq.status === "pending" || (crawlReq.status === "claimed" && crawlReq.claimed_by === agentId);
       })(),
       ...(() => {
-        // Deliver PDF text sample command if pending and agent is a windows-render
-        if (agentType !== "windows-render") return {};
+        // Deliver PDF text sample command based on Windows Render Policy.
+        // primary/shared (or no policy) → windows-render handles it
+        // fallback_only → bridge handles it
+        // If windows is required-healthy but unhealthy → fall back to bridge
         const sampleReq = configMap.PDF_TEXT_SAMPLE_REQUEST as Record<string, unknown> | undefined;
         if (!sampleReq || sampleReq.status !== "pending") return {};
+
+        const policy = (configMap.WINDOWS_RENDER_POLICY as Record<string, unknown> | null) || null;
+        const policyMode = (policy?.mode as string) || "primary";
+        const requireWindowsHealthy = policy?.require_windows_healthy === true;
+
+        let targetAgentType: string;
+        if (policyMode === "fallback_only") {
+          targetAgentType = "bridge";
+        } else if (requireWindowsHealthy && !windowsHealthy) {
+          targetAgentType = "bridge"; // windows should handle but is unhealthy
+        } else {
+          targetAgentType = "windows-render";
+        }
+
+        if (agentType !== targetAgentType) return {};
         return {
           trigger_pdf_text_sample: true,
           pdf_text_sample_assets: (sampleReq.assets as unknown[]) || [],

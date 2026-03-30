@@ -134,6 +134,7 @@ export interface HeartbeatResponse {
     windows_healthy?: boolean;
     pending_render_jobs?: number;
     style_guide_scanning?: { roots: string[] };
+    ai?: { anthropic_api_key?: string };
   };
   commands?: {
     force_scan: boolean;

@@ -59,6 +59,9 @@ export interface WindowsHeartbeatResponse {
       nas_mount_path?: string;
       render_concurrency?: number;
     };
+    ai?: {
+      anthropic_api_key?: string;
+    };
   };
   commands?: {
     trigger_update?: boolean;
