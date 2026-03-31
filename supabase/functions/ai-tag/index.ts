@@ -169,9 +169,7 @@ serve(async (req: Request) => {
     const extractedPdfText = pdfSample?.extracted_text ?? null;
 
     const erpCoverContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
-    const pdfTextContext = extractedPdfText
-      ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n`
-      : "";
+    const pdfTextContext = extractedPdfText ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n` : "";
 
     const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
 
@@ -332,7 +330,8 @@ ${
                         files_used: {
                           type: "array",
                           items: { type: "string" },
-                          description: "All entries from any 'Files Used' / 'Source Files' sections in the tech pack PDF text. Entries may or may not have file extensions. Deduplicated across all sections. Empty array if no such section exists.",
+                          description:
+                            "All entries from any 'Files Used' / 'Source Files' sections in the tech pack PDF text. Entries may or may not have file extensions. Deduplicated across all sections. Empty array if no such section exists.",
                         },
                       },
                       required: ["tags", "ai_description", "scene_description"],
