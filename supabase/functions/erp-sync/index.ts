@@ -72,12 +72,12 @@ serve(async (req: Request) => {
       }
     }
 
-    // Default endDate = today
-    if (!endDate) {
+    // For incremental syncs, default endDate = today. For full syncs, send no
+    // date params so the API returns its complete dataset without date filtering.
+    const syncMode = startDate ? "incremental" : "full";
+    if (syncMode === "incremental" && !endDate) {
       endDate = fmtDate(new Date());
     }
-
-    const syncMode = startDate ? "incremental" : "full";
     console.log(`erp-sync: mode=${syncMode}, startDate=${startDate ?? "none"}, endDate=${endDate}`);
 
     // ── Run lock ──────────────────────────────────────────────────────
