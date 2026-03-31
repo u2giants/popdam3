@@ -134,7 +134,31 @@ function ErpSyncSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Endpoint: <code className="text-xs bg-muted px-1 py-0.5 rounded">api.item.designflow.app</code></span>
+          {editingEndpoint ? (
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-xs shrink-0">Endpoint:</span>
+              <Input
+                value={endpointDraft}
+                onChange={(e) => setEndpointDraft(e.target.value)}
+                className="h-7 text-xs font-mono flex-1"
+                placeholder="https://..."
+              />
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { handleSaveEndpoint(); }} disabled={savingEndpoint}>
+                {savingEndpoint ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingEndpoint(false)}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <span
+              className="cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => { setEndpointDraft(displayEndpoint); setEditingEndpoint(true); }}
+              title="Click to edit endpoint"
+            >
+              Endpoint: <code className="text-xs bg-muted px-1 py-0.5 rounded">{new URL(displayEndpoint).host}</code>
+            </span>
+          )}
           {watermark && (
             <span className="flex items-center gap-1.5 text-xs">
               <Clock className="h-3 w-3" />
