@@ -158,7 +158,20 @@ serve(async (req: Request) => {
       erpDescription = erpItem?.item_description ?? null;
     }
 
+    // Fetch extracted PDF text (if this asset has a text sample)
+    const { data: pdfSample } = await db
+      .from("pdf_text_samples")
+      .select("extracted_text")
+      .eq("asset_id", asset.id)
+      .order("sampled_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const extractedPdfText = pdfSample?.extracted_text ?? null;
+
     const erpCoverContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
+    const pdfTextContext = extractedPdfText
+      ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n`
+      : "";
 
     const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
 
@@ -168,7 +181,7 @@ File: ${asset.filename}
 Path: ${asset.relative_path}
 Type: ${asset.file_type}
 Existing tags: ${(asset.tags || []).join(", ") || "none"}
-${erpCoverContext}
+${erpCoverContext}${pdfTextContext}
 Known taxonomy:
 ${taxonomyContext}
 
@@ -187,6 +200,7 @@ Based on the image and metadata, identify:
    - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
    - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
    - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
+11. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions — include them regardless. Return as files_used. If no such section exists, return an empty array.
 ${
       usingPriorityOnly
         ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
@@ -315,6 +329,11 @@ ${
                           type: "string",
                           description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
                         },
+                        files_used: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "All entries from any 'Files Used' / 'Source Files' sections in the tech pack PDF text. Entries may or may not have file extensions. Deduplicated across all sections. Empty array if no such section exists.",
+                        },
                       },
                       required: ["tags", "ai_description", "scene_description"],
                     },
@@ -382,6 +401,9 @@ ${
     if (tagData.designer_name) updates.designer_name = tagData.designer_name;
     if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
     if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
+    if (Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0) {
+      updates.files_used = tagData.files_used;
+    }
 
     let { error: updateErr } = await db
       .from("assets")
