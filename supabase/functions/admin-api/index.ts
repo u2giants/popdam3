@@ -42,6 +42,7 @@ import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_sh
 import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
 import { handleBulkPropagateGroupTags, handleCountGroupsForPropagation } from "../_shared/admin-handlers/tag-propagation-handlers.ts";
+import { handleBackfillPdfFilesUsed } from "../_shared/admin-handlers/pdf-files-handlers.ts";
 
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "../_shared/admin-handlers/erp-handlers.ts";
 
@@ -1246,6 +1247,8 @@ serve(async (req: Request) => {
         return await handleBrowseStyleGuideFiles(body);
       case "trigger-pdf-text-sample":
         return await handleTriggerPdfTextSample();
+      case "backfill-pdf-files-used":
+        return await handleBackfillPdfFilesUsed();
       case "get-pdf-text-samples":
         return await handleGetPdfTextSamples();
       case "reset-pdf-text-sample": {
