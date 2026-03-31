@@ -275,14 +275,24 @@ serve(async (req: Request) => {
           };
         });
 
+        // Deduplicate by external_id — API sometimes returns the same item twice,
+        // which causes Postgres to reject the entire batch with "ON CONFLICT DO UPDATE
+        // command cannot affect row a second time".
+        const seen = new Set<string>();
+        const dedupedRows = normalizedRows.filter((r) => {
+          if (seen.has(r.external_id)) return false;
+          seen.add(r.external_id);
+          return true;
+        });
+
         const { error: upsertErr } = await db.from("erp_items_current")
-          .upsert(normalizedRows, { onConflict: "external_id" });
+          .upsert(dedupedRows, { onConflict: "external_id" });
 
         if (upsertErr) {
-          totalErrors += batch.length;
+          totalErrors += dedupedRows.length;
           if (errorSamples.length < 5) errorSamples.push(upsertErr.message);
         } else {
-          totalUpserted += batch.length;
+          totalUpserted += dedupedRows.length;
         }
       } catch (e) {
         totalErrors += batch.length;
