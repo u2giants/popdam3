@@ -24,6 +24,8 @@ function ErpSyncSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState(false);
+  const [endpointDraft, setEndpointDraft] = useState("");
 
   const { data: syncRuns, isLoading: runsLoading, refetch: refetchRuns } = useQuery({
     queryKey: ["erp-sync-runs"],
@@ -43,6 +45,30 @@ function ErpSyncSection() {
   const watermark = typeof rawWatermark === "string"
     ? rawWatermark
     : rawWatermark?.value ?? rawWatermark ?? null;
+
+  // Read endpoint from config
+  const DEFAULT_ENDPOINT = "https://api.designflow.app/api/item_master/lib/getApiAllItems";
+  const rawEndpoint = configData?.config?.ERP_SYNC_ENDPOINT;
+  const currentEndpoint = typeof rawEndpoint === "string"
+    ? rawEndpoint
+    : rawEndpoint?.value ?? rawEndpoint ?? DEFAULT_ENDPOINT;
+  const endpointHost = (() => { try { return new URL(String(currentEndpoint)).host; } catch { return String(currentEndpoint); } })();
+
+  const handleSaveEndpoint = async () => {
+    const trimmed = endpointDraft.trim();
+    if (!trimmed || !trimmed.startsWith("http")) {
+      toast.error("Endpoint must be a valid URL starting with http");
+      return;
+    }
+    try {
+      await call("set-config", { key: "ERP_SYNC_ENDPOINT", value: trimmed });
+      toast.success("Endpoint updated");
+      setEditingEndpoint(false);
+      queryClient.invalidateQueries({ queryKey: ["erp-config"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
 
   const handleSync = async (fullSync = false) => {
     setSyncing(true);
