@@ -119,7 +119,7 @@ serve(async (req: Request) => {
       if (endDate) url.searchParams.set("endDate", endDate);
 
       console.log(`erp-sync: fetching ${url.toString()}`);
-      const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(45_000) });
+      const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(120_000) });
       if (!resp.ok) throw new Error(`ERP API returned ${resp.status}`);
       const responseText = await resp.text();
       console.log(`erp-sync: raw response length=${responseText.length}, first 200 chars: ${responseText.substring(0, 200)}`);
@@ -178,13 +178,12 @@ serve(async (req: Request) => {
 
     console.log(`erp-sync: fetched ${items.length} items`);
 
-    // Global dedup across the full response before batching.
-    // Cross-batch duplicates silently collapse to the same DB row via upsert,
-    // making the final count lower than expected. Dedup upfront for accuracy.
+    // Global dedup across full response — cross-batch duplicates silently
+    // collapse to the same DB row and undercount the final total.
     {
       const globalSeen = new Set<string>();
       items = items.filter((item: any) => {
-        const id = String((item as any).itemNum || (item as any).styleNumber || (item as any).itemCode || (item as any).id || "");
+        const id = String(item.itemNum || item.styleNumber || item.itemCode || item.id || "");
         if (!id || globalSeen.has(id)) return false;
         globalSeen.add(id);
         return true;
