@@ -78,7 +78,7 @@ serve(async (req: Request) => {
     if (syncMode === "incremental" && !endDate) {
       endDate = fmtDate(new Date());
     }
-    console.log(`erp-sync: mode=${syncMode}, startDate=${startDate ?? "none"}, endDate=${endDate}`);
+    console.log(`erp-sync: mode=${syncMode}, startDate=${startDate ?? "none"}, endDate=${endDate ?? "none"}`);
 
     // ── Run lock ──────────────────────────────────────────────────────
     const { data: runningRuns } = await db.from("erp_sync_runs")
@@ -177,6 +177,20 @@ serve(async (req: Request) => {
     }
 
     console.log(`erp-sync: fetched ${items.length} items`);
+
+    // Global dedup across the full response before batching.
+    // Cross-batch duplicates silently collapse to the same DB row via upsert,
+    // making the final count lower than expected. Dedup upfront for accuracy.
+    {
+      const globalSeen = new Set<string>();
+      items = items.filter((item: any) => {
+        const id = String((item as any).itemNum || (item as any).styleNumber || (item as any).itemCode || (item as any).id || "");
+        if (!id || globalSeen.has(id)) return false;
+        globalSeen.add(id);
+        return true;
+      });
+      console.log(`erp-sync: after global dedup: ${items.length} unique items`);
+    }
 
     let totalUpserted = 0;
     let totalErrors = 0;
