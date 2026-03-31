@@ -98,7 +98,7 @@ function ErpSyncSection() {
               <Database className="h-4 w-4" /> ERP Data Sync
             </CardTitle>
           </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-xs">Pulls product data from the ERP system (api.item.designflow.app) into the local erp_items_current table. Run incrementally to get new/changed items, or Full Sync to re-download everything.</TooltipContent>
+          <TooltipContent className="max-w-xs text-xs">Pulls product data from the ERP system into the local erp_items_current table. Click the endpoint to change the API URL. Run incrementally for new items, or Full Sync to re-download everything.</TooltipContent>
         </Tooltip>
         <div className="flex items-center gap-2">
           <Tooltip>
