@@ -99,10 +99,24 @@ serve(async (req: Request) => {
 
     console.log(`erp-sync: starting run ${runId}`);
 
+    // ── Resolve endpoint from admin_config ───────────────────────────
+    let erpEndpoint = DEFAULT_ERP_ENDPOINT;
+    try {
+      const { data: endpointRow } = await db.from("admin_config")
+        .select("value").eq("key", "ERP_SYNC_ENDPOINT").maybeSingle();
+      if (endpointRow?.value) {
+        const parsed = unwrapConfigString(endpointRow.value);
+        if (parsed?.startsWith("http")) {
+          erpEndpoint = parsed;
+          console.log(`erp-sync: using configured endpoint: ${erpEndpoint}`);
+        }
+      }
+    } catch { /* use default */ }
+
     // ── Fetch from ERP API ────────────────────────────────────────────
     let items: unknown[];
     try {
-      const url = new URL(ERP_ENDPOINT);
+      const url = new URL(erpEndpoint);
       if (startDate) url.searchParams.set("startDate", startDate);
       if (endDate) url.searchParams.set("endDate", endDate);
 
