@@ -24,13 +24,16 @@ function ErpSyncSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState(false);
+  const [endpointDraft, setEndpointDraft] = useState("");
+  const [savingEndpoint, setSavingEndpoint] = useState(false);
 
   const { data: syncRuns, isLoading: runsLoading, refetch: refetchRuns } = useQuery({
     queryKey: ["erp-sync-runs"],
     queryFn: () => call("erp-sync-runs"),
   });
 
-  const { data: configData } = useQuery({
+  const { data: configData, refetch: refetchConfig } = useQuery({
     queryKey: ["erp-config"],
     queryFn: () => call("get-config"),
   });
@@ -43,6 +46,13 @@ function ErpSyncSection() {
   const watermark = typeof rawWatermark === "string"
     ? rawWatermark
     : rawWatermark?.value ?? rawWatermark ?? null;
+
+  // Read endpoint from config
+  const rawEndpoint = configData?.config?.ERP_SYNC_ENDPOINT;
+  const currentEndpoint = typeof rawEndpoint === "string"
+    ? rawEndpoint
+    : rawEndpoint?.value ?? null;
+  const displayEndpoint = currentEndpoint || "https://api.designflow.app/api/item_master/lib/getApiAllItems";
 
   const handleSync = async (fullSync = false) => {
     setSyncing(true);
