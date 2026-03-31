@@ -24,13 +24,16 @@ function ErpSyncSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState(false);
+  const [endpointDraft, setEndpointDraft] = useState("");
+  const [savingEndpoint, setSavingEndpoint] = useState(false);
 
   const { data: syncRuns, isLoading: runsLoading, refetch: refetchRuns } = useQuery({
     queryKey: ["erp-sync-runs"],
     queryFn: () => call("erp-sync-runs"),
   });
 
-  const { data: configData } = useQuery({
+  const { data: configData, refetch: refetchConfig } = useQuery({
     queryKey: ["erp-config"],
     queryFn: () => call("get-config"),
   });
@@ -43,6 +46,32 @@ function ErpSyncSection() {
   const watermark = typeof rawWatermark === "string"
     ? rawWatermark
     : rawWatermark?.value ?? rawWatermark ?? null;
+
+  // Read endpoint from config
+  const rawEndpoint = configData?.config?.ERP_SYNC_ENDPOINT;
+  const currentEndpoint = typeof rawEndpoint === "string"
+    ? rawEndpoint
+    : rawEndpoint?.value ?? null;
+  const displayEndpoint = currentEndpoint || "https://api.designflow.app/api/item_master/lib/getApiAllItems";
+
+  const handleSaveEndpoint = async () => {
+    const trimmed = endpointDraft.trim();
+    if (!trimmed || !trimmed.startsWith("http")) {
+      toast.error("Endpoint must be a valid URL starting with http");
+      return;
+    }
+    setSavingEndpoint(true);
+    try {
+      await call("set-config", { entries: { ERP_SYNC_ENDPOINT: trimmed } });
+      toast.success("ERP endpoint updated");
+      setEditingEndpoint(false);
+      refetchConfig();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSavingEndpoint(false);
+    }
+  };
 
   const handleSync = async (fullSync = false) => {
     setSyncing(true);
@@ -72,7 +101,7 @@ function ErpSyncSection() {
               <Database className="h-4 w-4" /> ERP Data Sync
             </CardTitle>
           </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-xs">Pulls product data from the ERP system (api.item.designflow.app) into the local erp_items_current table. Run incrementally to get new/changed items, or Full Sync to re-download everything.</TooltipContent>
+          <TooltipContent className="max-w-xs text-xs">Pulls product data from the configured ERP endpoint into the local erp_items_current table. Run incrementally to get new/changed items, or Full Sync to re-download everything.</TooltipContent>
         </Tooltip>
         <div className="flex items-center gap-2">
           <Tooltip>
@@ -105,7 +134,31 @@ function ErpSyncSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Endpoint: <code className="text-xs bg-muted px-1 py-0.5 rounded">api.item.designflow.app</code></span>
+          {editingEndpoint ? (
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-xs shrink-0">Endpoint:</span>
+              <Input
+                value={endpointDraft}
+                onChange={(e) => setEndpointDraft(e.target.value)}
+                className="h-7 text-xs font-mono flex-1"
+                placeholder="https://..."
+              />
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { handleSaveEndpoint(); }} disabled={savingEndpoint}>
+                {savingEndpoint ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingEndpoint(false)}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : (
+            <span
+              className="cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => { setEndpointDraft(displayEndpoint); setEditingEndpoint(true); }}
+              title="Click to edit endpoint"
+            >
+              Endpoint: <code className="text-xs bg-muted px-1 py-0.5 rounded">{new URL(displayEndpoint).host}</code>
+            </span>
+          )}
           {watermark && (
             <span className="flex items-center gap-1.5 text-xs">
               <Clock className="h-3 w-3" />
