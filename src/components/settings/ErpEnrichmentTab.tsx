@@ -26,14 +26,13 @@ function ErpSyncSection() {
   const [syncing, setSyncing] = useState(false);
   const [editingEndpoint, setEditingEndpoint] = useState(false);
   const [endpointDraft, setEndpointDraft] = useState("");
-  const [savingEndpoint, setSavingEndpoint] = useState(false);
 
   const { data: syncRuns, isLoading: runsLoading, refetch: refetchRuns } = useQuery({
     queryKey: ["erp-sync-runs"],
     queryFn: () => call("erp-sync-runs"),
   });
 
-  const { data: configData, refetch: refetchConfig } = useQuery({
+  const { data: configData } = useQuery({
     queryKey: ["erp-config"],
     queryFn: () => call("get-config"),
   });
@@ -48,11 +47,12 @@ function ErpSyncSection() {
     : rawWatermark?.value ?? rawWatermark ?? null;
 
   // Read endpoint from config
+  const DEFAULT_ENDPOINT = "https://api.designflow.app/api/item_master/lib/getApiAllItems";
   const rawEndpoint = configData?.config?.ERP_SYNC_ENDPOINT;
   const currentEndpoint = typeof rawEndpoint === "string"
     ? rawEndpoint
-    : rawEndpoint?.value ?? null;
-  const displayEndpoint = currentEndpoint || "https://api.designflow.app/api/item_master/lib/getApiAllItems";
+    : rawEndpoint?.value ?? rawEndpoint ?? DEFAULT_ENDPOINT;
+  const endpointHost = (() => { try { return new URL(String(currentEndpoint)).host; } catch { return String(currentEndpoint); } })();
 
   const handleSaveEndpoint = async () => {
     const trimmed = endpointDraft.trim();
@@ -60,16 +60,13 @@ function ErpSyncSection() {
       toast.error("Endpoint must be a valid URL starting with http");
       return;
     }
-    setSavingEndpoint(true);
     try {
-      await call("set-config", { entries: { ERP_SYNC_ENDPOINT: trimmed } });
-      toast.success("ERP endpoint updated");
+      await call("set-config", { key: "ERP_SYNC_ENDPOINT", value: trimmed });
+      toast.success("Endpoint updated");
       setEditingEndpoint(false);
-      refetchConfig();
+      queryClient.invalidateQueries({ queryKey: ["erp-config"] });
     } catch (e) {
       toast.error((e as Error).message);
-    } finally {
-      setSavingEndpoint(false);
     }
   };
 
@@ -101,7 +98,7 @@ function ErpSyncSection() {
               <Database className="h-4 w-4" /> ERP Data Sync
             </CardTitle>
           </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-xs">Pulls product data from the configured ERP endpoint into the local erp_items_current table. Run incrementally to get new/changed items, or Full Sync to re-download everything.</TooltipContent>
+          <TooltipContent className="max-w-xs text-xs">Pulls product data from the ERP system into the local erp_items_current table. Click the endpoint to change the API URL. Run incrementally for new items, or Full Sync to re-download everything.</TooltipContent>
         </Tooltip>
         <div className="flex items-center gap-2">
           <Tooltip>
@@ -134,31 +131,28 @@ function ErpSyncSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          {editingEndpoint ? (
-            <div className="flex items-center gap-2 flex-1">
-              <span className="text-xs shrink-0">Endpoint:</span>
-              <Input
-                value={endpointDraft}
-                onChange={(e) => setEndpointDraft(e.target.value)}
-                className="h-7 text-xs font-mono flex-1"
-                placeholder="https://..."
-              />
-              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { handleSaveEndpoint(); }} disabled={savingEndpoint}>
-                {savingEndpoint ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              </Button>
-              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditingEndpoint(false)}>
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          ) : (
-            <span
-              className="cursor-pointer hover:text-foreground transition-colors"
-              onClick={() => { setEndpointDraft(displayEndpoint); setEditingEndpoint(true); }}
-              title="Click to edit endpoint"
-            >
-              Endpoint: <code className="text-xs bg-muted px-1 py-0.5 rounded">{new URL(displayEndpoint).host}</code>
-            </span>
-          )}
+          <span className="flex items-center gap-1.5">
+            Endpoint:{" "}
+            {editingEndpoint ? (
+              <span className="flex items-center gap-1">
+                <Input
+                  value={endpointDraft}
+                  onChange={(e) => setEndpointDraft(e.target.value)}
+                  className="h-6 text-xs w-[400px]"
+                  placeholder="https://..."
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveEndpoint()}
+                />
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleSaveEndpoint}><Check className="h-3 w-3" /></Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingEndpoint(false)}><X className="h-3 w-3" /></Button>
+              </span>
+            ) : (
+              <code
+                className="text-xs bg-muted px-1 py-0.5 rounded cursor-pointer hover:bg-muted/80"
+                onClick={() => { setEndpointDraft(String(currentEndpoint)); setEditingEndpoint(true); }}
+                title="Click to edit"
+              >{endpointHost}</code>
+            )}
+          </span>
           {watermark && (
             <span className="flex items-center gap-1.5 text-xs">
               <Clock className="h-3 w-3" />

@@ -4,7 +4,6 @@ import { corsHeaders, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
 
 const DEFAULT_ERP_ENDPOINT = "https://api.designflow.app/api/item_master/lib/getApiAllItems";
-const ERP_ENDPOINT_KEY = "ERP_SYNC_ENDPOINT";
 const BATCH_SIZE = 100;
 const WATERMARK_KEY = "ERP_LAST_SYNC_DATE";
 const DEFAULT_CATEGORY_CUTOFF = "2025-05-10";
@@ -100,14 +99,14 @@ serve(async (req: Request) => {
 
     console.log(`erp-sync: starting run ${runId}`);
 
-    // ── Resolve ERP endpoint from admin_config ──────────────────────
+    // ── Resolve endpoint from admin_config ───────────────────────────
     let erpEndpoint = DEFAULT_ERP_ENDPOINT;
     try {
       const { data: endpointRow } = await db.from("admin_config")
-        .select("value").eq("key", ERP_ENDPOINT_KEY).maybeSingle();
+        .select("value").eq("key", "ERP_SYNC_ENDPOINT").maybeSingle();
       if (endpointRow?.value) {
         const parsed = unwrapConfigString(endpointRow.value);
-        if (parsed && parsed.startsWith("http")) {
+        if (parsed?.startsWith("http")) {
           erpEndpoint = parsed;
           console.log(`erp-sync: using configured endpoint: ${erpEndpoint}`);
         }
