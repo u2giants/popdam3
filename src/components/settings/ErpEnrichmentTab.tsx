@@ -54,6 +54,25 @@ function ErpSyncSection() {
     : rawEndpoint?.value ?? null;
   const displayEndpoint = currentEndpoint || "https://api.designflow.app/api/item_master/lib/getApiAllItems";
 
+  const handleSaveEndpoint = async () => {
+    const trimmed = endpointDraft.trim();
+    if (!trimmed || !trimmed.startsWith("http")) {
+      toast.error("Endpoint must be a valid URL starting with http");
+      return;
+    }
+    setSavingEndpoint(true);
+    try {
+      await call("set-config", { entries: { ERP_SYNC_ENDPOINT: trimmed } });
+      toast.success("ERP endpoint updated");
+      setEditingEndpoint(false);
+      refetchConfig();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSavingEndpoint(false);
+    }
+  };
+
   const handleSync = async (fullSync = false) => {
     setSyncing(true);
     try {
