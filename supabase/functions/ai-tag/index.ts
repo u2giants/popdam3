@@ -56,7 +56,7 @@ serve(async (req: Request) => {
 
     const thumbnailUrl = body.thumbnail_url || asset.thumbnail_url;
     if (!thumbnailUrl) {
-      return err("Asset has no thumbnail_url — cannot analyze without an image");
+      return err("Asset has no thumbnail_url \u2014 cannot analyze without an image");
     }
 
     // Fetch custom tagging instructions
@@ -127,7 +127,7 @@ serve(async (req: Request) => {
         }
       }
     } else {
-      // No licensor known — priority chars globally
+      // No licensor known \u2014 priority chars globally
       const { data: priorityChars } = await db
         .from("characters")
         .select("id, name")
@@ -158,7 +158,20 @@ serve(async (req: Request) => {
       erpDescription = erpItem?.item_description ?? null;
     }
 
+    // Fetch extracted PDF text (if this asset has a text sample)
+    const { data: pdfSample } = await db
+      .from("pdf_text_samples")
+      .select("extracted_text")
+      .eq("asset_id", asset.id)
+      .order("sampled_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const extractedPdfText = pdfSample?.extracted_text ?? null;
+
     const erpCoverContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
+    const pdfTextContext = extractedPdfText
+      ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n`
+      : "";
 
     const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
 
@@ -168,7 +181,7 @@ File: ${asset.filename}
 Path: ${asset.relative_path}
 Type: ${asset.file_type}
 Existing tags: ${(asset.tags || []).join(", ") || "none"}
-${erpCoverContext}
+${erpCoverContext}${pdfTextContext}
 Known taxonomy:
 ${taxonomyContext}
 
@@ -182,11 +195,12 @@ Based on the image and metadata, identify:
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
 9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
-10. Cover description rule — **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
-   - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field — the image often shows artwork/art assets, NOT the actual product.
+10. Cover description rule \u2014 **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
+   - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field \u2014 the image often shows artwork/art assets, NOT the actual product.
    - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
    - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
    - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
+11. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions \u2014 include them regardless. Return as files_used. If no such section exists, return an empty array.
 ${
       usingPriorityOnly
         ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
@@ -264,7 +278,7 @@ ${
                         cover_description: {
                           type: "string",
                           description:
-                            "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
+                            "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY \u2014 do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
                         },
                         scene_description: {
                           type: "string",
@@ -315,6 +329,11 @@ ${
                           type: "string",
                           description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
                         },
+                        files_used: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "All entries from any 'Files Used' / 'Source Files' sections in the tech pack PDF text. Entries may or may not have file extensions. Deduplicated across all sections. Empty array if no such section exists.",
+                        },
                       },
                       required: ["tags", "ai_description", "scene_description"],
                     },
@@ -360,7 +379,7 @@ ${
 
     const tagData = functionCall.args as Record<string, unknown>;
 
-    // UUID validation helper — AI models sometimes return "null", descriptive text, or malformed strings
+    // UUID validation helper \u2014 AI models sometimes return "null", descriptive text, or malformed strings
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const isValidUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
@@ -382,6 +401,9 @@ ${
     if (tagData.designer_name) updates.designer_name = tagData.designer_name;
     if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
     if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
+    if (Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0) {
+      updates.files_used = tagData.files_used;
+    }
 
     let { error: updateErr } = await db
       .from("assets")
