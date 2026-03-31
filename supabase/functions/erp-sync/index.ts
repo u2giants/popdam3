@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
 
-const ERP_ENDPOINT = "https://api.designflow.app/api/item_master/lib/getApiAllItems";
+const DEFAULT_ERP_ENDPOINT = "https://api.designflow.app/api/item_master/lib/getApiAllItems";
+const ERP_ENDPOINT_KEY = "ERP_SYNC_ENDPOINT";
 const BATCH_SIZE = 100;
 const WATERMARK_KEY = "ERP_LAST_SYNC_DATE";
 const DEFAULT_CATEGORY_CUTOFF = "2025-05-10";
