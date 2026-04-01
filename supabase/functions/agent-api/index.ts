@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
-import { isExcludedRelativePath } from "../_shared/path-filters.ts";
+import { isExcludedRelativePath, JUNK_FILENAMES } from "../_shared/path-filters.ts";
 import { corsHeaders, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
@@ -100,8 +100,6 @@ const HEARTBEAT_CONFIG_KEYS = [
   "SCAN_MIN_DATE",
   "WINDOWS_RENDER_MODE",
   "WINDOWS_RENDER_POLICY",
-  "TIFF_SCAN_REQUEST",
-  "HYGIENE_SCAN_REQUEST",
   "STYLE_GUIDE_SCAN_ROOTS",
   "STYLE_GUIDE_CRAWL_REQUEST",
   "ANTHROPIC_API_KEY",
@@ -653,7 +651,6 @@ async function handleIngest(
   const filename = requireString(body, "filename");
 
   // ── Junk-file guard: skip system/temp files before any DB work ──
-  const JUNK_FILENAMES = new Set([".DS_Store", ".localized", "Thumbs.db", "desktop.ini"]);
   if (
     filename.startsWith("._") ||
     filename.startsWith("~") ||
@@ -1202,7 +1199,6 @@ async function handleClaimRender(body: Record<string, unknown>) {
 
   const LEASE_DURATION_MINUTES = 5;
   const MAX_ATTEMPTS = 5;
-  const now = new Date().toISOString();
 
   // Use raw SQL via rpc for FOR UPDATE SKIP LOCKED — not available in PostgREST
   // Select pending jobs OR expired-lease claimed jobs, atomically claim them
@@ -1300,7 +1296,7 @@ async function handleCompleteRender(body: Record<string, unknown>) {
       if (groupAssets && groupAssets.length > 0) {
         const primaryId = selectPrimaryAsset(groupAssets);
         if (primaryId) {
-          const primaryAsset = groupAssets.find((ga) => ga.id === primaryId);
+        const primaryAsset = groupAssets.find((ga: typeof groupAssets[number]) => ga.id === primaryId);
           await db
             .from("style_groups")
             .update({
@@ -1812,7 +1808,7 @@ async function handlePair(body: Record<string, unknown>) {
   });
 }
 
-// ── Route: bootstrap (legacy compat — delegates to pair) ─────────────
+// ── Route: bootstrap (Windows agents use pairing_code instead) ─────────
 
 async function handleBootstrap(body: Record<string, unknown>) {
   // Legacy Windows agents send bootstrap_token — map to pairing_code
@@ -2639,7 +2635,7 @@ async function handlePdfTextSampleProgress(
   return json({ ok: true });
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

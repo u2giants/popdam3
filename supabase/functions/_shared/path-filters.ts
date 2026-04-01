@@ -7,6 +7,14 @@
  * See packages/path-filters/index.ts for the canonical version.
  */
 
+// Junk filenames (system/temp files to skip at scan time)
+export const JUNK_FILENAMES = new Set([
+  ".DS_Store",
+  ".localized",
+  "Thumbs.db",
+  "desktop.ini",
+]);
+
 const BLOCKLIST = new Set([
   "system volume information",
   "recycler",
