@@ -1,3 +1,22 @@
+// ── Shared constants ─────────────────────────────────────────────────
+const DEFAULT_BATCH_SIZE = 100;
+const MAX_CLAIM_BATCH = 5;
+const LEASE_DURATION_MINUTES = 5;
+const MAX_RENDER_ATTEMPTS = 5;
+const REQUEST_AGE_MS = 5 * 60 * 1000; // 5 minutes
+const WINDOWS_OFFLINE_MS = 5 * 60 * 1000; // 5 minutes
+const COUNTER_HISTORY_LIMIT = 60;
+const ADAPTIVE_IDLE_SECONDS = 30;
+const ADAPTIVE_ACTIVE_SECONDS = 5;
+const CHECK_CHANGED_MAX_BATCH = 500;
+const TIFF_CHUNK_SIZE = 200;
+const HYGIENE_CHUNK_SIZE = 100;
+const TIFF_REINSPECT_MIN_BATCH = 1;
+const TIFF_REINSPECT_MAX_BATCH = 200;
+const TIFF_REINSPECT_DEFAULT_BATCH = 50;
+const LOG_TAIL_LINES = 50;
+const PDF_TEXT_SAMPLE_PROGRESS_LIMIT = 25;
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
@@ -122,7 +141,7 @@ async function handleHeartbeat(
   const health = body.health as Record<string, unknown> | undefined;
   const versionInfo = body.version_info as Record<string, unknown> | undefined;
   const diagnostics = body.diagnostics as Record<string, unknown> | undefined;
-  const logTail = Array.isArray(body.log_tail) ? (body.log_tail as string[]).slice(-50) : undefined;
+  const logTail = Array.isArray(body.log_tail) ? (body.log_tail as string[]).slice(-LOG_TAIL_LINES) : undefined;
   const db = serviceClient();
 
   // ── Fetch agent metadata (needed for update) ──
@@ -137,7 +156,7 @@ async function handleHeartbeat(
   // Append to counter history (keep last 60)
   const history = Array.isArray(metadata.counter_history) ? (metadata.counter_history as unknown[]) : [];
   history.push({ ts: new Date().toISOString(), ...counters });
-  if (history.length > 60) history.splice(0, history.length - 60);
+  if (history.length > COUNTER_HISTORY_LIMIT) history.splice(0, history.length - COUNTER_HISTORY_LIMIT);
 
   const newMetadata = {
     ...metadata,
@@ -370,7 +389,7 @@ async function handleHeartbeat(
 
   if (updateRequest && updateRequest.requested_at) {
     const requestAge = Date.now() - new Date(updateRequest.requested_at as string).getTime();
-    if (requestAge < 5 * 60 * 1000) {
+    if (requestAge < REQUEST_AGE_MS) {
       checkUpdate = updateRequest.action === "check";
       applyUpdate = updateRequest.action === "apply";
 
@@ -383,9 +402,8 @@ async function handleHeartbeat(
   const windowsAgents = windowsAgentsResult.data || [];
   let windowsHealthy = false;
   if (windowsAgents.length > 0) {
-    const WINDOWS_OFFLINE_MS = 5 * 60 * 1000;
-    windowsHealthy = windowsAgents.some((wa) => {
-      const lastHb = wa.last_heartbeat ? new Date(wa.last_heartbeat).getTime() : 0;
+    windowsHealthy = windowsAgents.some((wa: Record<string, unknown>) => {
+      const lastHb = wa.last_heartbeat ? new Date(wa.last_heartbeat as string).getTime() : 0;
       if (lastHb === 0 || now.getTime() - lastHb > WINDOWS_OFFLINE_MS) return false;
       const wMeta = (wa.metadata as Record<string, unknown>) || {};
       const wHealth = wMeta.health as Record<string, unknown> | undefined;
@@ -460,12 +478,12 @@ async function handleHeartbeat(
       scanning: {
         container_mount_root: (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
         roots: scanRoots,
-        batch_size: (guard.batch_size as number) || pollingConfig.batch_size || 100,
+        batch_size: (guard.batch_size as number) || pollingConfig.batch_size || DEFAULT_BATCH_SIZE,
         scan_min_date: (configMap.SCAN_MIN_DATE as string) || null,
         allowed_subfolders: (configMap.SCAN_ALLOWED_SUBFOLDERS as string[]) || [],
         adaptive_polling: {
-          idle_seconds: pollingConfig.idle_seconds ?? 30,
-          active_seconds: pollingConfig.active_seconds ?? 5,
+          idle_seconds: pollingConfig.idle_seconds ?? ADAPTIVE_IDLE_SECONDS,
+          active_seconds: pollingConfig.active_seconds ?? ADAPTIVE_ACTIVE_SECONDS,
         },
       },
       resource_guard: resourceDirectives,
@@ -1194,11 +1212,8 @@ async function handleQueueRender(body: Record<string, unknown>) {
 
 async function handleClaimRender(body: Record<string, unknown>) {
   const agentId = requireString(body, "agent_id");
-  const batchSize = Math.min((body.batch_size as number) || 1, 5);
+  const batchSize = Math.min((body.batch_size as number) || 1, MAX_CLAIM_BATCH);
   const db = serviceClient();
-
-  const LEASE_DURATION_MINUTES = 5;
-  const MAX_ATTEMPTS = 5;
 
   // Use raw SQL via rpc for FOR UPDATE SKIP LOCKED — not available in PostgREST
   // Select pending jobs OR expired-lease claimed jobs, atomically claim them
@@ -1206,7 +1221,7 @@ async function handleClaimRender(body: Record<string, unknown>) {
     p_agent_id: agentId,
     p_batch_size: batchSize,
     p_lease_minutes: LEASE_DURATION_MINUTES,
-    p_max_attempts: MAX_ATTEMPTS,
+    p_max_attempts: MAX_RENDER_ATTEMPTS,
   });
 
   if (claimErr || !claimedJobs || claimedJobs.length === 0) {
@@ -1252,8 +1267,6 @@ async function handleCompleteRender(body: Record<string, unknown>) {
   const errorMsg = optionalString(body, "error");
 
   const db = serviceClient();
-
-  const MAX_RENDER_ATTEMPTS = 5;
 
   const { data: job } = await db
     .from("render_queue")
@@ -1982,7 +1995,7 @@ async function handleClaimTiffJob(body: Record<string, unknown>, agentId: string
 
 async function handleClaimTiffReinspect(body: Record<string, unknown>, agentId: string) {
   const db = serviceClient();
-  const batchSize = typeof body.batch_size === "number" ? Math.min(Math.max(body.batch_size, 1), 200) : 50;
+    const batchSize = typeof body.batch_size === "number" ? Math.min(Math.max(body.batch_size, TIFF_REINSPECT_MIN_BATCH), TIFF_REINSPECT_MAX_BATCH) : TIFF_REINSPECT_DEFAULT_BATCH;
 
   const { data: row, error: reqErr } = await db
     .from("admin_config")
@@ -2588,7 +2601,7 @@ async function handlePdfTextSampleProgress(
   const currentFile = optionalString(body, "current_file") ?? null;
   const currentStep = optionalString(body, "current_step") ?? null;
   const errorMsg = optionalString(body, "error") ?? null;
-  const fileResults = Array.isArray(body.file_results) ? (body.file_results as unknown[]).slice(-25) : [];
+  const fileResults = Array.isArray(body.file_results) ? (body.file_results as unknown[]).slice(-PDF_TEXT_SAMPLE_PROGRESS_LIMIT) : [];
 
   const { data: reqRow, error: reqErr } = await db
     .from("admin_config")

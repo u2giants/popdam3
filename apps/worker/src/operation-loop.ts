@@ -275,12 +275,14 @@ export async function tick(): Promise<void> {
     return;
   }
 
-  if (!opState.run_id) {
-    opState.run_id = Math.random().toString(36).slice(2);
+  // Create a mutable copy of opState to avoid mutating the original
+  let currentState = { ...opState };
+  if (!currentState.run_id) {
+    currentState = { ...currentState, run_id: Math.random().toString(36).slice(2) };
   }
 
-  let cursor = opState.cursor ?? 0;
-  let progress = { ...(opState.progress ?? {}) };
+  let cursor = currentState.cursor ?? 0;
+  let progress = { ...(currentState.progress ?? {}) };
   let batchCount = 0;
 
   logger.info("tick: processing op", { opKey, cursor, run_id: opState.run_id });
@@ -303,12 +305,12 @@ export async function tick(): Promise<void> {
 
     let result: BatchResult;
     try {
-      result = await dispatch(opKey, { ...opState, cursor, progress });
+      result = await dispatch(opKey, { ...currentState, cursor, progress });
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       logger.error("tick: dispatch threw", { opKey, error: errMsg });
       await persistOpState(opKey, {
-        ...opState,
+        ...currentState,
         cursor,
         progress,
         status: "interrupted",
@@ -325,7 +327,7 @@ export async function tick(): Promise<void> {
     if (!result.ok) {
       logger.error("tick: batch failed", { opKey, error: result.error, batchCount });
       await persistOpState(opKey, {
-        ...opState,
+        ...currentState,
         cursor,
         progress,
         status: "interrupted",
@@ -345,7 +347,7 @@ export async function tick(): Promise<void> {
 
     // Save progress after every batch
     await persistOpState(opKey, {
-      ...opState,
+      ...currentState,
       cursor,
       progress,
       status: "running",
@@ -355,7 +357,7 @@ export async function tick(): Promise<void> {
     if (result.done) {
       logger.info("tick: op completed", { opKey, batches: batchCount, progress });
       await persistOpState(opKey, {
-        ...opState,
+        ...currentState,
         cursor,
         progress,
         status: "completed",

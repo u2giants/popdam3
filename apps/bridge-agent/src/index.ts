@@ -365,6 +365,69 @@ function applyCloudConfig(cfg: CloudConfig) {
     }
   }
 }
+// ── Render Decision Logic ─────────────────────────────────────────
+
+/**
+ * Determines whether a file should be deferred to the Windows Render Agent
+ * instead of being processed locally.
+ * 
+ * @param file - The file candidate to evaluate
+ * @param quickHash - Pre-computed quick hash for deterministic decisions
+ * @param effectiveMode - The effective render mode (from policy or legacy setting)
+ * @param policy - The Windows render policy (if set)
+ * @param windowsHealthy - Whether the Windows agent is healthy
+ * @param pendingJobs - Current pending render job count
+ * @returns Object with defer decision and reason
+ */
+function shouldDeferToWindows(
+  file: FileCandidate,
+  quickHash: string,
+  effectiveMode: "fallback_only" | "primary" | "shared" | undefined,
+  policy: WindowsRenderPolicy | null,
+  windowsHealthy: boolean,
+  pendingJobs: number,
+): { defer: boolean; reason: string | null } {
+  // "primary" mode: always defer
+  if (effectiveMode === "primary") {
+    return { defer: true, reason: "primary_mode" };
+  }
+
+  // "fallback_only" mode: never defer proactively
+  if (effectiveMode === "fallback_only") {
+    return { defer: false, reason: null };
+  }
+
+  // "shared" mode: apply policy rules
+  if (effectiveMode === "shared" && policy) {
+    // File type must be eligible
+    if (!policy.shared_types.includes(file.fileType)) {
+      return { defer: false, reason: "type_not_eligible" };
+    }
+
+    // Health guard: if require_windows_healthy, check the flag
+    if (policy.require_windows_healthy && !windowsHealthy) {
+      return { defer: false, reason: "windows_unhealthy" };
+    }
+
+    // Queue depth guard
+    if (pendingJobs >= policy.max_pending_jobs) {
+      return { defer: false, reason: "queue_full" };
+    }
+
+    // Offload decision: file_size >= shared_min_mb OR hash-deterministic percent
+    const meetsMinSize = policy.shared_min_mb > 0 && file.fileSize >= policy.shared_min_mb * 1024 * 1024;
+    
+    // Deterministic: use quick_hash so re-scans produce same decision
+    const hashNum = parseInt(quickHash.slice(0, 8), 16);
+    const meetsPercent = (hashNum % 100) < policy.shared_percent;
+
+    if (meetsMinSize || meetsPercent) {
+      return { defer: true, reason: "shared_offload" };
+    }
+  }
+
+  return { defer: false, reason: null };
+}
 
 // ── Thumbnail pipeline (bounded concurrency) ────────────────────
 
@@ -704,40 +767,17 @@ async function processFile(file: FileCandidate) {
     const policy = windowsRenderPolicy;
 
     // ── Step 2a: Determine if we should defer to Windows BEFORE local thumbnailing ──
-    const shouldDeferToWindows = (() => {
-      if (effectiveMode === "primary") return true;
-      if (effectiveMode === "fallback_only") return false;
-
-      // "shared" mode
-      if (effectiveMode === "shared" && policy) {
-        // File type must be eligible
-        if (!policy.shared_types.includes(file.fileType)) return false;
-
-        // Health guard: if require_windows_healthy, check the flag
-        if (policy.require_windows_healthy && !windowsAgentHealthy) {
-          logger.debug("Shared mode: Windows unhealthy, doing local", { file: file.relativePath });
-          return false;
-        }
-
-        // Queue depth guard
-        if (pendingRenderJobs >= policy.max_pending_jobs) {
-          logger.debug("Shared mode: render queue full, doing local", { pending: pendingRenderJobs, max: policy.max_pending_jobs });
-          return false;
-        }
-
-        // Offload decision: file_size >= shared_min_mb OR hash-deterministic percent
-        const meetsMinSize = policy.shared_min_mb > 0 && file.fileSize >= policy.shared_min_mb * 1024 * 1024;
-        // Deterministic: use quick_hash so re-scans produce same decision
-        const hashNum = parseInt(quick_hash.slice(0, 8), 16);
-        const meetsPercent = (hashNum % 100) < policy.shared_percent;
-
-        return meetsMinSize || meetsPercent;
-      }
-      return false;
-    })();
+    const deferDecision = shouldDeferToWindows(
+      file,
+      quick_hash,
+      effectiveMode,
+      policy,
+      windowsAgentHealthy,
+      pendingRenderJobs,
+    );
 
     // ── Step 2b: Either defer or attempt local thumbnail ──
-    if (shouldDeferToWindows) {
+    if (deferDecision.defer) {
       thumb = { thumbnailError: "deferred_to_windows_agent" };
     } else {
       const tempId = randomUUID();
@@ -788,8 +828,8 @@ async function processFile(file: FileCandidate) {
 
     const queueReason = (() => {
       // A) Deferred (primary or shared offload) — queue after successful ingest
-      if (shouldDeferToWindows && isNewOrChanged) {
-        return effectiveMode === "primary" ? "primary_mode" : "shared_offload";
+      if (deferDecision.defer && isNewOrChanged) {
+        return deferDecision.reason;
       }
 
       // B) Local thumbnail failed — evaluate fallback options
@@ -810,7 +850,7 @@ async function processFile(file: FileCandidate) {
     if (queueReason) {
       try {
         await api.queueRender(result.asset_id, queueReason);
-        if (shouldDeferToWindows) pendingRenderJobs++; // local estimate for queue depth guard
+        if (deferDecision.defer) pendingRenderJobs++; // local estimate for queue depth guard
       } catch (e) {
         logger.warn("Failed to queue render job", { assetId: result.asset_id, reason: queueReason, error: (e as Error).message });
       }

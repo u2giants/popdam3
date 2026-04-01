@@ -32,9 +32,9 @@ async function callApi(action: string, payload: Record<string, unknown> = {}, ti
         // Retry server errors (5xx)
         lastError = new Error(`agent-api ${action} returned ${res.status}: ${text}`);
         if (attempt < maxAttempts) {
-          const delay = Math.pow(2, attempt) * 1000;
+          const delay = Math.min(5000, 1000 * Math.pow(2, attempt - 1));
           logger.warn(`agent-api ${action} returned ${res.status}, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
-          await new Promise(r => setTimeout(r, delay));
+          await new Promise( r => setTimeout(r, delay));
           continue;
         }
         throw lastError;
@@ -52,9 +52,9 @@ async function callApi(action: string, payload: Record<string, unknown> = {}, ti
       // Network error — retry
       lastError = e as Error;
       if (attempt < maxAttempts) {
-        const delay = Math.pow(2, attempt) * 1000;
+        const delay = Math.min(5000, 1000 * Math.pow(2, attempt - 1));
         logger.warn(`agent-api ${action} network error, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`, { error: (e as Error).message });
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise( r => setTimeout(r, delay));
       }
     }
   }
