@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { getMg01Desc, getMg02Desc, getMg03Desc } from "@/lib/mg-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
@@ -249,7 +250,7 @@ function QualityDashboard() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard label="ERP Items Synced" value={s.total_erp_items ?? 0} icon={<Database className="h-4 w-4" />} tooltip="Total number of product records pulled from the ERP system" />
               <StatCard label="Has mgCategory" value={s.with_mg_category ?? 0} icon={<CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />} tooltip="ERP items where the ERP system itself provides a product category (mg_category field) — no AI needed" />
-              <StatCard label="Legacy (pre-cutoff)" value={s.legacy_items ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="Items created before the category cutoff date — their mg_category was nulled because the coding logic changed on that date; these need AI classification" />
+              <StatCard label="No mgCategory" value={s.legacy_items ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="ERP items where the API did not provide an mgCategory value" />
               <StatCard label="Rule-Classified" value={s.rule_classified ?? 0} icon={<Zap className="h-4 w-4 text-primary" />} tooltip="Items whose product category was determined by deterministic code rules (e.g. 'Clock' items always map to the Clock category) — no AI call needed" />
               <StatCard label="AI-Classified" value={s.ai_classified ?? 0} icon={<Bot className="h-4 w-4 text-[hsl(var(--info))]" />} tooltip="Items where Claude AI looked at the description and MG codes and predicted a product category" />
               <StatCard label="Needs AI" value={s.needs_ai ?? 0} icon={<AlertCircle className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="Items with no category yet that have a matching SKU in your asset library — eligible for AI classification. Run 'Classify Now' to process these." />
@@ -1336,14 +1337,6 @@ function ErpItemsBrowser() {
     window.addEventListener("mouseup", onMouseUp);
   };
 
-  const ERP_MG_CUTOFF = "2025-05-14";
-  const MG_LEGACY_COLS = new Set(["mg01_code", "mg02_code", "mg03_code"]);
-
-  const isLegacyErpItem = (item: any) => {
-    if (!item.erp_updated_at) return true; // no date → assume legacy
-    return item.erp_updated_at < ERP_MG_CUTOFF;
-  };
-
   const ATTRIBUTE_COLS = [
     { key: "style_number", label: "Style #" },
     { key: "item_description", label: "Description" },
@@ -1526,24 +1519,34 @@ function ErpItemsBrowser() {
                           />
                         </td>
                         {ATTRIBUTE_COLS.map((col) => {
-                          const isHiddenLegacyMg = MG_LEGACY_COLS.has(col.key) && isLegacyErpItem(item);
+                          const renderMgCell = (code: string | null, desc: string | null) => {
+                            if (!code) return <span className="text-muted-foreground/40">—</span>;
+                            if (!desc) return <span className="text-destructive font-medium">error</span>;
+                            return (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help">{desc}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-xs">
+                                    Code: {code}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          };
                           return (
                             <td
                               key={col.key}
-                              className={`p-2 align-middle text-xs overflow-hidden text-ellipsis whitespace-nowrap`}
+                              className="p-2 align-middle text-xs overflow-hidden text-ellipsis whitespace-nowrap"
                               style={colWidths[col.key] ? { width: colWidths[col.key], maxWidth: colWidths[col.key] } : undefined}
                             >
-                              {isHiddenLegacyMg ? (
-                                <TooltipProvider delayDuration={200}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="text-muted-foreground/30 cursor-help italic">pre-cutoff</span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-sm text-xs">
-                                      MG codes are hidden for styles created before {ERP_MG_CUTOFF} because the coding logic changed on that date.
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                              {col.key === "mg01_code" ? (
+                                renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code))
+                              ) : col.key === "mg02_code" ? (
+                                renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code))
+                              ) : col.key === "mg03_code" ? (
+                                renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code))
                               ) : col.key === "item_description" && item[col.key] ? (
                                 <TooltipProvider delayDuration={200}>
                                   <Tooltip>
