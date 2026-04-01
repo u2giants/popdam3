@@ -1231,6 +1231,8 @@ function ErpItemsBrowser() {
   const [maxDigitsStyle, setMaxDigitsStyle] = useState<number | null>(null);
   const [maxDigitsDesc, setMaxDigitsDesc] = useState<number | null>(null);
   const [showDismissed, setShowDismissed] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
@@ -1244,7 +1246,7 @@ function ErpItemsBrowser() {
   };
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, sortBy, sortAsc, maxDigitsStyle, maxDigitsDesc, showDismissed],
+    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, sortBy, sortAsc, maxDigitsStyle, maxDigitsDesc, showDismissed, dateFrom, dateTo],
     queryFn: () => call("erp-items-browse", {
       search: debouncedSearch,
       page,
@@ -1254,6 +1256,8 @@ function ErpItemsBrowser() {
       show_dismissed: showDismissed,
       ...(maxDigitsStyle !== null ? { max_digits_style: maxDigitsStyle } : {}),
       ...(maxDigitsDesc !== null ? { max_digits_desc: maxDigitsDesc } : {}),
+      ...(dateFrom ? { date_from: dateFrom } : {}),
+      ...(dateTo ? { date_to: dateTo } : {}),
     }),
   });
 
@@ -1344,6 +1348,7 @@ function ErpItemsBrowser() {
     { key: "mg01_code", label: "MG01" },
     { key: "mg02_code", label: "MG02" },
     { key: "mg03_code", label: "MG03" },
+    { key: "erp_updated_at", label: "Created Date" },
     { key: "size_code", label: "Size" },
     { key: "licensor_code", label: "Licensor" },
     { key: "property_code", label: "Property" },
@@ -1437,8 +1442,26 @@ function ErpItemsBrowser() {
                 className="h-9 w-[70px] text-xs"
               />
             </div>
-            {(maxDigitsStyle !== null || maxDigitsDesc !== null) && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs px-1.5" onClick={() => { setMaxDigitsStyle(null); setMaxDigitsDesc(null); setPage(1); }}>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">Created from:</label>
+              <Input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                className="h-9 w-[130px] text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">to:</label>
+              <Input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                className="h-9 w-[130px] text-xs"
+              />
+            </div>
+            {(maxDigitsStyle !== null || maxDigitsDesc !== null || dateFrom || dateTo) && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-1.5" onClick={() => { setMaxDigitsStyle(null); setMaxDigitsDesc(null); setDateFrom(""); setDateTo(""); setPage(1); }}>
                 Clear filters
               </Button>
             )}
@@ -1545,11 +1568,9 @@ function ErpItemsBrowser() {
                                 (() => {
                                   const cat = item.mg_category || getMgCategory(item.mg01_code);
                                   const derived = !item.mg_category && !!cat;
-                                  return cat ? (
-                                    <span className={derived ? "text-foreground/60 italic" : "text-foreground"}>{cat}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground/40">—</span>
-                                  );
+                                  return cat
+                                    ? <span className={derived ? "text-foreground/60 italic" : "text-foreground"}>{cat}</span>
+                                    : <span className="text-muted-foreground/40">—</span>;
                                 })()
                               ) : col.key === "mg01_code" ? (
                                 renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code))
@@ -1557,6 +1578,10 @@ function ErpItemsBrowser() {
                                 renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code))
                               ) : col.key === "mg03_code" ? (
                                 renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code))
+                              ) : col.key === "erp_updated_at" ? (
+                                item.erp_updated_at
+                                  ? <span className="text-foreground">{new Date(item.erp_updated_at).toLocaleDateString()}</span>
+                                  : <span className="text-muted-foreground/40">—</span>
                               ) : col.key === "item_description" && item[col.key] ? (
                                 <TooltipProvider delayDuration={200}>
                                   <Tooltip>
