@@ -1,135 +1,52 @@
-\# MODEL \& EXECUTION RULES
+# AI Model Usage Rules
 
-
-
-\## 1. Primary Model
-
-\- \*\*ALWAYS\*\* use \*\*GPT-5.2\*\* for all architectural decisions, database migrations, and complex logic.
-
-\- Do NOT use Gemini Flash for backend or connectivity tasks.
-
-
-
-\## 2. Chain of Thought (CoT)
-
-\- Before implementing any change, summarize your understanding of the current state.
-
-\- If a task involves more than 3 steps, output a PLAN first and wait for approval.
-
-
-
-\## 3. Stability Guardrails
-
-\- \*\*No Fix-on-Fix:\*\* If a bug persists after two attempts, STOP. Re-read SCHEMA.md and PATH\_UTILS.md before trying again.
-
-\- \*\*Fail-Fast:\*\* Never return a success message if a file scan returns 0 results. Treat 0 results as a potential permission or path error.
-
-
-
-\# EXECUTION RULES (Anti-Amnesia + Anti-Chaos)
-
-
-
-This file exists to prevent “looping,” config drift, and fragile fix-on-fix behavior.
-
-
-
-These rules apply to any AI builder working on this repo.
-
-
+This document covers two distinct things: (1) which AI models are used inside the PopDAM system for product classification, and (2) execution rules for AI coding assistants working on this codebase.
 
 ---
 
+## 1. Models Used Inside PopDAM
 
+### Product Category Classification (`ai-tag` edge function)
+- Uses Claude via the Anthropic API (configured in admin_config or environment)
+- Classifies ERP items into product categories when deterministic rules can't resolve them
+- Confidence < 0.65 → status `pending` (requires human review in the Review Queue)
+- Confidence ≥ 0.65 → status `auto_applied`
 
-\## 1) Read Order (Every Session)
-
-Before implementing changes:
-
-1\) Read PROJECT\_BIBLE.md
-
-2\) Read the relevant doc(s): SCHEMA.md, PATH\_UTILS.md, API\_CONTRACTS.md, DEPLOYMENT.md
-
-3\) State which Non-Negotiables apply to the task
-
-
+### AI Tagging
+- Used for generating asset descriptions and tags from thumbnails
+- Configured via the AI model setting in admin_config
 
 ---
 
+## 2. Execution Rules for AI Coding Assistants
 
+### Read Before Coding
+Before implementing any change, read:
+1. `PROJECT_BIBLE.md` — non-negotiable rules (this always wins in a conflict)
+2. The relevant doc(s): `SCHEMA.md`, `PATH_UTILS.md`, `API_CONTRACTS.md`, `DEPLOYMENT.md`
+3. State which rules apply to the task before writing code
 
-\## 2) Change Discipline (Stability)
+### Change Discipline
+- Prefer small, focused diffs over refactors
+- If a task touches DB schema or API shapes, update the matching doc in the same commit
+- No fix-on-fix: if the same bug persists after two attempts, stop and re-read the relevant docs before trying a third approach
+- Don't add features, error handling, or abstractions beyond what was asked
 
-\- One change per iteration.
+### Fail-Fast Rules
+- If a scan reports `files_checked = 0`, treat it as an error unless the scan roots were explicitly validated as empty
+- Never return a success response when a core operation processed nothing
+- Timestamps must always come from the filesystem (agent-supplied), never from `now()` or defaults
 
-\- Prefer small diffs over refactors.
-
-\- If a task touches DB schema or API shapes, update the matching docs in the same commit.
-
-
-
-After each change:
-
-\- Show a diff summary (what files changed and why)
-
-\- Confirm:
-
-&nbsp; - no hardcoded host/share strings
-
-&nbsp; - no client-side filtering of large asset lists
-
-&nbsp; - timestamps come from filesystem (agent-supplied)
-
-&nbsp; - pagination remains server-side
-
-
+### Truthfulness
+- Don't claim something was tested unless the tool actually ran it
+- If tests exist, run them; otherwise say "not executed" explicitly
 
 ---
 
+## 3. Golden Rule (Repeated Here For Emphasis)
 
+The DAM must **never** modify file timestamps (`mtime`/`birthtime`) on source art files.
 
-\## 3) “No Fix-on-Fix” Rule
+Before touching any file, record its original timestamps. After, verify and restore if changed. If restoration fails, halt processing and report a critical error.
 
-If the same bug persists after two attempts:
-
-\- STOP
-
-\- Re-read PROJECT\_BIBLE.md + PATH\_UTILS.md + SCHEMA.md
-
-\- Propose a different approach (or reduce scope)
-
-
-
----
-
-
-
-\## 4) Fail-Fast Rule (Scanner)
-
-If a scan reports:
-
-\- `files\_checked = 0`
-
-treat as an error unless roots were explicitly validated and truly contain zero files.
-
-
-
-Never silently report success on a scan that processed nothing.
-
-
-
----
-
-
-
-\## 5) Truthfulness Rule
-
-Do not claim things were tested unless the tool actually ran them.
-
-If tests exist, run them; otherwise say “not executed” explicitly.
-
-
----
-
-## 6) Golden Rule: File Date Preservation
-The DAM must NEVER modify file timestamps (mtime/birthtime) on source art files. Before reading any file, record original timestamps; after, verify and restore if changed. If restoration fails, HALT processing and report a critical error. This is a non-negotiable project invariant. See PROJECT_BIBLE.md §15.
+This is the single most important invariant in the entire system. See `PROJECT_BIBLE.md §15` for full details.

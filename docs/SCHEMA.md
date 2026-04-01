@@ -163,7 +163,7 @@ Invitation-only access model:
 - user_roles: `user_id uuid`, `role text`, `UNIQUE(user_id, role)`
 - invitations: `id uuid PK`, `email text UNIQUE NOT NULL`, `role text DEFAULT 'user'`, `invited_by uuid NULL`, `created_at`, `accepted_at NULL`
 
-### 2.12 admin_config
+### 2.13 admin_config
 - `key text PK`
 - `value jsonb NOT NULL`
 - `updated_at timestamptz DEFAULT now()`
@@ -172,9 +172,63 @@ Invitation-only access model:
 Stores:
 - `THUMBNAIL_MIN_DATE`
 - `SCAN_MIN_DATE`
+- `ERP_LAST_SYNC_DATE` (watermark for incremental ERP sync)
+- `ERP_SYNC_ENDPOINT` (override ERP API URL)
+- `BULK_OPERATIONS` (JSONB blob tracking all persistent operation state)
 - DO Spaces base URL
 - taxonomy endpoints
 - NAS mapping keys (host/ip/share/mount root)
+
+### 2.14 ERP Tables
+
+#### `erp_sync_runs`
+Metadata per sync execution.
+- `id uuid PK`, `status text` (running/completed/failed), `started_at`, `ended_at`
+- `total_fetched int`, `total_upserted int`, `total_errors int`, `error_samples jsonb`
+- `run_metadata jsonb` (sync_mode, start_date, end_date), `created_by text`
+
+#### `erp_items_current`
+Latest normalized row per ERP item. Upserted on each sync.
+- `id uuid PK`, `external_id text UNIQUE NOT NULL`
+- `style_number text`, `item_description text`
+- `mg_category text` — category from ERP API ("Wall", "Storage", etc.) — may be null
+- `mg01_code text`, `mg02_code text`, `mg03_code text` — **single-character letter/digit codes** resolved from the API
+- `mg04_code`, `mg05_code`, `mg06_code` — additional MG levels (rarely populated)
+- `size_code`, `licensor_code`, `property_code`, `division_code`, `prepack_code`, `prepack_codes text[]`
+- `erp_updated_at timestamptz` — ERP's own last-modified (used as "Created Date" in the browser)
+- `synced_at timestamptz`, `sync_run_id uuid FK erp_sync_runs`
+- `raw_mg_fields jsonb` — original API values: `mg01`/`mg02`/`mg03` (may be descriptions or codes), plus `mg01_code`/`mg02_code`/`mg03_code` (resolved) and other metadata fields
+- `dismissed boolean DEFAULT false` — soft-hide from browser
+
+#### `erp_items_raw`
+Immutable snapshot of every ERP API response row.
+- `id uuid PK`, `external_id text`, `raw_payload jsonb`, `sync_run_id uuid FK`, `fetched_at timestamptz`
+
+#### `product_category_predictions`
+AI classification results for ERP items missing `mg_category`.
+- `id uuid PK`, `external_id text`, `erp_item_id uuid FK erp_items_current`
+- `predicted_category text`, `confidence real`, `rationale text`
+- `classification_source text` (erp/rule/ai), `ai_model text`
+- `status text` (pending/auto_applied/approved/rejected/unclassifiable)
+- `reviewed_by uuid`, `reviewed_at timestamptz`, `input_context jsonb`
+
+### 2.15 Hygiene & Style Guide Tables
+
+#### `hygiene_findings`
+File naming/structure issues found during Windows Agent scans.
+- `id uuid PK`, `scan_session_id uuid`, `file_path text`, `finding_type text`, `detail jsonb`, `found_at timestamptz`
+
+#### `style_guide_crawl_runs`
+Metadata for each licensor style guide crawl run.
+- `id uuid PK`, `status text`, `agent_id text`, `started_at`, `completed_at`, `files_found int`, `error_message text`
+
+#### `style_guide_files`
+Crawled style guide PDFs and images from licensors.
+- `id uuid PK`, `crawl_run_id uuid FK`, `relative_path text`, `file_type text`, `thumbnail_url text`, `metadata jsonb`, `found_at timestamptz`
+
+#### `tiff_optimization_queue`
+Queue for TIFF compression jobs run by the Windows Agent.
+- `id uuid PK`, `asset_id uuid FK assets`, `status queue_status`, `claimed_by text`, `claimed_at`, `completed_at`, `error_message text`
 
 ---
 

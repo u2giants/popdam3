@@ -66,6 +66,18 @@ a local file it can't find in history, try to re-apply it, and fail (e.g. "polic
 
 **Never apply via MCP and create a local file in the same step without verifying the timestamps match.**
 
+## ERP Sync — After Changing MG Lookup Tables
+
+`supabase/functions/_shared/mg-codes.ts` contains the reverse lookup maps used by `erp-sync` to resolve API descriptions to letter codes. If this file changes:
+
+1. Redeploy edge functions (GitHub Actions `deploy-supabase.yml`, or push to `main` which triggers it)
+2. In the admin UI (Settings → ERP Enrichment), run a **Full Sync** to re-process all existing rows
+3. After the sync, verify the "Unresolved MG Codes" stat card is 0 or matches expected count
+
+Similarly, if `src/lib/mg-lookup.ts` (the frontend forward maps) changes, deploy the frontend.
+
+Both files must agree on the MerchGroup schema — if new MG01/02/03 codes are added to the CSV, update both files in the same PR.
+
 ## Versioning
 
 Whenever changes are made to `apps/bridge-agent/`, bump `apps/bridge-agent/package.json` version as part of the same commit:

@@ -431,16 +431,34 @@ After tagging, a bulk operation copies AI tags from the primary tagged asset to 
 
 ### Data flow
 1. **Sync**: Admin triggers ERP sync → `erp-sync` edge function fetches from DesignFlow API → stores raw + normalized data
-2. **Enrichment**: `apply-erp-enrichment` matches ERP items to assets by style number (SKU prefix) → copies division, licensor, property, MG codes to assets and style groups
-3. **AI Classification**: For items missing `mgCategory` (legacy products), Gemini classifies them into 7 product categories based on item description, style number, and context
+2. **AI Classification**: For items missing `mg_category`, Claude classifies them into product categories based on item description and MG codes
+3. **Browse**: Admins review ERP items in the ERP Items Browser — sortable/filterable table with MG code display, date filtering, and dismiss support
+
+### MG Code Architecture (important)
+
+The DesignFlow API changed format around May 2025. New items return **full text descriptions** in MG fields ("Stretched/Box", "Canvas", "Foil") instead of single-letter codes ("A", "A", "1").
+
+The `erp-sync` function normalises this using reverse lookup tables in `supabase/functions/_shared/mg-codes.ts`:
+- Single-char API values → already a code, stored as-is
+- Multi-char API values → reverse-looked up to canonical letter code via the MerchGroup CSV schema
+- Unknown descriptions → stored as `null` in the code field; raw value preserved in `raw_mg_fields`
+
+**Result**: `mg01_code`/`mg02_code`/`mg03_code` always hold single-character codes (or null). The raw API value is always in `raw_mg_fields.mg01`/`.mg02`/`.mg03` for display.
+
+The frontend (`src/lib/mg-lookup.ts`) contains the forward maps (code → description) for display. The edge function (`_shared/mg-codes.ts`) contains the reverse maps (description → code) used during sync. They must be kept in sync if the MerchGroup schema changes.
 
 ### Confidence thresholds
-- ≥ 65%: Auto-applied to the ERP item
-- < 65%: Queued in `product_category_predictions` for human review
-- Items can have "custom instructions" and few-shot examples to improve AI accuracy
+- ≥ 65%: Auto-applied (`auto_applied` status)
+- < 65%: Queued in `product_category_predictions` for human review (`pending` status)
 
-### Date guard
-`mgCategory` from ERP is only used for items created **after May 9, 2025**. Older items rely on AI classification or manual assignment.
+### Admin UI
+The **ERP Items Browser** (Settings → ERP Enrichment tab) shows all ERP items with:
+- MG01/02/03 displayed as descriptions (letter code shown on hover)
+- Amber highlighting for unresolved descriptions (not in schema — ERP data needs correction)
+- Date range filter on `erp_updated_at`
+- Review Queue for AI predictions awaiting human approval
+
+For full details see `docs/ERP_ENRICHMENT_PLAN.md`.
 
 ---
 
