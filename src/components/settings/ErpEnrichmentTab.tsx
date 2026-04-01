@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { getMg01Desc, getMg02Desc, getMg03Desc } from "@/lib/mg-lookup";
+import { getMgCategory, getMg01Desc, getMg02Desc, getMg03Desc } from "@/lib/mg-lookup";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
@@ -1541,7 +1541,17 @@ function ErpItemsBrowser() {
                               className="p-2 align-middle text-xs overflow-hidden text-ellipsis whitespace-nowrap"
                               style={colWidths[col.key] ? { width: colWidths[col.key], maxWidth: colWidths[col.key] } : undefined}
                             >
-                              {col.key === "mg01_code" ? (
+                              {col.key === "mg_category" ? (
+                                (() => {
+                                  const cat = item.mg_category || getMgCategory(item.mg01_code);
+                                  const derived = !item.mg_category && !!cat;
+                                  return cat ? (
+                                    <span className={derived ? "text-foreground/60 italic" : "text-foreground"}>{cat}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground/40">—</span>
+                                  );
+                                })()
+                              ) : col.key === "mg01_code" ? (
                                 renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code))
                               ) : col.key === "mg02_code" ? (
                                 renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code))
