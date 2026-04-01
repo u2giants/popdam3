@@ -539,6 +539,138 @@ export async function handleRebuildStyleGroups(body: Record<string, unknown>) {
 // Thin wrapper for manual single-batch trigger from UI.
 // The Railway worker calls reconcile_style_group_stats_batch RPC directly.
 
+// ── relink-orphaned-assets ──────────────────────────────────────────
+
+export async function handleRelinkOrphanedAssets() {
+  const db = serviceClient();
+
+  // Use a transaction-like approach: find orphans and link them to matching groups
+  // An orphan is an asset that:
+  // 1. Has NULL style_group_id
+  // 2. Is not deleted
+  // 3. Has a relative_path that matches a style_group's folder_path (starts with it)
+  
+  const BATCH_SIZE = 500;
+  let totalRelinked = 0;
+  let totalAlreadyLinked = 0;
+  let totalErrors = 0;
+
+  try {
+    // Get all orphaned assets in batches
+    let lastId: string | null = null;
+    let hasMore = true;
+
+    while (hasMore) {
+      // Find orphaned assets that have a matching style group based on folder path
+      const { data: orphans, error: orphanErr } = await db
+        .from("assets")
+        .select("id, relative_path")
+        .is("style_group_id", null)
+        .eq("is_deleted", false)
+        .order("id", { ascending: true })
+        .limit(BATCH_SIZE);
+
+      if (orphanErr) {
+        return err(`Failed to fetch orphaned assets: ${formatPostgrestError(orphanErr)}`, 500);
+      }
+
+      if (!orphans || orphans.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      // Get all style groups with folder_path (we'll filter in-memory for efficiency)
+      const { data: groups, error: groupErr } = await db
+        .from("style_groups")
+        .select("id, folder_path")
+        .not("folder_path", "is", null);
+
+      if (groupErr) {
+        return err(`Failed to fetch style groups: ${formatPostgrestError(groupErr)}`, 500);
+      }
+
+      // Build a map of folder_path -> group_id for quick lookup
+      // Sort by folder_path length descending to match longest (most specific) path first
+      const groupPathMap = new Map<string, string>();
+      for (const g of groups ?? []) {
+        if (g.folder_path) {
+          groupPathMap.set(g.folder_path, g.id);
+        }
+      }
+      const sortedPaths = [...groupPathMap.keys()].sort((a, b) => b.length - a.length);
+
+      // Process this batch
+      const updates: { id: string; style_group_id: string }[] = [];
+      const skipIds: string[] = [];
+
+      for (const asset of orphans) {
+        lastId = asset.id;
+
+        // Find the most specific matching folder_path
+        let matchedGroupId: string | null = null;
+        for (const folderPath of sortedPaths) {
+          if (asset.relative_path.startsWith(folderPath)) {
+            matchedGroupId = groupPathMap.get(folderPath) ?? null;
+            break;
+          }
+        }
+
+        if (matchedGroupId) {
+          updates.push({ id: asset.id, style_group_id: matchedGroupId });
+        } else {
+          // No matching group found - this asset is legitimately ungrouped
+          skipIds.push(asset.id);
+        }
+      }
+
+      // Batch update the linked assets
+      if (updates.length > 0) {
+        // Process updates in smaller sub-batches to avoid overwhelming the DB
+        const SUB_BATCH = 100;
+        for (let i = 0; i < updates.length; i += SUB_BATCH) {
+          const batch = updates.slice(i, i + SUB_BATCH);
+          
+          for (const update of batch) {
+            try {
+              const { error: updateErr } = await db
+                .from("assets")
+                .update({ style_group_id: update.style_group_id })
+                .eq("id", update.id)
+                .is("style_group_id", null); // Only update if still NULL (race condition protection)
+
+              if (updateErr) {
+                totalErrors++;
+                console.error(`Failed to update asset ${update.id}:`, updateErr);
+              } else {
+                totalRelinked++;
+              }
+            } catch (e) {
+              totalErrors++;
+              console.error(`Exception updating asset ${update.id}:`, e);
+            }
+          }
+        }
+      }
+
+      totalAlreadyLinked += skipIds.length;
+
+      // Check if we have more to process
+      hasMore = orphans.length === BATCH_SIZE;
+    }
+
+    return json({
+      ok: true,
+      relinked: totalRelinked,
+      already_linked: totalAlreadyLinked,
+      errors: totalErrors,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("relink-orphaned-assets error:", msg);
+    return err(msg || "Internal server error", 500);
+  }
+}
+
 export async function handleReconcileStyleGroupStats(body: Record<string, unknown>) {
   try {
     const db = serviceClient();

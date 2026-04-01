@@ -1,5 +1,5 @@
 import React from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Database, Clock, RefreshCw, Loader2, CheckCircle2, XCircle,
-  AlertTriangle, Trash2, Wrench,
+  AlertTriangle, Trash2, Wrench, Link2,
 } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES, REASON_LABELS, timeAgo } from "./types";
+import { toast } from "sonner";
 import { formatDuration, formatEta, calcRate, ProgressRow } from "./progress-utils";
 
 // ── Rebuild Status Detail ───────────────────────────────────────────
@@ -200,18 +201,46 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
   const { data: stats } = useQuery({
     queryKey: ["style-group-stats"],
     queryFn: async () => {
-      const [groupRes, ungroupedRes, anomalyRes] = await Promise.all([
+      const [groupRes, ungroupedRes, anomalyRes, orphanRes] = await Promise.all([
         call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups" }),
         call("run-query", { sql: "SELECT COUNT(*) as count FROM assets WHERE style_group_id IS NULL AND is_deleted = false" }),
         call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups sg WHERE (sg.asset_count IS NULL OR sg.asset_count = 0) AND EXISTS (SELECT 1 FROM assets a WHERE a.style_group_id = sg.id AND a.is_deleted = false LIMIT 1)" }),
+        call("run-query", { 
+          sql: `SELECT COUNT(*) as count FROM assets a 
+                WHERE a.style_group_id IS NULL 
+                AND a.is_deleted = false
+                AND EXISTS (
+                  SELECT 1 FROM style_groups sg 
+                  WHERE a.relative_path LIKE sg.folder_path || '%'
+                  AND sg.folder_path IS NOT NULL
+                )` 
+        }),
       ]);
       return {
         groups: groupRes.rows?.[0]?.count ?? 0,
         ungrouped: ungroupedRes.rows?.[0]?.count ?? 0,
         anomalous: anomalyRes.rows?.[0]?.count ?? 0,
+        orphaned: orphanRes.rows?.[0]?.count ?? 0,
       };
     },
     staleTime: 15_000,
+  });
+
+  // Relink orphaned assets mutation
+  const relinkMutation = useMutation({
+    mutationFn: async () => {
+      const result = await call("relink-orphaned-assets", {});
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["style-group-stats"] });
+      toast.success("Orphaned assets relinked", {
+        description: `Relinked ${data.relinked ?? 0} assets, ${data.already_linked ?? 0} already linked, ${data.errors ?? 0} errors`,
+      });
+    },
+    onError: (e: Error) => {
+      toast.error("Failed to relink orphaned assets", { description: e.message });
+    },
   });
 
   function runRebuild(forceRestart = false) {
@@ -261,6 +290,11 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
             {Number(stats.anomalous) > 0 && (
               <p className="text-[hsl(var(--warning))]">
                 ⚠ <span className="font-medium">{Number(stats.anomalous).toLocaleString()}</span> groups have missing counts/covers — run Reconcile to fix
+              </p>
+            )}
+            {Number(stats.orphaned) > 0 && (
+              <p className="text-[hsl(var(--warning))]">
+                🔗 <span className="font-medium">{Number(stats.orphaned).toLocaleString()}</span> orphaned assets — in folders with style groups but unlinked
               </p>
             )}
           </div>
@@ -324,6 +358,30 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
           )}
           {(reconcileOp.isInterrupted || reconcileOp.state.status === "failed" || reconcileOp.state.status === "completed") && (
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => reconcileOp.reset()}>Dismiss Reconcile</Button>
+          )}
+          {/* Relink orphaned assets button */}
+          {Number(stats?.orphaned ?? 0) > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline" size="sm" className="gap-1.5"
+                    onClick={() => {
+                      if (confirm(`Relink ${stats.orphaned} orphaned assets to their style groups?`)) {
+                        relinkMutation.mutate();
+                      }
+                    }}
+                    disabled={relinkMutation.isPending}
+                  >
+                    {relinkMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                    Relink Orphans
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[260px] text-center">
+                  Finds ungrouped assets in folders that have style groups and links them. Safe to re-run.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
 

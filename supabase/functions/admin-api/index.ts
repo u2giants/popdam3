@@ -37,7 +37,7 @@ import {
   handleTriggerScan,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
-import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "../_shared/admin-handlers/style-group-handlers.ts";
+import { handleRebuildStyleGroups, handleReconcileStyleGroupStats, handleRelinkOrphanedAssets } from "../_shared/admin-handlers/style-group-handlers.ts";
 
 import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
@@ -1120,6 +1120,8 @@ serve(async (req: Request) => {
         return await handleRebuildStyleGroups(body);
       case "reconcile-style-group-stats":
         return await handleReconcileStyleGroupStats(body);
+      case "relink-orphaned-assets":
+        return await handleRelinkOrphanedAssets();
 
       // ── AI tagging (from ai-tagging-handlers.ts) ──
       case "bulk-ai-tag":
