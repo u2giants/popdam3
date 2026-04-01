@@ -1,0 +1,238 @@
+mgCategory,MG01 code,MG01 Description,MG02 code,MG02 - Description,MG03 code,MG03 - Description
+Wall,A,Stretched/Box,A,Canvas,0,None
+Wall,A,Stretched/Box,A,Canvas,1,Foil
+Wall,A,Stretched/Box,A,Canvas,2,Shaped
+Wall,A,Stretched/Box,A,Canvas,8,Other Embellsihment
+Wall,A,Stretched/Box,A,Canvas,9,Other
+Wall,A,Stretched/Box,A,Canvas,B,Embroidery
+Wall,A,Stretched/Box,A,Canvas,D,DIY
+Wall,A,Stretched/Box,A,Canvas,E,LED
+Wall,A,Stretched/Box,A,Canvas,G,Staggered
+Wall,A,Stretched/Box,A,Canvas,H,Hi-Gloss
+Wall,A,Stretched/Box,A,Canvas,Q,Glitter/Sequins/Rhinest
+Wall,A,Stretched/Box,A,Canvas,P,Handpaint
+Wall,A,Stretched/Box,A,Canvas,Y,Physical Attachment
+Wall,A,Stretched/Box,A,Canvas,W,Gel/Other Coat
+Wall,A,Stretched/Box,S,Special Material,N,Specialty Fabric
+Wall,A,Stretched/Box,S,Special Material,M,Metallic
+Wall,A,Stretched/Box,S,Special Material,U,Suede/PU Leather
+Wall,A,Stretched/Box,G,Greyboard,E,LED
+Wall,A,Stretched/Box,F,Fabric,C,Cross-Stitch
+Wall,A,Stretched/Box,F,Fabric,L,Linen/Cotton
+Wall,A,Stretched/Box,M,MDF Box,0,None
+Wall,A,Stretched/Box,M,MDF Box,D,Diecut/Attachment
+Wall,A,Stretched/Box,M,MDF Box,E,LED
+Wall,A,Stretched/Box,M,MDF Box,Q,Glitter/Sequins/Rhinest
+Wall,B,Framed,F,Fabric,C,Cross-Stitch
+Wall,B,Framed,F,Fabric,L,Linen/Cotton
+Wall,B,Framed,F,Fabric,N,Specialty Fabric
+Wall,B,Framed,3,Lenticular/3D,G,Greyboard Frame
+Wall,B,Framed,3,Lenticular/3D,M,MDF Frame
+Wall,B,Framed,3,Lenticular/3D,S,Slits / Slats
+Wall,B,Framed,G,Glass,D,LED Infinity
+Wall,B,Framed,G,Glass,E,LED Backlit
+Wall,B,Framed,G,Glass,F,Printed
+Wall,B,Framed,G,Glass,Q,SBox w Glit/Foil
+Wall,B,Framed,G,Glass,R,"SBox, w Attachment"
+Wall,B,Framed,G,Glass,W,Glass Sandwich
+Wall,B,Framed,G,Glass,X,SBox Printed
+Wall,B,Framed,F,Stretched in Floating,0,None
+Wall,B,Framed,F,Stretched in Floating,1,Foil
+Wall,B,Framed,F,Stretched in Floating,H,Hi-Gloss
+Wall,B,Framed,F,Stretched in Floating,N,Specialty Fabric
+Wall,B,Framed,F,Stretched in Floating,P,Handpaint
+Wall,B,Framed,F,Stretched in Floating,Q,Glitter/Sequins/Rhinest
+Wall,B,Framed,F,Stretched in Floating,R,Specialty Fabric w Attachment
+Wall,B,Framed,F,Stretched in Floating,U,Suede/PU Leather
+Wall,B,Framed,F,Stretched in Floating,W,Gel/Other Coat
+Wall,B,Framed,J,Object,B,Bank
+Wall,B,Framed,J,Object,F,Fabric/Jersey
+Wall,B,Framed,J,Object,P,Polyresin
+Wall,B,Framed,J,Object,Y,Yarn/String
+Wall,B,Framed,M,Mirror,0,None
+Wall,B,Framed,M,Mirror,C,Diecut MDF
+Wall,B,Framed,M,Mirror,D,MDF frame
+Wall,B,Framed,M,Mirror,M,Metal Frame
+Wall,B,Framed,R,Print,0,None
+Wall,B,Framed,R,Print,1,Foil
+Wall,B,Framed,R,Print,C,Collage/Paper
+Wall,B,Framed,R,Print,D,Diecut/Attachment
+Wall,B,Framed,R,Print,E,LED
+Wall,B,Framed,R,Print,F,Fabric
+Wall,B,Framed,R,Print,H,Handpaint
+Wall,B,Framed,R,Print,M,MDF Gel coat
+Wall,B,Framed,R,Print,N,Natural Frame
+Wall,B,Framed,R,Print,P,Matting
+Wall,B,Framed,R,Print,Q,Glitter/Sequins/Rhinest
+Wall,B,Framed,R,Print,S,Specialty Paper
+Wall,B,Framed,R,Print,T,Metallic/Holofoil
+Wall,B,Framed,R,Print,Y,Shaped/Molded Frame
+Wall,B,Framed,R,Relief 3D,F,Foam
+Wall,B,Framed,R,Relief 3D,P,Plastic
+Wall,C,Plaque,A,Plain ,0,None
+Wall,C,Plaque,A,Plain ,A,Attachment
+Wall,C,Plaque,A,Plain ,C,Diecut
+Wall,C,Plaque,A,Plain ,H,Holofoil
+Wall,C,Plaque,A,Plain ,Q,Foil
+Wall,C,Plaque,A,Plain ,S,Specialty Paper
+Wall,C,Plaque,D,DIY,0,None
+Wall,C,Plaque,P,Leaner,0,None
+Wall,C,Plaque,P,Leaner,C,Diecut
+Wall,C,Plaque,P,Leaner,E,LED
+Wall,C,Plaque,P,Leaner,G,Glow-in-the-dark
+Wall,C,Plaque,P,Leaner,Q,Glitter
+Wall,C,Plaque,R,Relief/3D Molded,F,Foam/Felt
+Wall,C,Plaque,R,Relief/3D Molded,M,MDF
+Wall,C,Plaque,S,Sign,3,Door Hanger Lentic
+Wall,C,Plaque,S,Sign,D,Door Hanger MDF
+Wall,C,Plaque,S,Sign,G,Glass
+Wall,C,Plaque,S,Sign,M,Metal Sign
+Wall,C,Plaque,S,Sign,W,Wall Hanger MDF
+Wall,C,Plaque,T,Plastic,D,LED
+Wall,C,Plaque,T,Plastic,S,Suncatcher
+Wall,C,Plaque,3,Lenticular,M,On MDF
+Wall,C,Plaque,3,Lenticular,0,None
+Wall,C,Plaque,9,Other,C,Cork
+Wall,C,Plaque,9,Other,N,Natural
+Wall,D,Functional,C,Countdown Calendar,0,None
+Wall,D,Functional,H,Hook,M,Single MDF
+Wall,D,Functional,H,Hook,U,Multi MDF
+Wall,D,Functional,F,Framed,0,None
+Wall,D,Functional,F,Framed,C,Cork
+Wall,D,Functional,F,Framed,D,Dry-Erase
+Wall,D,Functional,F,Framed,P,Pinboard
+Wall,D,Functional,F,Framed,T,Letterboard
+Wall,D,Functional,S,Shelf,M,MDF
+Wall,D,Functional,S,Shelf,N,Natural
+Wall,D,Functional,S,Shelf,P,Plastic
+Wall,D,Functional,S,Shelf,W,Woven
+Wall,D,Functional,M,Memo Board,D,Dry-Erase/Magnetic
+Wall,E,Other Wall,D,Dimensional,N,Natural
+Wall,E,Other Wall,D,Dimensional,P,Plastic
+Wall,E,Other Wall,D,Dimensional,R,Paper Rope
+Wall,E,Other Wall,H,Hanging,B,Banner
+Wall,E,Other Wall,H,Hanging,P,Pennant
+Wall,E,Other Wall,H,Hanging,T,Tapestry
+Wall,E,Other Wall,H,Hanging,S,Scroll
+Wall,E,Other Wall,S,String,B,Banner/Bunting/Pennant
+Wall,E,Other Wall,S,String,C,Clip/Photo Holder
+Wall,E,Other Wall,S,String,S,String Light LED
+Wall,E,Other Wall,D,Decal/Sticker,F,Foam
+Wall,E,Other Wall,B,Box,D,LED
+Wall,E,Other Wall,6,Shades,P,Paper
+Tabletop,F,Block,0,None,M,MDF
+Tabletop,F,Block,G,Glass,0,None
+Tabletop,F,Block,M,Monogram,G,Greyboard
+Tabletop,F,Block,M,Monogram,M,MDF
+Tabletop,F,Block,M,Monogram,N,Natural
+Tabletop,F,Block,M,Monogram,P,Plush/Fabric
+Tabletop,F,Block,E,LED,M,MDF
+Tabletop,F,Block,W,Word,M,MDF
+Tabletop,F,Block,C,Calendar,M,MDF
+Tabletop,G,Box,C,Ceramic,0,None
+Tabletop,G,Box,G,Glass,J,Jewelry
+Tabletop,G,Box,M,MDF,0,None
+Tabletop,G,Box,M,MDF,1,Foil
+Tabletop,G,Box,M,MDF,E,LED
+Tabletop,G,Box,M,MDF,R,Raised/Diecut
+Tabletop,G,Box,M,MDF,Q,Glitter
+Tabletop,G,Box,M,MDF,S,Paint Stroke
+Tabletop,H,Photo Frames,S,Single,F,Fabric
+Tabletop,H,Photo Frames,S,Single,R,Diecut/Attachment
+Tabletop,H,Photo Frames,C,Collage,F,Fabric
+Tabletop,H,Photo Frames,C,Collage,R,Diecut/Attachment
+Tabletop,H,Photo Frames,F,Infant,2,12 Month collage
+Tabletop,H,Photo Frames,F,Infant,C,Clay/Ink
+Tabletop,J,Object,B,Book End,C,Ceramic/Polyresin
+Tabletop,J,Object,C,Candle,R,Holder/Polyresin
+Tabletop,J,Object,P,Planter,C,Ceramic
+Tabletop,J,Object,R,Orb,K,Terracotta
+Tabletop,J,Object,D,Lightup LED,E,Etched Acrylic
+Tabletop,J,Object,D,Lightup LED,G,Glass
+Tabletop,J,Object,D,Lightup LED,P,Plastic
+Tabletop,J,Object,E,Easel,D,Dry-Erase
+Tabletop,J,Object,G,Snow Globe,0,None
+Tabletop,J,Object,U,Figural,W,Woven
+Tabletop,K,Other Tabletop,B,Bank,C,Ceramic
+Tabletop,K,Other Tabletop,B,Bank,M,MDF
+Tabletop,K,Other Tabletop,9,Other,M,Mug
+Clock,M,Clocks,W,Wall Clock,B,Basic Plastic
+Clock,M,Clocks,W,Wall Clock,C,Diecut MDF
+Clock,M,Clocks,W,Wall Clock,M,Round MDF
+Clock,M,Clocks,W,Wall Clock,N,Countdown MDF
+Clock,M,Clocks,W,Wall Clock,S,Metal
+Clock,M,Clocks,W,Wall Clock Plaque,B,Basic Plastic
+Clock,M,Clocks,D,Desktop Clock,A,Vintage alarm
+Clock,M,Clocks,D,Desktop Clock,S,Metal
+Storage,N,Soft Storage ,H,Hamper,2,Oxford+PE Coat
+Storage,N,Soft Storage ,H,Hamper,F,Felt
+Storage,N,Soft Storage ,H,Hamper,M,Polymesh
+Storage,N,Soft Storage ,H,Hamper,N,Poly/Linen+EVA
+Storage,N,Soft Storage ,H,Hamper,P,PU/Plastic+EVA
+Storage,N,Soft Storage ,H,Hamper,X,Oxford+Greyb
+Storage,N,Soft Storage ,H,Hamper,W,Nonwoven+Greyb
+Storage,N,Soft Storage ,B,Bin (Shelftop),X,Oxford
+Storage,N,Soft Storage ,C,Chest,X,Oxford
+Storage,N,Soft Storage ,H,Basket (Carrying),P,Plush
+Storage,N,Soft Storage ,K,Basket (floor),P,Paper Seagrass
+Storage,N,Soft Storage ,K,Basket (floor),R,Rope
+Storage,N,Soft Storage ,T,Tower/Stand,S,Steel w Nonwoven
+Storage,N,Soft Storage ,T,Tower/Stand,W,Steel w Woven
+Storage,N,Soft Storage ,U,Cube-Collapsible,N,Nonwoven
+Storage,N,Soft Storage ,U,Cube-Collapsible,T,Ottoman/Oxford
+Storage,P,Hard Storage,B,Faux Shaped Box,G,Greyboard Book
+Storage,P,Hard Storage,B,Faux Shaped Box,M,MDF Book
+Storage,P,Hard Storage,B,Faux Shaped Box,U,Greyboard Suitcase
+Storage,P,Hard Storage,C,Chest,G,Greyboard
+Storage,P,Hard Storage,C,Chest,Q,Emb Greyboard
+Storage,P,Hard Storage,J,Jewelry/Music Box,G,Greyboard
+Storage,P,Hard Storage,J,Jewelry/Music Box,S,Glass
+Storage,P,Hard Storage,F,Lift-off,Q,Emb Greyboard
+Storage,P,Hard Storage,K,Kitchen,P,Plastic
+Storage,P,Hard Storage,N,Ottoman Non-Collapsible,M,MDF
+Storage,R,Other storage,T,Tray/Dish,A,Acrylic
+Storage,R,Other storage,T,Tray/Dish,C,Ceramic/Polyresin
+Storage,R,Other storage,T,Tray/Dish,G,Glass
+Storage,R,Other storage,T,Tray/Dish,W,Wood
+Workspace,S,Stationery org,H,Single item Holder,P,Paper Items
+Workspace,S,Stationery org,P,Pencil cup,A,Acrylic
+Workspace,S,Stationery org,P,Pencil cup,C,Ceramic/Polyresin
+Workspace,S,Stationery org,P,Pencil cup,G,Greyboard
+Workspace,S,Stationery org,P,Pencil cup,M,MDF
+Workspace,S,Stationery org,S,Set,M,MDF
+Workspace,S,Stationery org,M,Multi Section,A,Acrylic
+Workspace,S,Stationery org,M,Multi Section,G,Greyboard
+Workspace,S,Stationery org,M,Multi Section,S,Metal
+Workspace,S,Stationery org,H,Hanging,F,Fabric
+Workspace,S,Stationery org,N,Phone stand,M,MDF
+Workspace,S,Stationery org,N,Phone stand,P,Plastic
+Workspace,S,Stationery org,E,Headphone Stand,S,Metal
+Workspace,T,Desk Acc,C,Perpetual calendar,M,MDF
+Workspace,T,Desk Acc,M,Deskmat,R,Rubber
+Workspace,T,Desk Acc,W,Paperweight ,G,Glass
+Workspace,T,Desk Acc,S,Sticky Note Holder,C,Ceramic/Polyresin
+Workspace,T,Desk Acc,P,Memo Pad,C,Ceramic/Polyresin
+Workspace,U,Other workspace,M,Monitor stand,0,None
+Workspace,U,Other workspace,P,Lapdesk,0,None
+Floor,V,Floor coverings ,D,Door,C,Coir w/ plain print
+Floor,V,Floor coverings ,D,Door,D,Coir w/ emboss
+Floor,V,Floor coverings ,D,Door,E,Coir diecut
+Floor,V,Floor coverings ,D,Door,R,Rubber w/ plain print
+Floor,V,Floor coverings ,D,Door,U,Rubber diecut
+Floor,V,Floor coverings ,D,Door,Q,Rubber w/ Embossed
+Floor,V,Floor coverings ,D,Door,T,TPE w/ Diecut
+Floor,V,Floor coverings ,D,Door,U,TPE w/ print
+Floor,V,Floor coverings ,R,Rug,A,Rabbit Fur Rectang
+Floor,V,Floor coverings ,R,Rug,R,Rabbit Fur Diecut
+Floor,V,Floor coverings ,R,Rug,T,"Throw, loop"
+Floor,V,Floor coverings ,K,Kitchen,P,PVC Foam
+Garden,W,Garden,D,Decor,H,Birdhouse
+Garden,W,Garden,D,Decor,P,Plastic
+Garden,W,Garden,D,Decor,S,Stepping Stone
+Garden,W,Garden,D,Decor,T,Planter
+Garden,W,Garden,D,Decor,X,Oxford
+Garden,W,Garden,T,Tool,8,Metal Tool Set
+Garden,W,Garden,T,Tool,T,Thermometer
+Garden,W,Garden,T,Tool,W,Watering Can
+Garden,W,Garden,A,Accessory,G,Glove
+Garden,W,Garden,A,Accessory,8,Accesory Set
