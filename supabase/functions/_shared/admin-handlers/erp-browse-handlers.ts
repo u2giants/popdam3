@@ -290,6 +290,8 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const maxDigitsStyle = typeof body.max_digits_style === "number" ? body.max_digits_style : null;
   const maxDigitsDesc = typeof body.max_digits_desc === "number" ? body.max_digits_desc : null;
   const showDismissed = body.show_dismissed === true;
+  const dateFrom = typeof body.date_from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date_from) ? body.date_from : null;
+  const dateTo = typeof body.date_to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date_to) ? body.date_to : null;
   const offset = (page - 1) * pageSize;
 
   const ALLOWED_SORT_COLS = [
@@ -309,7 +311,7 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
   ];
   const effectiveSort = ALLOWED_SORT_COLS.includes(sortBy) ? sortBy : "synced_at";
 
-  const useRawSql = maxDigitsStyle !== null || maxDigitsDesc !== null;
+  const useRawSql = maxDigitsStyle !== null || maxDigitsDesc !== null || dateFrom !== null || dateTo !== null;
 
   if (useRawSql) {
     const conditions: string[] = [];
@@ -323,6 +325,9 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
       digitFilters.push(`(item_description IS NOT NULL AND length(item_description) <= ${maxDigitsDesc})`);
     }
     if (digitFilters.length > 0) conditions.push(`(${digitFilters.join(" OR ")})`);
+
+    if (dateFrom) conditions.push(`erp_updated_at >= '${dateFrom}'`);
+    if (dateTo) conditions.push(`erp_updated_at < '${dateTo}'::date + interval '1 day'`);
 
     if (search) {
       const esc = search.replace(/'/g, "''");
@@ -354,9 +359,9 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
   // Standard Supabase query path
   let countQuery = db.from("erp_items_current").select("id", { count: "exact", head: true });
   if (!showDismissed) countQuery = countQuery.eq("dismissed", false);
-  if (search) {
-    countQuery = countQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
-  }
+  if (search) countQuery = countQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
+  if (dateFrom) countQuery = countQuery.gte("erp_updated_at", dateFrom);
+  if (dateTo) countQuery = countQuery.lte("erp_updated_at", dateTo + "T23:59:59Z");
   const { count, error: countErr } = await countQuery;
   if (countErr) return err(countErr.message, 500);
 
@@ -367,9 +372,9 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
     .order(effectiveSort, { ascending: sortAsc, nullsFirst: false })
     .range(offset, offset + pageSize - 1);
   if (!showDismissed) dataQuery = dataQuery.eq("dismissed", false);
-  if (search) {
-    dataQuery = dataQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
-  }
+  if (search) dataQuery = dataQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
+  if (dateFrom) dataQuery = dataQuery.gte("erp_updated_at", dateFrom);
+  if (dateTo) dataQuery = dataQuery.lte("erp_updated_at", dateTo + "T23:59:59Z");
   const { data, error: dataErr } = await dataQuery;
   if (dataErr) return err(dataErr.message, 500);
 

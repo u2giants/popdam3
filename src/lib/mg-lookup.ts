@@ -9,26 +9,20 @@
 
 /** mgCategory derived from MG01 code (CSV column 1 ↔ column 2 mapping) */
 const MG01_CATEGORY: Record<string, string> = {
-  A: "Wall",
-  B: "Wall",
-  C: "Wall",
-  D: "Wall",
-  E: "Wall",
-  F: "Tabletop",
-  G: "Tabletop",
-  H: "Tabletop",
-  J: "Tabletop",
-  K: "Tabletop",
+  A: "Wall", B: "Wall", C: "Wall", D: "Wall", E: "Wall",
+  F: "Tabletop", G: "Tabletop", H: "Tabletop", J: "Tabletop", K: "Tabletop",
   M: "Clock",
-  N: "Storage",
-  P: "Storage",
-  R: "Storage",
-  S: "Workspace",
-  T: "Workspace",
-  U: "Workspace",
+  N: "Storage", P: "Storage", R: "Storage",
+  S: "Workspace", T: "Workspace", U: "Workspace",
   V: "Floor",
   W: "Garden",
 };
+
+/** Returns the mgCategory for a given MG01 code, or null if not found. */
+export function getMgCategory(mg01: string | null | undefined): string | null {
+  if (!mg01) return null;
+  return MG01_CATEGORY[mg01] ?? null;
+}
 
 const MG01_DESC: Record<string, string> = {
   A: "Stretched/Box",
@@ -364,12 +358,6 @@ const MG03_DESC: Record<string, string> = {
   "W:A:G": "Glove",
   "W:A:8": "Accessory Set",
 };
-
-/** Returns the mgCategory for a given MG01 code, or null if not found. */
-export function getMgCategory(mg01: string | null | undefined): string | null {
-  if (!mg01) return null;
-  return MG01_CATEGORY[mg01] ?? null;
-}
 
 export function getMg01Desc(mg01: string | null | undefined): string | null {
   if (!mg01) return null;
