@@ -6,7 +6,6 @@ import { unwrapConfigString } from "../_shared/config-utils.ts";
 const DEFAULT_ERP_ENDPOINT = "https://api.designflow.app/api/item_master/lib/getApiAllItems";
 const BATCH_SIZE = 100;
 const WATERMARK_KEY = "ERP_LAST_SYNC_DATE";
-const DEFAULT_CATEGORY_CUTOFF = "2025-05-10";
 
 /** Format a Date as YYYY-MM-DD */
 function fmtDate(d: Date): string {
@@ -195,20 +194,6 @@ serve(async (req: Request) => {
     let totalErrors = 0;
     const errorSamples: string[] = [];
 
-    // ── Read category cutoff from admin_config ──────────────────────────
-    let categoryCutoff = DEFAULT_CATEGORY_CUTOFF;
-    try {
-      const { data: cutoffRow } = await db.from("admin_config")
-        .select("value").eq("key", "ERP_CATEGORY_CUTOFF_DATE").maybeSingle();
-      if (cutoffRow?.value) {
-        const parsed = unwrapConfigString(cutoffRow.value);
-        if (parsed && /^\d{4}-\d{2}-\d{2}/.test(parsed)) {
-          categoryCutoff = parsed.slice(0, 10);
-          console.log(`erp-sync: using category cutoff=${categoryCutoff}`);
-        }
-      }
-    } catch { /* use default */ }
-
     // ── Process in batches ────────────────────────────────────────────
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
@@ -230,16 +215,13 @@ serve(async (req: Request) => {
           const mg02 = item["Product Sub-Type (Construction)"] || item.mg02 || item.merchGroup02 || null;
           const mg03 = item["Product Sub-Sub-Type (feature)"] || item["Product Sub-Sub-Type(feature)"] || item.mg03 || item.merchGroup03 || null;
 
-          // Determine ERP date for legacy detection
           const erpDate = item.created_date || item.updatedAt || item.lastModified || null;
-          const erpDateStr = erpDate ? String(erpDate).slice(0, 10) : null;
-          const isLegacy = erpDateStr && erpDateStr < categoryCutoff;
 
           return {
             external_id: externalId,
             style_number: item.itemNum || item.styleNumber || null,
             item_description: item.item_name || item.itemDescription || item.description || null,
-            mg_category: isLegacy ? null : (item.mgCategory || null),
+            mg_category: item.mgCategory || null,
             mg01_code: mg01,
             mg02_code: mg02,
             mg03_code: mg03,
@@ -263,7 +245,7 @@ serve(async (req: Request) => {
               mg05: item.mg05 || item.merchGroup05,
               mg06: item.mg06 || item.merchGroup06,
               mgCategory: item.mgCategory,
-              mgCategory_nulled_legacy: isLegacy || false,
+              mgCategory_nulled_legacy: false,
               size: item.size,
               licensor: item.licensor,
               property: item.property,
