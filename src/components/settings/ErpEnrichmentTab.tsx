@@ -250,19 +250,17 @@ function QualityDashboard() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatCard label="ERP Items Synced" value={s.total_erp_items ?? 0} icon={<Database className="h-4 w-4" />} tooltip="Total number of product records pulled from the ERP system" />
               <StatCard label="Has mgCategory" value={s.with_mg_category ?? 0} icon={<CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />} tooltip="ERP items where the ERP system itself provides a product category (mg_category field) — no AI needed" />
-              <StatCard label="No mgCategory" value={s.legacy_items ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="ERP items where the API did not provide an mgCategory value" />
+              <StatCard label="No mgCategory" value={(s.total_erp_items ?? 0) - (s.with_mg_category ?? 0)} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="ERP items where the API did not provide an mgCategory value" />
               <StatCard label="Rule-Classified" value={s.rule_classified ?? 0} icon={<Zap className="h-4 w-4 text-primary" />} tooltip="Items whose product category was determined by deterministic code rules (e.g. 'Clock' items always map to the Clock category) — no AI call needed" />
               <StatCard label="AI-Classified" value={s.ai_classified ?? 0} icon={<Bot className="h-4 w-4 text-[hsl(var(--info))]" />} tooltip="Items where Claude AI looked at the description and MG codes and predicted a product category" />
               <StatCard label="Needs AI" value={s.needs_ai ?? 0} icon={<AlertCircle className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="Items with no category yet that have a matching SKU in your asset library — eligible for AI classification. Run 'Classify Now' to process these." />
               <StatCard label="Pending Review" value={s.pending_review ?? 0} icon={<Clock className="h-4 w-4 text-[hsl(var(--warning))]" />} tooltip="AI predictions with confidence below 65% — Claude wasn't sure enough to auto-apply. These appear in the Review Queue for you to approve or reject." />
               <StatCard label="SKU Matched" value={s.sku_matched ?? 0} icon={<CheckCircle2 className="h-4 w-4" />} tooltip="ERP items whose style_number (SKU) exists in at least one asset or style group — these can actually be enriched" />
               <StatCard label="Unmatched SKUs" value={s.unmatched_skus ?? 0} icon={<AlertCircle className="h-4 w-4 text-destructive" />} tooltip="ERP items whose SKU doesn't match any asset or style group — enrichment has no effect on these until the assets are uploaded" />
+              {(s.unresolved_mg_codes ?? 0) > 0 && (
+                <StatCard label="Unresolved MG Codes" value={s.unresolved_mg_codes ?? 0} icon={<AlertCircle className="h-4 w-4 text-amber-500" />} tooltip="Items whose MG01 value from the ERP API couldn't be matched to a schema code — run a Full Sync to re-process after the ERP data is corrected" />
+              )}
             </div>
-            {s.category_cutoff && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Category cutoff date: <strong className="text-foreground">{s.category_cutoff}</strong> — items before this date have mgCategory nulled and require AI classification.
-              </p>
-            )}
           </>
         )}
       </CardContent>
@@ -1542,8 +1540,36 @@ function ErpItemsBrowser() {
                           />
                         </td>
                         {ATTRIBUTE_COLS.map((col) => {
-                          const renderMgCell = (code: string | null, desc: string | null) => {
-                            if (!code) return <span className="text-muted-foreground/40">—</span>;
+                          /**
+                           * Render an MG cell. Shows the human-readable description with a
+                           * tooltip for the code. Handles three data states:
+                           *
+                           * 1. Normal (code + desc resolved): shows desc, tooltip "Code: X"
+                           * 2. Unresolved (no code, but raw API value exists): shows raw value
+                           *    in amber — description not in MG schema, needs ERP correction
+                           * 3. Pre-fix DB rows (description stored in code field): detected by
+                           *    code.length > 1; treated same as unresolved until re-synced
+                           * 4. Empty: shows "—"
+                           */
+                          const renderMgCell = (code: string | null, desc: string | null, rawApiValue?: string | null) => {
+                            // Detect pre-fix rows where description was stored in the code field
+                            const effectiveCode = code && code.length === 1 ? code : null;
+                            const effectiveRaw = rawApiValue || (code && code.length > 1 ? code : null);
+
+                            if (!effectiveCode && !effectiveRaw) return <span className="text-muted-foreground/40">—</span>;
+                            if (!effectiveCode && effectiveRaw) {
+                              // Description from API couldn't be matched to a schema code
+                              return (
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help text-amber-600 dark:text-amber-400">{effectiveRaw}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="text-xs">Not matched to MG schema — ERP data may need correction</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              );
+                            }
                             if (!desc) return <span className="text-destructive font-medium">error</span>;
                             return (
                               <TooltipProvider delayDuration={200}>
@@ -1552,7 +1578,7 @@ function ErpItemsBrowser() {
                                     <span className="cursor-help">{desc}</span>
                                   </TooltipTrigger>
                                   <TooltipContent side="top" className="text-xs">
-                                    Code: {code}
+                                    Code: {effectiveCode}
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
@@ -1566,18 +1592,21 @@ function ErpItemsBrowser() {
                             >
                               {col.key === "mg_category" ? (
                                 (() => {
-                                  const cat = item.mg_category || getMgCategory(item.mg01_code);
+                                  // mg_category: prefer API value; fall back to lookup from code
+                                  // getMgCategory only works with single-letter codes — safe post-fix
+                                  const effectiveMg01Code = item.mg01_code?.length === 1 ? item.mg01_code : null;
+                                  const cat = item.mg_category || getMgCategory(effectiveMg01Code);
                                   const derived = !item.mg_category && !!cat;
                                   return cat
                                     ? <span className={derived ? "text-foreground/60 italic" : "text-foreground"}>{cat}</span>
                                     : <span className="text-muted-foreground/40">—</span>;
                                 })()
                               ) : col.key === "mg01_code" ? (
-                                renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code))
+                                renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code), item.raw_mg_fields?.mg01)
                               ) : col.key === "mg02_code" ? (
-                                renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code))
+                                renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code), item.raw_mg_fields?.mg02)
                               ) : col.key === "mg03_code" ? (
-                                renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code))
+                                renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code), item.raw_mg_fields?.mg03)
                               ) : col.key === "erp_updated_at" ? (
                                 item.erp_updated_at
                                   ? <span className="text-foreground">{new Date(item.erp_updated_at).toLocaleDateString()}</span>

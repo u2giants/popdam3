@@ -4,7 +4,6 @@
 
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
-import { unwrapConfigString } from "../config-utils.ts";
 import { optionalString, requireString } from "../validators.ts";
 
 // ── trigger-erp-sync ────────────────────────────────────────────────
@@ -106,23 +105,16 @@ export async function handleErpEnrichmentStats() {
 
   const needsAi = Math.max(0, (needsAiRaw ?? 0) - (alreadyHandled ?? 0));
 
-  let categoryCutoff = "2025-05-10";
-  try {
-    const { data: cutoffRow } = await db.from("admin_config")
-      .select("value").eq("key", "ERP_CATEGORY_CUTOFF_DATE").maybeSingle();
-    if (cutoffRow?.value) {
-      const raw = unwrapConfigString(cutoffRow.value);
-      if (raw && /^\d{4}-\d{2}-\d{2}/.test(raw)) categoryCutoff = raw.slice(0, 10);
-    }
-  } catch { /* use default */ }
-
-  const { count: legacyItems } = await db.from("erp_items_current")
-    .select("*", { count: "exact", head: true })
-    .lt("erp_updated_at", categoryCutoff + "T00:00:00Z");
-
   const { count: skuMatched } = await db.from("erp_items_current")
     .select("*", { count: "exact", head: true })
     .not("style_number", "is", null);
+
+  // Items where mg01_code couldn't be resolved to a schema code (single-char)
+  // These stored descriptions in the code field (pre-fix) or have unmatched API values
+  const { count: unresolvedMg } = await db.from("erp_items_current")
+    .select("*", { count: "exact", head: true })
+    .not("mg01_code", "is", null)
+    .not("mg01_code", "like", "_"); // single-char codes are length 1; descriptions are longer
 
   return json({
     ok: true,
@@ -134,8 +126,7 @@ export async function handleErpEnrichmentStats() {
     pending_review: pendingReview ?? 0,
     sku_matched: skuMatched ?? 0,
     unmatched_skus: (totalErp ?? 0) - (skuMatched ?? 0),
-    legacy_items: legacyItems ?? 0,
-    category_cutoff: categoryCutoff,
+    unresolved_mg_codes: unresolvedMg ?? 0,
   });
 }
 
