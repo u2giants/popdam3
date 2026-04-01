@@ -2544,6 +2544,53 @@ export type Database = {
         }
         Relationships: []
       }
+      smon_sync_remediations: {
+        Row: {
+          action_taken: string
+          completed_at: string | null
+          created_at: string
+          details: Json | null
+          file_path: string
+          id: string
+          issue_type: string
+          nas_id: string
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          action_taken: string
+          completed_at?: string | null
+          created_at?: string
+          details?: Json | null
+          file_path: string
+          id?: string
+          issue_type: string
+          nas_id: string
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          action_taken?: string
+          completed_at?: string | null
+          created_at?: string
+          details?: Json | null
+          file_path?: string
+          id?: string
+          issue_type?: string
+          nas_id?: string
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "smon_sync_remediations_nas_id_fkey"
+            columns: ["nas_id"]
+            isOneToOne: false
+            referencedRelation: "smon_nas_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       smon_user_roles: {
         Row: {
           created_at: string
