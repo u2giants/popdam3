@@ -1,9 +1,9 @@
 /**
  * Deno-compatible path filters for PopDAM.
- * 
+ *
  * This module provides filtering logic for junk files and excluded directories.
  * It's designed to work in both Deno (edge functions) and Node.js (agents).
- * 
+ *
  * NOTE: This is a Deno-compatible copy of the Node.js package in packages/path-filters/.
  * Both should be kept in sync. See KNOWN_QUIRKS.md §10 for rationale.
  */
@@ -16,7 +16,7 @@ export const JUNK_FILENAMES = new Set<string>([
   ".DS_Store",
   "Thumbs.db",
   "desktop.ini",
-  "~$*",       // Office temp files
+  "~$*", // Office temp files
 ]);
 
 /**
@@ -28,7 +28,7 @@ export function isJunkFilename(filename: string): boolean {
   if (JUNK_FILENAMES.has(filename)) {
     return true;
   }
-  
+
   // Glob pattern matching (for patterns like "~$*")
   for (const pattern of JUNK_FILENAMES) {
     if (pattern.includes("*")) {
@@ -38,7 +38,7 @@ export function isJunkFilename(filename: string): boolean {
       }
     }
   }
-  
+
   return false;
 }
 
@@ -81,13 +81,13 @@ export function isExcludedDirectory(dirname: string): boolean {
  */
 export function isExcludedRelativePath(relativePath: string): boolean {
   const parts = relativePath.split("/");
-  
+
   for (const part of parts) {
     if (isExcludedDirectory(part)) {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -100,27 +100,27 @@ export function shouldSkipFile(filename: string, relativePath?: string): boolean
   if (isJunkPrefix(filename)) {
     return true;
   }
-  
+
   // Check for exact junk filenames
   if (isJunkFilename(filename)) {
     return true;
   }
-  
+
   // Check for excluded directories in path
   if (relativePath && isExcludedRelativePath(relativePath)) {
     return true;
   }
-  
+
   // Check for __MACOSX in path
   if (relativePath && relativePath.includes("__MACOSX")) {
     return true;
   }
-  
+
   return false;
 }
 
 /**
- * Common file extensions for PDF keywords that indicate these aren't 
+ * Common file extensions for PDF keywords that indicate these aren't
  * actual PDF files but rather style guide or reference documents.
  */
 export const PDF_KEYWORD_EXCLUSIONS = new Set<string>([

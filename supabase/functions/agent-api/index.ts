@@ -1309,7 +1309,7 @@ async function handleCompleteRender(body: Record<string, unknown>) {
       if (groupAssets && groupAssets.length > 0) {
         const primaryId = selectPrimaryAsset(groupAssets);
         if (primaryId) {
-        const primaryAsset = groupAssets.find((ga: typeof groupAssets[number]) => ga.id === primaryId);
+          const primaryAsset = groupAssets.find((ga: typeof groupAssets[number]) => ga.id === primaryId);
           await db
             .from("style_groups")
             .update({
@@ -1995,7 +1995,9 @@ async function handleClaimTiffJob(body: Record<string, unknown>, agentId: string
 
 async function handleClaimTiffReinspect(body: Record<string, unknown>, agentId: string) {
   const db = serviceClient();
-    const batchSize = typeof body.batch_size === "number" ? Math.min(Math.max(body.batch_size, TIFF_REINSPECT_MIN_BATCH), TIFF_REINSPECT_MAX_BATCH) : TIFF_REINSPECT_DEFAULT_BATCH;
+  const batchSize = typeof body.batch_size === "number"
+    ? Math.min(Math.max(body.batch_size, TIFF_REINSPECT_MIN_BATCH), TIFF_REINSPECT_MAX_BATCH)
+    : TIFF_REINSPECT_DEFAULT_BATCH;
 
   const { data: row, error: reqErr } = await db
     .from("admin_config")

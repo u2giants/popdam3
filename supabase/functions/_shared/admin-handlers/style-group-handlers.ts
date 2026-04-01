@@ -549,7 +549,7 @@ export async function handleRelinkOrphanedAssets() {
   // 1. Has NULL style_group_id
   // 2. Is not deleted
   // 3. Has a relative_path that matches a style_group's folder_path (starts with it)
-  
+
   const BATCH_SIZE = 500;
   let totalRelinked = 0;
   let totalAlreadyLinked = 0;
@@ -629,7 +629,7 @@ export async function handleRelinkOrphanedAssets() {
         const SUB_BATCH = 100;
         for (let i = 0; i < updates.length; i += SUB_BATCH) {
           const batch = updates.slice(i, i + SUB_BATCH);
-          
+
           for (const update of batch) {
             try {
               const { error: updateErr } = await db

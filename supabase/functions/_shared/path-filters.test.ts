@@ -3,15 +3,15 @@
  */
 
 import {
-  JUNK_FILENAMES,
+  isExcludedDirectory,
+  isExcludedRelativePath,
   isJunkFilename,
   isJunkPrefix,
   isMacResourceFork,
-  isExcludedDirectory,
-  isExcludedRelativePath,
-  shouldSkipFile,
   isPdfStyleGuide,
+  JUNK_FILENAMES,
   PDF_KEYWORD_EXCLUSIONS,
+  shouldSkipFile,
 } from "./path-filters.ts";
 
 describe("JUNK_FILENAMES", () => {
