@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
+import { resolveMg01Code, resolveMg02Code, resolveMg03Code } from "../_shared/mg-codes.ts";
 
 const DEFAULT_ERP_ENDPOINT = "https://api.designflow.app/api/item_master/lib/getApiAllItems";
 const BATCH_SIZE = 100;
@@ -211,9 +212,17 @@ serve(async (req: Request) => {
         const normalizedRows = batch.map((item: any) => {
           const externalId = String(item.itemNum || item.styleNumber || item.itemCode || item.id || `unknown-${i}`);
 
-          const mg01 = item["Product Type ( Material)"] || item["Product Type (Material)"] || item.mg01 || item.merchGroup01 || null;
-          const mg02 = item["Product Sub-Type (Construction)"] || item.mg02 || item.merchGroup02 || null;
-          const mg03 = item["Product Sub-Sub-Type (feature)"] || item["Product Sub-Sub-Type(feature)"] || item.mg03 || item.merchGroup03 || null;
+          // Raw API values — may be letter codes ("A") or full descriptions ("Stretched/Box")
+          const mg01Raw = item["Product Type ( Material)"] || item["Product Type (Material)"] || item.mg01 || item.merchGroup01 || null;
+          const mg02Raw = item["Product Sub-Type (Construction)"] || item.mg02 || item.merchGroup02 || null;
+          const mg03Raw = item["Product Sub-Sub-Type (feature)"] || item["Product Sub-Sub-Type(feature)"] || item.mg03 || item.merchGroup03 || null;
+
+          // Resolve to single-character codes — if the API returned a description,
+          // reverse-look it up to its canonical letter code. If resolution fails,
+          // store null so the item is flagged rather than storing a description in a code field.
+          const mg01Code = resolveMg01Code(mg01Raw);
+          const mg02Code = resolveMg02Code(mg01Code, mg02Raw);
+          const mg03Code = resolveMg03Code(mg01Code, mg02Code, mg03Raw);
 
           const erpDate = item.created_date || item.updatedAt || item.lastModified || null;
 
@@ -222,9 +231,9 @@ serve(async (req: Request) => {
             style_number: item.itemNum || item.styleNumber || null,
             item_description: item.item_name || item.itemDescription || item.description || null,
             mg_category: item.mgCategory || null,
-            mg01_code: mg01,
-            mg02_code: mg02,
-            mg03_code: mg03,
+            mg01_code: mg01Code,
+            mg02_code: mg02Code,
+            mg03_code: mg03Code,
             mg04_code: item.mg04 || item.merchGroup04 || null,
             mg05_code: item.mg05 || item.merchGroup05 || null,
             mg06_code: item.mg06 || item.merchGroup06 || null,
@@ -238,9 +247,14 @@ serve(async (req: Request) => {
             sync_run_id: runId,
             synced_at: new Date().toISOString(),
             raw_mg_fields: {
-              mg01,
-              mg02,
-              mg03,
+              // Original API values (may be descriptions or codes)
+              mg01: mg01Raw,
+              mg02: mg02Raw,
+              mg03: mg03Raw,
+              // Resolved letter codes (null if API value couldn't be matched to schema)
+              mg01_code: mg01Code,
+              mg02_code: mg02Code,
+              mg03_code: mg03Code,
               mg04: item.mg04 || item.merchGroup04,
               mg05: item.mg05 || item.merchGroup05,
               mg06: item.mg06 || item.merchGroup06,
