@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
-  RefreshCw, RotateCcw, Play, Trash2, Stethoscope,
-  FileSearch, Sparkles, Loader2, Database, Wrench, Download,
+  RefreshCw, Loader2, FileSearch, Sparkles, Stethoscope, Wrench, Download, Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RequestOpFn } from "./types";
@@ -22,18 +21,6 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
   const reprocessOp = usePersistentOperation("reprocess-metadata");
   const backfillOp = usePersistentOperation("backfill-sku-names");
 
-  const resetScanMutation = useMutation({
-    mutationFn: () => call("reset-scan-state"),
-    onSuccess: () => { toast.success("Scan state reset to idle"); onRefresh(); },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const resumeMutation = useMutation({
-    mutationFn: () => call("resume-scanning"),
-    onSuccess: () => { toast.success("Scanning resumed"); onRefresh(); },
-    onError: (e) => toast.error(e.message),
-  });
-
   const retryFailedMutation = useMutation({
     mutationFn: () => call("retry-failed-jobs"),
     onSuccess: (data) => { toast.success(`${data.retried_count ?? 0} failed jobs reset to pending`); onRefresh(); },
@@ -44,27 +31,6 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
     mutationFn: () => call("clear-completed-jobs"),
     onSuccess: (data) => { toast.success(`${data.deleted_count ?? 0} old completed jobs cleared`); onRefresh(); },
     onError: (e) => toast.error(e.message),
-  });
-
-  const debugColdlionMutation = useMutation({
-    mutationFn: async () => {
-      const result = await call("debug-coldlion-lookup", { mg_type: "06", division: "CW001", search_code: "CR" });
-      console.log("ColdLion MG06 Debug:", result);
-      return result;
-    },
-    onSuccess: (data) => {
-      const cr = data.search_result;
-      const creature = data.creature_check;
-      let msg = `ColdLion has ${data.total_codes} property codes.\n`;
-      msg += cr?.found 
-        ? `CR → "${cr.name}"` 
-        : "CR code NOT FOUND in ColdLion!";
-      msg += creature?.found 
-        ? `\nCREATURE found as code "${creature.code}"` 
-        : "\nNo code maps to CREATURE.";
-      toast.info(msg, { duration: 10000 });
-    },
-    onError: (e) => toast.error(`ColdLion lookup failed: ${e.message}`),
   });
 
   const repairPropertyNamesMutation = useMutation({
@@ -182,38 +148,10 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={onRefresh}>
-                  <RefreshCw className="h-3.5 w-3.5" /> Run Diagnostics
+                  <RefreshCw className="h-3.5 w-3.5" /> Refresh
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[220px] text-center">Refreshes all status cards and counters on this page</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline" size="sm" className="gap-1.5"
-                  onClick={() => { if (confirm("Reset scan state to idle?")) resetScanMutation.mutate(); }}
-                  disabled={resetScanMutation.isPending}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" /> Reset Scan State
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-[240px] text-center">Clears scan request and progress flags. Does not delete any discovered assets.</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline" size="sm" className="gap-1.5"
-                  onClick={() => resumeMutation.mutate()}
-                  disabled={resumeMutation.isPending}
-                >
-                  <Play className="h-3.5 w-3.5" /> Resume Scanning
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-[220px] text-center">Triggers a new scan that resumes from the last checkpoint</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <TooltipProvider>
@@ -272,21 +210,6 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-[260px] text-center">Resolves human-readable licensor/property names from the ColdLion API where only codes exist</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline" size="sm" className="gap-1.5"
-                  onClick={() => debugColdlionMutation.mutate()}
-                  disabled={debugColdlionMutation.isPending}
-                >
-                  {debugColdlionMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" />}
-                  Debug ColdLion
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-[280px] text-center">Fetches MG06 (property) codes from ColdLion API and checks if CR/CREATURE exists. Results logged to console.</TooltipContent>
             </Tooltip>
           </TooltipProvider>
           <TooltipProvider>

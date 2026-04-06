@@ -150,16 +150,16 @@ function AgentUpdateControls({ agentId, agentName }: { agentId: string; agentNam
         </>
       )}
 
-      {!hasUpdate && !checking && (
+      {!hasUpdate && !isUpToDate && !checking && (
         <Button
           variant="ghost"
           size="sm"
           className="gap-1.5 text-xs h-7 text-muted-foreground"
           onClick={handleApply}
-          disabled={applying} title={applying ? "Applying update…" : undefined}
+          disabled={applying} title={applying ? "Applying update…" : "Reinstall the current version"}
         >
           {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-          {applying ? "Updating..." : "Force Update"}
+          {applying ? "Updating..." : "Reinstall"}
         </Button>
       )}
 
@@ -274,7 +274,7 @@ function AgentStatusSection() {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="sm" onClick={() => triggerScanMutation.mutate()} disabled={triggerScanMutation.isPending} title={triggerScanMutation.isPending ? "Triggering scan…" : undefined} className="gap-1.5">
-                <RefreshCw className={`h-3.5 w-3.5 ${triggerScanMutation.isPending ? "animate-spin" : ""}`} /> Sync Now
+                <RefreshCw className={`h-3.5 w-3.5 ${triggerScanMutation.isPending ? "animate-spin" : ""}`} /> Scan Now
               </Button>
             </TooltipTrigger>
             <TooltipContent>Trigger an immediate NAS scan on the Bridge Agent</TooltipContent>
@@ -962,7 +962,6 @@ export default function SettingsPage() {
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TipTab value="pdf-text" label="PDF Text" tip="Extract and inspect text content from tech pack and licensing sheet PDFs" />
           <TipTab value="ai-tagging" label="AI Tagging" tip="Run AI tagging jobs and configure tagging behavior" />
           <TipTab value="taxonomy" label="Taxonomy" tip="Manage licensors, properties, and characters — sync from external APIs" />
           <TipTab value="erp" label="ERP" tip="Sync and enrich product data from your ERP system" />
@@ -979,6 +978,7 @@ export default function SettingsPage() {
               { id: "nas", label: "NAS & Folders" },
               { id: "scanning", label: "Scanning" },
               { id: "image-output", label: "Image Output" },
+              { id: "paths", label: "Path Tester" },
             ].map(({ id, label }) => (
               <button
                 key={id}
@@ -992,6 +992,7 @@ export default function SettingsPage() {
           {storageSubTab === "nas" && <NasStorageTab />}
           {storageSubTab === "scanning" && <ScanningTab />}
           {storageSubTab === "image-output" && <ImageOutputTab />}
+          {storageSubTab === "paths" && <PathTesterSection />}
         </TabsContent>
 
         {/* ── Agents (Bridge + Windows + Install) ── */}
@@ -1000,6 +1001,7 @@ export default function SettingsPage() {
             {[
               { id: "bridge", label: "Bridge Agent (NAS)" },
               { id: "windows", label: "Windows Render Agent" },
+              { id: "pdf-text", label: "PDF Text" },
               { id: "install", label: "Install Bundles" },
             ].map(({ id, label }) => (
               <button
@@ -1022,12 +1024,8 @@ export default function SettingsPage() {
             </div>
           )}
           {agentsSubTab === "windows" && <WindowsAgentTab />}
+          {agentsSubTab === "pdf-text" && <PdfTextSamplesTab />}
           {agentsSubTab === "install" && <InstallBundleTab />}
-        </TabsContent>
-
-        {/* ── PDF Text Extraction ── */}
-        <TabsContent value="pdf-text" className="space-y-4">
-          <PdfTextSamplesTab />
         </TabsContent>
 
         {/* ── AI Tagging ── */}
@@ -1051,7 +1049,6 @@ export default function SettingsPage() {
             {[
               { id: "tiff", label: "TIFF Compression" },
               { id: "files", label: "File Quality" },
-              { id: "paths", label: "Path Tester" },
             ].map(({ id, label }) => (
               <button
                 key={id}
@@ -1064,7 +1061,6 @@ export default function SettingsPage() {
           </div>
           {hygieneSubTab === "tiff" && <TiffHygieneTab />}
           {hygieneSubTab === "files" && <FileHygieneTab />}
-          {hygieneSubTab === "paths" && <PathTesterSection />}
         </TabsContent>
 
         {/* ── Operations ── */}

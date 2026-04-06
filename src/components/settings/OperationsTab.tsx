@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { Wrench, ListOrdered } from "lucide-react";
+import { ListOrdered } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import type { OperationState } from "@/hooks/usePersistentOperation";
@@ -82,12 +82,25 @@ export default function OperationsTab() {
     return () => { mounted = false; clearInterval(timer); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [subTab, setSubTab] = useState<"bulk" | "maintenance">("bulk");
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Wrench className="h-5 w-5" /> Bulk Operations
-        </h2>
+        <div className="flex gap-1 border-b border-border pb-2">
+          {[
+            { id: "bulk" as const, label: "Bulk Jobs" },
+            { id: "maintenance" as const, label: "Maintenance" },
+          ].map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setSubTab(id)}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${subTab === id ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {queuedItems.length > 0 && (
           <Button variant="outline" size="sm" className="gap-1.5 h-7" onClick={() => setShowQueue(true)}>
             <ListOrdered className="h-3.5 w-3.5" /> Queue ({queuedItems.length})
@@ -95,8 +108,8 @@ export default function OperationsTab() {
         )}
       </div>
 
-      <ActionsSection onRefresh={() => {}} requestOp={requestOp} />
-      <StyleGroupsSection requestOp={requestOp} />
+      {subTab === "bulk" && <StyleGroupsSection requestOp={requestOp} />}
+      {subTab === "maintenance" && <ActionsSection onRefresh={() => {}} requestOp={requestOp} />}
 
       <ConflictDialog state={conflictState} onClose={() => setConflictState(null)} />
       <QueueManagerDialog

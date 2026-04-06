@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import {
   RefreshCw, Play, Database, BarChart3, AlertCircle,
   CheckCircle2, Clock, Loader2, Eye, Zap, Bot, Search,
-  ChevronLeft, ChevronRight, List, Undo2, X, Check,
+  ChevronLeft, ChevronRight, List, Undo2, X, Check, Pencil,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -147,11 +147,10 @@ function ErpSyncSection() {
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingEndpoint(false)}><X className="h-3 w-3" /></Button>
               </span>
             ) : (
-              <code
-                className="text-xs bg-muted px-1 py-0.5 rounded cursor-pointer hover:bg-muted/80"
-                onClick={() => { setEndpointDraft(String(currentEndpoint)); setEditingEndpoint(true); }}
-                title="Click to edit"
-              >{endpointHost}</code>
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">{endpointHost}</code>
+              <Button variant="ghost" size="icon" className="h-5 w-5 ml-1" onClick={() => { setEndpointDraft(String(currentEndpoint)); setEditingEndpoint(true); }} title="Edit endpoint URL">
+                <Pencil className="h-3 w-3" />
+              </Button>
             )}
           </span>
           {watermark && (
