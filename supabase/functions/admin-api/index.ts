@@ -37,7 +37,12 @@ import {
   handleTriggerScan,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
-import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats, handleRelinkOrphanedAssets } from "../_shared/admin-handlers/style-group-handlers.ts";
+import {
+  handleCleanupMegaGroupTags,
+  handleRebuildStyleGroups,
+  handleReconcileStyleGroupStats,
+  handleRelinkOrphanedAssets,
+} from "../_shared/admin-handlers/style-group-handlers.ts";
 
 import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
