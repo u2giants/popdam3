@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import type { OperationState } from "@/hooks/usePersistentOperation";
 import type { RequestOpFn } from "./diagnostics/types";
-import { OP_NAMES, getLane } from "./diagnostics/types";
+import { OP_NAMES, getLane, OP_CONFLICTS } from "./diagnostics/types";
 import { ActionsSection } from "./diagnostics/ActionsSection";
 import { StyleGroupsSection } from "./diagnostics/StyleGroupsSection";
 import { ConflictDialog, type ConflictState } from "./diagnostics/ConflictDialog";
@@ -21,9 +21,27 @@ export default function OperationsTab() {
       const res = await call("get-config", { keys: ["BULK_OPERATIONS"] });
       const ops = (res?.config?.BULK_OPERATIONS?.value ?? res?.config?.BULK_OPERATIONS) as Record<string, OperationState> | undefined;
       const myLane = getLane(opKey);
-      const activeEntry = ops
-        ? Object.entries(ops).find(([k, op]) => op.status === "running" && k !== opKey && getLane(k) === myLane)
+      const myCrossConflicts = OP_CONFLICTS[opKey] ?? [];
+
+      // 1. Same-lane conflict: another op in this lane is running or queued.
+      const sameLaneEntry = ops
+        ? Object.entries(ops).find(([k, op]) =>
+            k !== opKey &&
+            getLane(k) === myLane &&
+            (op.status === "running" || op.status === "queued"),
+          )
         : null;
+
+      // 2. Cross-lane conflict: an op in a different lane that cannot run
+      //    alongside this one is currently running or queued.
+      const crossLaneEntry = ops
+        ? Object.entries(ops).find(([k, op]) =>
+            myCrossConflicts.includes(k) &&
+            (op.status === "running" || op.status === "queued"),
+          )
+        : null;
+
+      const activeEntry = sameLaneEntry ?? crossLaneEntry;
       if (activeEntry) {
         setConflictState({
           isOpen: true,

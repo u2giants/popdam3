@@ -50,6 +50,29 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## Project Documentation
+
+The `docs/` folder contains the authoritative technical documentation for this project. Start here before making changes to backend logic, the database, or background jobs.
+
+| Document | What it covers |
+|----------|---------------|
+| [`docs/PROJECT_BIBLE.md`](docs/PROJECT_BIBLE.md) | Non-negotiable rules, architecture overview, golden rules. **Highest authority — read first.** |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Brain + Muscle hybrid system, networking model, API boundaries |
+| [`docs/SCHEMA.md`](docs/SCHEMA.md) | All database tables, columns, constraints, indexes, RLS rules |
+| [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) | All Edge Functions, pg_cron, Vault, DB triggers, key DB functions, DigitalOcean Spaces |
+| [`docs/BULK_JOBS.md`](docs/BULK_JOBS.md) | Background job system — all jobs, the lane/conflict system, how to add a new job |
+| [`docs/STYLE_GROUPS.md`](docs/STYLE_GROUPS.md) | Style group lifecycle, rebuild stages, tag propagation, primary asset selection |
+| [`docs/ADMIN_OPERATIONS.md`](docs/ADMIN_OPERATIONS.md) | Every admin-api route with parameters and return values (60+ routes) |
+| [`docs/UI_OVERVIEW.md`](docs/UI_OVERVIEW.md) | All pages, detail panels, settings tabs, workflow status values |
+| [`docs/WORKER_LOGIC.md`](docs/WORKER_LOGIC.md) | Synology Bridge Agent (NAS scanner) contract and rules |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Deployment procedures |
+| [`docs/PATH_UTILS.md`](docs/PATH_UTILS.md) | Path canonicalization and NAS path mapping |
+| [`docs/API_CONTRACTS.md`](docs/API_CONTRACTS.md) | agent-api request/response contracts |
+
+> **For AI assistants:** Read `docs/PROJECT_BIBLE.md` first — it lists which doc to consult for each type of question.
+
+---
+
 ## What technologies are used for this project?
 
 This project is built with:

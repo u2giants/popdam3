@@ -306,7 +306,7 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
                 <Button
                   variant="outline" size="sm" className="gap-1.5"
                   onClick={() => runRebuild(false)}
-                  disabled={rebuildOp.isActive || reconcileOp.isActive}
+                  disabled={rebuildOp.isActive || rebuildOp.isQueued || reconcileOp.isActive || reconcileOp.isQueued}
                 >
                   {rebuildOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                   {rebuildOp.isInterrupted ? "Resume Rebuild" : "Rebuild Style Groups"}
@@ -325,7 +325,7 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
                 <Button
                   variant="destructive" size="sm" className="gap-1.5 text-xs"
                   onClick={() => runRebuild(true)}
-                  disabled={reconcileOp.isActive}
+                  disabled={reconcileOp.isActive || reconcileOp.isQueued}
                 >
                   <Trash2 className="h-3 w-3" /> Start Fresh
                 </Button>
@@ -339,7 +339,7 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
                 <Button
                   variant="outline" size="sm" className="gap-1.5"
                   onClick={runReconcile}
-                  disabled={(rebuildOp.isActive && rebuildOp.state.progress?.stage !== "finalize_stats") || reconcileOp.isActive}
+                  disabled={(rebuildOp.isActive && rebuildOp.state.progress?.stage !== "finalize_stats") || rebuildOp.isQueued || reconcileOp.isActive || reconcileOp.isQueued}
                 >
                   {reconcileOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
                   {reconcileOp.isInterrupted ? "Resume Reconcile" : "Reconcile Stats"}

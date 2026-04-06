@@ -260,8 +260,14 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const totalGroups = groupCounts?.totalGroups ?? 0;
   const waitingForSiblings = tagCounts?.waitingForSiblings ?? 0;
 
-  // Any active op in the ai-tagging lane blocks new starts
-  const anyActive = tagUntaggedOp.isActive || tagAllOp.isActive || propagateOp.isActive;
+  // Disable all buttons if any of the three ops is running OR queued.
+  // "queued" must be included: after clicking a button the job sits in "queued"
+  // for up to 60 s before pg_cron promotes it to "running". Without this check
+  // a second op can be started in that window, causing both to run simultaneously.
+  const anyActive =
+    tagUntaggedOp.isActive || tagUntaggedOp.isQueued ||
+    tagAllOp.isActive    || tagAllOp.isQueued    ||
+    propagateOp.isActive || propagateOp.isQueued;
 
   function runBulkTag(mode: "untagged" | "all") {
     const op = mode === "all" ? tagAllOp : tagUntaggedOp;
@@ -291,18 +297,25 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
 
   function runTagAndPropagate() {
     const total = untaggedCount;
-    // Start tagging, then queue propagation to run automatically after
+    // Start tagging immediately, then queue propagation via requestOp so the
+    // conflict-check runs (worker will hold propagation in "queued" until tagging finishes).
     requestOp("ai-tag-untagged", OP_NAMES["ai-tag-untagged"],
       () => {
         tagUntaggedOp.start({
           confirmMessage: `Smart Tag + Propagate: AI-tag representative assets (one per style group, ~3x parallel), then propagate tags to all siblings. Continue?`,
           initialProgress: { total },
         });
-        // Queue propagation to auto-start when tagging finishes (different lane won't conflict)
-        // Actually propagation is in style-groups lane, tagging is in ai-tagging lane — they can coexist
-        // But we want sequential: tag first, then propagate. Queue it.
+        // Queue propagation through requestOp so conflict logic is exercised.
+        // The worker enforces OP_CONFLICTS and will not promote propagation until
+        // tagging completes, so these two jobs run sequentially even though they
+        // are in different lanes.
         setTimeout(() => {
-          propagateOp.queue({ initialProgress: { total: totalGroups } });
+          requestOp(
+            "propagate-group-tags",
+            OP_NAMES["propagate-group-tags"],
+            () => propagateOp.start({ initialProgress: { total: totalGroups } }),
+            () => propagateOp.queue({ initialProgress: { total: totalGroups } }),
+          );
         }, 500);
       },
       () => tagUntaggedOp.queue({ initialProgress: { total } }),

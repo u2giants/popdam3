@@ -72,8 +72,9 @@ export const OP_NAMES: Record<string, string> = {
   "propagate-group-tags": "Propagate Group Tags",
 };
 
-// Operations in DIFFERENT lanes can run simultaneously.
-// Operations in the SAME lane conflict and need user resolution.
+// Operations in DIFFERENT lanes can run simultaneously — UNLESS they appear
+// in OP_CONFLICTS below. Keep this in sync with the backend definition in
+// supabase/functions/_shared/operation-constants.ts.
 export const OP_LANES: Record<string, string> = {
   "ai-tag-untagged": "ai-tagging",
   "ai-tag-all": "ai-tagging",
@@ -90,6 +91,20 @@ export const OP_LANES: Record<string, string> = {
 export function getLane(opKey: string): string {
   return OP_LANES[opKey] ?? opKey;
 }
+
+// Cross-lane conflict map — mirrors backend OP_CONFLICTS.
+// If op A lists op B, they cannot run (or be queued) at the same time.
+// Entries are symmetric: if A blocks B then B also blocks A.
+export const OP_CONFLICTS: Record<string, readonly string[]> = {
+  "ai-tag-untagged":      ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "ai-tag-all":           ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "ai-tag-groups":        ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
+  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "erp-enrichment"],
+  "backfill-sku-names":   ["erp-enrichment"],
+  "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
+};
 
 export const REASON_LABELS: Record<string, string> = {
   gateway_timeout: "Gateway timeout (502/503/504)",

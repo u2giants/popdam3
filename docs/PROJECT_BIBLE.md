@@ -7,6 +7,8 @@ SYSTEM OVERRIDE: PROJECT POPDAM V3
 For path mapping or "0 files found" bugs, refer to docs/PATH_UTILS.md.
 
 For connectivity or Tailscale questions, refer to docs/ARCHITECTURE.md.
+
+For bulk/background jobs (ai-tagging, propagation, ERP, rebuild, etc.), refer to docs/BULK_JOBS.md. This includes the cross-lane conflict map — check it before starting any job or adding a new one.
 4. NO GUESSING: If you are unsure about a NAS path mapping or a Tailscale configuration, ask the user for clarification. Do not "hallucinate" a fix that breaks the networking.
 5. RECOVERY: If the project state becomes corrupted or illogical, stop and perform a "Codebase Audit" against the .md files in the knowledge base before proceeding.
 
@@ -202,10 +204,20 @@ Create `handle_new_user()` trigger:
 
 ## 12) Docs-as-Contracts (Anti-Drift)
 The following docs are authoritative appendices:
-- `docs/SCHEMA.md` — tables, constraints, indexes, RLS
-- `docs/API_CONTRACTS.md` — endpoints + payloads + errors
-- `docs/PATH_UTILS.md` — parsing + normalization + conversions
-- `docs/DEPLOYMENT.md` — how this runs in reality
+
+| Document | What it covers |
+|----------|---------------|
+| `docs/SCHEMA.md` | All tables, columns, constraints, indexes, RLS |
+| `docs/INFRASTRUCTURE.md` | Edge functions, pg_cron, Vault, triggers, key DB functions, DigitalOcean Spaces |
+| `docs/BULK_JOBS.md` | All bulk jobs, lane/conflict system, auto-resume — **read before starting any job** |
+| `docs/STYLE_GROUPS.md` | Style group lifecycle, rebuild stages, tag propagation, primary asset selection |
+| `docs/ADMIN_OPERATIONS.md` | Every admin-api route with parameters and return values |
+| `docs/UI_OVERVIEW.md` | All pages, detail panels, settings tabs, workflow status values |
+| `docs/API_CONTRACTS.md` | Agent-api request/response contracts |
+| `docs/ARCHITECTURE.md` | Brain + Muscle hybrid system, networking model |
+| `docs/WORKER_LOGIC.md` | Bridge Agent (NAS scanner) contract and rules |
+| `docs/PATH_UTILS.md` | Path canonicalization and NAS path mapping |
+| `docs/DEPLOYMENT.md` | Deployment procedures |
 
 If code changes schema or API shape, it must update the corresponding doc in the same commit.
 

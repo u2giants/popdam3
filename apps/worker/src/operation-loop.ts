@@ -40,6 +40,23 @@ const OP_LANES: Record<string, string> = {
   "propagate-group-tags": "style-groups",
 };
 
+// Cross-lane conflicts — operations in DIFFERENT lanes that still cannot run simultaneously.
+// Root cause: speculative-insert index locks on asset_tags B-tree index when both ai-tag and
+// propagate-group-tags INSERT the same (asset_id, tag) pair. SKIP LOCKED only fixes UPDATE
+// locks, not INSERT index locks. Must be kept in sync with:
+//   supabase/functions/_shared/operation-constants.ts  (backend enforcement)
+//   src/components/settings/diagnostics/types.ts       (UI pre-flight check)
+const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
+  "ai-tag-untagged":      ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "ai-tag-all":           ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "ai-tag-groups":        ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
+  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "erp-enrichment"],
+  "backfill-sku-names":   ["erp-enrichment"],
+  "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
+};
+
 function getLane(opKey: string): string {
   if (opKey.startsWith("ai-tag-single-")) return "ai-tagging";
   return OP_LANES[opKey] ?? opKey;
@@ -234,20 +251,28 @@ export async function tick(): Promise<void> {
       return new Date(a[1].updated_at || 0).getTime() - new Date(b[1].updated_at || 0).getTime();
     });
 
+  const runningKeys = new Set(runningEntries.map(([k]) => k));
+
   for (const [nextOpKey, nextOp] of queuedEntries) {
     const lane = getLane(nextOpKey);
-    if (!activeLanes.has(lane)) {
-      logger.info("tick: promoting queued op", { opKey: nextOpKey, lane });
-      allOps[nextOpKey] = {
-        ...nextOp,
-        status: "running",
-        started_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      runningEntries.push([nextOpKey, allOps[nextOpKey]]);
-      activeLanes.add(lane);
-      await persistOpState(nextOpKey, allOps[nextOpKey]);
-    }
+    if (activeLanes.has(lane)) continue;
+
+    // Cross-lane conflict check: skip if any currently-running op conflicts with this one
+    const crossConflicts = OP_CONFLICTS[nextOpKey] ?? [];
+    const hasConflict = crossConflicts.some((conflictKey) => runningKeys.has(conflictKey));
+    if (hasConflict) continue;
+
+    logger.info("tick: promoting queued op", { opKey: nextOpKey, lane });
+    allOps[nextOpKey] = {
+      ...nextOp,
+      status: "running",
+      started_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    runningEntries.push([nextOpKey, allOps[nextOpKey]]);
+    runningKeys.add(nextOpKey);
+    activeLanes.add(lane);
+    await persistOpState(nextOpKey, allOps[nextOpKey]);
   }
 
   if (runningEntries.length === 0) {

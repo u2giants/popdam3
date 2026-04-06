@@ -1,0 +1,314 @@
+# UI Overview
+
+PopDAM is a React + TypeScript single-page application built with Vite, shadcn/ui components, and Tailwind CSS. This document describes every page, panel, and settings tab in the interface.
+
+---
+
+## Application Routes
+
+| Route | Component | Purpose |
+|-------|-----------|---------|
+| `/` | `Index.tsx` | Main library — browse, search, and tag assets and groups |
+| `/settings` | `SettingsPage.tsx` | Admin control panel (multiple tabs) |
+| `/setup` | `SetupPage.tsx` | First-run wizard for initial configuration |
+| `/downloads` | `DownloadsPage.tsx` | Agent installer download links |
+| `/login` | `LoginPage.tsx` | Invitation-only sign-in form |
+| `/ai-tagging/:id` | `AiTaggingDetailPage.tsx` | Detail view for a single AI tagging run |
+| `/scan-diagnostics` | `ScanDiagnosticsPage.tsx` | Bridge Agent scan history and error details |
+
+All routes except `/login` and `/setup` require an authenticated user with at least the `user` role. Admin-only settings tabs additionally require the `admin` role.
+
+---
+
+## Main Library Page (`/`)
+
+The library is the primary working view. It has two top-level modes selectable from the toolbar:
+
+- **Groups mode** — browses assets by style group (one card per SKU). This is the default.
+- **Assets mode** — browses individual files regardless of group membership.
+
+Within each mode, two display layouts are available:
+
+- **Grid** — thumbnail cards
+- **List** — compact tabular rows
+
+### Library Top Bar (`LibraryTopBar.tsx`)
+Persistent control bar at the top of the library:
+- **Search box** — full-text search on filename and tags
+- **Filter toggle** — shows/hides the left filter sidebar
+- **Mode toggle** — Groups / Assets
+- **View toggle** — Grid / List
+- **Sort control** — sort field and direction (e.g. modified_at, SKU, workflow_status)
+- **Sync button** — triggers a Bridge Agent scan
+- **Refresh button** — reloads the current query
+
+### Filter Sidebar (`FilterSidebar.tsx`)
+Faceted filter panel that appears on the left side. Filters include:
+- Licensor
+- Property
+- Workflow status
+- Asset type
+- File type (PSD/AI)
+- Is licensed flag
+- Tag search
+- Date range (modified_at or file_created_at)
+
+All filter counts update live as other filters change.
+
+### Scan Monitor Banner (`ScanMonitorBanner.tsx`)
+A collapsible progress bar that appears when a Bridge Agent scan is active. Shows:
+- Files checked, ingested, moved, errors
+- Current path being scanned
+- Agent name and scan session ID
+- Elapsed time
+
+### Style Group Grid / List
+- **`StyleGroupGrid.tsx`** — 4-column responsive grid of cards. Each card shows the primary asset's thumbnail, SKU, asset count, licensor + property name, workflow status badge, and designer conflict badge if applicable.
+- **`StyleGroupListView.tsx`** — Compact tabular list with the same fields.
+
+Clicking a card selects it and opens the Style Group Detail Panel on the right.
+
+### Asset Grid / List
+- **`AssetGrid.tsx`** — thumbnail grid, one card per file
+- **`AssetListView.tsx`** — tabular list with filename, path, status, dates
+
+Clicking a card selects it and opens the Asset Detail Panel on the right.
+
+### Pagination Bar (`PaginationBar.tsx`)
+Shows current page, total records, and navigation buttons. Page size is 200 items.
+
+### Bulk Action Bar (`BulkActionBar.tsx`)
+Appears when one or more groups are selected (multi-select via checkbox). Provides:
+- Select all on current page
+- Bulk tag (run AI tagging on all selected groups)
+- Bulk workflow status change
+
+---
+
+## Style Group Detail Panel (`StyleGroupDetailPanel.tsx`)
+
+Opens on the right side when a style group is selected. Contains the following sections:
+
+### 1. Header
+Group SKU, licensor + property name, close button. Workflow status badge.
+
+### 2. Primary Asset Carousel
+Thumbnail carousel showing all non-deleted member assets. Click to expand to full-screen lightbox. Badges show which asset is the current primary.
+
+### 3. Group Metadata
+- Folder path (with copy button)
+- Asset count
+- Latest file date
+- Is licensed flag
+
+### 4. Licensing & Taxonomy
+- Licensor name / code
+- Property name / code
+- Product category
+- Division / MG01–MG06 codes and names
+- Size code / name
+
+### 5. Designer Information
+- Designer name
+- Technical designer name
+- Freelancer name
+- Designer conflict warning if members disagree
+
+### 6. Cover Description
+AI-generated product description from the primary asset. Displayed as read-only text.
+
+### 7. AI Tags
+All tags associated with the primary asset (`asset_tags` where `source = 'ai'`). Displayed as tag chips. Tags marked as "file-specific" (front view, mockup, etc.) are visually distinguished.
+
+### 8. Characters
+Character associations from `asset_characters`, showing character name and property.
+
+### 9. AI Analysis Detail
+Full AI analysis output from the primary asset: `ai_description`, `scene_description`, `big_theme`, `little_theme`, `design_style`.
+
+### 10. Asset List
+Scrollable list of all member assets with filename, file type, thumbnail status, and AI tagging status. Clicking an asset opens its individual detail view.
+
+### 11. Path Information
+Full NAS paths derived from `relative_path` + config:
+- Network path by hostname (`\\NAS_HOST\SHARE\...`)
+- Network path by IP (`\\NAS_IP\SHARE\...`)
+- Synology Drive path
+
+Each path has a copy-to-clipboard button.
+
+### 12. Sibling Image Finder (`FindAlternativeImages` component)
+Allows discovery and ingestion of JPG/PNG files that sit in the same NAS folder as the group's design files but haven't been ingested yet (photography, renders, mockups).
+
+**Flow:**
+1. Click "Scan for Images" — triggers a sibling scan request to the Bridge Agent via `get-sibling-scan-by-folder`.
+2. UI polls for results (up to 60 polls, ~60 seconds).
+3. Results list shows thumbnails of discovered images with filename and file size.
+4. User selects desired images and clicks "Ingest Selected".
+5. Selected images are ingested as new assets and linked to the current style group via `ingest-sibling-images`.
+
+---
+
+## Asset Detail Panel (`AssetDetailPanel.tsx`)
+
+Opens on the right side when an individual asset is selected. Shows:
+- Thumbnail (full-size expandable)
+- Filename and relative path
+- File type, file size, dimensions, artboards
+- Timestamps: `modified_at`, `file_created_at`, `ingested_at`, `ai_tagged_at`
+- Licensor + property assignment
+- Workflow status selector (editable)
+- AI tags and characters
+- Quick hash (for debugging)
+- Network path links
+
+---
+
+## Settings Page (`/settings`)
+
+The settings page is an admin-only control panel organized into tabs.
+
+### Tab: Storage
+Configures DigitalOcean Spaces connection (bucket, region, endpoint, public base URL). Also sets `SCAN_MIN_DATE` and `THUMBNAIL_MIN_DATE`.
+
+### Tab: Agents (Bridge)
+- Lists registered Bridge Agents with online/offline status and last heartbeat time.
+- Shows last scan counters (files checked, ingested, errors).
+- Buttons: Trigger Scan, Stop Scan, Resume Scanning, Reset Scan State, Revoke Agent.
+- **Live Scan Monitor** (`LiveScanMonitor.tsx`) — real-time progress bar during active scans.
+- **Agent Update** — check for new Bridge Agent Docker image versions and trigger an update.
+- **Install Bundle** — generate a ZIP with pre-configured `.env` + `docker-compose.yml` for new agent setup.
+
+### Tab: Windows Agent
+- Lists registered Windows Render Agents.
+- Render queue statistics (pending, claimed, completed, failed).
+- List render jobs with requeue / clear controls.
+- Check for updates, trigger update.
+- Install bundle generation for Windows Agent.
+
+### Tab: AI Tagging
+- Configure AI tagging instructions (custom prompt additions stored in `admin_config`).
+- Taxonomy endpoint URLs for `sync-external`.
+- Taxonomy sync controls (sync all licensors / sync one).
+- Untagged asset count and AI tagging controls (tag untagged / tag all).
+- Tag propagation controls.
+
+### Tab: ERP Enrichment
+- **Sync section:** Configure ERP API credentials, trigger sync (full or incremental), view last 10 sync run history.
+- **Enrichment controls:** Run dry-run to preview changes, apply enrichment, view stats.
+- **Category review queue:** Paginated table of product category predictions. Review, approve, or reject individual or bulk predictions.
+- **ERP item browser:** Search and browse all items in `erp_items_current`. Dismiss irrelevant items.
+
+### Tab: File Hygiene
+- **Hygiene findings list:** Table of open findings by check type (`ai_embedded_raster`, `tiff_uncompressed`, `psd_oversized_layer`), with severity and file path. Actions: dismiss, mark resolved.
+- **Scan controls:** Select check types and trigger hygiene scan, stop active scan.
+
+### Tab: TIFF Optimization
+- **TIFF file list:** Table of all files in `tiff_optimization_queue` with size, compression type, and status. Filter by status and compression type.
+- **Queue controls:** Select files and queue for test-mode or process-mode compression.
+- **Delete originals:** After successful compression, queue original files for deletion.
+- **Scan controls:** Trigger TIFF scan, clear scan data, refresh file dates.
+
+### Tab: Operations
+Bulk operation launcher and status dashboard. Displays all operations from `admin_config.BULK_OPERATIONS`:
+- Current status (running / queued / interrupted / completed / failed)
+- Progress counters
+- Last error
+- Auto-resume attempts remaining
+- Start / Stop / Resume controls
+- Interruption reason and timestamp
+
+Operations available:
+- AI Tag Untagged
+- Re-tag Everything (AI Tag All)
+- AI Tag Groups
+- Propagate Group Tags
+- Rebuild Style Groups
+- Reconcile Stats
+- Reprocess Metadata
+- Backfill SKU Names
+- ERP Enrichment
+- ERP Classify
+
+See `docs/BULK_JOBS.md` for full operation documentation.
+
+### Tab: Users
+- List all users and their roles.
+- Pending and accepted invitations list.
+- Invite new user (by email + role).
+- Revoke pending invitations.
+
+### Tab: Diagnostics
+- **Doctor panel:** Full system health check. Shows effective config, agent status, last error summary.
+- **Database inspector:** Run read-only SQL queries via `run-query` action.
+- **Character stats:** Rebuild character usage statistics.
+- **ColdLion debug:** Test ColdLion merchandise group code lookups.
+- **Path test:** Request the Bridge Agent to validate configured NAS path mappings.
+- **Repair tools:** Repair invalid property names.
+
+---
+
+## Workflow Status Values
+
+The `workflow_status` enum controls the production lifecycle stage of an asset/group. Valid values:
+
+| Value | Display Label | Meaning |
+|-------|--------------|---------|
+| `product_ideas` | Product Ideas | Early ideation, not yet approved |
+| `concept_approved` | Concept Approved | Concept sign-off received |
+| `in_development` | In Development | Active design work |
+| `freelancer_art` | Freelancer Art | Sent to external artist |
+| `discontinued` | Discontinued | No longer in production |
+| `in_process` | In Process | Manufacturing/production stage |
+| `customer_adopted` | Customer Adopted | Sold to a retail customer |
+| `licensor_approved` | Licensor Approved | Final licensor sign-off received |
+| `other` | Other | Default / unclassified |
+
+---
+
+## Bulk Job Conflict Detection (UI Layer)
+
+Every settings tab that can start a bulk job uses a `requestOp` function before calling any start/queue action. This function is the UI-level first line of defence against concurrent conflicting operations.
+
+### How `requestOp` works
+
+1. Fetches the current `BULK_OPERATIONS` state from `admin_config`.
+2. Checks for **same-lane conflicts**: another op in the same lane (`OP_LANES`) that is `running` or `queued`.
+3. Checks for **cross-lane conflicts**: any op listed in `OP_CONFLICTS` for the requested op that is `running` or `queued`. The frontend `OP_CONFLICTS` map is in `src/components/settings/diagnostics/types.ts` — it mirrors the backend copy in `supabase/functions/_shared/operation-constants.ts`.
+4. If a conflict is found: shows a **ConflictDialog** explaining which op is blocking, and offering to **Queue** the new op to start automatically once the conflict clears.
+5. If no conflict: calls `startFn()` immediately.
+
+### `isQueued` in disabled checks
+
+Operation buttons are disabled when `anyActive = isActive || isQueued` (for each relevant op). `isActive` = `status === "running"`, `isQueued` = `status === "queued"`. Both must be checked because after clicking a button, the job enters `"queued"` status for up to 60 seconds before pg_cron promotes it to `"running"`. Without the `isQueued` check there is a window where a second button can be clicked, launching two conflicting jobs simultaneously.
+
+### Where conflict detection lives
+
+| Location | What it checks | What it does when blocked |
+|----------|---------------|--------------------------|
+| `AiTaggingTab.tsx` → `requestOp` | Same-lane + cross-lane (running or queued) | Shows ConflictDialog with Queue option |
+| `OperationsTab.tsx` → `requestOp` | Same-lane + cross-lane (running or queued) | Shows ConflictDialog with Queue option |
+| `bulk-job-runner` queue promotion | Cross-lane (running only) | Defers — retries next pg_cron tick |
+| `bulk-job-runner` auto-resume | Cross-lane (running only) | Defers — retries next pg_cron tick |
+| `admin-api` `update-bulk-op` | Cross-lane (running only) | Returns HTTP 409 |
+
+See `docs/BULK_JOBS.md` for the full conflict map and enforcement details.
+
+---
+
+## Key React Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `useStyleGroups` | Fetches style groups with filtering, sorting, pagination |
+| `useStyleGroupCount` | Total group count matching current filters |
+| `useUngroupedCount` | Count of assets not in any group |
+| `useTotalAssetCount` | Total visible asset count |
+| `useAssets` | Fetches individual assets with filtering |
+| `useFilterOptions` | Available filter facet values |
+| `useFilterCounts` | Per-facet item counts for the filter sidebar |
+| `useAgentStatus` | Bridge Agent online/offline + last heartbeat |
+| `useScanProgress` | Current scan session counters |
+| `useScanLifecycle` | Manages scan start/stop/progress polling |
+| `useSelectionManager` | Multi-select state for bulk actions |
+| `useBulkOperations` | Current state of all bulk operations from admin_config |

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, err, json } from "../_shared/http.ts";
+import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalString, requireString } from "../_shared/validators.ts";
 
@@ -534,8 +535,28 @@ async function handleUpdateBulkOp(body: Record<string, unknown>) {
   if (!opState || typeof opState !== "object") return err("op_state is required");
 
   const onlyIfStatus = typeof body.only_if_status === "string" ? body.only_if_status : null;
-
   const db = serviceClient();
+
+  // Guard: if this call is transitioning the op to running/queued, check cross-lane conflicts.
+  // The bulk-job-runner also checks this at promotion time, but catching it here gives the
+  // user immediate feedback instead of silently deferring.
+  const newStatus = (opState as Record<string, unknown>).status;
+  if (newStatus === "running" || newStatus === "queued") {
+    const { data: configRow } = await db
+      .from("admin_config")
+      .select("value")
+      .eq("key", "BULK_OPERATIONS")
+      .maybeSingle();
+    const allOps = (configRow?.value as Record<string, { status: string }>) || {};
+    const conflictingOp = findRunningConflict(opKey, allOps);
+    if (conflictingOp) {
+      return err(
+        `Cannot start '${opKey}': '${conflictingOp}' is currently running and writes to the same tables. Stop it first or wait for it to complete.`,
+        409,
+      );
+    }
+  }
+
   const { data, error } = await db.rpc("update_bulk_operation", {
     p_op_key: opKey,
     p_op_state: opState,

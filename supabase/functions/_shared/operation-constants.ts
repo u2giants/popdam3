@@ -66,6 +66,69 @@ export function classifyInterruptionReason(
   return "unknown";
 }
 
+// ── Cross-lane conflict map ─────────────────────────────────────────
+// Operations in the SAME lane are already serialized by the lane system.
+// This map enforces additional mutual-exclusion across DIFFERENT lanes.
+//
+// If op A lists op B here, they cannot run at the same time — the later-
+// starting op is deferred (queued/auto-resume held) until the other finishes.
+// Entries must be symmetric: if A blocks B then B must also block A.
+//
+// Confirmed incidents:
+//   ai-tag-* + propagate-group-tags (2026-04-01, 2026-04-05): both wrote
+//   asset_tags / asset_characters / assets concurrently → lock contention →
+//   120 s statement timeout.
+//
+//   The assets UPDATE was fixed with FOR UPDATE SKIP LOCKED (migration
+//   20260405000000). However INSERT INTO asset_tags / asset_characters still
+//   experiences speculative-insert index locks when both jobs try to insert the
+//   same (asset_id, tag) pair simultaneously (one waits for the other to commit
+//   before resolving the ON CONFLICT). Across many groups with many siblings
+//   these waits accumulate and still breach the 120 s statement_timeout.
+//   Until the INSERT paths are also made lock-free these two jobs must not run
+//   at the same time.
+//
+// Remaining risks (data-integrity, not just lock-wait):
+//   ai-tag-* + rebuild-style-groups: rebuild clears style_group_id on every
+//   asset while ai-tag reads it to scope propagation → tags propagate to the
+//   wrong group or are lost entirely.
+//
+//   reprocess-metadata + ai-tag-*: both write licensor_id, property_id,
+//   is_licensed, workflow_status on assets → last-writer-wins data races.
+//
+//   erp-enrichment + reprocess-metadata / backfill-sku-names: all three write
+//   licensor/property code columns on assets and style_groups → data races.
+
+export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
+  "ai-tag-untagged":            ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "ai-tag-all":                 ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "ai-tag-groups":              ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "propagate-group-tags":       ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
+  "rebuild-style-groups":       ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
+  "reprocess-metadata":         ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "erp-enrichment"],
+  "backfill-sku-names":         ["erp-enrichment"],
+  "erp-enrichment":             ["reprocess-metadata", "backfill-sku-names"],
+};
+
+/** Returns the ops that `opKey` cannot run alongside (empty array if none). */
+export function getConflicts(opKey: string): readonly string[] {
+  return OP_CONFLICTS[opKey] ?? [];
+}
+
+/**
+ * Returns the first currently-running op that conflicts with `opKey`,
+ * or null if there are no conflicts.
+ */
+export function findRunningConflict(
+  opKey: string,
+  allOps: Record<string, { status: string }>,
+): string | null {
+  for (const conflictKey of getConflicts(opKey)) {
+    if (allOps[conflictKey]?.status === "running") return conflictKey;
+  }
+  return null;
+}
+
 // ── Operation action mapping ────────────────────────────────────────
 
 export const OP_ACTIONS: Record<string, string> = {

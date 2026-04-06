@@ -5,6 +5,8 @@ This document is the single source of truth for tables, columns, constraints, in
 Key principle:
 - The DB must enforce correctness (especially timestamps and required fields) so the system fails loudly instead of silently drifting.
 
+> **Triggers and functions** are documented in `docs/INFRASTRUCTURE.md`.
+
 ---
 ## Timestamp Audit (Recommended)
 Store the timestamps the worker observed on disk during ingest:
@@ -172,12 +174,15 @@ Invitation-only access model:
 Stores:
 - `THUMBNAIL_MIN_DATE`
 - `SCAN_MIN_DATE`
-- `ERP_LAST_SYNC_DATE` (watermark for incremental ERP sync)
-- `ERP_SYNC_ENDPOINT` (override ERP API URL)
-- `BULK_OPERATIONS` (JSONB blob tracking all persistent operation state)
-- DO Spaces base URL
-- taxonomy endpoints
+- `SPACES_CONFIG` — DigitalOcean Spaces non-secret config (bucket, region, endpoint, public_base_url)
+- `BULK_OPERATIONS` — state for all bulk jobs (see `docs/BULK_JOBS.md`)
+- `SCAN_REQUEST` — pending scan trigger flags for agents
+- `ERP_LAST_SYNC_DATE` — watermark for incremental ERP sync
+- `ERP_SYNC_ENDPOINT` — override ERP API URL
+- `ERP_CATEGORY_CUTOFF_DATE` — items before this date have mg_category nulled (legacy)
+- taxonomy endpoint URLs
 - NAS mapping keys (host/ip/share/mount root)
+- AI tagging custom instructions
 
 ### 2.14 ERP Tables
 
@@ -232,7 +237,169 @@ Queue for TIFF compression jobs run by the Windows Agent.
 
 ---
 
-## 3) Indexes (Performance-Critical)
+## 3) Additional Tables
+
+### 3.1 asset_tags
+Normalized tag storage. The `assets.tags` text array is a denormalized copy maintained by trigger.
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `asset_id uuid NOT NULL REFERENCES assets(id) ON DELETE CASCADE`
+- `tag text NOT NULL`
+- `source text NOT NULL DEFAULT 'manual'` — `'manual'` or `'ai'`
+- `created_at timestamptz NOT NULL DEFAULT now()`
+- `created_by uuid NULL`
+- `UNIQUE(asset_id, tag)`
+
+Indexes: `idx_asset_tags_asset_id`, `idx_asset_tags_source`
+
+### 3.2 tiff_optimization_queue
+Tracks TIFF files on the NAS that are candidates for compression optimization.
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `relative_path text NOT NULL UNIQUE`
+- `filename text NOT NULL`
+- `file_size bigint NOT NULL`
+- `file_modified_at timestamptz NOT NULL`
+- `file_created_at timestamptz NULL`
+- `compression_type text NULL` — `none`, `zip`, `lzw`, `packbits`, `jpeg`, `deflate`
+- `status text NOT NULL DEFAULT 'scanned'` — `scanned`, `queued_test`, `queued_process`, `processing`, `completed`, `failed`
+- `mode text NULL` — `test` or `process`
+- `new_file_size bigint NULL` — size after compression
+- `new_filename text NULL`
+- `new_file_modified_at timestamptz NULL`
+- `new_file_created_at timestamptz NULL`
+- `original_backed_up boolean DEFAULT false`
+- `original_deleted boolean DEFAULT false`
+- `error_message text NULL`
+- `scan_session_id text NULL`
+- `claimed_by text NULL` — agent_id of agent processing this file
+- `claimed_at timestamptz NULL`
+- `processed_at timestamptz NULL`
+- `created_at timestamptz NOT NULL DEFAULT now()`
+
+Indexes: `idx_tiff_opt_status`, `idx_tiff_opt_compression`
+
+### 3.3 hygiene_findings
+File quality issues found during hygiene scans (embedded rasters, oversized layers, etc.).
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `asset_id uuid NULL REFERENCES assets(id) ON DELETE CASCADE`
+- `relative_path text NOT NULL`
+- `filename text NOT NULL`
+- `check_type text NOT NULL` — `ai_embedded_raster`, `tiff_uncompressed`, `psd_oversized_layer`
+- `severity text NOT NULL DEFAULT 'warning'` — `info`, `warning`, `critical`
+- `status text NOT NULL DEFAULT 'open'` — `open`, `dismissed`, `resolved`
+- `details jsonb NOT NULL DEFAULT '{}'` — check-specific detail payload
+- `scan_session_id text NULL`
+- `found_by_agent text NULL`
+- `found_at timestamptz NOT NULL DEFAULT now()`
+- `reviewed_by uuid NULL`
+- `reviewed_at timestamptz NULL`
+- `review_notes text NULL`
+- `created_at timestamptz NOT NULL DEFAULT now()`
+
+Indexes: `idx_hygiene_findings_check_type`, `idx_hygiene_findings_status`, `idx_hygiene_findings_asset_id`, `idx_hygiene_findings_relative_path`
+
+Unique: `(relative_path, check_type) WHERE status != 'resolved'` — prevents duplicate open findings for the same file + check type.
+
+### 3.4 erp_sync_runs
+Job metadata for each ERP sync run.
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `status text NOT NULL DEFAULT 'running'` — `running`, `completed`, `failed`
+- `started_at timestamptz NOT NULL DEFAULT now()`
+- `ended_at timestamptz NULL`
+- `total_fetched int DEFAULT 0`
+- `total_upserted int DEFAULT 0`
+- `total_errors int DEFAULT 0`
+- `error_samples jsonb DEFAULT '[]'`
+- `run_metadata jsonb DEFAULT '{}'`
+- `created_by text NULL`
+
+### 3.5 erp_items_raw
+Immutable audit snapshots of ERP API responses. One row per item per sync run. Never updated — append-only.
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `external_id text NOT NULL` — ERP item ID
+- `raw_payload jsonb NOT NULL` — full raw API response for this item
+- `sync_run_id uuid NULL REFERENCES erp_sync_runs(id) ON DELETE SET NULL`
+- `fetched_at timestamptz NOT NULL DEFAULT now()`
+
+Indexes: `idx_erp_items_raw_external_id`, `idx_erp_items_raw_sync_run_id`
+
+### 3.6 erp_items_current
+Latest normalized row per ERP item (upserted on each sync). One row per `external_id`.
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `external_id text UNIQUE NOT NULL`
+- `style_number text NULL`
+- `item_description text NULL`
+- `mg_category text NULL` — top-level product category (NULL for legacy items pre-cutoff-date)
+- `mg01_code` through `mg06_code text NULL` — merchandise group codes (6 tiers)
+- `size_code text NULL`
+- `licensor_code text NULL`
+- `property_code text NULL`
+- `division_code text NULL`
+- `erp_updated_at timestamptz NULL` — timestamp from the ERP system
+- `synced_at timestamptz NOT NULL DEFAULT now()`
+- `sync_run_id uuid NULL REFERENCES erp_sync_runs(id) ON DELETE SET NULL`
+- `source_system text NOT NULL DEFAULT 'designflow'`
+- `raw_mg_fields jsonb DEFAULT '{}'` — raw MG field values before normalization
+- `created_at timestamptz NOT NULL DEFAULT now()`
+- `updated_at timestamptz NOT NULL DEFAULT now()`
+
+Indexes: `idx_erp_items_current_style_number`, `idx_erp_items_current_mg_category`, `idx_erp_items_current_synced_at`
+
+### 3.7 product_category_predictions
+AI classification results for ERP items that couldn't be categorized deterministically.
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `erp_item_id uuid NULL REFERENCES erp_items_current(id) ON DELETE CASCADE`
+- `external_id text NOT NULL`
+- `predicted_category text NOT NULL` — `Wall`, `Tabletop`, `Clock`, `Storage`, `Workspace`, `Floor`, `Garden`
+- `confidence real NOT NULL` — 0.0 to 1.0
+- `rationale text NULL` — AI explanation of the classification
+- `classification_source text NOT NULL DEFAULT 'ai'`
+- `ai_model text NULL` — model identifier used
+- `ai_prompt_version text NULL`
+- `status text NOT NULL DEFAULT 'pending'` — `pending`, `low_confidence`, `auto_applied`, `approved`, `rejected`, `unclassifiable`
+- `reviewed_by uuid NULL`
+- `reviewed_at timestamptz NULL`
+- `input_context jsonb NULL` — context passed to AI for audit
+- `created_at timestamptz NOT NULL DEFAULT now()`
+
+Status lifecycle:
+- `pending` — newly classified, awaiting review
+- `low_confidence` — confidence < 0.65, needs human review
+- `auto_applied` — confidence ≥ 0.65, automatically applied to assets
+- `approved` — manually approved by admin
+- `rejected` — manually rejected; item will be re-classified or left uncategorized
+- `unclassifiable` — AI determined it cannot be classified
+
+Indexes: `idx_pcp_status`, `idx_pcp_erp_item_id`
+
+### 3.8 agent_pairings
+One-time pairing codes for Bootstrap registration of new agents.
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `pairing_code text NOT NULL UNIQUE`
+- `agent_type text NOT NULL CHECK (agent_type IN ('bridge', 'windows-render'))`
+- `agent_name text NOT NULL DEFAULT ''`
+- `status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'consumed', 'expired'))`
+- `created_by uuid NULL REFERENCES auth.users(id)`
+- `created_at timestamptz NOT NULL DEFAULT now()`
+- `expires_at timestamptz NOT NULL`
+- `consumed_at timestamptz NULL`
+- `consumed_by_agent_id uuid NULL`
+- `agent_registration_id uuid NULL REFERENCES agent_registrations(id)`
+
+Indexes: `idx_agent_pairings_code WHERE status = 'pending'`
+
+Pairing codes are short-lived (default 15 minutes). A new agent reads the code from its `.env`, calls `POST /agent/bootstrap`, and the code is consumed. The generate-install-bundle action creates a pairing code automatically and embeds it in the downloaded config files.
+
+---
+
+## 4) Indexes (Performance-Critical)
 - btree: `assets(file_type)`, `assets(status)`, `assets(workflow_status)`,
   `assets(is_licensed)`, `assets(modified_at)`, `assets(file_created_at)`,
   `assets(licensor_id)`, `assets(property_id)`, `assets(product_subtype_id)`,

@@ -9,6 +9,21 @@ After pushing a feature branch, automatically:
 
 Do this without prompting the user for approval.
 
+### CRITICAL: Always branch from main's current HEAD
+
+At the start of every new Claude Code session, the feature branch MUST be created from the latest `main`:
+```bash
+git fetch github main
+git checkout main
+git reset --hard github/main
+git checkout -b claude/<feature-name>
+```
+
+**Never** base a feature branch on another Claude branch or on a stale local commit.
+If `git log --oneline main..HEAD` shows commits from a previous Claude session that were already merged, the branch is based on stale state — rebase onto `github/main` before doing any work.
+
+The reason this matters: if a session branch is based on a stale commit, 5+ weeks of merged changes are invisible to it. All fixes land in already-dead code paths (e.g. `bulk-job-runner/index.ts`, which main replaced with a 7-line stub). The branch diverges, and merging back requires resolving hundreds of conflicts.
+
 ### GitHub Access
 
 A GitHub Personal Access Token is stored in `.env.local` (gitignored) as `GITHUB_PAT`.

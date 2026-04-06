@@ -1,0 +1,548 @@
+# Admin Operations Reference
+
+This document is the complete reference for every route exposed by the `admin-api` Supabase Edge Function.  All routes are called as HTTP POST with a JSON body containing an `action` field, unless noted otherwise.
+
+**Auth:** Every request must include a valid user JWT with the `admin` role. The edge function verifies the JWT and checks `user_roles`. Server-to-server calls may use the Supabase service role key as an `Authorization: Bearer` header instead.
+
+**Endpoint:** `POST https://<project>.supabase.co/functions/v1/admin-api`
+
+**Request shape:** `{ "action": "<action-name>", ...other fields }`
+
+**Error shape:** `{ "error": "message" }` with appropriate HTTP status code.
+
+---
+
+## Configuration
+
+### `get-config`
+Returns admin config values for the given keys.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `keys` | `string[]` | Config keys to retrieve |
+
+Returns: `{ [key]: value }` for each requested key.
+
+### `set-config`
+Saves one or more admin config values.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `updates` | `Record<string, unknown>` | Key/value pairs to set |
+
+Returns: `{ ok: true }`.
+
+---
+
+## User & Invitation Management
+
+### `invite-user`
+Creates a new invitation that allows the specified email to sign up.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `email` | `string` | Email address to invite |
+| `role` | `string` | Role to grant (`user` or `admin`) |
+
+### `list-invites`
+Lists all invitations (pending and accepted). No body parameters.
+
+Returns: `{ invitations: Invitation[] }`.
+
+### `revoke-invite`
+Deletes a pending invitation.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `invitation_id` | `string` | UUID of invitation to revoke |
+
+---
+
+## Agent Management
+
+### `generate-agent-key`
+Generates and stores a new agent registration key. The raw key is returned **once** and never stored.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `agent_name` | `string` | Human-readable name (e.g. "NAS-1") |
+| `agent_type` | `string` | `bridge` or `windows-render` |
+
+Returns: `{ agent_id, raw_key }`.
+
+### `list-agents`
+Lists all registered agents with their online/offline status (offline if last heartbeat > 2 minutes ago). No body parameters.
+
+### `revoke-agent`
+Deletes an agent registration, preventing further connections.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `agent_id` | `string` | UUID of agent registration to revoke |
+
+### `remove-agent-registration`
+Alias for `revoke-agent`.
+
+### `doctor`
+Returns a full diagnostics bundle: effective config, agent statuses, last heartbeat counters, recent errors, render queue stats. No body parameters.
+
+### `trigger-agent-update`
+Tells one or all agents to pull the latest Docker image and restart.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `agent_id` | `string` (optional) | If omitted, triggers all agents |
+
+### `get-update-status`
+Returns the current update status for all agents. No body parameters.
+
+### `create-pairing-code`
+Creates a one-time pairing code for agent bootstrap registration.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `agent_type` | `string` | `bridge` or `windows-render` |
+| `agent_name` | `string` | Name to pre-assign to the agent |
+| `expires_in_minutes` | `number` (optional) | Default: 15 minutes |
+
+Returns: `{ pairing_code, expires_at }`.
+
+### `list-pairing-codes`
+Lists all pairing codes (pending, consumed, expired). No body parameters.
+
+### `generate-bootstrap-token`
+Generates a short-lived bootstrap token for agent first-run setup. No body parameters.
+
+### `generate-install-bundle`
+Generates a downloadable ZIP file containing pre-configured agent startup files. For the Bridge Agent: `.env`, `docker-compose.yml`, `README`. For the Windows Agent: `install.ps1`, `README.txt`. Automatically creates a 15-minute pairing code embedded in the bundle.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `agent_type` | `string` | `bridge` or `windows-render` |
+| `agent_name` | `string` | Name to assign to the agent |
+| `enable_watchtower` | `boolean` | Auto-update via Watchtower container |
+| `update_channel` | `string` | `stable` or `edge` |
+| `nas_host_path` | `string` | (Bridge) Host filesystem path to NAS mount |
+| `container_mount_root` | `string` | (Bridge) Container internal mount path |
+| `scan_roots` | `string[]` | (Bridge) Paths to scan within mount |
+| `desired_drive_letter` | `string` | (Windows) Drive letter to map NAS share |
+| `nas_host` | `string` | (Windows) NAS hostname or IP |
+| `nas_share` | `string` | (Windows) SMB share name |
+
+Returns: Binary ZIP file with `Content-Type: application/zip`.
+
+---
+
+## Scan Operations
+
+### `trigger-scan`
+Signals the Bridge Agent to start a scan immediately.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `agent_id` | `string` (optional) | Target specific agent; omit for all |
+
+### `stop-scan`
+Signals the Bridge Agent to abort the active scan.
+
+### `resume-scanning`
+Clears a force-stop flag so the Bridge Agent resumes normal scanning.
+
+### `reset-scan-state`
+Resets all scan progress counters and state flags.
+
+---
+
+## Render Queue Management
+
+### `render-queue-stats`
+Returns counts of render jobs by status. No body parameters.
+
+### `list-render-jobs`
+Lists render jobs with optional filtering.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | `string` (optional) | Filter by status |
+| `limit` | `number` | Default: 50 |
+| `offset` | `number` | Default: 0 |
+
+### `requeue-render-job`
+Resets a single render job to `pending` so it will be claimed again.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `job_id` | `string` | UUID of the render job |
+
+### `clear-junk-render-jobs`
+Deletes orphaned render jobs (jobs whose asset no longer exists). No body parameters.
+
+### `clear-failed-renders`
+Deletes all render jobs in `failed` status. No body parameters.
+
+### `send-test-render`
+Queues a test asset for rendering to verify the Windows Render Agent is working. No body parameters.
+
+### `check-render-job`
+Checks the current status of a render job.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `job_id` | `string` | UUID of the render job |
+
+### `retry-failed-jobs`
+Resets all failed render jobs to `pending`. No body parameters.
+
+### `clear-completed-jobs`
+Deletes all render jobs in `completed` status. No body parameters.
+
+### `retry-failed-renders`
+Alias for `retry-failed-jobs` for consistency.
+
+### `requeue-all-no-preview`
+Queues all assets that have a `thumbnail_error` set for re-rendering. No body parameters.
+
+### `request-path-test`
+Requests the Bridge Agent to run a path validation test and report back. No body parameters.
+
+---
+
+## Metadata Operations
+
+### `reprocess-asset-metadata`
+Re-derives path-based metadata (licensor_id, property_id, SKU fields, workflow_status) for all assets in batches of 200.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `offset` | `number` | Cursor for batch resumption |
+
+Returns: `{ updated, total, offset }`.
+
+### `backfill-sku-names`
+Fills in licensor/property code names from lookup tables for assets and style_groups. Processes 500 records per iteration, maximum 10,000 total.
+
+### `get-filter-options`
+Returns all available filter facets (licensors, properties, workflow_status values, etc.) for the library UI filter sidebar. No body parameters.
+
+---
+
+## Style Groups
+
+### `rebuild-style-groups`
+Performs a full 4-stage rebuild of style group assignments. This is a long-running operation managed by `bulk-job-runner`; this handler processes one stage/batch per call.
+
+**Stages:**
+1. `clear_assets` — sets `style_group_id = NULL` on all assets (batched)
+2. `delete_groups` — deletes all existing style_groups rows
+3. `rebuild_assets` — assigns assets to groups based on SKU and folder path (calls `assign_assets_to_style_groups` DB RPC)
+4. `finalize_stats` — updates `asset_count` and `primary_asset_id` for all groups (two sub-stages: `counts` and `primaries`)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `stage` | `string` (optional) | Current stage (managed by runner) |
+| `substage` | `string` (optional) | Current sub-stage |
+| `offset` | `number` | Cursor for current stage |
+| `batch_size` | `number` | Default: 500 |
+
+### `reconcile-style-group-stats`
+Recalculates `asset_count` and `primary_asset_id` for style groups without doing a full rebuild. Safe to run on a live system.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `offset` | `string` (UUID cursor, optional) | Resume from this group |
+| `batch_size` | `number` | Default: 200 |
+
+### `sync-group-tags`
+Immediately propagates tags from the primary asset to all sibling assets in a specific group. (Inline operation — not batched through bulk-job-runner.)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `style_group_id` | `string` | UUID of the group to sync |
+
+---
+
+## AI Tagging
+
+### `bulk-ai-tag`
+Tags untagged assets (those with a thumbnail but no `ai_tagged_at`) using the Gemini Flash AI model. Processes assets in batches with concurrency = 2.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `offset` | `number` | Cursor for batch resumption |
+| `group_ids` | `string[]` (optional) | Limit to specific style groups |
+| `batch_size` | `number` | Default: 6 |
+
+Returns: `{ tagged, failed, skipped, failure_samples, skip_samples }`.
+
+### `bulk-ai-tag-all`
+Same as `bulk-ai-tag` but also re-tags assets that were already tagged (sets `force = true`).
+
+### `count-untagged-assets`
+Returns the count of assets that have a thumbnail URL but no `ai_tagged_at`. No body parameters.
+
+### `bulk-propagate-group-tags`
+Propagates AI tags, characters, and metadata from the primary (best-tagged) asset in each style group to all sibling assets. Calls the `propagate_group_tags_batch` PostgreSQL function directly via RPC.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `offset` | `string` (UUID cursor, optional) | Resume from this group |
+| `batch_size` | `number` | Default: 200 |
+
+### `count-groups-for-propagation`
+Returns the total number of style groups (used to calculate propagation progress). No body parameters.
+
+---
+
+## ERP Operations
+
+### `trigger-erp-sync`
+Invokes the `erp-sync` Edge Function to fetch fresh data from the DesignFlow ERP API.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `full_sync` | `boolean` | If true, ignores watermark and fetches all items |
+| `startDate` | `string` | ISO date string (optional override) |
+| `endDate` | `string` | ISO date string (optional override) |
+
+### `erp-sync-runs`
+Returns the 10 most recent ERP sync run records. No body parameters.
+
+### `erp-enrichment-stats`
+Returns counts and statistics for ERP enrichment: total ERP items, matched assets, enriched counts, category distribution. No body parameters.
+
+### `erp-review-queue`
+Returns the paginated list of product category predictions awaiting admin review.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | `string` | `pending`, `low_confidence`, `auto_applied`, `approved`, `rejected`, `unclassifiable`, or `all` |
+| `page` | `number` | 1-based page number |
+| `page_size` | `number` | Default: 50 |
+
+### `erp-review-action`
+Takes an action on one or more product category predictions.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `review_action` | `string` | `approve`, `reject`, `revert`, `bulk-reject`, or `bulk-dismiss` |
+| `prediction_id` | `string` | UUID (for single-item actions) |
+| `prediction_ids` | `string[]` | UUIDs (for bulk actions) |
+
+### `apply-erp-enrichment`
+Applies approved ERP enrichment data to assets and style_groups (licensor, property, category fields).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `mode` | `string` | `dry-run` (returns counts only) or `apply` (writes to DB) |
+| `offset` | `number` | Cursor for batch resumption |
+
+### `classify-erp-categories`
+Uses Claude Haiku (AI) to classify ERP items that have no `mg_category` into one of 7 product categories: Wall, Tabletop, Clock, Storage, Workspace, Floor, Garden.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `offset` | `number` | Cursor for batch resumption |
+
+Processes 5 items per batch. Inter-call delay: 1000ms to avoid API rate limits.
+
+### `erp-items-browse`
+Returns a paginated, searchable list of ERP items from `erp_items_current`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `page` | `number` | 1-based |
+| `page_size` | `number` | Default: 50 |
+| `search` | `string` (optional) | Free-text search on style_number and description |
+| `sort_by` | `string` | Column to sort by |
+| `sort_asc` | `boolean` | Sort direction |
+| `max_digits_style` | `number` (optional) | Filter by style number digit count |
+| `max_digits_desc` | `number` (optional) | Filter by description digit count |
+| `show_dismissed` | `boolean` | Include dismissed items |
+
+### `erp-items-dismiss`
+Marks ERP items as dismissed (excluded from enrichment pipeline).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `ids` | `string[]` | UUIDs from erp_items_current |
+
+---
+
+## TIFF Pipeline
+
+### `trigger-tiff-scan`
+Signals the Bridge Agent to scan for TIFF files and populate `tiff_optimization_queue`.
+
+### `list-tiff-files`
+Returns TIFF files from the optimization queue with summary counts.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | `string` (optional) | Filter by status |
+| `compression` | `string` (optional) | Filter by compression_type |
+| `limit` | `number` | Default: 100 |
+| `offset` | `number` | Default: 0 |
+
+### `queue-tiff-jobs`
+Queues scanned TIFF files for processing by the Bridge Agent.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `ids` | `string[]` | UUIDs from tiff_optimization_queue |
+| `mode` | `string` | `test` (dry run, no changes) or `process` (compress + replace) |
+
+### `delete-tiff-originals`
+Marks processed TIFF files for original deletion by the Bridge Agent.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `ids` | `string[]` | UUIDs from tiff_optimization_queue |
+
+### `clear-tiff-scan`
+Deletes all rows from `tiff_optimization_queue`. Resets the entire TIFF scan state.
+
+### `refresh-tiff-dates`
+Re-reads filesystem timestamps for the specified TIFF files from the Bridge Agent.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `ids` | `string[]` | UUIDs from tiff_optimization_queue |
+
+---
+
+## File Hygiene
+
+### `trigger-hygiene-scan`
+Requests the Bridge Agent to run file hygiene checks.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `check_types` | `string[]` | Checks to run: `ai_embedded_raster`, `tiff_uncompressed`, `psd_oversized_layer` |
+
+### `list-hygiene-findings`
+Returns hygiene findings from `hygiene_findings`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `status` | `string` (optional) | `open`, `dismissed`, or `resolved` |
+| `check_type` | `string` (optional) | Filter by check type |
+| `limit` | `number` | Default: 200 |
+
+### `update-hygiene-findings`
+Changes the status of one or more findings.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `ids` | `string[]` | UUIDs from hygiene_findings |
+| `status` | `string` | `open`, `dismissed`, or `resolved` |
+
+### `stop-hygiene-scan`
+Signals the Bridge Agent to abort the active hygiene scan.
+
+---
+
+## Sibling Image Discovery
+
+Sibling images are JPG/PNG files that sit in the same NAS folder as a PSD or AI design file. They represent approved product photography or renders that should be linked to the same style group.
+
+### `list-sibling-images`
+Lists potential sibling images for a folder or style group.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `folder_path` | `string` | NAS relative path of the folder |
+| `style_group_id` | `string` (optional) | Scope to a specific group |
+
+### `get-sibling-scan-result`
+Retrieves the results of a previously-requested sibling scan by request ID.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `request_id` | `string` | ID returned by the scan request |
+
+### `get-sibling-scan-by-folder`
+Retrieves the most recent sibling scan result for a given folder path.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `folder_path` | `string` | NAS relative path |
+
+### `ingest-sibling-images`
+Ingests selected sibling images as assets and links them to the specified style group.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `style_group_id` | `string` | UUID of the target style group |
+| `images` | `object[]` | Array of `{ relative_path, filename, thumbnail_url }` |
+
+Maximum 50 images per call.
+
+---
+
+## ColdLion Integration
+
+ColdLion (`http://x5.coldlion.com/EhpApi`) is an external API used for merchandise group code lookups.
+
+### `debug-coldlion-lookup`
+Performs a test lookup against the ColdLion API and returns the raw response. Used for diagnosing integration issues.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `mg_type` | `string` | MG category type |
+| `division` | `string` | Division code |
+| `search_code` | `string` | Code to search |
+
+### `repair-invalid-property-names`
+Scans assets and style_groups for property names that don't match the canonical values in the `properties` table and repairs them.
+
+---
+
+## Utility Operations
+
+### `run-query`
+Executes a read-only SELECT SQL query against the database. Useful for admin diagnostics. Non-SELECT statements are rejected.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `sql` | `string` | SELECT statement to execute |
+
+Returns: `{ rows: object[], count: number }`.
+
+### `update-bulk-op`
+Updates the state of a bulk operation in `admin_config.BULK_OPERATIONS`. Used by both the UI and `bulk-job-runner` to start, stop, and track operations.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `op_key` | `string` | Operation key (e.g. `ai-tag-untagged`) |
+| `op_state` | `object` | New state object (status, cursor, progress, etc.) |
+| `only_if_status` | `string` (optional) | Optimistic lock: only write if current status matches |
+
+Returns HTTP 409 if the operation conflicts with a currently running operation in the cross-lane conflict map (see `docs/BULK_JOBS.md`).
+
+### `rebuild-character-stats`
+Rebuilds usage counts and rankings for all characters in the `characters` table.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `threshold` | `number` (optional) | Minimum asset count to include |
+
+### `get-latest-agent-build`
+Returns the latest available version/tag for the specified agent type from GitHub Container Registry.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `agent_type` | `string` | `bridge` or `windows-render` |
+
+### `trigger-windows-update`
+Sends an update trigger to one or all Windows Render Agents.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `agent_id` | `string` (optional) | Target specific agent; omit for all |
+
+### `purge-old-assets`
+Soft-deletes assets whose `file_created_at` or `modified_at` falls before the cutoff date, and removes any style groups that become empty as a result.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `cutoff_date` | `string` | ISO date string |
