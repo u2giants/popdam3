@@ -535,20 +535,27 @@ export function AiModelsConfigSection() {
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
 
-  const { data: openRouterModels, isLoading: loadingModels } = useQuery<Array<{ id: string; name: string }>>({
+  const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ["openrouter-models", savedOpenRouterKey],
     queryFn: async () => {
       const res = await fetch("https://openrouter.ai/api/v1/models/user", {
         headers: { Authorization: `Bearer ${savedOpenRouterKey}` },
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const data = await res.json();
-      return (data.data as Array<{ id: string; name?: string }>)
+      // Handle both {data: [...]} and flat array response formats
+      const items: Array<{ id: string; name?: string }> = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+      return items
         .map((m) => ({ id: m.id, name: m.name ?? m.id }))
         .sort((a, b) => a.id.localeCompare(b.id));
     },
     enabled: !!savedOpenRouterKey,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 
   const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
@@ -602,7 +609,18 @@ export function AiModelsConfigSection() {
 
         {/* Task Model Selection */}
         <div className="space-y-3">
-          <Label className="text-xs font-medium">Model per Task</Label>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-medium">Model per Task</Label>
+            {loadingModels && <span className="text-[10px] text-muted-foreground">Loading models…</span>}
+            {modelsError && (
+              <span className="text-[10px] text-destructive">
+                Failed to load models: {(modelsError as Error).message}
+              </span>
+            )}
+            {!savedOpenRouterKey && (
+              <span className="text-[10px] text-muted-foreground">Save an OpenRouter API key to load model list</span>
+            )}
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel }]) => {
               const currentVal = taskModels[key] || "";
