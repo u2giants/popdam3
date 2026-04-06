@@ -11,7 +11,7 @@
 
 import { logger } from "./logger.js";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/models/user";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 2;
 

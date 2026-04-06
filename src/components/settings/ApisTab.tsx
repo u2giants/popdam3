@@ -459,7 +459,7 @@ export function AiModelsConfigSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
+  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "OPENROUTER_API_KEY", "OPENROUTER_MODELS_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config", ...configKeys],
@@ -469,6 +469,8 @@ export function AiModelsConfigSection() {
 
   const [openRouterKey, setOpenRouterKey] = useState("");
   const [showOpenRouter, setShowOpenRouter] = useState(false);
+  const [openRouterModelsKey, setOpenRouterModelsKey] = useState("");
+  const [showOpenRouterModels, setShowOpenRouterModels] = useState(false);
   const [googleKey, setGoogleKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
@@ -487,6 +489,7 @@ export function AiModelsConfigSection() {
     if (!configData || loaded) return;
     const cfg = configData.config ?? {};
     setOpenRouterKey(unwrap(cfg.OPENROUTER_API_KEY));
+    setOpenRouterModelsKey(unwrap(cfg.OPENROUTER_MODELS_KEY));
     setGoogleKey(unwrap(cfg.GOOGLE_AI_API_KEY));
     setAnthropicKey(unwrap(cfg.ANTHROPIC_API_KEY));
     setOpenaiKey(unwrap(cfg.OPENAI_API_KEY));
@@ -520,6 +523,7 @@ export function AiModelsConfigSection() {
         AI_TASK_MODELS: taskModels,
       };
       if (openRouterKey.trim()) entries.OPENROUTER_API_KEY = openRouterKey.trim();
+      if (openRouterModelsKey.trim()) entries.OPENROUTER_MODELS_KEY = openRouterModelsKey.trim();
       if (googleKey.trim()) entries.GOOGLE_AI_API_KEY = googleKey.trim();
       if (anthropicKey.trim()) entries.ANTHROPIC_API_KEY = anthropicKey.trim();
       if (openaiKey.trim()) entries.OPENAI_API_KEY = openaiKey.trim();
@@ -534,16 +538,23 @@ export function AiModelsConfigSection() {
   });
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
+  const savedOpenRouterModelsKey = unwrap(configData?.config?.OPENROUTER_MODELS_KEY);
+  // For model discovery: prefer the dedicated models key, fall back to main key
+  const effectiveModelsKey = savedOpenRouterModelsKey || savedOpenRouterKey;
 
   const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string }>>({
-    queryKey: ["openrouter-models", savedOpenRouterKey],
+    queryKey: ["openrouter-models", effectiveModelsKey],
     queryFn: async () => {
-      const res = await fetch("https://openrouter.ai/api/v1/models/user", {
-        headers: { Authorization: `Bearer ${savedOpenRouterKey}` },
-      });
+      // Use /models/user if a dedicated key is set (returns user-specific subset),
+      // otherwise /models (returns all available models).
+      const url = savedOpenRouterModelsKey
+        ? "https://openrouter.ai/api/v1/models/user"
+        : "https://openrouter.ai/api/v1/models";
+      const headers: Record<string, string> = {};
+      if (effectiveModelsKey) headers.Authorization = `Bearer ${effectiveModelsKey}`;
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const data = await res.json();
-      // Handle both {data: [...]} and flat array response formats
       const items: Array<{ id: string; name?: string }> = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
@@ -553,7 +564,6 @@ export function AiModelsConfigSection() {
         .map((m) => ({ id: m.id, name: m.name ?? m.id }))
         .sort((a, b) => a.id.localeCompare(b.id));
     },
-    enabled: !!savedOpenRouterKey,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -566,6 +576,7 @@ export function AiModelsConfigSection() {
   const savedTaskModels = ((configData?.config?.AI_TASK_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_TASK_MODELS ?? {}) as Record<string, string>;
   const isDirty = loaded && (
     openRouterKey !== savedOpenRouterKey ||
+    openRouterModelsKey !== savedOpenRouterModelsKey ||
     googleKey !== savedGoogleKey ||
     anthropicKey !== savedAnthropicKey ||
     openaiKey !== savedOpenaiKey ||
@@ -586,24 +597,39 @@ export function AiModelsConfigSection() {
           Model IDs use the format <code className="text-[10px]">provider/model-name</code> (e.g. <code className="text-[10px]">google/gemini-2.0-flash-001</code>).
         </p>
 
-        {/* OpenRouter API Key */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">OpenRouter API Key</Label>
-          <div className="relative max-w-md">
-            <Input
-              type={showOpenRouter ? "text" : "password"}
-              value={openRouterKey}
-              onChange={(e) => setOpenRouterKey(e.target.value)}
-              placeholder="sk-or-…"
-              className="h-8 text-xs pr-8 font-mono"
-            />
-            <button
-              type="button"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setShowOpenRouter((v) => !v)}
-            >
-              {showOpenRouter ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
+        {/* OpenRouter Keys */}
+        <div className="grid gap-3 sm:grid-cols-2 max-w-2xl">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">OpenRouter API Key</Label>
+            <p className="text-[10px] text-muted-foreground">Used by edge functions for AI calls (image tagging, ERP classification, etc.)</p>
+            <div className="relative">
+              <Input
+                type={showOpenRouter ? "text" : "password"}
+                value={openRouterKey}
+                onChange={(e) => setOpenRouterKey(e.target.value)}
+                placeholder="sk-or-…"
+                className="h-8 text-xs pr-8 font-mono"
+              />
+              <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowOpenRouter((v) => !v)}>
+                {showOpenRouter ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">OpenRouter Models Key</Label>
+            <p className="text-[10px] text-muted-foreground">Used to fetch available models for the dropdowns below. If blank, falls back to the main key.</p>
+            <div className="relative">
+              <Input
+                type={showOpenRouterModels ? "text" : "password"}
+                value={openRouterModelsKey}
+                onChange={(e) => setOpenRouterModelsKey(e.target.value)}
+                placeholder="sk-or-… (optional)"
+                className="h-8 text-xs pr-8 font-mono"
+              />
+              <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowOpenRouterModels((v) => !v)}>
+                {showOpenRouterModels ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </div>
           </div>
         </div>
 
