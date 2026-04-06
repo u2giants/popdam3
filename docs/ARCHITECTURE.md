@@ -88,6 +88,25 @@ Hard rule: never mix admin + agent routes in one function.
   - raw key shown once on creation
   - raw key never returned again
 
+### Edge function CORS
+All edge functions must use `corsServe()` from `supabase/functions/_shared/http.ts` instead of importing `serve` + static `corsHeaders` directly. `corsServe()`:
+- Handles OPTIONS preflights automatically
+- Validates the request `Origin` against an allowlist (`*.designflow.app`, `*.lovable.app`, localhost)
+- Rewrites `Access-Control-Allow-Origin` on every response with the specific allowed origin (not `*`)
+- Rejects unauthorized origins by omitting CORS headers entirely
+
+```typescript
+import { corsServe, json, err } from "../_shared/http.ts";
+
+corsServe(async (req: Request) => {
+  // no OPTIONS check needed
+  return json({ ok: true });
+});
+```
+
+### Admin query endpoint security
+The `run-query` action in admin-api restricts queries to `SELECT` only (no `WITH` CTEs — the `execute_readonly_query` DB function enforces read-only at the transaction level, but removing the CTE prefix at the gateway prevents any bypass attempts).
+
 ---
 
 ## 5) Deployment (Non-Negotiable)

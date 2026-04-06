@@ -1,20 +1,28 @@
 # AI Model Usage Rules
 
-This document covers two distinct things: (1) which AI models are used inside the PopDAM system for product classification, and (2) execution rules for AI coding assistants working on this codebase.
+This document covers two distinct things: (1) which AI models are used inside the PopDAM system, and (2) execution rules for AI coding assistants working on this codebase.
 
 ---
 
 ## 1. Models Used Inside PopDAM
 
-### Product Category Classification (`ai-tag` edge function)
-- Uses Claude via the Anthropic API (configured in admin_config or environment)
-- Classifies ERP items into product categories when deterministic rules can't resolve them
-- Confidence < 0.65 → status `pending` (requires human review in the Review Queue)
-- Confidence ≥ 0.65 → status `auto_applied`
+### Asset Thumbnail Tagging (`ai-tag` edge function)
+- Uses **Google Gemini** (vision-capable model) to analyze thumbnail images
+- The specific model is **configurable** via `AI_MODELS` in admin_config — `ai-tag` finds the first entry with `provider: "google"` and `capabilities` including `"vision"`
+- Falls back to `gemini-2.5-flash-preview-04-17` if `AI_MODELS` config is absent or has no qualifying model
+- To change the model: update the `AI_MODELS` array in Settings → Admin Config
 
-### AI Tagging
-- Used for generating asset descriptions and tags from thumbnails
-- Configured via the AI model setting in admin_config
+### PDF Text Extraction (`pdf-text-sampler.ts` in bridge agent)
+- Uses a cascade: mupdf text extraction → OCR (tesseract.js) → AI vision fallback
+- The AI vision fallback is **configurable** via `AI_MODELS` + `PDF_EXTRACTION_CONFIG` in admin_config
+- `PDF_EXTRACTION_CONFIG.ai_vision_model_id` names the model ID from the `AI_MODELS` catalog to use
+- Supports Google Gemini and Anthropic providers
+- **Hard limit**: files larger than 100 MB are skipped (logged as warnings, surfaced in the PDF text sample progress UI)
+
+### ERP Product Category Classification
+- Uses Claude (via OpenRouter) to classify ERP items into product categories when deterministic MG code rules can't resolve them
+- Confidence < 65% → status `pending` (requires human review in the Review Queue)
+- Confidence ≥ 65% → status `auto_applied`
 
 ---
 
