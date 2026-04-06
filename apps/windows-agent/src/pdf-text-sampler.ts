@@ -48,6 +48,10 @@ export interface AiConfig {
   pdf_extraction: { ai_vision_model_id: string } | null;
   googleApiKey: string;
   anthropicApiKey: string;
+  /** OpenRouter API key — if set, all AI vision calls go through openrouter.ai */
+  openRouterApiKey?: string;
+  /** Per-task model overrides from AI_TASK_MODELS admin config */
+  aiTaskModels?: Record<string, string>;
 }
 
 export interface PdfTextSampleResult {
@@ -69,9 +73,44 @@ interface FileProgressEntry {
   error?: string;
 }
 
-// ── AI vision call (provider-agnostic, resolved from model catalog) ──────────
+// ── AI vision call ────────────────────────────────────────────────────────────
+
+const PDF_EXTRACTION_PROMPT = "Extract all text from this document page. Return only the raw extracted text with no commentary.";
 
 async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
+  const base64 = pngBuffer.toString("base64");
+
+  // ── Path 1: OpenRouter (preferred when key is configured) ───────────────
+  if (aiConfig.openRouterApiKey) {
+    const model = aiConfig.aiTaskModels?.pdf_extraction ?? "google/gemini-2.0-flash-001";
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${aiConfig.openRouterApiKey}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({
+        model,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image_url", image_url: { url: `data:image/png;base64,${base64}` } },
+            { type: "text", text: PDF_EXTRACTION_PROMPT },
+          ],
+        }],
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`OpenRouter API ${res.status}: ${errText.slice(0, 200)}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await res.json() as any;
+    return ((data?.choices?.[0]?.message?.content as string) ?? "").trim();
+  }
+
+  // ── Path 2: Legacy direct API (backward compat when no OpenRouter key) ──
   const modelId = aiConfig.pdf_extraction?.ai_vision_model_id;
   if (!modelId) return "";
 
@@ -84,8 +123,6 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
     logger.warn("PDF text sample: selected model has no vision capability", { modelId });
     return "";
   }
-
-  const base64 = pngBuffer.toString("base64");
 
   if (modelDef.provider === "google") {
     if (!aiConfig.googleApiKey) {
@@ -102,7 +139,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
           role: "user",
           parts: [
             { inlineData: { mimeType: "image/png", data: base64 } },
-            { text: "Extract all text from this document page. Return only the raw extracted text with no commentary." },
+            { text: PDF_EXTRACTION_PROMPT },
           ],
         }],
       }),
@@ -131,7 +168,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
-          { type: "text", text: "Extract all text from this document page. Return only the raw extracted text with no commentary." },
+          { type: "text", text: PDF_EXTRACTION_PROMPT },
         ],
       }],
     });

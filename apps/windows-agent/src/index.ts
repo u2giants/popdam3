@@ -66,7 +66,9 @@ let cloudNasUsername = "";
 let cloudNasPassword = "";
 let cloudAnthropicApiKey = "";
 let cloudGoogleAiApiKey = "";
+let cloudOpenRouterApiKey = "";
 let cloudAiModels: AiModelDef[] = [];
+let cloudAiTaskModels: Record<string, string> = {};
 let cloudPdfExtractionConfig: { ai_vision_model_id: string } | null = null;
 
 // ── Pairing ─────────────────────────────────────────────────────
@@ -264,7 +266,9 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     const ai = response.config.ai;
     if (ai.anthropic_api_key) cloudAnthropicApiKey = ai.anthropic_api_key;
     if (ai.google_ai_api_key) cloudGoogleAiApiKey = ai.google_ai_api_key;
+    if (ai.openrouter_api_key) cloudOpenRouterApiKey = ai.openrouter_api_key;
     if (Array.isArray(ai.models) && ai.models.length > 0) cloudAiModels = ai.models as AiModelDef[];
+    if (ai.ai_task_models && typeof ai.ai_task_models === "object") cloudAiTaskModels = ai.ai_task_models as Record<string, string>;
     if (ai.pdf_extraction !== undefined) {
       cloudPdfExtractionConfig = (ai.pdf_extraction as { ai_vision_model_id: string } | null) ?? null;
     }
@@ -298,6 +302,8 @@ function startHeartbeat() {
           pdf_extraction: cloudPdfExtractionConfig,
           googleApiKey: cloudGoogleAiApiKey,
           anthropicApiKey: cloudAnthropicApiKey,
+          openRouterApiKey: cloudOpenRouterApiKey,
+          aiTaskModels: cloudAiTaskModels,
         }).finally(() => {
           isSamplingPdfText = false;
         });
