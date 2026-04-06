@@ -3397,6 +3397,7 @@ export type Database = {
           relative_path: string
         }[]
       }
+      cleanup_mega_group_tags_batch: { Args: never; Returns: number }
       clear_style_group_batch: {
         Args: { p_batch_size?: number; p_last_id?: string }
         Returns: {
@@ -3551,6 +3552,13 @@ export type Database = {
         Returns: number
       }
       partition_gap_fill: { Args: { p_parent_table: string }; Returns: number }
+      propagate_for_pending_groups: {
+        Args: never
+        Returns: {
+          groups_processed: number
+          tags_inserted: number
+        }[]
+      }
       propagate_group_tags_batch: {
         Args: { p_batch_size?: number; p_cursor?: string }
         Returns: {
@@ -3592,9 +3600,27 @@ export type Database = {
         Args: { p_group_ids: string[] }
         Returns: number
       }
+      regroup_mega_group_assets: {
+        Args: never
+        Returns: {
+          assets_reassigned: number
+          assets_ungrouped: number
+          new_groups_created: number
+        }[]
+      }
+      reset_mega_group_tagged_assets_batch: { Args: never; Returns: number }
       reset_stale_jobs: {
         Args: { p_timeout_minutes?: number }
         Returns: number
+      }
+      run_full_rebuild_style_groups: {
+        Args: never
+        Returns: {
+          assets_assigned: number
+          assets_ungrouped: number
+          batches: number
+          groups_created: number
+        }[]
       }
       run_maintenance: {
         Args: {
