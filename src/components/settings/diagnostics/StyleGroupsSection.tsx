@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Database, Clock, RefreshCw, Loader2, CheckCircle2, XCircle,
-  AlertTriangle, Trash2, Wrench, Link2,
+  AlertTriangle, Trash2, Wrench, Link2, ShieldAlert,
 } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES, REASON_LABELS, timeAgo } from "./types";
@@ -197,11 +197,12 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
 
   const rebuildOp = usePersistentOperation("rebuild-style-groups");
   const reconcileOp = usePersistentOperation("reconcile-style-group-stats");
+  const cleanupOp = usePersistentOperation("cleanup-mega-group-tags");
 
   const { data: stats } = useQuery({
     queryKey: ["style-group-stats"],
     queryFn: async () => {
-      const [groupRes, ungroupedRes, anomalyRes, orphanRes] = await Promise.all([
+      const [groupRes, ungroupedRes, anomalyRes, orphanRes, megaRes] = await Promise.all([
         call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups" }),
         call("run-query", { sql: "SELECT COUNT(*) as count FROM assets WHERE style_group_id IS NULL AND is_deleted = false" }),
         call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups sg WHERE (sg.asset_count IS NULL OR sg.asset_count = 0) AND EXISTS (SELECT 1 FROM assets a WHERE a.style_group_id = sg.id AND a.is_deleted = false LIMIT 1)" }),
@@ -215,12 +216,14 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
                   AND sg.folder_path IS NOT NULL
                 )` 
         }),
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups WHERE asset_count >= 50" }),
       ]);
       return {
         groups: groupRes.rows?.[0]?.count ?? 0,
         ungrouped: ungroupedRes.rows?.[0]?.count ?? 0,
         anomalous: anomalyRes.rows?.[0]?.count ?? 0,
         orphaned: orphanRes.rows?.[0]?.count ?? 0,
+        megaGroups: megaRes.rows?.[0]?.count ?? 0,
       };
     },
     staleTime: 15_000,
