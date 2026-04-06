@@ -320,7 +320,7 @@ Eight triggers maintain derived data automatically:
 ### `propagate_group_tags_batch(p_cursor uuid, p_batch_size int)`
 Propagates AI tags, characters, and metadata from the primary asset to all sibling assets in a batch of style groups. Uses `FOR UPDATE SKIP LOCKED` on the assets UPDATE CTE to avoid lock contention with concurrent AI tagging.
 
-See migration `20260405000000_propagate_group_tags_batch_skip_locked.sql` and `docs/BULK_JOBS.md`.
+See migration `20260405213154_propagate_group_tags_batch_skip_locked.sql` and `docs/BULK_JOBS.md`.
 
 ### `assign_assets_to_style_groups()`
 Called during `rebuild-style-groups` Stage 3. Extracts the SKU from each asset's filename, creates style_groups rows, and sets `assets.style_group_id`.

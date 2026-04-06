@@ -156,7 +156,24 @@ This document explains intentional code decisions that may appear like bugs or b
 
 ---
 
-## 16. Both `ImpersonationContext.tsx` and `useImpersonation.tsx` Exist
+## 16. Migration History Is Partially Out of Sync with Git
+
+**What it looks like**: The DB `supabase_migrations.schema_migrations` table contains versions that have no corresponding file in `supabase/migrations/`. `supabase db push` may fail with "Remote migration versions not found in local migrations directory."
+
+**Why**: This project's Supabase migration history accumulated drift from three sources:
+1. **Bootstrap migrations** (`00001`–`00007`) were applied when the Supabase project was first created, before git-based migration tracking was in place. They were never committed as local files.
+2. **Wrong-project migrations** (`smon_*` prefixed) were accidentally applied to popdam-prod via a Supabase MCP call that used the wrong `project_id`. These belong to the SynoMon project (`qnjimovrsaacneqkggsn`), not popdam-prod.
+3. **MCP-only migrations** were applied via `execute_sql` or `apply_migration` MCP during development sessions without creating corresponding local files (or with mismatched timestamps).
+
+**Current state**: These orphaned history entries were resolved in April 2026 by deleting the orphaned rows from `supabase_migrations.schema_migrations`. The local files and DB history are now in sync.
+
+**What breaks if you "fix" it wrong**: Running `supabase migration repair --status reverted` marks migrations as reverted in history but does NOT drop the DB objects they created. The objects remain functional. However, if you accidentally delete history entries for migrations whose SQL was never actually applied, future `supabase db push` runs will try to apply them again (or skip them depending on local file presence).
+
+**Prevention**: See `CLAUDE.md` — always use `apply_migration` (not `execute_sql`) for DDL, always match local filenames to the exact timestamp recorded by Supabase, and check CI after every push.
+
+---
+
+## 17. Both `ImpersonationContext.tsx` and `useImpersonation.tsx` Exist
 
 **Files**: `src/contexts/ImpersonationContext.tsx`, `src/hooks/useImpersonation.tsx`
 
