@@ -144,7 +144,7 @@ popdam3/
 │   │   ├── bulk-job-runner/      # Legacy bulk orchestrator (being replaced by worker)
 │   │   ├── _shared/              # Shared code for all edge functions
 │   │   │   ├── admin-handlers/   # Extracted handler modules for admin-api
-│   │   │   ├── http.ts           # CORS headers, json(), err() helpers
+│   │   │   ├── http.ts           # corsServe(), json(), err() — CORS + HTTP helpers
 │   │   │   ├── service-client.ts # Creates Supabase client with service role key
 │   │   │   ├── sku-parser.ts     # SKU → metadata extraction
 │   │   │   ├── style-grouping.ts # SKU folder detection + primary asset selection
@@ -272,6 +272,7 @@ There are **two separate edge functions** for different auth models. They must n
 - **Callers**: Bridge Agent, Windows Agent
 - **Key routes**: `register`, `heartbeat`, `ingest`, `batch-ingest`, `update`, `move`, `complete-job`, `pair`, `progress`, `report-hygiene`
 - The heartbeat response doubles as a **config sync channel** — agents receive scan roots, feature flags, and command signals via heartbeat responses
+- Config keys are **filtered by agent type**: bridge agents receive AI API keys and scan config; Windows agents receive NAS credentials and render settings. Neither agent type receives the other's secrets.
 
 ### `admin-api` (1,268 lines)
 - **Auth**: User JWT (Bearer token) + admin role check via `user_roles` table
@@ -413,7 +414,7 @@ Style groups inherit metadata from their assets: licensor, property, division, M
 
 ## 13. AI Tagging Pipeline
 
-Uses **Google Gemini** (via the Cloud Worker or edge functions) to analyze asset thumbnails and generate:
+Uses a **configurable AI model** (Google Gemini by default) to analyze asset thumbnails and generate:
 - Tags (e.g., "frozen", "elsa", "snowflake", "blue", "winter")
 - Character identification (matched to `characters` table)
 - Asset type classification (art_piece, product, packaging, tech_pack, photography)
@@ -421,6 +422,11 @@ Uses **Google Gemini** (via the Cloud Worker or edge functions) to analyze asset
 - Theme detection (big_theme, little_theme)
 - Cover description (one-sentence summary)
 - Licensed/unlicensed determination
+
+The model is selected from the `AI_MODELS` admin config array (first entry with `provider: "google"` and `"vision"` capability). Change the active model in Settings → Admin Config without redeploying. See `docs/MODEL_RULES.md` for details.
+
+### PDF text extraction
+Before tagging, the bridge agent optionally extracts text from PDFs via a cascade: mupdf → OCR → AI vision fallback. Results are stored in `pdf_text_samples` and injected into the tagging prompt as additional context. Files over 100 MB are skipped automatically (logged with reason).
 
 ### Tag propagation
 After tagging, a bulk operation copies AI tags from the primary tagged asset to all siblings in the same style group (excluding file-specific tags like "front view" or "packaging").
