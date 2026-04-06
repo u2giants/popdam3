@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAdminApi } from "./useAdminApi";
 
 /**
@@ -39,6 +39,8 @@ export function usePersistentOperation(operationKey: string) {
   const { call } = useAdminApi();
   const [state, setState] = useState<OperationState>({ status: "idle" });
   const [isHydrating, setIsHydrating] = useState(true);
+  const consecutiveFailures = useRef(0);
+  const CONSECUTIVE_FAILURE_WARN_THRESHOLD = 3;
 
   // ── Poll for state updates ──────────────────────────────────────
   useEffect(() => {
@@ -62,8 +64,15 @@ export function usePersistentOperation(operationKey: string) {
           setState({ status: "idle" });
           currentStatus = "idle";
         }
-      } catch {
-        // ignore polling errors
+        consecutiveFailures.current = 0;
+      } catch (e) {
+        consecutiveFailures.current += 1;
+        if (consecutiveFailures.current >= CONSECUTIVE_FAILURE_WARN_THRESHOLD) {
+          console.error(
+            `usePersistentOperation[${operationKey}]: ${consecutiveFailures.current} consecutive poll failures`,
+            e,
+          );
+        }
       }
 
       if (firstPoll) {

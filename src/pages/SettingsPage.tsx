@@ -30,7 +30,13 @@ import PdfTextSamplesTab from "@/components/settings/PdfTextSamplesTab";
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(() => {
+        prompt("Copy this value:", text);
+      });
+    } else {
+      prompt("Copy this value:", text);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

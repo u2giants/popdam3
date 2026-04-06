@@ -74,7 +74,7 @@ export default function LoginPage() {
       provider: "azure",
       options: {
         scopes: "email",
-        redirectTo: "https://popdam.designflow.app",
+        redirectTo: "https://dam.designflow.app",
       },
     });
     if (error) {
@@ -134,6 +134,7 @@ export default function LoginPage() {
               className="w-full"
               onClick={handleGoogleSignIn}
               type="button"
+              aria-label="Sign in with Google"
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                 <path
@@ -162,6 +163,7 @@ export default function LoginPage() {
               className="w-full"
               onClick={handleMicrosoftSignIn}
               type="button"
+              aria-label="Sign in with Microsoft"
             >
               <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21">
                 <rect x="1" y="1" width="9" height="9" fill="#f25022" />

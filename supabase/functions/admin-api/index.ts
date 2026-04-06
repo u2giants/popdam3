@@ -1,6 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, err, json } from "../_shared/http.ts";
+import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalString, requireString } from "../_shared/validators.ts";
@@ -375,7 +374,7 @@ async function handleInviteUser(
 
   // Send invite email via Brevo API
   const { sendBrevoEmail, buildInviteHtml } = await import("../_shared/brevo.ts");
-  const appUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", "") ? "https://popdam.lovable.app" : "https://popdam.lovable.app";
+  const appUrl = "https://dam.designflow.app";
   const signUpUrl = `${appUrl}/login?signup=true`;
   const htmlContent = buildInviteHtml(signUpUrl, roleStr);
 
@@ -443,7 +442,10 @@ async function handleRevokeInvite(body: Record<string, unknown>) {
     .eq("email", invite.email)
     .maybeSingle();
   if (profile?.user_id) {
-    await adminClient.auth.admin.deleteUser(profile.user_id).catch(() => {});
+    const { error: deleteErr } = await adminClient.auth.admin.deleteUser(profile.user_id);
+    if (deleteErr) {
+      console.warn("Failed to delete auth user during invite revocation (non-fatal):", deleteErr.message);
+    }
   }
 
   return json({ ok: true });
@@ -482,7 +484,7 @@ async function handleRunQuery(body: Record<string, unknown>) {
   }
 
   const trimmed = sql.trim().replace(/;+\s*$/, "");
-  if (!/^(select|with)\s/i.test(trimmed)) {
+  if (!/^select\s/i.test(trimmed)) {
     return err("Only SELECT queries are allowed");
   }
 
@@ -815,8 +817,13 @@ async function handleTriggerPdfTextSample() {
   if (error) return err(error.message, 500);
   if (!assets || assets.length === 0) return err("No active PDF assets found", 404);
 
-  // Shuffle client-side for random selection (Supabase doesn't support ORDER BY random() in client SDK)
-  const shuffled = [...assets].sort(() => Math.random() - 0.5).slice(0, 25);
+  // Fisher-Yates shuffle for uniform random selection
+  const shuffled = [...assets];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  shuffled.splice(25);
 
   await db.from("admin_config").upsert({
     key: "PDF_TEXT_SAMPLE_REQUEST",
@@ -837,7 +844,7 @@ async function handleGetPdfTextSamples() {
   const db = serviceClient();
 
   // Parallel: get request status, samples, and agent heartbeats
-  const [configResult, samplesResult, agentsResult, policyResult] = await Promise.all([
+  const settled = await Promise.allSettled([
     db.from("admin_config")
       .select("value, updated_at")
       .eq("key", "PDF_TEXT_SAMPLE_REQUEST")
@@ -864,6 +871,14 @@ async function handleGetPdfTextSamples() {
       .eq("key", "WINDOWS_RENDER_POLICY")
       .maybeSingle(),
   ]);
+
+  const configResult = settled[0].status === "fulfilled" ? settled[0].value : { data: null };
+  const samplesResult = settled[1].status === "fulfilled" ? settled[1].value : [];
+  const agentsResult = settled[2].status === "fulfilled" ? settled[2].value : { data: [] };
+  const policyResult = settled[3].status === "fulfilled" ? settled[3].value : { data: null };
+  if (settled[0].status === "rejected") console.error("get-pdf-text-samples config query failed:", settled[0].reason);
+  if (settled[2].status === "rejected") console.error("get-pdf-text-samples agents query failed:", settled[2].reason);
+  if (settled[3].status === "rejected") console.error("get-pdf-text-samples policy query failed:", settled[3].reason);
 
   const samples = samplesResult;
   const agents = agentsResult.data ?? [];
@@ -1016,12 +1031,8 @@ async function handleGetPdfTextSamples() {
 
 // ── Main router ─────────────────────────────────────────────────────
 
-serve(async (req: Request) => {
+corsServe(async (req: Request) => {
   console.log(`admin-api: ${req.method} ${new URL(req.url).pathname}`);
-
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
 
   if (req.method !== "POST") {
     return err("Method not allowed", 405);

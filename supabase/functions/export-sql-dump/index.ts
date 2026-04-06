@@ -20,6 +20,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { corsServe } from "../_shared/http.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,11 +111,7 @@ async function authorizeAdmin(req: Request): Promise<boolean> {
 
 // ── Main handler ────────────────────────────────────────────────────
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
+corsServe(async (req) => {
   try {
     if (!(await authorizeAdmin(req))) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {

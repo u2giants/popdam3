@@ -1,11 +1,7 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, err, json } from "../_shared/http.ts";
+import { corsServe, err, json } from "../_shared/http.ts";
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+corsServe(async (req: Request) => {
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -59,13 +55,21 @@ serve(async (req: Request) => {
       return err("Asset has no thumbnail_url \u2014 cannot analyze without an image");
     }
 
-    // Fetch custom tagging instructions
-    const { data: instrRow } = await db
-      .from("admin_config")
-      .select("value")
-      .eq("key", "TAGGING_INSTRUCTIONS")
-      .maybeSingle();
-    const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
+    // Fetch custom tagging instructions and AI model config in parallel
+    const [instrResult, modelsResult] = await Promise.all([
+      db.from("admin_config").select("value").eq("key", "TAGGING_INSTRUCTIONS").maybeSingle(),
+      db.from("admin_config").select("value").eq("key", "AI_MODELS").maybeSingle(),
+    ]);
+    const customInstructions = typeof instrResult.data?.value === "string" ? instrResult.data.value.trim() : null;
+
+    // Resolve which Gemini model to use — prefer the configured vision-capable Google model
+    const aiModels = Array.isArray(modelsResult.data?.value) ? modelsResult.data.value as Array<{
+      id: string; provider: string; apiModel: string; capabilities: string[];
+    }> : [];
+    const visionModel = aiModels.find(
+      (m) => m.provider === "google" && Array.isArray(m.capabilities) && m.capabilities.includes("vision"),
+    );
+    const geminiModel = visionModel?.apiModel ?? "gemini-2.5-flash-preview-04-17";
 
     // Fetch taxonomy context
     const { data: licensors } = await db.from("licensors").select("id, name").limit(50);
@@ -239,7 +243,7 @@ ${
 
     for (let attempt = 0; attempt <= MAX_AI_RETRIES; attempt++) {
       response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GOOGLE_AI_API_KEY}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${GOOGLE_AI_API_KEY}`,
         {
           signal: AbortSignal.timeout(25_000),
           method: "POST",

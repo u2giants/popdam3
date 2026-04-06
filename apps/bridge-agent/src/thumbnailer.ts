@@ -152,7 +152,9 @@ async function thumbnailAiGhostscript(filePath: string): Promise<ThumbnailResult
       height: meta.height || 0,
     };
   } finally {
-    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+    await rm(tmpDir, { recursive: true, force: true }).catch((e) => {
+      logger.warn("Failed to clean up Ghostscript temp dir", { tmpDir, error: (e as Error).message });
+    });
   }
 }
 
@@ -253,7 +255,9 @@ async function thumbnailPdf(filePath: string): Promise<PdfThumbnailResult> {
 
     return result;
   } finally {
-    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+    await rm(tmpDir, { recursive: true, force: true }).catch((e) => {
+      logger.warn("Failed to clean up PDF temp dir", { tmpDir, error: (e as Error).message });
+    });
   }
 }
 
