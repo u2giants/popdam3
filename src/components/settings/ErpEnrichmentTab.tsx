@@ -147,10 +147,12 @@ function ErpSyncSection() {
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingEndpoint(false)}><X className="h-3 w-3" /></Button>
               </span>
             ) : (
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">{endpointHost}</code>
-              <Button variant="ghost" size="icon" className="h-5 w-5 ml-1" onClick={() => { setEndpointDraft(String(currentEndpoint)); setEditingEndpoint(true); }} title="Edit endpoint URL">
-                <Pencil className="h-3 w-3" />
-              </Button>
+              <>
+                <code className="text-xs bg-muted px-1 py-0.5 rounded">{endpointHost}</code>
+                <Button variant="ghost" size="icon" className="h-5 w-5 ml-1" onClick={() => { setEndpointDraft(String(currentEndpoint)); setEditingEndpoint(true); }} title="Edit endpoint URL">
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              </>
             )}
           </span>
           {watermark && (
