@@ -83,7 +83,7 @@ async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<stri
   // ── Path 1: OpenRouter (preferred when key is configured) ───────────────
   if (aiConfig.openRouterApiKey) {
     const model = aiConfig.aiTaskModels?.pdf_extraction ?? "google/gemini-2.0-flash-001";
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const res = await fetch("https://openrouter.ai/api/v1/models/user", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${aiConfig.openRouterApiKey}`,
