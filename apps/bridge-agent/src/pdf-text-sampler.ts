@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 
-import mupdf from "mupdf";
+import * as mupdf from "mupdf";
 import { createWorker } from "tesseract.js";
 import Anthropic from "@anthropic-ai/sdk";
 
