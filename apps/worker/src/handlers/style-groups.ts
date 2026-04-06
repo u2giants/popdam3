@@ -1,5 +1,5 @@
 /**
- * Style group rebuild & reconcile handlers — persistent worker version.
+ * Style group rebuild, reconcile, and cleanup handlers — persistent worker version.
  *
  * Ports logic from:
  *   supabase/functions/_shared/admin-handlers/style-group-handlers.ts
