@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -533,6 +534,23 @@ export function AiModelsConfigSection() {
   });
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
+
+  const { data: openRouterModels, isLoading: loadingModels } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ["openrouter-models", savedOpenRouterKey],
+    queryFn: async () => {
+      const res = await fetch("https://openrouter.ai/api/v1/models/user", {
+        headers: { Authorization: `Bearer ${savedOpenRouterKey}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return (data.data as Array<{ id: string; name?: string }>)
+        .map((m) => ({ id: m.id, name: m.name ?? m.id }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+    },
+    enabled: !!savedOpenRouterKey,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
   const savedAnthropicKey = unwrap(configData?.config?.ANTHROPIC_API_KEY);
   const savedOpenaiKey = unwrap(configData?.config?.OPENAI_API_KEY);
@@ -586,18 +604,44 @@ export function AiModelsConfigSection() {
         <div className="space-y-3">
           <Label className="text-xs font-medium">Model per Task</Label>
           <div className="grid gap-3 sm:grid-cols-3">
-            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel }]) => (
-              <div key={key} className="space-y-1">
-                <Label className="text-xs">{label}</Label>
-                <Input
-                  value={taskModels[key] || ""}
-                  onChange={(e) => setTaskModels((prev) => ({ ...prev, [key]: e.target.value }))}
-                  placeholder={defaultModel}
-                  className="h-8 text-xs font-mono"
-                />
-                <p className="text-[10px] text-muted-foreground">{description}</p>
-              </div>
-            ))}
+            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel }]) => {
+              const currentVal = taskModels[key] || "";
+              const modelList = openRouterModels ?? [];
+              const allOptions = currentVal && !modelList.some((m) => m.id === currentVal)
+                ? [{ id: currentVal, name: currentVal }, ...modelList]
+                : modelList;
+              return (
+                <div key={key} className="space-y-1">
+                  <Label className="text-xs">{label}</Label>
+                  {modelList.length > 0 ? (
+                    <Select
+                      value={currentVal}
+                      onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [key]: val }))}
+                    >
+                      <SelectTrigger className="h-8 text-xs font-mono">
+                        <SelectValue placeholder={defaultModel} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allOptions.map((m) => (
+                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                            {m.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={currentVal}
+                      onChange={(e) => setTaskModels((prev) => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={loadingModels ? "Loading models…" : defaultModel}
+                      className="h-8 text-xs font-mono"
+                      disabled={loadingModels}
+                    />
+                  )}
+                  <p className="text-[10px] text-muted-foreground">{description}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
