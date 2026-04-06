@@ -436,34 +436,63 @@ const DEFAULT_MODELS_PLACEHOLDER = JSON.stringify(
   2,
 );
 
+const TASK_MODEL_LABELS: Record<string, { label: string; description: string; defaultModel: string }> = {
+  vision_tagging: {
+    label: "Image Tagging",
+    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters",
+    defaultModel: "google/gemini-2.0-flash-001",
+  },
+  text_classification: {
+    label: "ERP Classification",
+    description: "Text model for classifying products into categories (Wall, Tabletop, etc.)",
+    defaultModel: "anthropic/claude-3.5-haiku",
+  },
+  pdf_extraction: {
+    label: "PDF Text Extraction",
+    description: "Vision model for extracting text from PDF pages (agent fallback after OCR)",
+    defaultModel: "google/gemini-2.0-flash-001",
+  },
+};
+
 export function AiModelsConfigSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
+  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
+
   const { data: configData } = useQuery({
-    queryKey: ["admin-config", "AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"],
-    queryFn: () => call("get-config", { keys: ["AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"] }),
+    queryKey: ["admin-config", ...configKeys],
+    queryFn: () => call("get-config", { keys: configKeys }),
     staleTime: 30_000,
   });
 
+  const [openRouterKey, setOpenRouterKey] = useState("");
+  const [showOpenRouter, setShowOpenRouter] = useState(false);
   const [googleKey, setGoogleKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
-  const [modelsJson, setModelsJson] = useState("");
   const [showGoogle, setShowGoogle] = useState(false);
   const [showAnthropic, setShowAnthropic] = useState(false);
   const [showOpenai, setShowOpenai] = useState(false);
+  const [showLegacyKeys, setShowLegacyKeys] = useState(false);
+  const [modelsJson, setModelsJson] = useState("");
   const [jsonError, setJsonError] = useState("");
+  const [taskModels, setTaskModels] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
+
+  const unwrap = (v: unknown) => ((v as Record<string, unknown>)?.value ?? v ?? "") as string;
 
   useEffect(() => {
     if (!configData || loaded) return;
     const cfg = configData.config ?? {};
-    setGoogleKey(((cfg.GOOGLE_AI_API_KEY as Record<string, unknown>)?.value ?? cfg.GOOGLE_AI_API_KEY ?? "") as string);
-    setAnthropicKey(((cfg.ANTHROPIC_API_KEY as Record<string, unknown>)?.value ?? cfg.ANTHROPIC_API_KEY ?? "") as string);
-    setOpenaiKey(((cfg.OPENAI_API_KEY as Record<string, unknown>)?.value ?? cfg.OPENAI_API_KEY ?? "") as string);
+    setOpenRouterKey(unwrap(cfg.OPENROUTER_API_KEY));
+    setGoogleKey(unwrap(cfg.GOOGLE_AI_API_KEY));
+    setAnthropicKey(unwrap(cfg.ANTHROPIC_API_KEY));
+    setOpenaiKey(unwrap(cfg.OPENAI_API_KEY));
     const models = (cfg.AI_MODELS as Record<string, unknown>)?.value ?? cfg.AI_MODELS;
     setModelsJson(models ? JSON.stringify(models, null, 2) : "");
+    const savedTasks = ((cfg.AI_TASK_MODELS as Record<string, unknown>)?.value ?? cfg.AI_TASK_MODELS ?? {}) as Record<string, string>;
+    setTaskModels(savedTasks);
     setLoaded(true);
   }, [configData, loaded]);
 
@@ -485,7 +514,11 @@ export function AiModelsConfigSection() {
       } catch {
         throw new Error("Invalid JSON in AI Models");
       }
-      const entries: Record<string, unknown> = { AI_MODELS: models };
+      const entries: Record<string, unknown> = {
+        AI_MODELS: models,
+        AI_TASK_MODELS: taskModels,
+      };
+      if (openRouterKey.trim()) entries.OPENROUTER_API_KEY = openRouterKey.trim();
       if (googleKey.trim()) entries.GOOGLE_AI_API_KEY = googleKey.trim();
       if (anthropicKey.trim()) entries.ANTHROPIC_API_KEY = anthropicKey.trim();
       if (openaiKey.trim()) entries.OPENAI_API_KEY = openaiKey.trim();
@@ -493,19 +526,27 @@ export function AiModelsConfigSection() {
     },
     onSuccess: () => {
       toast.success("AI configuration saved");
-      queryClient.invalidateQueries({ queryKey: ["admin-config", "AI_MODELS", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-config", "AI_MODELS", "PDF_EXTRACTION_CONFIG"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
       setLoaded(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const savedGoogleKey = ((configData?.config?.GOOGLE_AI_API_KEY as Record<string, unknown>)?.value ?? configData?.config?.GOOGLE_AI_API_KEY ?? "") as string;
-  const savedAnthropicKey = ((configData?.config?.ANTHROPIC_API_KEY as Record<string, unknown>)?.value ?? configData?.config?.ANTHROPIC_API_KEY ?? "") as string;
-  const savedOpenaiKey = ((configData?.config?.OPENAI_API_KEY as Record<string, unknown>)?.value ?? configData?.config?.OPENAI_API_KEY ?? "") as string;
+  const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
+  const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
+  const savedAnthropicKey = unwrap(configData?.config?.ANTHROPIC_API_KEY);
+  const savedOpenaiKey = unwrap(configData?.config?.OPENAI_API_KEY);
   const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
   const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
-  const isDirty = loaded && (googleKey !== savedGoogleKey || anthropicKey !== savedAnthropicKey || openaiKey !== savedOpenaiKey || modelsJson !== savedModelsJson);
+  const savedTaskModels = ((configData?.config?.AI_TASK_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_TASK_MODELS ?? {}) as Record<string, string>;
+  const isDirty = loaded && (
+    openRouterKey !== savedOpenRouterKey ||
+    googleKey !== savedGoogleKey ||
+    anthropicKey !== savedAnthropicKey ||
+    openaiKey !== savedOpenaiKey ||
+    modelsJson !== savedModelsJson ||
+    JSON.stringify(taskModels) !== JSON.stringify(savedTaskModels)
+  );
 
   return (
     <Card>
@@ -516,84 +557,133 @@ export function AiModelsConfigSection() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">
-          API keys and model definitions used by the Windows agent for AI vision (PDF extraction fallback) and by AI tagging operations.
-          Keys are stored in admin_config and sent to the Windows agent via heartbeat.
+          All AI calls go through OpenRouter. Choose which model to use for each task below.
+          Model IDs use the format <code className="text-[10px]">provider/model-name</code> (e.g. <code className="text-[10px]">google/gemini-2.0-flash-001</code>).
         </p>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Google AI API Key</Label>
-            <div className="relative">
-              <Input
-                type={showGoogle ? "text" : "password"}
-                value={googleKey}
-                onChange={(e) => setGoogleKey(e.target.value)}
-                placeholder="AIza…"
-                className="h-8 text-xs pr-8 font-mono"
-              />
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowGoogle((v) => !v)}
-              >
-                {showGoogle ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Anthropic API Key</Label>
-            <div className="relative">
-              <Input
-                type={showAnthropic ? "text" : "password"}
-                value={anthropicKey}
-                onChange={(e) => setAnthropicKey(e.target.value)}
-                placeholder="sk-ant-…"
-                className="h-8 text-xs pr-8 font-mono"
-              />
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowAnthropic((v) => !v)}
-              >
-                {showAnthropic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">OpenAI API Key</Label>
-            <div className="relative">
-              <Input
-                type={showOpenai ? "text" : "password"}
-                value={openaiKey}
-                onChange={(e) => setOpenaiKey(e.target.value)}
-                placeholder="sk-proj-…"
-                className="h-8 text-xs pr-8 font-mono"
-              />
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowOpenai((v) => !v)}
-              >
-                {showOpenai ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              </button>
-            </div>
+        {/* OpenRouter API Key */}
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">OpenRouter API Key</Label>
+          <div className="relative max-w-md">
+            <Input
+              type={showOpenRouter ? "text" : "password"}
+              value={openRouterKey}
+              onChange={(e) => setOpenRouterKey(e.target.value)}
+              placeholder="sk-or-…"
+              className="h-8 text-xs pr-8 font-mono"
+            />
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowOpenRouter((v) => !v)}
+            >
+              {showOpenRouter ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </button>
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">AI Models (JSON array)</Label>
-          <Textarea
-            value={modelsJson}
-            onChange={(e) => handleModelsChange(e.target.value)}
-            placeholder={DEFAULT_MODELS_PLACEHOLDER}
-            className="font-mono text-xs min-h-[140px] resize-y"
-            spellCheck={false}
-          />
-          {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
-          <p className="text-xs text-muted-foreground">
-            Each model: <code className="text-[10px]">{"{ id, provider, apiModel, displayName, capabilities[] }"}</code>.
-            Capabilities: <code className="text-[10px]">vision</code>, <code className="text-[10px]">text</code>.
-          </p>
+        {/* Task Model Selection */}
+        <div className="space-y-3">
+          <Label className="text-xs font-medium">Model per Task</Label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel }]) => (
+              <div key={key} className="space-y-1">
+                <Label className="text-xs">{label}</Label>
+                <Input
+                  value={taskModels[key] || ""}
+                  onChange={(e) => setTaskModels((prev) => ({ ...prev, [key]: e.target.value }))}
+                  placeholder={defaultModel}
+                  className="h-8 text-xs font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">{description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Legacy Keys (collapsed) */}
+        <div className="border-t pt-3">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowLegacyKeys((v) => !v)}
+          >
+            {showLegacyKeys ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            Legacy Direct API Keys (fallback)
+          </button>
+          {showLegacyKeys && (
+            <div className="grid gap-3 sm:grid-cols-3 mt-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Google AI API Key</Label>
+                <div className="relative">
+                  <Input
+                    type={showGoogle ? "text" : "password"}
+                    value={googleKey}
+                    onChange={(e) => setGoogleKey(e.target.value)}
+                    placeholder="AIza…"
+                    className="h-8 text-xs pr-8 font-mono"
+                  />
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowGoogle((v) => !v)}>
+                    {showGoogle ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Anthropic API Key</Label>
+                <div className="relative">
+                  <Input
+                    type={showAnthropic ? "text" : "password"}
+                    value={anthropicKey}
+                    onChange={(e) => setAnthropicKey(e.target.value)}
+                    placeholder="sk-ant-…"
+                    className="h-8 text-xs pr-8 font-mono"
+                  />
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowAnthropic((v) => !v)}>
+                    {showAnthropic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">OpenAI API Key</Label>
+                <div className="relative">
+                  <Input
+                    type={showOpenai ? "text" : "password"}
+                    value={openaiKey}
+                    onChange={(e) => setOpenaiKey(e.target.value)}
+                    placeholder="sk-proj-…"
+                    className="h-8 text-xs pr-8 font-mono"
+                  />
+                  <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowOpenai((v) => !v)}>
+                    {showOpenai ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Model catalog JSON (collapsed) */}
+        <div className="border-t pt-3">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowLegacyKeys((v) => !v)}
+          >
+            Agent Model Catalog (JSON)
+          </button>
+          <div className="space-y-1.5 mt-2">
+            <Textarea
+              value={modelsJson}
+              onChange={(e) => handleModelsChange(e.target.value)}
+              placeholder={DEFAULT_MODELS_PLACEHOLDER}
+              className="font-mono text-xs min-h-[100px] resize-y"
+              spellCheck={false}
+            />
+            {jsonError && <p className="text-xs text-destructive">{jsonError}</p>}
+            <p className="text-[10px] text-muted-foreground">
+              Model catalog sent to bridge/Windows agents via heartbeat for PDF text extraction.
+            </p>
+          </div>
         </div>
 
         <Button

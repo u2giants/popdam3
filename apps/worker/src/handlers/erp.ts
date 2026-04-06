@@ -1,19 +1,34 @@
 /**
  * ERP enrichment & classification handlers — persistent worker version.
  *
- * Ports logic from:
- *   supabase/functions/_shared/admin-handlers/erp-handlers.ts
- *
- * Key differences from edge function version:
- *   - No 20s AbortSignal on Anthropic calls
- *   - Batch loops until done=true instead of returning after one batch
- *   - ANTHROPIC_API_KEY read from process.env (not Deno.env)
+ * Classification calls go through OpenRouter so the model is admin-selectable.
+ * Model is read from admin_config.AI_TASK_MODELS.text_classification
+ * (default: "anthropic/claude-3.5-haiku").
  */
 
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { chatCompletion, tool, type ChatMessage } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
+
+const DEFAULT_CLASSIFICATION_MODEL = "anthropic/claude-3.5-haiku";
+let cachedClassModel: string | null = null;
+let classCacheExpires = 0;
+
+async function getClassificationModel(): Promise<string> {
+  if (cachedClassModel && Date.now() < classCacheExpires) return cachedClassModel;
+  const client = db();
+  const { data } = await client
+    .from("admin_config")
+    .select("value")
+    .eq("key", "AI_TASK_MODELS")
+    .maybeSingle();
+  const models = data?.value as Record<string, string> | null;
+  cachedClassModel = models?.text_classification || DEFAULT_CLASSIFICATION_MODEL;
+  classCacheExpires = Date.now() + 60_000;
+  return cachedClassModel;
+}
 
 // ── ERP Enrichment ───────────────────────────────────────────────────────────
 
@@ -204,10 +219,13 @@ function isUnclassifiable(item: { item_description: string | null; style_number:
 
 export async function handleClassifyErpCategories(opState: OpState): Promise<BatchResult> {
   const client = db();
-  const ANTHROPIC_API_KEY = config.anthropicApiKey;
-  if (!ANTHROPIC_API_KEY) {
-    return { ok: false, done: false, error: "ANTHROPIC_API_KEY not configured" };
+  const apiKey = config.openRouterApiKey || config.anthropicApiKey;
+  if (!apiKey) {
+    return { ok: false, done: false, error: "No AI API key configured (OPENROUTER_API_KEY or ANTHROPIC_API_KEY)" };
   }
+
+  // Read model from admin_config (cached)
+  const classificationModel = await getClassificationModel();
 
   // Under the old 45s edge function these were 5/80/50. The persistent worker
   // has no timeout, so we can classify more candidates per tick.
@@ -347,47 +365,36 @@ Product to classify:
 
 Use the provided tool to return your classification.`;
 
-      const aiResp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
+      const classifyTool = tool(
+        "classify_product",
+        "Classify a product into one of 7 categories",
+        {
+          type: "object",
+          properties: {
+            category: { type: "string", enum: CATEGORIES },
+            confidence: { type: "number", minimum: 0, maximum: 1 },
+            rationale: { type: "string", maxLength: 200 },
+          },
+          required: ["category", "confidence", "rationale"],
+          additionalProperties: false,
         },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 1024,
-          system: "You are a product classification expert for a home décor company. Classify each product into exactly one category.",
-          messages: [{ role: "user", content: prompt }],
-          tools: [{
-            name: "classify_product",
-            description: "Classify a product into one of 7 categories",
-            input_schema: {
-              type: "object",
-              properties: {
-                category: { type: "string", enum: CATEGORIES },
-                confidence: { type: "number", minimum: 0, maximum: 1 },
-                rationale: { type: "string", maxLength: 200 },
-              },
-              required: ["category", "confidence", "rationale"],
-              additionalProperties: false,
-            },
-          }],
-          tool_choice: { type: "tool", name: "classify_product" },
-        }),
+      );
+
+      const messages: ChatMessage[] = [
+        { role: "system", content: "You are a product classification expert for a home décor company. Classify each product into exactly one category." },
+        { role: "user", content: prompt },
+      ];
+
+      const aiResult = await chatCompletion(apiKey, {
+        model: classificationModel,
+        messages,
+        max_tokens: 1024,
+        tools: [classifyTool],
+        tool_choice: { type: "function", function: { name: "classify_product" } },
       });
 
-      if (!aiResp.ok) {
-        logger.warn("erp-classify: Anthropic API error", { external_id: item.external_id, status: aiResp.status });
-        continue;
-      }
-
-      const aiResult = await aiResp.json() as { content?: Array<{ type: string; input?: { category: string; confidence: number; rationale: string } }> };
-      const toolUse = aiResult.content?.find((c) => c.type === "tool_use");
-      if (!toolUse?.input) continue;
-
-      const parsed = toolUse.input;
-      if (!CATEGORIES.includes(parsed.category)) continue;
+      const parsed = aiResult.toolCalls?.[0]?.arguments as { category: string; confidence: number; rationale: string } | undefined;
+      if (!parsed || !CATEGORIES.includes(parsed.category)) continue;
 
       const status = parsed.confidence >= 0.65 ? "auto_applied" : "pending";
 
@@ -398,7 +405,7 @@ Use the provided tool to return your classification.`;
         confidence: parsed.confidence,
         rationale: parsed.rationale,
         classification_source: "ai",
-        ai_model: "claude-haiku-4-5-20251001",
+        ai_model: classificationModel,
         ai_prompt_version: "v1",
         status,
         input_context: { style_number: item.style_number, item_description: item.item_description, raw_mg_fields: item.raw_mg_fields },

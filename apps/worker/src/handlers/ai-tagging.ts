@@ -1,40 +1,130 @@
 /**
  * AI Tagging handler — persistent worker version.
  *
- * Ports logic from:
- *   supabase/functions/ai-tag/index.ts          (Gemini call, DB writes)
- *   supabase/functions/_shared/admin-handlers/ai-tagging-handlers.ts (batch query, smart-skip)
+ * All AI calls go through OpenRouter (OpenAI-compatible API) so the model
+ * is selectable from the admin panel without code changes.
  *
- * Key differences from edge function version:
- *   - No 25s AbortSignal on Gemini calls (60s generous timeout instead)
- *   - Batch size 15 (configurable) vs edge function's 2
- *   - Concurrency 15 (configurable) vs edge function's 2
- *   - Loops until done=true instead of returning after one batch
- *   - Calls Gemini directly — no edge function HTTP hop
+ * The model is read from admin_config.AI_TASK_MODELS.vision_tagging
+ * (default: "google/gemini-2.0-flash-001").
  */
 
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { chatCompletion, imageContent, tool, type ChatMessage } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
 
-const GEMINI_TIMEOUT_MS = 60_000;
 const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
-const MAX_AI_RETRIES = 2;
+const AI_TIMEOUT_MS = 60_000;
+const DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-001";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(v: unknown): v is string {
   return typeof v === "string" && UUID_RE.test(v);
 }
 
-// ── Single-asset Gemini tagging ──────────────────────────────────────────────
+// ── Read model assignment from admin_config ─────────────────────────────────
+
+let cachedModel: string | null = null;
+let cacheExpiresAt = 0;
+
+async function getVisionModel(): Promise<string> {
+  if (cachedModel && Date.now() < cacheExpiresAt) return cachedModel;
+  const client = db();
+  const { data } = await client
+    .from("admin_config")
+    .select("value")
+    .eq("key", "AI_TASK_MODELS")
+    .maybeSingle();
+  const models = data?.value as Record<string, string> | null;
+  cachedModel = models?.vision_tagging || DEFAULT_VISION_MODEL;
+  cacheExpiresAt = Date.now() + 60_000; // cache 1 min
+  return cachedModel;
+}
+
+// ── Tag asset tool schema ───────────────────────────────────────────────────
+
+const TAG_ASSET_TOOL = tool(
+  "tag_asset",
+  "Return structured tagging data for this design asset.",
+  {
+    type: "object",
+    properties: {
+      tags: {
+        type: "array",
+        items: { type: "string" },
+        description: "Descriptive tags: characters, styles, colors, themes",
+      },
+      ai_description: {
+        type: "string",
+        description: "One-sentence description of the design asset",
+      },
+      cover_description: {
+        type: "string",
+        description:
+          "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
+      },
+      scene_description: {
+        type: "string",
+        description: "What is depicted in the image",
+      },
+      asset_type: {
+        type: "string",
+        enum: ["art_piece", "product"],
+      },
+      art_source: {
+        type: "string",
+        enum: ["freelancer", "straight_style_guide", "style_guide_composition"],
+      },
+      design_style: {
+        type: "string",
+        description: "e.g. flat, dimensional, vintage, modern",
+      },
+      design_ref: {
+        type: "string",
+        description: "Any style number or design reference visible",
+      },
+      character_ids: {
+        type: "array",
+        items: { type: "string" },
+        description: "UUIDs of identified characters from taxonomy",
+      },
+      licensor_id: {
+        type: "string",
+        description: "UUID of identified licensor",
+      },
+      property_id: {
+        type: "string",
+        description: "UUID of identified property",
+      },
+      designer_name: {
+        type: "string",
+        description:
+          "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
+      },
+      technical_designer_name: {
+        type: "string",
+        description:
+          "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
+      },
+      freelancer_name: {
+        type: "string",
+        description:
+          "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
+      },
+    },
+    required: ["tags", "ai_description", "scene_description"],
+  },
+);
+
+// ── Single-asset tagging via OpenRouter ──────────────────────────────────────
 
 async function tagSingleAsset(assetId: string, force: boolean): Promise<"tagged" | "skipped" | "failed"> {
   const client = db();
-  const GOOGLE_AI_API_KEY = config.googleAiApiKey;
+  const apiKey = config.openRouterApiKey || config.googleAiApiKey;
 
-  if (!GOOGLE_AI_API_KEY) {
-    logger.error("GOOGLE_AI_API_KEY not configured");
+  if (!apiKey) {
+    logger.error("No AI API key configured (OPENROUTER_API_KEY or GOOGLE_AI_API_KEY)");
     return "failed";
   }
 
@@ -215,199 +305,93 @@ ${usingPriorityOnly
     return "failed";
   }
 
-  // Call Gemini API with retry on 5xx
-  let response: Response | null = null;
-  for (let attempt = 0; attempt <= MAX_AI_RETRIES; attempt++) {
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${GOOGLE_AI_API_KEY}`,
+  // Get model from admin_config (cached for 1 min)
+  const model = await getVisionModel();
+
+  // Call via OpenRouter
+  try {
+    const messages: ChatMessage[] = [
+      { role: "system", content: systemPrompt },
       {
-        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { inlineData: { mimeType: imageMimeType, data: imageBase64 } },
-                { text: "Analyze this design asset image and return structured tags using the tag_asset function." },
-              ],
-            },
-          ],
-          tools: [
-            {
-              functionDeclarations: [
-                {
-                  name: "tag_asset",
-                  description: "Return structured tagging data for this design asset.",
-                  parameters: {
-                    type: "object",
-                    properties: {
-                      tags: {
-                        type: "array",
-                        items: { type: "string" },
-                        description: "Descriptive tags: characters, styles, colors, themes",
-                      },
-                      ai_description: {
-                        type: "string",
-                        description: "One-sentence description of the design asset",
-                      },
-                      cover_description: {
-                        type: "string",
-                        description:
-                          "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
-                      },
-                      scene_description: {
-                        type: "string",
-                        description: "What is depicted in the image",
-                      },
-                      asset_type: {
-                        type: "string",
-                        enum: ["art_piece", "product"],
-                      },
-                      art_source: {
-                        type: "string",
-                        enum: ["freelancer", "straight_style_guide", "style_guide_composition"],
-                      },
-                      design_style: {
-                        type: "string",
-                        description: "e.g. flat, dimensional, vintage, modern",
-                      },
-                      design_ref: {
-                        type: "string",
-                        description: "Any style number or design reference visible",
-                      },
-                      character_ids: {
-                        type: "array",
-                        items: { type: "string" },
-                        description: "UUIDs of identified characters from taxonomy",
-                      },
-                      licensor_id: {
-                        type: "string",
-                        description: "UUID of identified licensor",
-                      },
-                      property_id: {
-                        type: "string",
-                        description: "UUID of identified property",
-                      },
-                      designer_name: {
-                        type: "string",
-                        description:
-                          "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
-                      },
-                      technical_designer_name: {
-                        type: "string",
-                        description:
-                          "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
-                      },
-                      freelancer_name: {
-                        type: "string",
-                        description:
-                          "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
-                      },
-                    },
-                    required: ["tags", "ai_description", "scene_description"],
-                  },
-                },
-              ],
-            },
-          ],
-          tool_config: {
-            function_calling_config: {
-              mode: "ANY",
-              allowed_function_names: ["tag_asset"],
-            },
-          },
-        }),
+        role: "user",
+        content: [
+          imageContent(imageBase64, imageMimeType),
+          { type: "text", text: "Analyze this design asset image and return structured tags using the tag_asset function." },
+        ],
       },
-    );
+    ];
 
-    if (response.ok) break;
+    const result = await chatCompletion(apiKey, {
+      model,
+      messages,
+      tools: [TAG_ASSET_TOOL],
+      tool_choice: { type: "function", function: { name: "tag_asset" } },
+    }, AI_TIMEOUT_MS);
 
-    if (response.status === 429) {
-      logger.warn("ai-tag: rate limited by Gemini", { assetId });
+    const tagData = result.toolCalls?.[0]?.arguments;
+    if (!tagData) {
+      logger.warn("ai-tag: AI did not return structured tags", { assetId, model });
       return "failed";
     }
 
-    if (response.status >= 500 && attempt < MAX_AI_RETRIES) {
-      logger.warn("ai-tag: Gemini transient error, retrying", { assetId, status: response.status, attempt: attempt + 1 });
-      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-      continue;
+    const updates: Record<string, unknown> = {
+      status: "tagged",
+      ai_tagged_at: new Date().toISOString(),
+    };
+    if (tagData.ai_description) updates.ai_description = tagData.ai_description;
+    if (tagData.cover_description) updates.cover_description = tagData.cover_description;
+    if (tagData.scene_description) updates.scene_description = tagData.scene_description;
+    if (tagData.asset_type) updates.asset_type = tagData.asset_type;
+    if (tagData.art_source) updates.art_source = tagData.art_source;
+    if (tagData.design_style) updates.design_style = tagData.design_style;
+    if (tagData.design_ref) updates.design_ref = tagData.design_ref;
+    if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
+    if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
+    if (tagData.designer_name) updates.designer_name = tagData.designer_name;
+    if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
+    if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
+
+    let { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
+
+    // FK constraint failure: AI hallucinated a licensor/property UUID — retry without FK fields
+    if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
+      logger.warn("ai-tag: FK/type error, retrying without licensor_id/property_id", { assetId, error: updateErr.message });
+      delete updates.licensor_id;
+      delete updates.property_id;
+      const retry = await client.from("assets").update(updates).eq("id", assetId);
+      updateErr = retry.error;
     }
 
-    logger.error("ai-tag: Gemini API error", { assetId, status: response.status });
-    return "failed";
-  }
-
-  if (!response) return "failed";
-
-  const aiResult = await response.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ functionCall?: { args?: Record<string, unknown> } }> } } >;
-  };
-  const functionCall = aiResult.candidates?.[0]?.content?.parts?.[0]?.functionCall;
-
-  if (!functionCall?.args) {
-    logger.warn("ai-tag: Gemini did not return structured tags", { assetId });
-    return "failed";
-  }
-
-  const tagData = functionCall.args;
-
-  const updates: Record<string, unknown> = {
-    status: "tagged",
-    ai_tagged_at: new Date().toISOString(),
-  };
-  if (tagData.ai_description) updates.ai_description = tagData.ai_description;
-  if (tagData.cover_description) updates.cover_description = tagData.cover_description;
-  if (tagData.scene_description) updates.scene_description = tagData.scene_description;
-  if (tagData.asset_type) updates.asset_type = tagData.asset_type;
-  if (tagData.art_source) updates.art_source = tagData.art_source;
-  if (tagData.design_style) updates.design_style = tagData.design_style;
-  if (tagData.design_ref) updates.design_ref = tagData.design_ref;
-  if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
-  if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
-  if (tagData.designer_name) updates.designer_name = tagData.designer_name;
-  if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
-  if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
-
-  let { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
-
-  // FK constraint failure: AI hallucinated a licensor/property UUID — retry without FK fields
-  if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
-    logger.warn("ai-tag: FK/type error, retrying without licensor_id/property_id", { assetId, error: updateErr.message });
-    delete updates.licensor_id;
-    delete updates.property_id;
-    const retry = await client.from("assets").update(updates).eq("id", assetId);
-    updateErr = retry.error;
-  }
-
-  if (updateErr) {
-    logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
-    return "failed";
-  }
-
-  // Write tags to asset_tags table
-  if (Array.isArray(tagData.tags) && tagData.tags.length > 0) {
-    await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
-    const tagRows = (tagData.tags as string[]).map((t: string) => ({
-      asset_id: assetId,
-      tag: t.trim().toLowerCase(),
-      source: "ai",
-    }));
-    await client.from("asset_tags").upsert(tagRows, { onConflict: "asset_id,tag" });
-  }
-
-  // Write character links
-  if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
-    const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
-    if (validCharIds.length > 0) {
-      const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
-      await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
+    if (updateErr) {
+      logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
+      return "failed";
     }
-  }
 
-  return "tagged";
+    // Write tags to asset_tags table
+    if (Array.isArray(tagData.tags) && tagData.tags.length > 0) {
+      await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
+      const tagRows = (tagData.tags as string[]).map((t: string) => ({
+        asset_id: assetId,
+        tag: t.trim().toLowerCase(),
+        source: "ai",
+      }));
+      await client.from("asset_tags").upsert(tagRows, { onConflict: "asset_id,tag" });
+    }
+
+    // Write character links
+    if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
+      const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
+      if (validCharIds.length > 0) {
+        const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
+        await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
+      }
+    }
+
+    return "tagged";
+  } catch (e) {
+    logger.warn("ai-tag: AI call error", { assetId, model, error: String(e) });
+    return "failed";
+  }
 }
 
 // ── Batch handler (called from operation-loop) ───────────────────────────────
@@ -438,7 +422,7 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
         if (r.status === "fulfilled") {
           if (r.value.outcome === "tagged") tagged++;
           else if (r.value.outcome === "skipped") skipped++;
-          else { failed++; failureSamples.push({ at: new Date().toISOString(), asset_id: r.value.asset_id, filename: "", relative_path: "", error: "Gemini call failed" }); }
+          else { failed++; failureSamples.push({ at: new Date().toISOString(), asset_id: r.value.asset_id, filename: "", relative_path: "", error: "AI call failed" }); }
         } else {
           failed++;
           failureSamples.push({ at: new Date().toISOString(), asset_id: "(unknown)", filename: "", relative_path: "", error: String(r.reason).slice(0, 500) });
@@ -534,7 +518,7 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
             asset_id: asset.id as string,
             filename: (asset.filename as string) || "(unknown)",
             relative_path: (asset.relative_path as string) || "(unknown)",
-            error: "Gemini call failed — see worker logs",
+            error: "AI call failed — see worker logs",
           });
         }
       } else {

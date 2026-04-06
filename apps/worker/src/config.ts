@@ -25,19 +25,21 @@ export const config = {
   supabaseUrl: required("SUPABASE_URL"),
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
 
-  // Google Gemini API key for asset tagging
-  googleAiApiKey: optional("GOOGLE_AI_API_KEY", ""),
+  // OpenRouter API key — single gateway for all AI providers
+  openRouterApiKey: optional("OPENROUTER_API_KEY", ""),
 
-  // Anthropic API key for ERP classification
+  // Legacy direct keys — kept for fallback; prefer OpenRouter
+  googleAiApiKey: optional("GOOGLE_AI_API_KEY", ""),
   anthropicApiKey: optional("ANTHROPIC_API_KEY", ""),
 
   // How often to poll Supabase for pending operations (ms).
   // 1s gives near-instant responsiveness without significant DB load.
   pollIntervalMs: optionalInt("WORKER_POLL_INTERVAL_MS", 1_000),
 
-  // Parallel Gemini calls per AI tagging batch
-  aiBatchConcurrency: optionalInt("AI_BATCH_CONCURRENCY", 15),
+  // Parallel AI calls per AI tagging batch.
+  // With the persistent worker (no 45s timeout) we can sustain high concurrency.
+  aiBatchConcurrency: optionalInt("AI_BATCH_CONCURRENCY", 50),
 
   // Assets fetched per AI tagging batch
-  aiBatchSize: optionalInt("AI_BATCH_SIZE", 15),
+  aiBatchSize: optionalInt("AI_BATCH_SIZE", 50),
 } as const;
