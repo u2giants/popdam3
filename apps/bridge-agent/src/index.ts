@@ -338,8 +338,11 @@ function applyCloudConfig(cfg: CloudConfig) {
 
   // Update windows render policy (new — takes precedence)
   if (cfg.windows_render_policy) {
+    const newMode = cfg.windows_render_policy.mode;
+    if (newMode !== windowsRenderPolicy?.mode) {
+      logger.info("Windows render policy updated", { mode: newMode });
+    }
     windowsRenderPolicy = cfg.windows_render_policy;
-    logger.info("Windows render policy updated", { mode: cfg.windows_render_policy.mode });
   }
 
   // Update windows agent health context
