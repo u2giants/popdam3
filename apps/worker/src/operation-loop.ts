@@ -16,7 +16,7 @@ import { db } from "./supabase.js";
 import { logger } from "./logger.js";
 import type { BatchResult, OpState } from "./types.js";
 import { handleBulkAiTag } from "./handlers/ai-tagging.js";
-import { handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
+import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
 
@@ -41,6 +41,7 @@ const OP_LANES: Record<string, string> = {
   "erp-enrichment": "erp",
   "erp-classify": "erp",
   "propagate-group-tags": "style-groups",
+  "cleanup-mega-group-tags": "style-groups",
 };
 
 // Cross-lane conflicts — operations in DIFFERENT lanes that still cannot run simultaneously.
@@ -182,6 +183,8 @@ async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
       return handleReconcileStyleGroupStats(opState);
     case "propagate-group-tags":
       return handlePropagateGroupTags(opState);
+    case "cleanup-mega-group-tags":
+      return handleCleanupMegaGroupTags(opState);
     case "erp-enrichment":
       return handleApplyErpEnrichment(opState);
     case "erp-classify":
