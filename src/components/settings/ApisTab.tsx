@@ -537,6 +537,7 @@ export function AiModelsConfigSection() {
 
   const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ["openrouter-models", savedOpenRouterKey],
+    enabled: !!savedOpenRouterKey,
     queryFn: async () => {
       const res = await fetch("https://openrouter.ai/api/v1/models/user", {
         headers: { Authorization: `Bearer ${savedOpenRouterKey}` },
