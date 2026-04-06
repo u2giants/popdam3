@@ -2,7 +2,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsServe, err, json } from "../_shared/http.ts";
 
 corsServe(async (req: Request) => {
-
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return err("Missing Authorization header", 401);
@@ -63,9 +62,14 @@ corsServe(async (req: Request) => {
     const customInstructions = typeof instrResult.data?.value === "string" ? instrResult.data.value.trim() : null;
 
     // Resolve which Gemini model to use — prefer the configured vision-capable Google model
-    const aiModels = Array.isArray(modelsResult.data?.value) ? modelsResult.data.value as Array<{
-      id: string; provider: string; apiModel: string; capabilities: string[];
-    }> : [];
+    const aiModels = Array.isArray(modelsResult.data?.value)
+      ? modelsResult.data.value as Array<{
+        id: string;
+        provider: string;
+        apiModel: string;
+        capabilities: string[];
+      }>
+      : [];
     const visionModel = aiModels.find(
       (m) => m.provider === "google" && Array.isArray(m.capabilities) && m.capabilities.includes("vision"),
     );
