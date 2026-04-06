@@ -274,8 +274,18 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
     );
   }
 
+  function runCleanup() {
+    requestOp("cleanup-mega-group-tags", OP_NAMES["cleanup-mega-group-tags"],
+      () => cleanupOp.start({
+        confirmMessage: `Clean contaminated tags from ${stats?.megaGroups ?? "?"} mega-groups (50+ assets)? This removes propagated tags and metadata but keeps original AI tags intact.`,
+      }),
+      () => cleanupOp.queue({ params: {} }),
+    );
+  }
+
   const showRebuildDetail = rebuildOp.state.status !== "idle";
   const showReconcileDetail = reconcileOp.state.status !== "idle";
+  const showCleanupDetail = cleanupOp.state.status !== "idle";
 
   return (
     <Card>
