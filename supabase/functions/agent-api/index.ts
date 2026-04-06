@@ -141,6 +141,9 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "WINDOWS_AGENT_RENDER_CONCURRENCY",
   "WINDOWS_REPAIR_CODE",
   "PDF_TEXT_SAMPLE_REQUEST",
+  "OPENROUTER_API_KEY",
+  "AI_TASK_MODELS",
+  "AI_MODELS",
 ];
 
 function getConfigKeysForAgent(agentType: string): string[] {

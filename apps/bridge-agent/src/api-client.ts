@@ -137,7 +137,10 @@ export interface HeartbeatResponse {
     ai?: {
       anthropic_api_key?: string;
       google_ai_api_key?: string;
+      openai_api_key?: string;
+      openrouter_api_key?: string;
       models?: Array<{ id: string; provider: string; apiModel: string; capabilities: string[] }>;
+      ai_task_models?: Record<string, string>;
       pdf_extraction?: { ai_vision_model_id?: string } | null;
     };
   };
