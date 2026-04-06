@@ -100,14 +100,14 @@ export function classifyInterruptionReason(
 //   licensor/property code columns on assets and style_groups → data races.
 
 export const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
-  "ai-tag-untagged":            ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
-  "ai-tag-all":                 ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
-  "ai-tag-groups":              ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
-  "propagate-group-tags":       ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
-  "rebuild-style-groups":       ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
-  "reprocess-metadata":         ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "erp-enrichment"],
-  "backfill-sku-names":         ["erp-enrichment"],
-  "erp-enrichment":             ["reprocess-metadata", "backfill-sku-names"],
+  "ai-tag-untagged": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "ai-tag-all": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "ai-tag-groups": ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
+  "reprocess-metadata": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "erp-enrichment"],
+  "backfill-sku-names": ["erp-enrichment"],
+  "erp-enrichment": ["reprocess-metadata", "backfill-sku-names"],
 };
 
 /** Returns the ops that `opKey` cannot run alongside (empty array if none). */
