@@ -1,6 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, json } from "../_shared/http.ts";
+import { corsServe, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
 import { resolveMg01Code, resolveMg02Code, resolveMg03Code } from "../_shared/mg-codes.ts";
 
@@ -13,9 +12,7 @@ function fmtDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
+corsServe(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   if (!supabaseUrl || !serviceRoleKey) {

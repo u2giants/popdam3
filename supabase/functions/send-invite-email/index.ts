@@ -1,19 +1,14 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders, json } from "../_shared/http.ts";
+import { corsServe, json } from "../_shared/http.ts";
 import { buildInviteHtml, sendBrevoEmail } from "../_shared/brevo.ts";
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+corsServe(async (req: Request) => {
   try {
     const { email } = await req.json();
     if (!email) {
       return json({ ok: false, error: "email is required" }, 400);
     }
 
-    const signUpUrl = "https://popdam.lovable.app/login?signup=true";
+    const signUpUrl = "https://dam.designflow.app/login?signup=true";
     const htmlContent = buildInviteHtml(signUpUrl, "user");
 
     const result = await sendBrevoEmail({

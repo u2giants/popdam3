@@ -10,7 +10,7 @@
  * Reports per-file progress back to the cloud so the UI shows real-time status.
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
@@ -39,15 +39,20 @@ export interface AiConfig {
   anthropicApiKey: string;
 }
 
+/** Maximum PDF file size to load into memory (100 MB). Larger files are skipped. */
+const PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
+
 export interface PdfTextSampleResult {
   asset_id: string;
   filename: string;
   relative_path: string;
-  extraction_method: "pdf_text" | "likely_scanned" | "failed" | "ocr_text" | "ai_vision";
+  extraction_method: "pdf_text" | "likely_scanned" | "failed" | "ocr_text" | "ai_vision" | "skipped";
   extracted_text: string | null;
   page_count: number | null;
   char_count: number;
   extraction_error: string | null;
+  /** Set when a file was intentionally skipped rather than failing */
+  skip_reason?: string;
 }
 
 interface FileProgressEntry {
@@ -166,6 +171,21 @@ async function processSinglePdf(
   fileResults: FileProgressEntry[],
 ): Promise<PdfTextSampleResult> {
   await reportProgress(index, total, asset.filename, "reading", fileResults);
+
+  // Check file size before loading into memory
+  const fileStat = await stat(fullPath);
+  if (fileStat.size > PDF_SIZE_LIMIT_BYTES) {
+    const skipReason = `File too large (${(fileStat.size / 1024 / 1024).toFixed(1)} MB > ${PDF_SIZE_LIMIT_BYTES / 1024 / 1024} MB limit)`;
+    logger.warn("PDF text sample: skipping oversized file", {
+      filename: asset.filename, size_bytes: fileStat.size, limit_bytes: PDF_SIZE_LIMIT_BYTES,
+    });
+    return {
+      asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
+      extraction_method: "skipped", extracted_text: null,
+      page_count: null, char_count: 0,
+      extraction_error: null, skip_reason: skipReason,
+    };
+  }
 
   const buffer = await readFile(fullPath);
 
@@ -315,12 +335,19 @@ export async function runPdfTextSample(
     try {
       const result = await processSinglePdf(asset, fullPath, aiConfig, i, assets.length, fileResults);
       results.push(result);
+      if (result.extraction_method === "skipped") {
+        logger.warn("PDF text sample: file skipped — admin alert", {
+          filename: asset.filename,
+          relative_path: asset.relative_path,
+          skip_reason: result.skip_reason,
+        });
+      }
       fileResults.push({
         filename: asset.filename,
         status: result.extraction_method === "failed" ? "failed" : "success",
         method: result.extraction_method,
         chars: result.char_count,
-        error: result.extraction_error ?? undefined,
+        error: result.skip_reason ?? result.extraction_error ?? undefined,
       });
     } catch (e) {
       const errMsg = (e as Error).message;

@@ -676,7 +676,7 @@ export async function handleReconcileStyleGroupStats(body: Record<string, unknow
     const db = serviceClient();
     const sub = typeof body.sub === "string" ? body.sub : "counts";
     const cursor = typeof body.cursor === "string" ? body.cursor : null;
-    const batchSize = typeof body.batch_size === "number" ? body.batch_size : 200;
+    const batchSize = Math.min(typeof body.batch_size === "number" ? body.batch_size : 200, 1000);
 
     const { data, error: rpcErr } = await db.rpc("reconcile_style_group_stats_batch", {
       p_cursor: cursor,

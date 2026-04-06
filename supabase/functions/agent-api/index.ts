@@ -17,11 +17,10 @@ const TIFF_REINSPECT_DEFAULT_BATCH = 50;
 const LOG_TAIL_LINES = 50;
 const PDF_TEXT_SAMPLE_PROGRESS_LIMIT = 25;
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { parseSku } from "../_shared/sku-parser.ts";
 import { extractSkuFolder, selectPrimaryAsset } from "../_shared/style-grouping.ts";
 import { isExcludedRelativePath, JUNK_FILENAMES } from "../_shared/path-filters.ts";
-import { corsHeaders, err, json } from "../_shared/http.ts";
+import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
@@ -96,29 +95,29 @@ async function handleRegister(body: Record<string, unknown>) {
 
 // ── Route: heartbeat ────────────────────────────────────────────────
 
-const HEARTBEAT_CONFIG_KEYS = [
+// Config keys needed by ALL agent types
+const HEARTBEAT_CONFIG_KEYS_COMMON = [
   "SPACES_CONFIG",
-  "SCAN_ROOTS",
   "RESOURCE_GUARD",
   "POLLING_CONFIG",
+  "AUTO_SCAN_CONFIG",
+  "AGENT_UPDATE_REQUEST",
+  "WINDOWS_RENDER_MODE",
+  "WINDOWS_RENDER_POLICY",
+  "DO_SPACES_KEY",
+  "DO_SPACES_SECRET",
+];
+
+// Config keys needed only by bridge agents (Linux/Docker)
+const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
+  ...HEARTBEAT_CONFIG_KEYS_COMMON,
+  "SCAN_ROOTS",
   "NAS_CONTAINER_MOUNT_ROOT",
   "NAS_HOST_PATH",
   "PATH_TEST_REQUEST",
-  "AUTO_SCAN_CONFIG",
   "SCAN_REQUEST",
   "SCAN_ALLOWED_SUBFOLDERS",
-  "WINDOWS_AGENT_NAS_HOST",
-  "WINDOWS_AGENT_NAS_SHARE",
-  "WINDOWS_AGENT_NAS_USER",
-  "WINDOWS_AGENT_NAS_PASS",
-  "WINDOWS_AGENT_NAS_MOUNT_PATH",
-  "WINDOWS_AGENT_RENDER_CONCURRENCY",
-  "DO_SPACES_KEY",
-  "DO_SPACES_SECRET",
-  "AGENT_UPDATE_REQUEST",
   "SCAN_MIN_DATE",
-  "WINDOWS_RENDER_MODE",
-  "WINDOWS_RENDER_POLICY",
   "STYLE_GUIDE_SCAN_ROOTS",
   "STYLE_GUIDE_CRAWL_REQUEST",
   "ANTHROPIC_API_KEY",
@@ -127,8 +126,25 @@ const HEARTBEAT_CONFIG_KEYS = [
   "AI_MODELS",
   "PDF_EXTRACTION_CONFIG",
   "PDF_TEXT_SAMPLE_REQUEST",
-  "WINDOWS_REPAIR_CODE",
 ];
+
+// Config keys needed only by Windows render agents
+const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
+  ...HEARTBEAT_CONFIG_KEYS_COMMON,
+  "WINDOWS_AGENT_NAS_HOST",
+  "WINDOWS_AGENT_NAS_SHARE",
+  "WINDOWS_AGENT_NAS_USER",
+  "WINDOWS_AGENT_NAS_PASS",
+  "WINDOWS_AGENT_NAS_MOUNT_PATH",
+  "WINDOWS_AGENT_RENDER_CONCURRENCY",
+  "WINDOWS_REPAIR_CODE",
+  "PDF_TEXT_SAMPLE_REQUEST",
+];
+
+function getConfigKeysForAgent(agentType: string): string[] {
+  if (agentType === "windows-render") return HEARTBEAT_CONFIG_KEYS_WINDOWS;
+  return HEARTBEAT_CONFIG_KEYS_BRIDGE; // bridge and unknown types
+}
 
 async function handleHeartbeat(
   body: Record<string, unknown>,
@@ -214,10 +230,10 @@ async function handleHeartbeat(
   const now = new Date();
 
   const [configResult, _tokenCleanup, windowsAgentsResult, renderQueueResult] = await Promise.all([
-    // 1. Fetch cloud config
+    // 1. Fetch cloud config — only keys relevant to this agent type
     db.from("admin_config")
       .select("key, value")
-      .in("key", HEARTBEAT_CONFIG_KEYS),
+      .in("key", getConfigKeysForAgent(agentType)),
 
     // 2. Cleanup expired/used bootstrap tokens (fire-and-forget style, errors non-fatal)
     (async () => {
@@ -2650,11 +2666,7 @@ async function handlePdfTextSampleProgress(
   return json({ ok: true });
 }
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+corsServe(async (req: Request) => {
   if (req.method !== "POST") {
     return err("Method not allowed", 405);
   }

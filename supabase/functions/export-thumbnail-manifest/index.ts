@@ -12,7 +12,7 @@
  * Auth: admin JWT or service role key.
  */
 
-import { corsHeaders, err, json } from "../_shared/http.ts";
+import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -52,11 +52,7 @@ function escapeCSV(val: string | null): string {
   return s;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
+corsServe(async (req) => {
   try {
     if (!(await authorizeAdmin(req))) {
       return err("Unauthorized", 401);

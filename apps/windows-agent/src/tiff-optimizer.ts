@@ -173,10 +173,6 @@ function logUnknownCompression(filePath: string, context: string) {
   }
 }
 
-export function resetUnknownLogCounter() {
-  unknownLogCount = 0;
-}
-
 // ── Compression detection ───────────────────────────────────────
 
 function normalizeCompression(raw: string | undefined): string {
