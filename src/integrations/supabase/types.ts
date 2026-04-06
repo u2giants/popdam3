@@ -1468,6 +1468,21 @@ export type Database = {
           relative_path: string
         }[]
       }
+      cleanup_mega_group_tags_batch: {
+        Args: {
+          p_batch_size?: number
+          p_cursor?: string
+          p_min_group_size?: number
+        }
+        Returns: {
+          characters_deleted: number
+          done: boolean
+          groups_processed: number
+          metadata_cleared: number
+          next_cursor: string
+          tags_deleted: number
+        }[]
+      }
       clear_style_group_batch: {
         Args: { p_batch_size?: number; p_last_id?: string }
         Returns: {

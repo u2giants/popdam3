@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Database, Clock, RefreshCw, Loader2, CheckCircle2, XCircle,
-  AlertTriangle, Trash2, Wrench, Link2,
+  AlertTriangle, Trash2, Wrench, Link2, ShieldAlert,
 } from "lucide-react";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES, REASON_LABELS, timeAgo } from "./types";
@@ -197,11 +197,12 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
 
   const rebuildOp = usePersistentOperation("rebuild-style-groups");
   const reconcileOp = usePersistentOperation("reconcile-style-group-stats");
+  const cleanupOp = usePersistentOperation("cleanup-mega-group-tags");
 
   const { data: stats } = useQuery({
     queryKey: ["style-group-stats"],
     queryFn: async () => {
-      const [groupRes, ungroupedRes, anomalyRes, orphanRes] = await Promise.all([
+      const [groupRes, ungroupedRes, anomalyRes, orphanRes, megaRes] = await Promise.all([
         call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups" }),
         call("run-query", { sql: "SELECT COUNT(*) as count FROM assets WHERE style_group_id IS NULL AND is_deleted = false" }),
         call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups sg WHERE (sg.asset_count IS NULL OR sg.asset_count = 0) AND EXISTS (SELECT 1 FROM assets a WHERE a.style_group_id = sg.id AND a.is_deleted = false LIMIT 1)" }),
@@ -215,12 +216,14 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
                   AND sg.folder_path IS NOT NULL
                 )` 
         }),
+        call("run-query", { sql: "SELECT COUNT(*) as count FROM style_groups WHERE asset_count >= 50" }),
       ]);
       return {
         groups: groupRes.rows?.[0]?.count ?? 0,
         ungrouped: ungroupedRes.rows?.[0]?.count ?? 0,
         anomalous: anomalyRes.rows?.[0]?.count ?? 0,
         orphaned: orphanRes.rows?.[0]?.count ?? 0,
+        megaGroups: megaRes.rows?.[0]?.count ?? 0,
       };
     },
     staleTime: 15_000,
@@ -271,8 +274,18 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
     );
   }
 
+  function runCleanup() {
+    requestOp("cleanup-mega-group-tags", OP_NAMES["cleanup-mega-group-tags"],
+      () => cleanupOp.start({
+        confirmMessage: `Clean contaminated tags from ${stats?.megaGroups ?? "?"} mega-groups (50+ assets)? This removes propagated tags and metadata but keeps original AI tags intact.`,
+      }),
+      () => cleanupOp.queue({ params: {} }),
+    );
+  }
+
   const showRebuildDetail = rebuildOp.state.status !== "idle";
   const showReconcileDetail = reconcileOp.state.status !== "idle";
+  const showCleanupDetail = cleanupOp.state.status !== "idle";
 
   return (
     <Card>
@@ -295,6 +308,11 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
             {Number(stats.orphaned) > 0 && (
               <p className="text-[hsl(var(--warning))]">
                 🔗 <span className="font-medium">{Number(stats.orphaned).toLocaleString()}</span> orphaned assets — in folders with style groups but unlinked
+              </p>
+            )}
+            {Number(stats.megaGroups) > 0 && (
+              <p className="text-destructive">
+                ⚠ <span className="font-medium">{Number(stats.megaGroups).toLocaleString()}</span> mega-groups (50+ assets) — may have contaminated tags from cross-license propagation
               </p>
             )}
           </div>
@@ -383,9 +401,64 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
               </Tooltip>
             </TooltipProvider>
           )}
+          {/* Cleanup mega-group tags button */}
+          {Number(stats?.megaGroups ?? 0) > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="destructive" size="sm" className="gap-1.5"
+                    onClick={runCleanup}
+                    disabled={cleanupOp.isActive || cleanupOp.isQueued || rebuildOp.isActive}
+                  >
+                    {cleanupOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+                    Clean Mega-Group Tags
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px] text-center">
+                  Surgically removes contaminated propagated tags from groups with 50+ assets. Keeps original AI tags intact.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {(cleanupOp.isInterrupted || cleanupOp.state.status === "failed" || cleanupOp.state.status === "completed") && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => cleanupOp.reset()}>Dismiss Cleanup</Button>
+          )}
         </div>
 
         {showRebuildDetail && <RebuildStatusDetail state={rebuildOp.state} />}
+
+        {showCleanupDetail && (
+          <div className="border border-border rounded-md p-3 space-y-2 mt-2">
+            <div className="flex items-center gap-2 text-sm">
+              {cleanupOp.isActive
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                : cleanupOp.state.status === "completed"
+                  ? <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--success))]" />
+                  : <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />}
+              <span className="font-medium">
+                {cleanupOp.isActive ? "Cleaning mega-group tags…"
+                  : cleanupOp.state.status === "completed" ? "Cleanup complete"
+                  : cleanupOp.isInterrupted ? "Cleanup interrupted"
+                  : "Cleanup failed"}
+              </span>
+            </div>
+            {cleanupOp.state.progress && (
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p>Groups processed: <span className="text-foreground font-medium">{((cleanupOp.state.progress.groups_processed as number) || 0).toLocaleString()}</span></p>
+                <p>Tags deleted: <span className="text-foreground font-medium">{((cleanupOp.state.progress.tags_deleted as number) || 0).toLocaleString()}</span></p>
+                <p>Characters removed: <span className="text-foreground font-medium">{((cleanupOp.state.progress.characters_deleted as number) || 0).toLocaleString()}</span></p>
+                <p>Metadata cleared: <span className="text-foreground font-medium">{((cleanupOp.state.progress.metadata_cleared as number) || 0).toLocaleString()}</span></p>
+              </div>
+            )}
+            {cleanupOp.state.result_message && (
+              <p className="text-xs text-[hsl(var(--success))]">{cleanupOp.state.result_message}</p>
+            )}
+            {cleanupOp.state.error && (
+              <p className="text-xs text-destructive">{cleanupOp.state.error}</p>
+            )}
+          </div>
+        )}
 
         {showReconcileDetail && (
           <div className="border border-border rounded-md p-3 space-y-2 mt-2">

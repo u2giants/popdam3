@@ -1,5 +1,5 @@
 /**
- * Style group rebuild & reconcile handlers — persistent worker version.
+ * Style group rebuild, reconcile, and cleanup handlers — persistent worker version.
  *
  * Ports logic from:
  *   supabase/functions/_shared/admin-handlers/style-group-handlers.ts
@@ -427,4 +427,35 @@ export async function handleReconcileStyleGroupStats(opState: OpState): Promise<
   }
 
   return batchResult;
+}
+
+// ── Cleanup mega-group tags — calls the DB function per batch ────────────────
+
+export async function handleCleanupMegaGroupTags(opState: OpState): Promise<BatchResult> {
+  const client = db();
+  const cursor = typeof opState.cursor === "string" && opState.cursor !== "0" && opState.cursor !== "" ? opState.cursor : null;
+  const minGroupSize = (opState.params?.min_group_size as number) || 50;
+
+  const { data: rpcResult, error: rpcErr } = await client.rpc("cleanup_mega_group_tags_batch", {
+    p_cursor: cursor,
+    p_batch_size: 5,
+    p_min_group_size: minGroupSize,
+  });
+
+  if (rpcErr) {
+    return { ok: false, done: false, error: rpcErr.message };
+  }
+
+  const row = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+  if (!row) return { ok: false, done: false, error: "No result from cleanup_mega_group_tags_batch" };
+
+  return {
+    ok: true,
+    done: row.done ?? false,
+    nextOffset: row.next_cursor ?? null,
+    groups_processed: row.groups_processed ?? 0,
+    tags_deleted: row.tags_deleted ?? 0,
+    characters_deleted: row.characters_deleted ?? 0,
+    metadata_cleared: row.metadata_cleared ?? 0,
+  };
 }

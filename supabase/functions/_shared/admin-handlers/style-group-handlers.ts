@@ -1,7 +1,7 @@
 /**
- * Style group rebuild & reconcile handlers extracted from admin-api/index.ts.
+ * Style group rebuild, reconcile, and cleanup handlers extracted from admin-api/index.ts.
  *
- * Covers: rebuild-style-groups, reconcile-style-group-stats
+ * Covers: rebuild-style-groups, reconcile-style-group-stats, cleanup-mega-group-tags
  */
 
 import { extractSkuFolder } from "../style-grouping.ts";
@@ -699,6 +699,44 @@ export async function handleReconcileStyleGroupStats(body: Record<string, unknow
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("reconcile-style-group-stats error:", msg);
+    return err(msg || "Internal server error", 500);
+  }
+}
+
+// ── cleanup-mega-group-tags ─────────────────────────────────────────
+
+export async function handleCleanupMegaGroupTags(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const cursor = typeof body.cursor === "string" ? body.cursor : null;
+  const batchSize = typeof body.batch_size === "number" ? body.batch_size : 5;
+  const minGroupSize = typeof body.min_group_size === "number" ? body.min_group_size : 50;
+
+  try {
+    const { data: rpcResult, error: rpcErr } = await db.rpc("cleanup_mega_group_tags_batch", {
+      p_cursor: cursor,
+      p_batch_size: batchSize,
+      p_min_group_size: minGroupSize,
+    });
+
+    if (rpcErr) {
+      return err(formatPostgrestError(rpcErr), 500);
+    }
+
+    const row = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+    if (!row) return err("No result from cleanup_mega_group_tags_batch", 500);
+
+    return json({
+      ok: true,
+      next_cursor: row.next_cursor,
+      groups_processed: row.groups_processed,
+      tags_deleted: row.tags_deleted,
+      characters_deleted: row.characters_deleted,
+      metadata_cleared: row.metadata_cleared,
+      done: row.done,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("cleanup-mega-group-tags error:", msg);
     return err(msg || "Internal server error", 500);
   }
 }

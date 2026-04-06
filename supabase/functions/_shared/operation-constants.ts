@@ -16,6 +16,7 @@ export const OP_NAMES: Record<string, string> = {
   "erp-enrichment": "ERP Enrichment",
   "erp-classify": "ERP Classify",
   "propagate-group-tags": "Propagate Group Tags",
+  "cleanup-mega-group-tags": "Clean Mega-Group Tags",
 };
 
 // ── Parallel Lane System ────────────────────────────────────────────
@@ -33,6 +34,7 @@ export const OP_LANES: Record<string, string> = {
   "erp-enrichment": "erp",
   "erp-classify": "erp",
   "propagate-group-tags": "style-groups",
+  "cleanup-mega-group-tags": "style-groups",
 };
 
 export function getLane(opKey: string): string {
@@ -142,4 +144,5 @@ export const OP_ACTIONS: Record<string, string> = {
   "erp-enrichment": "apply-erp-enrichment",
   "erp-classify": "classify-erp-categories",
   "propagate-group-tags": "bulk-propagate-group-tags",
+  "cleanup-mega-group-tags": "cleanup-mega-group-tags",
 };

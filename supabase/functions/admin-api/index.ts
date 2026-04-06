@@ -37,7 +37,7 @@ import {
   handleTriggerScan,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
-import { handleRebuildStyleGroups, handleReconcileStyleGroupStats, handleRelinkOrphanedAssets } from "../_shared/admin-handlers/style-group-handlers.ts";
+import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats, handleRelinkOrphanedAssets } from "../_shared/admin-handlers/style-group-handlers.ts";
 
 import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
@@ -1154,6 +1154,8 @@ corsServe(async (req: Request) => {
         return await handleReconcileStyleGroupStats(body);
       case "relink-orphaned-assets":
         return await handleRelinkOrphanedAssets();
+      case "cleanup-mega-group-tags":
+        return await handleCleanupMegaGroupTags(body);
 
       // ── AI tagging (from ai-tagging-handlers.ts) ──
       case "bulk-ai-tag":
