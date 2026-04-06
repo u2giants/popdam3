@@ -1,7 +1,7 @@
 /**
- * Style group rebuild & reconcile handlers extracted from admin-api/index.ts.
+ * Style group rebuild, reconcile, and cleanup handlers extracted from admin-api/index.ts.
  *
- * Covers: rebuild-style-groups, reconcile-style-group-stats
+ * Covers: rebuild-style-groups, reconcile-style-group-stats, cleanup-mega-group-tags
  */
 
 import { extractSkuFolder } from "../style-grouping.ts";

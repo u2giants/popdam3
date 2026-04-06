@@ -70,6 +70,7 @@ export const OP_NAMES: Record<string, string> = {
   "erp-enrichment": "ERP Enrichment",
   "erp-classify": "ERP Classify",
   "propagate-group-tags": "Propagate Group Tags",
+  "cleanup-mega-group-tags": "Clean Mega-Group Tags",
 };
 
 // Operations in DIFFERENT lanes can run simultaneously — UNLESS they appear
@@ -86,6 +87,7 @@ export const OP_LANES: Record<string, string> = {
   "erp-enrichment": "erp",
   "erp-classify": "erp",
   "propagate-group-tags": "style-groups",
+  "cleanup-mega-group-tags": "style-groups",
 };
 
 export function getLane(opKey: string): string {
