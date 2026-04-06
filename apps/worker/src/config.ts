@@ -31,8 +31,9 @@ export const config = {
   // Anthropic API key for ERP classification
   anthropicApiKey: optional("ANTHROPIC_API_KEY", ""),
 
-  // How often to poll Supabase for pending operations (ms)
-  pollIntervalMs: optionalInt("WORKER_POLL_INTERVAL_MS", 5_000),
+  // How often to poll Supabase for pending operations (ms).
+  // 1s gives near-instant responsiveness without significant DB load.
+  pollIntervalMs: optionalInt("WORKER_POLL_INTERVAL_MS", 1_000),
 
   // Parallel Gemini calls per AI tagging batch
   aiBatchConcurrency: optionalInt("AI_BATCH_CONCURRENCY", 15),

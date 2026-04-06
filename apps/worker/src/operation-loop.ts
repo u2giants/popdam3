@@ -23,8 +23,11 @@ import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handler
 const CONFIG_KEY = "BULK_OPERATIONS";
 const STALE_RUN_MINUTES = 10;
 const INTERRUPT_CHECK_EVERY = 10;
-/** Yield after this many batches so the round-robin can serve other operations */
-const MAX_BATCHES_PER_TICK = 5;
+/** Yield after this many batches so the round-robin can serve other operations.
+ *  Under the old 45s edge function, 5 was the max that fit safely. The persistent
+ *  worker has no timeout, so 50 keeps ops running hot while still yielding often
+ *  enough to check for user interruptions and serve other lanes. */
+const MAX_BATCHES_PER_TICK = 50;
 
 // Lane isolation — operations in the same lane are mutually exclusive
 const OP_LANES: Record<string, string> = {

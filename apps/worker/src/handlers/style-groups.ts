@@ -15,15 +15,15 @@ import { db } from "../supabase.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 const STATE_KEY = "REBUILD_STYLE_GROUPS_STATE";
 const DEFAULT_CLEAR_BATCH = 1000;
 const DEFAULT_CLEAR_MIN_BATCH = 200;
 const GROUP_DELETE_BATCH = 200;
 const DEFAULT_REBUILD_BATCH = 100;
-const COUNTS_BATCH = 25;
-const PRIMARIES_BATCH = 5;
+// These were 25 and 5 under the old 45s edge function. The persistent worker
+// has no timeout constraint, so larger batches reduce DB round-trips significantly.
+const COUNTS_BATCH = 100;
+const PRIMARIES_BATCH = 25;
 
 type RebuildState = {
   stage: "clear_assets" | "delete_groups" | "rebuild_assets" | "finalize_stats";
@@ -148,7 +148,6 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     let result: { cleared_count?: number; last_id?: string | null; has_more?: boolean } | null = null;
 
     while (batchSize >= clearMinBatch) {
-      await sleep(100);
       const { data: rpcResult, error: rpcErr } = await client.rpc("clear_style_group_batch", {
         p_last_id: state.last_asset_id ?? null,
         p_batch_size: batchSize,
@@ -303,7 +302,6 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
       let batchIds = groupRows.map((g: { id: string }) => g.id);
       while (batchIds.length > 0) {
-        await sleep(100);
         const { error: countErr } = await client.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
         if (!countErr) break;
         const msg = formatError(countErr);
@@ -353,7 +351,6 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
       let batchIds = groupRows.map((g: { id: string }) => g.id);
       while (batchIds.length > 0) {
-        await sleep(100);
         const { error: primErr } = await client.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
         if (!primErr) break;
         const msg = formatError(primErr);

@@ -209,9 +209,11 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
     return { ok: false, done: false, error: "ANTHROPIC_API_KEY not configured" };
   }
 
-  const batchSize = 5;
-  const scanWindow = 80;
-  const maxScanWindows = 50;
+  // Under the old 45s edge function these were 5/80/50. The persistent worker
+  // has no timeout, so we can classify more candidates per tick.
+  const batchSize = 15;
+  const scanWindow = 200;
+  const maxScanWindows = 20;
   const offset = typeof opState.cursor === "number" ? opState.cursor : 0;
 
   let scanOffset = offset;
