@@ -10,7 +10,7 @@
 import sharp from "sharp";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger.js";
@@ -52,7 +52,11 @@ export interface PdfThumbnailResult extends ThumbnailResult {
 async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
   try {
     const psdWork = async () => {
-      const img = sharp(filePath, { pages: -1 }).flatten({ background: "#ffffff" });
+      // Pre-read into buffer so the OS file handle is released before we enter
+      // the sharp pipeline.  If the pipeline hangs and withTimeout fires, the fd
+      // is already closed — no leaked handles from timed-out processing.
+      const fileBuffer = await readFile(filePath);
+      const img = sharp(fileBuffer, { pages: -1 }).flatten({ background: "#ffffff" });
       const meta = await withTimeout(img.metadata(), SHARP_TIMEOUT_MS, "psd.metadata");
       const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
       const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "psd.toBuffer");
@@ -116,7 +120,8 @@ async function thumbnailFromSibling(filePath: string): Promise<ThumbnailResult> 
     siblingUsed: path.basename(siblingPath),
   });
 
-  const resized = sharp(siblingPath)
+  const siblingBuffer = await readFile(siblingPath);
+  const resized = sharp(siblingBuffer)
     .flatten({ background: "#ffffff" })
     .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
   const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "sibling.toBuffer");
@@ -161,7 +166,8 @@ async function thumbnailAiGhostscript(filePath: string): Promise<ThumbnailResult
 async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
   // Step 1: Try sharp (PDF-compatible .ai files)
   try {
-    const img = sharp(filePath, { density: 150 }).flatten({ background: "#ffffff" });
+    const aiBuffer = await readFile(filePath);
+    const img = sharp(aiBuffer, { density: 150 }).flatten({ background: "#ffffff" });
     const resized = img.resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true });
     const buffer = await withTimeout(resized.jpeg({ quality: 85 }).toBuffer(), SHARP_TIMEOUT_MS, "ai.toBuffer");
     const meta = await withTimeout(sharp(buffer).metadata(), SHARP_TIMEOUT_MS, "ai.meta");
