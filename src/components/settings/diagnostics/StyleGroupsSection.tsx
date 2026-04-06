@@ -310,6 +310,11 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
                 🔗 <span className="font-medium">{Number(stats.orphaned).toLocaleString()}</span> orphaned assets — in folders with style groups but unlinked
               </p>
             )}
+            {Number(stats.megaGroups) > 0 && (
+              <p className="text-destructive">
+                ⚠ <span className="font-medium">{Number(stats.megaGroups).toLocaleString()}</span> mega-groups (50+ assets) — may have contaminated tags from cross-license propagation
+              </p>
+            )}
           </div>
         )}
         <div className="flex flex-wrap gap-2 items-center">
