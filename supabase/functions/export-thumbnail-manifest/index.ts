@@ -98,7 +98,7 @@ corsServe(async (req) => {
 
     return new Response(csv, {
       headers: {
-        ...corsHeaders,
+        "Access-Control-Allow-Origin": "*",
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="thumbnail_manifest.csv"`,
         "X-Row-Count": String(rowCount),
