@@ -119,13 +119,14 @@ const TAG_ASSET_TOOL = tool(
 
 // ── Single-asset tagging via OpenRouter ──────────────────────────────────────
 
-async function tagSingleAsset(assetId: string, force: boolean): Promise<"tagged" | "skipped" | "failed"> {
+async function tagSingleAsset(assetId: string, force: boolean): Promise<{ outcome: "tagged" | "skipped"; } | { outcome: "failed"; reason: string }> {
   const client = db();
   const apiKey = config.openRouterApiKey || config.googleAiApiKey;
 
   if (!apiKey) {
-    logger.error("No AI API key configured (OPENROUTER_API_KEY or GOOGLE_AI_API_KEY)");
-    return "failed";
+    const reason = "No AI API key configured (OPENROUTER_API_KEY or GOOGLE_AI_API_KEY)";
+    logger.error(reason);
+    return { outcome: "failed", reason };
   }
 
   // Fetch asset
@@ -136,19 +137,20 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<"tagged"
     .single();
 
   if (fetchErr || !asset) {
-    logger.warn("ai-tag: asset not found", { assetId });
-    return "failed";
+    const reason = fetchErr ? `DB error fetching asset: ${fetchErr.message}` : "Asset not found";
+    logger.warn("ai-tag: asset fetch failed", { assetId, reason });
+    return { outcome: "failed", reason };
   }
 
   // Skip if already tagged (unless force)
   if (asset.status === "tagged" && asset.ai_tagged_at && !force) {
-    return "skipped";
+    return { outcome: "skipped" };
   }
 
   const thumbnailUrl = asset.thumbnail_url;
   if (!thumbnailUrl) {
     logger.warn("ai-tag: no thumbnail_url", { assetId });
-    return "failed";
+    return { outcome: "failed", reason: "No thumbnail URL" };
   }
 
   // Fetch custom tagging instructions
@@ -289,7 +291,7 @@ ${usingPriorityOnly
     const imgResp = await fetch(thumbnailUrl, { signal: AbortSignal.timeout(THUMBNAIL_FETCH_TIMEOUT_MS) });
     if (!imgResp.ok) {
       logger.warn("ai-tag: thumbnail fetch failed", { assetId, status: imgResp.status });
-      return "failed";
+      return { outcome: "failed", reason: `Thumbnail fetch failed: HTTP ${imgResp.status}` };
     }
     const contentType = imgResp.headers.get("content-type") || "image/jpeg";
     imageMimeType = contentType.split(";")[0].trim();
@@ -301,8 +303,9 @@ ${usingPriorityOnly
     }
     imageBase64 = Buffer.from(binary, "binary").toString("base64");
   } catch (e) {
+    const reason = `Thumbnail fetch error: ${String(e)}`;
     logger.warn("ai-tag: thumbnail fetch error", { assetId, error: String(e) });
-    return "failed";
+    return { outcome: "failed", reason };
   }
 
   // Get model from admin_config (cached for 1 min)
@@ -331,7 +334,7 @@ ${usingPriorityOnly
     const tagData = result.toolCalls?.[0]?.arguments;
     if (!tagData) {
       logger.warn("ai-tag: AI did not return structured tags", { assetId, model });
-      return "failed";
+      return { outcome: "failed", reason: "AI returned no structured tags" };
     }
 
     const updates: Record<string, unknown> = {
@@ -364,7 +367,7 @@ ${usingPriorityOnly
 
     if (updateErr) {
       logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
-      return "failed";
+      return { outcome: "failed", reason: `DB save failed: ${updateErr.message}` };
     }
 
     // Write tags to asset_tags table
@@ -387,10 +390,11 @@ ${usingPriorityOnly
       }
     }
 
-    return "tagged";
+    return { outcome: "tagged" };
   } catch (e) {
+    const reason = `AI call error: ${String(e)}`;
     logger.warn("ai-tag: AI call error", { assetId, model, error: String(e) });
-    return "failed";
+    return { outcome: "failed", reason };
   }
 }
 
@@ -414,15 +418,19 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
       const chunk = assetIds.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
-          const outcome = await tagSingleAsset(id, tagAll);
-          return { outcome, asset_id: id };
+          const result = await tagSingleAsset(id, tagAll);
+          return { result, asset_id: id };
         }),
       );
       for (const r of results) {
         if (r.status === "fulfilled") {
-          if (r.value.outcome === "tagged") tagged++;
-          else if (r.value.outcome === "skipped") skipped++;
-          else { failed++; failureSamples.push({ at: new Date().toISOString(), asset_id: r.value.asset_id, filename: "", relative_path: "", error: "AI call failed" }); }
+          const res = r.value.result;
+          if (res.outcome === "tagged") tagged++;
+          else if (res.outcome === "skipped") skipped++;
+          else {
+            failed++;
+            failureSamples.push({ at: new Date().toISOString(), asset_id: r.value.asset_id, filename: "", relative_path: "", error: res.reason });
+          }
         } else {
           failed++;
           failureSamples.push({ at: new Date().toISOString(), asset_id: "(unknown)", filename: "", relative_path: "", error: String(r.reason).slice(0, 500) });
@@ -433,7 +441,9 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
     return { ok: true, done: true, tagged, skipped, failed, failure_samples: failureSamples, skip_samples: [], nextOffset: cursor };
   }
 
-  // Smart-skip: for untagged mode, exclude groups that already have a tagged representative
+  // Smart-skip: for untagged mode, exclude groups that already have a tagged representative.
+  // Fetch up to 5000 style_group_ids that already have at least one tagged+ai_tagged asset.
+  // This keeps the query selective without silently dropping the filter for large datasets.
   let excludeGroupIds: string[] = [];
   if (!tagAll && !groupIds) {
     const { data: taggedGroups } = await client
@@ -443,7 +453,7 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
       .eq("status", "tagged")
       .not("style_group_id", "is", null)
       .not("ai_tagged_at", "is", null)
-      .limit(1000);
+      .limit(5000);
     if (taggedGroups) {
       excludeGroupIds = [...new Set(taggedGroups.map((r: { style_group_id: string }) => r.style_group_id))];
     }
@@ -464,7 +474,9 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
     query = query.neq("status", "tagged");
   }
 
-  if (excludeGroupIds.length > 0 && excludeGroupIds.length <= 200) {
+  // Apply group exclusion — omit the filter only if the list is empty (nothing to exclude)
+  // or impossibly large (>3000 UUIDs would make the query string unwieldy; fall back gracefully).
+  if (excludeGroupIds.length > 0 && excludeGroupIds.length <= 3000) {
     query = query.not("style_group_id", "in", `(${excludeGroupIds.join(",")})`);
   }
 
@@ -474,7 +486,9 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
     .range(cursor, cursor + BATCH_SIZE - 1);
 
   if (fetchErr) {
-    return { ok: false, done: false, error: fetchErr.message };
+    // Log and treat as a transient empty batch rather than aborting the whole operation.
+    logger.error("ai-tag: failed to fetch asset batch", { cursor, error: fetchErr.message });
+    return { ok: false, done: false, error: `Asset fetch failed: ${fetchErr.message}` };
   }
 
   if (!assets || assets.length === 0) {
@@ -492,17 +506,17 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
     const chunk = assets.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       chunk.map(async (asset) => {
-        const outcome = await tagSingleAsset(asset.id as string, tagAll);
-        return { outcome, asset };
+        const result = await tagSingleAsset(asset.id as string, tagAll);
+        return { result, asset };
       }),
     );
 
     for (const r of results) {
       if (r.status === "fulfilled") {
-        const { outcome, asset } = r.value;
-        if (outcome === "tagged") {
+        const { result, asset } = r.value;
+        if (result.outcome === "tagged") {
           tagged++;
-        } else if (outcome === "skipped") {
+        } else if (result.outcome === "skipped") {
           skipped++;
           skipSamples.push({
             at: new Date().toISOString(),
@@ -518,7 +532,7 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
             asset_id: asset.id as string,
             filename: (asset.filename as string) || "(unknown)",
             relative_path: (asset.relative_path as string) || "(unknown)",
-            error: "AI call failed — see worker logs",
+            error: result.reason,
           });
         }
       } else {
