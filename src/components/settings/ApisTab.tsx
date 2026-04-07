@@ -437,21 +437,24 @@ const DEFAULT_MODELS_PLACEHOLDER = JSON.stringify(
   2,
 );
 
-const TASK_MODEL_LABELS: Record<string, { label: string; description: string; defaultModel: string }> = {
+const TASK_MODEL_LABELS: Record<string, { label: string; description: string; defaultModel: string; requiresTools: boolean }> = {
   vision_tagging: {
     label: "Image Tagging",
     description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters",
     defaultModel: "google/gemini-2.0-flash-001",
+    requiresTools: true,
   },
   text_classification: {
     label: "ERP Classification",
     description: "Text model for classifying products into categories (Wall, Tabletop, etc.)",
     defaultModel: "anthropic/claude-3.5-haiku",
+    requiresTools: true,
   },
   pdf_extraction: {
     label: "PDF Text Extraction",
     description: "Vision model for extracting text from PDF pages (agent fallback after OCR)",
     defaultModel: "google/gemini-2.0-flash-001",
+    requiresTools: false,
   },
 };
 
@@ -534,7 +537,7 @@ export function AiModelsConfigSection() {
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
 
-  const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string }>>({
+  const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string; supportsTools: boolean }>>({
     queryKey: ["openrouter-models", savedOpenRouterKey],
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
@@ -543,13 +546,17 @@ export function AiModelsConfigSection() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const data = await res.json();
-      const items: Array<{ id: string; name?: string }> = Array.isArray(data)
+      const items: Array<{ id: string; name?: string; supported_parameters?: string[] }> = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
           ? data.data
           : [];
       return items
-        .map((m) => ({ id: m.id, name: m.name ?? m.id }))
+        .map((m) => ({
+          id: m.id,
+          name: m.name ?? m.id,
+          supportsTools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
+        }))
         .sort((a, b) => a.id.localeCompare(b.id));
     },
     staleTime: 5 * 60 * 1000,
@@ -622,16 +629,20 @@ export function AiModelsConfigSection() {
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel }]) => {
+            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools }]) => {
               const currentVal = taskModels[key] || "";
               const modelList = openRouterModels ?? [];
-              const allOptions = currentVal && !modelList.some((m) => m.id === currentVal)
-                ? [{ id: currentVal, name: currentVal }, ...modelList]
-                : modelList;
+              // For tasks that require tool use, only show models that support it
+              const filteredList = requiresTools ? modelList.filter((m) => m.supportsTools) : modelList;
+              // If currentVal is set but not in filteredList, still show it (with a warning)
+              const currentModelSupportsTools = !currentVal || !requiresTools || modelList.find((m) => m.id === currentVal)?.supportsTools !== false;
+              const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
+                ? [{ id: currentVal, name: currentVal, supportsTools: false }, ...filteredList]
+                : filteredList;
               return (
                 <div key={key} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
-                  {modelList.length > 0 ? (
+                  {filteredList.length > 0 ? (
                     <Select
                       value={currentVal}
                       onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [key]: val }))}
@@ -642,7 +653,7 @@ export function AiModelsConfigSection() {
                       <SelectContent>
                         {allOptions.map((m) => (
                           <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
-                            {m.id}
+                            {m.id}{!m.supportsTools && requiresTools ? " ⚠ no tool use" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -655,6 +666,9 @@ export function AiModelsConfigSection() {
                       className="h-8 text-xs font-mono"
                       disabled={loadingModels}
                     />
+                  )}
+                  {!currentModelSupportsTools && (
+                    <p className="text-[10px] text-destructive">⚠ This model does not support tool use — AI tagging will fail. Select a different model.</p>
                   )}
                   <p className="text-[10px] text-muted-foreground">{description}</p>
                 </div>

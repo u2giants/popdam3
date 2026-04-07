@@ -260,14 +260,15 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
   const totalGroups = groupCounts?.totalGroups ?? 0;
   const waitingForSiblings = tagCounts?.waitingForSiblings ?? 0;
 
-  // Disable all buttons if any of the three ops is running OR queued.
-  // "queued" must be included: after clicking a button the job sits in "queued"
-  // for up to 60 s before pg_cron promotes it to "running". Without this check
-  // a second op can be started in that window, causing both to run simultaneously.
-  const anyActive =
+  // anyTaggingActive: a tagging op is running or queued → block starting another tagging op.
+  // anyActive: includes propagation too → only used for the propagate button.
+  // Keeping these separate lets the user start tagging even when propagation is still
+  // running/queued (e.g. left over from a previous "Tag + Propagate" run). The conflict
+  // dialog will handle the cross-lane conflict if the worker can't accept the new op yet.
+  const anyTaggingActive =
     tagUntaggedOp.isActive || tagUntaggedOp.isQueued ||
-    tagAllOp.isActive    || tagAllOp.isQueued    ||
-    propagateOp.isActive || propagateOp.isQueued;
+    tagAllOp.isActive    || tagAllOp.isQueued;
+  const anyActive = anyTaggingActive || propagateOp.isActive || propagateOp.isQueued;
 
   function runBulkTag(mode: "untagged" | "all") {
     const op = mode === "all" ? tagAllOp : tagUntaggedOp;
@@ -297,20 +298,24 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
 
   function runTagAndPropagate() {
     const total = untaggedCount;
-    // Start tagging, then directly queue propagation without going through the
-    // conflict-check dialog (which would confusingly say "AI Tag Untagged is currently
-    // running"). The worker enforces OP_CONFLICTS and will not promote propagation
-    // until tagging completes — so these two jobs run sequentially automatically.
+    // Start tagging from scratch. If propagation is already queued/running from a prior
+    // "Tag + Propagate" run, reset it first so we don't have a stale queued entry blocking
+    // the new flow. The worker enforces OP_CONFLICTS and won't promote propagation until
+    // tagging completes — so these two jobs run sequentially automatically.
+    const startFn = async () => {
+      // If propagation is queued or running from before, reset it to avoid stale queue entry
+      if (propagateOp.isActive || propagateOp.isQueued) {
+        await propagateOp.reset();
+      }
+      await tagUntaggedOp.start({
+        confirmMessage: `Smart Tag + Propagate: AI-tag representative assets (one per style group, ~3x parallel), then propagate tags to all siblings. Continue?`,
+        initialProgress: { total },
+        forceRestart: true,
+      });
+      await propagateOp.queue({ initialProgress: { total: totalGroups } });
+    };
     requestOp("ai-tag-untagged", OP_NAMES["ai-tag-untagged"],
-      async () => {
-        await tagUntaggedOp.start({
-          confirmMessage: `Smart Tag + Propagate: AI-tag representative assets (one per style group, ~3x parallel), then propagate tags to all siblings. Continue?`,
-          initialProgress: { total },
-        });
-        // Directly queue propagation — skip requestOp/conflict dialog since we just
-        // started tagging and the worker will hold propagation in "queued" until done.
-        await propagateOp.queue({ initialProgress: { total: totalGroups } });
-      },
+      startFn,
       () => tagUntaggedOp.queue({ initialProgress: { total } }),
     );
   }
@@ -344,7 +349,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
               <Button
                 variant="outline" size="sm" className="gap-1.5"
                 onClick={() => runBulkTag("untagged")}
-                disabled={anyActive || untaggedCount === 0}
+                disabled={anyTaggingActive || untaggedCount === 0}
               >
                 {tagUntaggedOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {tagUntaggedOp.isInterrupted ? "Tag Untagged (interrupted)" : "Tag All Untagged"}
@@ -359,7 +364,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
               <Button
                 variant="default" size="sm" className="gap-1.5"
                 onClick={() => runTagAndPropagate()}
-                disabled={anyActive || (untaggedCount === 0 && totalGroups === 0)}
+                disabled={anyTaggingActive || (untaggedCount === 0 && totalGroups === 0)}
               >
                 {(tagUntaggedOp.isActive || propagateOp.isActive) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Sparkles className="h-3.5 w-3.5" /><Share2 className="h-3.5 w-3.5" /></>}
                 Tag + Propagate
@@ -374,7 +379,7 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
               <Button
                 variant="outline" size="sm" className="gap-1.5 text-[hsl(var(--warning))]"
                 onClick={() => runBulkTag("all")}
-                disabled={anyActive || totalWithThumb === 0}
+                disabled={anyTaggingActive || totalWithThumb === 0}
               >
                 {tagAllOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 {tagAllOp.isInterrupted ? "Re-tag (interrupted)" : "Re-tag Everything"}
