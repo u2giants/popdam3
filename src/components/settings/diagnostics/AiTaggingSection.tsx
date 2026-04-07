@@ -13,7 +13,7 @@ import type { OperationState } from "@/hooks/usePersistentOperation";
 
 // ── Individual operation progress display ────────────────────────────
 
-function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<typeof usePersistentOperation> }) {
+function TaggingProgress({ opKey, op, liveTotal }: { opKey: string; op: ReturnType<typeof usePersistentOperation>; liveTotal?: number }) {
   const s = op.state;
   const p = s.progress;
   if (!p) return null;
@@ -21,7 +21,8 @@ function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<typeof u
   const tagged = (p.tagged as number) || 0;
   const skipped = (p.skipped as number) || 0;
   const failed = (p.failed as number) || 0;
-  const total = (p.total as number) || 0;
+  // Use stored total; fall back to liveTotal (from parent query) when total wasn't captured at start
+  const total = (p.total as number) || liveTotal || 0;
   const done = tagged + skipped + failed;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
 
@@ -75,10 +76,10 @@ function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<typeof u
         </div>
       )}
 
-      {rate !== null && rate > 0 && total > 0 && (
+      {rate !== null && rate > 0 && (
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>{Math.round(rate).toLocaleString()} assets/min</span>
-          <span>ETA: {formatEta(total - done, rate)}</span>
+          {total > done && <span>ETA: {formatEta(total - done, rate)}</span>}
         </div>
       )}
 
@@ -91,11 +92,9 @@ function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<typeof u
             Skipped: <span className="text-foreground font-medium">{skipped.toLocaleString()}</span>
           </Link>
         )}
-        {failed > 0 && (
-          <Link to={`/settings/ai-tagging-detail?op=${encodeURIComponent(opKey)}&view=failed`} className="text-destructive underline underline-offset-2 hover:no-underline">
-            Failed: <span className="font-medium">{failed.toLocaleString()}</span>
-          </Link>
-        )}
+        <Link to={`/settings/ai-tagging-detail?op=${encodeURIComponent(opKey)}&view=failed`} className={failed > 0 ? "text-destructive underline underline-offset-2 hover:no-underline" : "hover:underline underline-offset-2"}>
+          Failed: <span className="font-medium">{failed.toLocaleString()}</span>
+        </Link>
       </div>
 
       {(s.status === "failed" || s.status === "interrupted") && s.error && (
@@ -405,8 +404,8 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
         </div>
 
         {/* Show each operation's progress independently, stacked */}
-        {showTagUntagged && <TaggingProgress opKey="ai-tag-untagged" op={tagUntaggedOp} />}
-        {showTagAll && <TaggingProgress opKey="ai-tag-all" op={tagAllOp} />}
+        {showTagUntagged && <TaggingProgress opKey="ai-tag-untagged" op={tagUntaggedOp} liveTotal={untaggedCount || totalWithThumb} />}
+        {showTagAll && <TaggingProgress opKey="ai-tag-all" op={tagAllOp} liveTotal={totalWithThumb} />}
         {showPropagate && <PropagationProgress op={propagateOp} />}
       </CardContent>
     </Card>

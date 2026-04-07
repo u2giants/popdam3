@@ -538,6 +538,24 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
   }
 
   const done = assets.length < BATCH_SIZE;
+
+  // Emit total_count on the first batch so the UI can show progress bar / ETA
+  // even when the op was auto-resumed from an old state that had total=0.
+  let totalCount: number | undefined;
+  if (cursor === 0 || !(opState.progress?.total)) {
+    const countQuery = client
+      .from("assets")
+      .select("*", { count: "exact", head: true })
+      .eq("is_deleted", false)
+      .not("thumbnail_url", "is", null)
+      .not("primary_sort_tier", "in", "(4,8)");
+    if (!tagAll && !groupIds) {
+      countQuery.neq("status", "tagged");
+    }
+    const { count } = await countQuery;
+    if (count !== null) totalCount = count;
+  }
+
   return {
     ok: true,
     done,
@@ -547,5 +565,6 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
     failure_samples: failureSamples.slice(-200),
     skip_samples: skipSamples.slice(-200),
     nextOffset: cursor + assets.length,
+    ...(totalCount !== undefined ? { total_count: totalCount } : {}),
   };
 }

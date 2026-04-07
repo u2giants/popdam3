@@ -90,7 +90,8 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
         tagged: ((prev.tagged as number) || 0) + ((batch.tagged as number) || 0),
         skipped: ((prev.skipped as number) || 0) + ((batch.skipped as number) || 0),
         failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
-        total: prev.total || 0,
+        // Prefer previously-set total; fall back to batch-supplied count (set by handler when total is unknown)
+        total: (prev.total as number) || (batch.total_count as number) || 0,
         failure_samples: [...prevFail, ...batchFail].slice(-200),
         skip_samples: [...prevSkip, ...batchSkip].slice(-200),
       };
