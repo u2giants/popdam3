@@ -180,3 +180,47 @@ This document explains intentional code decisions that may appear like bugs or b
 **What it looks like**: Duplicate or conflicting implementations.
 
 **Why**: The context provides the `ImpersonationProvider` wrapper, and the hook provides `useImpersonation()` for consuming components. They work together — the hook imports from the context. The naming makes it look like two competing implementations, but they're a standard context/hook pair.
+
+---
+
+## 18. `OPENROUTER_API_KEY` Lives in Two Places and They Don't Sync
+
+**What it looks like**: You set the OpenRouter API key in the admin UI (Settings → AI Models) but AI tagging still fails. Or you see "No AI API key configured" in the worker logs.
+
+**Why**: Two completely separate consumers read the key from different sources:
+
+| Consumer | Where it reads the key | Set via |
+|---|---|---|
+| Bridge/Windows agents | `admin_config.OPENROUTER_API_KEY` | Admin UI → Settings → AI Models |
+| Railway worker (`apps/worker/`) | `process.env.OPENROUTER_API_KEY` | Railway dashboard → Variables |
+
+The admin UI only updates `admin_config`. The Railway worker reads from Railway ENV variables set in Railway's dashboard — it never reads from `admin_config`. Setting the key in the UI does **not** make it available to the worker.
+
+**What breaks if you don't know this**: AI tagging and ERP classification will silently fail with "No AI API key configured" in the Railway worker logs, even though the key appears correctly set in the admin UI.
+
+**Fix**: Set `OPENROUTER_API_KEY` in both places:
+1. Admin UI → Settings → AI Models (for bridge agents)
+2. Railway dashboard → your worker service → Variables (for the Railway worker)
+
+---
+
+## 19. `bulk-job-runner` Edge Function Is a No-Op Stub
+
+**What it looks like**: The `supabase/functions/bulk-job-runner/index.ts` file exists and is deployed, but it does nothing — just returns `{ ok: true, message: "replaced by railway worker" }`.
+
+**Why**: Bulk batch processing was originally done by this edge function, called every minute via pg_cron. It was replaced by the persistent Railway worker (`apps/worker/`) because the 60-second edge function timeout was too short for large batches and the cold-start latency caused gaps in processing. The pg_cron schedule was removed via migration `20260322000000`. The stub is kept deployed so stale references to the function URL return a clean 200 rather than 404.
+
+**What breaks if you delete it**: Any stale client code or external references to the function URL would receive a 404 instead of a graceful 200.
+
+**What breaks if you add real logic to it**: Nothing immediately, but you'd be creating a second code path that processes operations. The Railway worker and the edge function would conflict — both would try to process the same `BULK_OPERATIONS` state simultaneously.
+
+---
+
+## 20. Style Group Batch Functions Need `SET lock_timeout TO '0'`
+
+**What it looks like**: Unnecessary or excessive SQL configuration on batch functions like `rebuild_style_groups_batch`, `clear_style_group_batch`, etc.
+
+**Why**: Supabase sets a default `lock_timeout` at the role/database level. When batch functions run `UPDATE` statements on `assets` and `style_groups`, they queue for row-level locks and hit this limit — producing "canceling statement due to lock timeout" errors that interrupt the bulk operation mid-run. Setting `lock_timeout = '0'` inside each function disables the lock wait limit for the duration of that call only. The `statement_timeout` is still respected, so runaway queries can't hang forever.
+
+**What breaks if you remove it**: Style group rebuild and related operations will frequently fail with "canceling statement due to lock timeout" when other queries are touching the same tables, requiring manual restart from interrupted state.
+

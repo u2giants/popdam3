@@ -35,6 +35,58 @@ The full URL is stored in `assets.thumbnail_url`. The UI always loads thumbnails
 
 ---
 
+## Railway Worker
+
+All batch AI operations are handled by a persistent Node.js worker running on Railway, **not** by Supabase edge functions. The edge functions (`ai-tag`, `bulk-job-runner`) are legacy stubs or supporting roles.
+
+**Repo path:** `apps/worker/`
+
+**Deployment:** Railway auto-deploys from the `main` branch on every push. No manual step required. Railway detects changes and rebuilds.
+
+**Operations handled by the Railway worker:**
+- AI image tagging (`ai-tag-untagged`, `ai-tag-all`, `ai-tag-groups`)
+- Style group rebuild, reconcile, tag propagation
+- ERP enrichment and ERP AI classification
+- All other bulk operations tracked in `admin_config.BULK_OPERATIONS`
+
+**How it works:** The worker polls `admin_config.BULK_OPERATIONS` every 5 seconds, picks up any operation with `status: "running"`, executes one batch, and writes progress back. The UI writes `status: "running"` to start an op; the worker detects it and runs it.
+
+### Railway Environment Variables
+
+The worker reads configuration from Railway environment variables, **not from `admin_config`**. The following must be set in Railway → your worker service → Variables:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
+| `OPENROUTER_API_KEY` | Yes | OpenRouter key for AI tagging and ERP classification |
+| `GOOGLE_AI_API_KEY` | No | Legacy fallback if no OpenRouter key |
+
+**Critical:** `OPENROUTER_API_KEY` in Railway and `OPENROUTER_API_KEY` in `admin_config` are **two separate things** that serve different consumers:
+
+| Location | Consumer | How it gets there |
+|---|---|---|
+| `admin_config.OPENROUTER_API_KEY` | Bridge/Windows agents | Sent in agent-api heartbeat response |
+| Railway ENV `OPENROUTER_API_KEY` | Railway worker | Read directly from `process.env` at startup |
+
+If you set the key in the popdam admin UI (Settings → AI Models), it only updates `admin_config`. The Railway worker will NOT pick it up until you also set it in Railway's dashboard.
+
+### AI Model Configuration
+
+The worker reads `admin_config.AI_TASK_MODELS` for the model to use per task:
+
+```json
+{
+  "vision_tagging": "google/gemini-2.0-flash-001",
+  "text_classification": "anthropic/claude-3.5-haiku",
+  "pdf_extraction": "google/gemini-2.0-flash-001"
+}
+```
+
+These are OpenRouter model IDs. If not set, the worker falls back to `DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-001"`. Configure via Settings → AI Models in the admin UI — the dropdowns are populated live from your OpenRouter account's enabled models.
+
+---
+
 ## Scheduled Jobs (pg_cron + pg_net)
 
 ### Setup
@@ -136,47 +188,21 @@ See `docs/ADMIN_OPERATIONS.md` for the complete route reference.
 
 ### 3. `ai-tag`
 
-**Purpose:** Performs AI tagging of a single asset or a batch using Google's Gemini Flash model.
+**Status: Legacy / PDF extraction only.**
 
-**Auth:** Service role key (called internally by `bulk-job-runner` via `admin-api` handlers, not called directly from the browser).
+This edge function originally handled AI tagging but that work was moved to the Railway worker (`apps/worker/`). The `ai-tag` function now serves as a helper called by the Windows agent for PDF text extraction (via `Deno.env.get("GOOGLE_AI_API_KEY")`). It calls Google's Gemini API directly — it does **not** use OpenRouter.
 
-**Model:** `google/gemini-flash` (via Lovable AI gateway, requires `GOOGLE_AI_API_KEY`).
-
-**Process per asset:**
-1. Fetch `thumbnail_url` and encode as base64.
-2. Fetch custom tagging instructions from `admin_config`.
-3. Fetch priority characters (licensor-specific) and full character list.
-4. Optionally include ERP product description from `erp_items_current` as context.
-5. Call Gemini with tool-calling (`tag_asset` function) to get structured output.
-6. Store tags in `asset_tags` (source = 'ai').
-7. Store characters in `asset_characters`.
-8. Update `assets` with `licensor_id`, `property_id`, `is_licensed`, `big_theme`, `little_theme`, `design_style`, `cover_description`, `designer_name`, `technical_designer_name`, `freelancer_name`, `ai_tagged_at`.
-9. Call `propagateGroupTags()` inline to propagate tags to siblings immediately.
-
-**Retry:** 2 retries on transient AI errors.
+**Do not add batch AI tagging logic here.** All batch operations belong in the Railway worker.
 
 ---
 
 ### 4. `bulk-job-runner`
 
-**Purpose:** Processes one batch of work for the current running bulk operation. Called every minute by pg_cron. Manages operation lifecycle, progress tracking, auto-resume, and conflict detection.
+**Status: No-op stub.** Returns `{ ok: true, message: "replaced by railway worker" }`.
 
-**Auth:** Service role key (from pg_cron via Vault).
+The pg_cron schedule that called this function every minute was removed via migration `20260322000000_disable-bulk-job-runner-cron`. All batch processing is now handled by the persistent Railway worker (`apps/worker/`), which has no 60-second timeout constraint and runs continuously.
 
-**Timing:** Maximum 45 seconds per invocation (`MAX_RUN_MS = 45000`).
-
-**Conflict enforcement:** Before promoting a queued job or auto-resuming an interrupted job, checks `OP_CONFLICTS` to ensure no conflicting operation is currently running. See `docs/BULK_JOBS.md`.
-
-**State storage:** All state is in `admin_config` key `BULK_OPERATIONS` as a JSON object keyed by operation name.
-
-**RPC-direct operations:** `propagate-group-tags` and `reconcile-style-group-stats` call PostgreSQL functions directly via `db.rpc()` to avoid HTTP overhead.
-
-**Inter-call delays:**
-- `erp-classify`: 1000ms (AI rate limit protection)
-- `propagate-group-tags`: 100ms
-- `reconcile-style-group-stats`: 100ms
-
-See `docs/BULK_JOBS.md` for complete documentation.
+The stub is kept deployed so any stale references to this function URL return a clean 200 rather than a 404.
 
 ---
 
