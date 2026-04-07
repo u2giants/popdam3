@@ -528,7 +528,6 @@ export function AiModelsConfigSection() {
     onSuccess: () => {
       toast.success("AI configuration saved");
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
-      setLoaded(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
