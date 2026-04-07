@@ -253,6 +253,34 @@ export async function tick(): Promise<void> {
     await persistOpState(key, op);
   }
 
+  // Auto-resume interrupted ops (e.g. after a deploy killed the previous worker).
+  // Only resume ops that were NOT stopped by the user and have a valid cursor.
+  // Cap at AUTO_RESUME_MAX_ATTEMPTS to prevent infinite crash loops.
+  const AUTO_RESUME_MAX_ATTEMPTS = 10;
+  const autoResumeUpdates: Record<string, OpState> = {};
+  for (const [key, op] of Object.entries(allOps)) {
+    if (
+      op.status === "interrupted" &&
+      op.interruption_reason_code !== "user_stop" &&
+      typeof op.cursor === "number" &&
+      (op.auto_resume_attempts ?? 0) < AUTO_RESUME_MAX_ATTEMPTS
+    ) {
+      const attempts = (op.auto_resume_attempts ?? 0) + 1;
+      logger.info("tick: auto-resuming interrupted op", { opKey: key, attempts, reason: op.interruption_reason_code });
+      allOps[key] = {
+        ...op,
+        status: "running",
+        auto_resume_attempts: attempts,
+        last_auto_resume_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      autoResumeUpdates[key] = allOps[key];
+    }
+  }
+  for (const [key, op] of Object.entries(autoResumeUpdates)) {
+    await persistOpState(key, op);
+  }
+
   // Promote queued ops into empty lanes
   const runningEntries = Object.entries(allOps).filter(([, op]) => op.status === "running");
   const activeLanes = new Set(runningEntries.map(([k]) => getLane(k)));

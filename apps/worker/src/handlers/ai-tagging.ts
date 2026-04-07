@@ -16,7 +16,7 @@ import type { BatchResult, OpState } from "../types.js";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
 const AI_TIMEOUT_MS = 60_000;
-const DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-001";
+const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(v: unknown): v is string {

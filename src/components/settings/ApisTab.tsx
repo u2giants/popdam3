@@ -440,20 +440,20 @@ const DEFAULT_MODELS_PLACEHOLDER = JSON.stringify(
 const TASK_MODEL_LABELS: Record<string, { label: string; description: string; defaultModel: string; requiresTools: boolean }> = {
   vision_tagging: {
     label: "Image Tagging",
-    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters",
-    defaultModel: "google/gemini-2.0-flash-001",
+    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support tool use.",
+    defaultModel: "google/gemini-2.5-flash",
     requiresTools: true,
   },
   text_classification: {
     label: "ERP Classification",
-    description: "Text model for classifying products into categories (Wall, Tabletop, etc.)",
-    defaultModel: "anthropic/claude-3.5-haiku",
+    description: "Text model for classifying products into categories (Wall, Tabletop, etc.). Must support tool use.",
+    defaultModel: "anthropic/claude-haiku-4.5",
     requiresTools: true,
   },
   pdf_extraction: {
     label: "PDF Text Extraction",
     description: "Vision model for extracting text from PDF pages (agent fallback after OCR)",
-    defaultModel: "google/gemini-2.0-flash-001",
+    defaultModel: "google/gemini-2.5-flash",
     requiresTools: false,
   },
 };
