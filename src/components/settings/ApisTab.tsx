@@ -594,12 +594,18 @@ export function AiModelsConfigSection() {
               value={openRouterKey}
               onChange={(e) => setOpenRouterKey(e.target.value)}
               placeholder="sk-or-…"
-              className="h-8 text-xs pr-8 font-mono"
+              className="h-8 text-xs pr-16 font-mono"
             />
+            <div className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground tabular-nums pointer-events-none">
+              {openRouterKey.length > 0 ? `${openRouterKey.length}c` : ""}
+            </div>
             <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowOpenRouter((v) => !v)}>
               {showOpenRouter ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
             </button>
           </div>
+          <p className="text-[10px] text-muted-foreground">
+            A valid OpenRouter key is 73 characters (sk-or-v1- + 64 hex chars). Toggle the eye icon to verify the full key is visible.
+          </p>
         </div>
 
         {/* Task Model Selection */}
