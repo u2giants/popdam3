@@ -297,26 +297,19 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
 
   function runTagAndPropagate() {
     const total = untaggedCount;
-    // Start tagging immediately, then queue propagation via requestOp so the
-    // conflict-check runs (worker will hold propagation in "queued" until tagging finishes).
+    // Start tagging, then directly queue propagation without going through the
+    // conflict-check dialog (which would confusingly say "AI Tag Untagged is currently
+    // running"). The worker enforces OP_CONFLICTS and will not promote propagation
+    // until tagging completes — so these two jobs run sequentially automatically.
     requestOp("ai-tag-untagged", OP_NAMES["ai-tag-untagged"],
-      () => {
-        tagUntaggedOp.start({
+      async () => {
+        await tagUntaggedOp.start({
           confirmMessage: `Smart Tag + Propagate: AI-tag representative assets (one per style group, ~3x parallel), then propagate tags to all siblings. Continue?`,
           initialProgress: { total },
         });
-        // Queue propagation through requestOp so conflict logic is exercised.
-        // The worker enforces OP_CONFLICTS and will not promote propagation until
-        // tagging completes, so these two jobs run sequentially even though they
-        // are in different lanes.
-        setTimeout(() => {
-          requestOp(
-            "propagate-group-tags",
-            OP_NAMES["propagate-group-tags"],
-            () => propagateOp.start({ initialProgress: { total: totalGroups } }),
-            () => propagateOp.queue({ initialProgress: { total: totalGroups } }),
-          );
-        }, 500);
+        // Directly queue propagation — skip requestOp/conflict dialog since we just
+        // started tagging and the worker will hold propagation in "queued" until done.
+        await propagateOp.queue({ initialProgress: { total: totalGroups } });
       },
       () => tagUntaggedOp.queue({ initialProgress: { total } }),
     );
