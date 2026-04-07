@@ -2,27 +2,30 @@
 
 ## Git Workflow
 
-After pushing a feature branch, automatically:
-1. Create a PR targeting `main`
-2. Merge the PR to `main` immediately (squash or merge commit, whichever is cleaner)
-3. No need to ask for confirmation before merging
+**Always push directly to `main`. Never use feature branches or PRs.**
 
-Do this without prompting the user for approval.
+This repo uses a trunk-based workflow:
+- Commit to `main` locally
+- Push to both `origin` (harness) and `github` (GitHub direct)
+- GitHub Actions builds the Docker image from `main` and triggers Coolify deployment
 
-### CRITICAL: Always branch from main's current HEAD
+```bash
+git add <files>
+git commit -m "..."
+git push origin main
+git push github main
+```
 
-At the start of every new Claude Code session, the feature branch MUST be created from the latest `main`:
+### CRITICAL: Always be on main and up to date
+
+At the start of every session, ensure you're on `main` and synced with GitHub:
 ```bash
 git fetch github main
 git checkout main
 git reset --hard github/main
-git checkout -b claude/<feature-name>
 ```
 
-**Never** base a feature branch on another Claude branch or on a stale local commit.
-If `git log --oneline main..HEAD` shows commits from a previous Claude session that were already merged, the branch is based on stale state — rebase onto `github/main` before doing any work.
-
-The reason this matters: if a session branch is based on a stale commit, 5+ weeks of merged changes are invisible to it. All fixes land in already-dead code paths (e.g. `bulk-job-runner/index.ts`, which main replaced with a 7-line stub). The branch diverges, and merging back requires resolving hundreds of conflicts.
+The harness assigns a session branch (e.g. `claude/<feature-name>`) but **ignore it** — commit and push directly to `main`. The session branch is just for harness tracking.
 
 ### GitHub Access
 
@@ -45,21 +48,8 @@ git remote add github "https://${GITHUB_PAT}@github.com/u2giants/popdam3.git" 2>
 
 The `origin` remote is the local harness proxy (`http://127.0.0.1:.../git/...`) which auto-forwards pushes to GitHub. The `github` remote is the direct GitHub URL with auth. Push to both:
 ```bash
-git push origin <branch>    # local harness (required for session tracking)
-git push github <branch>    # GitHub direct (for PR + merge to main)
-```
-
-If the feature branch has conflicts with `github/main`, rebase before creating the PR:
-```bash
-git fetch github main
-git rebase github/main
-git push github <branch> --force-with-lease
-```
-
-Then create and immediately merge the PR:
-```bash
-gh pr create --repo u2giants/popdam3 --head <branch> --base main --title "..." --body "..."
-gh pr merge <number> --repo u2giants/popdam3 --squash --delete-branch
+git push origin main
+git push github main
 ```
 
 ### CRITICAL: Check CI After Every Push to main
