@@ -48,7 +48,7 @@ export interface ChatCompletionRequest {
   model: string;
   messages: ChatMessage[];
   tools?: Tool[];
-  tool_choice?: { type: "function"; function: { name: string } } | "auto";
+  tool_choice?: { type: "function"; function: { name: string } } | "required" | "auto";
   max_tokens?: number;
   temperature?: number;
 }
@@ -88,6 +88,15 @@ export async function chatCompletion(
   request: ChatCompletionRequest,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<ChatCompletionResult> {
+  // Some models don't support the specific-function or "required" tool_choice forms.
+  // Fall back through the compatibility ladder automatically on a 404.
+  const toolChoiceFallbacks: Array<ChatCompletionRequest["tool_choice"]> = [];
+  if (request.tool_choice && request.tool_choice !== "auto") {
+    if (request.tool_choice !== "required") toolChoiceFallbacks.push("required");
+    toolChoiceFallbacks.push("auto");
+  }
+
+  let currentRequest = request;
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -102,7 +111,7 @@ export async function chatCompletion(
           "X-Title": "popdam3",
         },
         signal: AbortSignal.timeout(timeoutMs),
-        body: JSON.stringify(request),
+        body: JSON.stringify(currentRequest),
       });
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
@@ -160,6 +169,21 @@ export async function chatCompletion(
     }
 
     const errBody = await response.text();
+
+    // tool_choice compatibility fallback: if the model rejects our tool_choice
+    // value, retry with the next less-strict value in the ladder.
+    if (response.status === 404 && errBody.includes("tool_choice") && toolChoiceFallbacks.length > 0) {
+      const nextChoice = toolChoiceFallbacks.shift()!;
+      logger.warn("openrouter: tool_choice not supported, retrying with fallback", {
+        model: currentRequest.model,
+        from: currentRequest.tool_choice,
+        to: nextChoice,
+      });
+      currentRequest = { ...currentRequest, tool_choice: nextChoice };
+      attempt--; // don't count this against retry budget
+      continue;
+    }
+
     throw new OpenRouterError(response.status, errBody);
   }
 
