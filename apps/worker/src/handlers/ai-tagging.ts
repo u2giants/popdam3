@@ -328,6 +328,7 @@ ${usingPriorityOnly
       messages,
       tools: [TAG_ASSET_TOOL],
       tool_choice: { type: "function", function: { name: "tag_asset" } },
+      max_tokens: 1500,  // structured tag output is small; avoid burning credits on default 65535
     }, AI_TIMEOUT_MS);
 
     const tagData = result.toolCalls?.[0]?.arguments;
