@@ -322,6 +322,11 @@ ${usingPriorityOnly
     const imgResp = await fetch(thumbnailUrl, { signal: AbortSignal.timeout(THUMBNAIL_FETCH_TIMEOUT_MS) });
     if (!imgResp.ok) {
       logger.warn("ai-tag: thumbnail fetch failed", { assetId, status: imgResp.status });
+      if (imgResp.status === 403 || imgResp.status === 404) {
+        // Thumbnail file missing from storage — mark on the asset and skip (not a tagging failure)
+        await client.from("assets").update({ thumbnail_error: `Thumbnail not found in storage (HTTP ${imgResp.status})` }).eq("id", assetId);
+        return { outcome: "skipped" };
+      }
       return { outcome: "failed", error: `Thumbnail fetch HTTP ${imgResp.status}` };
     }
     const contentType = imgResp.headers.get("content-type") || "image/jpeg";
