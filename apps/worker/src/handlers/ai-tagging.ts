@@ -40,11 +40,11 @@ function humanizeError(raw: string): string {
 
 // ── Read model assignment from admin_config ─────────────────────────────────
 
-let cachedModel: string | null = null;
+let cachedModels: { primary: string; fallback: string | null } | null = null;
 let cacheExpiresAt = 0;
 
-async function getVisionModel(): Promise<string> {
-  if (cachedModel && Date.now() < cacheExpiresAt) return cachedModel;
+async function getVisionModels(): Promise<{ primary: string; fallback: string | null }> {
+  if (cachedModels && Date.now() < cacheExpiresAt) return cachedModels;
   const client = db();
   const { data } = await client
     .from("admin_config")
@@ -52,9 +52,25 @@ async function getVisionModel(): Promise<string> {
     .eq("key", "AI_TASK_MODELS")
     .maybeSingle();
   const models = data?.value as Record<string, string> | null;
-  cachedModel = models?.vision_tagging || DEFAULT_VISION_MODEL;
+  cachedModels = {
+    primary: models?.vision_tagging || DEFAULT_VISION_MODEL,
+    fallback: models?.vision_tagging_fallback || null,
+  };
   cacheExpiresAt = Date.now() + 60_000; // cache 1 min
-  return cachedModel;
+  return cachedModels;
+}
+
+/** Returns true if the error is specific to the model/provider (not a transient infra failure). */
+function isModelSpecificError(msg: string): boolean {
+  return (
+    msg.includes("data_inspection_failed") ||
+    msg.includes("DataInspection") ||
+    msg.includes("data_inspection") ||
+    msg.includes("inappropriate content") ||
+    msg.includes("Unable to download the media resource") ||
+    msg.includes("Failed to download multimodal content") ||
+    msg.includes("No endpoints found") // tool_choice exhausted all fallbacks
+  );
 }
 
 // ── Tag asset tool schema ───────────────────────────────────────────────────
@@ -323,95 +339,114 @@ ${usingPriorityOnly
   }
 
   // Get model from admin_config (cached for 1 min)
-  const model = await getVisionModel();
+  const { primary: primaryModel, fallback: fallbackModel } = await getVisionModels();
 
-  // Call via OpenRouter
-  try {
-    const messages: ChatMessage[] = [
-      { role: "system", content: systemPrompt },
-      {
-        role: "user",
-        content: [
-          imageContent(imageBase64, imageMimeType),
-          { type: "text", text: "Analyze this design asset image and return structured tags using the tag_asset function." },
-        ],
-      },
-    ];
+  type AttemptResult = TagOutcome & { _rawMsg?: string };
+  const attemptTag = async (model: string): Promise<AttemptResult> => {
+    // Call via OpenRouter
+    try {
+      const messages: ChatMessage[] = [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            imageContent(imageBase64, imageMimeType),
+            { type: "text", text: "Analyze this design asset image and return structured tags using the tag_asset function." },
+          ],
+        },
+      ];
 
-    const result = await chatCompletion(apiKey, {
-      model,
-      messages,
-      tools: [TAG_ASSET_TOOL],
-      tool_choice: "required",
-      max_tokens: 1500,  // structured tag output is small; avoid burning credits on default 65535
-    }, AI_TIMEOUT_MS);
+      const result = await chatCompletion(apiKey, {
+        model,
+        messages,
+        tools: [TAG_ASSET_TOOL],
+        tool_choice: "required",
+        max_tokens: 1500,  // structured tag output is small; avoid burning credits on default 65535
+      }, AI_TIMEOUT_MS);
 
-    const tagData = result.toolCalls?.[0]?.arguments;
-    if (!tagData) {
-      logger.warn("ai-tag: AI did not return structured tags", { assetId, model });
-      return { outcome: "failed", error: `Model ${model} returned no structured tags (empty tool call)` };
-    }
-
-    const updates: Record<string, unknown> = {
-      status: "tagged",
-      ai_tagged_at: new Date().toISOString(),
-      ai_model: model,
-    };
-    if (tagData.ai_description) updates.ai_description = tagData.ai_description;
-    if (tagData.cover_description) updates.cover_description = tagData.cover_description;
-    if (tagData.scene_description) updates.scene_description = tagData.scene_description;
-    if (tagData.asset_type) updates.asset_type = tagData.asset_type;
-    if (tagData.art_source) updates.art_source = tagData.art_source;
-    if (tagData.design_style) updates.design_style = tagData.design_style;
-    if (tagData.design_ref) updates.design_ref = tagData.design_ref;
-    if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
-    if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
-    if (tagData.designer_name) updates.designer_name = tagData.designer_name;
-    if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
-    if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
-
-    let { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
-
-    // FK constraint failure: AI hallucinated a licensor/property UUID — retry without FK fields
-    if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
-      logger.warn("ai-tag: FK/type error, retrying without licensor_id/property_id", { assetId, error: updateErr.message });
-      delete updates.licensor_id;
-      delete updates.property_id;
-      const retry = await client.from("assets").update(updates).eq("id", assetId);
-      updateErr = retry.error;
-    }
-
-    if (updateErr) {
-      logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
-      return { outcome: "failed", error: `DB write failed: ${humanizeError(updateErr.message ?? "").slice(0, 300)}` };
-    }
-
-    // Write tags to asset_tags table
-    if (Array.isArray(tagData.tags) && tagData.tags.length > 0) {
-      await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
-      const tagRows = (tagData.tags as string[]).map((t: string) => ({
-        asset_id: assetId,
-        tag: t.trim().toLowerCase(),
-        source: "ai",
-      }));
-      await client.from("asset_tags").upsert(tagRows, { onConflict: "asset_id,tag" });
-    }
-
-    // Write character links
-    if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
-      const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
-      if (validCharIds.length > 0) {
-        const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
-        await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
+      const tagData = result.toolCalls?.[0]?.arguments;
+      if (!tagData) {
+        logger.warn("ai-tag: AI did not return structured tags", { assetId, model });
+        return { outcome: "failed", error: `Model ${model} returned no structured tags (empty tool call)` };
       }
-    }
 
-    return { outcome: "tagged" };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    logger.warn("ai-tag: AI call error", { assetId, model, error: msg });
-    return { outcome: "failed", error: `AI call error: ${humanizeError(msg).slice(0, 300)}` };
+      const updates: Record<string, unknown> = {
+        status: "tagged",
+        ai_tagged_at: new Date().toISOString(),
+        ai_model: model,
+      };
+      if (tagData.ai_description) updates.ai_description = tagData.ai_description;
+      if (tagData.cover_description) updates.cover_description = tagData.cover_description;
+      if (tagData.scene_description) updates.scene_description = tagData.scene_description;
+      if (tagData.asset_type) updates.asset_type = tagData.asset_type;
+      if (tagData.art_source) updates.art_source = tagData.art_source;
+      if (tagData.design_style) updates.design_style = tagData.design_style;
+      if (tagData.design_ref) updates.design_ref = tagData.design_ref;
+      if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
+      if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
+      if (tagData.designer_name) updates.designer_name = tagData.designer_name;
+      if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
+      if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
+
+      let { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
+
+      // FK constraint failure: AI hallucinated a licensor/property UUID — retry without FK fields
+      if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
+        logger.warn("ai-tag: FK/type error, retrying without licensor_id/property_id", { assetId, error: updateErr.message });
+        delete updates.licensor_id;
+        delete updates.property_id;
+        const retry = await client.from("assets").update(updates).eq("id", assetId);
+        updateErr = retry.error;
+      }
+
+      if (updateErr) {
+        logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
+        return { outcome: "failed", error: `DB write failed: ${humanizeError(updateErr.message ?? "").slice(0, 300)}` };
+      }
+
+      // Write tags to asset_tags table
+      if (Array.isArray(tagData.tags) && tagData.tags.length > 0) {
+        await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
+        const tagRows = (tagData.tags as string[]).map((t: string) => ({
+          asset_id: assetId,
+          tag: t.trim().toLowerCase(),
+          source: "ai",
+        }));
+        await client.from("asset_tags").upsert(tagRows, { onConflict: "asset_id,tag" });
+      }
+
+      // Write character links
+      if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
+        const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
+        if (validCharIds.length > 0) {
+          const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
+          await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
+        }
+      }
+
+      return { outcome: "tagged" };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logger.warn("ai-tag: AI call error", { assetId, model, error: msg });
+      return { outcome: "failed", error: `AI call error: ${humanizeError(msg).slice(0, 300)}`, _rawMsg: msg };
+    }
+  };
+
+  const primaryResult = await attemptTag(primaryModel);
+  if (primaryResult.outcome === "tagged") return primaryResult;
+
+  // If the primary model failed with a model-specific error and a fallback is configured, retry once
+  const rawMsg = primaryResult._rawMsg ?? primaryResult.error ?? "";
+  if (fallbackModel && isModelSpecificError(rawMsg)) {
+    logger.info("ai-tag: primary model failed with model-specific error — trying fallback", { assetId, primaryModel, fallbackModel, error: rawMsg.slice(0, 200) });
+    const fallbackResult = await attemptTag(fallbackModel);
+    if (fallbackResult.outcome === "tagged") return fallbackResult;
+    // Both failed — return the primary error (more informative) with a note
+    const fallbackErr = fallbackResult.error ?? "fallback also failed";
+    return { outcome: "failed", error: `${primaryResult.error} (fallback ${fallbackModel}: ${fallbackErr})`.slice(0, 400) };
   }
+
+  return primaryResult;
 }
 
 // ── Batch handler (called from operation-loop) ───────────────────────────────

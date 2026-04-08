@@ -437,12 +437,13 @@ const DEFAULT_MODELS_PLACEHOLDER = JSON.stringify(
   2,
 );
 
-const TASK_MODEL_LABELS: Record<string, { label: string; description: string; defaultModel: string; requiresTools: boolean }> = {
+const TASK_MODEL_LABELS: Record<string, { label: string; description: string; defaultModel: string; requiresTools: boolean; fallbackKey?: string }> = {
   vision_tagging: {
     label: "Image Tagging",
     description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support tool use.",
     defaultModel: "google/gemini-2.5-flash",
     requiresTools: true,
+    fallbackKey: "vision_tagging_fallback",
   },
   text_classification: {
     label: "ERP Classification",
@@ -647,7 +648,7 @@ export function AiModelsConfigSection() {
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools }]) => {
+            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, fallbackKey }]) => {
               const currentVal = taskModels[key] || "";
               const modelList = openRouterModels ?? [];
               // For tasks that require tool use, only show models that support it
@@ -657,42 +658,60 @@ export function AiModelsConfigSection() {
               const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
                 ? [{ id: currentVal, name: currentVal, supportsTools: false }, ...filteredList]
                 : filteredList;
+
+              const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
+              const fallbackOptions = fallbackKey
+                ? (fallbackVal && !filteredList.some((m) => m.id === fallbackVal)
+                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false }, ...filteredList]
+                  : filteredList)
+                : [];
+
+              const renderSelect = (selectKey: string, value: string, options: typeof filteredList, placeholder: string) => (
+                filteredList.length > 0 ? (
+                  <Select value={value} onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [selectKey]: val }))}>
+                    <SelectTrigger className="h-8 text-xs font-mono">
+                      <SelectValue placeholder={placeholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((m) => {
+                        const fmt = (p?: number) => p !== undefined ? (p === 0 ? "0" : `${p < 0.01 ? p.toFixed(3) : p.toFixed(2)}`) : "?";
+                        const price = (m.promptPrice !== undefined || m.completionPrice !== undefined)
+                          ? `$${fmt(m.promptPrice)}/$${fmt(m.completionPrice)}`
+                          : undefined;
+                        return (
+                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={price}>
+                            {displayNames[m.id] || m.id}{!m.supportsTools && requiresTools ? " ⚠" : ""}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={value}
+                    onChange={(e) => setTaskModels((prev) => ({ ...prev, [selectKey]: e.target.value }))}
+                    placeholder={loadingModels ? "Loading models…" : placeholder}
+                    className="h-8 text-xs font-mono"
+                    disabled={loadingModels}
+                  />
+                )
+              );
+
               return (
                 <div key={key} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
-                  {filteredList.length > 0 ? (
-                    <Select
-                      value={currentVal}
-                      onValueChange={(val) => setTaskModels((prev) => ({ ...prev, [key]: val }))}
-                    >
-                      <SelectTrigger className="h-8 text-xs font-mono">
-                        <SelectValue placeholder={defaultModel} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allOptions.map((m) => {
-                          const fmt = (p?: number) => p !== undefined ? (p === 0 ? "0" : `${p < 0.01 ? p.toFixed(3) : p.toFixed(2)}`) : "?";
-                          const price = (m.promptPrice !== undefined || m.completionPrice !== undefined)
-                            ? `$${fmt(m.promptPrice)}/$${fmt(m.completionPrice)}`
-                            : undefined;
-                          return (
-                            <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={price}>
-                              {displayNames[m.id] || m.id}{!m.supportsTools && requiresTools ? " ⚠" : ""}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      value={currentVal}
-                      onChange={(e) => setTaskModels((prev) => ({ ...prev, [key]: e.target.value }))}
-                      placeholder={loadingModels ? "Loading models…" : defaultModel}
-                      className="h-8 text-xs font-mono"
-                      disabled={loadingModels}
-                    />
-                  )}
+                  {renderSelect(key, currentVal, allOptions, defaultModel)}
                   {!currentModelSupportsTools && (
                     <p className="text-[10px] text-destructive">⚠ This model does not support tool use — AI tagging will fail. Select a different model.</p>
+                  )}
+                  {fallbackKey && (
+                    <div className="mt-1.5 space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Fallback model (on content filter / provider rejection)</Label>
+                      {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed")}
+                      {fallbackVal && !modelList.find((m) => m.id === fallbackVal)?.supportsTools && modelList.length > 0 && (
+                        <p className="text-[10px] text-destructive">⚠ Fallback model does not support tool use.</p>
+                      )}
+                    </div>
                   )}
                   <p className="text-[10px] text-muted-foreground">{description}</p>
                 </div>
