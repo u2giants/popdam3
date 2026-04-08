@@ -166,9 +166,15 @@ const KILL_RATE_MIN_SAMPLE = 50;    // need at least this many processed first
 /**
  * Returns a human-readable reason string if the kill switch should fire,
  * otherwise null. Two independent tiers — either can trigger.
+ * Only considers failures that occurred on or after startedAt (current run).
  */
-function detectFailureKillSwitch(progress: Record<string, unknown>): string | null {
-  const samples = progress.failure_samples as Array<{ error?: string }> | undefined;
+function detectFailureKillSwitch(progress: Record<string, unknown>, startedAt?: string): string | null {
+  const allSamples = progress.failure_samples as Array<{ at?: string; error?: string }> | undefined;
+  const startMs = startedAt ? new Date(startedAt).getTime() : 0;
+
+  // Only consider failures from the current run (filter by started_at)
+  const samples = allSamples?.filter((s) => !s.at || new Date(s.at).getTime() >= startMs);
+
   const failed  = (progress.failed  as number) || 0;
   const tagged  = (progress.tagged  as number) || 0;
   const skipped = (progress.skipped as number) || 0;
@@ -451,8 +457,9 @@ export async function tick(): Promise<void> {
     progress = mergeProgress(opKey, progress, result);
     batchCount++;
 
-    // Kill switch: stop automatically on systematic or high-rate failures
-    const killReason = detectFailureKillSwitch(progress);
+    // Kill switch: stop automatically on systematic or high-rate failures.
+    // Scoped to the current run via started_at so restarting resets the window.
+    const killReason = detectFailureKillSwitch(progress, currentState.started_at);
     if (killReason) {
       logger.error("tick: failure kill switch triggered", { opKey, reason: killReason, batchCount });
       await persistOpState(opKey, {
