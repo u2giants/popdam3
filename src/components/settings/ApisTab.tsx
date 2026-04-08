@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save, Plus, Trash2, Eye, EyeOff, BarChart3 } from "lucide-react";
+import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save, Plus, Trash2, Eye, EyeOff, BarChart3, Check, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -462,7 +462,7 @@ export function AiModelsConfigSection() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
+  const configKeys = ["AI_MODELS", "AI_TASK_MODELS", "AI_MODEL_DISPLAY_NAMES", "OPENROUTER_API_KEY", "GOOGLE_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"];
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config", ...configKeys],
@@ -482,6 +482,7 @@ export function AiModelsConfigSection() {
   const [modelsJson, setModelsJson] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [taskModels, setTaskModels] = useState<Record<string, string>>({});
+  const [displayNames, setDisplayNames] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
 
   const unwrap = (v: unknown) => ((v as Record<string, unknown>)?.value ?? v ?? "") as string;
@@ -497,6 +498,8 @@ export function AiModelsConfigSection() {
     setModelsJson(models ? JSON.stringify(models, null, 2) : "");
     const savedTasks = ((cfg.AI_TASK_MODELS as Record<string, unknown>)?.value ?? cfg.AI_TASK_MODELS ?? {}) as Record<string, string>;
     setTaskModels(savedTasks);
+    const savedDisplayNames = ((cfg.AI_MODEL_DISPLAY_NAMES as Record<string, unknown>)?.value ?? cfg.AI_MODEL_DISPLAY_NAMES ?? {}) as Record<string, string>;
+    setDisplayNames(savedDisplayNames);
     setLoaded(true);
   }, [configData, loaded]);
 
@@ -521,6 +524,7 @@ export function AiModelsConfigSection() {
       const entries: Record<string, unknown> = {
         AI_MODELS: models,
         AI_TASK_MODELS: taskModels,
+        AI_MODEL_DISPLAY_NAMES: displayNames,
       };
       if (openRouterKey.trim()) entries.OPENROUTER_API_KEY = openRouterKey.trim();
       if (googleKey.trim()) entries.GOOGLE_AI_API_KEY = googleKey.trim();
@@ -537,7 +541,7 @@ export function AiModelsConfigSection() {
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
 
-  const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string; supportsTools: boolean }>>({
+  const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string; supportsTools: boolean; promptPrice?: number; completionPrice?: number }>>({
     queryKey: ["openrouter-models", savedOpenRouterKey],
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
@@ -546,7 +550,7 @@ export function AiModelsConfigSection() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const data = await res.json();
-      const items: Array<{ id: string; name?: string; supported_parameters?: string[] }> = Array.isArray(data)
+      const items: Array<{ id: string; name?: string; supported_parameters?: string[]; pricing?: { prompt?: string; completion?: string } }> = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
           ? data.data
@@ -556,6 +560,8 @@ export function AiModelsConfigSection() {
           id: m.id,
           name: m.name ?? m.id,
           supportsTools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
+          promptPrice: m.pricing?.prompt ? parseFloat(m.pricing.prompt) * 1_000_000 : undefined,
+          completionPrice: m.pricing?.completion ? parseFloat(m.pricing.completion) * 1_000_000 : undefined,
         }))
         .sort((a, b) => a.id.localeCompare(b.id));
     },
@@ -569,13 +575,15 @@ export function AiModelsConfigSection() {
   const savedModels = (configData?.config?.AI_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_MODELS;
   const savedModelsJson = savedModels ? JSON.stringify(savedModels, null, 2) : "";
   const savedTaskModels = ((configData?.config?.AI_TASK_MODELS as Record<string, unknown>)?.value ?? configData?.config?.AI_TASK_MODELS ?? {}) as Record<string, string>;
+  const savedDisplayNames = ((configData?.config?.AI_MODEL_DISPLAY_NAMES as Record<string, unknown>)?.value ?? configData?.config?.AI_MODEL_DISPLAY_NAMES ?? {}) as Record<string, string>;
   const isDirty = loaded && (
     openRouterKey !== savedOpenRouterKey ||
     googleKey !== savedGoogleKey ||
     anthropicKey !== savedAnthropicKey ||
     openaiKey !== savedOpenaiKey ||
     modelsJson !== savedModelsJson ||
-    JSON.stringify(taskModels) !== JSON.stringify(savedTaskModels)
+    JSON.stringify(taskModels) !== JSON.stringify(savedTaskModels) ||
+    JSON.stringify(displayNames) !== JSON.stringify(savedDisplayNames)
   );
 
   return (
@@ -663,7 +671,7 @@ export function AiModelsConfigSection() {
                       <SelectContent>
                         {allOptions.map((m) => (
                           <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
-                            {m.id}{!m.supportsTools && requiresTools ? " ⚠ no tool use" : ""}
+                            {displayNames[m.id] ? `${displayNames[m.id]} (${m.id})` : m.id}{!m.supportsTools && requiresTools ? " ⚠ no tool use" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -686,6 +694,75 @@ export function AiModelsConfigSection() {
             })}
           </div>
         </div>
+
+        {/* OpenRouter Model Catalog */}
+        {(loadingModels || (openRouterModels && openRouterModels.length > 0)) && (
+          <div className="border-t pt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs font-medium">Available Models</Label>
+              {loadingModels ? (
+                <span className="text-[10px] text-muted-foreground">Loading…</span>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    title="Refresh model list from OpenRouter"
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => queryClient.refetchQueries({ queryKey: ["openrouter-models", savedOpenRouterKey] })}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </button>
+                  <span className="text-[10px] text-muted-foreground">{openRouterModels?.length} models from your OpenRouter account</span>
+                </>
+              )}
+            </div>
+            {openRouterModels && openRouterModels.length > 0 && (
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-muted/50 text-muted-foreground border-b">
+                      <th className="text-left px-2 py-1.5 font-medium">Model ID</th>
+                      <th className="text-left px-2 py-1.5 font-medium w-36">Display Name</th>
+                      <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">Input $/M</th>
+                      <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">Output $/M</th>
+                      <th className="text-center px-2 py-1.5 font-medium">Tools</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {openRouterModels.map((m, i) => {
+                      const fmtPrice = (p?: number) => {
+                        if (p === undefined) return <span className="text-muted-foreground">—</span>;
+                        if (p === 0) return <span className="text-green-600 dark:text-green-400">free</span>;
+                        return <span>${p < 0.01 ? p.toFixed(4) : p.toFixed(2)}</span>;
+                      };
+                      return (
+                        <tr key={m.id} className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                          <td className="px-2 py-1 font-mono text-[11px] text-muted-foreground">{m.id}</td>
+                          <td className="px-2 py-1">
+                            <input
+                              type="text"
+                              value={displayNames[m.id] ?? ""}
+                              onChange={(e) => setDisplayNames((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                              placeholder={m.name !== m.id ? m.name : ""}
+                              className="w-full h-6 px-1.5 text-[11px] bg-transparent border border-transparent hover:border-border focus:border-border focus:outline-none rounded"
+                            />
+                          </td>
+                          <td className="px-2 py-1 text-right font-mono text-[11px]">{fmtPrice(m.promptPrice)}</td>
+                          <td className="px-2 py-1 text-right font-mono text-[11px]">{fmtPrice(m.completionPrice)}</td>
+                          <td className="px-2 py-1 text-center">
+                            {m.supportsTools
+                              ? <Check className="h-3 w-3 text-green-600 dark:text-green-400 inline" />
+                              : <X className="h-3 w-3 text-muted-foreground inline" />}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Legacy Keys (collapsed) */}
         <div className="border-t pt-3">
