@@ -624,7 +624,7 @@ export function AiModelsConfigSection() {
                 type="button"
                 title="Refresh model list from OpenRouter"
                 className="text-muted-foreground hover:text-foreground"
-                onClick={() => queryClient.refetchQueries({ queryKey: ["openrouter-models"] })}
+                onClick={() => queryClient.refetchQueries({ queryKey: ["openrouter-models", savedOpenRouterKey] })}
               >
                 <RefreshCw className="h-3 w-3" />
               </button>
