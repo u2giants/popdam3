@@ -619,6 +619,16 @@ export function AiModelsConfigSection() {
           <div className="flex items-center gap-2">
             <Label className="text-xs font-medium">Model per Task</Label>
             {loadingModels && <span className="text-[10px] text-muted-foreground">Loading models…</span>}
+            {!loadingModels && (
+              <button
+                type="button"
+                title="Refresh model list from OpenRouter"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["openrouter-models"] })}
+              >
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            )}
             {modelsError && (
               <span className="text-[10px] text-destructive">
                 Failed to load models: {(modelsError as Error).message}
