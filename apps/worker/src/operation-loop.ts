@@ -149,22 +149,47 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
   }
 }
 
-// ── Repeated-failure kill switch ─────────────────────────────────────────────
+// ── Failure kill switch ───────────────────────────────────────────────────────
 
-const KILL_SWITCH_THRESHOLD = 50;
+// Tier 1: if the last N failures are all the same error, stop immediately.
+// Catches systematic breakage (missing column, bad API key) without waiting
+// for a large sample. Does not require failures to be consecutive — skips
+// and successes in between don't reset it.
+const KILL_SAME_ERROR_COUNT = 20;
+
+// Tier 2: if the overall failure rate exceeds this threshold once a minimum
+// number of assets have been processed, stop. Catches high-rate mixed errors
+// that tier 1 misses (e.g. several different timeout messages).
+const KILL_RATE_THRESHOLD = 0.80;   // 80% failure rate
+const KILL_RATE_MIN_SAMPLE = 50;    // need at least this many processed first
 
 /**
- * Returns the shared error string if the last KILL_SWITCH_THRESHOLD failure
- * samples all have the same normalized error, otherwise null.
+ * Returns a human-readable reason string if the kill switch should fire,
+ * otherwise null. Two independent tiers — either can trigger.
  */
-function detectRepeatedFailure(progress: Record<string, unknown>): string | null {
+function detectFailureKillSwitch(progress: Record<string, unknown>): string | null {
   const samples = progress.failure_samples as Array<{ error?: string }> | undefined;
-  if (!samples || samples.length < KILL_SWITCH_THRESHOLD) return null;
-  const recent = samples.slice(-KILL_SWITCH_THRESHOLD);
-  const normalize = (e?: string) => (e ?? "").slice(0, 120).trim();
-  const first = normalize(recent[0].error);
-  if (!first) return null;
-  return recent.every((s) => normalize(s.error) === first) ? first : null;
+  const failed  = (progress.failed  as number) || 0;
+  const tagged  = (progress.tagged  as number) || 0;
+  const skipped = (progress.skipped as number) || 0;
+  const total   = tagged + skipped + failed;
+
+  // Tier 1: last N failures share the same error (non-consecutive — just the last N in the sample list)
+  if (samples && samples.length >= KILL_SAME_ERROR_COUNT) {
+    const recent = samples.slice(-KILL_SAME_ERROR_COUNT);
+    const normalize = (e?: string) => (e ?? "").slice(0, 120).trim();
+    const first = normalize(recent[0].error);
+    if (first && recent.every((s) => normalize(s.error) === first)) {
+      return `Last ${KILL_SAME_ERROR_COUNT} failures share the same error: "${first.slice(0, 200)}"`;
+    }
+  }
+
+  // Tier 2: overall failure rate too high across a meaningful sample
+  if (total >= KILL_RATE_MIN_SAMPLE && failed / total >= KILL_RATE_THRESHOLD) {
+    return `Failure rate ${Math.round((failed / total) * 100)}% (${failed} failed out of ${total} processed)`;
+  }
+
+  return null;
 }
 
 function buildResultMessage(opKey: string, progress: Record<string, unknown>): string {
@@ -426,17 +451,17 @@ export async function tick(): Promise<void> {
     progress = mergeProgress(opKey, progress, result);
     batchCount++;
 
-    // Kill switch: stop automatically if the last 50 failures share the same error
-    const repeatedError = detectRepeatedFailure(progress);
-    if (repeatedError) {
-      logger.error("tick: repeated-failure kill switch triggered", { opKey, error: repeatedError, batchCount });
+    // Kill switch: stop automatically on systematic or high-rate failures
+    const killReason = detectFailureKillSwitch(progress);
+    if (killReason) {
+      logger.error("tick: failure kill switch triggered", { opKey, reason: killReason, batchCount });
       await persistOpState(opKey, {
         ...currentState,
         cursor,
         progress,
         status: "interrupted",
         interruption_reason_code: "repeated_failure",
-        error: `Auto-stopped: ${KILL_SWITCH_THRESHOLD} consecutive failures with the same error — "${repeatedError.slice(0, 200)}"`,
+        error: `Auto-stopped: ${killReason}`,
         updated_at: new Date().toISOString(),
       });
       return;
