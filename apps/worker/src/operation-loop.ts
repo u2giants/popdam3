@@ -149,6 +149,24 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
   }
 }
 
+// ── Repeated-failure kill switch ─────────────────────────────────────────────
+
+const KILL_SWITCH_THRESHOLD = 50;
+
+/**
+ * Returns the shared error string if the last KILL_SWITCH_THRESHOLD failure
+ * samples all have the same normalized error, otherwise null.
+ */
+function detectRepeatedFailure(progress: Record<string, unknown>): string | null {
+  const samples = progress.failure_samples as Array<{ error?: string }> | undefined;
+  if (!samples || samples.length < KILL_SWITCH_THRESHOLD) return null;
+  const recent = samples.slice(-KILL_SWITCH_THRESHOLD);
+  const normalize = (e?: string) => (e ?? "").slice(0, 120).trim();
+  const first = normalize(recent[0].error);
+  if (!first) return null;
+  return recent.every((s) => normalize(s.error) === first) ? first : null;
+}
+
 function buildResultMessage(opKey: string, progress: Record<string, unknown>): string {
   const normalizedKey = opKey.startsWith("ai-tag-single-") ? "ai-tag-all" : opKey;
   switch (normalizedKey) {
@@ -407,6 +425,22 @@ export async function tick(): Promise<void> {
 
     progress = mergeProgress(opKey, progress, result);
     batchCount++;
+
+    // Kill switch: stop automatically if the last 50 failures share the same error
+    const repeatedError = detectRepeatedFailure(progress);
+    if (repeatedError) {
+      logger.error("tick: repeated-failure kill switch triggered", { opKey, error: repeatedError, batchCount });
+      await persistOpState(opKey, {
+        ...currentState,
+        cursor,
+        progress,
+        status: "interrupted",
+        interruption_reason_code: "repeated_failure",
+        error: `Auto-stopped: ${KILL_SWITCH_THRESHOLD} consecutive failures with the same error — "${repeatedError.slice(0, 200)}"`,
+        updated_at: new Date().toISOString(),
+      });
+      return;
+    }
 
     if (!result.ok) {
       logger.error("tick: batch failed", { opKey, error: result.error, batchCount });

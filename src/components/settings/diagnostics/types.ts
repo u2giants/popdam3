@@ -114,6 +114,7 @@ export const REASON_LABELS: Record<string, string> = {
   rate_limited: "Rate limited (429)",
   user_stop: "Stopped by user",
   stale_run: "No progress detected (stale lock)",
+  repeated_failure: "Auto-stopped: repeated identical failures",
   connection_error: "Connection error",
   legacy_format: "Legacy operation format",
   unknown: "Unknown reason",
