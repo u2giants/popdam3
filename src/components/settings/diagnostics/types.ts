@@ -110,7 +110,7 @@ export const OP_CONFLICTS: Record<string, readonly string[]> = {
 
 export const REASON_LABELS: Record<string, string> = {
   gateway_timeout: "Gateway timeout (502/503/504)",
-  statement_timeout: "Database statement timeout",
+  statement_timeout: "Database write timed out — will auto-resume",
   rate_limited: "Rate limited (429)",
   user_stop: "Stopped by user",
   stale_run: "No progress detected (stale lock)",

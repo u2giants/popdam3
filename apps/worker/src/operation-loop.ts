@@ -149,6 +149,18 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
   }
 }
 
+// ── Error classifier ─────────────────────────────────────────────────────────
+
+/** Map a raw error message to a known reason_code. */
+function classifyError(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes("canceling statement due to statement timeout")) return "statement_timeout";
+  if (m.includes("bad gateway") || m.includes("502") || m.includes("503") || m.includes("504")) return "gateway_timeout";
+  if (m.includes("too many connections") || m.includes("connection refused")) return "connection_error";
+  if (m.includes("rate limit") || m.includes("429")) return "rate_limited";
+  return "unknown";
+}
+
 // ── Failure kill switch ───────────────────────────────────────────────────────
 
 // Tier 1: if the last N failures are all the same error, stop immediately.
@@ -447,7 +459,7 @@ export async function tick(): Promise<void> {
         cursor,
         progress,
         status: "interrupted",
-        interruption_reason_code: "unknown",
+        interruption_reason_code: classifyError(errMsg),
         error: errMsg,
         updated_at: new Date().toISOString(),
       });
@@ -475,14 +487,15 @@ export async function tick(): Promise<void> {
     }
 
     if (!result.ok) {
-      logger.error("tick: batch failed", { opKey, error: result.error, batchCount });
+      const batchErr = result.error ?? "Batch failed";
+      logger.error("tick: batch failed", { opKey, error: batchErr, batchCount });
       await persistOpState(opKey, {
         ...currentState,
         cursor,
         progress,
         status: "interrupted",
-        interruption_reason_code: "unknown",
-        error: result.error ?? "Batch failed",
+        interruption_reason_code: classifyError(batchErr),
+        error: batchErr,
         updated_at: new Date().toISOString(),
       });
       return;

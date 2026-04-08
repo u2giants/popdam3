@@ -23,6 +23,21 @@ function isValidUuid(v: unknown): v is string {
   return typeof v === "string" && UUID_RE.test(v);
 }
 
+/** Convert raw AI/DB error strings into human-readable messages. */
+function humanizeError(raw: string): string {
+  // Alibaba Cloud / Qwen content inspection failures
+  if (raw.includes("data_inspection_failed") || raw.includes("inappropriate content"))
+    return "Image rejected by provider content filter (Alibaba/Qwen) — try a different model for this asset";
+  if (raw.includes("Unable to download the media resource") || raw.includes("DataInspection") || raw.includes("data_inspection"))
+    return "Provider could not process image during content inspection (Alibaba/Qwen) — try a different model";
+  if (raw.includes("Failed to download multimodal content"))
+    return "Provider failed to fetch image for multimodal processing — try a different model";
+  // Raw HTML from a gateway error — strip it
+  if (raw.trimStart().startsWith("<!") || raw.trimStart().startsWith("<html"))
+    return "Supabase returned a gateway error (502/503) — transient, will retry";
+  return raw;
+}
+
 // ── Read model assignment from admin_config ─────────────────────────────────
 
 let cachedModel: string | null = null;
@@ -368,7 +383,7 @@ ${usingPriorityOnly
 
     if (updateErr) {
       logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
-      return { outcome: "failed", error: `DB write failed: ${updateErr.message}` };
+      return { outcome: "failed", error: `DB write failed: ${humanizeError(updateErr.message ?? "").slice(0, 300)}` };
     }
 
     // Write tags to asset_tags table
@@ -395,7 +410,7 @@ ${usingPriorityOnly
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.warn("ai-tag: AI call error", { assetId, model, error: msg });
-    return { outcome: "failed", error: `AI call error: ${msg.slice(0, 300)}` };
+    return { outcome: "failed", error: `AI call error: ${humanizeError(msg).slice(0, 300)}` };
   }
 }
 
