@@ -206,12 +206,27 @@ async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
 
 // ── Persist single op state ───────────────────────────────────────────────────
 
-async function persistOpState(opKey: string, opState: OpState): Promise<void> {
+/**
+ * Persist op state. When onlyIfRunning=true, passes p_only_if_status="running"
+ * so the write is a no-op if the user has stopped the op in the meantime.
+ * Returns true if the state was successfully written (or if onlyIfRunning=false).
+ * Returns false if the write was rejected because the op is no longer "running".
+ */
+async function persistOpState(opKey: string, opState: OpState, onlyIfRunning = false): Promise<boolean> {
   const client = db();
-  await client.rpc("update_bulk_operation", {
+  const params: Record<string, unknown> = {
     p_op_key: opKey,
     p_op_state: opState,
-  });
+  };
+  if (onlyIfRunning) {
+    params.p_only_if_status = "running";
+  }
+  const { data, error } = await client.rpc("update_bulk_operation", params);
+  if (error || !data) return true; // on error, don't bail — let the interrupt check handle it
+  if (!onlyIfRunning) return true;
+  // Check if our write was applied: the returned state should have status="running"
+  const allOps = data as Record<string, OpState>;
+  return allOps[opKey]?.status === "running";
 }
 
 // ── Main tick — called every POLL_INTERVAL_MS ─────────────────────────────────
@@ -414,14 +429,19 @@ export async function tick(): Promise<void> {
       cursor = cursor + 1;
     }
 
-    // Save progress after every batch
-    await persistOpState(opKey, {
+    // Save progress after every batch — conditional on status still being "running"
+    // so a user stop isn't silently overwritten by the worker's next persist.
+    const stillRunning = await persistOpState(opKey, {
       ...currentState,
       cursor,
       progress,
       status: "running",
       updated_at: new Date().toISOString(),
-    });
+    }, true);
+    if (!stillRunning) {
+      logger.info("tick: op stopped externally — aborting after batch", { opKey, batchCount });
+      return;
+    }
 
     if (result.done) {
       logger.info("tick: op completed", { opKey, batches: batchCount, progress });
