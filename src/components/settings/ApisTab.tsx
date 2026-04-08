@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save, Plus, Trash2, Eye, EyeOff, BarChart3, Check, X } from "lucide-react";
+import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save, Plus, Trash2, Eye, EyeOff, BarChart3 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -669,11 +669,17 @@ export function AiModelsConfigSection() {
                         <SelectValue placeholder={defaultModel} />
                       </SelectTrigger>
                       <SelectContent>
-                        {allOptions.map((m) => (
-                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
-                            {displayNames[m.id] ? `${displayNames[m.id]} (${m.id})` : m.id}{!m.supportsTools && requiresTools ? " ⚠ no tool use" : ""}
-                          </SelectItem>
-                        ))}
+                        {allOptions.map((m) => {
+                          const fmt = (p?: number) => p !== undefined ? (p === 0 ? "0" : `${p < 0.01 ? p.toFixed(3) : p.toFixed(2)}`) : "?";
+                          const price = (m.promptPrice !== undefined || m.completionPrice !== undefined)
+                            ? `$${fmt(m.promptPrice)}/$${fmt(m.completionPrice)}`
+                            : undefined;
+                          return (
+                            <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={price}>
+                              {displayNames[m.id] || m.id}{!m.supportsTools && requiresTools ? " ⚠" : ""}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   ) : (
@@ -694,82 +700,6 @@ export function AiModelsConfigSection() {
             })}
           </div>
         </div>
-
-        {/* OpenRouter Model Catalog */}
-        {(loadingModels || (openRouterModels && openRouterModels.length > 0)) && (
-          <div className="border-t pt-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <Label className="text-xs font-medium">Available Models</Label>
-              {loadingModels ? (
-                <span className="text-[10px] text-muted-foreground">Loading…</span>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    title="Refresh model list from OpenRouter"
-                    className="text-muted-foreground hover:text-foreground"
-                    onClick={() => queryClient.refetchQueries({ queryKey: ["openrouter-models", savedOpenRouterKey] })}
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                  </button>
-                  <span className="text-[10px] text-muted-foreground">{openRouterModels?.length} models from your OpenRouter account</span>
-                </>
-              )}
-            </div>
-            {openRouterModels && openRouterModels.length > 0 && (
-              <div className="rounded-md border overflow-x-auto">
-                <table className="w-full text-xs table-fixed">
-                  <colgroup>
-                    <col />
-                    <col className="w-28" />
-                    <col className="w-16" />
-                    <col className="w-16" />
-                    <col className="w-10" />
-                  </colgroup>
-                  <thead>
-                    <tr className="bg-muted/50 text-muted-foreground border-b">
-                      <th className="text-left px-2 py-1 font-medium">Model ID</th>
-                      <th className="text-left px-2 py-1 font-medium">Display Name</th>
-                      <th className="text-right px-2 py-1 font-medium">In $/M</th>
-                      <th className="text-right px-2 py-1 font-medium">Out $/M</th>
-                      <th className="text-center px-1 py-1 font-medium">Tools</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {openRouterModels.map((m, i) => {
-                      const fmtPrice = (p?: number) => {
-                        if (p === undefined) return <span className="text-muted-foreground">—</span>;
-                        if (p === 0) return <span className="text-green-600 dark:text-green-400">free</span>;
-                        return <span>${p < 0.01 ? p.toFixed(4) : p.toFixed(2)}</span>;
-                      };
-                      return (
-                        <tr key={m.id} className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                          <td className="px-2 py-0.5 font-mono text-[11px] text-muted-foreground truncate" title={m.id}>{m.id}</td>
-                          <td className="px-1 py-0.5">
-                            <input
-                              type="text"
-                              value={displayNames[m.id] ?? ""}
-                              onChange={(e) => setDisplayNames((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                              placeholder={m.name !== m.id ? m.name : ""}
-                              className="w-full h-5 px-1 text-[11px] bg-transparent border border-transparent hover:border-border focus:border-border focus:outline-none rounded"
-                            />
-                          </td>
-                          <td className="px-2 py-0.5 text-right font-mono text-[11px]">{fmtPrice(m.promptPrice)}</td>
-                          <td className="px-2 py-0.5 text-right font-mono text-[11px]">{fmtPrice(m.completionPrice)}</td>
-                          <td className="px-1 py-0.5 text-center">
-                            {m.supportsTools
-                              ? <Check className="h-3 w-3 text-green-600 dark:text-green-400 inline" />
-                              : <X className="h-3 w-3 text-muted-foreground inline" />}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Legacy Keys (collapsed) */}
         <div className="border-t pt-3">
