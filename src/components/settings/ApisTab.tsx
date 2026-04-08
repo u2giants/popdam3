@@ -718,14 +718,21 @@ export function AiModelsConfigSection() {
             </div>
             {openRouterModels && openRouterModels.length > 0 && (
               <div className="rounded-md border overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs table-fixed">
+                  <colgroup>
+                    <col />
+                    <col className="w-28" />
+                    <col className="w-16" />
+                    <col className="w-16" />
+                    <col className="w-10" />
+                  </colgroup>
                   <thead>
                     <tr className="bg-muted/50 text-muted-foreground border-b">
-                      <th className="text-left px-2 py-1.5 font-medium">Model ID</th>
-                      <th className="text-left px-2 py-1.5 font-medium w-36">Display Name</th>
-                      <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">Input $/M</th>
-                      <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">Output $/M</th>
-                      <th className="text-center px-2 py-1.5 font-medium">Tools</th>
+                      <th className="text-left px-2 py-1 font-medium">Model ID</th>
+                      <th className="text-left px-2 py-1 font-medium">Display Name</th>
+                      <th className="text-right px-2 py-1 font-medium">In $/M</th>
+                      <th className="text-right px-2 py-1 font-medium">Out $/M</th>
+                      <th className="text-center px-1 py-1 font-medium">Tools</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -737,19 +744,19 @@ export function AiModelsConfigSection() {
                       };
                       return (
                         <tr key={m.id} className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                          <td className="px-2 py-1 font-mono text-[11px] text-muted-foreground">{m.id}</td>
-                          <td className="px-2 py-1">
+                          <td className="px-2 py-0.5 font-mono text-[11px] text-muted-foreground truncate" title={m.id}>{m.id}</td>
+                          <td className="px-1 py-0.5">
                             <input
                               type="text"
                               value={displayNames[m.id] ?? ""}
                               onChange={(e) => setDisplayNames((prev) => ({ ...prev, [m.id]: e.target.value }))}
                               placeholder={m.name !== m.id ? m.name : ""}
-                              className="w-full h-6 px-1.5 text-[11px] bg-transparent border border-transparent hover:border-border focus:border-border focus:outline-none rounded"
+                              className="w-full h-5 px-1 text-[11px] bg-transparent border border-transparent hover:border-border focus:border-border focus:outline-none rounded"
                             />
                           </td>
-                          <td className="px-2 py-1 text-right font-mono text-[11px]">{fmtPrice(m.promptPrice)}</td>
-                          <td className="px-2 py-1 text-right font-mono text-[11px]">{fmtPrice(m.completionPrice)}</td>
-                          <td className="px-2 py-1 text-center">
+                          <td className="px-2 py-0.5 text-right font-mono text-[11px]">{fmtPrice(m.promptPrice)}</td>
+                          <td className="px-2 py-0.5 text-right font-mono text-[11px]">{fmtPrice(m.completionPrice)}</td>
+                          <td className="px-1 py-0.5 text-center">
                             {m.supportsTools
                               ? <Check className="h-3 w-3 text-green-600 dark:text-green-400 inline" />
                               : <X className="h-3 w-3 text-muted-foreground inline" />}
