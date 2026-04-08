@@ -215,6 +215,7 @@ export type Database = {
       assets: {
         Row: {
           ai_description: string | null
+          ai_model: string | null
           ai_tagged_at: string | null
           art_source: Database["public"]["Enums"]["art_source"] | null
           artboards: number | null
@@ -277,6 +278,7 @@ export type Database = {
         }
         Insert: {
           ai_description?: string | null
+          ai_model?: string | null
           ai_tagged_at?: string | null
           art_source?: Database["public"]["Enums"]["art_source"] | null
           artboards?: number | null
@@ -341,6 +343,7 @@ export type Database = {
         }
         Update: {
           ai_description?: string | null
+          ai_model?: string | null
           ai_tagged_at?: string | null
           art_source?: Database["public"]["Enums"]["art_source"] | null
           artboards?: number | null
