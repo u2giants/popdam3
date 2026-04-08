@@ -194,60 +194,59 @@ export async function handleCountUntaggedAssets() {
 
   // Smart count: reflects what bulk-ai-tag will actually process
   // = groups needing a tagged representative + ungrouped untagged assets
-  const { data: smartCounts } = await db.rpc("execute_readonly_query", {
+  // Written as a plain SELECT (no CTE) so execute_readonly_query validation passes.
+  const { data: smartCounts, error: smartErr } = await db.rpc("execute_readonly_query", {
     query_text: `
-      WITH
-      -- Groups that already have at least one tagged asset (will be skipped)
-      tagged_groups AS (
-        SELECT DISTINCT style_group_id
-        FROM assets
-        WHERE is_deleted = false
-          AND status = 'tagged'
-          AND ai_tagged_at IS NOT NULL
-          AND style_group_id IS NOT NULL
-      ),
-      -- Groups where ALL assets are packaging (waiting for siblings)
-      packaging_only_groups AS (
-        SELECT sg.id
-        FROM style_groups sg
-        WHERE sg.asset_count > 0
-          AND NOT EXISTS (
-            SELECT 1 FROM assets a
-            WHERE a.style_group_id = sg.id
-              AND a.is_deleted = false
-              AND a.primary_sort_tier NOT IN (4, 8)
-          )
-          AND sg.id NOT IN (SELECT style_group_id FROM tagged_groups)
-      ),
-      -- Groups needing tagging: have untagged non-packaging assets, no tagged rep yet
-      groups_needing_tag AS (
-        SELECT DISTINCT a.style_group_id
-        FROM assets a
-        WHERE a.is_deleted = false
-          AND a.thumbnail_url IS NOT NULL
-          AND a.primary_sort_tier NOT IN (4, 8)
-          AND a.style_group_id IS NOT NULL
-          AND a.style_group_id NOT IN (SELECT style_group_id FROM tagged_groups)
-          AND a.style_group_id NOT IN (SELECT id FROM packaging_only_groups)
-      ),
-      -- Ungrouped untagged assets (each counts as 1 AI call)
-      ungrouped_untagged AS (
-        SELECT count(*) AS cnt
-        FROM assets
-        WHERE is_deleted = false
-          AND thumbnail_url IS NOT NULL
-          AND primary_sort_tier NOT IN (4, 8)
-          AND status != 'tagged'
-          AND style_group_id IS NULL
-      )
       SELECT
-        (SELECT count(*)::int FROM groups_needing_tag) + (SELECT cnt::int FROM ungrouped_untagged) AS smart_count,
-        (SELECT count(*)::int FROM packaging_only_groups) AS waiting_for_siblings
+        (
+          SELECT count(DISTINCT a.style_group_id)::int
+          FROM assets a
+          WHERE a.is_deleted = false
+            AND a.thumbnail_url IS NOT NULL
+            AND a.primary_sort_tier NOT IN (4, 8)
+            AND a.style_group_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM assets ta
+              WHERE ta.style_group_id = a.style_group_id
+                AND ta.is_deleted = false
+                AND ta.status = 'tagged'
+                AND ta.ai_tagged_at IS NOT NULL
+            )
+        ) + (
+          SELECT count(*)::int FROM assets
+          WHERE is_deleted = false
+            AND thumbnail_url IS NOT NULL
+            AND primary_sort_tier NOT IN (4, 8)
+            AND status != 'tagged'
+            AND style_group_id IS NULL
+        ) AS smart_count,
+        (
+          SELECT count(DISTINCT sg.id)::int
+          FROM style_groups sg
+          WHERE sg.asset_count > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM assets a
+              WHERE a.style_group_id = sg.id
+                AND a.is_deleted = false
+                AND a.primary_sort_tier NOT IN (4, 8)
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM assets ta
+              WHERE ta.style_group_id = sg.id
+                AND ta.is_deleted = false
+                AND ta.status = 'tagged'
+                AND ta.ai_tagged_at IS NOT NULL
+            )
+        ) AS waiting_for_siblings
     `,
   });
 
-  const smartCount = smartCounts?.[0]?.smart_count ?? 0;
-  const waitingForSiblings = smartCounts?.[0]?.waiting_for_siblings ?? 0;
+  if (smartErr) {
+    console.error("handleCountUntaggedAssets: execute_readonly_query failed:", smartErr.message);
+  }
+
+  const smartCount = (smartCounts as Array<{ smart_count: number; waiting_for_siblings: number }>)?.[0]?.smart_count ?? 0;
+  const waitingForSiblings = (smartCounts as Array<{ smart_count: number; waiting_for_siblings: number }>)?.[0]?.waiting_for_siblings ?? 0;
 
   const { count: totalWithThumb } = await db
     .from("assets")
