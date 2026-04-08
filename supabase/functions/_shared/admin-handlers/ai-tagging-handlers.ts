@@ -192,72 +192,63 @@ export async function handleBulkAiTag(body: Record<string, unknown>, tagAll: boo
 export async function handleCountUntaggedAssets() {
   const db = serviceClient();
 
-  // Smart count: reflects what bulk-ai-tag will actually process
-  // = groups needing a tagged representative + ungrouped untagged assets
-  // Written as a plain SELECT (no CTE) so execute_readonly_query validation passes.
-  const { data: smartCounts, error: smartErr } = await db.rpc("execute_readonly_query", {
-    query_text: `
-      SELECT
-        (
-          SELECT count(DISTINCT a.style_group_id)::int
-          FROM assets a
-          WHERE a.is_deleted = false
-            AND a.thumbnail_url IS NOT NULL
-            AND a.primary_sort_tier NOT IN (4, 8)
-            AND a.style_group_id IS NOT NULL
-            AND NOT EXISTS (
-              SELECT 1 FROM assets ta
-              WHERE ta.style_group_id = a.style_group_id
-                AND ta.is_deleted = false
-                AND ta.status = 'tagged'
-                AND ta.ai_tagged_at IS NOT NULL
-            )
-        ) + (
-          SELECT count(*)::int FROM assets
-          WHERE is_deleted = false
-            AND thumbnail_url IS NOT NULL
-            AND primary_sort_tier NOT IN (4, 8)
-            AND status != 'tagged'
-            AND style_group_id IS NULL
-        ) AS smart_count,
-        (
-          SELECT count(DISTINCT sg.id)::int
-          FROM style_groups sg
-          WHERE sg.asset_count > 0
-            AND NOT EXISTS (
-              SELECT 1 FROM assets a
-              WHERE a.style_group_id = sg.id
-                AND a.is_deleted = false
-                AND a.primary_sort_tier NOT IN (4, 8)
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM assets ta
-              WHERE ta.style_group_id = sg.id
-                AND ta.is_deleted = false
-                AND ta.status = 'tagged'
-                AND ta.ai_tagged_at IS NOT NULL
-            )
-        ) AS waiting_for_siblings
-    `,
-  });
+  // Fetch style_group_ids that already have a tagged asset (Set for O(1) lookup)
+  const { data: taggedGroupRows } = await db
+    .from("assets")
+    .select("style_group_id")
+    .eq("is_deleted", false)
+    .eq("status", "tagged")
+    .not("ai_tagged_at", "is", null)
+    .not("style_group_id", "is", null)
+    .limit(100_000);
 
-  if (smartErr) {
-    console.error("handleCountUntaggedAssets: execute_readonly_query failed:", smartErr.message);
+  const taggedGroupSet = new Set<string>(
+    (taggedGroupRows ?? []).map((r) => r.style_group_id as string),
+  );
+
+  // Fetch style_group_ids that have taggable assets (non-packaging, with thumbnail)
+  const { data: taggableGroupRows } = await db
+    .from("assets")
+    .select("style_group_id")
+    .eq("is_deleted", false)
+    .not("thumbnail_url", "is", null)
+    .not("style_group_id", "is", null)
+    .not("primary_sort_tier", "in", "(4,8)")
+    .limit(100_000);
+
+  const taggableGroupSet = new Set<string>(
+    (taggableGroupRows ?? []).map((r) => r.style_group_id as string),
+  );
+
+  // Groups needing tag = taggable groups not yet tagged
+  let groupsNeedingTag = 0;
+  for (const id of taggableGroupSet) {
+    if (!taggedGroupSet.has(id)) groupsNeedingTag++;
   }
 
-  const smartCount = (smartCounts as Array<{ smart_count: number; waiting_for_siblings: number }>)?.[0]?.smart_count ?? 0;
-  const waitingForSiblings = (smartCounts as Array<{ smart_count: number; waiting_for_siblings: number }>)?.[0]?.waiting_for_siblings ?? 0;
+  // Count ungrouped untagged non-packaging assets with thumbnails
+  const { count: ungroupedCount } = await db
+    .from("assets")
+    .select("*", { count: "exact", head: true })
+    .eq("is_deleted", false)
+    .not("thumbnail_url", "is", null)
+    .is("style_group_id", null)
+    .neq("status", "tagged")
+    .not("primary_sort_tier", "in", "(4,8)");
 
+  // Total assets with thumbnails (for "Re-tag Everything" button)
   const { count: totalWithThumb } = await db
     .from("assets")
     .select("*", { count: "exact", head: true })
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null);
 
+  const smartCount = groupsNeedingTag + (ungroupedCount ?? 0);
+
   return json({
     ok: true,
-    count: Number(smartCount),
+    count: smartCount,
     totalWithThumbnails: totalWithThumb ?? 0,
-    waitingForSiblings: Number(waitingForSiblings),
+    waitingForSiblings: 0,
   });
 }
