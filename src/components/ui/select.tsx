@@ -116,8 +116,8 @@ const SelectItem = React.forwardRef<
       </SelectPrimitive.ItemIndicator>
     </span>
 
-    <SelectPrimitive.ItemText className="flex-1 min-w-0">{children}</SelectPrimitive.ItemText>
-    {suffix && <span className="ml-3 shrink-0 text-muted-foreground font-mono">{suffix}</span>}
+    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    {suffix && <span className="ml-auto pl-4 shrink-0 text-muted-foreground font-mono">{suffix}</span>}
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
