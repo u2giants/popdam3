@@ -877,8 +877,12 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
               <>
                 <Separator />
                 <section className="space-y-2.5">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <h4
+                    className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                    title={(detailAsset as any).ai_model ? `Model: ${(detailAsset as any).ai_model}${(detailAsset as any).ai_tagged_at ? ` · Tagged ${format(new Date((detailAsset as any).ai_tagged_at), "MMM d, yyyy HH:mm")}` : ""}` : undefined}
+                  >
                     <Sparkles className="h-3.5 w-3.5" /> AI Analysis
+                    {(detailAsset as any).ai_model && <span className="normal-case font-normal tracking-normal text-[10px] truncate max-w-[120px]" title={(detailAsset as any).ai_model}>{(detailAsset as any).ai_model.split("/").pop()}</span>}
                   </h4>
                   {detailAsset.ai_description ? (
                     <div className="space-y-2">

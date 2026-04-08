@@ -472,7 +472,7 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
                       "text-xs gap-1",
                       isAi ? "bg-tag text-tag-foreground" : "bg-accent text-accent-foreground"
                     )}
-                    title={isAi ? "Added by AI" : "Added manually"}
+                    title={isAi ? `Added by AI${asset.ai_model ? ` (${asset.ai_model})` : ""}` : "Added manually"}
                   >
                     {isAi && <Sparkles className="h-2.5 w-2.5 opacity-60" />}
                     {tag}
@@ -505,8 +505,12 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
 
           {/* AI Analysis */}
           <section className="space-y-2.5">
-            <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <h4
+              className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground"
+              title={asset.ai_model ? `Model: ${asset.ai_model}${asset.ai_tagged_at ? ` · Tagged ${format(new Date(asset.ai_tagged_at), "MMM d, yyyy HH:mm")}` : ""}` : undefined}
+            >
               <Sparkles className="h-3.5 w-3.5" /> AI Analysis
+              {asset.ai_model && <span className="normal-case font-normal tracking-normal text-[10px] truncate max-w-[120px]" title={asset.ai_model}>{asset.ai_model.split("/").pop()}</span>}
             </h4>
 
             {asset.ai_description ? (

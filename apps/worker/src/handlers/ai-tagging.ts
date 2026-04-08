@@ -340,6 +340,7 @@ ${usingPriorityOnly
     const updates: Record<string, unknown> = {
       status: "tagged",
       ai_tagged_at: new Date().toISOString(),
+      ai_model: model,
     };
     if (tagData.ai_description) updates.ai_description = tagData.ai_description;
     if (tagData.cover_description) updates.cover_description = tagData.cover_description;
