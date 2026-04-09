@@ -24,6 +24,7 @@ import {
   handleRenderQueueStats,
   handleRequestPathTest,
   handleRequeueAllNoPreview,
+  handleRequeueBrokenThumbnails,
   handleRequeueRenderJob,
   handleResetScanState,
   handleResumeScanning,
@@ -1143,6 +1144,8 @@ corsServe(async (req: Request) => {
         return await handleRetryFailedRenders();
       case "requeue-all-no-preview":
         return await handleRequeueAllNoPreview();
+      case "requeue-broken-thumbnails":
+        return await handleRequeueBrokenThumbnails();
       case "request-path-test":
         return await handleRequestPathTest(userId);
 

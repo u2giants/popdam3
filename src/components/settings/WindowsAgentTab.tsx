@@ -770,6 +770,17 @@ function RenderJobsTable() {
     onError: (e) => toast.error(e.message),
   });
 
+  const requeueBrokenMutation = useMutation({
+    mutationFn: () => call("requeue-broken-thumbnails"),
+    onSuccess: (data) => {
+      toast.success(`Queued ${data.queued ?? 0} broken-thumbnail assets for re-rendering${data.skipped ? ` (${data.skipped} already queued)` : ""}`);
+      queryClient.invalidateQueries({ queryKey: ["render-queue-recent"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-pending-count"] });
+      queryClient.invalidateQueries({ queryKey: ["render-queue-tab-counts"] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const jobs: Record<string, unknown>[] = data?.jobs || [];
 
   // Filterable/sortable columns for render jobs
@@ -841,6 +852,20 @@ function RenderJobsTable() {
           >
             <RotateCcw className="h-3.5 w-3.5" />
             {requeueAllMutation.isPending ? "Queueing..." : "Requeue All No-Preview"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              if (window.confirm("Re-queue 159 assets whose thumbnails are missing from storage (403/404 errors). Their broken thumbnail URLs will be cleared and they will be re-rendered by the Windows Agent. Continue?")) {
+                requeueBrokenMutation.mutate();
+              }
+            }}
+            disabled={requeueBrokenMutation.isPending} title={requeueBrokenMutation.isPending ? "Queueing…" : undefined}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {requeueBrokenMutation.isPending ? "Queueing..." : "Requeue Broken Thumbnails"}
           </Button>
           <Button
             variant="outline"

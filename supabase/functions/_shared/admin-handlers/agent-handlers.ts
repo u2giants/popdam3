@@ -968,7 +968,83 @@ export async function handleRequeueAllNoPreview() {
   return json({ ok: true, queued, skipped: activeSet.size });
 }
 
-// ── request-path-test ───────────────────────────────────────────────
+// ── requeue-broken-thumbnails ───────────────────────────────────────────────
+// Targets assets where thumbnail_url exists but is inaccessible (403/404 from
+// storage), identified by thumbnail_error = 'Thumbnail not found in storage…'.
+// Clears thumbnail_url so these appear as no-preview, then queues for re-render.
+
+export async function handleRequeueBrokenThumbnails() {
+  const db = serviceClient();
+
+  const PAGE = 1000;
+  const allAssetIds: string[] = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error: fetchErr } = await db
+      .from("assets")
+      .select("id, relative_path, filename, file_type")
+      .like("thumbnail_error", "Thumbnail not found in storage%")
+      .eq("is_deleted", false)
+      .order("id")
+      .range(from, from + PAGE - 1);
+
+    if (fetchErr) return err(fetchErr.message, 500);
+    if (!page || page.length === 0) break;
+    for (const a of page) allAssetIds.push(a.id);
+    if (page.length < PAGE) break;
+    from += PAGE;
+  }
+
+  if (allAssetIds.length === 0) {
+    return json({ ok: true, queued: 0, skipped: 0 });
+  }
+
+  const CHUNK = 500;
+
+  // Clear broken thumbnail_url so the asset shows as no-preview
+  for (let i = 0; i < allAssetIds.length; i += CHUNK) {
+    const chunk = allAssetIds.slice(i, i + CHUNK);
+    await db.from("assets").update({ thumbnail_url: null, thumbnail_error: null }).in("id", chunk);
+  }
+
+  // Skip assets already actively queued
+  const activeSet = new Set<string>();
+  for (let i = 0; i < allAssetIds.length; i += CHUNK) {
+    const chunk = allAssetIds.slice(i, i + CHUNK);
+    const { data: active } = await db
+      .from("render_queue")
+      .select("asset_id")
+      .in("asset_id", chunk)
+      .in("status", ["pending", "claimed"]);
+    (active ?? []).forEach((j) => activeSet.add(j.asset_id));
+  }
+
+  const toQueue = allAssetIds.filter((id) => !activeSet.has(id));
+  if (toQueue.length === 0) {
+    return json({ ok: true, queued: 0, skipped: allAssetIds.length });
+  }
+
+  // Clear any old failed jobs first
+  for (let i = 0; i < toQueue.length; i += CHUNK) {
+    const chunk = toQueue.slice(i, i + CHUNK);
+    await db.from("render_queue").delete().in("asset_id", chunk).eq("status", "failed");
+  }
+
+  let queued = 0;
+  for (let i = 0; i < toQueue.length; i += CHUNK) {
+    const chunk = toQueue.slice(i, i + CHUNK);
+    const rows = chunk.map((id) => ({ asset_id: id, status: "pending" as const }));
+    const { data: inserted } = await db
+      .from("render_queue")
+      .upsert(rows, { onConflict: "id", ignoreDuplicates: true })
+      .select("id");
+    queued += inserted?.length ?? chunk.length;
+  }
+
+  return json({ ok: true, queued, skipped: activeSet.size });
+}
+
+
 
 export async function handleRequestPathTest(userId: string) {
   const db = serviceClient();
