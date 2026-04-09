@@ -1044,8 +1044,6 @@ export async function handleRequeueBrokenThumbnails() {
   return json({ ok: true, queued, skipped: activeSet.size });
 }
 
-
-
 export async function handleRequestPathTest(userId: string) {
   const db = serviceClient();
   const requestId = crypto.randomUUID();
