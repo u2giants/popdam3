@@ -91,7 +91,7 @@ async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
  *
  * Returns true if the file should skip PDF-based rendering.
  */
-async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
+export async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
   const READ_SIZE = 65536; // 64 KB — enough to find DSC comments and PDF structure markers
   const fh = await open(filePath, "r");
   try {

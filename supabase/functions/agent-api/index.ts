@@ -128,6 +128,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "AI_TASK_MODELS",
   "PDF_EXTRACTION_CONFIG",
   "PDF_TEXT_SAMPLE_REQUEST",
+  "COMPAT_AUDIT_REQUEST",
 ];
 
 // Config keys needed only by Windows render agents
@@ -483,6 +484,28 @@ async function handleHeartbeat(
     }
   }
 
+  // ── Compat audit claim/dispatch ──
+  // Only dispatched to bridge agents (they have NAS access to check source files).
+  let compatAuditCommand: Record<string, unknown> = {};
+  if (agentType === "bridge") {
+    const auditReq = configMap.COMPAT_AUDIT_REQUEST as Record<string, unknown> | undefined;
+    if (auditReq && auditReq.status === "pending") {
+      const nowIso = new Date().toISOString();
+      const claimedReq: Record<string, unknown> = {
+        ...auditReq,
+        status: "processing",
+        claimed_by_agent_id: agentId,
+        claimed_at: nowIso,
+      };
+      await db.from("admin_config").upsert({
+        key: "COMPAT_AUDIT_REQUEST",
+        value: claimedReq,
+        updated_at: nowIso,
+      });
+      compatAuditCommand = { audit_compat_thumbnails: true };
+    }
+  }
+
   // ── Build response ──
   const responsePayload = {
     ok: true,
@@ -554,6 +577,7 @@ async function handleHeartbeat(
         return crawlReq.status === "pending" || (crawlReq.status === "claimed" && crawlReq.claimed_by === agentId);
       })(),
       ...pdfTextSampleCommand,
+      ...compatAuditCommand,
     },
   };
 
@@ -2673,6 +2697,92 @@ async function handlePdfTextSampleProgress(
   return json({ ok: true });
 }
 
+// ── Route: get-compat-audit-batch ────────────────────────────────────
+// Returns a paginated batch of AI assets that have a thumbnail_url set.
+// The bridge-agent reads source files for each to check /CompatibilityAlert.
+
+const COMPAT_AUDIT_BATCH_SIZE = 200;
+
+async function handleGetCompatAuditBatch(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const offset = optionalNumber(body, "offset") ?? 0;
+
+  const { data, error } = await db
+    .from("assets")
+    .select("id, relative_path")
+    .eq("file_type", "ai")
+    .eq("is_deleted", false)
+    .not("thumbnail_url", "is", null)
+    .order("id")
+    .range(offset, offset + COMPAT_AUDIT_BATCH_SIZE - 1);
+
+  if (error) return err(error.message, 500);
+
+  return json({ ok: true, assets: data ?? [], batch_size: COMPAT_AUDIT_BATCH_SIZE });
+}
+
+// ── Route: clear-compat-thumbnails ─────────────────────────────────
+// Force-clears thumbnail_url and sets thumbnail_error = "no_pdf_compat" for
+// assets identified as CompatibilityAlert placeholders.
+// Bypasses the normal ingest protection that keeps existing thumbnails.
+
+async function handleClearCompatThumbnails(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const assetIds = body.asset_ids as string[];
+  if (!Array.isArray(assetIds) || assetIds.length === 0) {
+    return json({ ok: true, cleared: 0 });
+  }
+
+  const CHUNK = 200;
+  let cleared = 0;
+  for (let i = 0; i < assetIds.length; i += CHUNK) {
+    const chunk = assetIds.slice(i, i + CHUNK);
+    const { error } = await db
+      .from("assets")
+      .update({ thumbnail_url: null, thumbnail_error: "no_pdf_compat" })
+      .in("id", chunk);
+    if (error) return err(error.message, 500);
+    cleared += chunk.length;
+  }
+
+  return json({ ok: true, cleared });
+}
+
+// ── Route: complete-compat-audit ─────────────────────────────────────
+// Called by bridge-agent when the audit loop finishes.
+
+async function handleCompleteCompatAudit(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const cleared = optionalNumber(body, "cleared") ?? 0;
+  const scanned = optionalNumber(body, "scanned") ?? 0;
+  const errorMsg = optionalString(body, "error") ?? null;
+  const nowIso = new Date().toISOString();
+
+  const { data: reqRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "COMPAT_AUDIT_REQUEST")
+    .maybeSingle();
+
+  if (!reqRow?.value) return json({ ok: true, ignored: true });
+
+  const updated: Record<string, unknown> = {
+    ...(reqRow.value as Record<string, unknown>),
+    status: errorMsg ? "error" : "completed",
+    completed_at: nowIso,
+    result: { scanned, cleared },
+  };
+  if (errorMsg) updated.error = errorMsg.slice(0, 500);
+
+  await db.from("admin_config").upsert({
+    key: "COMPAT_AUDIT_REQUEST",
+    value: updated,
+    updated_at: nowIso,
+  });
+
+  return json({ ok: true });
+}
+
 corsServe(async (req: Request) => {
   if (req.method !== "POST") {
     return err("Method not allowed", 405);
@@ -2798,6 +2908,12 @@ corsServe(async (req: Request) => {
         return await handleCompletePdfTextSample(body);
       case "pdf-text-sample-progress":
         return await handlePdfTextSampleProgress(body, agentId, agentName);
+      case "get-compat-audit-batch":
+        return await handleGetCompatAuditBatch(body);
+      case "clear-compat-thumbnails":
+        return await handleClearCompatThumbnails(body);
+      case "complete-compat-audit":
+        return await handleCompleteCompatAudit(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

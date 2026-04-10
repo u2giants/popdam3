@@ -19,7 +19,7 @@ import { readFileSync } from "node:fs";
 import { stat, readdir, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, isPdfCandidate, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
-import { generateThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
+import { generateThumbnail, isAiWithoutPdfCompat, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
@@ -37,6 +37,7 @@ const MAX_SKIPPED_DIRS = 500;
 let skippedDirs: string[] = [];
 let isCrawlingStyleGuides = false;
 let isSamplingPdfText = false;
+let isAuditingCompatThumbnails = false;
 
 // ── Version info (injected via Docker build args or package.json) ──
 const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
@@ -217,6 +218,14 @@ async function sendHeartbeat() {
         anthropicApiKey: cloudAnthropicApiKey,
       }).finally(() => {
         isSamplingPdfText = false;
+      });
+    }
+    // Compat audit
+    if (response.commands.audit_compat_thumbnails && !isAuditingCompatThumbnails) {
+      isAuditingCompatThumbnails = true;
+      logger.info("Compat thumbnail audit requested via heartbeat");
+      runCompatAudit().finally(() => {
+        isAuditingCompatThumbnails = false;
       });
     }
     // Style guide crawl
@@ -875,6 +884,62 @@ async function processFile(file: FileCandidate) {
 }
 
 // ── Sibling Scan Handler ─────────────────────────────────────────
+
+// ── Compat audit ────────────────────────────────────────────────────────────
+// Reads source AI files for all assets that currently have thumbnail_url set.
+// Checks each file for the /CompatibilityAlert marker (Illustrator saved without
+// PDF compatibility). Clears thumbnails for matches so the asset is re-queued
+// for proper rendering (Windows Render Agent / Inkscape path).
+
+async function runCompatAudit(): Promise<void> {
+  logger.info("Starting compat thumbnail audit");
+  const effectiveMountRoot = cloudMountRoot || config.nasContainerMountRoot;
+  let offset = 0;
+  let totalScanned = 0;
+  let totalCleared = 0;
+
+  try {
+    while (true) {
+      const { assets, batch_size } = await api.getCompatAuditBatch(offset);
+      if (!assets || assets.length === 0) break;
+
+      const badIds: string[] = [];
+
+      for (const asset of assets) {
+        totalScanned++;
+        const absolutePath = `${effectiveMountRoot}/${asset.relative_path}`;
+        try {
+          const isCompat = await isAiWithoutPdfCompat(absolutePath);
+          if (isCompat) {
+            badIds.push(asset.id);
+            logger.info("Compat audit: flagging placeholder thumbnail", { path: asset.relative_path });
+          }
+        } catch (e) {
+          logger.warn("Compat audit: file check failed (skipping)", {
+            path: asset.relative_path,
+            error: (e as Error).message,
+          });
+        }
+      }
+
+      if (badIds.length > 0) {
+        await api.clearCompatThumbnails(badIds);
+        totalCleared += badIds.length;
+        logger.info("Compat audit: cleared placeholder thumbnails", { cleared: badIds.length, cumulative: totalCleared });
+      }
+
+      if (assets.length < batch_size) break; // last page
+      offset += batch_size;
+    }
+
+    logger.info("Compat thumbnail audit complete", { scanned: totalScanned, cleared: totalCleared });
+    await api.completeCompatAudit(totalScanned, totalCleared);
+  } catch (e) {
+    const msg = (e as Error).message;
+    logger.error("Compat thumbnail audit failed", { error: msg, scanned: totalScanned, cleared: totalCleared });
+    await api.completeCompatAudit(totalScanned, totalCleared, msg).catch(() => {});
+  }
+}
 
 let siblingScanInProgress = false;
 

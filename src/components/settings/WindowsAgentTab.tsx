@@ -770,6 +770,14 @@ function RenderJobsTable() {
     onError: (e) => toast.error(e.message),
   });
 
+  const compatAuditMutation = useMutation({
+    mutationFn: () => call("trigger-compat-audit"),
+    onSuccess: () => {
+      toast.success("Compat audit queued — bridge agent will scan AI source files on next heartbeat");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const requeueBrokenMutation = useMutation({
     mutationFn: () => call("requeue-broken-thumbnails"),
     onSuccess: (data) => {
@@ -858,7 +866,7 @@ function RenderJobsTable() {
             size="sm"
             className="gap-1.5"
             onClick={() => {
-              if (window.confirm("Re-queue 159 assets whose thumbnails are missing from storage (403/404 errors). Their broken thumbnail URLs will be cleared and they will be re-rendered by the Windows Agent. Continue?")) {
+              if (window.confirm("Re-queue assets whose thumbnails are missing from storage (403/404 errors). Their broken thumbnail URLs will be cleared and they will be re-rendered by the Windows Agent. Continue?")) {
                 requeueBrokenMutation.mutate();
               }
             }}
@@ -866,6 +874,20 @@ function RenderJobsTable() {
           >
             <RotateCcw className="h-3.5 w-3.5" />
             {requeueBrokenMutation.isPending ? "Queueing..." : "Requeue Broken Thumbnails"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              if (window.confirm("Audit all AI files that have thumbnails. The bridge agent will check each source file for the Illustrator 'no PDF compatibility' marker and clear any placeholder thumbnails it finds. They will be re-queued for proper rendering. Continue?")) {
+                compatAuditMutation.mutate();
+              }
+            }}
+            disabled={compatAuditMutation.isPending} title={compatAuditMutation.isPending ? "Queuing audit…" : undefined}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {compatAuditMutation.isPending ? "Queuing..." : "Audit AI Compat Thumbnails"}
           </Button>
           <Button
             variant="outline"

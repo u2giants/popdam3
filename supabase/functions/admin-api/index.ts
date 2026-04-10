@@ -25,6 +25,7 @@ import {
   handleRequestPathTest,
   handleRequeueAllNoPreview,
   handleRequeueBrokenThumbnails,
+  handleTriggerCompatAudit,
   handleRequeueRenderJob,
   handleResetScanState,
   handleResumeScanning,
@@ -1146,6 +1147,8 @@ corsServe(async (req: Request) => {
         return await handleRequeueAllNoPreview();
       case "requeue-broken-thumbnails":
         return await handleRequeueBrokenThumbnails();
+      case "trigger-compat-audit":
+        return await handleTriggerCompatAudit();
       case "request-path-test":
         return await handleRequestPathTest(userId);
 

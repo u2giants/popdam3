@@ -1044,6 +1044,31 @@ export async function handleRequeueBrokenThumbnails() {
   return json({ ok: true, queued, skipped: activeSet.size });
 }
 
+// ── trigger-compat-audit ─────────────────────────────────────────────────────
+// Sets COMPAT_AUDIT_REQUEST so the next bridge-agent heartbeat picks it up.
+// The agent reads every AI source file with a thumbnail and clears any that
+// contain the Illustrator /CompatibilityAlert form (no PDF compat saves).
+
+export async function handleTriggerCompatAudit() {
+  const db = serviceClient();
+  const requestId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const { error } = await db.from("admin_config").upsert({
+    key: "COMPAT_AUDIT_REQUEST",
+    value: {
+      request_id: requestId,
+      status: "pending",
+      requested_at: now,
+    },
+    updated_at: now,
+  });
+
+  if (error) return err(error.message, 500);
+
+  return json({ ok: true, request_id: requestId });
+}
+
 export async function handleRequestPathTest(userId: string) {
   const db = serviceClient();
   const requestId = crypto.randomUUID();
