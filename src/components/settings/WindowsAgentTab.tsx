@@ -920,6 +920,17 @@ function RenderJobsTable() {
             <Eye className="h-3.5 w-3.5" />
             {previewPolling ? "Scanning…" : "Preview AI Compat Thumbnails"}
           </Button>
+          {previewStatus === "completed" && !previewPolling && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setPreviewDialogOpen(true)}
+            >
+              <ImageIcon className="h-3.5 w-3.5" />
+              View Last Preview ({previewFlagged.length} flagged / {previewScanned} scanned)
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
