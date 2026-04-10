@@ -15,6 +15,7 @@ import {
   handleGenerateAgentKey,
   handleGenerateBootstrapToken,
   handleGenerateRepairCode,
+  handleGetCompatAuditPreviewResult,
   handleGetFilterOptions,
   handleGetUpdateStatus,
   handleListAgents,
@@ -25,8 +26,6 @@ import {
   handleRequestPathTest,
   handleRequeueAllNoPreview,
   handleRequeueBrokenThumbnails,
-  handleTriggerCompatAuditPreview,
-  handleGetCompatAuditPreviewResult,
   handleRequeueRenderJob,
   handleResetScanState,
   handleResumeScanning,
@@ -38,6 +37,7 @@ import {
   handleStopScan,
   handleTriggerAgentUpdate,
   handleTriggerCompatAudit,
+  handleTriggerCompatAuditPreview,
   handleTriggerScan,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
