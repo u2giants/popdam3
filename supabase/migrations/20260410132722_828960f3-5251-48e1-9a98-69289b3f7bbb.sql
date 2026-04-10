@@ -1,0 +1,1 @@
+ALTER TABLE public.assets ADD COLUMN ai_model text DEFAULT NULL;
