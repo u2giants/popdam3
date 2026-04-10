@@ -958,12 +958,19 @@ function RenderJobsTable() {
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Compat audit preview results — shown inline when a scan is running or has completed */}
-        {(previewPolling || previewStatus === "completed" || previewStatus === "processing") && (
+        {(previewPolling || previewStatus === "completed" || previewStatus === "processing") && (() => {
+          const claimedAt = previewResult?.claimed_at as string | undefined;
+          const processingMs = claimedAt ? Date.now() - new Date(claimedAt).getTime() : 0;
+          const isStale = previewStatus === "processing" && processingMs > 3 * 60 * 1000; // >3 min = stuck
+
+          return (
           <div className="border border-border rounded-md p-3 space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">AI Compat Thumbnail Preview</p>
-                {previewPolling || previewStatus === "processing" ? (
+                {isStale ? (
+                  <p className="text-xs text-warning">Scan timed out — bridge agent may be running an old version (need ≥ 1.6.9). Check bridge agent version in the status card above.</p>
+                ) : previewPolling || previewStatus === "processing" ? (
                   <p className="text-xs text-muted-foreground">Bridge agent is scanning AI source files… (this can take up to a minute)</p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
@@ -1026,7 +1033,8 @@ function RenderJobsTable() {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* Status filter tabs */}
         <div className="flex gap-1 border-b border-border pb-2">
