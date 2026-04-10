@@ -778,7 +778,6 @@ function RenderJobsTable() {
     onError: (e) => toast.error(e.message),
   });
 
-  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewPolling, setPreviewPolling] = useState(false);
 
   const compatPreviewMutation = useMutation({
@@ -803,12 +802,11 @@ function RenderJobsTable() {
 
   useEffect(() => {
     if (!previewPolling) return;
-    if (previewStatus === "completed") {
+    if (previewStatus === "completed" || previewStatus === "error") {
       setPreviewPolling(false);
-      setPreviewDialogOpen(true);
-    } else if (previewStatus === "error") {
-      setPreviewPolling(false);
-      toast.error(`Preview failed: ${(previewResult?.error as string) ?? "unknown error"}`);
+      if (previewStatus === "error") {
+        toast.error(`Preview failed: ${(previewResult?.error as string) ?? "unknown error"}`);
+      }
     }
   }, [previewStatus, previewPolling, previewResult?.error]);
 
@@ -920,17 +918,6 @@ function RenderJobsTable() {
             <Eye className="h-3.5 w-3.5" />
             {previewPolling ? "Scanning…" : "Preview AI Compat Thumbnails"}
           </Button>
-          {previewStatus === "completed" && !previewPolling && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setPreviewDialogOpen(true)}
-            >
-              <ImageIcon className="h-3.5 w-3.5" />
-              View Last Preview ({previewFlagged.length} flagged / {previewScanned} scanned)
-            </Button>
-          )}
           <Button
             variant="outline"
             size="sm"
@@ -945,74 +932,6 @@ function RenderJobsTable() {
             <RotateCcw className="h-3.5 w-3.5" />
             {compatAuditMutation.isPending ? "Queuing..." : "Audit AI Compat Thumbnails"}
           </Button>
-
-          {/* Compat Audit Preview Dialog */}
-          {previewDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPreviewDialogOpen(false)}>
-              <div className="bg-background border border-border rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                  <div>
-                    <h2 className="text-base font-semibold">Compat Audit Preview</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Scanned first {previewScanned} AI assets. Found <strong>{previewFlagged.length}</strong> with placeholder thumbnails.
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewDialogOpen(false)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="overflow-y-auto flex-1 p-4">
-                  {previewFlagged.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-2">
-                      <ImageIcon className="h-8 w-8 opacity-40" />
-                      <p className="text-sm">No placeholder thumbnails detected in the first {previewScanned} assets.</p>
-                      <p className="text-xs">The full audit should be safe to run.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <p className="text-xs text-muted-foreground">These thumbnails show the Illustrator "no PDF compatibility" warning page. The full audit will clear them so real artwork can be rendered.</p>
-                      <div className="grid grid-cols-3 gap-3">
-                        {previewFlagged.slice(0, 9).map((item) => (
-                          <div key={item.id} className="space-y-1">
-                            <div className="aspect-square bg-muted rounded overflow-hidden border border-border">
-                              <img
-                                src={item.thumbnail_url}
-                                alt={item.relative_path}
-                                className="w-full h-full object-contain"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                              />
-                            </div>
-                            <p className="text-[10px] text-muted-foreground truncate" title={item.relative_path}>
-                              {item.relative_path.split("/").pop()}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                      {previewFlagged.length > 9 && (
-                        <p className="text-xs text-muted-foreground">…and {previewFlagged.length - 9} more in this batch.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-                  <Button variant="ghost" size="sm" onClick={() => setPreviewDialogOpen(false)}>Cancel</Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => {
-                      setPreviewDialogOpen(false);
-                      compatAuditMutation.mutate();
-                    }}
-                    disabled={compatAuditMutation.isPending}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Run Full Audit (Clear All Flagged)
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
           <Button
             variant="outline"
             size="sm"
@@ -1038,6 +957,77 @@ function RenderJobsTable() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Compat audit preview results — shown inline when a scan is running or has completed */}
+        {(previewPolling || previewStatus === "completed" || previewStatus === "processing") && (
+          <div className="border border-border rounded-md p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">AI Compat Thumbnail Preview</p>
+                {previewPolling || previewStatus === "processing" ? (
+                  <p className="text-xs text-muted-foreground">Bridge agent is scanning AI source files… (this can take up to a minute)</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Scanned first {previewScanned} AI assets — found <strong>{previewFlagged.length}</strong> placeholder thumbnail{previewFlagged.length !== 1 ? "s" : ""}
+                  </p>
+                )}
+              </div>
+              {previewStatus === "completed" && previewFlagged.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1.5 shrink-0"
+                  onClick={() => {
+                    if (window.confirm(`Clear ${previewFlagged.length} placeholder thumbnail${previewFlagged.length !== 1 ? "s" : ""}? The bridge agent will re-scan all AI files and clear any it detects as CompatibilityAlert placeholders.`)) {
+                      compatAuditMutation.mutate();
+                    }
+                  }}
+                  disabled={compatAuditMutation.isPending}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {compatAuditMutation.isPending ? "Queueing…" : "Run Full Audit"}
+                </Button>
+              )}
+            </div>
+
+            {previewPolling || previewStatus === "processing" ? (
+              <div className="grid grid-cols-6 gap-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="aspect-square bg-muted rounded animate-pulse" />
+                ))}
+              </div>
+            ) : previewFlagged.length === 0 ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                <ImageIcon className="h-4 w-4 opacity-40 shrink-0" />
+                <span>No placeholder thumbnails detected in the first {previewScanned} assets — the full audit should be safe to run.</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">These show the Illustrator "no PDF compatibility" warning page instead of real artwork:</p>
+                <div className="grid grid-cols-6 gap-2">
+                  {previewFlagged.slice(0, 12).map((item) => (
+                    <div key={item.id} className="space-y-1">
+                      <div className="aspect-square bg-muted rounded overflow-hidden border border-border">
+                        <img
+                          src={item.thumbnail_url}
+                          alt={item.relative_path}
+                          className="w-full h-full object-contain"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      </div>
+                      <p className="text-[9px] text-muted-foreground truncate leading-tight" title={item.relative_path}>
+                        {item.relative_path.split("/").pop()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {previewFlagged.length > 12 && (
+                  <p className="text-xs text-muted-foreground">…and {previewFlagged.length - 12} more in this batch.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Status filter tabs */}
         <div className="flex gap-1 border-b border-border pb-2">
           {tabs.map((tab) => (
