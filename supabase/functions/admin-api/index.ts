@@ -25,7 +25,6 @@ import {
   handleRequestPathTest,
   handleRequeueAllNoPreview,
   handleRequeueBrokenThumbnails,
-  handleTriggerCompatAudit,
   handleRequeueRenderJob,
   handleResetScanState,
   handleResumeScanning,
@@ -36,6 +35,7 @@ import {
   handleSetAgentCommand,
   handleStopScan,
   handleTriggerAgentUpdate,
+  handleTriggerCompatAudit,
   handleTriggerScan,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
