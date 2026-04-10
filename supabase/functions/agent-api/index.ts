@@ -101,7 +101,6 @@ const HEARTBEAT_CONFIG_KEYS_COMMON = [
   "RESOURCE_GUARD",
   "POLLING_CONFIG",
   "AUTO_SCAN_CONFIG",
-  "AGENT_UPDATE_REQUEST",
   "WINDOWS_RENDER_MODE",
   "WINDOWS_RENDER_POLICY",
   "DO_SPACES_KEY",
@@ -111,6 +110,7 @@ const HEARTBEAT_CONFIG_KEYS_COMMON = [
 // Config keys needed only by bridge agents (Linux/Docker)
 const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   ...HEARTBEAT_CONFIG_KEYS_COMMON,
+  "AGENT_UPDATE_REQUEST", // bridge-only: Windows agents use trigger_update in their own metadata
   "SCAN_ROOTS",
   "NAS_CONTAINER_MOUNT_ROOT",
   "NAS_HOST_PATH",
@@ -410,7 +410,7 @@ async function handleHeartbeat(
   let checkUpdate = false;
   let applyUpdate = false;
 
-  if (updateRequest && updateRequest.requested_at) {
+  if (agentType === "bridge" && updateRequest && updateRequest.requested_at) {
     const requestAge = Date.now() - new Date(updateRequest.requested_at as string).getTime();
     if (requestAge < REQUEST_AGE_MS) {
       checkUpdate = updateRequest.action === "check";
