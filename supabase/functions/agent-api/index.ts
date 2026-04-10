@@ -129,6 +129,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "PDF_EXTRACTION_CONFIG",
   "PDF_TEXT_SAMPLE_REQUEST",
   "COMPAT_AUDIT_REQUEST",
+  "COMPAT_AUDIT_PREVIEW_REQUEST",
 ];
 
 // Config keys needed only by Windows render agents
@@ -503,6 +504,18 @@ async function handleHeartbeat(
         updated_at: nowIso,
       });
       compatAuditCommand = { audit_compat_thumbnails: true };
+    } else {
+      // Preview scan (single batch, no clearing — just reports which would be flagged)
+      const previewReq = configMap.COMPAT_AUDIT_PREVIEW_REQUEST as Record<string, unknown> | undefined;
+      if (previewReq && previewReq.status === "pending") {
+        const nowIso = new Date().toISOString();
+        await db.from("admin_config").upsert({
+          key: "COMPAT_AUDIT_PREVIEW_REQUEST",
+          value: { ...previewReq, status: "processing", claimed_by_agent_id: agentId, claimed_at: nowIso },
+          updated_at: nowIso,
+        });
+        compatAuditCommand = { audit_compat_preview: true };
+      }
     }
   }
 
@@ -2709,7 +2722,7 @@ async function handleGetCompatAuditBatch(body: Record<string, unknown>) {
 
   const { data, error } = await db
     .from("assets")
-    .select("id, relative_path")
+    .select("id, relative_path, thumbnail_url")
     .eq("file_type", "ai")
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null)
@@ -2746,6 +2759,44 @@ async function handleClearCompatThumbnails(body: Record<string, unknown>) {
   }
 
   return json({ ok: true, cleared });
+}
+
+// ── Route: complete-compat-audit-preview ─────────────────────────────
+// Called by bridge-agent after scanning the first batch in preview mode.
+// Stores the list of flagged assets (with thumbnail_url) so the admin UI
+// can display them before the user commits to the destructive full audit.
+
+async function handleCompleteCompatAuditPreview(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const scanned = optionalNumber(body, "scanned") ?? 0;
+  const flagged = (body.flagged as Array<Record<string, unknown>>) ?? [];
+  const errorMsg = optionalString(body, "error") ?? null;
+  const nowIso = new Date().toISOString();
+
+  const { data: reqRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "COMPAT_AUDIT_PREVIEW_REQUEST")
+    .maybeSingle();
+
+  if (!reqRow?.value) return json({ ok: true, ignored: true });
+
+  const updated: Record<string, unknown> = {
+    ...(reqRow.value as Record<string, unknown>),
+    status: errorMsg ? "error" : "completed",
+    completed_at: nowIso,
+    scanned,
+    flagged,
+  };
+  if (errorMsg) updated.error = errorMsg.slice(0, 500);
+
+  await db.from("admin_config").upsert({
+    key: "COMPAT_AUDIT_PREVIEW_REQUEST",
+    value: updated,
+    updated_at: nowIso,
+  });
+
+  return json({ ok: true });
 }
 
 // ── Route: complete-compat-audit ─────────────────────────────────────
@@ -2914,6 +2965,8 @@ corsServe(async (req: Request) => {
         return await handleClearCompatThumbnails(body);
       case "complete-compat-audit":
         return await handleCompleteCompatAudit(body);
+      case "complete-compat-audit-preview":
+        return await handleCompleteCompatAuditPreview(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

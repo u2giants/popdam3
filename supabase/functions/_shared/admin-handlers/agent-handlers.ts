@@ -1069,6 +1069,43 @@ export async function handleTriggerCompatAudit() {
   return json({ ok: true, request_id: requestId });
 }
 
+// ── trigger-compat-audit-preview ──────────────────────────────────────────────
+// Sets COMPAT_AUDIT_PREVIEW_REQUEST so the bridge agent scans the first batch
+// and reports back which assets are flagged — without clearing anything.
+
+export async function handleTriggerCompatAuditPreview() {
+  const db = serviceClient();
+  const requestId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const { error } = await db.from("admin_config").upsert({
+    key: "COMPAT_AUDIT_PREVIEW_REQUEST",
+    value: {
+      request_id: requestId,
+      status: "pending",
+      requested_at: now,
+    },
+    updated_at: now,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, request_id: requestId });
+}
+
+// ── get-compat-audit-preview-result ───────────────────────────────────────────
+// Returns the current COMPAT_AUDIT_PREVIEW_REQUEST value (status + flagged list).
+
+export async function handleGetCompatAuditPreviewResult() {
+  const db = serviceClient();
+  const { data } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "COMPAT_AUDIT_PREVIEW_REQUEST")
+    .maybeSingle();
+
+  return json({ ok: true, preview: data?.value ?? null });
+}
+
 export async function handleRequestPathTest(userId: string) {
   const db = serviceClient();
   const requestId = crypto.randomUUID();

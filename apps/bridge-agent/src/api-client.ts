@@ -159,6 +159,7 @@ export interface HeartbeatResponse {
     trigger_pdf_text_sample?: boolean;
     pdf_text_sample_assets?: unknown[];
     audit_compat_thumbnails?: boolean;
+    audit_compat_preview?: boolean;
   };
 }
 
@@ -364,6 +365,7 @@ export async function reportPdfTextSampleProgress(payload: Record<string, unknow
 export interface CompatAuditAsset {
   id: string;
   relative_path: string;
+  thumbnail_url?: string;
 }
 
 export async function getCompatAuditBatch(offset: number): Promise<{ assets: CompatAuditAsset[]; batch_size: number }> {
@@ -377,4 +379,18 @@ export async function clearCompatThumbnails(assetIds: string[]): Promise<void> {
 
 export async function completeCompatAudit(scanned: number, cleared: number, error?: string): Promise<void> {
   await callApi("complete-compat-audit", { scanned, cleared, error });
+}
+
+export interface CompatAuditPreviewFlagged {
+  id: string;
+  thumbnail_url: string;
+  relative_path: string;
+}
+
+export async function completeCompatAuditPreview(
+  scanned: number,
+  flagged: CompatAuditPreviewFlagged[],
+  error?: string,
+): Promise<void> {
+  await callApi("complete-compat-audit-preview", { scanned, flagged, error });
 }
