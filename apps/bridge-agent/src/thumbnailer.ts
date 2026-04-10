@@ -10,7 +10,7 @@
 import sharp from "sharp";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, readFile, rm, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, readdir, open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger.js";
@@ -80,6 +80,41 @@ async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
   }
 
   throw new Error("no_preview_or_render_failed");
+}
+
+/**
+ * Detect AI files saved without PDF compatibility.
+ *
+ * When Illustrator saves without the "PDF compatibility" option, the embedded PDF
+ * (if any) contains only a /CompatibilityAlert form XObject rather than real artwork.
+ * Ghostscript "succeeds" but renders that warning notice — a useless placeholder.
+ *
+ * Returns true if the file should skip PDF-based rendering.
+ */
+async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
+  const READ_SIZE = 65536; // 64 KB — enough to find DSC comments and PDF structure markers
+  const fh = await open(filePath, "r");
+  try {
+    const buf = Buffer.alloc(READ_SIZE);
+    const { bytesRead } = await fh.read(buf, 0, READ_SIZE, 0);
+    const head = buf.slice(0, bytesRead).toString("latin1");
+
+    // Older Illustrator format: pure PostScript (no embedded PDF stream).
+    // Ghostscript renders the PS content, which is just the compatibility notice.
+    if (head.startsWith("%!PS-Adobe-") && !head.includes("%PDF-")) {
+      return true;
+    }
+
+    // Modern Illustrator format: PDF-wrapped but without real artwork.
+    // The page content calls /CompatibilityAlert instead of actual drawing ops.
+    if (head.includes("/CompatibilityAlert")) {
+      return true;
+    }
+
+    return false;
+  } finally {
+    await fh.close();
+  }
 }
 
 /**
@@ -164,6 +199,26 @@ async function thumbnailAiGhostscript(filePath: string): Promise<ThumbnailResult
 }
 
 async function thumbnailAi(filePath: string): Promise<ThumbnailResult> {
+  // Pre-flight: detect AI files saved without PDF compatibility.
+  // These produce a /CompatibilityAlert page when rendered — a warning notice, not artwork.
+  // Skip all PDF-based methods and attempt sibling fallback only.
+  let skipPdfRendering = false;
+  try {
+    skipPdfRendering = await isAiWithoutPdfCompat(filePath);
+  } catch (e) {
+    logger.warn("AI compat pre-check failed, proceeding with normal render", { filePath, error: (e as Error).message });
+  }
+
+  if (skipPdfRendering) {
+    logger.warn("AI file has no PDF compatibility — skipping PDF rendering to avoid placeholder thumbnail", { filePath });
+    try {
+      return await thumbnailFromSibling(filePath);
+    } catch {
+      // No sibling found either
+    }
+    throw new Error("no_pdf_compat");
+  }
+
   // Step 1: Try sharp (PDF-compatible .ai files)
   try {
     const aiBuffer = await readFile(filePath);

@@ -22,7 +22,7 @@
 import sharp from "sharp";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm, readdir } from "node:fs/promises";
+import { mkdtemp, rm, readdir, open } from "node:fs/promises";
 import { readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -218,6 +218,42 @@ function findPoppler(): string | null {
 }
 
 const POPPLER_EXE = findPoppler();
+
+// ── AI PDF-compat pre-check ─────────────────────────────────────
+
+/**
+ * Detect AI files saved without PDF compatibility.
+ *
+ * When saved without the "PDF compatibility" option, the embedded PDF contains only
+ * a /CompatibilityAlert form XObject. Ghostscript, Sharp, and Poppler all "succeed"
+ * but render the warning notice rather than actual artwork.
+ *
+ * Returns true if PDF-based rendering should be skipped.
+ * Inkscape (which reads the native AI/SVG format) is still worth trying.
+ */
+async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
+  const READ_SIZE = 65536; // 64 KB — enough for DSC comments and PDF structure markers
+  const fh = await open(filePath, "r");
+  try {
+    const buf = Buffer.alloc(READ_SIZE);
+    const { bytesRead } = await fh.read(buf, 0, READ_SIZE, 0);
+    const head = buf.slice(0, bytesRead).toString("latin1");
+
+    // Older format: pure PostScript without embedded PDF stream
+    if (head.startsWith("%!PS-Adobe-") && !head.includes("%PDF-")) {
+      return true;
+    }
+
+    // Modern format: PDF-wrapped but page content calls /CompatibilityAlert form
+    if (head.includes("/CompatibilityAlert")) {
+      return true;
+    }
+
+    return false;
+  } finally {
+    await fh.close();
+  }
+}
 
 // ── Step 1: Sharp ───────────────────────────────────────────────
 
@@ -538,19 +574,38 @@ export async function renderFile(
 
   const failures: string[] = [];
 
-  // Step 1: Sharp (both AI and PSD)
-  try {
-    const result = await renderWithSharp(uncPath, fileType);
-    logger.info("Sharp render succeeded", { uncPath });
-    return result;
-  } catch (e) {
-    const msg = (e as Error).message;
-    failures.push(`sharp: ${msg}`);
-    logger.warn("Sharp failed", { uncPath, error: msg });
+  // Pre-flight for AI: detect files saved without PDF compatibility.
+  // Sharp, GS, and Poppler all render the /CompatibilityAlert notice page rather than
+  // real artwork for these files — skip them.  Inkscape reads the native AI/SVG format
+  // and may still succeed, so it runs regardless.
+  let skipPdfRendering = false;
+  if (fileType === "ai") {
+    try {
+      skipPdfRendering = await isAiWithoutPdfCompat(uncPath);
+      if (skipPdfRendering) {
+        logger.warn("AI file has no PDF compatibility — skipping Sharp/GS/Poppler", { uncPath });
+        failures.push("sharp: skipped (no pdf compat)", "ghostscript: skipped (no pdf compat)", "poppler: skipped (no pdf compat)");
+      }
+    } catch (e) {
+      logger.warn("AI compat pre-check failed, proceeding with normal render", { uncPath, error: (e as Error).message });
+    }
   }
 
-  // Step 2a: Ghostscript (AI only — GS doesn't handle PSD)
-  if (fileType === "ai") {
+  // Step 1: Sharp (both AI and PSD — skipped for non-PDF-compat AI)
+  if (!skipPdfRendering) {
+    try {
+      const result = await renderWithSharp(uncPath, fileType);
+      logger.info("Sharp render succeeded", { uncPath });
+      return result;
+    } catch (e) {
+      const msg = (e as Error).message;
+      failures.push(`sharp: ${msg}`);
+      logger.warn("Sharp failed", { uncPath, error: msg });
+    }
+  }
+
+  // Step 2a: Ghostscript (AI only — skipped for non-PDF-compat AI)
+  if (fileType === "ai" && !skipPdfRendering) {
     try {
       const result = await renderWithGhostscript(uncPath);
       logger.info("Ghostscript render succeeded", { uncPath });
@@ -562,8 +617,8 @@ export async function renderFile(
     }
   }
 
-  // Step 2c: Poppler/pdftoppm (AI only — different PDF engine, handles GS edge-cases)
-  if (fileType === "ai") {
+  // Step 2c: Poppler/pdftoppm (AI only — skipped for non-PDF-compat AI)
+  if (fileType === "ai" && !skipPdfRendering) {
     try {
       const result = await renderWithPoppler(uncPath);
       logger.info("Poppler render succeeded", { uncPath });
@@ -576,6 +631,7 @@ export async function renderFile(
   }
 
   // Step 2d: Inkscape (AI only — independent engine, no PDF dependency)
+  // Runs even for non-PDF-compat files because Inkscape reads native AI/SVG format.
   if (fileType === "ai") {
     try {
       const result = await renderWithInkscape(uncPath);
