@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 import { mkdtemp, readFile, rm, readdir, open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createWorker } from "tesseract.js";
 import { logger } from "./logger.js";
 
 const execFileAsync = promisify(execFile);
@@ -114,6 +115,53 @@ export async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
     return false;
   } finally {
     await fh.close();
+  }
+}
+
+/**
+ * Create a long-lived Tesseract worker for compat-audit batch processing.
+ * Caller is responsible for calling worker.terminate() when done.
+ */
+export async function createCompatAuditWorker() {
+  return createWorker("eng");
+}
+
+/**
+ * Checks whether a stored thumbnail URL visually shows an Illustrator
+ * compatibility-alert warning page (the "no PDF compatibility" notice)
+ * rather than real artwork.
+ *
+ * Strategy: OCR the thumbnail and look for the word "compatibility", which
+ * Illustrator's warning page always contains prominently. Real artwork
+ * thumbnails virtually never include that word.
+ *
+ * Returns false conservatively on fetch/OCR errors — better to miss one
+ * than to accidentally clear a good thumbnail.
+ *
+ * Pass a pre-created worker (createCompatAuditWorker) to avoid reloading
+ * the language model for every image in a batch.
+ */
+export async function isCompatAlertThumbnail(
+  thumbnailUrl: string,
+  worker: Awaited<ReturnType<typeof createWorker>>,
+): Promise<boolean> {
+  try {
+    const resp = await fetch(thumbnailUrl);
+    if (!resp.ok) return false;
+    const imgBuffer = Buffer.from(await resp.arrayBuffer());
+
+    const { data: { text } } = await worker.recognize(imgBuffer);
+    const lower = text.toLowerCase();
+
+    // The Illustrator compatibility-alert page always contains "compatibility"
+    // as a prominent heading. Real-artwork thumbnails never do.
+    return lower.includes("compatibility");
+  } catch (e) {
+    logger.warn("isCompatAlertThumbnail: check failed — skipping", {
+      url: thumbnailUrl,
+      error: (e as Error).message,
+    });
+    return false;
   }
 }
 
