@@ -1280,13 +1280,13 @@ function RenderPolicyEditor() {
             <SelectContent>
               <SelectItem value="fallback_only">Fallback Only</SelectItem>
               <SelectItem value="shared">Shared (load sharing)</SelectItem>
-              <SelectItem value="primary">Windows Primary</SelectItem>
+              <SelectItem value="primary">Windows Solo</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-[11px] text-muted-foreground">
             {policy.mode === "fallback_only" && "Bridge generates all thumbnails locally. Windows only handles local failures."}
             {policy.mode === "shared" && "Bridge offloads a percentage of thumbnails to Windows while still doing local work."}
-            {policy.mode === "primary" && "Bridge skips all local thumbnails — everything goes to Windows."}
+            {policy.mode === "primary" && "Bridge skips local thumbnail generation entirely — all rendering goes to Windows."}
           </p>
         </div>
 
