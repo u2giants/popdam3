@@ -144,7 +144,7 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "OPENROUTER_API_KEY",
   "AI_TASK_MODELS",
   "AI_MODELS",
-  "COMPAT_AUDIT_REQUEST",       // windows-only: OCR runs on Windows agent to avoid NAS CPU load
+  "COMPAT_AUDIT_REQUEST", // windows-only: OCR runs on Windows agent to avoid NAS CPU load
   "COMPAT_AUDIT_PREVIEW_REQUEST",
 ];
 
