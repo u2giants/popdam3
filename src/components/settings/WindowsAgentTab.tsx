@@ -783,6 +783,10 @@ function RenderJobsTable() {
   const compatPreviewMutation = useMutation({
     mutationFn: () => call("trigger-compat-audit-preview"),
     onSuccess: () => {
+      // Clear the cached result so the stale "completed" status from the previous
+      // scan can't trigger the useEffect's stop-polling logic before the fresh
+      // "pending" result comes back.
+      queryClient.removeQueries({ queryKey: ["compat-audit-preview-result"] });
       setPreviewPolling(true);
       toast.info("Preview requested — bridge agent will scan all AI assets on next heartbeat (≤30s)");
     },
