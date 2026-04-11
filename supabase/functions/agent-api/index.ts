@@ -505,7 +505,7 @@ async function handleHeartbeat(
       });
       compatAuditCommand = { audit_compat_thumbnails: true };
     } else {
-      // Preview scan (single batch, no clearing — just reports which would be flagged)
+      // Preview scan (all batches, no clearing — reports which would be flagged so user can confirm)
       const previewReq = configMap.COMPAT_AUDIT_PREVIEW_REQUEST as Record<string, unknown> | undefined;
       if (previewReq && previewReq.status === "pending") {
         const nowIso = new Date().toISOString();
@@ -2761,10 +2761,43 @@ async function handleClearCompatThumbnails(body: Record<string, unknown>) {
   return json({ ok: true, cleared });
 }
 
+// ── Route: update-compat-audit-preview ───────────────────────────────
+// Called by bridge-agent after each batch during a preview scan.
+// Writes intermediate progress (scanned count + flagged-so-far) so the UI
+// can show live progress without waiting for the full scan to complete.
+
+async function handleUpdateCompatAuditPreview(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const scanned = optionalNumber(body, "scanned") ?? 0;
+  const flagged = (body.flagged as Array<Record<string, unknown>>) ?? [];
+  const nowIso = new Date().toISOString();
+
+  const { data: reqRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "COMPAT_AUDIT_PREVIEW_REQUEST")
+    .maybeSingle();
+
+  if (!reqRow?.value) return json({ ok: true, ignored: true });
+
+  await db.from("admin_config").upsert({
+    key: "COMPAT_AUDIT_PREVIEW_REQUEST",
+    value: {
+      ...(reqRow.value as Record<string, unknown>),
+      status: "scanning",
+      scanned,
+      flagged,
+    },
+    updated_at: nowIso,
+  });
+
+  return json({ ok: true });
+}
+
 // ── Route: complete-compat-audit-preview ─────────────────────────────
-// Called by bridge-agent after scanning the first batch in preview mode.
-// Stores the list of flagged assets (with thumbnail_url) so the admin UI
-// can display them before the user commits to the destructive full audit.
+// Called by bridge-agent when the full preview scan finishes.
+// Stores the final list of flagged assets so the admin UI can display them
+// before the user commits to the destructive full audit.
 
 async function handleCompleteCompatAuditPreview(body: Record<string, unknown>) {
   const db = serviceClient();
@@ -2965,6 +2998,8 @@ corsServe(async (req: Request) => {
         return await handleClearCompatThumbnails(body);
       case "complete-compat-audit":
         return await handleCompleteCompatAudit(body);
+      case "update-compat-audit-preview":
+        return await handleUpdateCompatAuditPreview(body);
       case "complete-compat-audit-preview":
         return await handleCompleteCompatAuditPreview(body);
       default:

@@ -387,6 +387,13 @@ export interface CompatAuditPreviewFlagged {
   relative_path: string;
 }
 
+export async function updateCompatAuditPreview(
+  scanned: number,
+  flagged: CompatAuditPreviewFlagged[],
+): Promise<void> {
+  await callApi("update-compat-audit-preview", { scanned, flagged });
+}
+
 export async function completeCompatAuditPreview(
   scanned: number,
   flagged: CompatAuditPreviewFlagged[],

@@ -784,7 +784,7 @@ function RenderJobsTable() {
     mutationFn: () => call("trigger-compat-audit-preview"),
     onSuccess: () => {
       setPreviewPolling(true);
-      toast.info("Preview requested — bridge agent will scan first batch on next heartbeat (≤30s)");
+      toast.info("Preview requested — bridge agent will scan all AI assets on next heartbeat (≤30s)");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -958,10 +958,14 @@ function RenderJobsTable() {
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Compat audit preview results — shown inline when a scan is running or has completed */}
-        {(previewPolling || previewStatus === "completed" || previewStatus === "processing") && (() => {
+        {(previewPolling || previewStatus === "completed" || previewStatus === "processing" || previewStatus === "scanning") && (() => {
           const claimedAt = previewResult?.claimed_at as string | undefined;
           const processingMs = claimedAt ? Date.now() - new Date(claimedAt).getTime() : 0;
-          const isStale = previewStatus === "processing" && processingMs > 3 * 60 * 1000; // >3 min = stuck
+          // Only flag as stale during the initial "processing" state (before first batch update).
+          // "scanning" means the agent is actively sending progress — not stale.
+          const isStale = previewStatus === "processing" && processingMs > 3 * 60 * 1000;
+
+          const isScanning = previewPolling || previewStatus === "processing" || previewStatus === "scanning";
 
           return (
           <div className="border border-border rounded-md p-3 space-y-3">
@@ -969,12 +973,16 @@ function RenderJobsTable() {
               <div>
                 <p className="text-sm font-medium">AI Compat Thumbnail Preview</p>
                 {isStale ? (
-                  <p className="text-xs text-warning">Scan timed out — bridge agent may be running an old version (need ≥ 1.6.9). Check bridge agent version in the status card above.</p>
-                ) : previewPolling || previewStatus === "processing" ? (
-                  <p className="text-xs text-muted-foreground">Bridge agent is scanning AI source files… (this can take up to a minute)</p>
+                  <p className="text-xs text-warning">Scan timed out — bridge agent may be running an old version (need ≥ 1.7.0). Check bridge agent version in the status card above.</p>
+                ) : previewStatus === "scanning" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Scanning… {previewScanned} assets checked, <strong>{previewFlagged.length}</strong> placeholder{previewFlagged.length !== 1 ? "s" : ""} found so far
+                  </p>
+                ) : isScanning ? (
+                  <p className="text-xs text-muted-foreground">Bridge agent is scanning all AI source files… (may take a minute for large libraries)</p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Scanned first {previewScanned} AI assets — found <strong>{previewFlagged.length}</strong> placeholder thumbnail{previewFlagged.length !== 1 ? "s" : ""}
+                    Scanned {previewScanned} AI assets — found <strong>{previewFlagged.length}</strong> placeholder thumbnail{previewFlagged.length !== 1 ? "s" : ""}
                   </p>
                 )}
               </div>
@@ -996,7 +1004,7 @@ function RenderJobsTable() {
               )}
             </div>
 
-            {previewPolling || previewStatus === "processing" ? (
+            {isScanning && previewFlagged.length === 0 ? (
               <div className="grid grid-cols-6 gap-2">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="aspect-square bg-muted rounded animate-pulse" />
@@ -1005,19 +1013,22 @@ function RenderJobsTable() {
             ) : previewFlagged.length === 0 ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
                 <ImageIcon className="h-4 w-4 opacity-40 shrink-0" />
-                <span>No placeholder thumbnails detected in the first {previewScanned} assets — the full audit should be safe to run.</span>
+                <span>No placeholder thumbnails detected across all {previewScanned} AI assets — the full audit should be safe to run.</span>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">These show the Illustrator "no PDF compatibility" warning page instead of real artwork:</p>
-                <div className="grid grid-cols-6 gap-2">
-                  {previewFlagged.slice(0, 12).map((item) => (
+                <p className="text-xs text-muted-foreground">
+                  {isScanning ? "Placeholder thumbnails found so far" : "These"} show the Illustrator "no PDF compatibility" warning page instead of real artwork:
+                </p>
+                <div className="grid grid-cols-6 gap-2 max-h-72 overflow-y-auto pr-1">
+                  {previewFlagged.map((item) => (
                     <div key={item.id} className="space-y-1">
                       <div className="aspect-square bg-muted rounded overflow-hidden border border-border">
                         <img
                           src={item.thumbnail_url}
                           alt={item.relative_path}
                           className="w-full h-full object-contain"
+                          loading="lazy"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                         />
                       </div>
@@ -1027,9 +1038,6 @@ function RenderJobsTable() {
                     </div>
                   ))}
                 </div>
-                {previewFlagged.length > 12 && (
-                  <p className="text-xs text-muted-foreground">…and {previewFlagged.length - 12} more in this batch.</p>
-                )}
               </div>
             )}
           </div>

@@ -952,41 +952,54 @@ async function runCompatAudit(): Promise<void> {
 }
 
 // ── Compat audit preview ─────────────────────────────────────────────────────
-// Scans only the first batch of AI assets (up to 200) and reports which ones
-// are flagged as CompatibilityAlert placeholders — WITHOUT clearing anything.
-// Used by the admin UI to let the user verify detections before committing.
+// Scans ALL AI assets across all batches and reports which are flagged as
+// CompatibilityAlert placeholders — WITHOUT clearing anything.
+// Sends live progress after each batch so the UI can show thumbnails as they
+// accumulate. Lets the admin visually confirm every affected asset before
+// committing to the destructive full audit.
 
 async function runCompatAuditPreview(): Promise<void> {
-  logger.info("Starting compat thumbnail preview (first batch, no clearing)");
+  logger.info("Starting compat thumbnail preview (all batches, no clearing)");
   const effectiveMountRoot = cloudMountRoot || config.nasContainerMountRoot;
+  let offset = 0;
+  let totalScanned = 0;
+  const allFlagged: api.CompatAuditPreviewFlagged[] = [];
 
   try {
-    const { assets, batch_size } = await api.getCompatAuditBatch(0);
-    const scanned = assets?.length ?? 0;
-    const flagged: api.CompatAuditPreviewFlagged[] = [];
+    while (true) {
+      const { assets, batch_size } = await api.getCompatAuditBatch(offset);
+      if (!assets || assets.length === 0) break;
 
-    for (const asset of (assets ?? [])) {
-      const absolutePath = `${effectiveMountRoot}/${asset.relative_path}`;
-      try {
-        const isCompat = await isAiWithoutPdfCompat(absolutePath);
-        if (isCompat && asset.thumbnail_url) {
-          flagged.push({ id: asset.id, thumbnail_url: asset.thumbnail_url, relative_path: asset.relative_path });
-          logger.info("Compat preview: flagged placeholder", { path: asset.relative_path });
+      for (const asset of assets) {
+        totalScanned++;
+        const absolutePath = `${effectiveMountRoot}/${asset.relative_path}`;
+        try {
+          const isCompat = await isAiWithoutPdfCompat(absolutePath);
+          if (isCompat && asset.thumbnail_url) {
+            allFlagged.push({ id: asset.id, thumbnail_url: asset.thumbnail_url, relative_path: asset.relative_path });
+            logger.info("Compat preview: flagged placeholder", { path: asset.relative_path });
+          }
+        } catch (e) {
+          logger.warn("Compat preview: file check failed (skipping)", {
+            path: asset.relative_path,
+            error: (e as Error).message,
+          });
         }
-      } catch (e) {
-        logger.warn("Compat preview: file check failed (skipping)", {
-          path: asset.relative_path,
-          error: (e as Error).message,
-        });
       }
+
+      // Report incremental progress after each batch so the UI updates live
+      await api.updateCompatAuditPreview(totalScanned, allFlagged).catch(() => {});
+
+      if (assets.length < batch_size) break; // last page
+      offset += batch_size;
     }
 
-    logger.info("Compat thumbnail preview complete", { scanned, flagged: flagged.length });
-    await api.completeCompatAuditPreview(scanned, flagged);
+    logger.info("Compat thumbnail preview complete", { scanned: totalScanned, flagged: allFlagged.length });
+    await api.completeCompatAuditPreview(totalScanned, allFlagged);
   } catch (e) {
     const msg = (e as Error).message;
-    logger.error("Compat thumbnail preview failed", { error: msg });
-    await api.completeCompatAuditPreview(0, [], msg).catch(() => {});
+    logger.error("Compat thumbnail preview failed", { error: msg, scanned: totalScanned });
+    await api.completeCompatAuditPreview(totalScanned, allFlagged, msg).catch(() => {});
   }
 }
 
