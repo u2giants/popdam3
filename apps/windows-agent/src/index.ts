@@ -28,12 +28,15 @@ import { startJanitor } from "./janitor";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler";
+import { runCompatAudit, runCompatAuditPreview } from "./compat-audit";
 
 // ── State ───────────────────────────────────────────────────────
 
 let agentId: string = "";
 let activeJobs = 0;
 let isSamplingPdfText = false;
+let isRunningCompatAudit = false;
+let isRunningCompatAuditPreview = false;
 let lastError: string | undefined;
 let jobsCompleted = 0;
 let jobsFailed = 0;
@@ -349,6 +352,24 @@ function startHeartbeat() {
         } catch (pairErr) {
           logger.error("Remote re-pairing failed", { error: (pairErr as Error).message });
         }
+      }
+
+      // Compat thumbnail audit — OCR all AI thumbnails and clear placeholder ones
+      if (response.commands?.audit_compat_thumbnails && !isRunningCompatAudit) {
+        isRunningCompatAudit = true;
+        logger.info("Compat thumbnail audit requested via heartbeat");
+        runCompatAudit().finally(() => {
+          isRunningCompatAudit = false;
+        });
+      }
+
+      // Compat thumbnail preview — OCR all AI thumbnails, report flagged without clearing
+      if (response.commands?.audit_compat_preview && !isRunningCompatAuditPreview) {
+        isRunningCompatAuditPreview = true;
+        logger.info("Compat thumbnail preview requested via heartbeat");
+        runCompatAuditPreview().finally(() => {
+          isRunningCompatAuditPreview = false;
+        });
       }
 
       logger.debug("Heartbeat sent");

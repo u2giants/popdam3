@@ -128,8 +128,6 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "AI_TASK_MODELS",
   "PDF_EXTRACTION_CONFIG",
   "PDF_TEXT_SAMPLE_REQUEST",
-  "COMPAT_AUDIT_REQUEST",
-  "COMPAT_AUDIT_PREVIEW_REQUEST",
 ];
 
 // Config keys needed only by Windows render agents
@@ -146,6 +144,8 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "OPENROUTER_API_KEY",
   "AI_TASK_MODELS",
   "AI_MODELS",
+  "COMPAT_AUDIT_REQUEST",       // windows-only: OCR runs on Windows agent to avoid NAS CPU load
+  "COMPAT_AUDIT_PREVIEW_REQUEST",
 ];
 
 function getConfigKeysForAgent(agentType: string): string[] {
@@ -486,9 +486,9 @@ async function handleHeartbeat(
   }
 
   // ── Compat audit claim/dispatch ──
-  // Only dispatched to bridge agents (they have NAS access to check source files).
+  // Only dispatched to Windows render agents — OCR via Tesseract would spike CPU on Synology NAS.
   let compatAuditCommand: Record<string, unknown> = {};
-  if (agentType === "bridge") {
+  if (agentType === "windows-render") {
     const auditReq = configMap.COMPAT_AUDIT_REQUEST as Record<string, unknown> | undefined;
     if (auditReq && auditReq.status === "pending") {
       const nowIso = new Date().toISOString();

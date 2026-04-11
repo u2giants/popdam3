@@ -77,6 +77,8 @@ export interface WindowsHeartbeatResponse {
     force_apply_update?: boolean;
     force_stop_jobs?: boolean;
     repair_pairing_code?: string | null;
+    audit_compat_thumbnails?: boolean;
+    audit_compat_preview?: boolean;
   };
 }
 
@@ -279,6 +281,48 @@ export interface UpdateStatusPayload {
 
 export async function reportUpdateStatus(payload: UpdateStatusPayload): Promise<void> {
   await callApi("report-update-status", payload as unknown as Record<string, unknown>);
+}
+
+// ── Compat Audit ────────────────────────────────────────────────────────────
+
+export interface CompatAuditAsset {
+  id: string;
+  relative_path: string;
+  thumbnail_url?: string;
+}
+
+export async function getCompatAuditBatch(offset: number): Promise<{ assets: CompatAuditAsset[]; batch_size: number }> {
+  const data = await callApi("get-compat-audit-batch", { offset });
+  return data as { assets: CompatAuditAsset[]; batch_size: number };
+}
+
+export async function clearCompatThumbnails(assetIds: string[]): Promise<void> {
+  await callApi("clear-compat-thumbnails", { asset_ids: assetIds });
+}
+
+export async function completeCompatAudit(scanned: number, cleared: number, error?: string): Promise<void> {
+  await callApi("complete-compat-audit", { scanned, cleared, error });
+}
+
+export interface CompatAuditPreviewFlagged {
+  id: string;
+  thumbnail_url: string;
+  relative_path: string;
+}
+
+export async function updateCompatAuditPreview(
+  scanned: number,
+  flagged: CompatAuditPreviewFlagged[],
+): Promise<void> {
+  await callApi("update-compat-audit-preview", { scanned, flagged });
+}
+
+export async function completeCompatAuditPreview(
+  scanned: number,
+  flagged: CompatAuditPreviewFlagged[],
+  error?: string,
+): Promise<void> {
+  await callApi("complete-compat-audit-preview", { scanned, flagged, error });
 }
 
 // ── Legacy bootstrap compat ────────────────────────────
