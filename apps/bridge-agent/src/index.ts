@@ -16,6 +16,7 @@ import { config } from "./config.js";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { readFileSync } from "node:fs";
+import { exec } from "node:child_process";
 import { stat, readdir, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, isPdfCandidate, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
@@ -1177,7 +1178,6 @@ function handleApplyUpdate() {
   logger.info("Self-update requested — pulling latest image and recreating container");
   const composePath = process.env.POPDAM_COMPOSE_PATH || "/volume1/docker/popdam/docker-compose.yml";
   logger.info("Using compose path for restart", { composePath });
-  const { exec } = require("node:child_process");
 
   // Report status before starting
   api.reportUpdateStatus({
