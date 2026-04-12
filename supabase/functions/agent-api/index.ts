@@ -266,6 +266,18 @@ async function handleHeartbeat(
       }
     })(),
 
+    // 2b. Prune completed/failed render_queue rows older than 3 days to keep the table lean
+    (async () => {
+      try {
+        await db.from("render_queue")
+          .delete()
+          .in("status", ["completed", "failed"])
+          .lt("created_at", new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString());
+      } catch (pruneErr) {
+        console.error("render_queue prune failed:", pruneErr);
+      }
+    })(),
+
     // 3. Windows agent health check
     db.from("agent_registrations")
       .select("agent_type, last_heartbeat, metadata")
@@ -1230,7 +1242,7 @@ async function handleQueueRender(body: Record<string, unknown>) {
   // Guard: reject files whose path matches the centralized exclusion filter
   const { data: asset } = await db
     .from("assets")
-    .select("filename, relative_path")
+    .select("filename, relative_path, thumbnail_url")
     .eq("id", assetId)
     .single();
 
@@ -1243,6 +1255,14 @@ async function handleQueueRender(body: Record<string, unknown>) {
     const f = asset.filename;
     if (f.startsWith("._") || f.startsWith("~")) {
       return json({ ok: true, job_id: null, skipped: true, reason: "junk file" });
+    }
+    // Skip re-queuing if asset already has a working thumbnail.
+    // The Synology NAS periodically touches file mtimes (indexer/media service),
+    // which causes check-changed to flag unchanged files as "changed", the bridge
+    // re-defers them, and queueRender is called even though the prior completed
+    // job already produced a valid thumbnail. This guard stops that loop.
+    if (asset.thumbnail_url) {
+      return json({ ok: true, job_id: null, skipped: true, reason: "already_has_thumbnail" });
     }
   }
 
