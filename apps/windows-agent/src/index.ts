@@ -15,7 +15,7 @@
 import { config } from "./config";
 import { logger, getLogTail } from "./logger";
 import * as api from "./api-client";
-import { renderFile, type PdfRenderResult } from "./renderer";
+import { renderFile, type PdfRenderResult, type CompatWorker } from "./renderer";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate, RESTART_EXIT_CODE } from "./updater";
@@ -28,12 +28,29 @@ import { startJanitor } from "./janitor";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler";
-import { runCompatAudit, runCompatAuditPreview } from "./compat-audit";
+import { runCompatAudit, runCompatAuditPreview, createCompatAuditWorker } from "./compat-audit";
 
 // ── State ───────────────────────────────────────────────────────
 
 let agentId: string = "";
 let activeJobs = 0;
+
+// Lazily-initialized Tesseract worker for inline compat-alert OCR checks.
+// Created on first AI render job, kept alive for the process lifetime.
+let compatWorker: CompatWorker | undefined;
+async function getCompatWorker(): Promise<CompatWorker | undefined> {
+  if (!compatWorker) {
+    try {
+      compatWorker = await createCompatAuditWorker();
+      logger.info("Tesseract compat worker initialized");
+    } catch (e) {
+      logger.warn("Failed to initialize Tesseract compat worker — inline OCR check disabled", {
+        error: (e as Error).message,
+      });
+    }
+  }
+  return compatWorker;
+}
 let isSamplingPdfText = false;
 let isRunningCompatAudit = false;
 let isRunningCompatAuditPreview = false;
@@ -443,7 +460,8 @@ async function processJob(job: api.RenderJob): Promise<void> {
 
   try {
     const fileType = (job.file_type === "psd") ? "psd" : (job.file_type === "pdf") ? "pdf" : "ai" as const;
-    const result = await renderFile(uncPath, fileType);
+    const cw = fileType === "ai" ? await getCompatWorker() : undefined;
+    const result = await renderFile(uncPath, fileType, cw);
     const thumbnailUrl = await uploadThumbnail(job.asset_id, result.buffer);
 
     // For PDFs, upload hi-res page images

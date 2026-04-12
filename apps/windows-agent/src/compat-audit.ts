@@ -20,6 +20,28 @@ export async function createCompatAuditWorker() {
 }
 
 /**
+ * Buffer-based variant for inline OCR checks during rendering.
+ * Use this when the image data is already in memory (avoids a round-trip fetch).
+ *
+ * Returns false conservatively on OCR errors — better to miss one
+ * than to accidentally discard a good thumbnail.
+ */
+export async function isCompatAlertBuffer(
+  imgBuffer: Buffer,
+  worker: Awaited<ReturnType<typeof createWorker>>,
+): Promise<boolean> {
+  try {
+    const { data: { text } } = await worker.recognize(imgBuffer);
+    return text.toLowerCase().includes("compatibility");
+  } catch (e) {
+    logger.warn("isCompatAlertBuffer: OCR check failed — skipping", {
+      error: (e as Error).message,
+    });
+    return false;
+  }
+}
+
+/**
  * Checks whether a stored thumbnail URL visually shows an Illustrator
  * compatibility-alert warning page rather than real artwork.
  *

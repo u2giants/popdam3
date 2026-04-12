@@ -27,6 +27,9 @@ import { readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { logger } from "./logger";
+import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
+
+export type CompatWorker = Awaited<ReturnType<typeof createCompatAuditWorker>>;
 
 const execFileAsync = promisify(execFile);
 
@@ -567,6 +570,7 @@ export async function renderPdf(
 export async function renderFile(
   uncPath: string,
   fileType: "ai" | "psd" | "pdf",
+  compatWorker?: CompatWorker,
 ): Promise<RenderResult | PdfRenderResult> {
   if (fileType === "pdf") {
     return renderPdf(uncPath);
@@ -595,8 +599,15 @@ export async function renderFile(
   if (!skipPdfRendering) {
     try {
       const result = await renderWithSharp(uncPath, fileType);
-      logger.info("Sharp render succeeded", { uncPath });
-      return result;
+      // For AI: OCR-check that the render is real artwork, not the compat-alert placeholder.
+      // Sharp, GS, and Poppler all "succeed" on files that embed the /CompatibilityAlert page.
+      if (fileType === "ai" && compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
+        failures.push("sharp: compat-alert placeholder detected");
+        logger.warn("Sharp produced compat-alert placeholder — falling through", { uncPath });
+      } else {
+        logger.info("Sharp render succeeded", { uncPath });
+        return result;
+      }
     } catch (e) {
       const msg = (e as Error).message;
       failures.push(`sharp: ${msg}`);
@@ -608,8 +619,13 @@ export async function renderFile(
   if (fileType === "ai" && !skipPdfRendering) {
     try {
       const result = await renderWithGhostscript(uncPath);
-      logger.info("Ghostscript render succeeded", { uncPath });
-      return result;
+      if (compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
+        failures.push("ghostscript: compat-alert placeholder detected");
+        logger.warn("Ghostscript produced compat-alert placeholder — falling through", { uncPath });
+      } else {
+        logger.info("Ghostscript render succeeded", { uncPath });
+        return result;
+      }
     } catch (e) {
       const msg = (e as Error).message;
       failures.push(`ghostscript: ${msg}`);
@@ -621,8 +637,13 @@ export async function renderFile(
   if (fileType === "ai" && !skipPdfRendering) {
     try {
       const result = await renderWithPoppler(uncPath);
-      logger.info("Poppler render succeeded", { uncPath });
-      return result;
+      if (compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
+        failures.push("poppler: compat-alert placeholder detected");
+        logger.warn("Poppler produced compat-alert placeholder — falling through", { uncPath });
+      } else {
+        logger.info("Poppler render succeeded", { uncPath });
+        return result;
+      }
     } catch (e) {
       const msg = (e as Error).message;
       failures.push(`poppler: ${msg}`);
@@ -632,6 +653,8 @@ export async function renderFile(
 
   // Step 2d: Inkscape (AI only — independent engine, no PDF dependency)
   // Runs even for non-PDF-compat files because Inkscape reads native AI/SVG format.
+  // Not OCR-checked: Inkscape reads the native vector layer, not the PDF compat layer,
+  // so it won't produce the compat-alert page.
   if (fileType === "ai") {
     try {
       const result = await renderWithInkscape(uncPath);
@@ -660,6 +683,7 @@ export async function renderFile(
   }
 
   // Step 3: Sibling image (both AI and PSD)
+  // Not OCR-checked: sibling images are real artwork, never the compat-alert page.
   try {
     const result = await renderFromSibling(uncPath);
     logger.info("Sibling render succeeded", { uncPath });
