@@ -236,7 +236,7 @@ async function handleHeartbeat(
   // ── PARALLELIZED: Fetch config, cleanup tokens, get windows agents, and render queue count ──
   const now = new Date();
 
-  const [configResult, _tokenCleanup, windowsAgentsResult, renderQueueResult] = await Promise.all([
+  const [configResult, _tokenCleanup, _queuePrune, windowsAgentsResult, renderQueueResult] = await Promise.all([
     // 1. Fetch cloud config — only keys relevant to this agent type
     db.from("admin_config")
       .select("key, value")
