@@ -150,10 +150,11 @@ export async function runCompatAuditPreview(): Promise<void> {
           allFlagged.push({ id: asset.id, thumbnail_url: asset.thumbnail_url, relative_path: asset.relative_path });
           logger.info("Compat preview: flagged placeholder", { path: asset.relative_path });
         }
+        // Report after every asset so the UI transitions out of "processing" state
+        // immediately. Batches are 200 items × ~2s each = up to 6 min before the first
+        // batch-level update — which exceeds the UI's 3-min stale timeout.
+        await api.updateCompatAuditPreview(totalScanned, allFlagged).catch(() => {});
       }
-
-      // Report incremental progress after each batch so the UI updates live
-      await api.updateCompatAuditPreview(totalScanned, allFlagged).catch(() => {});
 
       if (assets.length < batch_size) break;
       offset += batch_size;

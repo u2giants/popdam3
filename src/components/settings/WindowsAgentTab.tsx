@@ -773,7 +773,7 @@ function RenderJobsTable() {
   const compatAuditMutation = useMutation({
     mutationFn: () => call("trigger-compat-audit"),
     onSuccess: () => {
-      toast.success("Compat audit queued — bridge agent will scan AI source files on next heartbeat");
+      toast.success("Compat audit queued — Windows render agent will OCR all AI thumbnails on next heartbeat");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -788,7 +788,7 @@ function RenderJobsTable() {
       // "pending" result comes back.
       queryClient.removeQueries({ queryKey: ["compat-audit-preview-result"] });
       setPreviewPolling(true);
-      toast.info("Preview requested — bridge agent will scan all AI assets on next heartbeat (≤30s)");
+      toast.info("Preview requested — Windows render agent will scan all AI thumbnails on next heartbeat (≤30s)");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -917,7 +917,7 @@ function RenderJobsTable() {
             className="gap-1.5"
             onClick={() => compatPreviewMutation.mutate()}
             disabled={compatPreviewMutation.isPending || previewPolling}
-            title={previewPolling ? "Waiting for bridge agent…" : undefined}
+            title={previewPolling ? "Waiting for Windows render agent…" : undefined}
           >
             <Eye className="h-3.5 w-3.5" />
             {previewPolling ? "Scanning…" : "Preview AI Compat Thumbnails"}
@@ -927,7 +927,7 @@ function RenderJobsTable() {
             size="sm"
             className="gap-1.5"
             onClick={() => {
-              if (window.confirm("Audit all AI files that have thumbnails. The bridge agent will check each source file for the Illustrator 'no PDF compatibility' marker and clear any placeholder thumbnails it finds. They will be re-queued for proper rendering. Continue?")) {
+              if (window.confirm("Audit all AI files that have thumbnails. The Windows render agent will OCR each thumbnail to detect the Illustrator 'no PDF compatibility' placeholder page and clear any it finds. They will be re-queued for proper rendering. Continue?")) {
                 compatAuditMutation.mutate();
               }
             }}
@@ -977,7 +977,7 @@ function RenderJobsTable() {
               <div>
                 <p className="text-sm font-medium">AI Compat Thumbnail Preview</p>
                 {isStale ? (
-                  <p className="text-xs text-warning">Scan timed out — bridge agent may be running an old version (need ≥ 1.7.0). Check bridge agent version in the status card above.</p>
+                  <p className="text-xs text-warning">Scan timed out — Windows render agent may be unavailable or crashed. Check agent status above. The scan will auto-retry on next heartbeat (≤5 min).</p>
                 ) : previewStatus === "scanning" ? (
                   <p className="text-xs text-muted-foreground">
                     Scanning… {previewScanned} assets checked, <strong>{previewFlagged.length}</strong> placeholder{previewFlagged.length !== 1 ? "s" : ""} found so far
@@ -996,7 +996,7 @@ function RenderJobsTable() {
                   size="sm"
                   className="gap-1.5 shrink-0"
                   onClick={() => {
-                    if (window.confirm(`Clear ${previewFlagged.length} placeholder thumbnail${previewFlagged.length !== 1 ? "s" : ""}? The bridge agent will re-scan all AI files and clear any it detects as CompatibilityAlert placeholders.`)) {
+                    if (window.confirm(`Clear ${previewFlagged.length} placeholder thumbnail${previewFlagged.length !== 1 ? "s" : ""}? The Windows render agent will clear the flagged thumbnails so they get re-queued for proper rendering.`)) {
                       compatAuditMutation.mutate();
                     }
                   }}

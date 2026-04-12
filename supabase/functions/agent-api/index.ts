@@ -519,7 +519,9 @@ async function handleHeartbeat(
     } else {
       // Preview scan (all batches, no clearing — reports which would be flagged so user can confirm)
       const previewReq = configMap.COMPAT_AUDIT_PREVIEW_REQUEST as Record<string, unknown> | undefined;
-      if (previewReq && previewReq.status === "pending") {
+      const previewStale = previewReq?.status === "processing" && previewReq?.claimed_at &&
+        (Date.now() - new Date(previewReq.claimed_at as string).getTime()) > 5 * 60 * 1000;
+      if (previewReq && (previewReq.status === "pending" || previewStale)) {
         const nowIso = new Date().toISOString();
         await db.from("admin_config").upsert({
           key: "COMPAT_AUDIT_PREVIEW_REQUEST",
