@@ -1571,7 +1571,18 @@ function ErpItemsBrowser() {
                                 </TooltipProvider>
                               );
                             }
-                            if (!desc) return <span className="text-destructive font-medium">error</span>;
+                            if (!desc) return (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help text-destructive font-medium">error</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-xs text-xs">
+                                    Code "{effectiveCode}" has no matching description in the MG schema lookup. This usually means the code exists in the ERP but hasn't been added to mg-lookup.ts yet.
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
                             return (
                               <TooltipProvider delayDuration={200}>
                                 <Tooltip>
