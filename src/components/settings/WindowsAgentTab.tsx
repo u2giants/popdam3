@@ -962,7 +962,7 @@ function RenderJobsTable() {
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Compat audit preview results — shown inline when a scan is running or has completed */}
-        {(previewPolling || previewStatus === "completed" || previewStatus === "processing" || previewStatus === "scanning") && (() => {
+        {(previewPolling || previewStatus === "completed" || previewStatus === "processing" || previewStatus === "scanning" || previewStatus === "error") && (() => {
           const claimedAt = previewResult?.claimed_at as string | undefined;
           const processingMs = claimedAt ? Date.now() - new Date(claimedAt).getTime() : 0;
           // Only flag as stale during the initial "processing" state (before first batch update).
@@ -983,7 +983,12 @@ function RenderJobsTable() {
                     Scanning… {previewScanned} assets checked, <strong>{previewFlagged.length}</strong> placeholder{previewFlagged.length !== 1 ? "s" : ""} found so far
                   </p>
                 ) : isScanning ? (
-                  <p className="text-xs text-muted-foreground">Bridge agent is scanning all AI source files… (may take a minute for large libraries)</p>
+                  <p className="text-xs text-muted-foreground">Windows agent is scanning all AI source files… (may take a minute for large libraries)</p>
+                ) : previewStatus === "error" ? (
+                  <p className="text-xs text-destructive">
+                    Scan failed after {previewScanned} assets — {(previewResult?.error as string) ?? "unknown error"}
+                    {previewFlagged.length > 0 ? `. Partial results: ${previewFlagged.length} placeholder${previewFlagged.length !== 1 ? "s" : ""} found.` : ""}
+                  </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Scanned {previewScanned} AI assets — found <strong>{previewFlagged.length}</strong> placeholder thumbnail{previewFlagged.length !== 1 ? "s" : ""}

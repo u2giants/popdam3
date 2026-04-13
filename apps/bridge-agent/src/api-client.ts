@@ -368,8 +368,8 @@ export interface CompatAuditAsset {
   thumbnail_url?: string;
 }
 
-export async function getCompatAuditBatch(offset: number): Promise<{ assets: CompatAuditAsset[]; batch_size: number }> {
-  const data = await callApi("get-compat-audit-batch", { offset });
+export async function getCompatAuditBatch(afterId: string | null): Promise<{ assets: CompatAuditAsset[]; batch_size: number }> {
+  const data = await callApi("get-compat-audit-batch", afterId ? { after_id: afterId } : {});
   return data as { assets: CompatAuditAsset[]; batch_size: number };
 }
 

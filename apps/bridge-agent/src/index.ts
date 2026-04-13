@@ -903,14 +903,14 @@ async function processFile(file: FileCandidate) {
 
 async function runCompatAudit(): Promise<void> {
   logger.info("Starting compat thumbnail audit (OCR-based)");
-  let offset = 0;
+  let afterId: string | null = null;
   let totalScanned = 0;
   let totalCleared = 0;
 
   const worker = await createCompatAuditWorker();
   try {
     while (true) {
-      const { assets, batch_size } = await api.getCompatAuditBatch(offset);
+      const { assets, batch_size } = await api.getCompatAuditBatch(afterId);
       if (!assets || assets.length === 0) break;
 
       const badIds: string[] = [];
@@ -932,7 +932,7 @@ async function runCompatAudit(): Promise<void> {
       }
 
       if (assets.length < batch_size) break; // last page
-      offset += batch_size;
+      afterId = assets[assets.length - 1].id;
     }
 
     logger.info("Compat thumbnail audit complete", { scanned: totalScanned, cleared: totalCleared });
@@ -958,14 +958,14 @@ async function runCompatAudit(): Promise<void> {
 
 async function runCompatAuditPreview(): Promise<void> {
   logger.info("Starting compat thumbnail preview (OCR-based, all batches, no clearing)");
-  let offset = 0;
+  let afterId: string | null = null;
   let totalScanned = 0;
   const allFlagged: api.CompatAuditPreviewFlagged[] = [];
 
   const worker = await createCompatAuditWorker();
   try {
     while (true) {
-      const { assets, batch_size } = await api.getCompatAuditBatch(offset);
+      const { assets, batch_size } = await api.getCompatAuditBatch(afterId);
       if (!assets || assets.length === 0) break;
 
       for (const asset of assets) {
@@ -982,7 +982,7 @@ async function runCompatAuditPreview(): Promise<void> {
       await api.updateCompatAuditPreview(totalScanned, allFlagged).catch(() => {});
 
       if (assets.length < batch_size) break; // last page
-      offset += batch_size;
+      afterId = assets[assets.length - 1].id;
     }
 
     logger.info("Compat thumbnail preview complete", { scanned: totalScanned, flagged: allFlagged.length });

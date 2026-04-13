@@ -2740,16 +2740,28 @@ const COMPAT_AUDIT_BATCH_SIZE = 200;
 
 async function handleGetCompatAuditBatch(body: Record<string, unknown>) {
   const db = serviceClient();
-  const offset = optionalNumber(body, "offset") ?? 0;
+  // Prefer keyset cursor (after_id) — O(1) with PK index, no timeout at large offsets.
+  // Legacy offset still accepted for backward compat with older agent versions.
+  const afterId = optionalString(body, "after_id");
+  const legacyOffset = optionalNumber(body, "offset") ?? 0;
 
-  const { data, error } = await db
+  let query = db
     .from("assets")
     .select("id, relative_path, thumbnail_url")
     .eq("file_type", "ai")
     .eq("is_deleted", false)
     .not("thumbnail_url", "is", null)
-    .order("id")
-    .range(offset, offset + COMPAT_AUDIT_BATCH_SIZE - 1);
+    .order("id");
+
+  if (afterId) {
+    query = query.gt("id", afterId).limit(COMPAT_AUDIT_BATCH_SIZE);
+  } else if (legacyOffset > 0) {
+    query = query.range(legacyOffset, legacyOffset + COMPAT_AUDIT_BATCH_SIZE - 1);
+  } else {
+    query = query.limit(COMPAT_AUDIT_BATCH_SIZE);
+  }
+
+  const { data, error } = await query;
 
   if (error) return err(error.message, 500);
 
