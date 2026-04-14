@@ -1249,7 +1249,9 @@ export function ScanningTab() {
 
 export function UpdateAgentButton() {
   const { call } = useAdminApi();
+  const queryClient = useQueryClient();
   const [isPending, setIsPending] = useState(false);
+  const [updateStatusMsg, setUpdateStatusMsg] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
 
   const { data: agentsData } = useQuery({
     queryKey: ["admin-agents"],
@@ -1276,11 +1278,52 @@ export function UpdateAgentButton() {
 
   const handleUpdate = async () => {
     setIsPending(true);
+    setUpdateStatusMsg({ type: "info", text: "Sending update request to bridge agent…" });
     try {
       await call("trigger-agent-update", { update_action: "apply" });
-      toast.success("Update requested — agent will restart in ~60 seconds");
+      setUpdateStatusMsg({ type: "info", text: "Update queued — bridge will pull the new image and restart (up to ~90s)…" });
+
+      // Poll for the agent to report failure OR come back on a new version.
+      // AGENT_UPDATE_STATUS is set by the agent when docker exec starts/fails.
+      // We also watch for the agent to change version in list-agents.
+      const startedAt = Date.now();
+      for (let i = 0; i < 24; i++) {
+        await new Promise((r) => setTimeout(r, 5_000));
+
+        // Check if the agent reported a failure
+        const statusResp = await call("get-update-status").catch(() => null);
+        const updateStatus = statusResp?.status as Record<string, unknown> | null;
+        if (updateStatus?.status === "failed") {
+          const errMsg = (updateStatus.error as string) || "unknown error";
+          setUpdateStatusMsg({ type: "error", text: `Update failed: ${errMsg}` });
+          toast.error(`Bridge update failed: ${errMsg}`);
+          return;
+        }
+
+        // Check if version changed (new container is up)
+        const agentsResp = await call("list-agents").catch(() => null);
+        const agents = (agentsResp?.agents || []) as Record<string, unknown>[];
+        const bridge = agents.find((a) => a.type === "bridge");
+        const newVi = bridge?.version_info as Record<string, unknown> | null;
+        const newVersion = newVi?.version as string | null;
+        if (newVersion && newVersion !== currentVersion) {
+          setUpdateStatusMsg({ type: "success", text: `Updated to v${newVersion}` });
+          toast.success(`Bridge agent updated to v${newVersion}`);
+          queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+          return;
+        }
+
+        const elapsed = Math.round((Date.now() - startedAt) / 1000);
+        setUpdateStatusMsg({ type: "info", text: `Waiting for agent to restart… (${elapsed}s)` });
+      }
+
+      // Timed out
+      setUpdateStatusMsg({ type: "error", text: "Timed out — agent did not restart within 2 minutes. Check Docker socket is mounted and POPDAM_COMPOSE_PATH is set correctly." });
+      toast.warning("Bridge agent hasn't restarted yet — check Container Manager or agent logs");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to trigger update");
+      const msg = e instanceof Error ? e.message : "Failed to trigger update";
+      setUpdateStatusMsg({ type: "error", text: msg });
+      toast.error(msg);
     } finally {
       setIsPending(false);
     }
@@ -1318,12 +1361,17 @@ export function UpdateAgentButton() {
           Pull the latest Docker image from GHCR and restart the bridge agent container.
           The agent will be unavailable for ~60 seconds during the restart.
         </p>
+        {updateStatusMsg && (
+          <p className={`text-xs ${updateStatusMsg.type === "error" ? "text-destructive" : updateStatusMsg.type === "success" ? "text-[hsl(var(--success))]" : "text-muted-foreground"}`}>
+            {updateStatusMsg.text}
+          </p>
+        )}
         <Button
           variant={updateAvailable ? "default" : "outline"}
           size="sm"
           onClick={handleUpdate}
           disabled={isPending}
-          title={isPending ? "Update request in progress…" : undefined}
+          title={isPending ? "Update in progress…" : undefined}
           className="gap-1.5"
         >
           {isPending ? (
