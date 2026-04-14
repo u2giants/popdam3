@@ -1152,8 +1152,14 @@ async function handleCheckUpdate() {
   try {
     await execFileAsync("docker", ["pull", pullImage, "--quiet"]);
 
+    // Detect current container ID from hostname (Docker sets hostname = container ID
+    // by default). This avoids hardcoding a container name that may differ between
+    // Synology Container Manager stacks (e.g. "popdam-popdam-bridge-1" vs "popdam-bridge").
+    const { stdout: hostnameOut } = await execFileAsync("hostname");
+    const containerId = hostnameOut.trim();
+
     const { stdout: currentDigest } = await execFileAsync(
-      "docker", ["inspect", "popdam-bridge", "--format={{.Image}}"]
+      "docker", ["inspect", containerId, "--format={{.Image}}"]
     );
     const { stdout: latestDigest } = await execFileAsync(
       "docker", ["inspect", pullImage, "--format={{.Id}}"]
@@ -1169,7 +1175,7 @@ async function handleCheckUpdate() {
       checked_at: new Date().toISOString(),
     });
 
-    logger.info("Update check complete", { updateAvailable, tag: checkTag, currentDigest: currentDigest.trim(), latestDigest: latestDigest.trim() });
+    logger.info("Update check complete", { updateAvailable, tag: checkTag, containerId, currentDigest: currentDigest.trim(), latestDigest: latestDigest.trim() });
   } catch (e) {
     logger.error("Update check failed", { error: (e as Error).message });
     await api.reportUpdateStatus({
@@ -1193,8 +1199,9 @@ function handleApplyUpdate() {
 
   // Pull :stable explicitly first so we get the latest image regardless of what
   // tag the compose file pins, then recreate the container.
+  // Quote compose path to handle spaces.
   exec(
-    `docker pull ghcr.io/u2giants/popdam-bridge:stable && docker compose -f ${composePath} pull && docker compose -f ${composePath} up -d --force-recreate`,
+    `docker pull ghcr.io/u2giants/popdam-bridge:stable && docker compose -f "${composePath}" pull && docker compose -f "${composePath}" up -d --force-recreate`,
     { timeout: 300_000 },
     (err: Error | null) => {
       if (err) {
