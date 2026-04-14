@@ -1186,35 +1186,89 @@ async function handleCheckUpdate() {
   }
 }
 
-function handleApplyUpdate() {
-  logger.info("Self-update requested — pulling latest image and recreating container");
-  const composePath = process.env.POPDAM_COMPOSE_PATH || "/volume1/docker/popdam/docker-compose.yml";
-  logger.info("Using compose path for restart", { composePath });
+async function handleApplyUpdate() {
+  logger.info("Self-update requested — pulling latest image and restarting container");
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
 
-  // Report status before starting
-  api.reportUpdateStatus({
-    status: "updating",
-    started_at: new Date().toISOString(),
-  }).catch(() => {});
+  const startedAt = new Date().toISOString();
 
-  // Pull :stable explicitly first so we get the latest image regardless of what
-  // tag the compose file pins, then recreate the container.
-  // Quote compose path to handle spaces.
-  exec(
-    `docker pull ghcr.io/u2giants/popdam-bridge:stable && docker compose -f "${composePath}" pull && docker compose -f "${composePath}" up -d --force-recreate`,
-    { timeout: 300_000 },
-    (err: Error | null) => {
-      if (err) {
-        logger.error("Self-update exec failed", { error: err.message });
-        api.reportUpdateStatus({
-          status: "failed",
-          error: err.message,
-          failed_at: new Date().toISOString(),
-        }).catch(() => {});
-      }
-      // On success the container is replaced — this process exits naturally
+  // ── Pre-flight: verify Docker socket is accessible ────────────────
+  try {
+    await execFileAsync("docker", ["version", "--format", "{{.Server.Version}}"]);
+  } catch (e) {
+    const msg = `Docker socket not accessible — ensure /var/run/docker.sock is mounted in docker-compose.yml. Error: ${(e as Error).message}`;
+    logger.error("Self-update pre-flight failed", { error: msg });
+    await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
+    return;
+  }
+
+  // Get container ID from hostname (Docker sets hostname = short container ID).
+  const containerId = (await execFileAsync("hostname")).stdout.trim();
+  logger.info("Self-update starting", { containerId });
+
+  await api.reportUpdateStatus({ status: "updating", started_at: startedAt, container_id: containerId }).catch(() => {});
+
+  // ── Step 1: Pull the latest :stable image ─────────────────────────
+  try {
+    logger.info("Pulling ghcr.io/u2giants/popdam-bridge:stable ...");
+    await execFileAsync("docker", ["pull", "ghcr.io/u2giants/popdam-bridge:stable"], { timeout: 240_000 } as never);
+    logger.info("Pull complete");
+  } catch (e) {
+    const msg = `docker pull failed: ${(e as Error).message}`;
+    logger.error("Self-update pull failed", { error: msg });
+    await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
+    return;
+  }
+
+  // ── Step 2: Check restart policy ──────────────────────────────────
+  // If restart: always/unless-stopped, we can just stop the container and
+  // Docker will restart it with the newly-pulled image. This avoids needing
+  // the compose file to be mounted inside the container.
+  let restartPolicy = "no";
+  try {
+    const { stdout } = await execFileAsync("docker", ["inspect", containerId, "--format", "{{.HostConfig.RestartPolicy.Name}}"]);
+    restartPolicy = stdout.trim();
+  } catch (e) {
+    logger.warn("Could not read restart policy — assuming 'no'", { error: (e as Error).message });
+  }
+
+  logger.info("Restart policy", { containerId, restartPolicy });
+
+  if (restartPolicy === "always" || restartPolicy === "unless-stopped") {
+    // ── Happy path: stop → Docker restarts with new image ──────────
+    logger.info("Stopping container (Docker restart policy will bring it back with new image)");
+    try {
+      await execFileAsync("docker", ["stop", containerId]);
+      // If we reach here the stop returned before the process was killed — very unlikely.
+      // The exec above will restart us anyway.
+    } catch (e) {
+      const msg = `docker stop failed: ${(e as Error).message}`;
+      logger.error("Self-update stop failed", { error: msg });
+      await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
     }
-  );
+  } else {
+    // ── Fallback: compose file approach ────────────────────────────
+    // The container has no restart policy — we can't just stop it or it won't
+    // come back. Try compose file (requires it to be mounted inside the container,
+    // e.g. -v /volume1/docker/popdam:/volume1/docker/popdam).
+    const composePath = process.env.POPDAM_COMPOSE_PATH || "/volume1/docker/popdam/docker-compose.yml";
+    logger.info("No auto-restart policy — trying compose up", { composePath, restartPolicy });
+    exec(
+      `docker compose -f "${composePath}" up -d --force-recreate`,
+      { timeout: 120_000 },
+      (err: Error | null) => {
+        if (err) {
+          const msg = `docker compose up failed (restart policy was '${restartPolicy}'): ${err.message}. ` +
+            `Add 'restart: unless-stopped' to your docker-compose.yml service, or mount the compose file inside the container.`;
+          logger.error("Self-update compose fallback failed", { error: msg });
+          api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
+        }
+        // On success, this container gets replaced — exits naturally
+      }
+    );
+  }
 }
 
 // Legacy polling loop removed.
