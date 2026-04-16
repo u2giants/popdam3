@@ -17,6 +17,8 @@ import SetupPage from "./pages/SetupPage";
 import AiTaggingFailuresPage from "./pages/AiTaggingFailuresPage";
 import AiTaggingDetailPage from "./pages/AiTaggingDetailPage";
 import ScanDiagnosticsPage from "./pages/ScanDiagnosticsPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -39,6 +41,8 @@ const App = () => (
             <Routes>
               <Route path="/" element={<LoginPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
