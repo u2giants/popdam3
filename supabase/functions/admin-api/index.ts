@@ -419,7 +419,7 @@ async function handleListInvites() {
   const db = serviceClient();
   const { data, error } = await db
     .from("invitations")
-    .select("id, email, role, created_at, accepted_at, invited_by")
+    .select("id, email, role, apps, created_at, accepted_at, invited_by")
     .order("created_at", { ascending: false });
 
   if (error) return err(error.message, 500);
@@ -477,7 +477,7 @@ async function handleListUsers() {
   const db = serviceClient();
   const { data, error } = await db
     .from("profiles")
-    .select("user_id, email, full_name, created_at, user_roles(role)")
+    .select("user_id, email, full_name, created_at, user_roles(role), app_access(app)")
     .order("created_at", { ascending: false });
 
   if (error) return err(error.message, 500);
@@ -491,8 +491,42 @@ async function handleListUsers() {
       created_at: u.created_at,
       isAdmin: Array.isArray(u.user_roles) &&
         (u.user_roles as { role: string }[]).some((r) => r.role === "admin"),
+      apps: Array.isArray(u.app_access)
+        ? (u.app_access as { app: string }[]).map((a) => a.app)
+        : [],
     })),
   });
+}
+
+// ── Route: set-user-apps ────────────────────────────────────────────
+
+async function handleSetUserApps(body: Record<string, unknown>, _userId: string) {
+  const targetUserId = requireString(body, "user_id");
+  const appsRaw = body.apps;
+  if (!Array.isArray(appsRaw)) {
+    return err("apps must be an array");
+  }
+  const validApps = ["popdam", "styleguides"] as const;
+  const apps = appsRaw
+    .map(String)
+    .filter((a) => validApps.includes(a as typeof validApps[number]));
+
+  const db = serviceClient();
+
+  // Replace the user's app_access rows with exactly the requested set
+  const { error: delErr } = await db
+    .from("app_access")
+    .delete()
+    .eq("user_id", targetUserId);
+  if (delErr) return err(delErr.message, 500);
+
+  if (apps.length > 0) {
+    const rows = apps.map((app) => ({ user_id: targetUserId, app, granted_by: _userId }));
+    const { error: insErr } = await db.from("app_access").insert(rows);
+    if (insErr) return err(insErr.message, 500);
+  }
+
+  return json({ ok: true, apps });
 }
 
 // ── Route: run-query ─────────────────────────────────────────────────
