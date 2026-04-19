@@ -745,6 +745,7 @@ function InvitationSection() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("user");
+  const [apps, setApps] = useState<string[]>(["popdam"]);
   const [resendingId, setResendingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -753,10 +754,11 @@ function InvitationSection() {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: () => call("invite-user", { email, role }),
+    mutationFn: () => call("invite-user", { email, role, apps }),
     onSuccess: () => {
       toast.success("Invitation sent");
       setEmail("");
+      setApps(["popdam"]);
       queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
     },
     onError: (e) => toast.error(e.message),
