@@ -358,6 +358,17 @@ async function handleInviteUser(
     return err("Invalid email format");
   }
 
+  // Apps the invitee should be granted access to
+  const appsRaw = body.apps;
+  const validApps = ["popdam", "styleguides"] as const;
+  let apps: string[] = ["popdam"];
+  if (Array.isArray(appsRaw) && appsRaw.length > 0) {
+    apps = appsRaw.map(String).filter((a) => validApps.includes(a as typeof validApps[number]));
+    if (apps.length === 0) {
+      return err("At least one valid app must be selected (popdam, styleguides)");
+    }
+  }
+
   const db = serviceClient();
 
   const { data: existing } = await db
@@ -375,8 +386,8 @@ async function handleInviteUser(
 
   const { data, error } = await db
     .from("invitations")
-    .insert({ email, role: roleStr, invited_by: userId })
-    .select("id, email, role, created_at")
+    .insert({ email, role: roleStr, invited_by: userId, apps })
+    .select("id, email, role, apps, created_at")
     .single();
 
   if (error) return err(error.message, 500);
