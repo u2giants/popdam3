@@ -631,7 +631,7 @@ function PathTesterSection() {
   );
 }
 
-// ── User List + Impersonation ────────────────────────────────────────
+// ── User List + App Access + Impersonation ──────────────────────────
 
 interface UserRecord {
   id: string;
@@ -639,12 +639,20 @@ interface UserRecord {
   full_name: string | null;
   created_at: string;
   isAdmin: boolean;
+  apps: string[];
 }
+
+const APP_OPTIONS = [
+  { id: "popdam", label: "PopDAM" },
+  { id: "styleguides", label: "PopSG" },
+] as const;
 
 function UsersSection() {
   const { call } = useAdminApi();
+  const queryClient = useQueryClient();
   const { startImpersonation } = useImpersonation();
   const navigate = useNavigate();
+  const [savingUserId, setSavingUserId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-users"],
@@ -655,6 +663,22 @@ function UsersSection() {
   const handleImpersonate = (u: UserRecord) => {
     startImpersonation({ id: u.id, email: u.email, isAdmin: u.isAdmin });
     navigate("/library");
+  };
+
+  const handleToggleApp = async (u: UserRecord, app: string, checked: boolean) => {
+    const nextApps = checked
+      ? Array.from(new Set([...u.apps, app]))
+      : u.apps.filter((a) => a !== app);
+    setSavingUserId(u.id);
+    try {
+      await call("set-user-apps", { user_id: u.id, apps: nextApps });
+      toast.success(`Updated app access for ${u.email}`);
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to update app access");
+    } finally {
+      setSavingUserId(null);
+    }
   };
 
   return (
@@ -671,20 +695,41 @@ function UsersSection() {
         )}
         <div className="space-y-2">
           {data?.map((u) => (
-            <div key={u.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-              <div className="min-w-0">
+            <div key={u.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 gap-3">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium truncate">{u.email}</p>
                 <p className="text-xs text-muted-foreground">{u.isAdmin ? "Admin" : "User"}</p>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="ml-3 shrink-0 gap-1.5"
-                onClick={() => handleImpersonate(u)}
-              >
-                <Eye className="h-3.5 w-3.5" />
-                View as
-              </Button>
+              <div className="flex items-center gap-3 shrink-0">
+                {APP_OPTIONS.map((opt) => {
+                  const checked = u.apps.includes(opt.id);
+                  return (
+                    <label
+                      key={opt.id}
+                      className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
+                      title={`Toggle ${opt.label} access for ${u.email}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={savingUserId === u.id}
+                        onChange={(e) => handleToggleApp(u, opt.id, e.target.checked)}
+                        className="h-3.5 w-3.5 accent-primary cursor-pointer"
+                      />
+                      <span className={checked ? "" : "text-muted-foreground"}>{opt.label}</span>
+                    </label>
+                  );
+                })}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-1 shrink-0 gap-1.5"
+                  onClick={() => handleImpersonate(u)}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  View as
+                </Button>
+              </div>
             </div>
           ))}
         </div>
