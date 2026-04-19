@@ -866,11 +866,18 @@ function InvitationSection() {
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : (
           <div className="space-y-1">
-            {invitations.map((inv: Record<string, unknown>) => (
+            {invitations.map((inv: Record<string, unknown>) => {
+              const invApps = Array.isArray(inv.apps) ? (inv.apps as string[]) : ["popdam"];
+              return (
               <div key={inv.id as string} className="flex items-center justify-between text-xs py-1 border-b border-border">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono">{inv.email as string}</span>
                   <Badge variant="secondary">{inv.role as string}</Badge>
+                  {invApps.map((a) => (
+                    <Badge key={a} variant="outline" className="text-[10px]">
+                      {APP_OPTIONS.find((o) => o.id === a)?.label ?? a}
+                    </Badge>
+                  ))}
                   {inv.accepted_at ? (
                     <Badge className="bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]">Accepted</Badge>
                   ) : (
