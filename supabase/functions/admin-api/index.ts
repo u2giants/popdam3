@@ -491,9 +491,7 @@ async function handleListUsers() {
       created_at: u.created_at,
       isAdmin: Array.isArray(u.user_roles) &&
         (u.user_roles as { role: string }[]).some((r) => r.role === "admin"),
-      apps: Array.isArray(u.app_access)
-        ? (u.app_access as { app: string }[]).map((a) => a.app)
-        : [],
+      apps: Array.isArray(u.app_access) ? (u.app_access as { app: string }[]).map((a) => a.app) : [],
     })),
   });
 }
