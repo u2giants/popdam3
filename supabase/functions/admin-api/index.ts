@@ -1138,6 +1138,8 @@ corsServe(async (req: Request) => {
         return await handleRevokeInvite(body);
       case "list-users":
         return await handleListUsers();
+      case "set-user-apps":
+        return await handleSetUserApps(body, userId);
 
       // ── Agents (from agent-handlers.ts) ──
       case "generate-agent-key":
