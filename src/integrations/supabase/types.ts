@@ -115,6 +115,30 @@ export type Database = {
         }
         Relationships: []
       }
+      app_access: {
+        Row: {
+          app: Database["public"]["Enums"]["app_name"]
+          granted_at: string
+          granted_by: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          app: Database["public"]["Enums"]["app_name"]
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          app?: Database["public"]["Enums"]["app_name"]
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       asset_characters: {
         Row: {
           asset_id: string
@@ -736,6 +760,7 @@ export type Database = {
       invitations: {
         Row: {
           accepted_at: string | null
+          apps: Database["public"]["Enums"]["app_name"][]
           created_at: string
           email: string
           id: string
@@ -744,6 +769,7 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          apps?: Database["public"]["Enums"]["app_name"][]
           created_at?: string
           email: string
           id?: string
@@ -752,6 +778,7 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          apps?: Database["public"]["Enums"]["app_name"][]
           created_at?: string
           email?: string
           id?: string
@@ -1496,6 +1523,13 @@ export type Database = {
       }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
+      has_app_access: {
+        Args: {
+          _app: Database["public"]["Enums"]["app_name"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1551,6 +1585,7 @@ export type Database = {
       update_bulk_operations_batch: { Args: { p_updates: Json }; Returns: Json }
     }
     Enums: {
+      app_name: "popdam" | "styleguides"
       app_role: "admin" | "user"
       art_source:
         | "freelancer"
@@ -1707,6 +1742,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_name: ["popdam", "styleguides"],
       app_role: ["admin", "user"],
       art_source: [
         "freelancer",
