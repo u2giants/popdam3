@@ -812,24 +812,55 @@ function InvitationSection() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex gap-2">
-          <Input
-            placeholder="email@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="text-sm"
-          />
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="bg-secondary text-secondary-foreground rounded-md px-2 text-sm border border-border"
-          >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-          <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={!email.trim()} title={!email.trim() ? "Enter an email address first" : undefined}>
-            Invite
-          </Button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="email@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="text-sm"
+            />
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="bg-secondary text-secondary-foreground rounded-md px-2 text-sm border border-border"
+              title="Role"
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+            <Button
+              size="sm"
+              onClick={() => inviteMutation.mutate()}
+              disabled={!email.trim() || apps.length === 0}
+              title={!email.trim() ? "Enter an email address first" : apps.length === 0 ? "Pick at least one app" : undefined}
+            >
+              Invite
+            </Button>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-muted-foreground">Grant access to:</span>
+            {APP_OPTIONS.map((opt) => {
+              const checked = apps.includes(opt.id);
+              return (
+                <label key={opt.id} className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => {
+                      setApps((prev) =>
+                        e.target.checked
+                          ? Array.from(new Set([...prev, opt.id]))
+                          : prev.filter((a) => a !== opt.id),
+                      );
+                    }}
+                    className="h-3.5 w-3.5 accent-primary cursor-pointer"
+                  />
+                  <span className={checked ? "" : "text-muted-foreground"}>{opt.label}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
