@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.export-thumbnail-manifest]
 verify_jwt = false
+
+[functions.verify-app-access]
+verify_jwt = false
