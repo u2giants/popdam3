@@ -1,64 +1,110 @@
-## Mega-Group Tag Contamination — Scope & Surgical Cleanup Plan
+## Goal
 
-### What Happened
+Build a sister DAM app — **PopSG** — that ingests from the `/volume1/styleguides/` folder on the same NAS, reusing the existing Bridge Agent and a unified login, but with its own URL, its own [supabase.com](http://supabase.com) database (not lovable supabase), light theme, and licensor-style-guide-specific filters.
 
-14 "mega-groups" exist where the SKU regex matched a product-type folder (e.g. "3D Lenticular framed") instead of the design-specific folder. This lumped 100–2,000 unrelated designs (Disney, Marvel, Sonic, NASA, Star Wars, etc.) into a single style group. When tag propagation ran, it spread every license's tags to every sibling — cross-contaminating the entire group.  
+## Hard constraints (from you)
 
+- **Separate Supabase backend** (new Lovable Cloud project)
+- **Same Bridge Agent** (one Docker container on Synology serves both apps)
+- **Same Windows Agent** (one Docker container on Synology serves both apps)
+- **Different URL** (e.g. `sg.designflow.app` vs `dam.designflow.app`)
+- **Shared authentication** with **per-app access control** (a user can be granted access to PopDAM, StyleGuide DAM, or both)
+- **Light theme** (PopDAM stays dark)
+- **Group by depth-2 folder** (the style guide name)
 
-### Scope of Damage
+## Architecture decision: how to share auth across two Supabases
 
+Two Supabase projects can't natively share `auth.users`. The cleanest option that meets your "one login, per-app access control" requirement:
 
-| Metric                                            | Count                                 |
-| ------------------------------------------------- | ------------------------------------- |
-| Mega-groups (>50 assets)                          | ~20                                   |
-| Assets affected                                   | ~9,500                                |
-| Contaminated AI tag rows                          | **154,224** (21% of all 726K AI tags) |
-| Contaminated metadata fields (theme, description) | ~6,861 assets                         |
+**Use the existing PopDAM Supabase as the single identity provider.** Both apps log in against `ryltkzzernhwnojzouyb` (the PopDAM project). A new `app_access` table on PopDAM's DB lists which apps each user can enter (`popdam`, `styleguides`, or both). The new StyleGuide app's frontend authenticates against PopDAM's auth, then uses its own service-role-backed edge functions on its own Supabase to read/write style-guide data — passing the verified user JWT through for authorization.
 
+This keeps Google OAuth in one place, gives you a single "Users & Access" admin page, and lets each app keep an independent schema, migrations, and edge functions.
 
-### Can We Differentiate Good Tags from Bad?
+## Plan
 
-**Yes.** Two clean signals exist:
+### 1. Identity & access (on existing PopDAM Supabase)
 
-1. `**ai_tagged_at` timestamp on each asset** — assets that were directly AI-tagged have this set. Assets that only received propagated tags have `ai_tagged_at = NULL`.
-2. `**asset_tags.created_at` vs `ai_tagged_at**` — for directly-tagged assets, their *original* tags were created within seconds of `ai_tagged_at`. Tags injected later by propagation have `created_at > ai_tagged_at + 5 minutes`. This cleanly splits original (4–18 tags) from contaminated (+41 propagated tags) on every asset tested.
+- New table `app_access(user_id, app)` where `app` is enum (`popdam`, `styleguides`)
+- Update `handle_new_user()` so invitations carry which app(s) the invitee is granted
+- Extend invitations table with `apps text[]` column
+- Admin "Users" page (in either app) shows checkboxes per user: ☑ PopDAM ☑ StyleGuides
 
-### The Plan (3 steps)
+### 2. New Lovable Cloud project: **PopSG**
 
-**Step 1 — Delete contaminated tags (surgical)**
+- Forked from this codebase (copy reusable parts: auth shell, layout, library grid/list, filter sidebar, AI tagging, thumbnails, agent pairing UI)
+- Strip out: SKU parsing, MG codes, ERP enrichment, product_category, divisions, asset_type/art_source, style_groups (replaced), TIFF hygiene
+- Light theme (rewrite `index.css` HSL tokens, white backgrounds, dark text)
+- New routes: `/library`, `/settings`, `/login` (same shape, new content)
 
-Create a database function `cleanup_mega_group_tags` that:
+### 3. New schema (StyleGuide Supabase)
 
-- For each mega-group (style_groups with asset_count > threshold, configurable):
-  - **Non-directly-tagged assets** (`ai_tagged_at IS NULL`): delete ALL `source='ai'` tags (they're 100% propagated garbage). Also null out propagated metadata fields (`big_theme`, `little_theme`, `design_style`, `cover_description`).
-  - **Directly-tagged assets** (`ai_tagged_at IS NOT NULL`): delete only AI tags where `created_at > ai_tagged_at + interval '5 minutes'` (the foreign tags injected by propagation). Keep their original tags intact.
-- Also clean `asset_characters` rows that were propagated the same way.
-- Process in batches with cursor-based pagination (same pattern as other bulk ops).
+Core tables:
 
-**Step 2 — Split mega-groups into correct sub-groups**
+- `assets` — slimmer: `id, relative_path, filename, file_type, file_size, width, height, thumbnail_url, thumbnail_error, modified_at, file_created_at, quick_hash, licensor_id, licensor_name, property_id, property_name, style_guide_id, style_guide_name, tags, ai_description, design_style, ai_tagged_at, ai_model, workflow_status, is_deleted`
+- `style_guides` — the depth-2 folder grouping: `id, folder_path, name, licensor_id, property_id, primary_asset_id, primary_thumbnail_url, asset_count, latest_file_date, cover_description, tags`
+- `licensors`, `properties` — same shape as PopDAM
+- `agent_registrations`, `agent_pairings` — same shape (the bridge pairs separately per tenant)
+- `admin_config`, `processing_queue`, `render_queue` — same shape, slimmer
+- Auth-mirror table: `user_app_access_cache(user_id, has_access, synced_at)` — populated by an edge function that calls PopDAM auth on login
 
-After cleaning tags, run the existing `rebuild_style_groups_batch` function. Since assets already have their correct `sku` field populated (178 distinct real SKUs exist inside the biggest mega-group alone), the rebuild will create proper granular groups. The contaminated mega-group records get replaced.  
-And also correct the logic that allowed this to happen in the first place.
+### 4. Bridge Agent& windows Agent: dual-tenant support
 
-**Step 3 — Re-propagate within correct groups**
+The agents currently have one `SUPABASE_URL` + one `AGENT_KEY`. Make them support N tenants via an array config:
 
-After regrouping, run a normal tag propagation pass. Now each group contains only siblings of the same design, so propagation will correctly share tags within each small group.
+```
+TENANTS=[
+  { name: "popdam",      url: "...ryltkzzernhwnojzouyb...", key: "...", scan_roots: ["/nas/Designs"] },
+  { name: "styleguides", url: "...new-project...",          key: "...", scan_roots: ["/nas/StyleGuides"] }
+]
+```
 
-### Files Changed
+- Pairing flow runs once per tenant
+- Heartbeat, scan loop, thumbnail generation, upload — all loop over tenants
+- DigitalOcean Spaces: same bucket, key prefix per tenant (`thumbnails/popdam/...` vs `thumbnails/styleguides/...`)
+- Bump bridge-agent to v2.0.0 (breaking config change)
+- New volume mount in `docker-compose.yml`: `/volume1/styleguides:/nas/styleguides:ro`
+- `thumbnail/preview generation done only by windows agent`
 
-1. **New migration** — `cleanup_mega_group_tags_batch(p_cursor, p_batch_size, p_min_group_size)` plpgsql function that does the surgical tag deletion described above.
-2. `**supabase/functions/_shared/admin-handlers/style-group-handlers.ts**` — Add `handleCleanupMegaGroupTags` handler that calls the new RPC.
-3. `**supabase/functions/admin-api/index.ts**` — Wire up the new `cleanup-mega-group-tags` action.
-4. `**supabase/functions/_shared/operation-constants.ts**` — Add the new operation key/lane/action.
-5. `**src/components/settings/diagnostics/types.ts**` — Add the frontend operation type.
-6. `**src/components/settings/diagnostics/StyleGroupsSection.tsx**` — Add a "Clean Mega-Group Tags" button to the diagnostics panel, runnable as a persistent operation through the worker.
-7. `**apps/worker/src/handlers/style-groups.ts**` — Add worker handler for the new cleanup operation.
+### 5. Grouping logic (PopSG)
 
-### Safety
+On ingest, derive `style_guide_id` from path:
 
-- The cleanup function only touches groups with `asset_count > threshold` (default 50).
-- if a group has more than 30 assets in it The system has to know that that's suspect / highly unusual and give an alert and stop what's it doing or stop whatever process or logic that led to more than 50 assets being grouped together. 
-- Directly-tagged assets keep all their original tags (timestamp-gated).
-- The function is idempotent — running it twice changes nothing.
-- Tags with `source = 'manual'` are never touched.
-- A dry-run mode (count-only) can be added for verification before committing.
+- `relative_path` = `Disney/Frozen 2024/Characters/Elsa/poses/elsa-skate.png`
+- segments[0] = licensor → `Disney`
+- segments[1] = property → `Frozen 2024`
+- segments[2] = style guide name → `Characters` (the card)
+- All deeper segments are metadata (`subfolder_path` = `Elsa/poses`)
+
+A DB function `rebuild_style_guides_batch()` (analogous to `rebuild_style_groups_batch`) groups by `licensor + property + segments[2]`.
+
+### 6. Filters (PopSG)
+
+Keep: search, licensor, property, file type, has-thumbnail status, tag filter, AI workflow status, date range
+Add: **style guide name** dropdown, **subfolder** filter (within a selected style guide)
+Remove: SKU, MG codes, asset_type, art_source, product_category, division, ERP fields
+
+### 7. AI tagging
+
+Reuse the existing `ai-tag` edge function pattern but with a style-guide-specific prompt focused on art-library descriptors (subject, art style, color palette, mood) rather than product tags.
+
+### 8. Deployment
+
+- Publish the new Lovable project to e.g. `popsg.lovable.app`
+- Add custom domain `sg.designflow.app`
+- Bridge agent v2 deployed via the existing GHCR pipeline; user updates `docker-compose.yml` once
+- if there will be another repo it should be [https://github.com/u2giants/](https://github.com/u2giants/)popsg
+
+## What I need you to specify after seeing this
+
+You said you'd specify field cuts after seeing the plan. Please confirm:
+
+1. Drop everything product/ERP-related as listed above? (workflow_status: keep or drop?) drop all of these
+2. The 3 path segments mapping (licensor → property → style guide name) — does that match how your `Style Guides` folder is actually organized on the NAS? If the depth differs, tell me. it's not consistent at all. not consistent between licensors and not consistent within one licensor. we may have to list each folder level/name individually as attributes and a user can delete the irrelevant ones as they browse a product
+3. The new app's URL preference (suggested: `sg.designflow.app`)?
+
+## Technical notes
+
+- Cross-Supabase auth verification: StyleGuide edge functions verify JWTs by calling PopDAM's `/auth/v1/user` with the bearer token, then check `app_access` — cached locally for 5min to avoid round-trip on every request.
+- The bridge agent's `agent-config.json` becomes an object keyed by tenant name to persist per-tenant pairing keys.
+- Light-theme palette: I'll mirror the dark tokens (background, foreground, muted, primary, accent, border) but invert lightness in `src/index.css`. All shadcn components already use semantic tokens, so no per-component changes needed.
+- Reusable code lifted from PopDAM (~70% of frontend): `AppLayout`, `AppHeader`, `NavLink`, library grid/list/filters skeleton, agent pairing tab, scan progress panel, downloads page, login/forgot/reset pages.
