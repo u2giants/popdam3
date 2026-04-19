@@ -903,7 +903,8 @@ function InvitationSection() {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
             {invitations.length === 0 && <p className="text-muted-foreground text-xs">No invitations yet.</p>}
           </div>
         )}
