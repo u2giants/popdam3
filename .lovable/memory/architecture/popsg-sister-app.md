@@ -37,7 +37,7 @@ Separate DAM app for licensor **style guides** (art libraries, no products). Ing
 - OR (simpler): each user has separate accounts in each Supabase, and `app_access` is replicated per-app. **Decision pending.**
 
 ## Repo strategy
-Separate repo: `u2giants/popsg`. New Lovable project pushes there.
+Separate repo: `https://github.com/u2giants/popsg`. New Lovable project pushes there.
 
 ## Bridge Agent v2 (TODO in this repo)
 Refactor `apps/bridge-agent/` to support `TENANTS=[{name,server_url,agent_key,scan_roots},...]`:
