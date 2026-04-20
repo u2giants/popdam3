@@ -19,9 +19,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 // ── Persistent config paths ──
+// Multi-tenant supervisor sets POPDAM_DATA_FILE per child; otherwise default.
 const PROGRAM_DATA = process.env.ProgramData || "C:\\ProgramData";
 const AGENT_CONFIG_DIR = path.join(PROGRAM_DATA, "PopDAM");
-const AGENT_CONFIG_PATH = path.join(AGENT_CONFIG_DIR, "agent-config.json");
+const AGENT_CONFIG_PATH = process.env.POPDAM_DATA_FILE
+  ? process.env.POPDAM_DATA_FILE
+  : path.join(AGENT_CONFIG_DIR, "agent-config.json");
 const LEGACY_KEY_PATH = path.join(path.dirname(process.execPath), "agent-key.cfg");
 
 // ── Load persisted agent config/key ──
