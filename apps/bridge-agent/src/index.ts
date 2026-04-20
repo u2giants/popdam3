@@ -1392,7 +1392,33 @@ async function main() {
   logger.info("Agent ready");
 }
 
-main().catch((e) => {
+// ── Multi-tenant entry: if TENANTS env is set and we are NOT a child, run supervisor ──
+import { parseTenants, runSupervisor } from "./tenant-supervisor.js";
+
+async function entry() {
+  if (!process.env.POPDAM_TENANT_CHILD) {
+    let tenants;
+    try {
+      tenants = parseTenants();
+    } catch (e) {
+      logger.error("Invalid TENANTS configuration — exiting", { error: (e as Error).message });
+      process.exit(1);
+    }
+    if (tenants && tenants.length > 0) {
+      runSupervisor(tenants);
+      return; // supervisor manages children; do not run main()
+    }
+  } else {
+    logger.info("Running as tenant child", {
+      tenant: process.env.POPDAM_TENANT_NAME,
+      configFile: process.env.POPDAM_DATA_FILE,
+    });
+  }
+  // Single-tenant fallback (legacy behavior)
+  await main();
+}
+
+entry().catch((e) => {
   logger.error("Fatal error", { error: (e as Error).message });
   process.exit(1);
 });

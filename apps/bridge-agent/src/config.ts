@@ -8,10 +8,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // ── Load persisted agent key from data volume ──
-const AGENT_CONFIG_PATH = join(
-  process.env.POPDAM_DATA_DIR || "/data",
-  "agent-config.json",
-);
+// Multi-tenant supervisor sets POPDAM_DATA_FILE per child; otherwise default to agent-config.json
+const AGENT_CONFIG_PATH = process.env.POPDAM_DATA_FILE
+  ? process.env.POPDAM_DATA_FILE
+  : join(process.env.POPDAM_DATA_DIR || "/data", "agent-config.json");
 
 try {
   const raw = readFileSync(AGENT_CONFIG_PATH, "utf-8");
