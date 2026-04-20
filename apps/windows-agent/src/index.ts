@@ -1176,13 +1176,36 @@ process.on("unhandledRejection", (reason) => {
 const MAIN_RETRY_BASE_MS = 10_000; // backoff base
 const MAIN_RETRY_MAX_MS = 300_000; // cap at 5 minutes
 
+// ── Multi-tenant entry: if TENANTS env is set and we are NOT a child, run supervisor ──
+import { parseTenants, runSupervisor } from "./tenant-supervisor";
+
 (async () => {
+  if (!process.env.POPDAM_TENANT_CHILD) {
+    let tenants;
+    try {
+      tenants = parseTenants();
+    } catch (e) {
+      logger.error("Invalid TENANTS configuration — exiting", { error: (e as Error).message });
+      process.exit(1);
+    }
+    if (tenants && tenants.length > 0) {
+      runSupervisor(tenants);
+      return; // supervisor manages children
+    }
+  } else {
+    logger.info("Running as tenant child", {
+      tenant: process.env.POPDAM_TENANT_NAME,
+      configFile: process.env.POPDAM_DATA_FILE,
+    });
+  }
+
+  // Single-tenant fallback (legacy behavior) with resilient retry
   let attempt = 0;
   while (true) {
     attempt += 1;
     try {
       await main();
-      return; // main() succeeded and timers are active
+      return;
     } catch (e) {
       const msg = (e as Error).message;
       logger.error(`main() failed (attempt ${attempt})`, {
