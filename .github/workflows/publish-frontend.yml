@@ -64,6 +64,14 @@ jobs:
           docker push ghcr.io/u2giants/popdam-frontend:latest
           docker push ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }}
 
+      - name: Configure GHCR credentials on VPS
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/vps_key root@178.156.180.212 \
+            "echo '${{ secrets.GHCR_PAT }}' | docker login ghcr.io -u u2giants --password-stdin"
+
       - name: Redeploy on Coolify
         run: |
           curl -s -X POST "https://coolify.designflow.app/api/v1/applications/${{ secrets.COOLIFY_APP_UUID }}/start" \
