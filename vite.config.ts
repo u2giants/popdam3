@@ -5,12 +5,18 @@ import { componentTagger } from "lovable-tagger";
 import { execSync } from "child_process";
 
 function getGitInfo() {
+  // Prefer build-time env vars (set by Docker/CI). Falls back to git, then "unknown".
+  const envHash = process.env.APP_COMMIT?.trim();
+  const envDate = process.env.APP_DATE?.trim();
+  if (envHash && envDate) {
+    return { hash: envHash, date: envDate };
+  }
   try {
     const hash = execSync("git rev-parse --short HEAD").toString().trim();
     const date = execSync("git log -1 --format=%cd --date=format:%Y-%m-%d").toString().trim();
     return { hash, date };
   } catch {
-    return { hash: "unknown", date: "unknown" };
+    return { hash: envHash || "unknown", date: envDate || "unknown" };
   }
 }
 
