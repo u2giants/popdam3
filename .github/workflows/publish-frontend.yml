@@ -77,15 +77,7 @@ jobs:
             CONTAINER=$(docker ps -q --filter "ancestor=ghcr.io/u2giants/popdam-frontend:latest" | head -1)
             echo "Container ID: $CONTAINER"
             if [ -n "$CONTAINER" ]; then
-              docker inspect $CONTAINER | python3 -c "
-import json,sys
-d=json.load(sys.stdin)[0]
-print('Name:', d['Name'])
-print('Networks:', list(d['NetworkSettings']['Networks'].keys()))
-traefik_labels = [(k,v) for k,v in d['Config']['Labels'].items() if 'traefik' in k and ('dam.design' in v or 'enable' in k)]
-print('Traefik labels (dam.design or enable):', traefik_labels[:5])
-"
-              # Connect to coolify network if not in it
+              echo "Networks: $(docker inspect --format '{{json .NetworkSettings.Networks}}' $CONTAINER | tr ',' '\n' | grep -o '"[^"]*":' | tr -d '":' | head -5)"
               docker network connect coolify $CONTAINER 2>/dev/null && echo "Connected to coolify network" || echo "Already connected or error"
             else
               echo "Container not found! Running containers:"
