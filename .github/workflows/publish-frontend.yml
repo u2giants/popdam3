@@ -77,47 +77,38 @@ jobs:
             echo '${{ secrets.GHCR_PAT }}' | docker login ghcr.io -u u2giants --password-stdin
             docker pull ghcr.io/u2giants/popdam-frontend:latest
 
-            # Stop and remove any existing popdam-frontend containers
             docker ps -q --filter "ancestor=ghcr.io/u2giants/popdam-frontend" | xargs -r docker stop
             docker ps -aq --filter "ancestor=ghcr.io/u2giants/popdam-frontend" | xargs -r docker rm
             docker rm -f popdam-frontend 2>/dev/null || true
 
-            # Start container with HTTP-01 certresolver (no Cloudflare API key needed)
             docker run -d \
               --name popdam-frontend \
               --network coolify \
               --restart unless-stopped \
               -p 8781:80 \
               -l "traefik.enable=true" \
-              -l "traefik.docker.network=coolify" \
               -l "traefik.http.routers.popdam-http.rule=Host(\`dam.designflow.app\`)" \
-              -l "traefik.http.routers.popdam-http.entrypoints=http" \
+              -l "traefik.http.routers.popdam-http.entrypoints=http,web" \
               -l "traefik.http.routers.popdam-http.service=popdam-svc" \
               -l "traefik.http.routers.popdam-https.rule=Host(\`dam.designflow.app\`)" \
-              -l "traefik.http.routers.popdam-https.entrypoints=https" \
+              -l "traefik.http.routers.popdam-https.entrypoints=https,websecure" \
+              -l "traefik.http.routers.popdam-https.tls=true" \
               -l "traefik.http.routers.popdam-https.tls.certresolver=letsencrypt" \
               -l "traefik.http.routers.popdam-https.service=popdam-svc" \
               -l "traefik.http.services.popdam-svc.loadbalancer.server.port=80" \
               ghcr.io/u2giants/popdam-frontend:latest
-
-            # Write Traefik file-provider config via base64 to avoid YAML heredoc issues
-            # Covers both entrypoint naming conventions: http/web and https/websecure
-            mkdir -p /traefik/dynamic
-            echo 'aHR0cDoKICByb3V0ZXJzOgogICAgcG9wZGFtLWZpbGUtaHR0cDoKICAgICAgcnVsZTogIkhvc3QoYGRhbS5kZXNpZ25mbG93LmFwcGApIgogICAgICBlbnRyeXBvaW50czogW2h0dHAsIHdlYl0KICAgICAgc2VydmljZTogcG9wZGFtLWZpbGUtc3ZjCiAgICBwb3BkYW0tZmlsZS1odHRwczoKICAgICAgcnVsZTogIkhvc3QoYGRhbS5kZXNpZ25mbG93LmFwcGApIgogICAgICBlbnRyeXBvaW50czogW2h0dHBzLCB3ZWJzZWN1cmVdCiAgICAgIHRsczoKICAgICAgICBjZXJ0UmVzb2x2ZXI6IGxldHNlbmNyeXB0CiAgICAgIHNlcnZpY2U6IHBvcGRhbS1maWxlLXN2YwogIHNlcnZpY2VzOgogICAgcG9wZGFtLWZpbGUtc3ZjOgogICAgICBsb2FkQmFsYW5jZXI6CiAgICAgICAgc2VydmVyczoKICAgICAgICAgIC0gdXJsOiAiaHR0cDovLzEyNy4wLjAuMTo4NzgxIgo=' | base64 -d > /traefik/dynamic/popdam-frontend.yml
-            echo "=== Written file provider config ==="
-            cat /traefik/dynamic/popdam-frontend.yml
-            echo "=== All files in /traefik/dynamic/ ==="
-            ls -la /traefik/dynamic/
-            echo "=== Traefik static config ==="
-            cat /data/coolify/proxy/traefik.conf 2>/dev/null || echo "(not at /data/coolify/proxy/traefik.conf)"
-            echo "=== ACME storage ==="
-            ACME_PATH="" ; [ -f /data/coolify/proxy/acme.json ] && ACME_PATH=/data/coolify/proxy/acme.json || { [ -f /traefik/acme.json ] && ACME_PATH=/traefik/acme.json ; }
-            if [ -n "$ACME_PATH" ]; then ls -lh "$ACME_PATH" ; grep -c "dam.designflow.app" "$ACME_PATH" && echo "dam.designflow.app found in acme.json" || echo "dam.designflow.app NOT in acme.json" ; else echo "No acme.json found" ; fi
-            echo "=== Traefik process env (CF/ACME) ==="
-            cat /proc/$(pgrep -x traefik)/environ 2>/dev/null | tr '\0' '\n' | grep -iE "CF_|CLOUDFLARE|ACME|EMAIL" || echo "No CF/ACME env vars in Traefik process"
-            echo "=== Deploy complete. Container status ==="
-            docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
-            echo "=== Traefik routing test (wait 3s for reload) ==="
-            sleep 3
-            curl -sv -H "Host: dam.designflow.app" http://127.0.0.1:80/ 2>&1 | head -20
           SSHEOF
+
+      - name: VPS Diagnostics
+        if: always()
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i ~/.ssh/vps_key root@178.156.180.212 \
+            'echo "=DOCKER_PS="; docker ps --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" ; echo "=TRAEFIK_CONTAINER="; docker ps --format "{{.Names}}" | grep -i traefik || echo "no traefik container"; echo "=TRAEFIK_INSPECT="; docker inspect coolify-proxy 2>/dev/null | grep -A5 "Binds\|Mounts" | head -40 || echo "no coolify-proxy container"; echo "=TRAEFIK_PROCESS="; ps aux | grep traefik | grep -v grep; echo "=TRAEFIK_CMDLINE="; cat /proc/$(pgrep -x traefik 2>/dev/null || echo 0)/cmdline 2>/dev/null | tr "\0" " " || echo "no traefik pid"; echo "=TRAEFIK_API="; curl -s http://127.0.0.1:8080/api/http/routers 2>/dev/null | head -500 || echo "api not on 8080"; echo "=HOST_PORT80_TEST="; curl -sv -H "Host: dam.designflow.app" http://127.0.0.1:80/ 2>&1 | head -15; echo "=TRAEFIK_DYNDIRS="; ls -la /traefik/dynamic/ 2>/dev/null || echo "no /traefik/dynamic"; ls -la /data/coolify/proxy/dynamic/ 2>/dev/null || echo "no /data/coolify/proxy/dynamic"; echo "=POPDAM_LABELS="; docker inspect popdam-frontend 2>/dev/null | grep -A2 "Labels" | head -30 || echo "no popdam-frontend"' \
+            > /tmp/vps-diag.txt 2>&1 || true
+          echo '## VPS Diagnostics' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/vps-diag.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
