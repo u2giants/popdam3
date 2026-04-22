@@ -45,7 +45,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
@@ -56,5 +56,9 @@ jobs:
           build-args: |
             APP_COMMIT=${{ steps.meta.outputs.commit }}
             APP_DATE=${{ steps.meta.outputs.date }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+
+      - name: Redeploy on Coolify
+        run: |
+          curl -s -X POST "https://coolify.designflow.app/api/v1/applications/${{ secrets.COOLIFY_APP_UUID }}/start" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Content-Type: application/json"
