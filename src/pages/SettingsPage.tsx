@@ -1191,7 +1191,7 @@ export default function SettingsPage() {
           </div>
           {agentsSubTab === "bridge" && (
             <div className="space-y-4">
-              <AgentKeySection />
+              <PairingCodesSection defaultAgentType="bridge" />
               <AgentStatusSection />
               <AgentThroughputChart />
               <LiveScanMonitor />
