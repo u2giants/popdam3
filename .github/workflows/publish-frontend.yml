@@ -100,10 +100,14 @@ jobs:
               -l "traefik.http.services.popdam-svc.loadbalancer.server.port=80" \
               ghcr.io/u2giants/popdam-frontend:latest
 
-            # Write Traefik file-provider config using letsencrypt (HTTP-01, no Cloudflare API needed)
+            # Write Traefik file-provider config via base64 to avoid YAML heredoc issues
+            # Covers both entrypoint naming conventions: http/web and https/websecure
             mkdir -p /traefik/dynamic
-            printf 'http:\n  routers:\n    popdam-file-http:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [http]\n      service: popdam-file-svc\n    popdam-file-https:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [https]\n      tls:\n        certResolver: letsencrypt\n      service: popdam-file-svc\n  services:\n    popdam-file-svc:\n      loadBalancer:\n        servers:\n          - url: "http://127.0.0.1:8781"\n' > /traefik/dynamic/popdam-frontend.yml
-
+            echo 'aHR0cDoKICByb3V0ZXJzOgogICAgcG9wZGFtLWZpbGUtaHR0cDoKICAgICAgcnVsZTogIkhvc3QoYGRhbS5kZXNpZ25mbG93LmFwcGApIgogICAgICBlbnRyeXBvaW50czogW2h0dHAsIHdlYl0KICAgICAgc2VydmljZTogcG9wZGFtLWZpbGUtc3ZjCiAgICBwb3BkYW0tZmlsZS1odHRwczoKICAgICAgcnVsZTogIkhvc3QoYGRhbS5kZXNpZ25mbG93LmFwcGApIgogICAgICBlbnRyeXBvaW50czogW2h0dHBzLCB3ZWJzZWN1cmVdCiAgICAgIHRsczoKICAgICAgICBjZXJ0UmVzb2x2ZXI6IGxldHNlbmNyeXB0CiAgICAgIHNlcnZpY2U6IHBvcGRhbS1maWxlLXN2YwogIHNlcnZpY2VzOgogICAgcG9wZGFtLWZpbGUtc3ZjOgogICAgICBsb2FkQmFsYW5jZXI6CiAgICAgICAgc2VydmVyczoKICAgICAgICAgIC0gdXJsOiAiaHR0cDovLzEyNy4wLjAuMTo4NzgxIgo=' | base64 -d > /traefik/dynamic/popdam-frontend.yml
+            echo "=== Written file provider config ==="
+            cat /traefik/dynamic/popdam-frontend.yml
+            echo "=== All files in /traefik/dynamic/ ==="
+            ls -la /traefik/dynamic/
             echo "=== Traefik static config ==="
             cat /data/coolify/proxy/traefik.conf 2>/dev/null || echo "(not at /data/coolify/proxy/traefik.conf)"
             echo "=== ACME storage ==="
@@ -113,6 +117,7 @@ jobs:
             cat /proc/$(pgrep -x traefik)/environ 2>/dev/null | tr '\0' '\n' | grep -iE "CF_|CLOUDFLARE|ACME|EMAIL" || echo "No CF/ACME env vars in Traefik process"
             echo "=== Deploy complete. Container status ==="
             docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
-            echo "Traefik routing test:"
-            curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Host: dam.designflow.app" http://127.0.0.1:80/ || echo "curl failed"
+            echo "=== Traefik routing test (wait 3s for reload) ==="
+            sleep 3
+            curl -sv -H "Host: dam.designflow.app" http://127.0.0.1:80/ 2>&1 | head -20
           SSHEOF
