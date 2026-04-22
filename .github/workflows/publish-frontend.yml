@@ -82,8 +82,7 @@ jobs:
             docker ps -aq --filter "ancestor=ghcr.io/u2giants/popdam-frontend" | xargs -r docker rm
             docker rm -f popdam-frontend 2>/dev/null || true
 
-            # Determine container IP after start for file-provider config
-            # Start with explicit Traefik labels + docker network hint
+            # Start container with HTTP-01 certresolver (no Cloudflare API key needed)
             docker run -d \
               --name popdam-frontend \
               --network coolify \
@@ -96,15 +95,43 @@ jobs:
               -l "traefik.http.routers.popdam-http.service=popdam-svc" \
               -l "traefik.http.routers.popdam-https.rule=Host(\`dam.designflow.app\`)" \
               -l "traefik.http.routers.popdam-https.entrypoints=https" \
-              -l "traefik.http.routers.popdam-https.tls.certresolver=letsencrypt-dns" \
+              -l "traefik.http.routers.popdam-https.tls.certresolver=letsencrypt" \
               -l "traefik.http.routers.popdam-https.service=popdam-svc" \
               -l "traefik.http.services.popdam-svc.loadbalancer.server.port=80" \
               ghcr.io/u2giants/popdam-frontend:latest
 
-            # Write Traefik file-provider config (file provider watches /traefik/dynamic/)
+            # Write Traefik file-provider config using letsencrypt (HTTP-01, no Cloudflare API needed)
             mkdir -p /traefik/dynamic
-            printf 'http:\n  routers:\n    popdam-file-http:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [http]\n      service: popdam-file-svc\n    popdam-file-https:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [https]\n      tls:\n        certResolver: letsencrypt-dns\n      service: popdam-file-svc\n  services:\n    popdam-file-svc:\n      loadBalancer:\n        servers:\n          - url: "http://127.0.0.1:8781"\n' > /traefik/dynamic/popdam-frontend.yml
-            echo "Deploy complete. Container status:"
+            printf 'http:\n  routers:\n    popdam-file-http:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [http]\n      service: popdam-file-svc\n    popdam-file-https:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [https]\n      tls:\n        certResolver: letsencrypt\n      service: popdam-file-svc\n  services:\n    popdam-file-svc:\n      loadBalancer:\n        servers:\n          - url: "http://127.0.0.1:8781"\n' > /traefik/dynamic/popdam-frontend.yml
+
+            echo "=== Traefik static config ==="
+            cat /data/coolify/proxy/traefik.conf 2>/dev/null || echo "(not at /data/coolify/proxy/traefik.conf)"
+            echo "=== ACME storage ==="
+            ls -lh /data/coolify/proxy/acme.json 2>/dev/null || ls -lh /traefik/acme.json 2>/dev/null || echo "No acme.json found"
+            echo "=== Cert for dam.designflow.app ==="
+            python3 -c "
+import json
+for path in ['/data/coolify/proxy/acme.json', '/traefik/acme.json']:
+    try:
+        data = json.load(open(path))
+        for resolver, v in data.items():
+            for c in v.get('Certificates', []):
+                d = c.get('domain', {})
+                main = d.get('main', '')
+                sans = d.get('sans', [])
+                if 'dam.designflow.app' in main or 'dam.designflow.app' in (sans or []) or '*.designflow.app' in main:
+                    print(f'FOUND in {resolver}: main={main}, sans={sans}')
+                    exit(0)
+        print(f'No cert for dam.designflow.app in {path}')
+        break
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f'Error reading {path}: {e}')
+" 2>&1 || echo "python3 check failed"
+            echo "=== Traefik process env (grep CF) ==="
+            cat /proc/$(pgrep -x traefik)/environ 2>/dev/null | tr '\0' '\n' | grep -i "CF_\|CLOUDFLARE\|ACME\|EMAIL" || echo "No Cloudflare/ACME env vars found in Traefik process"
+            echo "=== Deploy complete. Container status ==="
             docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
             echo "Traefik routing test:"
             curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Host: dam.designflow.app" http://127.0.0.1:80/ || echo "curl failed"
