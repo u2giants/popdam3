@@ -18,6 +18,10 @@ on:
       - ".github/workflows/publish-frontend.yml"
   workflow_dispatch:
 
+concurrency:
+  group: publish-frontend
+  cancel-in-progress: true
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -64,39 +68,40 @@ jobs:
           docker push ghcr.io/u2giants/popdam-frontend:latest
           docker push ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }}
 
-      - name: Configure GHCR credentials on VPS
+      - name: Deploy to VPS
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/vps_key root@178.156.180.212 \
-            "echo '${{ secrets.GHCR_PAT }}' | docker login ghcr.io -u u2giants --password-stdin"
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i ~/.ssh/vps_key root@178.156.180.212 << 'SSHEOF'
+            set -e
+            echo '${{ secrets.GHCR_PAT }}' | docker login ghcr.io -u u2giants --password-stdin
+            docker pull ghcr.io/u2giants/popdam-frontend:latest
 
-      - name: Redeploy on Coolify
-        run: |
-          curl -s -X POST "https://coolify.designflow.app/api/v1/applications/${{ secrets.COOLIFY_APP_UUID }}/start" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-            -H "Content-Type: application/json"
+            # Stop and remove any existing popdam-frontend containers
+            docker ps -q --filter "ancestor=ghcr.io/u2giants/popdam-frontend" | xargs -r docker stop
+            docker ps -aq --filter "ancestor=ghcr.io/u2giants/popdam-frontend" | xargs -r docker rm
+            docker rm -f popdam-frontend 2>/dev/null || true
 
-      - name: Diagnose Traefik labels after redeploy
-        run: |
-          sleep 45
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/vps_key root@178.156.180.212 << 'SSHEOF'
-            echo "=== All running containers ==="
-            docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}"
+            # Start with explicit Traefik labels
+            docker run -d \
+              --name popdam-frontend \
+              --network coolify \
+              --restart unless-stopped \
+              -l "traefik.enable=true" \
+              -l "traefik.http.routers.popdam-http.rule=Host(\`dam.designflow.app\`)" \
+              -l "traefik.http.routers.popdam-http.entrypoints=http" \
+              -l "traefik.http.routers.popdam-http.service=popdam-svc" \
+              -l "traefik.http.routers.popdam-https.rule=Host(\`dam.designflow.app\`)" \
+              -l "traefik.http.routers.popdam-https.entrypoints=https" \
+              -l "traefik.http.routers.popdam-https.tls.certresolver=letsencrypt" \
+              -l "traefik.http.routers.popdam-https.service=popdam-svc" \
+              -l "traefik.http.services.popdam-svc.loadbalancer.server.port=80" \
+              ghcr.io/u2giants/popdam-frontend:latest
 
-            echo ""
-            echo "=== popdam-frontend container labels ==="
-            CONTAINER=$(docker ps -q --filter "ancestor=ghcr.io/u2giants/popdam-frontend:latest" | head -1)
-            if [ -n "$CONTAINER" ]; then
-              echo "Container ID: $CONTAINER"
-              docker inspect --format '{{range $k,$v := .Config.Labels}}{{$k}}={{$v}}{{"\n"}}{{end}}' $CONTAINER | grep -i traefik
-              echo "Networks: $(docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $CONTAINER)"
-            else
-              echo "Container not found!"
-            fi
+            echo "Container launched:"
+            docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
 
-            echo ""
-            echo "=== Traefik config for dam.designflow.app ==="
-            docker exec $(docker ps -q --filter "name=traefik" | head -1) traefik version 2>/dev/null || true
+            echo "Traefik labels:"
+            docker inspect --format '{{range $k,$v := .Config.Labels}}{{$k}}={{$v}}{{"\n"}}{{end}}' popdam-frontend | grep traefik
           SSHEOF
