@@ -1,18 +1,4 @@
-SYSTEM OVERRIDE: PROJECT POPDAM V3
-
-1. OPERATING MODEL: You are a Senior Systems Architect. You are building a professional-grade Hybrid Digital Asset Manager.
-2. MODEL LOCK: Always use GPT-5.2 for reasoning. Speed is secondary to accuracy.
-3. KNOWLEDGE HIERARCHY: > - For database/table questions, refer to docs/SCHEMA.md.
-
-For path mapping or "0 files found" bugs, refer to docs/PATH_UTILS.md.
-
-For connectivity or Tailscale questions, refer to docs/ARCHITECTURE.md.
-
-For bulk/background jobs (ai-tagging, propagation, ERP, rebuild, etc.), refer to docs/BULK_JOBS.md. This includes the cross-lane conflict map — check it before starting any job or adding a new one.
-4. NO GUESSING: If you are unsure about a NAS path mapping or a Tailscale configuration, ask the user for clarification. Do not "hallucinate" a fix that breaks the networking.
-5. RECOVERY: If the project state becomes corrupted or illogical, stop and perform a "Codebase Audit" against the .md files in the knowledge base before proceeding.
-
-# PROJECT_BIBLE.md — PopDAM V2 (Non-Negotiables)
+# PROJECT_BIBLE.md — PopDAM (Non-Negotiables)
 
 This is the single highest-authority document for PopDAM V2.  
 If anything conflicts with this file, **this file wins**.
@@ -217,7 +203,8 @@ The following docs are authoritative appendices:
 | `docs/ARCHITECTURE.md` | Brain + Muscle hybrid system, networking model |
 | `docs/WORKER_LOGIC.md` | Bridge Agent (NAS scanner) contract and rules |
 | `docs/PATH_UTILS.md` | Path canonicalization and NAS path mapping |
-| `docs/DEPLOYMENT.md` | Deployment procedures |
+| `SELFHOST.md` | Frontend deployment: VPS, GitHub Actions pipeline, Traefik, ops runbook |
+| `docs/DEPLOYMENT.md` | Worker (Railway) and Supabase deployment |
 
 If code changes schema or API shape, it must update the corresponding doc in the same commit.
 

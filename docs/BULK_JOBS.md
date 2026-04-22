@@ -1,11 +1,11 @@
 # Bulk Job System
 
-Bulk operations are orchestrated by a **persistent Node.js worker running on Railway** (`apps/worker/`), not by the `bulk-job-runner` Supabase edge function. The edge function is a deployed no-op stub kept for backward compatibility (see `docs/KNOWN_QUIRKS.md §19`).
+Bulk operations are orchestrated by a **persistent Node.js worker running on Railway** (`apps/worker/`), not by the `bulk-job-runner` Supabase edge function. The edge function is a deployed no-op stub kept for backward compatibility (see quirk #19 in [docs/KNOWN_QUIRKS.md](KNOWN_QUIRKS.md)).
 
-The worker polls `admin_config.BULK_OPERATIONS` every **5 seconds**. When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no timeout constraint — it runs until the operation completes, the user stops it, or it errors.
+The worker polls `admin_config.BULK_OPERATIONS` every **5 seconds**. When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no timeout constraint — it runs until the operation completes, the user stops it, or it errors. The pg_cron schedule that previously called the edge function every minute was removed in migration `20260322000000`.
 
 **Authoritative code locations:**
-- Orchestrator: `apps/worker/src/`
+- Orchestrator: `apps/worker/src/` (Railway)
 - Operation definitions: `supabase/functions/_shared/operation-constants.ts`
 - Per-operation handlers: `supabase/functions/_shared/admin-handlers/`
 

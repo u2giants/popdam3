@@ -24,11 +24,13 @@ The only normal deployment path is:
 
 1. change files in this repo
 2. commit to `main`
-3. GitHub Actions builds and pushes the image
-4. GitHub Actions triggers Coolify
-5. Coolify deploys the new image
+3. GitHub Actions builds the Docker image and pushes to GHCR
+4. GitHub Actions SSHes to the VPS and runs `docker pull` + `docker run` directly
+5. GitHub Actions injects the Traefik file-provider config into the `coolify-proxy` container via `docker cp`
 
-Do not propose alternate routine deployment methods.
+The VPS runs Coolify (which provides the Docker network and Traefik proxy), but the `popdam-frontend` container is managed directly by CI — not through Coolify's application lifecycle. Do not propose alternate routine deployment methods.
+
+See [SELFHOST.md](../SELFHOST.md) for the full pipeline and operational runbook.
 
 ## Allowed AI actions
 
@@ -47,8 +49,8 @@ AI may help with:
 
 AI must not:
 
-- use SSH as the normal deployment path
-- hand-edit files directly on the production server
+- use SSH *manually* to deploy or hotfix the production server (automated SSH via GitHub Actions is the approved path)
+- hand-edit files directly on the production server outside of CI
 - assume the server contains the source of truth
 - create undocumented hotfixes on the live machine
 - introduce additional branches

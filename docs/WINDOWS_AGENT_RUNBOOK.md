@@ -126,11 +126,34 @@ This checks and reports:
 3. Deep-clean and reinstall if needed
 
 ### Temp disk space filling up
-The agent has a built-in janitor that cleans temp files hourly. If it's not keeping up:
+
+The agent creates temp files in `%TEMP%` during rendering:
+
+| Prefix | Source | Contents |
+|--------|--------|----------|
+| `popdam-gs-*` | Ghostscript | Intermediate PNG output |
+| `popdam-ink-*` | Inkscape | Intermediate PNG output |
+| `popdam-im-*` | ImageMagick | Intermediate JPEG output |
+| `magick-*` | ImageMagick internal | Pixel buffer temp files |
+
+Each renderer cleans up in a `finally` block normally. When the agent crashes or files are locked by Windows (antivirus, indexer), cleanup doesn't run. Over weeks this can accumulate tens of GB.
+
+**Built-in janitor** (`janitor.ts`): runs at startup and every hour; only deletes items older than 24 hours with known prefixes; logs bytes freed.
+
+If the janitor isn't keeping up or the disk is already full:
 
 ```powershell
 .\cleanup-temp.ps1
 ```
+
+This script stops the agent task, deletes all stale PopDAM/ImageMagick temp artifacts, truncates oversized log files (keeps last 1000 lines), restarts the agent, and prints before/after free disk space. Use `-StaleHours 0` to delete all matching temp files regardless of age.
+
+**If you need to clean manually** (e.g., disk full before script can run), delete from `%TEMP%`:
+- Directories starting with `popdam-gs-*`, `popdam-ink-*`, `popdam-im-*`
+- Files starting with `magick-*`
+- `%ProgramData%\PopDAM\logs\` — safe to delete entirely; agent recreates on start
+
+**Do not** delete other files in `%TEMP%`.
 
 ---
 

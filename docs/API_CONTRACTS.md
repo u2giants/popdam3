@@ -1,78 +1,48 @@
-\# API CONTRACTS (Agent + Admin)
+# API Contracts — Agent + Admin
 
-
-
-This file is the single source of truth for request/response shapes.
-
-All endpoints must have Zod validation that matches this.
-
-
+This file is the single source of truth for request/response shapes. All endpoints must have Zod validation that matches this.
 
 ---
 
+## 1) Auth Boundaries
 
+### agent-api
 
-\## 1) Auth Boundaries
+- `verify_jwt = false` (see quirk #4 in KNOWN_QUIRKS.md for why admin-api also uses this)
+- Auth: `x-agent-key` header (SHA-256 hashed, compared against stored hash)
+- Used only by Bridge Agent + Windows Render Agent
 
+### admin-api
 
-
-\### agent-api
-
-\- `verify\_jwt = false`
-
-\- Auth: `x-agent-key`
-
-\- Used only by Bridge Agent + Windows Render Agent
-
-
-
-\### admin-api
-
-\- `verify\_jwt = true`
-
-\- Auth: user JWT + admin role
-
-
+- `verify_jwt = false` at gateway level (CORS preflight workaround — see KNOWN_QUIRKS.md #4)
+- Auth: user JWT + admin role, verified inside the function via `authenticateAdmin()`
+- Also accepts Supabase service role key as Bearer token for Railway worker calls (see KNOWN_QUIRKS.md #8)
 
 ---
 
+## 2) Agent API Contracts
 
+### POST /agent/register
 
-\## 2) Agent API (High-Level Contracts)
-
-
-
-\### POST /agent/register
-
-Purpose: activate an agent using a pre-generated key
+Purpose: activate an agent using a pre-generated pairing code
 
 Request:
-
-\- agent\_name
-
-\- agent\_type (bridge | windows-render)
-
-\- agent\_key (raw)  (only sent by agent, never returned)
+- `agent_name`
+- `agent_type` — `bridge` | `windows-render`
+- `agent_key` (raw) — only sent by agent, never returned
 
 Response:
+- `agent_id`
+- `ok`
 
-\- agent\_id
+### POST /agent/heartbeat
 
-\- ok
-
-
-
-\### POST /agent/heartbeat
-
-Purpose: liveness + counters + **config sync** (returns full config payload)
+Purpose: liveness + counters + **config sync** (returns full config payload on every call)
 
 Request:
-
-\- agent\_id
-
-\- counters (files\_checked, ingested\_new, moved\_detected, updated\_existing, errors, roots\_invalid, roots\_unreadable)
-
-\- last\_error (optional)
+- `agent_id`
+- `counters` — `files_checked`, `ingested_new`, `moved_detected`, `updated_existing`, `errors`, `roots_invalid`, `roots_unreadable`
+- `last_error` (optional)
 
 Response (Config Sync Payload):
 
@@ -108,160 +78,136 @@ Response (Config Sync Payload):
 ```
 
 Notes:
-\- **Secrets (DO\_SPACES\_KEY, DO\_SPACES\_SECRET, AGENT\_KEY) are NEVER stored in admin\_config or returned by the API.** They exist only in the agent's local `.env` on the NAS.
-\- `do\_spaces` contains only non-secret fields from the `SPACES_CONFIG` admin\_config key. The agent uses its local `.env` for S3 credentials.
-\- `scanning.roots` from cloud override the agent's env `SCAN\_ROOTS` when non-empty.
-\- `commands.force\_scan` and `commands.abort\_scan` are consumed once and cleared server-side.
-\- `resource\_guard` values reflect the active schedule (or defaults if no schedule matches).
+- **Secrets (`DO_SPACES_KEY`, `DO_SPACES_SECRET`, `AGENT_KEY`) are never in `admin_config` or returned by the API.** They live only in the agent's local `.env`.
+- `do_spaces` contains only non-secret fields from `SPACES_CONFIG`. The agent uses its local `.env` for S3 credentials.
+- `scanning.roots` from cloud overrides the agent's env `SCAN_ROOTS` when non-empty.
+- `commands.force_scan` and `commands.abort_scan` are consumed once and cleared server-side.
+- `resource_guard` values reflect the active schedule (or defaults if no schedule matches).
 
+### POST /agent/ingest
 
+Purpose: idempotent ingest/update/move detection for a single file
 
-\### POST /agent/ingest
-
-Purpose: idempotent ingest/update/move detection
-
-Request (per file):
-
-\- relative\_path
-
-\- filename
-
-\- file\_type
-
-\- file\_size
-
-\- modified\_at (filesystem)
-
-\- file\_created\_at (filesystem)
-
-\- quick\_hash + version
-
-\- thumbnail\_url (optional)
-
-\- thumbnail\_error (optional)
+Request:
+- `relative_path`
+- `filename`
+- `file_type`
+- `file_size`
+- `modified_at` — filesystem timestamp
+- `file_created_at` — filesystem timestamp
+- `quick_hash` + `quick_hash_version`
+- `thumbnail_url` (optional)
+- `thumbnail_error` (optional)
 
 Response:
+- `action` — `created` | `updated` | `moved` | `noop`
+- `asset_id`
+- `ok`
 
-\- action (created | updated | moved | noop)
+### POST /agent/batch-ingest
 
-\- asset\_id
+Purpose: batch version of ingest (up to 100 files per call)
 
-\- ok
+Request: array of ingest payloads (same shape as single ingest)
 
+Response: array of per-file results with `action`, `asset_id`, `ok`
 
+### POST /agent/scan-progress
 
-\### POST /agent/scan-progress
-
-Purpose: progress reporting for UI
-
-Request:
-
-\- session\_id
-
-\- status (running | completed | failed)
-
-\- counters + current\_path (optional)
-
-Response: ok
-
-
-
-\### POST /agent/queue-render
-
-Purpose: queue AI render job for Windows agent
+Purpose: progress reporting for UI display
 
 Request:
+- `session_id`
+- `status` — `running` | `completed` | `failed`
+- `counters` + `current_path` (optional)
 
-\- asset\_id
+Response: `{ ok: true }`
 
-\- reason (no\_pdf\_compat etc.)
+### POST /agent/queue-render
+
+Purpose: queue an AI render job for the Windows Render Agent
+
+Request:
+- `asset_id`
+- `reason` (e.g., `no_pdf_compat`)
 
 Response:
+- `job_id`
+- `ok`
 
-\- job\_id
+### POST /agent/claim-render
 
-\- ok
-
-
-
-\### POST /agent/claim-render
-
-Purpose: windows agent claims next job (skip-locked style)
+Purpose: Windows agent claims the next pending render job (skip-locked)
 
 Request:
-
-\- agent\_id
+- `agent_id`
 
 Response:
+- `job` | `null`
+- `ok`
 
-\- job | null
+### POST /agent/complete-render
 
-\- ok
-
-
-
-\### POST /agent/complete-render
-
-Purpose: windows agent completes job
+Purpose: Windows agent reports job completion
 
 Request:
+- `job_id`
+- `success`
+- `thumbnail_url` or `error`
 
-\- job\_id
+Response: `{ ok: true }`
 
-\- success
+### POST /agent/bootstrap
 
-\- thumbnail\_url or error
+Purpose: returns bootstrap data needed by agent on startup (roots, config, active jobs)
 
-Response: ok
+Request:
+- `agent_id`
 
+Response: combined config + scan state + any pending commands
 
+### POST /agent/pairing-codes/generate
+
+Purpose: generate a one-time pairing code for a new agent (admin-initiated)
+
+Request: `{ agent_type, label }`
+
+Response: `{ code, expires_at }`
 
 ---
 
+## 3) Admin API Contracts
 
-
-\## 3) Admin API (High-Level Contracts)
-
-
-
-\### GET /admin/assets
+### GET /admin/assets
 
 Must be server-side paginated and apply centralized visibility logic.
 
-Query:
+Query params: `page`, `page_size`, `search`, filters
 
-\- page, page\_size, search, filters...
+Response: `{ assets[], total, page, page_size }`
 
-Response:
+### PUT /admin/assets/:id
 
-\- assets\[], total, page, page\_size
+Manual field edits + admin review resolution.
 
+### GET|PUT /admin/config
 
+Stores: `THUMBNAIL_MIN_DATE`, `SCAN_MIN_DATE`, NAS mapping, Spaces base URL, taxonomy endpoints, AI provider selection.
 
-\### PUT /admin/assets/:id
+### POST /admin/invitations
 
-Manual edits + admin review resolution.
+Create a new invitation for a user email.
 
+### GET /admin/doctor
 
+Return diagnostics bundle: effective config, agent statuses, last counters, last errors.
 
-\### GET/PUT /admin/config
+### POST /admin/update-bulk-op
 
-Stores THUMBNAIL\_MIN\_DATE, SCAN\_MIN\_DATE, NAS mapping, Spaces base URL, taxonomy endpoints, AI provider selection.
-
-
-
-\### POST /admin/invitations
-
-Create invite.
-
-
-
-\### GET /admin/doctor
-
-Return diagnostics bundle (effective config, agent statuses, last counters, last errors).
+Start, stop, queue, or update a bulk operation. Returns HTTP 409 if a conflicting job is already running.
 
 ---
 
-\## 4) Golden Rule: File Date Preservation
-All timestamps reported by the agent (`modified\_at`, `file\_created\_at`) must be the original filesystem values. The agent must never cause these to change on disk. If a file operation inadvertently modifies timestamps, the agent must restore them and report a critical error if restoration fails. See PROJECT\_BIBLE.md §15.
+## 4) File Date Preservation Rule
 
+All timestamps reported by the agent (`modified_at`, `file_created_at`) must be the original filesystem values. The agent must never cause these to change on disk. If a file operation inadvertently modifies timestamps, the agent must restore them and report a critical error if restoration fails. See `docs/PROJECT_BIBLE.md`.

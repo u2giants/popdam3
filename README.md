@@ -44,11 +44,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full networking model.
 ## Quick start
 
 ```bash
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
-Requires `.env.local` with Supabase URL, anon key, and service role key.
+Requires `.env.local` with at minimum `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. The project uses the **external** Supabase project (`ryltkzzernhwnojzouyb`), not the Lovable-provisioned one — see quirk #1 in [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md).
 See [docs/ONBOARDING.md](docs/ONBOARDING.md) for the full setup checklist.
 
 ## Repo structure
@@ -74,7 +74,8 @@ popdam3/
 | [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema reference |
 | [docs/WORKER_LOGIC.md](docs/WORKER_LOGIC.md) | Background worker behavior (AI tagging, propagation, ERP, rebuild) |
 | [docs/BULK_JOBS.md](docs/BULK_JOBS.md) | Bulk/background job system and cross-lane conflict map |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deployment and CI/CD |
+| [SELFHOST.md](SELFHOST.md) | Frontend deployment: VPS architecture, CI/CD pipeline, ops runbook |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Worker (Railway) and Supabase deployment |
 | [docs/ONBOARDING.md](docs/ONBOARDING.md) | Local setup, environment, first-run checklist |
 | [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md) | Intentional oddities — read before changing anything |
 | [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md) | API contracts between Brain and Muscle |
@@ -96,6 +97,6 @@ popdam3/
 
 ## Deployment
 
-Push to `main` → GitHub Actions builds Docker image → triggers Coolify deployment.
+Push to `main` → GitHub Actions builds Docker image → SSHes into VPS → `docker run` + injects Traefik config.
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full pipeline.
+The VPS runs Coolify (which provides the Docker network and Traefik reverse-proxy), but the `popdam-frontend` container is managed directly by GitHub Actions, not through Coolify's UI. See [SELFHOST.md](SELFHOST.md) for the full deployment architecture and ops runbook.

@@ -216,7 +216,7 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 ---
 
-## 21. `HEALTHCHECK NONE` on the Bridge Agent Docker Image
+## 20. `HEALTHCHECK NONE` on the Bridge Agent Docker Image
 
 **File**: `apps/bridge-agent/Dockerfile`
 
@@ -230,7 +230,23 @@ The health check command was `node -e "process.exit(0)"` — it always exits 0 a
 
 ---
 
-## 20. Style Group Batch Functions Need `SET lock_timeout TO '0'`
+## 21. Traefik Runs Inside `coolify-proxy` Docker Container (Not as a Host Process)
+
+**What it looks like**: Writing a config file to `/traefik/dynamic/` on the VPS host filesystem should configure Traefik routing.
+
+**Why it doesn't work**: Coolify installs Traefik inside a Docker container named `coolify-proxy`. Traefik reads its dynamic config from `/traefik/dynamic/` **inside the container**, not from the host filesystem. Writing to the host has no effect.
+
+**Correct mechanism**: Use `docker cp` to write config files into the running container:
+```bash
+docker cp /tmp/popdam-traefik.yml coolify-proxy:/traefik/dynamic/popdam-frontend.yml
+```
+Traefik watches this directory (`--providers.file.watch=true`) and picks up changes within seconds.
+
+**Similarly**: The backend URL in routing config must use Docker DNS (`http://popdam-frontend:80`), not `http://127.0.0.1:PORT`. `127.0.0.1` inside the Traefik container is the container's own loopback — it cannot reach `popdam-frontend` that way even though both share the host machine.
+
+---
+
+## 22. Style Group Batch Functions Need `SET lock_timeout TO '0'`
 
 **What it looks like**: Unnecessary or excessive SQL configuration on batch functions like `rebuild_style_groups_batch`, `clear_style_group_batch`, etc.
 
