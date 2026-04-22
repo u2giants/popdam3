@@ -456,56 +456,140 @@ function ScanCounters({ counters }: { counters: Record<string, number> }) {
   );
 }
 
-// ── Agent Key Generation ────────────────────────────────────────────
+// ── Pairing Codes ───────────────────────────────────────────────────
 
-function AgentKeySection() {
+type PairingRow = {
+  id: string;
+  pairing_code: string;
+  agent_type: string;
+  agent_name: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+  consumed_at: string | null;
+};
+
+function PairingCodesSection({ defaultAgentType = "bridge" as "bridge" | "windows-render" }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
-  const [agentName, setAgentName] = useState("");
-  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [agentName, setAgentName] = useState(
+    defaultAgentType === "bridge" ? "bridge-agent" : "windows-render-agent",
+  );
+  const [agentType, setAgentType] = useState<"bridge" | "windows-render">(defaultAgentType);
+  const [justCreated, setJustCreated] = useState<{ code: string; expires_at: string } | null>(null);
 
-  const generateMutation = useMutation({
-    mutationFn: () => call("generate-agent-key", { agent_name: agentName, agent_type: "bridge" }),
+  const { data: listData } = useQuery({
+    queryKey: ["admin-pairing-codes"],
+    queryFn: () => call("list-pairing-codes"),
+    refetchInterval: 30_000,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      call("create-pairing-code", {
+        agent_type: agentType,
+        agent_name: agentName.trim() || undefined,
+      }),
     onSuccess: (data) => {
-      setGeneratedKey(data.agent_key);
-      setAgentName("");
-      queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
-      toast.success("Agent key generated — save it now!");
+      setJustCreated({ code: data.pairing_code, expires_at: data.expires_at });
+      queryClient.invalidateQueries({ queryKey: ["admin-pairing-codes"] });
+      if (data.reused) {
+        toast.info("Reusing existing unexpired pairing code");
+      } else {
+        toast.success("Pairing code created — copy it now!");
+      }
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const pairings: PairingRow[] = (listData?.pairings as PairingRow[] | undefined) || [];
+  const activePairings = pairings.filter(
+    (p) => p.status === "pending" && new Date(p.expires_at).getTime() > Date.now(),
+  );
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <Key className="h-4 w-4" /> Generate Bridge Agent Key
+          <Key className="h-4 w-4" /> Pairing Codes
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">Create an auth key for a new NAS Bridge Agent. The key is shown once — copy it before closing.</p>
-        <div className="flex gap-2">
+      <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Generate a one-time code to pair a new agent. The agent self-registers on first heartbeat — no manual key copying needed. Codes expire in 15 minutes.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-[160px,1fr,auto] gap-2">
+          <select
+            value={agentType}
+            onChange={(e) => {
+              const v = e.target.value as "bridge" | "windows-render";
+              setAgentType(v);
+              setAgentName(v === "bridge" ? "bridge-agent" : "windows-render-agent");
+            }}
+            className="h-9 rounded-md border border-input bg-background px-2 text-xs font-mono"
+          >
+            <option value="bridge">Bridge Agent</option>
+            <option value="windows-render">Windows Render</option>
+          </select>
           <Input
-            placeholder="Agent name (e.g. synology-bridge-1)"
+            placeholder="Agent name (e.g. bridge-popsg)"
             value={agentName}
             onChange={(e) => setAgentName(e.target.value)}
-            className="font-mono text-sm"
+            className="font-mono text-xs"
           />
           <Button
-            onClick={() => generateMutation.mutate()}
-            disabled={!agentName.trim() || generateMutation.isPending}
-            title={!agentName.trim() ? "Enter an agent name first" : generateMutation.isPending ? "Generating key…" : undefined}
+            onClick={() => createMutation.mutate()}
+            disabled={createMutation.isPending}
             size="sm"
           >
-            Generate
+            {createMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Generate"}
           </Button>
         </div>
-        {generatedKey && (
-          <div className="bg-[hsl(var(--surface-overlay))] border border-primary/30 rounded-md p-3 space-y-2">
-            <p className="text-xs text-warning font-semibold">⚠ Copy this key now — it cannot be retrieved again!</p>
+
+        {justCreated && (
+          <div className="bg-[hsl(var(--surface-overlay))] border border-primary/40 rounded-md p-3 space-y-2">
+            <p className="text-xs text-[hsl(var(--warning))] font-semibold">
+              ⚠ Copy this code now — it expires{" "}
+              {new Date(justCreated.expires_at).toLocaleTimeString()}
+            </p>
             <div className="flex items-center gap-2">
-              <code className="text-xs font-mono text-foreground break-all flex-1">{generatedKey}</code>
-              <CopyButton text={generatedKey} />
+              <code className="text-base font-mono font-bold text-foreground tracking-wider flex-1 select-all">
+                {justCreated.code}
+              </code>
+              <CopyButton text={justCreated.code} />
+            </div>
+          </div>
+        )}
+
+        {activePairings.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
+              Active codes ({activePairings.length})
+            </p>
+            <div className="space-y-1">
+              {activePairings.map((p) => {
+                const minsLeft = Math.max(
+                  0,
+                  Math.round((new Date(p.expires_at).getTime() - Date.now()) / 60000),
+                );
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-2 text-xs font-mono bg-muted/40 rounded px-2 py-1.5"
+                  >
+                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                      {p.agent_type}
+                    </Badge>
+                    <span className="text-muted-foreground shrink-0">{p.agent_name}</span>
+                    <code className="flex-1 text-foreground select-all">{p.pairing_code}</code>
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {minsLeft}m left
+                    </span>
+                    <CopyButton text={p.pairing_code} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
