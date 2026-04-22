@@ -101,8 +101,9 @@ jobs:
 
             # Write Traefik file-provider config into the coolify-proxy container.
             # Uses popdam-frontend hostname (Docker DNS) since Traefik and the app share the coolify network.
+            # Uses letsencrypt-dns (Cloudflare DNS-01) - configured in Traefik with CF credentials in env.
             # base64 of: http routers for dam.designflow.app → service url: http://popdam-frontend:80
-            echo 'aHR0cDoKICByb3V0ZXJzOgogICAgcG9wZGFtLWh0dHA6CiAgICAgIHJ1bGU6ICJIb3N0KGBkYW0uZGVzaWduZmxvdy5hcHBgKSIKICAgICAgZW50cnlwb2ludHM6IFtodHRwXQogICAgICBzZXJ2aWNlOiBwb3BkYW0tc3ZjCiAgICBwb3BkYW0taHR0cHM6CiAgICAgIHJ1bGU6ICJIb3N0KGBkYW0uZGVzaWduZmxvdy5hcHBgKSIKICAgICAgZW50cnlwb2ludHM6IFtodHRwc10KICAgICAgdGxzOgogICAgICAgIGNlcnRSZXNvbHZlcjogbGV0c2VuY3J5cHQKICAgICAgc2VydmljZTogcG9wZGFtLXN2YwogIHNlcnZpY2VzOgogICAgcG9wZGFtLXN2YzoKICAgICAgbG9hZEJhbGFuY2VyOgogICAgICAgIHNlcnZlcnM6CiAgICAgICAgICAtIHVybDogImh0dHA6Ly9wb3BkYW0tZnJvbnRlbmQ6ODAiCg==' | base64 -d > /tmp/popdam-traefik.yml
+            echo 'aHR0cDoKICByb3V0ZXJzOgogICAgcG9wZGFtLWh0dHA6CiAgICAgIHJ1bGU6ICJIb3N0KGBkYW0uZGVzaWduZmxvdy5hcHBgKSIKICAgICAgZW50cnlwb2ludHM6IFtodHRwXQogICAgICBzZXJ2aWNlOiBwb3BkYW0tc3ZjCiAgICBwb3BkYW0taHR0cHM6CiAgICAgIHJ1bGU6ICJIb3N0KGBkYW0uZGVzaWduZmxvdy5hcHBgKSIKICAgICAgZW50cnlwb2ludHM6IFtodHRwc10KICAgICAgdGxzOgogICAgICAgIGNlcnRSZXNvbHZlcjogbGV0c2VuY3J5cHQtZG5zCiAgICAgIHNlcnZpY2U6IHBvcGRhbS1zdmMKICBzZXJ2aWNlczoKICAgIHBvcGRhbS1zdmM6CiAgICAgIGxvYWRCYWxhbmNlcjoKICAgICAgICBzZXJ2ZXJzOgogICAgICAgICAgLSB1cmw6ICJodHRwOi8vcG9wZGFtLWZyb250ZW5kOjgwIgo=' | base64 -d > /tmp/popdam-traefik.yml
 
             TRAEFIK_CONT=$(docker ps --format '{{.Names}}' | grep -iE '^coolify-proxy$|^traefik$' | head -1 || true)
             if [ -n "$TRAEFIK_CONT" ]; then
