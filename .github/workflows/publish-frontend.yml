@@ -34,28 +34,22 @@ jobs:
           echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "date=$(git log -1 --format=%cd --date=format:%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ghcr.io/u2giants/popdam-frontend:latest
-            ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }}
-          build-args: |
-            APP_COMMIT=${{ steps.meta.outputs.commit }}
-            APP_DATE=${{ steps.meta.outputs.date }}
+      - name: Build
+        run: |
+          docker build \
+            --build-arg APP_COMMIT=${{ steps.meta.outputs.commit }} \
+            --build-arg APP_DATE=${{ steps.meta.outputs.date }} \
+            -t ghcr.io/u2giants/popdam-frontend:latest \
+            -t ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }} \
+            .
+
+      - name: Push
+        run: |
+          docker push ghcr.io/u2giants/popdam-frontend:latest
+          docker push ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }}
 
       - name: Redeploy on Coolify
         run: |
