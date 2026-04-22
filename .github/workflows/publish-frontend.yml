@@ -34,14 +34,27 @@ jobs:
           echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "date=$(git log -1 --format=%cd --date=format:%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          APP_COMMIT: ${{ steps.meta.outputs.commit }}
+          APP_DATE: ${{ steps.meta.outputs.date }}
+
       - name: Log in to GHCR
         run: echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u u2giants --password-stdin
 
-      - name: Build
+      - name: Build Docker image
         run: |
-          docker build \
-            --build-arg APP_COMMIT=${{ steps.meta.outputs.commit }} \
-            --build-arg APP_DATE=${{ steps.meta.outputs.date }} \
+          docker build -f Dockerfile.ci \
             -t ghcr.io/u2giants/popdam-frontend:latest \
             -t ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }} \
             .
