@@ -8,29 +8,38 @@ searching, filtering, and tagging assets.
 ## Architecture — Brain + Muscle
 
 ```
-┌──────────────────────────────────────┐
-│  BRAIN — Cloud Web App               │
-│  (Lovable / React + Supabase)        │
-│  - browse, search, filter, tag       │
-│  - admin config and monitoring       │
-│  - AI tagging via OpenRouter         │
-└───────────────────┬──────────────────┘
-                    │ HTTPS (poll only — NAS never receives inbound calls)
-    ┌───────────────┴────────────────────────────────┐
-    │                                                │
-┌───▼──────────────────┐    ┌───────────────────────▼─────┐
-│  Bridge Agent        │    │  Windows Render Agent        │
-│  (Synology Docker)   │    │  (optional, .ai files only)  │
-│  - scans NAS         │    │  - renders via Illustrator   │
-│  - quick hash        │    │  - uploads to Spaces         │
-│  - thumbnail gen     │    │  - reports via agent-api     │
-│  - uploads to Spaces │    └──────────────────────────────┘
-│  - reports to cloud  │
+┌──────────────────────────────────────────────────────────────┐
+│  BRAIN — Cloud                                               │
+│                                                              │
+│  Web App (Lovable/React)   Edge Functions (Supabase/Deno)    │
+│  - browse, search, filter  - admin-api (admin UI ops)        │
+│  - admin config/monitoring - agent-api (agent comms)         │
+│                            - erp-sync, export-*, etc.        │
+│                                                              │
+│  Cloud Worker (Railway/Node.js)                              │
+│  - AI tagging (OpenRouter/Gemini)                            │
+│  - ERP enrichment + AI classification                        │
+│  - Style group rebuild + tag propagation                     │
+│                                                              │
+│  Supabase: PostgreSQL + Auth + Realtime                      │
+│  DigitalOcean Spaces: thumbnail storage (S3-compatible)      │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ HTTPS (poll only — NAS never receives inbound calls)
+            ┌───────────────┴───────────────┐
+            │                               │
+┌───────────▼──────────┐    ┌───────────────▼──────────────┐
+│  Bridge Agent        │    │  Windows Render Agent         │
+│  (Synology Docker)   │    │  (optional, .ai files only)   │
+│  - scans NAS         │    │  - renders via Illustrator    │
+│  - quick hash        │    │  - TIFF optimization          │
+│  - thumbnail gen     │    │  - hygiene scanning           │
+│  - uploads to Spaces │    │  - reports via agent-api      │
+│  - reports to cloud  │    └───────────────────────────────┘
 └──────────────────────┘
 ```
 
-The cloud never reaches into the NAS. The NAS worker polls outward (HTTPS) to claim work
-and report status. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full networking model.
+The cloud never reaches into the NAS. Agents poll outward via HTTPS.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full networking model.
 
 ## Quick start
 

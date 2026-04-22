@@ -216,6 +216,20 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 ---
 
+## 21. `HEALTHCHECK NONE` on the Bridge Agent Docker Image
+
+**File**: `apps/bridge-agent/Dockerfile`
+
+**What it looks like**: Missing health check — the container has no liveness probe.
+
+**Why**: Synology Container Manager polls the Docker daemon for container health status. Each poll creates a DSM CGI session owned by the container's user account (`popdam`, UID 1039). These sessions accumulate and are never explicitly closed — they linger until Synology's `synocgid` session-timeout sweeper clears them in bulk, producing log floods like `synocgid: session/timeout.cpp:74 popdam has session timeout` (observed 9,997 times in 3.5 days at the old 30-second health-check interval).
+
+The health check command was `node -e "process.exit(0)"` — it always exits 0 and communicates nothing meaningful about whether the agent is actually working. `HEALTHCHECK NONE` is strictly correct: it eliminates the session accumulation entirely and makes the Docker metadata honest (no false "healthy" status from a meaningless command).
+
+**What breaks if you "fix" it**: If you add a real `HEALTHCHECK` command, Container Manager will resume creating DSM sessions per poll. Unless the command actually validates agent liveness (e.g., checking a pid file or local HTTP endpoint), the probe is theater that costs real sessions.
+
+---
+
 ## 20. Style Group Batch Functions Need `SET lock_timeout TO '0'`
 
 **What it looks like**: Unnecessary or excessive SQL configuration on batch functions like `rebuild_style_groups_batch`, `clear_style_group_batch`, etc.

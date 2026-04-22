@@ -141,7 +141,7 @@ popdam3/
 │   │   ├── admin-api/            # Admin routes (JWT + admin role)
 │   │   ├── agent-api/            # Agent routes (x-agent-key auth)
 │   │   ├── ai-tag/               # Single-asset AI tagging endpoint
-│   │   ├── bulk-job-runner/      # Legacy bulk orchestrator (being replaced by worker)
+│   │   ├── bulk-job-runner/      # Deployed no-op stub — replaced by Railway worker
 │   │   ├── _shared/              # Shared code for all edge functions
 │   │   │   ├── admin-handlers/   # Extracted handler modules for admin-api
 │   │   │   ├── http.ts           # corsServe(), json(), err() — CORS + HTTP helpers
@@ -574,10 +574,12 @@ cd apps/worker && npm install && npm run build
 - `SCAN_ROOTS` — comma-separated NAS paths to scan
 - `THUMB_CONCURRENCY` — parallel thumbnail generation (default: 2)
 
-**Cloud Worker** (`apps/worker/.env`):
+**Cloud Worker** (set in Railway dashboard, not a local `.env`):
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — full DB access
-- `GOOGLE_AI_API_KEY` — Gemini API for AI tagging
-- `ANTHROPIC_API_KEY` — Optional, for ERP classification
+- `OPENROUTER_API_KEY` — AI tagging and ERP classification (primary)
+- `GOOGLE_AI_API_KEY` — Optional legacy fallback if no OpenRouter key
+
+Note: `OPENROUTER_API_KEY` set in the admin UI (Settings → AI Models) updates `admin_config` for agents, but does NOT reach the Railway worker — they are separate consumers. Set it in both places.
 
 **Edge Functions** (Supabase secrets):
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`

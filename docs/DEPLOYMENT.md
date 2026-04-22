@@ -28,10 +28,11 @@ No local builds on NAS.
 ---
 
 ## 3) CI/CD Requirement
-On push to main:
-- build bridge-agent image
-- push to registry (latest + sha)
-- publish release notes / changelog entry
+On push to main (when `apps/bridge-agent/` is changed):
+- build bridge-agent Docker image
+- push to `ghcr.io/u2giants/popdam-bridge:latest` and a commit-SHA tag
+
+Version is tracked in `apps/bridge-agent/package.json`. There is no automated changelog — bump the version in the same commit as your changes (patch for bug fixes, minor for features, major for breaking changes).
 
 ---
 
@@ -48,14 +49,14 @@ Or copy `deploy/synology/update.sh` to the NAS and run it locally. The script pu
 
 ---
 
-## 4) Secrets Handling
+## 5) Secrets Handling
 - Never commit secrets to git.
 - `.env.example` is required for all components.
 - Raw agent keys must never be stored in DB or returned by APIs.
 
 ---
 
-## 5) Golden Rule: File Date Preservation
+## 6) Golden Rule: File Date Preservation
 The Bridge Agent volume mount should be `:ro` (read-only) whenever possible. The agent must never modify file timestamps on source art. Before reading a file for hashing or thumbnailing, it must record original `mtime`/`birthtime` and restore them if changed. If restoration fails, the agent must halt and report a critical error. See PROJECT_BIBLE.md §15.
 
 ### 5.1) TIFF Compression Timestamp Preservation (Windows Agent)

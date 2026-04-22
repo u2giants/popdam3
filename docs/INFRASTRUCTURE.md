@@ -97,41 +97,31 @@ CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 ```
 
-### bulk-job-runner Schedule
+These extensions are still present but pg_cron is **not used for bulk job scheduling** — see note below.
 
-One cron job runs every minute:
+### bulk-job-runner Schedule — REMOVED
 
+The pg_cron job that called `bulk-job-runner` every minute was **removed in migration `20260322000000_disable-bulk-job-runner-cron`**. All bulk processing is now handled by the persistent Railway worker (`apps/worker/`), which polls every 5 seconds and has no 60-second timeout constraint.
+
+The historical cron definition was:
 ```sql
+-- REMOVED — kept here for reference only. Do not re-add.
 select cron.schedule(
   'invoke-bulk-job-runner',
   '* * * * *',
-  $$
-  select net.http_post(
-    url     := 'https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/bulk-job-runner',
-    headers := jsonb_build_object(
-      'Content-Type',  'application/json',
-      'Authorization', 'Bearer ' || (
-        select decrypted_secret
-        from   vault.decrypted_secrets
-        where  name = 'SUPABASE_SERVICE_ROLE_KEY'
-        limit  1
-      )
-    ),
-    body    := '{}'::jsonb
-  ) as request_id;
-  $$
+  $$ select net.http_post(url := '...bulk-job-runner', ...) $$
 );
 ```
 
-This fires `bulk-job-runner` via HTTP POST every minute. The function runs for at most 45 seconds, saves its cursor, and exits. The next tick resumes where it left off.
+The `bulk-job-runner` edge function itself is still deployed as a no-op stub (returns `{ ok: true }`). Do not add logic to it — it would conflict with the Railway worker.
 
 ### Vault Secret Setup
 
-The service role key is stored in Supabase Vault so pg_cron can read it without hardcoding it in the migration:
+The service role key is stored in Supabase Vault for use by any pg_cron jobs that may be added in the future:
 
 1. Supabase Dashboard → Settings → Vault
 2. New Secret → Name: `SUPABASE_SERVICE_ROLE_KEY` → Value: your service role key
-3. The migration reads it via `vault.decrypted_secrets`
+3. Access via `vault.decrypted_secrets` in SQL
 
 ---
 

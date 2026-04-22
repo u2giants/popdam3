@@ -1,9 +1,11 @@
 # Bulk Job System
 
-PopDAM uses a `bulk-job-runner` Supabase Edge Function that is invoked every minute by `pg_cron`. It reads job state from `admin_config.BULK_OPERATIONS`, runs one batch of work, saves the cursor, and exits. On the next tick it resumes where it left off.
+Bulk operations are orchestrated by a **persistent Node.js worker running on Railway** (`apps/worker/`), not by the `bulk-job-runner` Supabase edge function. The edge function is a deployed no-op stub kept for backward compatibility (see `docs/KNOWN_QUIRKS.md §19`).
+
+The worker polls `admin_config.BULK_OPERATIONS` every **5 seconds**. When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no timeout constraint — it runs until the operation completes, the user stops it, or it errors.
 
 **Authoritative code locations:**
-- Orchestrator: `supabase/functions/bulk-job-runner/index.ts`
+- Orchestrator: `apps/worker/src/`
 - Operation definitions: `supabase/functions/_shared/operation-constants.ts`
 - Per-operation handlers: `supabase/functions/_shared/admin-handlers/`
 
@@ -63,8 +65,8 @@ Some jobs in *different* lanes write to the same database rows. Running them at 
 The conflict map is checked in **four** places:
 
 1. **UI — `requestOp` function** (`AiTaggingTab.tsx`, `OperationsTab.tsx`): Before starting any job, the UI fetches the current `BULK_OPERATIONS` state and checks both same-lane conflicts and cross-lane `OP_CONFLICTS`. If a conflict is detected (running or queued), a **ConflictDialog** is shown giving the user the option to queue the new job to run automatically after the conflicting one finishes. This prevents the race before it ever reaches the server. The frontend `OP_CONFLICTS` map lives in `src/components/settings/diagnostics/types.ts` — keep it in sync with the backend copy in `operation-constants.ts`.
-2. **`bulk-job-runner` — queue promotion:** A queued job will not be promoted to `running` if a conflicting job is already running. It stays queued and is reconsidered on the next pg_cron tick.
-3. **`bulk-job-runner` — auto-resume:** An interrupted job will not be auto-resumed if a conflicting job is running. The cooldown timer still counts down; it will resume once the conflict clears.
+2. **Railway worker — queue promotion:** A queued job will not be promoted to `running` if a conflicting job is already running. It stays queued and is reconsidered on the next 5-second poll.
+3. **Railway worker — auto-resume:** An interrupted job will not be auto-resumed if a conflicting job is running. The cooldown timer still counts down; it will resume once the conflict clears.
 4. **`admin-api` — `update-bulk-op` route:** If anything tries to set a job to `running` or `queued` while a conflicting job is running, the API returns HTTP 409 with a message explaining which job is blocking it. This is the last line of defence if the UI check is bypassed.
 
 ### How to add a new job
@@ -119,7 +121,7 @@ State is written atomically via the `update_bulk_operation` RPC, which supports 
 
 ## Time Budget
 
-Each invocation of `bulk-job-runner` runs for at most **45 seconds** (`MAX_RUN_MS`). It processes one operation per invocation (round-robin among running ops, oldest-updated-at first). When the budget is exhausted, the cursor is saved and the function exits cleanly. pg_cron picks it up on the next minute.
+The Railway worker has no hard invocation timeout — it runs continuously. For safety, each individual batch processes at most **45 seconds** worth of work (`MAX_RUN_MS`). When the budget is exhausted, the cursor is saved and the worker's main loop picks it up on the next 5-second poll. The worker processes one operation per loop iteration (round-robin among running ops, oldest-updated-at first).
 
 ---
 
