@@ -1386,9 +1386,21 @@ async function main() {
   startHeartbeat();
 
   // 3. Start Realtime watcher (instant scan-request delivery when SUPABASE_ANON_KEY is set)
-  startRealtimeWatcher(config.supabaseUrl, config.supabaseAnonKey, agentId, onRealtimeScanRequest);
+  const cleanupRealtime = startRealtimeWatcher(config.supabaseUrl, config.supabaseAnonKey, agentId, onRealtimeScanRequest);
 
-  // 4. Ready
+  // 4. Graceful shutdown — close Realtime WebSocket so the server-side subscription is
+  // released immediately rather than waiting for the TCP timeout (up to ~90s on Synology).
+  // Without this, each container restart leaves an orphaned subscription on the Supabase
+  // Realtime server until it detects the dead connection, which can accumulate over time.
+  const shutdown = async (signal: string) => {
+    logger.info(`Received ${signal} — closing Realtime connection and exiting`);
+    await cleanupRealtime();
+    process.exit(0);
+  };
+  process.on("SIGTERM", () => { shutdown("SIGTERM").catch(() => process.exit(0)); });
+  process.on("SIGINT",  () => { shutdown("SIGINT").catch(() => process.exit(0)); });
+
+  // 5. Ready
   logger.info("Agent ready");
 }
 

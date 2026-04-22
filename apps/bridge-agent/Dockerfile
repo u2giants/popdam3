@@ -98,7 +98,7 @@ ENV POPDAM_BUILD_SHA=${POPDAM_BUILD_SHA}
 # This is a private NAS appliance, not a public-facing service.
 
 # Health check — process must be running
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+HEALTHCHECK --interval=5m --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "process.exit(0)"
 
 ENTRYPOINT ["dumb-init", "node", "dist/index.js"]

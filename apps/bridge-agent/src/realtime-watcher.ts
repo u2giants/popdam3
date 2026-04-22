@@ -19,12 +19,12 @@ export function startRealtimeWatcher(
   anonKey: string,
   agentId: string,
   onScanRequested: () => void,
-): void {
+): () => Promise<void> {
   if (!anonKey) {
     logger.info(
       "SUPABASE_ANON_KEY not set — Realtime watcher disabled (heartbeat-only mode, scan triggers up to 30s delayed)",
     );
-    return;
+    return () => Promise.resolve();
   }
 
   const client = createClient(supabaseUrl, anonKey, {
@@ -68,4 +68,12 @@ export function startRealtimeWatcher(
         });
       }
     });
+
+  return async () => {
+    try {
+      await client.removeAllChannels();
+    } catch (e) {
+      logger.warn("Realtime cleanup error (non-fatal)", { error: (e as Error).message });
+    }
+  };
 }
