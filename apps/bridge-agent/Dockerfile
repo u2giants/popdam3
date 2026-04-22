@@ -97,8 +97,6 @@ ENV POPDAM_BUILD_SHA=${POPDAM_BUILD_SHA}
 # Run as root to access Docker socket for self-update.
 # This is a private NAS appliance, not a public-facing service.
 
-# Health check — process must be running
-HEALTHCHECK --interval=5m --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "process.exit(0)"
+HEALTHCHECK NONE
 
 ENTRYPOINT ["dumb-init", "node", "dist/index.js"]
