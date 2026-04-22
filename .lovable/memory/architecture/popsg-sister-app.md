@@ -39,9 +39,18 @@ Separate DAM app for licensor **style guides** (art libraries, no products). Ing
 ## Repo strategy
 Separate repo: `https://github.com/u2giants/popsg`. New Lovable project pushes there.
 
-## Bridge Agent v2 (TODO in this repo)
-Refactor `apps/bridge-agent/` to support `TENANTS=[{name,server_url,agent_key,scan_roots},...]`:
-- Loop scanner per tenant
-- Per-tenant agent-config.json: `/data/agent-config-<tenant>.json`
-- Heartbeat to each tenant's `agent-api`
-- One Docker container, multiple cloud backends
+## Bridge Agent v2 (DONE in this repo)
+`apps/bridge-agent/src/tenant-supervisor.ts` already supports `TENANTS=[{name,server_url,agent_key,scan_roots,do_spaces,...}]`. Per-tenant config at `/data/agent-config-<tenant>.json`. See `docs/MULTI_TENANT_AGENTS.md`.
+
+## PopSG project state (as of 2026-04-22)
+- Lovable project id: `dff64d7c-76d5-4775-b519-5fde11a819c4`, URL `https://popsg.lovable.app`
+- TanStack Start scaffold live with `__root.tsx`, `_authenticated.tsx` guard, placeholder dashboard, login/forgot/reset/oauth-callback routes
+- Auth wired to external Supabase via `src/lib/external-supabase.ts` (Lovable Cloud is enabled but bypassed)
+- Migrations applied: profiles + user_roles + app_role enum + has_role + handle_new_user trigger; app_name enum + app_access table; signup auto-grants 'styleguides'
+- u2giants@gmail.com **not yet** promoted to admin (auth user must exist first)
+- Pending RLS hardening on user_roles was proposed but not approved — verify and re-propose
+- **Missing for v1:** style_guide_files / style_guide_crawl_runs / agent_registrations / agent_pairings / admin_config / invitations tables; agent-api + admin-api edge functions; /library browse UI; /settings tabs
+- Master build brief written to `/mnt/documents/POPSG_SESSION_PROMPT.md` for handoff to PopSG session
+
+## Bridge Agent thumbnail follow-up (TODO in this repo, AFTER PopSG v1 ships)
+Extend `apps/bridge-agent/src/style-guide-crawler.ts` to generate thumbnails for style guide files (PDF/AI/JPG) and POST them to PopSG's `report_thumbnail` route. Upload to DO Spaces bucket `popsg` (separate from `popdam`).
