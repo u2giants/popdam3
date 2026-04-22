@@ -16,7 +16,6 @@ on:
       - "Dockerfile"
       - "nginx.conf"
       - ".github/workflows/publish-frontend.yml"
-  workflow_dispatch:
 
 concurrency:
   group: publish-frontend
@@ -104,4 +103,16 @@ jobs:
 
             echo "Traefik labels:"
             docker inspect --format '{{range $k,$v := .Config.Labels}}{{$k}}={{$v}}{{"\n"}}{{end}}' popdam-frontend | grep traefik
+
+            echo ""
+            echo "=== Traefik certresolvers (from any running Traefik container) ==="
+            TRAEFIK=$(docker ps -q --filter "name=traefik" 2>/dev/null | head -1)
+            if [ -n "$TRAEFIK" ]; then
+              docker inspect $TRAEFIK --format '{{.Config.Cmd}}'
+            else
+              echo "No traefik container found; checking host process:"
+              ps aux 2>/dev/null | grep -i traefik | grep -v grep || echo "no traefik process"
+              echo "Checking /etc/traefik:"
+              ls /etc/traefik/ 2>/dev/null || echo "no /etc/traefik"
+            fi
           SSHEOF
