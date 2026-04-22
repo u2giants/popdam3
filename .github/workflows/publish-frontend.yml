@@ -107,30 +107,10 @@ jobs:
             echo "=== Traefik static config ==="
             cat /data/coolify/proxy/traefik.conf 2>/dev/null || echo "(not at /data/coolify/proxy/traefik.conf)"
             echo "=== ACME storage ==="
-            ls -lh /data/coolify/proxy/acme.json 2>/dev/null || ls -lh /traefik/acme.json 2>/dev/null || echo "No acme.json found"
-            echo "=== Cert for dam.designflow.app ==="
-            python3 -c "
-import json
-for path in ['/data/coolify/proxy/acme.json', '/traefik/acme.json']:
-    try:
-        data = json.load(open(path))
-        for resolver, v in data.items():
-            for c in v.get('Certificates', []):
-                d = c.get('domain', {})
-                main = d.get('main', '')
-                sans = d.get('sans', [])
-                if 'dam.designflow.app' in main or 'dam.designflow.app' in (sans or []) or '*.designflow.app' in main:
-                    print(f'FOUND in {resolver}: main={main}, sans={sans}')
-                    exit(0)
-        print(f'No cert for dam.designflow.app in {path}')
-        break
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        print(f'Error reading {path}: {e}')
-" 2>&1 || echo "python3 check failed"
-            echo "=== Traefik process env (grep CF) ==="
-            cat /proc/$(pgrep -x traefik)/environ 2>/dev/null | tr '\0' '\n' | grep -i "CF_\|CLOUDFLARE\|ACME\|EMAIL" || echo "No Cloudflare/ACME env vars found in Traefik process"
+            ACME_PATH="" ; [ -f /data/coolify/proxy/acme.json ] && ACME_PATH=/data/coolify/proxy/acme.json || { [ -f /traefik/acme.json ] && ACME_PATH=/traefik/acme.json ; }
+            if [ -n "$ACME_PATH" ]; then ls -lh "$ACME_PATH" ; grep -c "dam.designflow.app" "$ACME_PATH" && echo "dam.designflow.app found in acme.json" || echo "dam.designflow.app NOT in acme.json" ; else echo "No acme.json found" ; fi
+            echo "=== Traefik process env (CF/ACME) ==="
+            cat /proc/$(pgrep -x traefik)/environ 2>/dev/null | tr '\0' '\n' | grep -iE "CF_|CLOUDFLARE|ACME|EMAIL" || echo "No CF/ACME env vars in Traefik process"
             echo "=== Deploy complete. Container status ==="
             docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
             echo "Traefik routing test:"
