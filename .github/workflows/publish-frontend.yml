@@ -96,14 +96,14 @@ jobs:
               -l "traefik.http.routers.popdam-http.service=popdam-svc" \
               -l "traefik.http.routers.popdam-https.rule=Host(\`dam.designflow.app\`)" \
               -l "traefik.http.routers.popdam-https.entrypoints=https" \
-              -l "traefik.http.routers.popdam-https.tls.certresolver=letsencrypt" \
+              -l "traefik.http.routers.popdam-https.tls.certresolver=letsencrypt-dns" \
               -l "traefik.http.routers.popdam-https.service=popdam-svc" \
               -l "traefik.http.services.popdam-svc.loadbalancer.server.port=80" \
               ghcr.io/u2giants/popdam-frontend:latest
 
             # Write Traefik file-provider config (file provider watches /traefik/dynamic/)
             mkdir -p /traefik/dynamic
-            printf 'http:\n  routers:\n    popdam-file-http:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [http]\n      service: popdam-file-svc\n    popdam-file-https:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [https]\n      tls:\n        certResolver: letsencrypt\n      service: popdam-file-svc\n  services:\n    popdam-file-svc:\n      loadBalancer:\n        servers:\n          - url: "http://127.0.0.1:8781"\n' > /traefik/dynamic/popdam-frontend.yml
+            printf 'http:\n  routers:\n    popdam-file-http:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [http]\n      service: popdam-file-svc\n    popdam-file-https:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [https]\n      tls:\n        certResolver: letsencrypt-dns\n      service: popdam-file-svc\n  services:\n    popdam-file-svc:\n      loadBalancer:\n        servers:\n          - url: "http://127.0.0.1:8781"\n' > /traefik/dynamic/popdam-frontend.yml
             echo "=== /traefik/dynamic/ contents ==="
             ls -la /traefik/dynamic/
             echo "=== popdam-frontend.yml ==="
