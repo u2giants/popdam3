@@ -82,12 +82,15 @@ jobs:
             docker ps -aq --filter "ancestor=ghcr.io/u2giants/popdam-frontend" | xargs -r docker rm
             docker rm -f popdam-frontend 2>/dev/null || true
 
-            # Start with explicit Traefik labels
+            # Determine container IP after start for file-provider config
+            # Start with explicit Traefik labels + docker network hint
             docker run -d \
               --name popdam-frontend \
               --network coolify \
               --restart unless-stopped \
+              -p 8781:80 \
               -l "traefik.enable=true" \
+              -l "traefik.docker.network=coolify" \
               -l "traefik.http.routers.popdam-http.rule=Host(\`dam.designflow.app\`)" \
               -l "traefik.http.routers.popdam-http.entrypoints=http" \
               -l "traefik.http.routers.popdam-http.service=popdam-svc" \
@@ -97,6 +100,12 @@ jobs:
               -l "traefik.http.routers.popdam-https.service=popdam-svc" \
               -l "traefik.http.services.popdam-svc.loadbalancer.server.port=80" \
               ghcr.io/u2giants/popdam-frontend:latest
+
+            # Write Traefik file-provider config (file provider watches /traefik/dynamic/)
+            mkdir -p /traefik/dynamic
+            printf 'http:\n  routers:\n    popdam-file-http:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [http]\n      service: popdam-file-svc\n    popdam-file-https:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [https]\n      tls:\n        certResolver: letsencrypt\n      service: popdam-file-svc\n  services:\n    popdam-file-svc:\n      loadBalancer:\n        servers:\n          - url: "http://127.0.0.1:8781"\n' > /traefik/dynamic/popdam-frontend.yml
+            echo "Traefik file config written:"
+            cat /traefik/dynamic/popdam-frontend.yml
 
             echo "Container launched:"
             docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
