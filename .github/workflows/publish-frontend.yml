@@ -104,23 +104,8 @@ jobs:
             # Write Traefik file-provider config (file provider watches /traefik/dynamic/)
             mkdir -p /traefik/dynamic
             printf 'http:\n  routers:\n    popdam-file-http:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [http]\n      service: popdam-file-svc\n    popdam-file-https:\n      rule: "Host(`dam.designflow.app`)"\n      entrypoints: [https]\n      tls:\n        certResolver: letsencrypt-dns\n      service: popdam-file-svc\n  services:\n    popdam-file-svc:\n      loadBalancer:\n        servers:\n          - url: "http://127.0.0.1:8781"\n' > /traefik/dynamic/popdam-frontend.yml
-            echo "=== /traefik/dynamic/ contents ==="
-            ls -la /traefik/dynamic/
-            echo "=== popdam-frontend.yml ==="
-            cat /traefik/dynamic/popdam-frontend.yml
-
-            echo "=== Container status ==="
+            echo "Deploy complete. Container status:"
             docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
-
-            echo "=== Port 8781 binding ==="
-            ss -tlnp 2>/dev/null | grep 8781 || echo "port 8781 not bound"
-
-            echo "=== Test container directly ==="
-            curl -s -o /dev/null -w "HTTP %{http_code}" http://127.0.0.1:8781/ || echo "curl failed"
-
-            echo "=== Test Traefik routing ==="
-            curl -s -o /dev/null -w "HTTP %{http_code}" -H "Host: dam.designflow.app" http://127.0.0.1:80/ || echo "curl failed"
-
-            echo "=== Traefik process (provider flags) ==="
-            ps aux 2>/dev/null | grep -i traefik | grep -v grep | tr ' ' '\n' | grep -E 'provider|constraint|network' || echo "no docker provider flags"
+            echo "Traefik routing test:"
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Host: dam.designflow.app" http://127.0.0.1:80/ || echo "curl failed"
           SSHEOF
