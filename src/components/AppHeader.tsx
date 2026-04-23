@@ -28,13 +28,21 @@ import {
 import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw, Menu, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { CURRENT_APP, IS_POPSG } from "@/lib/app-mode";
 
-const navItems = [
+const popdamNavItems = [
   { to: "/", label: "Library", icon: Library },
   { to: "/setup", label: "Setup", icon: Wand2 },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/downloads", label: "Downloads", icon: Download },
 ];
+
+const popsgNavItems = [
+  { to: "/library", label: "Library", icon: Library },
+  { to: "/settings", label: "Settings", icon: Settings },
+];
+
+const navItems = IS_POPSG ? popsgNavItems : popdamNavItems;
 
 const dotColor: Record<string, string> = {
   online: "bg-success",
@@ -190,7 +198,7 @@ export default function AppHeader() {
           </Sheet>
 
           <Link to="/library" className="flex items-center gap-2">
-            <span className="text-lg font-bold tracking-tight text-primary">PopDAM</span>
+            <span className="text-lg font-bold tracking-tight text-primary">{CURRENT_APP.name}</span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">

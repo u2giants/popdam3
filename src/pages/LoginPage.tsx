@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Navigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { externalSupabase } from "@/lib/external-supabase";
+import { CURRENT_APP, IS_POPSG } from "@/lib/app-mode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,7 +62,7 @@ export default function LoginPage() {
     setError(null);
     const { error } = await externalSupabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: "https://dam.designflow.app" },
+      options: { redirectTo: window.location.origin },
     });
     if (error) {
       setError(error.message || "Google sign-in failed");
@@ -74,7 +75,7 @@ export default function LoginPage() {
       provider: "azure",
       options: {
         scopes: "email",
-        redirectTo: "https://dam.designflow.app",
+        redirectTo: window.location.origin,
       },
     });
     if (error) {
@@ -114,8 +115,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         {/* Logo */}
         <div className="text-center space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight text-primary">PopDAM</h1>
-          <p className="text-sm text-muted-foreground">Digital Asset Manager</p>
+          <h1 className="text-3xl font-bold tracking-tight text-primary">{CURRENT_APP.name}</h1>
+          <p className="text-sm text-muted-foreground">{CURRENT_APP.tagline}</p>
         </div>
 
         <Card className="border-border/50">
@@ -247,10 +248,12 @@ export default function LoginPage() {
         {/* Invitation notice */}
         <div className="space-y-2 text-center text-xs text-muted-foreground">
           <p>Access is by invitation only. Contact your administrator for access.</p>
-          <p className="space-x-4">
-            <a href="https://dam.designflow.app/privacy" className="text-primary hover:underline">Privacy Policy</a>
-            <a href="https://dam.designflow.app/terms" className="text-primary hover:underline">Terms of Service</a>
-          </p>
+          {!IS_POPSG && (
+            <p className="space-x-4">
+              <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
+              <a href="/terms" className="text-primary hover:underline">Terms of Service</a>
+            </p>
+          )}
         </div>
       </div>
     </div>

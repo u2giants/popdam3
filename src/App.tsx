@@ -20,6 +20,9 @@ import ScanDiagnosticsPage from "./pages/ScanDiagnosticsPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
+import PopSGLibraryPage from "./pages/popsg/PopSGLibraryPage";
+import PopSGSettingsPage from "./pages/popsg/PopSGSettingsPage";
+import { IS_POPSG } from "@/lib/app-mode";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,13 +49,17 @@ const App = () => (
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/library" element={<Index />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/settings/ai-tagging-failures" element={<AiTaggingFailuresPage />} />
-                <Route path="/settings/ai-tagging-detail" element={<AiTaggingDetailPage />} />
-                <Route path="/settings/scan-diagnostics" element={<ScanDiagnosticsPage />} />
-                <Route path="/downloads" element={<DownloadsPage />} />
-                <Route path="/setup" element={<SetupPage />} />
+                <Route path="/library" element={IS_POPSG ? <PopSGLibraryPage /> : <Index />} />
+                <Route path="/settings" element={IS_POPSG ? <PopSGSettingsPage /> : <SettingsPage />} />
+                {!IS_POPSG && (
+                  <>
+                    <Route path="/settings/ai-tagging-failures" element={<AiTaggingFailuresPage />} />
+                    <Route path="/settings/ai-tagging-detail" element={<AiTaggingDetailPage />} />
+                    <Route path="/settings/scan-diagnostics" element={<ScanDiagnosticsPage />} />
+                    <Route path="/downloads" element={<DownloadsPage />} />
+                    <Route path="/setup" element={<SetupPage />} />
+                  </>
+                )}
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

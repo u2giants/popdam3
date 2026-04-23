@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
 
     try {
       const { error } = await externalSupabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://dam.designflow.app/reset-password",
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
       setSent(true);

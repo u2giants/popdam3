@@ -88,10 +88,10 @@ jobs:
               --restart unless-stopped \
               -p 8781:80 \
               -l "traefik.enable=true" \
-              -l "traefik.http.routers.popdam-http.rule=Host(\`dam.designflow.app\`)" \
+              -l "traefik.http.routers.popdam-http.rule=Host(\`dam.designflow.app\`) || Host(\`sg.designflow.app\`)" \
               -l "traefik.http.routers.popdam-http.entrypoints=http" \
               -l "traefik.http.routers.popdam-http.service=popdam-svc" \
-              -l "traefik.http.routers.popdam-https.rule=Host(\`dam.designflow.app\`)" \
+              -l "traefik.http.routers.popdam-https.rule=Host(\`dam.designflow.app\`) || Host(\`sg.designflow.app\`)" \
               -l "traefik.http.routers.popdam-https.entrypoints=https" \
               -l "traefik.http.routers.popdam-https.tls=true" \
               -l "traefik.http.routers.popdam-https.tls.certresolver=letsencrypt" \
@@ -102,8 +102,10 @@ jobs:
             # Write Traefik file-provider config into the coolify-proxy container.
             # Uses popdam-frontend hostname (Docker DNS) since Traefik and the app share the coolify network.
             # Uses letsencrypt-dns (Cloudflare DNS-01) - configured in Traefik with CF credentials in env.
-            # base64 of: http routers for dam.designflow.app → service url: http://popdam-frontend:80
-            echo 'aHR0cDoKICByb3V0ZXJzOgogICAgcG9wZGFtLWh0dHA6CiAgICAgIHJ1bGU6ICJIb3N0KGBkYW0uZGVzaWduZmxvdy5hcHBgKSIKICAgICAgZW50cnlwb2ludHM6IFtodHRwXQogICAgICBzZXJ2aWNlOiBwb3BkYW0tc3ZjCiAgICBwb3BkYW0taHR0cHM6CiAgICAgIHJ1bGU6ICJIb3N0KGBkYW0uZGVzaWduZmxvdy5hcHBgKSIKICAgICAgZW50cnlwb2ludHM6IFtodHRwc10KICAgICAgdGxzOgogICAgICAgIGNlcnRSZXNvbHZlcjogbGV0c2VuY3J5cHQtZG5zCiAgICAgIHNlcnZpY2U6IHBvcGRhbS1zdmMKICBzZXJ2aWNlczoKICAgIHBvcGRhbS1zdmM6CiAgICAgIGxvYWRCYWxhbmNlcjoKICAgICAgICBzZXJ2ZXJzOgogICAgICAgICAgLSB1cmw6ICJodHRwOi8vcG9wZGFtLWZyb250ZW5kOjgwIgo=' | base64 -d > /tmp/popdam-traefik.yml
+            # base64 of: http routers for BOTH dam.designflow.app AND sg.designflow.app
+            # (sg routes to the same container; the app detects hostname at runtime to switch
+            # between PopDAM and PopSG Supabase projects — see src/lib/app-mode.ts).
+            echo 'aHR0cDoKICByb3V0ZXJzOgogICAgcG9wZGFtLWh0dHA6CiAgICAgIHJ1bGU6ICJIb3N0KGBkYW0uZGVzaWduZmxvdy5hcHBgKSB8fCBIb3N0KGBzZy5kZXNpZ25mbG93LmFwcGApIgogICAgICBlbnRyeXBvaW50czogW2h0dHBdCiAgICAgIHNlcnZpY2U6IHBvcGRhbS1zdmMKICAgIHBvcGRhbS1odHRwczoKICAgICAgcnVsZTogIkhvc3QoYGRhbS5kZXNpZ25mbG93LmFwcGApIHx8IEhvc3QoYHNnLmRlc2lnbmZsb3cuYXBwYCkiCiAgICAgIGVudHJ5cG9pbnRzOiBbaHR0cHNdCiAgICAgIHRsczoKICAgICAgICBjZXJ0UmVzb2x2ZXI6IGxldHNlbmNyeXB0LWRucwogICAgICBzZXJ2aWNlOiBwb3BkYW0tc3ZjCiAgc2VydmljZXM6CiAgICBwb3BkYW0tc3ZjOgogICAgICBsb2FkQmFsYW5jZXI6CiAgICAgICAgc2VydmVyczoKICAgICAgICAgIC0gdXJsOiAiaHR0cDovL3BvcGRhbS1mcm9udGVuZDo4MCIK' | base64 -d > /tmp/popdam-traefik.yml
 
             TRAEFIK_CONT=$(docker ps --format '{{.Names}}' | grep -iE '^coolify-proxy$|^traefik$' | head -1 || true)
             if [ -n "$TRAEFIK_CONT" ]; then
@@ -119,6 +121,8 @@ jobs:
             echo "Container status:"
             docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
             sleep 3
-            echo "Routing test:"
+            echo "Routing test (dam):"
             curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Host: dam.designflow.app" http://127.0.0.1:80/ || echo "curl failed"
+            echo "Routing test (sg):"
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Host: sg.designflow.app" http://127.0.0.1:80/ || echo "curl failed"
           SSHEOF
