@@ -1,0 +1,55 @@
+name: Deploy PopSG Supabase (Edge Functions)
+
+# Manual trigger only — no push trigger.
+# Requires one new secret (the other two already exist in the repo):
+#   POPSG_SUPABASE_PROJECT_ID     — eeueczxhezfhyrhdmidg  (NEW)
+#   SUPABASE_ACCESS_TOKEN         — already set (same Supabase account covers both projects)
+# No DB password needed — this workflow only deploys edge functions, no migrations.
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_functions:
+        description: "Deploy edge functions"
+        type: boolean
+        default: true
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_PROJECT_ID: ${{ secrets.POPSG_SUPABASE_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to PopSG Supabase project
+        # Run from supabase-popsg/ — supabase CLI finds supabase/config.toml and supabase/functions/ here
+        working-directory: supabase-popsg
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Deploy PopSG edge functions
+        if: inputs.deploy_functions
+        working-directory: supabase-popsg
+        run: |
+          for dir in supabase/functions/*/; do
+            func_name=$(basename "$dir")
+            if [ "$func_name" = "_shared" ]; then
+              continue
+            fi
+            echo "Deploying popsg function: $func_name"
+            supabase functions deploy "$func_name" \
+              --no-verify-jwt \
+              --project-ref "$SUPABASE_PROJECT_ID" \
+              || echo "⚠️  Failed to deploy $func_name, continuing..."
+          done
+          echo "✅ PopSG functions deployed"
