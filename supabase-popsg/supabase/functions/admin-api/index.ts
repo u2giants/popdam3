@@ -43,6 +43,39 @@ async function authenticateAdmin(req: Request): Promise<{ userId: string } | Res
   return { userId };
 }
 
+// ── Route: cross-create-pairing (no user JWT — shared secret only) ──
+
+async function handleCrossCreatePairing(body: Record<string, unknown>) {
+  const secret = Deno.env.get("CROSS_PROJECT_SECRET");
+  if (!secret || body.secret !== secret) return err("Forbidden", 403);
+
+  const agentName = (body.agent_name as string) || "bridge-popsg";
+
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  const chars = Array.from(bytes, (b) => alphabet[b % alphabet.length]);
+  const code = [
+    chars.slice(0, 4).join(""),
+    chars.slice(4, 8).join(""),
+    chars.slice(8, 12).join(""),
+    chars.slice(12, 16).join(""),
+  ].join("-");
+
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const db = serviceClient();
+
+  const { error } = await db.from("agent_pairings").insert({
+    pairing_code: code,
+    agent_name: agentName,
+    agent_type: "bridge",
+    status: "pending",
+    expires_at: expiresAt,
+  });
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, pairing_code: code, expires_at: expiresAt });
+}
+
 // ── Route: doctor ──────────────────────────────────────────────────
 
 async function handleDoctor() {
@@ -161,6 +194,11 @@ corsServe(async (req: Request) => {
   const pathSegments = url.pathname.split("/").filter(Boolean);
   const route = pathSegments[pathSegments.length - 1] || "";
   const action = (body.action as string) || route;
+
+  // cross-create-pairing uses shared secret auth, not user JWT
+  if (action === "cross-create-pairing") {
+    return await handleCrossCreatePairing(body);
+  }
 
   try {
     const authResult = await authenticateAdmin(req);

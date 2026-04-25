@@ -631,6 +631,56 @@ export async function handleCreatePairingCode(
   return json({ ok: true, pairing_code: pairingCode, expires_at: expiresAt.toISOString(), reused: false });
 }
 
+// ── create-popsg-pairing ─────────────────────────────────────────────
+
+const POPSG_URL = "https://eeueczxhezfhyrhdmidg.supabase.co";
+const POPSG_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVldWVjenhoZXpmaHlyaGRtaWRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NTUyNDQsImV4cCI6MjA5MjIzMTI0NH0.EZuS09HZnHu365I0Kt0Uf0EMt-Q0x0j2IzN9xTbU9WU";
+
+export async function handleCreatePopsgPairing(body: Record<string, unknown>) {
+  const secret = Deno.env.get("CROSS_PROJECT_SECRET");
+  if (!secret) {
+    return err(
+      "CROSS_PROJECT_SECRET is not set on this project. Add it to Supabase Secrets for both PopDAM and PopSG (same value).",
+      503,
+    );
+  }
+
+  const agentName = optionalString(body, "agent_name") || "bridge-popsg";
+
+  let res: Response;
+  try {
+    res = await fetch(`${POPSG_URL}/functions/v1/admin-api`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cross-create-pairing", secret, agent_name: agentName }),
+    });
+  } catch (e) {
+    return err(`Could not reach PopSG: ${(e as Error).message}`, 502);
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return err(`PopSG returned ${res.status}: ${text.slice(0, 300)}`, 502);
+  }
+
+  const data = await res.json();
+  if (!data.ok) return err(data.error || "PopSG returned an error", 502);
+
+  return json({
+    ok: true,
+    pairing_code: data.pairing_code,
+    expires_at: data.expires_at,
+    tenants_entry: {
+      name: "popsg",
+      server_url: POPSG_URL,
+      supabase_anon_key: POPSG_ANON_KEY,
+      pairing_code: data.pairing_code,
+      agent_name: agentName,
+    },
+  });
+}
+
 // ── list-pairing-codes ──────────────────────────────────────────────
 
 export async function handleListPairingCodes() {

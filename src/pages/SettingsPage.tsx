@@ -25,6 +25,7 @@ import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
 import AiTaggingTab from "@/components/settings/AiTaggingTab";
 import OperationsTab from "@/components/settings/OperationsTab";
 import StyleGuideCrawlTab from "@/components/settings/StyleGuideCrawlTab";
+import PopSGAgentTab from "@/components/settings/PopSGAgentTab";
 import PdfTextSamplesTab from "@/components/settings/PdfTextSamplesTab";
 
 function CopyButton({ text }: { text: string }) {
@@ -1177,6 +1178,7 @@ export default function SettingsPage() {
             {[
               { id: "bridge", label: "Bridge Agent (NAS)" },
               { id: "windows", label: "Windows Render Agent" },
+              { id: "popsg", label: "PopSG Connection" },
               { id: "pdf-text", label: "PDF Text" },
               { id: "install", label: "Install Bundles" },
             ].map(({ id, label }) => (
@@ -1200,6 +1202,7 @@ export default function SettingsPage() {
             </div>
           )}
           {agentsSubTab === "windows" && <WindowsAgentTab />}
+          {agentsSubTab === "popsg" && <PopSGAgentTab />}
           {agentsSubTab === "pdf-text" && <PdfTextSamplesTab />}
           {agentsSubTab === "install" && <InstallBundleTab />}
         </TabsContent>

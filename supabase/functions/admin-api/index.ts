@@ -11,6 +11,7 @@ import {
   handleClearFailedRenders,
   handleClearJunkRenderJobs,
   handleCreatePairingCode,
+  handleCreatePopsgPairing,
   handleDoctor,
   handleGenerateAgentKey,
   handleGenerateBootstrapToken,
@@ -1182,6 +1183,8 @@ corsServe(async (req: Request) => {
         return await handleGenerateBootstrapToken(userId);
       case "create-pairing-code":
         return await handleCreatePairingCode(body, userId);
+      case "create-popsg-pairing":
+        return await handleCreatePopsgPairing(body);
       case "list-pairing-codes":
         return await handleListPairingCodes();
       case "trigger-agent-update":
