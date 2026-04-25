@@ -58,7 +58,7 @@ export function useCrawlLifecycle(crawlProgress: CrawlProgress): CrawlLifecycleS
 
   const handleTriggerCrawl = useCallback(async () => {
     try {
-      await call("trigger-style-guide-crawl");
+      await call("trigger-scan");
       setCrawlTriggered(true);
       toast("Crawl triggered", { description: "The Bridge Agent will start crawling on its next poll (~30s)." });
     } catch (e) {
