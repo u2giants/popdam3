@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Copy, RefreshCw, Plus } from "lucide-react";
+import { Copy, RefreshCw, Plus, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_APP } from "@/lib/app-mode";
+import { useCrawlProgress } from "@/hooks/useCrawlProgress";
+import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 
 interface AgentPairingRow {
   id: string;
@@ -45,6 +47,10 @@ function randomPairingCode(): string {
 export default function PopSGSettingsPage() {
   const qc = useQueryClient();
   const [agentName, setAgentName] = useState("");
+
+  const crawlProgress = useCrawlProgress();
+  const { crawlTriggered, handleTriggerCrawl } = useCrawlLifecycle(crawlProgress);
+  const crawlActive = crawlProgress.status === "queued" || crawlProgress.status === "running" || crawlTriggered;
 
   const { data: agents = [], isFetching: agentsFetching } = useQuery({
     queryKey: ["popsg", "agents"],
@@ -320,16 +326,42 @@ export default function PopSGSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Early stage note */}
-      <Card className="border-amber-500/40 bg-amber-500/5">
-        <CardHeader className="flex flex-row items-center gap-2 space-y-0">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <CardTitle className="text-sm">Early stage</CardTitle>
+      {/* Crawl trigger */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Trigger crawl</CardTitle>
+          <CardDescription className="text-xs">
+            Sends a crawl request to the paired bridge agent. The agent picks it up on its next
+            heartbeat (~30 s) and submits all discovered style guide files back to the library.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="text-xs text-muted-foreground">
-          PopSG is v1. The scan-trigger/heartbeat/ingest endpoints (agent-api) and full admin tooling
-          are on the roadmap. Agents can register via the pairing code, but server-driven operations
-          land in subsequent iterations.
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={handleTriggerCrawl}
+              disabled={crawlActive}
+              className="gap-1.5"
+            >
+              <RotateCw className={crawlActive ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+              {crawlActive ? "Crawl in progress…" : "Trigger crawl now"}
+            </Button>
+
+            {(crawlProgress.status === "completed" || crawlProgress.status === "failed") && crawlProgress.completedAt && (
+              <span className="text-xs text-muted-foreground">
+                Last run: {new Date(crawlProgress.completedAt).toLocaleString()}
+                {crawlProgress.status === "completed" && crawlProgress.filesFound != null && (
+                  <> — {crawlProgress.filesFound.toLocaleString()} files</>
+                )}
+                {crawlProgress.status === "failed" && (
+                  <span className="text-destructive"> — failed</span>
+                )}
+              </span>
+            )}
+          </div>
+
+          {crawlProgress.status === "failed" && crawlProgress.error && (
+            <p className="text-xs text-destructive">{crawlProgress.error}</p>
+          )}
         </CardContent>
       </Card>
     </div>

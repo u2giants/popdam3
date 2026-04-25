@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Search,
   RefreshCw,
+  RotateCw,
   ImageOff,
   FolderOpen,
   Folder,
@@ -22,6 +23,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCrawlProgress } from "@/hooks/useCrawlProgress";
+import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 
 interface StyleGuideFile {
   id: string;
@@ -389,6 +392,11 @@ export default function PopSGLibraryPage() {
   const [page, setPage] = useState(0);
   const [selectedFile, setSelectedFile] = useState<StyleGuideFile | null>(null);
 
+  const crawlProgress = useCrawlProgress();
+  const { crawlTriggered, handleTriggerCrawl } = useCrawlLifecycle(crawlProgress);
+
+  const crawlActive = crawlProgress.status === "queued" || crawlProgress.status === "running" || crawlTriggered;
+
   // Build folder tree for sidebar
   const { data: tree = [] } = useQuery<TreeNode[]>({
     queryKey: ["popsg", "tree"],
@@ -483,6 +491,24 @@ export default function PopSGLibraryPage() {
 
       {/* ── Main ── */}
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Crawl in-progress banner */}
+        {crawlActive && (
+          <div className="relative border-b border-border bg-card overflow-hidden">
+            <div className="absolute inset-x-0 top-0 h-[2px]">
+              <div className="h-full w-[200%] bg-gradient-to-r from-transparent via-primary to-transparent animate-[shimmer_2s_linear_infinite]" />
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 text-xs">
+              <span className="h-2 w-2 rounded-full bg-success animate-pulse shrink-0" />
+              <span className="font-medium">
+                {crawlProgress.status === "queued" || crawlTriggered ? "Crawl queued" : "Crawling"}
+              </span>
+              <span className="text-muted-foreground">
+                — Bridge Agent is scanning the NAS. Files will appear when complete.
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Header bar */}
         <div className="flex items-center gap-3 border-b border-border px-4 py-2.5">
           <h1 className="text-sm font-semibold text-foreground shrink-0">Style Guide Library</h1>
@@ -523,6 +549,18 @@ export default function PopSGLibraryPage() {
               className="h-8 gap-1.5"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTriggerCrawl}
+              disabled={crawlActive}
+              className="h-8 gap-1.5"
+              title="Trigger NAS crawl"
+            >
+              <RotateCw className={cn("h-3.5 w-3.5", crawlActive && "animate-spin")} />
+              <span className="hidden sm:inline">Sync</span>
             </Button>
           </div>
         </div>
