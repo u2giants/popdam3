@@ -128,6 +128,19 @@ export async function uploadSiblingThumbnail(
 }
 
 /**
+ * Upload a style guide thumbnail to Spaces.
+ * Stored under styleguides/ prefix to avoid collision with asset thumbnails.
+ * pathKey should be a stable hash derived from (root_label + relative_path).
+ */
+export async function uploadStyleGuideThumbnail(
+  pathKey: string,
+  buffer: Buffer,
+): Promise<string> {
+  const key = `styleguides/${pathKey}.jpg`;
+  return uploadToSpaces(key, buffer);
+}
+
+/**
  * Upload a PDF page image to Spaces (high-res for AI/OCR).
  * Stored under pdf-pages/ prefix.
  */

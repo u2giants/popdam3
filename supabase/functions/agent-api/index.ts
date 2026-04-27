@@ -2567,6 +2567,8 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       modified_at: (f.modified_at as string) || null,
       last_seen_at: new Date().toISOString(),
       is_active: true,
+      thumbnail_url: (f.thumbnail_url as string) || null,
+      thumbnail_error: (f.thumbnail_error as string) || null,
     }));
 
     const { error: upsertErr } = await db

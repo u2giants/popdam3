@@ -22,6 +22,13 @@ import {
   LayoutList,
   ArrowRight,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
@@ -39,6 +46,8 @@ interface StyleGuideFile {
   property_folder: string | null;
   size_bytes: number | null;
   modified_at: string | null;
+  thumbnail_url: string | null;
+  thumbnail_error: string | null;
 }
 
 interface TreeNode {
@@ -46,7 +55,8 @@ interface TreeNode {
   properties: string[];
 }
 
-const PAGE_SIZE = 60;
+const PAGE_SIZE_OPTIONS = [60, 100, 200, 500, 1000] as const;
+type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
 function formatBytes(n: number | null): string {
   if (!n) return "—";
@@ -178,12 +188,20 @@ function FileDetailSheet({
                 <SheetTitle className="truncate text-sm font-semibold">{file.filename}</SheetTitle>
               </SheetHeader>
 
-              {/* No thumbnail — style guide crawl is metadata-only */}
+              {/* Thumbnail */}
               <div className="mb-4 overflow-hidden rounded-lg border border-border bg-muted/30 aspect-square flex items-center justify-center">
-                <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                  <ImageOff className="h-10 w-10" />
-                  <span className="text-xs">No preview available</span>
-                </div>
+                {file.thumbnail_url ? (
+                  <img src={file.thumbnail_url} alt={file.filename} className="h-full w-full object-contain" />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <ImageOff className="h-10 w-10" />
+                    <span className="text-xs">
+                      {file.thumbnail_error && file.thumbnail_error !== "unsupported type"
+                        ? "Preview failed"
+                        : "No preview"}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Path breadcrumbs */}
@@ -337,11 +355,20 @@ function FileCard({ file, onClick }: { file: StyleGuideFile; onClick: () => void
       onClick={onClick}
       className="group w-full text-left overflow-hidden rounded-lg border border-border bg-card transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <div className="relative aspect-square bg-muted/30 flex h-full flex-col items-center justify-center gap-1 text-muted-foreground">
-        <ImageOff className="h-6 w-6" />
-        <span className="text-[10px]">
-          {file.file_extension ? file.file_extension.replace(/^\./, "").toUpperCase() : "file"}
-        </span>
+      <div className="relative aspect-square bg-muted/30">
+        {file.thumbnail_url ? (
+          <img
+            src={file.thumbnail_url}
+            alt={file.filename}
+            loading="lazy"
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground">
+            <ImageOff className="h-6 w-6" />
+            <span className="text-[10px]">no preview</span>
+          </div>
+        )}
         {file.file_extension && (
           <Badge
             variant="secondary"
@@ -376,6 +403,7 @@ export default function PopSGLibraryPage() {
   const [property, setProperty] = useState<string>("all");
   const [nameSearch, setNameSearch] = useState<string>("");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<PageSize>(60);
   const [selectedFile, setSelectedFile] = useState<StyleGuideFile | null>(null);
 
   const crawlProgress = useCrawlProgress();
@@ -383,17 +411,16 @@ export default function PopSGLibraryPage() {
 
   const crawlActive = crawlProgress.status === "queued" || crawlProgress.status === "running" || crawlTriggered;
 
-  // Build folder tree for sidebar
+  // Build folder tree using the style_guide_folders view (distinct licensor/property pairs)
   const { data: tree = [] } = useQuery<TreeNode[]>({
     queryKey: ["popsg", "tree"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("style_guide_files")
+        .from("style_guide_folders")
         .select("licensor_name,property_folder")
-        .eq("is_active", true)
-        .not("licensor_name", "is", null)
         .order("licensor_name")
-        .order("property_folder");
+        .order("property_folder")
+        .limit(5000);
       if (error) throw error;
 
       const map = new Map<string, Set<string>>();
@@ -415,12 +442,12 @@ export default function PopSGLibraryPage() {
   );
 
   const { data: results, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["popsg", "files", filters, page],
+    queryKey: ["popsg", "files", filters, page, pageSize],
     queryFn: async () => {
       let q = supabase
         .from("style_guide_files")
         .select(
-          "id,filename,relative_path,directory_path,file_extension,licensor_name,property_folder,size_bytes,modified_at",
+          "id,filename,relative_path,directory_path,file_extension,licensor_name,property_folder,thumbnail_url,thumbnail_error,size_bytes,modified_at",
           { count: "exact" },
         )
         .eq("is_active", true);
@@ -433,7 +460,7 @@ export default function PopSGLibraryPage() {
         .order("licensor_name", { ascending: true, nullsFirst: false })
         .order("property_folder", { ascending: true, nullsFirst: false })
         .order("filename", { ascending: true });
-      q = q.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+      q = q.range(page * pageSize, page * pageSize + pageSize - 1);
 
       const { data, error, count } = await q;
       if (error) throw error;
@@ -443,13 +470,18 @@ export default function PopSGLibraryPage() {
 
   const rows = results?.rows ?? [];
   const total = results?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters = licensor !== "all" || property !== "all" || !!nameSearch.trim();
   const hasAnyData = tree.length > 0;
 
   const handleTreeSelect = (l: string, p: string) => {
     setLicensor(l);
     setProperty(p);
+    setPage(0);
+  };
+
+  const handlePageSizeChange = (val: string) => {
+    setPageSize(Number(val) as PageSize);
     setPage(0);
   };
 
@@ -526,6 +558,18 @@ export default function PopSGLibraryPage() {
                 onChange={(e) => { setNameSearch(e.target.value); setPage(0); }}
               />
             </div>
+
+            {/* Page size */}
+            <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="h-8 w-20 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <Button
               variant="outline"
