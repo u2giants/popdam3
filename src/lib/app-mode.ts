@@ -3,8 +3,9 @@
  *   dam.designflow.app → PopDAM (licensed product-art DAM)
  *   sg.designflow.app  → PopSG  (licensor style-guide library)
  *
- * Mode is inferred from window.location.host at runtime. Both Supabase
- * anon keys are publishable and baked into the bundle, selected per-mode.
+ * Both modes connect to the same Supabase project (PopDAM). PopSG is a
+ * workspace within that project — same agent, same DB, different scan roots,
+ * different UI. Mode controls routing and UI only, not which Supabase to hit.
  *
  * To preview PopSG locally: `?mode=popsg` query param overrides hostname
  * detection (first call only — persisted in sessionStorage for the tab).
@@ -39,23 +40,26 @@ function detectMode(): AppMode {
   return "popdam";
 }
 
+const POPDAM_SUPABASE_URL = "https://ryltkzzernhwnojzouyb.supabase.co";
+const POPDAM_ANON_KEY = "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK";
+
 export const APP_CONFIG = {
   popdam: {
     mode: "popdam" as const,
     name: "PopDAM",
     tagline: "Digital Asset Manager",
     domain: "dam.designflow.app",
-    supabaseUrl: "https://ryltkzzernhwnojzouyb.supabase.co",
-    supabaseAnonKey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
+    supabaseUrl: POPDAM_SUPABASE_URL,
+    supabaseAnonKey: POPDAM_ANON_KEY,
   },
   popsg: {
     mode: "popsg" as const,
     name: "PopSG",
     tagline: "Licensor Style Guides",
     domain: "sg.designflow.app",
-    supabaseUrl: "https://eeueczxhezfhyrhdmidg.supabase.co",
-    supabaseAnonKey:
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVldWVjenhoZXpmaHlyaGRtaWRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NTUyNDQsImV4cCI6MjA5MjIzMTI0NH0.EZuS09HZnHu365I0Kt0Uf0EMt-Q0x0j2IzN9xTbU9WU",
+    // Same Supabase project as PopDAM — PopSG is a workspace within it.
+    supabaseUrl: POPDAM_SUPABASE_URL,
+    supabaseAnonKey: POPDAM_ANON_KEY,
   },
 } as const;
 

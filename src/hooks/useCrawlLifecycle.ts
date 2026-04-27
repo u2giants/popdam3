@@ -9,7 +9,10 @@ export interface CrawlLifecycleState {
   handleTriggerCrawl: () => Promise<void>;
 }
 
-export function useCrawlLifecycle(crawlProgress: CrawlProgress): CrawlLifecycleState {
+export function useCrawlLifecycle(
+  crawlProgress: CrawlProgress,
+  action: string = "trigger-scan",
+): CrawlLifecycleState {
   const queryClient = useQueryClient();
   const { call } = useAdminApi();
   const [crawlTriggered, setCrawlTriggered] = useState(false);
@@ -58,13 +61,13 @@ export function useCrawlLifecycle(crawlProgress: CrawlProgress): CrawlLifecycleS
 
   const handleTriggerCrawl = useCallback(async () => {
     try {
-      await call("trigger-scan");
+      await call(action);
       setCrawlTriggered(true);
       toast("Crawl triggered", { description: "The Bridge Agent will start crawling on its next poll (~30s)." });
     } catch (e) {
       toast.error("Failed to trigger crawl", { description: (e as Error).message });
     }
-  }, [call]);
+  }, [call, action]);
 
   return { crawlTriggered, handleTriggerCrawl };
 }

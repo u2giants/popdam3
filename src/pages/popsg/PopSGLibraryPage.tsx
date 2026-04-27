@@ -26,18 +26,17 @@ import { cn } from "@/lib/utils";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 
+// Columns available in PopDAM's style_guide_files table.
+// licensor_name is a generated column: split_part(relative_path, '/', 1)
+// property_folder is segments[1] from the root (licensor's property name)
 interface StyleGuideFile {
   id: string;
   filename: string;
   relative_path: string;
   directory_path: string;
   file_extension: string | null;
-  path_segments: string[];
   licensor_name: string | null;
-  property_name: string | null;
-  depth: number;
-  thumbnail_url: string | null;
-  thumbnail_error: string | null;
+  property_folder: string | null;
   size_bytes: number | null;
   modified_at: string | null;
 }
@@ -171,95 +170,90 @@ function FileDetailSheet({
   return (
     <Sheet open={!!file} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full max-w-md overflow-y-auto">
-        {file && (
-          <>
-            <SheetHeader className="mb-4">
-              <SheetTitle className="truncate text-sm font-semibold">{file.filename}</SheetTitle>
-            </SheetHeader>
+        {file && (() => {
+          const pathSegments = file.relative_path.split("/").filter(Boolean);
+          return (
+            <>
+              <SheetHeader className="mb-4">
+                <SheetTitle className="truncate text-sm font-semibold">{file.filename}</SheetTitle>
+              </SheetHeader>
 
-            {/* Thumbnail */}
-            <div className="mb-4 overflow-hidden rounded-lg border border-border bg-muted/30 aspect-square flex items-center justify-center">
-              {file.thumbnail_url ? (
-                <img
-                  src={file.thumbnail_url}
-                  alt={file.filename}
-                  className="h-full w-full object-contain"
-                />
-              ) : (
+              {/* No thumbnail — style guide crawl is metadata-only */}
+              <div className="mb-4 overflow-hidden rounded-lg border border-border bg-muted/30 aspect-square flex items-center justify-center">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
                   <ImageOff className="h-10 w-10" />
                   <span className="text-xs">No preview available</span>
                 </div>
-              )}
-            </div>
-
-            {/* Path breadcrumbs */}
-            <div className="mb-4">
-              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Location
-              </p>
-              <div className="flex flex-wrap items-center gap-1">
-                {file.path_segments.map((seg, i) => (
-                  <span key={i} className="flex items-center gap-1">
-                    {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 text-[11px]",
-                        i === file.path_segments.length - 1
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {seg}
-                    </span>
-                  </span>
-                ))}
               </div>
-              <p className="mt-1.5 font-mono text-[10px] text-muted-foreground/70 break-all">
-                {file.relative_path}
-              </p>
-            </div>
 
-            {/* Metadata rows */}
-            <dl className="divide-y divide-border rounded-lg border border-border overflow-hidden text-xs">
-              {[
-                {
-                  icon: <FileText className="h-3.5 w-3.5" />,
-                  label: "Type",
-                  value: file.file_extension
-                    ? file.file_extension.replace(/^\./, "").toUpperCase()
-                    : "—",
-                },
-                {
-                  icon: <HardDrive className="h-3.5 w-3.5" />,
-                  label: "Size",
-                  value: formatBytes(file.size_bytes),
-                },
-                {
-                  icon: <CalendarDays className="h-3.5 w-3.5" />,
-                  label: "Modified",
-                  value: formatDate(file.modified_at),
-                },
-                {
-                  icon: <Folder className="h-3.5 w-3.5" />,
-                  label: "Licensor",
-                  value: file.licensor_name ?? "—",
-                },
-                {
-                  icon: <Folder className="h-3.5 w-3.5" />,
-                  label: "Property",
-                  value: file.property_name ?? "—",
-                },
-              ].map(({ icon, label, value }) => (
-                <div key={label} className="flex items-center gap-3 bg-card px-3 py-2">
-                  <span className="text-muted-foreground">{icon}</span>
-                  <dt className="w-16 shrink-0 text-muted-foreground">{label}</dt>
-                  <dd className="font-medium">{value}</dd>
+              {/* Path breadcrumbs */}
+              <div className="mb-4">
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Location
+                </p>
+                <div className="flex flex-wrap items-center gap-1">
+                  {pathSegments.map((seg, i) => (
+                    <span key={i} className="flex items-center gap-1">
+                      {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+                      <span
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-[11px]",
+                          i === pathSegments.length - 1
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {seg}
+                      </span>
+                    </span>
+                  ))}
                 </div>
-              ))}
-            </dl>
-          </>
-        )}
+                <p className="mt-1.5 font-mono text-[10px] text-muted-foreground/70 break-all">
+                  {file.relative_path}
+                </p>
+              </div>
+
+              {/* Metadata rows */}
+              <dl className="divide-y divide-border rounded-lg border border-border overflow-hidden text-xs">
+                {[
+                  {
+                    icon: <FileText className="h-3.5 w-3.5" />,
+                    label: "Type",
+                    value: file.file_extension
+                      ? file.file_extension.replace(/^\./, "").toUpperCase()
+                      : "—",
+                  },
+                  {
+                    icon: <HardDrive className="h-3.5 w-3.5" />,
+                    label: "Size",
+                    value: formatBytes(file.size_bytes),
+                  },
+                  {
+                    icon: <CalendarDays className="h-3.5 w-3.5" />,
+                    label: "Modified",
+                    value: formatDate(file.modified_at),
+                  },
+                  {
+                    icon: <Folder className="h-3.5 w-3.5" />,
+                    label: "Licensor",
+                    value: file.licensor_name ?? "—",
+                  },
+                  {
+                    icon: <Folder className="h-3.5 w-3.5" />,
+                    label: "Property",
+                    value: file.property_folder ?? "—",
+                  },
+                ].map(({ icon, label, value }) => (
+                  <div key={label} className="flex items-center gap-3 bg-card px-3 py-2">
+                    <span className="text-muted-foreground">{icon}</span>
+                    <dt className="w-16 shrink-0 text-muted-foreground">{label}</dt>
+                    <dd className="font-medium">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          );
+        })()}
       </SheetContent>
     </Sheet>
   );
@@ -287,25 +281,25 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
       </div>
       <h2 className="mb-2 text-base font-semibold text-foreground">No style guides yet</h2>
       <p className="mb-8 text-sm text-muted-foreground">
-        A bridge agent needs to scan your NAS and push file metadata here. Three steps:
+        The Bridge Agent needs to crawl the NAS and push file metadata here.
       </p>
 
       <ol className="space-y-4 text-left">
         {[
           {
             n: 1,
-            title: "Pair a bridge agent",
-            body: "Go to Settings → Generate a pairing code → give it to the bridge agent container.",
+            title: "Ensure a bridge agent is paired in PopDAM",
+            body: "The same bridge agent handles both PopDAM and PopSG. Pair it in PopDAM Settings.",
           },
           {
             n: 2,
-            title: "Set scan roots",
-            body: "In Settings, the agent reads scan_roots from admin_config. Default: /nas/styleguides.",
+            title: "Set PopSG scan roots",
+            body: "In PopDAM Settings → Style Guide, configure STYLE_GUIDE_SCAN_ROOTS (e.g. /nas/styleguides).",
           },
           {
             n: 3,
-            title: "Wait for the first crawl",
-            body: "Once paired, the agent heartbeats and will pick up a STYLE_GUIDE_CRAWL_REQUEST. Files appear here when the crawl completes.",
+            title: "Trigger the first crawl",
+            body: "Click the Sync button above. The agent picks it up on its next heartbeat and files appear here.",
           },
         ].map(({ n, title, body }) => (
           <li key={n} className="flex gap-3">
@@ -334,28 +328,20 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
 // ── File card ─────────────────────────────────────────────────────────
 
 function FileCard({ file, onClick }: { file: StyleGuideFile; onClick: () => void }) {
-  const propertyLabel = file.property_name ?? file.path_segments[1] ?? "";
-  const subfolders = file.path_segments.slice(2, -1);
+  const segments = file.relative_path.split("/").filter(Boolean);
+  const propertyLabel = file.property_folder ?? segments[1] ?? "";
+  const subfolders = segments.slice(2, -1);
 
   return (
     <button
       onClick={onClick}
       className="group w-full text-left overflow-hidden rounded-lg border border-border bg-card transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <div className="relative aspect-square bg-muted/30">
-        {file.thumbnail_url ? (
-          <img
-            src={file.thumbnail_url}
-            alt={file.filename}
-            loading="lazy"
-            className="h-full w-full object-contain"
-          />
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground">
-            <ImageOff className="h-6 w-6" />
-            <span className="text-[10px]">no preview</span>
-          </div>
-        )}
+      <div className="relative aspect-square bg-muted/30 flex h-full flex-col items-center justify-center gap-1 text-muted-foreground">
+        <ImageOff className="h-6 w-6" />
+        <span className="text-[10px]">
+          {file.file_extension ? file.file_extension.replace(/^\./, "").toUpperCase() : "file"}
+        </span>
         {file.file_extension && (
           <Badge
             variant="secondary"
@@ -393,7 +379,7 @@ export default function PopSGLibraryPage() {
   const [selectedFile, setSelectedFile] = useState<StyleGuideFile | null>(null);
 
   const crawlProgress = useCrawlProgress();
-  const { crawlTriggered, handleTriggerCrawl } = useCrawlLifecycle(crawlProgress);
+  const { crawlTriggered, handleTriggerCrawl } = useCrawlLifecycle(crawlProgress, "trigger-style-guide-crawl");
 
   const crawlActive = crawlProgress.status === "queued" || crawlProgress.status === "running" || crawlTriggered;
 
@@ -403,18 +389,18 @@ export default function PopSGLibraryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("style_guide_files")
-        .select("licensor_name,property_name")
+        .select("licensor_name,property_folder")
         .eq("is_active", true)
         .not("licensor_name", "is", null)
         .order("licensor_name")
-        .order("property_name");
+        .order("property_folder");
       if (error) throw error;
 
       const map = new Map<string, Set<string>>();
-      for (const r of (data ?? []) as { licensor_name: string | null; property_name: string | null }[]) {
+      for (const r of (data ?? []) as { licensor_name: string | null; property_folder: string | null }[]) {
         if (!r.licensor_name) continue;
         if (!map.has(r.licensor_name)) map.set(r.licensor_name, new Set());
-        if (r.property_name) map.get(r.licensor_name)!.add(r.property_name);
+        if (r.property_folder) map.get(r.licensor_name)!.add(r.property_folder);
       }
       return Array.from(map.entries())
         .map(([l, props]) => ({ licensor: l, properties: Array.from(props).sort() }))
@@ -434,18 +420,18 @@ export default function PopSGLibraryPage() {
       let q = supabase
         .from("style_guide_files")
         .select(
-          "id,filename,relative_path,directory_path,file_extension,path_segments,licensor_name,property_name,depth,thumbnail_url,thumbnail_error,size_bytes,modified_at",
+          "id,filename,relative_path,directory_path,file_extension,licensor_name,property_folder,size_bytes,modified_at",
           { count: "exact" },
         )
         .eq("is_active", true);
 
       if (filters.licensor !== "all") q = q.eq("licensor_name", filters.licensor);
-      if (filters.property !== "all") q = q.eq("property_name", filters.property);
+      if (filters.property !== "all") q = q.eq("property_folder", filters.property);
       if (filters.nameSearch) q = q.ilike("filename", `%${filters.nameSearch}%`);
 
       q = q
         .order("licensor_name", { ascending: true, nullsFirst: false })
-        .order("property_name", { ascending: true, nullsFirst: false })
+        .order("property_folder", { ascending: true, nullsFirst: false })
         .order("filename", { ascending: true });
       q = q.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
