@@ -8,9 +8,10 @@ import { Loader2, RefreshCw, Stethoscope } from "lucide-react";
 import type { DiagnosticData } from "./diagnostics/types";
 
 // Sub-components
-import { OverviewCards, ConnectedAgents, ScanStatusCard, RecentErrors, RenderJobStats, ConfigurationSection } from "./diagnostics/OverviewCards";
+import { OverviewCards, ConnectedAgents, ScanStatusCard, RenderJobStats, ConfigurationSection } from "./diagnostics/OverviewCards";
 import { DatabaseInspector } from "./diagnostics/DatabaseInspector";
 import SystemStatePanel from "./diagnostics/SystemStatePanel";
+import { ErrorHistoryPanel } from "./diagnostics/ErrorHistoryPanel";
 
 export default function DiagnosticsTab() {
   const { call } = useAdminApi();
@@ -59,7 +60,7 @@ export default function DiagnosticsTab() {
           <DoctorDiagnostics />
           <OverviewCards counts={diag.counts} />
           <RenderJobStats />
-          <RecentErrors errors={diag.recent_errors} />
+          <ErrorHistoryPanel />
           <DatabaseInspector />
           <ConfigurationSection config={diag.config} />
         </>
