@@ -115,6 +115,30 @@ export type Database = {
         }
         Relationships: []
       }
+      app_access: {
+        Row: {
+          app: Database["public"]["Enums"]["app_name"]
+          granted_at: string
+          granted_by: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          app: Database["public"]["Enums"]["app_name"]
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          app?: Database["public"]["Enums"]["app_name"]
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       asset_characters: {
         Row: {
           asset_id: string
@@ -745,6 +769,7 @@ export type Database = {
       invitations: {
         Row: {
           accepted_at: string | null
+          apps: Database["public"]["Enums"]["app_name"][]
           created_at: string
           email: string
           id: string
@@ -753,6 +778,7 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          apps?: Database["public"]["Enums"]["app_name"][]
           created_at?: string
           email: string
           id?: string
@@ -761,6 +787,7 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          apps?: Database["public"]["Enums"]["app_name"][]
           created_at?: string
           email?: string
           id?: string
@@ -2919,14 +2946,17 @@ export type Database = {
           id: string
           is_active: boolean
           last_seen_at: string
+          licensor_name: string | null
           modified_at: string | null
           normalized_name: string
-          normalized_style_guide_folder: string
+          normalized_style_guide_folder: string | null
           property_folder: string | null
           relative_path: string
           root_label: string
           size_bytes: number | null
           style_guide_folder: string | null
+          thumbnail_error: string | null
+          thumbnail_url: string | null
         }
         Insert: {
           basename_no_ext: string
@@ -2938,14 +2968,17 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_seen_at?: string
+          licensor_name?: string | null
           modified_at?: string | null
           normalized_name: string
-          normalized_style_guide_folder: string
+          normalized_style_guide_folder?: string | null
           property_folder?: string | null
           relative_path: string
           root_label: string
           size_bytes?: number | null
           style_guide_folder?: string | null
+          thumbnail_error?: string | null
+          thumbnail_url?: string | null
         }
         Update: {
           basename_no_ext?: string
@@ -2957,14 +2990,17 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_seen_at?: string
+          licensor_name?: string | null
           modified_at?: string | null
           normalized_name?: string
-          normalized_style_guide_folder?: string
+          normalized_style_guide_folder?: string | null
           property_folder?: string | null
           relative_path?: string
           root_label?: string
           size_bytes?: number | null
           style_guide_folder?: string | null
+          thumbnail_error?: string | null
+          thumbnail_url?: string | null
         }
         Relationships: [
           {
@@ -3212,6 +3248,13 @@ export type Database = {
       }
     }
     Views: {
+      style_guide_folders: {
+        Row: {
+          licensor_name: string | null
+          property_folder: string | null
+        }
+        Relationships: []
+      }
       table_privs: {
         Row: {
           grantee: unknown
@@ -3518,6 +3561,13 @@ export type Database = {
       }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
+      has_app_access: {
+        Args: {
+          _app: Database["public"]["Enums"]["app_name"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3714,6 +3764,7 @@ export type Database = {
       uuid7_time_encoder: { Args: { ts: string }; Returns: string }
     }
     Enums: {
+      app_name: "popdam" | "styleguides"
       app_role: "admin" | "user"
       art_source:
         | "freelancer"
@@ -3873,6 +3924,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_name: ["popdam", "styleguides"],
       app_role: ["admin", "user"],
       art_source: [
         "freelancer",
