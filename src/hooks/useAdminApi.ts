@@ -36,8 +36,7 @@ export function useAdminApi() {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const { data, error } = await supabase.functions.invoke("admin-api", {
+      const { data, error } = await supabase.functions.invoke("admin-api", {
           body: { action, ...payload },
           headers: { Authorization: `Bearer ${accessToken}` },
         });
@@ -78,10 +77,6 @@ export function useAdminApi() {
 
         if (data && !data.ok) throw new Error(data.error || "Admin API returned error");
         return data;
-      } catch (e) {
-        // Don't retry client errors (4xx) — they'll fail every time
-        throw e;
-      }
     }
 
     throw lastError || new Error("Admin API call failed after retries");

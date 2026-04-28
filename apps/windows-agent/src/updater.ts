@@ -52,7 +52,7 @@ const CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const HEALTH_CHECK_TIMEOUT_MS = 60_000;
 export const RESTART_EXIT_CODE = 77;
 
-let state: UpdateState = {
+const state: UpdateState = {
   updateAvailable: false,
   latestVersion: null,
   lastCheckAt: null,

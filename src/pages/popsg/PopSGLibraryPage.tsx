@@ -100,7 +100,7 @@ function FolderTree({
   const toggle = (l: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
-      next.has(l) ? next.delete(l) : next.add(l);
+      if (next.has(l)) next.delete(l); else next.add(l);
       return next;
     });
 

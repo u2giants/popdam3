@@ -63,10 +63,10 @@ function CounterChip({ label, value, variant }: { label: string; value: number; 
 export default function ScanMonitorBanner({ scanProgress, onStopScan }: ScanMonitorBannerProps) {
   const isRunning = scanProgress.status === "running";
   const isStale = scanProgress.status === "stale";
+  const elapsed = useElapsed(isRunning || isStale);
   if (!isRunning && !isStale) return null;
 
   const c = scanProgress.counters;
-  const elapsed = useElapsed(isRunning || isStale);
   const truncated = truncatePath(scanProgress.current_path);
 
   return (

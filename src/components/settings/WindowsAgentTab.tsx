@@ -1548,13 +1548,6 @@ function AgentLogTail() {
     (a) => a.type === "windows-render"
   );
 
-  if (agents.length === 0) return null;
-
-  // Pick the first (usually only) agent
-  const agent = agents[0];
-  const meta = (agent.metadata as Record<string, unknown>) || {};
-  const logTail = (meta.log_tail as string[]) || [];
-
   const [secondsAgo, setSecondsAgo] = useState(0);
   useEffect(() => {
     if (!dataUpdatedAt || !open) return;
@@ -1563,6 +1556,13 @@ function AgentLogTail() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [dataUpdatedAt, open]);
+
+  if (agents.length === 0) return null;
+
+  // Pick the first (usually only) agent
+  const agent = agents[0];
+  const meta = (agent.metadata as Record<string, unknown>) || {};
+  const logTail = (meta.log_tail as string[]) || [];
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>

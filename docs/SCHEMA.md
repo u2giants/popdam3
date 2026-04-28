@@ -26,6 +26,8 @@ If a timestamp mutation incident occurs, record it in a `worker_incidents` table
 - `workflow_status`:
   `product_ideas`, `concept_approved`, `in_development`, `freelancer_art`,
   `discontinued`, `in_process`, `customer_adopted`, `licensor_approved`, `other`
+- `app_name`: `popdam`, `styleguides` — used by `app_access` and `invitations.apps`
+- `app_role`: `admin`, `user`
 
 ---
 
@@ -225,11 +227,28 @@ File naming/structure issues found during Windows Agent scans.
 
 #### `style_guide_crawl_runs`
 Metadata for each licensor style guide crawl run.
-- `id uuid PK`, `status text`, `agent_id text`, `started_at`, `completed_at`, `files_found int`, `error_message text`
+- `id uuid PK`, `status text`, `agent_id text`, `started_at`, `completed_at`, `files_found int`, `error_message text`, `inaccessible_roots text[] NULL`
 
 #### `style_guide_files`
-Crawled style guide PDFs and images from licensors.
-- `id uuid PK`, `crawl_run_id uuid FK`, `relative_path text`, `file_type text`, `thumbnail_url text`, `metadata jsonb`, `found_at timestamptz`
+Crawled style guide files from the NAS. Agent sends raw data; server derives path metadata on ingest.
+- `id uuid PK`
+- `root_label text` — scan root name (e.g. `styleguides-nas`)
+- `relative_path text NOT NULL` — path relative to scan root
+- `filename text NOT NULL`
+- `size_bytes bigint`, `modified_at timestamptz`, `quick_hash text`
+- `licensor_name text GENERATED` — `split_part(relative_path, '/', 1)`, stored, indexed
+- `property_folder text NULL` — second path segment
+- `style_guide_folder text NULL` — third path segment
+- `normalized_style_guide_folder text NULL` — lowercased, non-alphanum stripped
+- `path_segments text[]`, `directory_path text`, `depth int`
+- `is_active boolean DEFAULT true` — false for files not present in latest crawl
+- `thumbnail_url text NULL`, `thumbnail_error text NULL` — not populated (no thumbnail pipeline)
+- `crawl_run_id uuid FK`
+
+Unique constraint: `(root_label, relative_path)`. Indexes: `licensor_name`, `property_folder`, `style_guide_folder`, `is_active`.
+
+#### `style_guide_folders` (view)
+DISTINCT `licensor_name, property_folder` pairs for the sidebar tree. `security_invoker = true` so RLS applies. Used by the frontend to build the folder tree without hitting the PostgREST 1000-row default cap on `style_guide_files`.
 
 #### `tiff_optimization_queue`
 Queue for TIFF compression jobs run by the Windows Agent.
@@ -396,6 +415,18 @@ One-time pairing codes for Bootstrap registration of new agents.
 Indexes: `idx_agent_pairings_code WHERE status = 'pending'`
 
 Pairing codes are short-lived (default 15 minutes). A new agent reads the code from its `.env`, calls `POST /agent/bootstrap`, and the code is consumed. The generate-install-bundle action creates a pairing code automatically and embeds it in the downloaded config files.
+
+### 3.9 app_access
+Per-user entitlement for each app (`popdam` or `styleguides`). Controls which UI the user can access after login.
+
+- `id uuid PK DEFAULT gen_random_uuid()`
+- `user_id uuid NOT NULL`
+- `app app_name NOT NULL` — `'popdam'` or `'styleguides'`
+- `granted_at timestamptz NOT NULL DEFAULT now()`
+- `granted_by uuid NULL`
+- `UNIQUE (user_id, app)`
+
+RLS: users read their own rows (for app-switcher logic); admins manage all rows. Helper: `has_app_access(user_id, app_name) → bool`. New users get `app_access` rows from `handle_new_user()` based on the `invitations.apps` array.
 
 ---
 

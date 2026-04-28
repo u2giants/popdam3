@@ -387,7 +387,7 @@ export async function handleListRenderJobs(body: Record<string, unknown>) {
   if (error) return err(error.message, 500);
 
   const assetIds = [...new Set((data || []).map((r) => r.asset_id))];
-  let assetMap: Record<string, { filename: string; thumbnail_url: string | null }> = {};
+  const assetMap: Record<string, { filename: string; thumbnail_url: string | null }> = {};
   if (assetIds.length > 0) {
     const { data: assets } = await db
       .from("assets")

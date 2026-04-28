@@ -254,3 +254,25 @@ Traefik watches this directory (`--providers.file.watch=true`) and picks up chan
 
 **What breaks if you remove it**: Style group rebuild and related operations will frequently fail with "canceling statement due to lock timeout" when other queries are touching the same tables, requiring manual restart from interrupted state.
 
+---
+
+## 23. PopSG Shows "No Preview" for All Files
+
+**What it looks like**: Every file in the PopSG library shows a broken/placeholder image instead of a thumbnail.
+
+**Why**: This is intentional — there is no thumbnail pipeline for PopSG. Supabase edge functions can't reach files on the NAS over NAT, so there is no equivalent of the Windows Agent thumbnail renderer for style guides. The `thumbnail_url` and `thumbnail_error` columns on `style_guide_files` are never populated. The UI shows a "No preview" placeholder (`ImageOff` icon) when `thumbnail_url` is null.
+
+**What breaks if you "fix" it**: Nothing breaks from the current state — it is already the correct no-op state. Adding a thumbnail pipeline would require a separate agent process that can both read NAS files and write to Supabase Storage.
+
+---
+
+## 24. `supabase-popsg/` Directory Is Dead Code
+
+**What it looks like**: A separate `supabase-popsg/` directory with its own `supabase/functions/` and a `deploy-popsg-supabase.yml` workflow, suggesting PopSG has its own Supabase project.
+
+**Why it's dead**: PopSG was originally deployed on a separate Supabase project (`eeueczxhezfhyrhdmidg`). It was later consolidated into the PopDAM project (`ryltkzzernhwnojzouyb`) — both `sg.designflow.app` and `dam.designflow.app` now connect to the same project. The `supabase-popsg/` directory and its workflow were never cleaned up.
+
+**What breaks if you deploy from it**: The `deploy-popsg-supabase.yml` workflow targets the old abandoned project (`eeueczxhezfhyrhdmidg`), not the live one. Deploying would update edge functions on a project that no client connects to — it would have no visible effect but would waste a deploy.
+
+**What breaks if you delete it**: Nothing — as long as you also disable or delete `deploy-popsg-supabase.yml`. Do not trigger that workflow.
+

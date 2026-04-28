@@ -7,15 +7,15 @@
 | Hostname | Mode | Supabase project | What it does |
 |----------|------|------------------|--------------|
 | `dam.designflow.app` | PopDAM | `ryltkzzernhwnojzouyb` | Licensed consumer-product art DAM (SKUs, MG codes, ERP) |
-| `sg.designflow.app`  | PopSG  | `eeueczxhezfhyrhdmidg` | Licensor style guide library (folder-based, no SKUs) |
+| `sg.designflow.app`  | PopSG  | `ryltkzzernhwnojzouyb` | Licensor style guide library (folder-based, no SKUs) |
 
-**One Docker image, one Coolify app (`popdam-frontend`), one deployment.** Traefik routes both hostnames to the same container. At runtime, `src/lib/app-mode.ts` reads `window.location.host` and picks the right Supabase client + routes + UI. Both anon keys are publishable and baked into the bundle.
+**One Docker image, one Coolify app (`popdam-frontend`), one deployment.** Traefik routes both hostnames to the same container. At runtime, `src/lib/app-mode.ts` reads `window.location.host` and picks the right Supabase client + routes + UI. Both modes use the **same** Supabase project (`ryltkzzernhwnojzouyb`) — mode controls UI and routing only.
 
 **When editing code:**
 - Shared code (auth, layout, header, login, pagination) stays in the usual paths.
 - PopSG-specific pages live in `src/pages/popsg/`. The `App.tsx` router picks them when `IS_POPSG` is true.
-- The PopDAM filter sidebar, library grids, settings tabs are **not** rendered in PopSG mode — don't assume PopDAM tables exist in the PopSG Supabase (e.g. `assets`, `style_groups`, `erp_items_current` don't exist there).
-- Edge functions and migrations target **different** Supabase projects. Don't cross-apply.
+- The PopDAM filter sidebar, library grids, settings tabs are **not** rendered in PopSG mode — don't render PopDAM-only tables (`assets`, `style_groups`, `erp_items_current`) in PopSG views.
+- All edge functions and migrations are in `supabase/functions/` and `supabase/migrations/`. There is a legacy `supabase-popsg/` directory — **it is dead code**, do not edit or deploy from it.
 
 **To preview PopSG locally:** add `?mode=popsg` to the URL (persisted in sessionStorage for the tab).
 

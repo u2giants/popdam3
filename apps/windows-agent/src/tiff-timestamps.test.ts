@@ -39,7 +39,7 @@ vi.mock("node:child_process", () => ({
 }));
 
 vi.mock("node:util", () => ({
-  promisify: (fn: Function) => (...args: unknown[]) => {
+  promisify: (fn: (...args: unknown[]) => unknown) => (...args: unknown[]) => {
     return new Promise((resolve, reject) => {
       fn(...args, (err: Error | null, ...results: unknown[]) => {
         if (err) reject(err);
@@ -131,7 +131,7 @@ describe("TIFF Timestamp Preservation", () => {
     it("uses PowerShell for CreationTime on Windows", async () => {
       Object.defineProperty(process, "platform", { value: "win32" });
       mockStat.mockResolvedValueOnce(mockStatResult(MOCK_DATE));
-      mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+      mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, ...results: unknown[]) => void) => {
         cb(null, "2024-06-15T10:00:00.0000000Z", "");
       });
 
@@ -145,7 +145,7 @@ describe("TIFF Timestamp Preservation", () => {
       Object.defineProperty(process, "platform", { value: "win32" });
       const btime = new Date("2024-01-01T00:00:00Z");
       mockStat.mockResolvedValueOnce(mockStatResult(MOCK_DATE, btime));
-      mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+      mockExecFile.mockImplementationOnce((_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, ...results: unknown[]) => void) => {
         cb(new Error("PowerShell not available"), "", "");
       });
 
@@ -171,7 +171,7 @@ describe("TIFF Timestamp Preservation", () => {
       mockStat.mockResolvedValue(mockStatResult(MOCK_DATE));
 
       // PowerShell restore succeeds
-      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, ...results: unknown[]) => void) => {
         cb(null, "2024-01-01T00:00:00.0000000Z", "");
       });
 
@@ -192,7 +192,7 @@ describe("TIFF Timestamp Preservation", () => {
       mockStat.mockResolvedValue(mockStatResult(driftedTime));
 
       // PowerShell succeeds for creation time
-      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, ...results: unknown[]) => void) => {
         cb(null, "2024-01-01T00:00:00.0000000Z", "");
       });
 
@@ -210,7 +210,7 @@ describe("TIFF Timestamp Preservation", () => {
       mockStat.mockResolvedValue(mockStatResult(MOCK_DATE));
 
       // All PowerShell calls fail (both restore and verify)
-      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, ...results: unknown[]) => void) => {
         cb(new Error("Access denied"), "", "");
       });
 
@@ -235,7 +235,7 @@ describe("TIFF Timestamp Preservation", () => {
         return Promise.resolve(mockStatResult(MOCK_DATE));
       });
 
-      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, ...results: unknown[]) => void) => {
         cb(null, "2024-01-01T00:00:00.0000000Z", "");
       });
 
@@ -251,7 +251,7 @@ describe("TIFF Timestamp Preservation", () => {
       mockStat.mockResolvedValue(mockStatResult(MOCK_DATE));
 
       // PowerShell fails
-      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: Function) => {
+      mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, ...results: unknown[]) => void) => {
         cb(new Error("fail"), "", "");
       });
 
