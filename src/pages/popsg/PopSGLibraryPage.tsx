@@ -8,6 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ChevronRight,
   ChevronDown,
   Search,
@@ -616,6 +623,21 @@ export default function PopSGLibraryPage() {
                   {rows.length} of {total.toLocaleString()} file{total === 1 ? "" : "s"}
                 </span>
                 <div className="flex items-center gap-2">
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(v) => { setPageSize(Number(v)); setPage(0); }}
+                  >
+                    <SelectTrigger className="h-7 w-24 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <SelectItem key={n} value={String(n)} className="text-xs">
+                          {n} / page
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Button
                     variant="outline"
                     size="sm"

@@ -334,6 +334,7 @@ function derivePathMeta(relPath: string, filename: string) {
   const ext = nameParts.length > 1 ? nameParts.pop()!.toLowerCase() : null;
   const baseName = nameParts.join(".");
   const normalized = filename.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normalizedFolder = dirParts.join("/").toLowerCase().replace(/[^a-z0-9/]/g, "");
 
   return {
     path_segments: segments,
@@ -344,6 +345,7 @@ function derivePathMeta(relPath: string, filename: string) {
     property_name: dirParts[1] ?? null,
     depth: segments.length,
     normalized_name: normalized,
+    normalized_style_guide_folder: normalizedFolder,
   };
 }
 
