@@ -3012,6 +3012,53 @@ export type Database = {
           },
         ]
       }
+      style_guide_render_queue: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          lease_expires_at: string | null
+          status: Database["public"]["Enums"]["queue_status"]
+          style_guide_file_id: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          status?: Database["public"]["Enums"]["queue_status"]
+          style_guide_file_id: string
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          status?: Database["public"]["Enums"]["queue_status"]
+          style_guide_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_render_queue_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       template_public_smon_container_status: {
         Row: {
           container_id: string
@@ -3427,6 +3474,20 @@ export type Database = {
           lease_expires_at: string
         }[]
       }
+      claim_sg_render_jobs: {
+        Args: {
+          p_agent_id: string
+          p_batch_size?: number
+          p_lease_minutes?: number
+          p_max_attempts?: number
+        }
+        Returns: {
+          attempts: number
+          id: string
+          lease_expires_at: string
+          style_guide_file_id: string
+        }[]
+      }
       claim_tiff_jobs: {
         Args: {
           p_agent_id: string
@@ -3636,6 +3697,10 @@ export type Database = {
           propagated: number
           skipped: number
         }[]
+      }
+      queue_sg_render_jobs_by_ids: {
+        Args: { p_file_ids: string[] }
+        Returns: number
       }
       reapply_privileges: {
         Args: { p_parent_table: string }
