@@ -57,6 +57,7 @@ export interface WindowsHeartbeatResponse {
       nas_username?: string;
       nas_password?: string;
       nas_mount_path?: string;
+      sg_nas_mount_path?: string;
       render_concurrency?: number;
     };
     ai?: {
@@ -124,6 +125,14 @@ export interface RenderJob {
   filename: string;
 }
 
+export interface SgRenderJob {
+  job_id: string;
+  style_guide_file_id: string;
+  relative_path: string;
+  file_type: string;
+  filename: string;
+}
+
 export async function claimRender(agentId: string): Promise<RenderJob | null> {
   const data = await callApi("claim-render", { agent_id: agentId });
   const job = data.job as RenderJob | null;
@@ -138,6 +147,27 @@ export async function completeRender(
   error?: string,
 ): Promise<void> {
   await callApi("complete-render", {
+    job_id: jobId,
+    success,
+    thumbnail_url: thumbnailUrl,
+    error,
+  });
+}
+
+export async function claimSgRender(agentId: string): Promise<SgRenderJob | null> {
+  const data = await callApi("claim-sg-render", { agent_id: agentId });
+  const job = data.job as SgRenderJob | null;
+  if (!job || !job.job_id) return null;
+  return job;
+}
+
+export async function completeSgRender(
+  jobId: string,
+  success: boolean,
+  thumbnailUrl?: string,
+  error?: string,
+): Promise<void> {
+  await callApi("complete-sg-render", {
     job_id: jobId,
     success,
     thumbnail_url: thumbnailUrl,

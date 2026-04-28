@@ -138,6 +138,7 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "WINDOWS_AGENT_NAS_USER",
   "WINDOWS_AGENT_NAS_PASS",
   "WINDOWS_AGENT_NAS_MOUNT_PATH",
+  "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
   "WINDOWS_AGENT_RENDER_CONCURRENCY",
   "WINDOWS_REPAIR_CODE",
   "PDF_TEXT_SAMPLE_REQUEST",
@@ -569,6 +570,7 @@ async function handleHeartbeat(
         nas_username: (configMap.WINDOWS_AGENT_NAS_USER as string) || "",
         nas_password: (configMap.WINDOWS_AGENT_NAS_PASS as string) || "",
         nas_mount_path: (configMap.WINDOWS_AGENT_NAS_MOUNT_PATH as string) || "",
+        sg_nas_mount_path: (configMap.WINDOWS_AGENT_SG_NAS_MOUNT_PATH as string) || "",
         render_concurrency: parseInt((configMap.WINDOWS_AGENT_RENDER_CONCURRENCY as string) || "0") || 0,
       },
       style_guide_scanning: {
@@ -2571,13 +2573,23 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       thumbnail_error: (f.thumbnail_error as string) || null,
     }));
 
-    const { error: upsertErr } = await db
+    const { data: upsertedRows, error: upsertErr } = await db
       .from("style_guide_files")
-      .upsert(rows, { onConflict: "root_label,relative_path" });
+      .upsert(rows, { onConflict: "root_label,relative_path" })
+      .select("id");
 
     if (upsertErr) {
       console.error("[complete-style-guide-crawl] Upsert error:", upsertErr);
       return err(`File upsert failed: ${upsertErr.message}`, 500);
+    }
+
+    // Queue render jobs for this batch progressively (don't wait until crawl done)
+    if (upsertedRows && upsertedRows.length > 0) {
+      const fileIds = upsertedRows.map((r: { id: string }) => r.id);
+      const { error: queueErr } = await db.rpc("queue_sg_render_jobs_by_ids", { p_file_ids: fileIds });
+      if (queueErr) {
+        console.warn("[complete-style-guide-crawl] SG render queue error (non-fatal):", queueErr.message);
+      }
     }
   }
 
@@ -2632,6 +2644,101 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
     console.log(`[complete-style-guide-crawl] Run ${runId} done=${done}, files=${totalFiles}, error=${crawlError || "none"}`);
   }
 
+  return json({ ok: true });
+}
+
+// ── Route: claim-sg-render ───────────────────────────────────────
+
+async function handleClaimSgRender(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const agentId = body.agent_id as string;
+  if (!agentId) return err("agent_id is required");
+
+  const { data, error } = await db.rpc("claim_sg_render_jobs", { p_agent_id: agentId, p_batch_size: 1 });
+  if (error) {
+    console.error("[claim-sg-render] RPC error:", error);
+    return err(`claim_sg_render_jobs failed: ${error.message}`, 500);
+  }
+
+  const jobs = data as Array<{ id: string; style_guide_file_id: string }> | null;
+  if (!jobs || jobs.length === 0) return json({ ok: true, job: null });
+
+  const row = jobs[0];
+
+  // Fetch file metadata needed by the agent
+  const { data: fileRow, error: fileErr } = await db
+    .from("style_guide_files")
+    .select("relative_path, file_extension, filename")
+    .eq("id", row.style_guide_file_id)
+    .single();
+
+  if (fileErr || !fileRow) {
+    // Mark job failed so it doesn't stay claimed
+    await db.from("style_guide_render_queue").update({
+      status: "failed",
+      completed_at: new Date().toISOString(),
+      error_message: "File record not found",
+    }).eq("id", row.id);
+    return json({ ok: true, job: null });
+  }
+
+  return json({
+    ok: true,
+    job: {
+      job_id: row.id,
+      style_guide_file_id: row.style_guide_file_id,
+      relative_path: fileRow.relative_path,
+      file_type: (fileRow.file_extension || "").toLowerCase().replace(/^\./, ""),
+      filename: fileRow.filename,
+    },
+  });
+}
+
+// ── Route: complete-sg-render ────────────────────────────────────
+
+async function handleCompleteSgRender(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const jobId = body.job_id as string;
+  const success = body.success === true;
+  const thumbnailUrl = body.thumbnail_url as string | undefined;
+  const errorMsg = body.error as string | undefined;
+  const fileId = body.style_guide_file_id as string | undefined;
+
+  if (!jobId) return err("job_id is required");
+
+  const now = new Date().toISOString();
+
+  const { data: jobRow, error: fetchErr } = await db
+    .from("style_guide_render_queue")
+    .select("id, style_guide_file_id")
+    .eq("id", jobId)
+    .single();
+
+  if (fetchErr || !jobRow) {
+    console.warn("[complete-sg-render] Job not found:", jobId);
+    return json({ ok: true });
+  }
+
+  const resolvedFileId = (fileId || jobRow.style_guide_file_id) as string;
+
+  await db.from("style_guide_render_queue").update({
+    status: success ? "completed" : "failed",
+    completed_at: now,
+    error_message: errorMsg || null,
+  }).eq("id", jobId);
+
+  if (success && thumbnailUrl && resolvedFileId) {
+    await db.from("style_guide_files").update({
+      thumbnail_url: thumbnailUrl,
+      thumbnail_error: null,
+    }).eq("id", resolvedFileId);
+  } else if (!success && errorMsg && resolvedFileId) {
+    await db.from("style_guide_files").update({
+      thumbnail_error: errorMsg,
+    }).eq("id", resolvedFileId);
+  }
+
+  console.log(`[complete-sg-render] job=${jobId} success=${success} fileId=${resolvedFileId}`);
   return json({ ok: true });
 }
 
@@ -3024,6 +3131,10 @@ corsServe(async (req: Request) => {
         return await handleClaimStyleGuideCrawl(body, agentId);
       case "complete-style-guide-crawl":
         return await handleCompleteStyleGuideCrawl(body);
+      case "claim-sg-render":
+        return await handleClaimSgRender(body);
+      case "complete-sg-render":
+        return await handleCompleteSgRender(body);
       case "complete-pdf-text-sample":
         return await handleCompletePdfTextSample(body);
       case "pdf-text-sample-progress":

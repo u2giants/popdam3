@@ -16,7 +16,7 @@ import { config } from "./config";
 import { logger, getLogTail } from "./logger";
 import * as api from "./api-client";
 import { renderFile, type PdfRenderResult, type CompatWorker } from "./renderer";
-import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader";
+import { uploadThumbnail, uploadPdfPage, uploadSgThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate, RESTART_EXIT_CODE } from "./updater";
 import { scanTiffFiles, compressTiff, deleteOriginalBackup, setTimestampConfig, type TiffScanResult } from "./tiff-optimizer";
@@ -77,6 +77,8 @@ const PREFLIGHT_RECHECK_MS = 60_000; // Re-check every 60s if unhealthy
 let cloudNasHost = config.nasHost;
 let cloudNasShare = config.nasShare;
 let cloudNasMountPath = config.nasMountPath;
+// Separate mount path for style guide files — defaults to same as cloudNasMountPath if unset.
+let cloudSgNasMountPath = "";
 let cloudSpacesBucket = config.doSpacesBucket;
 let cloudSpacesRegion = config.doSpacesRegion;
 let cloudSpacesEndpoint = config.doSpacesEndpoint;
@@ -176,6 +178,22 @@ function toUncPath(relativePath: string): string {
   return `\\\\${host}\\${share}\\${windowsPath}`;
 }
 
+/**
+ * Convert a style guide relative_path to a Windows path using the
+ * sg_nas_mount_path config (falls back to the main NAS mount if unset).
+ */
+function toSgUncPath(relativePath: string): string {
+  const windowsPath = relativePath.replace(/\//g, "\\");
+  const mountPath = (cloudSgNasMountPath || cloudNasMountPath || "").trim()
+    .replace(/\\+$/, "");
+  if (mountPath) {
+    return `${mountPath}\\${windowsPath}`;
+  }
+  const host = cloudNasHost.replace(/^\\+/, "");
+  const share = cloudNasShare.replace(/^\\+/, "").replace(/^\/+/, "");
+  return `\\\\${host}\\${share}\\${windowsPath}`;
+}
+
 // ── Preflight ───────────────────────────────────────────────────
 
 async function runHealthCheck() {
@@ -225,6 +243,7 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (wa.nas_username) cloudNasUsername = wa.nas_username;
     if (wa.nas_password) cloudNasPassword = wa.nas_password;
     if (wa.nas_mount_path !== undefined) cloudNasMountPath = wa.nas_mount_path;
+    if (wa.sg_nas_mount_path !== undefined) cloudSgNasMountPath = wa.sg_nas_mount_path;
     if (wa.render_concurrency && wa.render_concurrency > 0) {
       (config as { renderConcurrency: number }).renderConcurrency = wa.render_concurrency;
     }
@@ -495,6 +514,48 @@ async function processJob(job: api.RenderJob): Promise<void> {
   }
 }
 
+async function processSgJob(job: api.SgRenderJob): Promise<void> {
+  const uncPath = toSgUncPath(job.relative_path);
+  logger.info("Processing SG render job", {
+    jobId: job.job_id,
+    fileId: job.style_guide_file_id,
+    relativePath: job.relative_path,
+    uncPath,
+  });
+
+  if (shouldSkipPath(job.relative_path, logger.warn)) {
+    logger.info("Skipping excluded SG path", { relativePath: job.relative_path });
+    await api.completeSgRender(job.job_id, false, undefined, "Skipped: excluded by path filter");
+    return;
+  }
+
+  const filename = path.basename(job.relative_path);
+  if (filename.startsWith("~") || filename.startsWith("._")) {
+    logger.info("Skipping junk SG file", { relativePath: job.relative_path });
+    await api.completeSgRender(job.job_id, false, undefined, "Skipped: junk/temp file");
+    return;
+  }
+
+  try {
+    const fileType = (job.file_type === "psd") ? "psd" : (job.file_type === "pdf") ? "pdf" : "ai" as const;
+    const result = await renderFile(uncPath, fileType);
+    const thumbnailUrl = await uploadSgThumbnail(job.style_guide_file_id, result.buffer);
+    await api.completeSgRender(job.job_id, true, thumbnailUrl);
+    jobsCompleted++;
+    logger.info("SG render job completed", { jobId: job.job_id, fileId: job.style_guide_file_id, thumbnailUrl });
+  } catch (e) {
+    const errorMsg = (e as Error).message;
+    jobsFailed++;
+    lastError = errorMsg;
+    logger.error("SG render job failed", { jobId: job.job_id, fileId: job.style_guide_file_id, error: errorMsg });
+    try {
+      await api.completeSgRender(job.job_id, false, undefined, errorMsg);
+    } catch (reportErr) {
+      logger.error("Failed to report SG render failure", { jobId: job.job_id, error: (reportErr as Error).message });
+    }
+  }
+}
+
 // ── Concurrent polling loop ─────────────────────────────────────
 
 function startPolling() {
@@ -510,24 +571,41 @@ function startPolling() {
     } else if (stopAcceptingJobs) {
       logger.debug("Skipping poll — job claiming halted (force_stop_jobs active)");
     } else {
-      // Fill all available slots
+      // Fill all available slots — try PopDAM jobs first, then SG jobs
       while (activeJobs < maxConcurrency) {
         try {
           const job = await api.claimRender(agentId);
-          if (!job) {
-            if (activeJobs === 0) logger.debug("No render jobs available");
-            break;
-          }
-          if (!job.relative_path) {
-            logger.error("Claimed job missing relative_path", { jobId: job.job_id });
-            await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
+          if (job) {
+            if (!job.relative_path) {
+              logger.error("Claimed job missing relative_path", { jobId: job.job_id });
+              await api.completeRender(job.job_id, false, undefined, "Asset missing relative_path");
+              continue;
+            }
+            activeJobs++;
+            processJob(job)
+              .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
+              .finally(() => { activeJobs--; });
             continue;
           }
 
-          activeJobs++;
-          processJob(job)
-            .catch((e) => logger.error("Uncaught job error", { error: (e as Error).message }))
-            .finally(() => { activeJobs--; });
+          // No PopDAM job — try SG job
+          const sgJob = await api.claimSgRender(agentId);
+          if (sgJob) {
+            if (!sgJob.relative_path) {
+              logger.error("Claimed SG job missing relative_path", { jobId: sgJob.job_id });
+              await api.completeSgRender(sgJob.job_id, false, undefined, "File missing relative_path");
+              continue;
+            }
+            activeJobs++;
+            processSgJob(sgJob)
+              .catch((e) => logger.error("Uncaught SG job error", { error: (e as Error).message }))
+              .finally(() => { activeJobs--; });
+            continue;
+          }
+
+          // Nothing available
+          if (activeJobs === 0) logger.debug("No render jobs available");
+          break;
         } catch (e) {
           logger.error("Polling error", { error: (e as Error).message });
           break;

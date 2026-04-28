@@ -80,6 +80,14 @@ export async function uploadThumbnail(
  * Upload a PDF page image to Spaces (high-res for AI/OCR).
  * Stored under pdf-pages/ prefix.
  */
+export async function uploadSgThumbnail(
+  fileId: string,
+  buffer: Buffer,
+): Promise<string> {
+  const key = `sg-thumbnails/${fileId}.jpg`;
+  return uploadToSpaces(key, buffer);
+}
+
 export async function uploadPdfPage(
   assetId: string,
   pageNum: number,
