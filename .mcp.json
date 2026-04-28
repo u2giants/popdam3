@@ -3,6 +3,30 @@
     "supabase": {
       "command": "npx",
       "args": ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref", "ryltkzzernhwnojzouyb"]
+    },
+    "devops-mcp": {
+      "type": "http",
+      "url": "https://mcp.designflow.app/mcp",
+      "headers": {
+        "Authorization": "Bearer xBY2IHFwVfXnVUZ3rwfs-zW0jdf4BO2oO8iB1TjRs-0"
+      }
+    },
+    "synology-monitor": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@latest",
+        "https://nas-mcp.designflow.app/sse",
+        "--header",
+        "Authorization: Bearer 14cde11e584136b15306c03d160ce9536da4f87f82d74c6d728a6c8cb6dd2122"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless"],
+      "env": {
+        "PLAYWRIGHT_BROWSERS_PATH": "/opt/playwright"
+      }
     }
   }
 }
