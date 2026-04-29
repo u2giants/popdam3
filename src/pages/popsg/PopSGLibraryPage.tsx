@@ -1,12 +1,12 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -29,13 +29,6 @@ import {
   LayoutList,
   ArrowRight,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
@@ -64,6 +57,9 @@ interface TreeNode {
 
 const PAGE_SIZE_OPTIONS = [60, 100, 200, 500, 1000] as const;
 type PageSize = typeof PAGE_SIZE_OPTIONS[number];
+
+const FILE_TYPE_OPTIONS = ["pdf", "ai", "psd", "jpg", "jpeg", "png", "tif", "tiff", "indd", "eps"] as const;
+type ThumbStatus = "any" | "has" | "missing";
 
 function formatBytes(n: number | null): string {
   if (!n) return "—";
@@ -409,6 +405,8 @@ export default function PopSGLibraryPage() {
   const [licensor, setLicensor] = useState<string>("all");
   const [property, setProperty] = useState<string>("all");
   const [nameSearch, setNameSearch] = useState<string>("");
+  const [fileTypes, setFileTypes] = useState<string[]>([]);
+  const [thumbStatus, setThumbStatus] = useState<ThumbStatus>("any");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSize>(60);
   const [selectedFile, setSelectedFile] = useState<StyleGuideFile | null>(null);
@@ -444,8 +442,8 @@ export default function PopSGLibraryPage() {
   });
 
   const filters = useMemo(
-    () => ({ licensor, property, nameSearch: nameSearch.trim() }),
-    [licensor, property, nameSearch],
+    () => ({ licensor, property, nameSearch: nameSearch.trim(), fileTypes, thumbStatus }),
+    [licensor, property, nameSearch, fileTypes, thumbStatus],
   );
 
   const { data: results, isLoading, refetch, isFetching } = useQuery({
@@ -462,6 +460,9 @@ export default function PopSGLibraryPage() {
       if (filters.licensor !== "all") q = q.eq("licensor_name", filters.licensor);
       if (filters.property !== "all") q = q.eq("property_folder", filters.property);
       if (filters.nameSearch) q = q.ilike("filename", `%${filters.nameSearch}%`);
+      if (filters.fileTypes.length > 0) q = q.in("file_extension", filters.fileTypes);
+      if (filters.thumbStatus === "has") q = q.not("thumbnail_url", "is", null);
+      if (filters.thumbStatus === "missing") q = q.is("thumbnail_url", null);
 
       q = q
         .order("licensor_name", { ascending: true, nullsFirst: false })
@@ -478,8 +479,27 @@ export default function PopSGLibraryPage() {
   const rows = results?.rows ?? [];
   const total = results?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const hasFilters = licensor !== "all" || property !== "all" || !!nameSearch.trim();
+  const hasFilters =
+    licensor !== "all" ||
+    property !== "all" ||
+    !!nameSearch.trim() ||
+    fileTypes.length > 0 ||
+    thumbStatus !== "any";
   const hasAnyData = tree.length > 0;
+
+  const toggleFileType = (ext: string) => {
+    setFileTypes((prev) => prev.includes(ext) ? prev.filter((t) => t !== ext) : [...prev, ext]);
+    setPage(0);
+  };
+
+  const clearAllFilters = () => {
+    setLicensor("all");
+    setProperty("all");
+    setNameSearch("");
+    setFileTypes([]);
+    setThumbStatus("any");
+    setPage(0);
+  };
 
   const handleTreeSelect = (l: string, p: string) => {
     setLicensor(l);
@@ -496,20 +516,87 @@ export default function PopSGLibraryPage() {
     <div className="flex h-full min-h-0">
       {/* ── Sidebar ── */}
       {hasAnyData && (
-        <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-background lg:flex">
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background lg:flex">
           <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Folders
+              Filters
             </span>
-            <span className="text-[10px] text-muted-foreground">{total.toLocaleString()} files</span>
+            {hasFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="text-[10px] text-primary hover:underline"
+              >
+                Clear all
+              </button>
+            )}
           </div>
-          <div className="flex-1 overflow-y-auto px-2 py-2">
-            <FolderTree
-              tree={tree}
-              licensor={licensor}
-              property={property}
-              onSelect={handleTreeSelect}
-            />
+
+          <div className="flex-1 overflow-y-auto">
+            {/* File type */}
+            <div className="border-b border-border px-3 py-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                File type
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {FILE_TYPE_OPTIONS.map((ext) => (
+                  <label
+                    key={ext}
+                    className="flex items-center gap-1.5 cursor-pointer text-xs hover:text-foreground"
+                  >
+                    <Checkbox
+                      checked={fileTypes.includes(ext)}
+                      onCheckedChange={() => toggleFileType(ext)}
+                      className="h-3.5 w-3.5"
+                    />
+                    <span className="uppercase">{ext}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Thumbnail status */}
+            <div className="border-b border-border px-3 py-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Preview
+              </p>
+              <div className="space-y-1">
+                {([
+                  { value: "any", label: "Any" },
+                  { value: "has", label: "Has preview" },
+                  { value: "missing", label: "No preview" },
+                ] as const).map((opt) => (
+                  <label
+                    key={opt.value}
+                    className="flex items-center gap-1.5 cursor-pointer text-xs hover:text-foreground"
+                  >
+                    <input
+                      type="radio"
+                      name="thumb-status"
+                      checked={thumbStatus === opt.value}
+                      onChange={() => { setThumbStatus(opt.value); setPage(0); }}
+                      className="h-3 w-3"
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Folder tree */}
+            <div className="px-3 py-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Folders
+                </p>
+                <span className="text-[10px] text-muted-foreground">{total.toLocaleString()} files</span>
+              </div>
+              <FolderTree
+                tree={tree}
+                licensor={licensor}
+                property={property}
+                onSelect={handleTreeSelect}
+              />
+            </div>
           </div>
         </aside>
       )}

@@ -370,6 +370,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
         "WINDOWS_AGENT_NAS_HOST",
         "WINDOWS_AGENT_NAS_SHARE",
         "WINDOWS_AGENT_NAS_MOUNT_PATH",
+        "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
         "WINDOWS_AGENT_NAS_USER",
         "WINDOWS_AGENT_NAS_PASS",
         "WINDOWS_AGENT_RENDER_CONCURRENCY",
@@ -386,6 +387,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
   const [nasHost, setNasHost] = useState("");
   const [nasShare, setNasShare] = useState("");
   const [nasMountPath, setNasMountPath] = useState("");
+  const [sgNasMountPath, setSgNasMountPath] = useState("");
   const [nasUser, setNasUser] = useState("");
   const [nasPass, setNasPass] = useState("");
   const [showNasPass, setShowNasPass] = useState(false);
@@ -397,6 +399,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
       setNasHost(getConfigVal("WINDOWS_AGENT_NAS_HOST").replace(/^\\+/, ''));
       setNasShare(getConfigVal("WINDOWS_AGENT_NAS_SHARE").replace(/^\\+/, '').replace(/^\/+/, ''));
       setNasMountPath(getConfigVal("WINDOWS_AGENT_NAS_MOUNT_PATH"));
+      setSgNasMountPath(getConfigVal("WINDOWS_AGENT_SG_NAS_MOUNT_PATH"));
       setNasUser(getConfigVal("WINDOWS_AGENT_NAS_USER"));
       setNasPass(getConfigVal("WINDOWS_AGENT_NAS_PASS"));
       setRenderConcurrency(getConfigVal("WINDOWS_AGENT_RENDER_CONCURRENCY") || "6");
@@ -413,6 +416,7 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
           WINDOWS_AGENT_NAS_HOST: cleanHost,
           WINDOWS_AGENT_NAS_SHARE: cleanShare,
           WINDOWS_AGENT_NAS_MOUNT_PATH: nasMountPath.trim().replace(/\\+$/, ''),
+          WINDOWS_AGENT_SG_NAS_MOUNT_PATH: sgNasMountPath.trim().replace(/\\+$/, ''),
           WINDOWS_AGENT_NAS_USER: nasUser,
           WINDOWS_AGENT_NAS_PASS: nasPass,
           WINDOWS_AGENT_RENDER_CONCURRENCY: String(Math.min(32, Math.max(1, parseInt(renderConcurrency) || 6))),
@@ -571,6 +575,11 @@ function WindowsAgentSetup({ onTokenGenerated }: { onTokenGenerated: () => void 
             <label className="text-xs text-muted-foreground font-medium">NAS Mount Path <span className="text-muted-foreground/60">(optional)</span></label>
             <Input placeholder="Z:\mac\Decor" value={nasMountPath} onChange={(e) => setNasMountPath(e.target.value)} className="font-mono text-xs" />
             <p className="text-xs text-muted-foreground">If the NAS share is mapped to a drive letter (e.g. Z:), set it here. Sharp and Ghostscript cannot read UNC paths — a mapped drive is required for reliable rendering.</p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground font-medium">Style Guide NAS Mount Path <span className="text-muted-foreground/60">(optional)</span></label>
+            <Input placeholder="Y:\styleguides" value={sgNasMountPath} onChange={(e) => setSgNasMountPath(e.target.value)} className="font-mono text-xs" />
+            <p className="text-xs text-muted-foreground">Windows mount path for the style guide files (PopSG). Used to render PopSG thumbnails. If the style guide share is the same as the main NAS, leave blank — it falls back to NAS Mount Path.</p>
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground font-medium">Render Concurrency</label>
