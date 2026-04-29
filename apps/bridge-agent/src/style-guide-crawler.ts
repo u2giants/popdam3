@@ -41,12 +41,18 @@ const SKIP_NAMES = new Set([
 
 const SKIP_PREFIXES = [".", "@", "#", "$"];
 
+const SKIP_EXTENSIONS = new Set([
+  "lnk", "url", "webloc", // Windows/macOS shortcut files
+]);
+
 function shouldSkipEntry(name: string): boolean {
   if (!name) return true;
   const lower = name.toLowerCase();
   if (SKIP_NAMES.has(lower)) return true;
   if (SKIP_PREFIXES.includes(name[0])) return true;
   if (lower === "__macosx") return true;
+  const dot = lower.lastIndexOf(".");
+  if (dot !== -1 && SKIP_EXTENSIONS.has(lower.slice(dot + 1))) return true;
   return false;
 }
 
