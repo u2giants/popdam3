@@ -139,6 +139,7 @@ const HEARTBEAT_CONFIG_KEYS_WINDOWS = [
   "WINDOWS_AGENT_NAS_PASS",
   "WINDOWS_AGENT_NAS_MOUNT_PATH",
   "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
+  "WINDOWS_AGENT_SG_NAS_SHARE",
   "WINDOWS_AGENT_RENDER_CONCURRENCY",
   "WINDOWS_REPAIR_CODE",
   "PDF_TEXT_SAMPLE_REQUEST",
@@ -571,6 +572,7 @@ async function handleHeartbeat(
         nas_password: (configMap.WINDOWS_AGENT_NAS_PASS as string) || "",
         nas_mount_path: (configMap.WINDOWS_AGENT_NAS_MOUNT_PATH as string) || "",
         sg_nas_mount_path: (configMap.WINDOWS_AGENT_SG_NAS_MOUNT_PATH as string) || "",
+        sg_nas_share: (configMap.WINDOWS_AGENT_SG_NAS_SHARE as string) || "",
         render_concurrency: parseInt((configMap.WINDOWS_AGENT_RENDER_CONCURRENCY as string) || "0") || 0,
       },
       style_guide_scanning: {

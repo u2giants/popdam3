@@ -36,42 +36,52 @@ export default function PopSGSettingsPage() {
   });
 
   // ── Thumbnail render config (Windows agent SG mount path) ──
-  const { data: sgMountPathConfig } = useQuery({
-    queryKey: ["popsg", "sg_nas_mount_path"],
+  const { data: sgNasConfig } = useQuery({
+    queryKey: ["popsg", "sg_nas_config"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("admin_config")
-        .select("value")
-        .eq("key", "WINDOWS_AGENT_SG_NAS_MOUNT_PATH")
-        .maybeSingle();
+        .select("key,value")
+        .in("key", ["WINDOWS_AGENT_SG_NAS_MOUNT_PATH", "WINDOWS_AGENT_SG_NAS_SHARE"]);
       if (error) throw error;
-      return typeof data?.value === "string" ? (data.value as string) : "";
+      const map: Record<string, string> = {};
+      for (const row of data ?? []) {
+        if (typeof row.value === "string") map[row.key] = row.value;
+      }
+      return map;
     },
   });
 
   const [sgMountPath, setSgMountPath] = useState("");
-  const [sgMountPathInitialized, setSgMountPathInitialized] = useState(false);
+  const [sgNasShare, setSgNasShare] = useState("");
+  const [sgNasConfigInitialized, setSgNasConfigInitialized] = useState(false);
 
   useEffect(() => {
-    if (sgMountPathConfig !== undefined && !sgMountPathInitialized) {
-      setSgMountPath(sgMountPathConfig);
-      setSgMountPathInitialized(true);
+    if (sgNasConfig !== undefined && !sgNasConfigInitialized) {
+      setSgMountPath(sgNasConfig["WINDOWS_AGENT_SG_NAS_MOUNT_PATH"] ?? "");
+      setSgNasShare(sgNasConfig["WINDOWS_AGENT_SG_NAS_SHARE"] ?? "");
+      setSgNasConfigInitialized(true);
     }
-  }, [sgMountPathConfig, sgMountPathInitialized]);
+  }, [sgNasConfig, sgNasConfigInitialized]);
 
   const saveMountPath = useMutation({
     mutationFn: async () => {
-      const cleaned = sgMountPath.trim().replace(/\\+$/, "");
-      const { error } = await supabase.from("admin_config").upsert({
-        key: "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
-        value: cleaned,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) throw error;
+      const entries = [
+        { key: "WINDOWS_AGENT_SG_NAS_MOUNT_PATH", value: sgMountPath.trim().replace(/\\+$/, "") },
+        { key: "WINDOWS_AGENT_SG_NAS_SHARE", value: sgNasShare.trim() },
+      ];
+      for (const entry of entries) {
+        const { error } = await supabase.from("admin_config").upsert({
+          key: entry.key,
+          value: entry.value,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success("Style guide mount path saved");
-      queryClient.invalidateQueries({ queryKey: ["popsg", "sg_nas_mount_path"] });
+      toast.success("Style guide NAS config saved");
+      queryClient.invalidateQueries({ queryKey: ["popsg", "sg_nas_config"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -191,33 +201,48 @@ export default function PopSGSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Style Guide NAS Mount Path
-            </label>
-            <div className="flex gap-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                NAS Share name
+              </label>
               <Input
-                placeholder="\\192.168.3.101\styleguides   or   Y:\styleguides"
+                placeholder="styleguides"
+                value={sgNasShare}
+                onChange={(e) => setSgNasShare(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                The NAS share the style guide files live on (e.g. <code>styleguides</code>). The agent will auto-map
+                this share to the drive letter below using the same host/credentials as the main NAS.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Windows Drive Letter
+              </label>
+              <Input
+                placeholder="Y:"
                 value={sgMountPath}
                 onChange={(e) => setSgMountPath(e.target.value)}
                 className="font-mono text-xs"
               />
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => saveMountPath.mutate()}
-                disabled={saveMountPath.isPending}
-                className="gap-1.5"
-              >
-                <Save className="h-3.5 w-3.5" />
-                Save
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                Drive letter to map the share to (e.g. <code>Y:</code>). The agent maps it automatically at
+                startup — you don't need to map it manually in Windows.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              UNC path or mapped drive on the Windows host. Sharp/Ghostscript work best with a mapped drive
-              (e.g. <code>Y:\styleguides</code>). Falls back to the main NAS Mount Path if blank.
-            </p>
           </div>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => saveMountPath.mutate()}
+            disabled={saveMountPath.isPending}
+            className="gap-1.5 self-start"
+          >
+            <Save className="h-3.5 w-3.5" />
+            Save
+          </Button>
 
           {queueStats && (
             <div className="rounded-md border border-border bg-muted/30 p-3">

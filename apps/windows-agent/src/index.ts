@@ -77,8 +77,9 @@ const PREFLIGHT_RECHECK_MS = 60_000; // Re-check every 60s if unhealthy
 let cloudNasHost = config.nasHost;
 let cloudNasShare = config.nasShare;
 let cloudNasMountPath = config.nasMountPath;
-// Separate mount path for style guide files — defaults to same as cloudNasMountPath if unset.
+// Separate mount path + share for style guide files.
 let cloudSgNasMountPath = "";
+let cloudSgNasShare = "";
 let cloudSpacesBucket = config.doSpacesBucket;
 let cloudSpacesRegion = config.doSpacesRegion;
 let cloudSpacesEndpoint = config.doSpacesEndpoint;
@@ -244,6 +245,7 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (wa.nas_password) cloudNasPassword = wa.nas_password;
     if (wa.nas_mount_path !== undefined) cloudNasMountPath = wa.nas_mount_path;
     if (wa.sg_nas_mount_path !== undefined) cloudSgNasMountPath = wa.sg_nas_mount_path;
+    if (wa.sg_nas_share !== undefined) cloudSgNasShare = wa.sg_nas_share;
     if (wa.render_concurrency && wa.render_concurrency > 0) {
       (config as { renderConcurrency: number }).renderConcurrency = wa.render_concurrency;
     }
@@ -514,6 +516,21 @@ async function processJob(job: api.RenderJob): Promise<void> {
   }
 }
 
+async function ensureSgNasMapped(): Promise<boolean> {
+  if (!cloudSgNasMountPath && !cloudSgNasShare) return true; // fallback to main NAS, already mapped
+  const share = cloudSgNasShare || cloudNasShare;
+  const result = await ensureNasMapped(cloudSgNasMountPath || undefined, {
+    host: cloudNasHost,
+    share,
+    username: cloudNasUsername,
+    password: cloudNasPassword,
+  });
+  if (!result.ok) {
+    logger.warn("SG NAS map failed", { error: result.error });
+  }
+  return result.ok;
+}
+
 async function processSgJob(job: api.SgRenderJob): Promise<void> {
   const uncPath = toSgUncPath(job.relative_path);
   logger.info("Processing SG render job", {
@@ -588,7 +605,8 @@ function startPolling() {
             continue;
           }
 
-          // No PopDAM job — try SG job
+          // No PopDAM job — try SG job (ensure SG NAS is mapped first)
+          await ensureSgNasMapped();
           const sgJob = await api.claimSgRender(agentId);
           if (sgJob) {
             if (!sgJob.relative_path) {

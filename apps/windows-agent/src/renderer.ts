@@ -430,9 +430,11 @@ async function renderWithImageMagick(
   const outPath = path.join(tmpDir, "thumb.jpg");
 
   try {
-    // Put input first so ImageMagick has an image list before -flatten
+    // Prefix with PSD: format specifier to prevent ImageMagick from misinterpreting
+    // Windows drive letters (e.g. "y:") as format specifiers.
+    const imInput = /^[A-Za-z]:/.test(filePath) ? `PSD:${filePath}[0]` : `${filePath}[0]`;
     await execFileAsync(IM_EXE, [
-      `${filePath}[0]`,
+      imInput,
       "-background", "white",
       "-flatten",
       "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
