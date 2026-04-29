@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ExternalLink, RotateCw, Save } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, RotateCw, Save } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
@@ -42,7 +42,13 @@ export default function PopSGSettingsPage() {
       const { data, error } = await supabase
         .from("admin_config")
         .select("key,value")
-        .in("key", ["WINDOWS_AGENT_SG_NAS_MOUNT_PATH", "WINDOWS_AGENT_SG_NAS_SHARE"]);
+        .in("key", [
+          "WINDOWS_AGENT_SG_NAS_HOST",
+          "WINDOWS_AGENT_SG_NAS_SHARE",
+          "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
+          "WINDOWS_AGENT_SG_NAS_USER",
+          "WINDOWS_AGENT_SG_NAS_PASS",
+        ]);
       if (error) throw error;
       const map: Record<string, string> = {};
       for (const row of data ?? []) {
@@ -52,14 +58,21 @@ export default function PopSGSettingsPage() {
     },
   });
 
-  const [sgMountPath, setSgMountPath] = useState("");
+  const [sgNasHost, setSgNasHost] = useState("");
   const [sgNasShare, setSgNasShare] = useState("");
+  const [sgMountPath, setSgMountPath] = useState("");
+  const [sgNasUser, setSgNasUser] = useState("");
+  const [sgNasPass, setSgNasPass] = useState("");
+  const [showSgPass, setShowSgPass] = useState(false);
   const [sgNasConfigInitialized, setSgNasConfigInitialized] = useState(false);
 
   useEffect(() => {
     if (sgNasConfig !== undefined && !sgNasConfigInitialized) {
-      setSgMountPath(sgNasConfig["WINDOWS_AGENT_SG_NAS_MOUNT_PATH"] ?? "");
+      setSgNasHost(sgNasConfig["WINDOWS_AGENT_SG_NAS_HOST"] ?? "");
       setSgNasShare(sgNasConfig["WINDOWS_AGENT_SG_NAS_SHARE"] ?? "");
+      setSgMountPath(sgNasConfig["WINDOWS_AGENT_SG_NAS_MOUNT_PATH"] ?? "");
+      setSgNasUser(sgNasConfig["WINDOWS_AGENT_SG_NAS_USER"] ?? "");
+      setSgNasPass(sgNasConfig["WINDOWS_AGENT_SG_NAS_PASS"] ?? "");
       setSgNasConfigInitialized(true);
     }
   }, [sgNasConfig, sgNasConfigInitialized]);
@@ -67,8 +80,11 @@ export default function PopSGSettingsPage() {
   const saveMountPath = useMutation({
     mutationFn: async () => {
       const entries = [
-        { key: "WINDOWS_AGENT_SG_NAS_MOUNT_PATH", value: sgMountPath.trim().replace(/\\+$/, "") },
+        { key: "WINDOWS_AGENT_SG_NAS_HOST", value: sgNasHost.trim() },
         { key: "WINDOWS_AGENT_SG_NAS_SHARE", value: sgNasShare.trim() },
+        { key: "WINDOWS_AGENT_SG_NAS_MOUNT_PATH", value: sgMountPath.trim().replace(/\\+$/, "") },
+        { key: "WINDOWS_AGENT_SG_NAS_USER", value: sgNasUser.trim() },
+        { key: "WINDOWS_AGENT_SG_NAS_PASS", value: sgNasPass },
       ];
       for (const entry of entries) {
         const { error } = await supabase.from("admin_config").upsert({
@@ -203,9 +219,19 @@ export default function PopSGSettingsPage() {
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                NAS Share name
-              </label>
+              <label className="text-xs font-medium text-muted-foreground">NAS Host</label>
+              <Input
+                placeholder="edgesynology2"
+                value={sgNasHost}
+                onChange={(e) => setSgNasHost(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Hostname or IP of the NAS holding style guide files (e.g. <code>edgesynology2</code>).
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">NAS Share name</label>
               <Input
                 placeholder="styleguides"
                 value={sgNasShare}
@@ -213,14 +239,11 @@ export default function PopSGSettingsPage() {
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                The NAS share the style guide files live on (e.g. <code>styleguides</code>). The agent will auto-map
-                this share to the drive letter below using the same host/credentials as the main NAS.
+                Share name on that host (e.g. <code>styleguides</code>).
               </p>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Windows Drive Letter
-              </label>
+              <label className="text-xs font-medium text-muted-foreground">Windows Drive Letter</label>
               <Input
                 placeholder="Y:"
                 value={sgMountPath}
@@ -228,9 +251,38 @@ export default function PopSGSettingsPage() {
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                Drive letter to map the share to (e.g. <code>Y:</code>). The agent maps it automatically at
-                startup — you don't need to map it manually in Windows.
+                Drive letter to map the share to (e.g. <code>Y:</code>). The agent maps it automatically at startup.
               </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">NAS Username</label>
+              <Input
+                placeholder="popdam"
+                value={sgNasUser}
+                onChange={(e) => setSgNasUser(e.target.value)}
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground">NAS Password</label>
+              <div className="flex gap-2">
+                <Input
+                  type={showSgPass ? "text" : "password"}
+                  placeholder="password"
+                  value={sgNasPass}
+                  onChange={(e) => setSgNasPass(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  onClick={() => setShowSgPass((v) => !v)}
+                  className="h-9 w-9 shrink-0"
+                >
+                  {showSgPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
           </div>
           <Button
