@@ -1,15 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, RotateCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ExternalLink, RotateCw, Save } from "lucide-react";
+import { toast } from "sonner";
 import { CURRENT_APP } from "@/lib/app-mode";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 
 export default function PopSGSettingsPage() {
+  const queryClient = useQueryClient();
   const crawlProgress = useCrawlProgress();
   const { crawlTriggered, handleTriggerCrawl } = useCrawlLifecycle(crawlProgress, "trigger-style-guide-crawl");
   const crawlActive = crawlProgress.status === "queued" || crawlProgress.status === "running" || crawlTriggered;
@@ -29,6 +33,66 @@ export default function PopSGSettingsPage() {
       if (Array.isArray(v)) return v as string[];
       return [];
     },
+  });
+
+  // ── Thumbnail render config (Windows agent SG mount path) ──
+  const { data: sgMountPathConfig } = useQuery({
+    queryKey: ["popsg", "sg_nas_mount_path"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("admin_config")
+        .select("value")
+        .eq("key", "WINDOWS_AGENT_SG_NAS_MOUNT_PATH")
+        .maybeSingle();
+      if (error) throw error;
+      return typeof data?.value === "string" ? (data.value as string) : "";
+    },
+  });
+
+  const [sgMountPath, setSgMountPath] = useState("");
+  const [sgMountPathInitialized, setSgMountPathInitialized] = useState(false);
+
+  useEffect(() => {
+    if (sgMountPathConfig !== undefined && !sgMountPathInitialized) {
+      setSgMountPath(sgMountPathConfig);
+      setSgMountPathInitialized(true);
+    }
+  }, [sgMountPathConfig, sgMountPathInitialized]);
+
+  const saveMountPath = useMutation({
+    mutationFn: async () => {
+      const cleaned = sgMountPath.trim().replace(/\\+$/, "");
+      const { error } = await supabase.from("admin_config").upsert({
+        key: "WINDOWS_AGENT_SG_NAS_MOUNT_PATH",
+        value: cleaned,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Style guide mount path saved");
+      queryClient.invalidateQueries({ queryKey: ["popsg", "sg_nas_mount_path"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const { data: queueStats } = useQuery({
+    queryKey: ["popsg", "render_queue_stats"],
+    queryFn: async () => {
+      const [pending, claimed, completed, failed] = await Promise.all([
+        supabase.from("style_guide_render_queue").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("style_guide_render_queue").select("id", { count: "exact", head: true }).eq("status", "claimed"),
+        supabase.from("style_guide_render_queue").select("id", { count: "exact", head: true }).eq("status", "completed"),
+        supabase.from("style_guide_render_queue").select("id", { count: "exact", head: true }).eq("status", "failed"),
+      ]);
+      return {
+        pending: pending.count ?? 0,
+        claimed: claimed.count ?? 0,
+        completed: completed.count ?? 0,
+        failed: failed.count ?? 0,
+      };
+    },
+    refetchInterval: 10_000,
   });
 
   return (
@@ -113,6 +177,79 @@ export default function PopSGSettingsPage() {
                 </li>
               ))}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Thumbnail rendering */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Thumbnail rendering</CardTitle>
+          <CardDescription className="text-xs">
+            PopSG previews are rendered by the Windows Render Agent (the same one that powers PopDAM thumbnails).
+            Set the Windows-visible path to the style guide share so the agent can read the source files.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Style Guide NAS Mount Path
+            </label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="\\192.168.3.101\styleguides   or   Y:\styleguides"
+                value={sgMountPath}
+                onChange={(e) => setSgMountPath(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => saveMountPath.mutate()}
+                disabled={saveMountPath.isPending}
+                className="gap-1.5"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Save
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              UNC path or mapped drive on the Windows host. Sharp/Ghostscript work best with a mapped drive
+              (e.g. <code>Y:\styleguides</code>). Falls back to the main NAS Mount Path if blank.
+            </p>
+          </div>
+
+          {queueStats && (
+            <div className="rounded-md border border-border bg-muted/30 p-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Render queue
+              </p>
+              <div className="grid grid-cols-4 gap-3 text-xs">
+                <div>
+                  <div className="text-muted-foreground">Pending</div>
+                  <div className="font-mono text-sm font-semibold">{queueStats.pending.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">In flight</div>
+                  <div className="font-mono text-sm font-semibold">{queueStats.claimed.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Done</div>
+                  <div className="font-mono text-sm font-semibold text-success">
+                    {queueStats.completed.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Failed</div>
+                  <div className="font-mono text-sm font-semibold text-destructive">
+                    {queueStats.failed.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                Auto-refreshes every 10 s. Windows agent polls every few seconds when the mount path is configured.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
