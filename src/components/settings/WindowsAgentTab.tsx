@@ -53,7 +53,7 @@ function formatDuration(createdAt: string, completedAt: string): string {
 
 // ── Section 1: Status ───────────────────────────────────────────────
 
-function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
+export function WindowsAgentStatus({ pollFast }: { pollFast?: boolean }) {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
@@ -1415,7 +1415,7 @@ function RenderPolicyEditor() {
 
 // ── Remote Controls ─────────────────────────────────────────────────
 
-function AgentRemoteControls() {
+export function AgentRemoteControls() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
@@ -1543,7 +1543,7 @@ function AgentRemoteControls() {
 
 // ── Log Tail Viewer ─────────────────────────────────────────────────
 
-function AgentLogTail() {
+export function AgentLogTail() {
   const { call } = useAdminApi();
   const [open, setOpen] = useState(false);
 
