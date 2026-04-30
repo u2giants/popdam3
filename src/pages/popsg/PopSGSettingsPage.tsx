@@ -105,18 +105,9 @@ export default function PopSGSettingsPage() {
   const { data: queueStats } = useQuery({
     queryKey: ["popsg", "render_queue_stats"],
     queryFn: async () => {
-      const [pending, claimed, completed, failed] = await Promise.all([
-        supabase.from("style_guide_render_queue").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("style_guide_render_queue").select("id", { count: "exact", head: true }).eq("status", "claimed"),
-        supabase.from("style_guide_render_queue").select("id", { count: "exact", head: true }).eq("status", "completed"),
-        supabase.from("style_guide_render_queue").select("id", { count: "exact", head: true }).eq("status", "failed"),
-      ]);
-      return {
-        pending: pending.count ?? 0,
-        claimed: claimed.count ?? 0,
-        completed: completed.count ?? 0,
-        failed: failed.count ?? 0,
-      };
+      const { data, error } = await supabase.rpc("get_sg_render_queue_stats");
+      if (error) throw error;
+      return data as { pending: number; claimed: number; completed: number; failed: number };
     },
     refetchInterval: 10_000,
   });
