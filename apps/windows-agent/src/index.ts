@@ -77,9 +77,12 @@ const PREFLIGHT_RECHECK_MS = 60_000; // Re-check every 60s if unhealthy
 let cloudNasHost = config.nasHost;
 let cloudNasShare = config.nasShare;
 let cloudNasMountPath = config.nasMountPath;
-// Separate mount path + share for style guide files.
+// Separate NAS config for style guide files (may be a different server from the main NAS).
 let cloudSgNasMountPath = "";
+let cloudSgNasHost = "";
 let cloudSgNasShare = "";
+let cloudSgNasUsername = "";
+let cloudSgNasPassword = "";
 let cloudSpacesBucket = config.doSpacesBucket;
 let cloudSpacesRegion = config.doSpacesRegion;
 let cloudSpacesEndpoint = config.doSpacesEndpoint;
@@ -244,8 +247,11 @@ async function applyCloudConfig(response: api.WindowsHeartbeatResponse) {
     if (wa.nas_username) cloudNasUsername = wa.nas_username;
     if (wa.nas_password) cloudNasPassword = wa.nas_password;
     if (wa.nas_mount_path !== undefined) cloudNasMountPath = wa.nas_mount_path;
-    if (wa.sg_nas_mount_path !== undefined) cloudSgNasMountPath = wa.sg_nas_mount_path;
+    if (wa.sg_nas_host !== undefined) cloudSgNasHost = wa.sg_nas_host;
     if (wa.sg_nas_share !== undefined) cloudSgNasShare = wa.sg_nas_share;
+    if (wa.sg_nas_mount_path !== undefined) cloudSgNasMountPath = wa.sg_nas_mount_path;
+    if (wa.sg_nas_username !== undefined) cloudSgNasUsername = wa.sg_nas_username;
+    if (wa.sg_nas_password !== undefined) cloudSgNasPassword = wa.sg_nas_password;
     if (wa.render_concurrency && wa.render_concurrency > 0) {
       (config as { renderConcurrency: number }).renderConcurrency = wa.render_concurrency;
     }
@@ -517,13 +523,12 @@ async function processJob(job: api.RenderJob): Promise<void> {
 }
 
 async function ensureSgNasMapped(): Promise<boolean> {
-  if (!cloudSgNasMountPath && !cloudSgNasShare) return true; // fallback to main NAS, already mapped
-  const share = cloudSgNasShare || cloudNasShare;
+  if (!cloudSgNasShare && !cloudSgNasMountPath) return true; // no SG NAS configured, skip
   const result = await ensureNasMapped(cloudSgNasMountPath || undefined, {
-    host: cloudNasHost,
-    share,
-    username: cloudNasUsername,
-    password: cloudNasPassword,
+    host: cloudSgNasHost || cloudNasHost,
+    share: cloudSgNasShare || cloudNasShare,
+    username: cloudSgNasUsername || cloudNasUsername,
+    password: cloudSgNasPassword || cloudNasPassword,
   });
   if (!result.ok) {
     logger.warn("SG NAS map failed", { error: result.error });

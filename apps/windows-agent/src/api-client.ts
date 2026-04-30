@@ -57,8 +57,11 @@ export interface WindowsHeartbeatResponse {
       nas_username?: string;
       nas_password?: string;
       nas_mount_path?: string;
-      sg_nas_mount_path?: string;
+      sg_nas_host?: string;
       sg_nas_share?: string;
+      sg_nas_mount_path?: string;
+      sg_nas_username?: string;
+      sg_nas_password?: string;
       render_concurrency?: number;
     };
     ai?: {
