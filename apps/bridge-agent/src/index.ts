@@ -1222,53 +1222,34 @@ async function handleApplyUpdate() {
     return;
   }
 
-  // ── Step 2: Check restart policy ──────────────────────────────────
-  // If restart: always/unless-stopped, we can just stop the container and
-  // Docker will restart it with the newly-pulled image. This avoids needing
-  // the compose file to be mounted inside the container.
-  let restartPolicy = "no";
-  try {
-    const { stdout } = await execFileAsync("docker", ["inspect", containerId, "--format", "{{.HostConfig.RestartPolicy.Name}}"]);
-    restartPolicy = stdout.trim();
-  } catch (e) {
-    logger.warn("Could not read restart policy — assuming 'no'", { error: (e as Error).message });
-  }
+  // ── Step 2: Recreate container via docker compose ─────────────────
+  // docker stop + restart-policy only brings back the same image digest.
+  // We must recreate the container so Docker picks up the newly-pulled image.
+  const composePath = process.env.POPDAM_COMPOSE_PATH || "/volume1/docker/popdam/docker-compose.yml";
+  logger.info("Recreating container via compose", { composePath });
 
-  logger.info("Restart policy", { containerId, restartPolicy });
+  exec(
+    `docker compose -f "${composePath}" up -d --force-recreate`,
+    { timeout: 120_000 },
+    async (err: Error | null) => {
+      if (!err) return; // new container is up — this one exits naturally
 
-  if (restartPolicy === "always" || restartPolicy === "unless-stopped") {
-    // ── Happy path: stop → Docker restarts with new image ──────────
-    logger.info("Stopping container (Docker restart policy will bring it back with new image)");
-    try {
-      await execFileAsync("docker", ["stop", containerId]);
-      // If we reach here the stop returned before the process was killed — very unlikely.
-      // The exec above will restart us anyway.
-    } catch (e) {
-      const msg = `docker stop failed: ${(e as Error).message}`;
-      logger.error("Self-update stop failed", { error: msg });
-      await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
-    }
-  } else {
-    // ── Fallback: compose file approach ────────────────────────────
-    // The container has no restart policy — we can't just stop it or it won't
-    // come back. Try compose file (requires it to be mounted inside the container,
-    // e.g. -v /volume1/docker/popdam:/volume1/docker/popdam).
-    const composePath = process.env.POPDAM_COMPOSE_PATH || "/volume1/docker/popdam/docker-compose.yml";
-    logger.info("No auto-restart policy — trying compose up", { composePath, restartPolicy });
-    exec(
-      `docker compose -f "${composePath}" up -d --force-recreate`,
-      { timeout: 120_000 },
-      (err: Error | null) => {
-        if (err) {
-          const msg = `docker compose up failed (restart policy was '${restartPolicy}'): ${err.message}. ` +
-            `Add 'restart: unless-stopped' to your docker-compose.yml service, or mount the compose file inside the container.`;
-          logger.error("Self-update compose fallback failed", { error: msg });
-          api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
-        }
-        // On success, this container gets replaced — exits naturally
+      // compose failed (compose file not accessible from inside the container).
+      // Fall back to docker stop and rely on the restart policy to bring it back.
+      const composeErr = err.message;
+      logger.warn("docker compose up failed — falling back to docker stop", { error: composeErr, composePath });
+
+      try {
+        await execFileAsync("docker", ["stop", containerId]);
+      } catch (stopErr) {
+        const msg = `compose up failed: ${composeErr} | docker stop also failed: ${(stopErr as Error).message}. ` +
+          `Mount the compose file inside the container (e.g. -v /volume1/docker/popdam:/volume1/docker/popdam) ` +
+          `or set POPDAM_COMPOSE_PATH env var.`;
+        logger.error("Self-update failed", { error: msg });
+        await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
       }
-    );
-  }
+    }
+  );
 }
 
 // Legacy polling loop removed.
