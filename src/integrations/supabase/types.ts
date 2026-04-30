@@ -3622,6 +3622,7 @@ export type Database = {
       }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
+      get_sg_render_queue_stats: { Args: never; Returns: Json }
       has_app_access: {
         Args: {
           _app: Database["public"]["Enums"]["app_name"]
