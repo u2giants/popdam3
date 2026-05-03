@@ -143,6 +143,12 @@ const TAG_ASSET_TOOL = tool(
         description:
           "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
       },
+      files_used: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "All entries from any 'Files Used' / 'Source Files' / 'Art Files' sections in the tech pack PDF text. Deduplicated across all sections. Empty array if no such section exists.",
+      },
     },
     required: ["tags", "ai_description", "scene_description"],
   },
@@ -284,6 +290,17 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
 
   const erpCoverContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
 
+  // Fetch extracted PDF text (if this asset has a text sample)
+  const { data: pdfSample } = await client
+    .from("pdf_text_samples")
+    .select("extracted_text")
+    .eq("asset_id", assetId)
+    .order("sampled_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const extractedPdfText = pdfSample?.extracted_text ?? null;
+  const pdfTextContext = extractedPdfText ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n` : "";
+
   const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
 
 Analyze the thumbnail image and file metadata to produce structured tags.
@@ -292,7 +309,7 @@ File: ${asset.filename}
 Path: ${asset.relative_path}
 Type: ${asset.file_type}
 Existing tags: ${(asset.tags || []).join(", ") || "none"}
-${erpCoverContext}
+${erpCoverContext}${pdfTextContext}
 Known taxonomy:
 ${taxonomyContext}
 
@@ -311,6 +328,7 @@ Based on the image and metadata, identify:
    - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
    - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
    - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
+11. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions — include them regardless. Return as files_used. If no such section exists, return an empty array.
 ${usingPriorityOnly
     ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
     : ""}${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
@@ -426,6 +444,16 @@ ${usingPriorityOnly
         if (validCharIds.length > 0) {
           const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
           await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
+        }
+      }
+
+      // Upsert files_used entries to sku_files_used (licensed products only)
+      if (Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0 && asset.sku) {
+        const rows = (tagData.files_used as string[])
+          .filter((f) => typeof f === "string" && f.trim().length > 0)
+          .map((f) => ({ sku: asset.sku as string, file_name: f.trim() }));
+        if (rows.length > 0) {
+          await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name" });
         }
       }
 

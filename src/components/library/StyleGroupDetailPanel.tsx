@@ -472,6 +472,26 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     staleTime: 5 * 60 * 1000,
   });
 
+  // Style guide source files for licensed groups
+  const { data: styleGuideSources } = useQuery({
+    queryKey: ["sku-files-used", group.sku],
+    enabled: !!group.sku && group.is_licensed,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("sku_files_used")
+        .select("id, file_name, style_guide_file_id, style_guide_files(filename, licensor_name, property_folder)")
+        .eq("sku", group.sku)
+        .order("file_name");
+      return (data ?? []) as Array<{
+        id: string;
+        file_name: string;
+        style_guide_file_id: string | null;
+        style_guide_files: { filename: string; licensor_name: string | null; property_folder: string | null } | null;
+      }>;
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+
   // Thumbnailed assets for the carousel
   const thumbStrip = (groupAssets ?? []).filter((a) => !!a.thumbnail_url);
 
@@ -788,6 +808,43 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                 )}
               </div>
             </section>
+
+            {/* ── STYLE GUIDE SOURCES ── */}
+            {group.is_licensed && (
+              <>
+                <Separator />
+                <section className="space-y-2">
+                  <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <FileText className="h-3.5 w-3.5" /> Style Guide Sources
+                  </h4>
+                  {!styleGuideSources || styleGuideSources.length === 0 ? (
+                    <p className="text-xs text-muted-foreground/50">No style guide files recorded for this SKU</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {styleGuideSources.map((row) => (
+                        <div key={row.id} className="text-xs">
+                          {row.style_guide_file_id && row.style_guide_files ? (
+                            <div>
+                              <p className="text-foreground font-medium break-all">{row.style_guide_files.filename}</p>
+                              {(row.style_guide_files.licensor_name || row.style_guide_files.property_folder) && (
+                                <p className="text-muted-foreground/70 mt-0.5">
+                                  {[row.style_guide_files.licensor_name, row.style_guide_files.property_folder].filter(Boolean).join(" / ")}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground/60 font-mono break-all">{row.file_name}</span>
+                              <Badge variant="outline" className="text-[10px] h-4 shrink-0 text-muted-foreground/60">unresolved</Badge>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
 
             {/* ── PATHS ── */}
             {detailAsset && (

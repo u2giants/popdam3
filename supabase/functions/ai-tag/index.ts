@@ -408,9 +408,6 @@ ${
     if (tagData.designer_name) updates.designer_name = tagData.designer_name;
     if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
     if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
-    if (Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0) {
-      updates.files_used = tagData.files_used;
-    }
 
     let { error: updateErr } = await db
       .from("assets")
@@ -467,6 +464,16 @@ ${
         await db.from("asset_characters").upsert(charLinks, {
           onConflict: "asset_id,character_id",
         });
+      }
+    }
+
+    // Upsert files_used entries to sku_files_used (licensed products only)
+    if (Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0 && asset.sku) {
+      const rows = (tagData.files_used as string[])
+        .filter((f: string) => typeof f === "string" && f.trim().length > 0)
+        .map((f: string) => ({ sku: asset.sku as string, file_name: f.trim() }));
+      if (rows.length > 0) {
+        await db.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name" });
       }
     }
 
