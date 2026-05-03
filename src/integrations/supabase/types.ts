@@ -1358,20 +1358,31 @@ export type Database = {
           file_name: string
           id: string
           sku: string
+          style_guide_file_id: string | null
         }
         Insert: {
           created_at?: string
           file_name: string
           id?: string
           sku: string
+          style_guide_file_id?: string | null
         }
         Update: {
           created_at?: string
           file_name?: string
           id?: string
           sku?: string
+          style_guide_file_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sku_files_used_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       smon_ai_analyses: {
         Row: {
@@ -3653,6 +3664,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      normalize_for_sg_match: { Args: { p: string }; Returns: string }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
       partition_data_id: {
         Args: {
@@ -3748,6 +3760,7 @@ export type Database = {
         Args: { p_timeout_minutes?: number }
         Returns: number
       }
+      resolve_sku_files_used: { Args: never; Returns: number }
       run_full_rebuild_style_groups: {
         Args: never
         Returns: {
