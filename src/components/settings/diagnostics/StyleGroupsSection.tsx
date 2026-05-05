@@ -229,16 +229,25 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
     staleTime: 15_000,
   });
 
-  // Relink orphaned assets mutation
+  // Relink orphaned assets — polls cursor-batched endpoint until done
   const relinkMutation = useMutation({
     mutationFn: async () => {
-      const result = await call("relink-orphaned-assets", {});
-      return result;
+      let totalRelinked = 0;
+      let totalErrors = 0;
+      let cursor: string | null = null;
+      while (true) {
+        const result = await call("relink-orphaned-assets", cursor ? { cursor } : {});
+        totalRelinked += result.relinked ?? 0;
+        totalErrors += result.errors ?? 0;
+        cursor = result.cursor ?? null;
+        if (result.done) break;
+      }
+      return { relinked: totalRelinked, errors: totalErrors };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["style-group-stats"] });
       toast.success("Orphaned assets relinked", {
-        description: `Relinked ${data.relinked ?? 0} assets, ${data.already_linked ?? 0} already linked, ${data.errors ?? 0} errors`,
+        description: `Relinked ${data.relinked} assets${data.errors ? `, ${data.errors} errors` : ""}`,
       });
     },
     onError: (e: Error) => {

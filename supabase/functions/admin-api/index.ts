@@ -42,14 +42,9 @@ import {
   handleTriggerScan,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
-import {
-  handleCleanupMegaGroupTags,
-  handleRebuildStyleGroups,
-  handleReconcileStyleGroupStats,
-  handleRelinkOrphanedAssets,
-} from "../_shared/admin-handlers/style-group-handlers.ts";
+import { handleRelinkOrphanedAssets } from "../_shared/admin-handlers/style-group-handlers.ts";
 
-import { handleBulkAiTag, handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
+import { handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
 import { handleBulkPropagateGroupTags, handleCountGroupsForPropagation } from "../_shared/admin-handlers/tag-propagation-handlers.ts";
 import { handleBackfillPdfFilesUsed, handleResolveSkuFilesUsed } from "../_shared/admin-handlers/pdf-files-handlers.ts";
@@ -1213,20 +1208,10 @@ corsServe(async (req: Request) => {
         return await handleBackfillSkuNames();
 
       // ── Style groups (from style-group-handlers.ts) ──
-      case "rebuild-style-groups":
-        return await handleRebuildStyleGroups(body);
-      case "reconcile-style-group-stats":
-        return await handleReconcileStyleGroupStats(body);
       case "relink-orphaned-assets":
-        return await handleRelinkOrphanedAssets();
-      case "cleanup-mega-group-tags":
-        return await handleCleanupMegaGroupTags(body);
+        return await handleRelinkOrphanedAssets(body);
 
       // ── AI tagging (from ai-tagging-handlers.ts) ──
-      case "bulk-ai-tag":
-        return await handleBulkAiTag(body, false);
-      case "bulk-ai-tag-all":
-        return await handleBulkAiTag(body, true);
       case "count-untagged-assets":
         return await handleCountUntaggedAssets();
       case "bulk-propagate-group-tags":
