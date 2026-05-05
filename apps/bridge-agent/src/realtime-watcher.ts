@@ -12,7 +12,13 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 import { logger } from "./logger.js";
+
+// @supabase/realtime-js >= 2.11 requires globalThis.WebSocket on Node.js < 22
+if (typeof globalThis.WebSocket === "undefined") {
+  (globalThis as Record<string, unknown>).WebSocket = ws;
+}
 
 export function startRealtimeWatcher(
   supabaseUrl: string,
