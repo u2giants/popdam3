@@ -115,6 +115,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "NAS_CONTAINER_MOUNT_ROOT",
   "NAS_HOST_PATH",
   "PATH_TEST_REQUEST",
+  "DIR_BROWSE_REQUEST",
   "SCAN_REQUEST",
   "SCAN_ALLOWED_SUBFOLDERS",
   "SCAN_MIN_DATE",
@@ -416,6 +417,16 @@ async function handleHeartbeat(
     };
   }
 
+  // ── Dir browse request ──
+  const dirBrowseRequest = configMap.DIR_BROWSE_REQUEST as Record<string, unknown> | undefined;
+  let browseDir: { request_id: string; path: string } | null = null;
+  if (dirBrowseRequest && dirBrowseRequest.status === "pending") {
+    browseDir = {
+      request_id: dirBrowseRequest.request_id as string,
+      path: (dirBrowseRequest.path as string) || "",
+    };
+  }
+
   // ── Auto-scan config ──
   const autoScanConfig = (configMap.AUTO_SCAN_CONFIG as {
     enabled: boolean;
@@ -599,6 +610,7 @@ async function handleHeartbeat(
       scan_session_id: scanSessionId,
       abort_scan: scanAbort || forceStop,
       test_paths: testPaths,
+      browse_dir: browseDir,
       check_update: checkUpdate,
       apply_update: applyUpdate,
       trigger_update: (newMetadata as Record<string, unknown>).trigger_update === true,
@@ -1603,6 +1615,41 @@ async function handleReportPathTest(body: Record<string, unknown>) {
       updated_at: new Date().toISOString(),
     })
     .eq("key", "PATH_TEST_REQUEST");
+
+  return json({ ok: true });
+}
+
+// ── Route: report-dir-browse ─────────────────────────────────────────
+
+async function handleReportDirBrowse(body: Record<string, unknown>) {
+  const requestId = requireString(body, "request_id");
+  const path = optionalString(body, "path") ?? "";
+  const entries = body.entries;
+  if (!Array.isArray(entries)) return err("Missing 'entries' array");
+
+  const db = serviceClient();
+
+  await db.from("admin_config").upsert(
+    {
+      key: "DIR_BROWSE_RESULT",
+      value: {
+        request_id: requestId,
+        path,
+        entries,
+        listed_at: new Date().toISOString(),
+      },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "key" },
+  );
+
+  await db
+    .from("admin_config")
+    .update({
+      value: { request_id: requestId, path, status: "completed" },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("key", "DIR_BROWSE_REQUEST");
 
   return json({ ok: true });
 }
@@ -3106,6 +3153,8 @@ corsServe(async (req: Request) => {
         return await handleGetConfig(body);
       case "report-path-test":
         return await handleReportPathTest(body);
+      case "report-dir-browse":
+        return await handleReportDirBrowse(body);
       case "check-changed":
         return await handleCheckChanged(body);
       case "save-checkpoint":

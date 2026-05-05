@@ -1,0 +1,225 @@
+import { useState, useCallback, useRef } from "react";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { FolderOpen, FileText, RefreshCw, ChevronRight, Loader2, Home, ArrowLeft } from "lucide-react";
+
+interface DirEntry {
+  name: string;
+  is_dir: boolean;
+  size?: number;
+  modified?: string;
+}
+
+interface BrowseResult {
+  request_id: string;
+  path: string;
+  entries: DirEntry[];
+  listed_at: string;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+export default function DirectoryBrowserTab() {
+  const { call } = useAdminApi();
+  const [pathInput, setPathInput] = useState("");
+  const [currentPath, setCurrentPath] = useState("");
+  const [result, setResult] = useState<BrowseResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const browse = useCallback(async (path: string) => {
+    stopPolling();
+    setLoading(true);
+    try {
+      const { request_id } = await call("request-dir-browse", { path });
+
+      let attempts = 0;
+      const MAX_ATTEMPTS = 20;
+
+      await new Promise<void>((resolve, reject) => {
+        pollRef.current = setInterval(async () => {
+          attempts++;
+          if (attempts > MAX_ATTEMPTS) {
+            stopPolling();
+            reject(new Error("Timed out waiting for agent response"));
+            return;
+          }
+          try {
+            const resp = await call("get-dir-browse-result");
+            const r = resp?.result as BrowseResult | null;
+            if (r && r.request_id === request_id) {
+              stopPolling();
+              setResult(r);
+              setCurrentPath(r.path);
+              setPathInput(r.path);
+              resolve();
+            }
+          } catch { /* keep polling */ }
+        }, 1500);
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Browse failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [call]);
+
+  const handleBrowse = (path: string) => {
+    if (currentPath && path !== currentPath) {
+      setHistory((h) => [...h, currentPath]);
+    }
+    browse(path);
+  };
+
+  const handleBack = () => {
+    const prev = history[history.length - 1];
+    if (prev !== undefined) {
+      setHistory((h) => h.slice(0, -1));
+      browse(prev);
+    }
+  };
+
+  const handleHome = () => {
+    setHistory([]);
+    browse("");
+  };
+
+  const handleEntryClick = (entry: DirEntry) => {
+    if (!entry.is_dir) return;
+    const base = currentPath.endsWith("/") ? currentPath : currentPath ? currentPath + "/" : "";
+    const next = base + entry.name;
+    handleBrowse(next);
+  };
+
+  const sorted = result
+    ? [...result.entries].sort((a, b) => {
+        if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      })
+    : [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FolderOpen className="h-4 w-4" />
+          Directory Browser
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Browse the directory structure as seen by the bridge agent on the server. Leave the path
+          empty to list scan roots.
+        </p>
+
+        <div className="flex gap-2">
+          <Input
+            value={pathInput}
+            onChange={(e) => setPathInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleBrowse(pathInput)}
+            placeholder="e.g. /mnt/nas/assets  — leave empty for scan roots"
+            className="font-mono text-sm"
+            disabled={loading}
+          />
+          <Button onClick={() => handleBrowse(pathInput)} disabled={loading} size="sm">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            <span className="ml-1.5">Browse</span>
+          </Button>
+        </div>
+
+        {result && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleHome}
+                disabled={loading}
+                className="h-7 px-2 text-xs"
+              >
+                <Home className="h-3 w-3 mr-1" />
+                Roots
+              </Button>
+              {history.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBack}
+                  disabled={loading}
+                  className="h-7 px-2 text-xs"
+                >
+                  <ArrowLeft className="h-3 w-3 mr-1" />
+                  Back
+                </Button>
+              )}
+              <span className="text-xs font-mono text-muted-foreground truncate">
+                {result.path || "(scan roots)"}
+              </span>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {sorted.length} item{sorted.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            <div className="border rounded-md divide-y max-h-[60vh] overflow-y-auto">
+              {sorted.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">Empty directory</p>
+              ) : (
+                sorted.map((entry) => (
+                  <div
+                    key={entry.name}
+                    className={`flex items-center gap-3 px-3 py-2 text-sm ${entry.is_dir ? "cursor-pointer hover:bg-muted/50" : ""}`}
+                    onClick={() => handleEntryClick(entry)}
+                  >
+                    {entry.is_dir ? (
+                      <FolderOpen className="h-4 w-4 shrink-0 text-amber-500" />
+                    ) : (
+                      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className={`flex-1 font-mono truncate ${entry.is_dir ? "font-medium" : ""}`}>
+                      {entry.name}
+                    </span>
+                    {entry.size !== undefined && !entry.is_dir && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {formatBytes(entry.size)}
+                      </span>
+                    )}
+                    {entry.modified && (
+                      <span className="text-xs text-muted-foreground shrink-0 hidden sm:block">
+                        {new Date(entry.modified).toLocaleDateString()}
+                      </span>
+                    )}
+                    {entry.is_dir && (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {!result && !loading && (
+          <p className="text-center text-sm text-muted-foreground py-8">
+            Click Browse to list directories via the agent.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

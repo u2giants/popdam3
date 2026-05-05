@@ -64,6 +64,7 @@ import {
 } from "../_shared/admin-handlers/erp-browse-handlers.ts";
 
 import { handleGenerateInstallBundle } from "../_shared/admin-handlers/install-bundle-handler.ts";
+import { handleRequestDirBrowse, handleGetDirBrowseResult } from "../_shared/admin-handlers/dir-browse-handlers.ts";
 
 import {
   handleClearTiffScan,
@@ -1198,6 +1199,10 @@ corsServe(async (req: Request) => {
         return await handleGetCompatAuditPreviewResult();
       case "request-path-test":
         return await handleRequestPathTest(userId);
+      case "request-dir-browse":
+        return await handleRequestDirBrowse(body, userId);
+      case "get-dir-browse-result":
+        return await handleGetDirBrowseResult();
 
       // ── Metadata (from metadata-handlers.ts) ──
       case "reprocess-asset-metadata":

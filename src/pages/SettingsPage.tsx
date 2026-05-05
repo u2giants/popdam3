@@ -27,6 +27,7 @@ import OperationsTab from "@/components/settings/OperationsTab";
 import StyleGuideCrawlTab from "@/components/settings/StyleGuideCrawlTab";
 import PopSGAgentTab from "@/components/settings/PopSGAgentTab";
 import PdfTextSamplesTab from "@/components/settings/PdfTextSamplesTab";
+import DirectoryBrowserTab from "@/components/settings/DirectoryBrowserTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -1156,6 +1157,7 @@ export default function SettingsPage() {
               { id: "scanning", label: "Scanning" },
               { id: "image-output", label: "Image Output" },
               { id: "paths", label: "Path Tester" },
+              { id: "browse", label: "Browse" },
             ].map(({ id, label }) => (
               <button
                 key={id}
@@ -1170,6 +1172,7 @@ export default function SettingsPage() {
           {storageSubTab === "scanning" && <ScanningTab />}
           {storageSubTab === "image-output" && <ImageOutputTab />}
           {storageSubTab === "paths" && <PathTesterSection />}
+          {storageSubTab === "browse" && <DirectoryBrowserTab />}
         </TabsContent>
 
         {/* ── Agents (Bridge + Windows + Install) ── */}

@@ -23,6 +23,7 @@ import {
   AgentLogTail,
 } from "@/components/settings/WindowsAgentTab";
 import { UsersSection, InvitationSection } from "@/components/settings/UsersTab";
+import DirectoryBrowserTab from "@/components/settings/DirectoryBrowserTab";
 
 // ── SG Render Jobs Table ────────────────────────────────────────────
 
@@ -484,6 +485,7 @@ export default function PopSGSettingsPage() {
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="setup">Setup</TabsTrigger>
           <TabsTrigger value="render-agent">Render Agent</TabsTrigger>
+          <TabsTrigger value="browse">Browse</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
         </TabsList>
 
@@ -737,6 +739,11 @@ export default function PopSGSettingsPage() {
           <AgentRemoteControls />
           <AgentLogTail />
           <SgRenderJobsTable queueStats={queueStats} />
+        </TabsContent>
+
+        {/* ── Browse tab ── */}
+        <TabsContent value="browse" className="space-y-4">
+          <DirectoryBrowserTab />
         </TabsContent>
 
         {/* ── Users tab ── */}
