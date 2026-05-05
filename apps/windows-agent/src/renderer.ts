@@ -22,7 +22,7 @@
 import sharp from "sharp";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm, readdir, open } from "node:fs/promises";
+import { mkdtemp, rm, readdir, open, copyFile } from "node:fs/promises";
 import { readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -300,6 +300,7 @@ async function renderWithGhostscript(
       "-sDEVICE=png16m",
       "-r150",
       "-dFirstPage=1", "-dLastPage=1",
+      "-dMaxBitmap=500000000",
       `-sOutputFile=${outPath}`,
       filePath,
     ], { timeout: 60_000 });
@@ -507,24 +508,84 @@ async function renderFromSibling(
 
 /**
  * Render a PDF file: 800px thumbnail + 1500px hi-res pages 1-2.
+ * Primary engine: Ghostscript. Fallback: Poppler (pdftoppm).
  */
-export async function renderPdf(
-  filePath: string,
-): Promise<PdfRenderResult> {
+export async function renderPdf(filePath: string): Promise<PdfRenderResult> {
   const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-pdf-"));
 
   try {
-    // Render first 2 pages at 200 DPI via Ghostscript
-    await execFileAsync(GS_EXE, [
-      "-dNOPAUSE", "-dBATCH", "-dSAFER",
-      "-sDEVICE=png16m",
-      "-r200",
-      "-dFirstPage=1", "-dLastPage=2",
-      `-sOutputFile=${path.join(tmpDir, "page-%d.png")}`,
-      filePath,
-    ], { timeout: 90_000 });
+    // Windows MAX_PATH = 260. Copy to a short-path temp if needed so GS/Poppler can open the file.
+    let effectivePath = filePath;
+    if (filePath.length > 230) {
+      const shortPath = path.join(tmpDir, `in${path.extname(filePath)}`);
+      await copyFile(filePath, shortPath);
+      logger.info("Long PDF path copied to temp", { length: filePath.length });
+      effectivePath = shortPath;
+    }
 
-    const page1Path = path.join(tmpDir, "page-1.png");
+    let page1Path: string;
+    let page2Path: string | null = null;
+
+    try {
+      // Render first 2 pages at 200 DPI via Ghostscript
+      await execFileAsync(GS_EXE, [
+        "-dNOPAUSE", "-dBATCH", "-dSAFER",
+        "-sDEVICE=png16m",
+        "-r200",
+        "-dFirstPage=1", "-dLastPage=2",
+        "-dMaxBitmap=500000000",
+        `-sOutputFile=${path.join(tmpDir, "page-%d.png")}`,
+        effectivePath,
+      ], { timeout: 90_000 });
+
+      page1Path = path.join(tmpDir, "page-1.png");
+      const p2 = path.join(tmpDir, "page-2.png");
+      if (existsSync(p2)) page2Path = p2;
+
+    } catch (gsErr) {
+      // Ghostscript failed — try Poppler as fallback
+      if (!POPPLER_EXE) throw gsErr;
+      logger.warn("PDF render: GS failed, falling back to Poppler", {
+        filePath,
+        error: (gsErr as Error).message,
+      });
+
+      // Page 1 (required)
+      const pp1Prefix = path.join(tmpDir, "pp1");
+      await execFileAsync(POPPLER_EXE, [
+        "-r", "200",
+        "-png",
+        "-f", "1", "-l", "1",
+        effectivePath,
+        pp1Prefix,
+      ], { timeout: 90_000 });
+
+      const pp1Files = (await readdir(tmpDir)).filter(
+        (f) => f.startsWith("pp1") && f.endsWith(".png"),
+      );
+      if (pp1Files.length === 0) {
+        throw new Error(`GS and Poppler both failed: ${(gsErr as Error).message}`);
+      }
+      page1Path = path.join(tmpDir, pp1Files[0]);
+
+      // Page 2 (optional)
+      try {
+        const pp2Prefix = path.join(tmpDir, "pp2");
+        await execFileAsync(POPPLER_EXE, [
+          "-r", "200",
+          "-png",
+          "-f", "2", "-l", "2",
+          effectivePath,
+          pp2Prefix,
+        ], { timeout: 60_000 });
+        const pp2Files = (await readdir(tmpDir)).filter(
+          (f) => f.startsWith("pp2") && f.endsWith(".png"),
+        );
+        if (pp2Files.length > 0) page2Path = path.join(tmpDir, pp2Files[0]);
+      } catch {
+        // Single-page PDF or page 2 unavailable — OK
+      }
+    }
 
     // 800px thumbnail
     const thumbBuffer = await sharp(page1Path, { limitInputPixels: false })
@@ -546,19 +607,20 @@ export async function renderPdf(
       hiresPage1Buffer,
     };
 
-    // Try page 2
-    const page2Path = path.join(tmpDir, "page-2.png");
-    try {
-      const hiresPage2Buffer = await sharp(page2Path, { limitInputPixels: false })
-        .flatten({ background: "#ffffff" })
-        .resize(PDF_HIRES_DIM, PDF_HIRES_DIM, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 90 }).toBuffer();
-      const p2Meta = await sharp(hiresPage2Buffer).metadata();
-      result.hiresPage2Buffer = hiresPage2Buffer;
-      result.hiresPage2Width = p2Meta.width || 0;
-      result.hiresPage2Height = p2Meta.height || 0;
-    } catch {
-      // Single-page PDF
+    // Hi-res page 2 (optional)
+    if (page2Path) {
+      try {
+        const hiresPage2Buffer = await sharp(page2Path, { limitInputPixels: false })
+          .flatten({ background: "#ffffff" })
+          .resize(PDF_HIRES_DIM, PDF_HIRES_DIM, { fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 90 }).toBuffer();
+        const p2Meta = await sharp(hiresPage2Buffer).metadata();
+        result.hiresPage2Buffer = hiresPage2Buffer;
+        result.hiresPage2Width = p2Meta.width || 0;
+        result.hiresPage2Height = p2Meta.height || 0;
+      } catch {
+        // Page 2 unavailable — result already has page 1
+      }
     }
 
     return result;
@@ -580,121 +642,141 @@ export async function renderFile(
 
   const failures: string[] = [];
 
-  // Pre-flight for AI: detect files saved without PDF compatibility.
-  // Sharp, GS, and Poppler all render the /CompatibilityAlert notice page rather than
-  // real artwork for these files — skip them.  Inkscape reads the native AI/SVG format
-  // and may still succeed, so it runs regardless.
-  let skipPdfRendering = false;
-  if (fileType === "ai") {
-    try {
-      skipPdfRendering = await isAiWithoutPdfCompat(uncPath);
-      if (skipPdfRendering) {
-        logger.warn("AI file has no PDF compatibility — skipping Sharp/GS/Poppler", { uncPath });
-        failures.push("sharp: skipped (no pdf compat)", "ghostscript: skipped (no pdf compat)", "poppler: skipped (no pdf compat)");
-      }
-    } catch (e) {
-      logger.warn("AI compat pre-check failed, proceeding with normal render", { uncPath, error: (e as Error).message });
-    }
+  // Windows MAX_PATH = 260. Copy to a short-path temp so all renderers can open the file.
+  // Sibling lookup still uses uncPath to scan the original directory.
+  let effectivePath = uncPath;
+  let shortPathTmp: string | null = null;
+  if (uncPath.length > 230) {
+    shortPathTmp = await mkdtemp(path.join(tmpdir(), "popdam-lp-"));
+    const dest = path.join(shortPathTmp, `in${path.extname(uncPath)}`);
+    await copyFile(uncPath, dest);
+    effectivePath = dest;
+    logger.info("Long path resolved to temp for render", { length: uncPath.length });
   }
 
-  // Step 1: Sharp (both AI and PSD — skipped for non-PDF-compat AI)
-  if (!skipPdfRendering) {
-    try {
-      const result = await renderWithSharp(uncPath, fileType);
-      // For AI: OCR-check that the render is real artwork, not the compat-alert placeholder.
-      // Sharp, GS, and Poppler all "succeed" on files that embed the /CompatibilityAlert page.
-      if (fileType === "ai" && compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
-        failures.push("sharp: compat-alert placeholder detected");
-        logger.warn("Sharp produced compat-alert placeholder — falling through", { uncPath });
-      } else {
-        logger.info("Sharp render succeeded", { uncPath });
-        return result;
-      }
-    } catch (e) {
-      const msg = (e as Error).message;
-      failures.push(`sharp: ${msg}`);
-      logger.warn("Sharp failed", { uncPath, error: msg });
-    }
-  }
-
-  // Step 2a: Ghostscript (AI only — skipped for non-PDF-compat AI)
-  if (fileType === "ai" && !skipPdfRendering) {
-    try {
-      const result = await renderWithGhostscript(uncPath);
-      if (compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
-        failures.push("ghostscript: compat-alert placeholder detected");
-        logger.warn("Ghostscript produced compat-alert placeholder — falling through", { uncPath });
-      } else {
-        logger.info("Ghostscript render succeeded", { uncPath });
-        return result;
-      }
-    } catch (e) {
-      const msg = (e as Error).message;
-      failures.push(`ghostscript: ${msg}`);
-      logger.warn("Ghostscript failed", { uncPath, error: msg });
-    }
-  }
-
-  // Step 2c: Poppler/pdftoppm (AI only — skipped for non-PDF-compat AI)
-  if (fileType === "ai" && !skipPdfRendering) {
-    try {
-      const result = await renderWithPoppler(uncPath);
-      if (compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
-        failures.push("poppler: compat-alert placeholder detected");
-        logger.warn("Poppler produced compat-alert placeholder — falling through", { uncPath });
-      } else {
-        logger.info("Poppler render succeeded", { uncPath });
-        return result;
-      }
-    } catch (e) {
-      const msg = (e as Error).message;
-      failures.push(`poppler: ${msg}`);
-      logger.warn("Poppler failed", { uncPath, error: msg });
-    }
-  }
-
-  // Step 2d: Inkscape (AI only — independent engine, no PDF dependency)
-  // Runs even for non-PDF-compat files because Inkscape reads native AI/SVG format.
-  // Not OCR-checked: Inkscape reads the native vector layer, not the PDF compat layer,
-  // so it won't produce the compat-alert page.
-  if (fileType === "ai") {
-    try {
-      const result = await renderWithInkscape(uncPath);
-      logger.info("Inkscape render succeeded", { uncPath });
-      return result;
-    } catch (e) {
-      const msg = (e as Error).message;
-      failures.push(`inkscape: ${msg}`);
-      logger.warn("Inkscape failed", { uncPath, error: msg });
-    }
-  }
-
-  // Step 2e: ImageMagick (PSD only — handles 16-bit, smart objects, complex layers)
-  // NOTE: ImageMagick is NOT used for .ai because it delegates to Ghostscript
-  // internally, so it would fail on the same files GS already failed on.
-  if (fileType === "psd") {
-    try {
-      const result = await renderWithImageMagick(uncPath);
-      logger.info("ImageMagick render succeeded", { uncPath });
-      return result;
-    } catch (e) {
-      const msg = (e as Error).message;
-      failures.push(`imagemagick: ${msg}`);
-      logger.warn("ImageMagick failed", { uncPath, error: msg });
-    }
-  }
-
-  // Step 3: Sibling image (both AI and PSD)
-  // Not OCR-checked: sibling images are real artwork, never the compat-alert page.
   try {
-    const result = await renderFromSibling(uncPath);
-    logger.info("Sibling render succeeded", { uncPath });
-    return result;
-  } catch (e) {
-    const msg = (e as Error).message;
-    failures.push(`sibling: ${msg}`);
-    logger.warn("Sibling not found", { uncPath });
-  }
+    // Pre-flight for AI: detect files saved without PDF compatibility.
+    // Sharp, GS, and Poppler all render the /CompatibilityAlert notice page rather than
+    // real artwork for these files — skip them.  Inkscape reads the native AI/SVG format
+    // and may still succeed, so it runs regardless.
+    let skipPdfRendering = false;
+    if (fileType === "ai") {
+      try {
+        skipPdfRendering = await isAiWithoutPdfCompat(effectivePath);
+        if (skipPdfRendering) {
+          logger.warn("AI file has no PDF compatibility — skipping Sharp/GS/Poppler", { uncPath });
+          failures.push("sharp: skipped (no pdf compat)", "ghostscript: skipped (no pdf compat)", "poppler: skipped (no pdf compat)");
+        }
+      } catch (e) {
+        logger.warn("AI compat pre-check failed, proceeding with normal render", { uncPath, error: (e as Error).message });
+      }
+    }
 
-  throw new Error(`render_failed: ${failures.join(" | ")}`);
+    // Step 1: Sharp (both AI and PSD — skipped for non-PDF-compat AI)
+    if (!skipPdfRendering) {
+      try {
+        const result = await renderWithSharp(effectivePath, fileType);
+        // For AI: OCR-check that the render is real artwork, not the compat-alert placeholder.
+        // Sharp, GS, and Poppler all "succeed" on files that embed the /CompatibilityAlert page.
+        if (fileType === "ai" && compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
+          failures.push("sharp: compat-alert placeholder detected");
+          logger.warn("Sharp produced compat-alert placeholder — falling through", { uncPath });
+        } else {
+          logger.info("Sharp render succeeded", { uncPath });
+          return result;
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        failures.push(`sharp: ${msg}`);
+        logger.warn("Sharp failed", { uncPath, error: msg });
+      }
+    }
+
+    // Step 2a: Ghostscript (AI only — skipped for non-PDF-compat AI)
+    if (fileType === "ai" && !skipPdfRendering) {
+      try {
+        const result = await renderWithGhostscript(effectivePath);
+        if (compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
+          failures.push("ghostscript: compat-alert placeholder detected");
+          logger.warn("Ghostscript produced compat-alert placeholder — falling through", { uncPath });
+        } else {
+          logger.info("Ghostscript render succeeded", { uncPath });
+          return result;
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        failures.push(`ghostscript: ${msg}`);
+        logger.warn("Ghostscript failed", { uncPath, error: msg });
+      }
+    }
+
+    // Step 2c: Poppler/pdftoppm (AI only — skipped for non-PDF-compat AI)
+    if (fileType === "ai" && !skipPdfRendering) {
+      try {
+        const result = await renderWithPoppler(effectivePath);
+        if (compatWorker && await isCompatAlertBuffer(result.buffer, compatWorker)) {
+          failures.push("poppler: compat-alert placeholder detected");
+          logger.warn("Poppler produced compat-alert placeholder — falling through", { uncPath });
+        } else {
+          logger.info("Poppler render succeeded", { uncPath });
+          return result;
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        failures.push(`poppler: ${msg}`);
+        logger.warn("Poppler failed", { uncPath, error: msg });
+      }
+    }
+
+    // Step 2d: Inkscape (AI only — independent engine, no PDF dependency)
+    // Runs even for non-PDF-compat files because Inkscape reads native AI/SVG format.
+    // Not OCR-checked: Inkscape reads the native vector layer, not the PDF compat layer,
+    // so it won't produce the compat-alert page.
+    if (fileType === "ai") {
+      try {
+        const result = await renderWithInkscape(effectivePath);
+        logger.info("Inkscape render succeeded", { uncPath });
+        return result;
+      } catch (e) {
+        const msg = (e as Error).message;
+        failures.push(`inkscape: ${msg}`);
+        logger.warn("Inkscape failed", { uncPath, error: msg });
+      }
+    }
+
+    // Step 2e: ImageMagick (PSD only — handles 16-bit, smart objects, complex layers)
+    // NOTE: ImageMagick is NOT used for .ai because it delegates to Ghostscript
+    // internally, so it would fail on the same files GS already failed on.
+    if (fileType === "psd") {
+      try {
+        const result = await renderWithImageMagick(effectivePath);
+        logger.info("ImageMagick render succeeded", { uncPath });
+        return result;
+      } catch (e) {
+        const msg = (e as Error).message;
+        failures.push(`imagemagick: ${msg}`);
+        logger.warn("ImageMagick failed", { uncPath, error: msg });
+      }
+    }
+
+    // Step 3: Sibling image (both AI and PSD)
+    // Uses uncPath (original) so the directory scan finds siblings next to the real file.
+    // Not OCR-checked: sibling images are real artwork, never the compat-alert page.
+    try {
+      const result = await renderFromSibling(uncPath);
+      logger.info("Sibling render succeeded", { uncPath });
+      return result;
+    } catch (e) {
+      const msg = (e as Error).message;
+      failures.push(`sibling: ${msg}`);
+      logger.warn("Sibling not found", { uncPath });
+    }
+
+    throw new Error(`render_failed: ${failures.join(" | ")}`);
+
+  } finally {
+    if (shortPathTmp) {
+      await rm(shortPathTmp, { recursive: true, force: true }).catch(() => {});
+    }
+  }
 }
