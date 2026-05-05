@@ -160,6 +160,7 @@ export interface HeartbeatResponse {
     pdf_text_sample_assets?: unknown[];
     audit_compat_thumbnails?: boolean;
     audit_compat_preview?: boolean;
+    browse_dir?: { request_id: string; path: string } | null;
   };
 }
 
@@ -236,6 +237,21 @@ export async function reportPathTest(
   results: Record<string, unknown>,
 ): Promise<void> {
   await callApi("report-path-test", { request_id: requestId, results });
+}
+
+export interface DirEntry {
+  name: string;
+  is_dir: boolean;
+  size?: number;
+  modified?: string;
+}
+
+export async function reportDirBrowse(
+  requestId: string,
+  path: string,
+  entries: DirEntry[],
+): Promise<void> {
+  await callApi("report-dir-browse", { request_id: requestId, path, entries });
 }
 
 export interface CheckChangedFile {

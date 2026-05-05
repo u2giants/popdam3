@@ -84,6 +84,7 @@ export interface WindowsHeartbeatResponse {
     repair_pairing_code?: string | null;
     audit_compat_thumbnails?: boolean;
     audit_compat_preview?: boolean;
+    browse_dir?: { request_id: string; path: string } | null;
   };
 }
 
@@ -196,6 +197,21 @@ export async function updateAsset(
   fields: Record<string, unknown>,
 ): Promise<void> {
   await callApi("update-asset", { asset_id: assetId, ...fields });
+}
+
+export interface DirEntry {
+  name: string;
+  is_dir: boolean;
+  size?: number;
+  modified?: string;
+}
+
+export async function reportDirBrowse(
+  requestId: string,
+  path: string,
+  entries: DirEntry[],
+): Promise<void> {
+  await callApi("report-dir-browse", { request_id: requestId, path, entries });
 }
 
 // ── Pairing (unauthenticated — uses one-time pairing code) ─────

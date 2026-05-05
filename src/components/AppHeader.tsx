@@ -25,13 +25,14 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw, Menu, Eye, EyeOff } from "lucide-react";
+import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw, Menu, Eye, EyeOff, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { CURRENT_APP, IS_POPSG } from "@/lib/app-mode";
 
 const popdamNavItems = [
   { to: "/", label: "Library", icon: Library },
+  { to: "/files", label: "Files", icon: FolderOpen },
   { to: "/setup", label: "Setup", icon: Wand2 },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/downloads", label: "Downloads", icon: Download },
@@ -39,6 +40,7 @@ const popdamNavItems = [
 
 const popsgNavItems = [
   { to: "/library", label: "Library", icon: Library },
+  { to: "/files", label: "Files", icon: FolderOpen },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
