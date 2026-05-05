@@ -421,6 +421,18 @@ export async function handleClearFailedRenders() {
   return json({ ok: true, deleted_count: data?.length ?? 0 });
 }
 
+export async function handleClearFailedSGRenders() {
+  const db = serviceClient();
+  const { data, error } = await db
+    .from("style_guide_render_queue")
+    .delete()
+    .eq("status", "failed")
+    .select("id");
+
+  if (error) return err(error.message, 500);
+  return json({ ok: true, deleted_count: data?.length ?? 0 });
+}
+
 // ── send-test-render ────────────────────────────────────────────────
 
 export async function handleSendTestRender() {

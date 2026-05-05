@@ -9,6 +9,7 @@ import {
   handleCheckRenderJob,
   handleClearCompletedJobs,
   handleClearFailedRenders,
+  handleClearFailedSGRenders,
   handleClearJunkRenderJobs,
   handleCreatePairingCode,
   handleDoctor,
@@ -1170,6 +1171,8 @@ corsServe(async (req: Request) => {
         return await handleClearJunkRenderJobs();
       case "clear-failed-renders":
         return await handleClearFailedRenders();
+      case "clear-failed-sg-renders":
+        return await handleClearFailedSGRenders();
       case "send-test-render":
         return await handleSendTestRender();
       case "check-render-job":

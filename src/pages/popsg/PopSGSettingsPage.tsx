@@ -16,6 +16,7 @@ import { CURRENT_APP } from "@/lib/app-mode";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import {
   WindowsAgentStatus,
   AgentRemoteControls,
@@ -78,6 +79,7 @@ function SgRenderJobsTable({
   queueStats: { pending: number; claimed: number; completed: number; failed: number } | undefined;
 }) {
   const queryClient = useQueryClient();
+  const { call } = useAdminApi();
   const [statusFilter, setStatusFilter] = useState<SgStatusFilter>("failed");
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -102,13 +104,7 @@ function SgRenderJobsTable({
   });
 
   const clearFailedMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from("style_guide_render_queue")
-        .delete()
-        .eq("status", "failed");
-      if (error) throw error;
-    },
+    mutationFn: () => call("clear-failed-sg-renders"),
     onSuccess: () => {
       toast.success("Failed render jobs cleared");
       queryClient.invalidateQueries({ queryKey: ["popsg", "sg_render_jobs"] });
