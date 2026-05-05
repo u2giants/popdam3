@@ -27,25 +27,36 @@ No local builds on NAS.
 
 ---
 
-## 3) CI/CD Requirement
-On push to main (when `apps/bridge-agent/` is changed):
-- build bridge-agent Docker image
-- push to `ghcr.io/u2giants/popdam-bridge:latest` and a commit-SHA tag
+## 3) CI/CD — Bridge Agent Image Tags
+On push to `main` when `apps/bridge-agent/**` changes, `publish-bridge-agent.yml` builds and pushes three tags:
 
-Version is tracked in `apps/bridge-agent/package.json`. There is no automated changelog — bump the version in the same commit as your changes (patch for bug fixes, minor for features, major for breaking changes).
+| Tag | Use |
+|-----|-----|
+| `:latest` | What `docker compose pull` gets by default |
+| `:stable` | What the in-app self-update pulls (same commit, explicit tag) |
+| `:v{version}` | Pinned rollback target (e.g. `:v1.9.6`) |
+
+Version is tracked in `apps/bridge-agent/package.json`. Bump it in the same commit as your changes (patch for bug fixes, minor for features, major for breaking changes). After publishing, `BRIDGE_LATEST_BUILD` is written to `admin_config` so the admin UI can show the new version and offer an update.
 
 ---
 
 ## 4) Updating the Bridge Agent on Synology
-Any time Lovable pushes changes to `apps/bridge-agent/`, GitHub Actions automatically builds a new Docker image and publishes it to `ghcr.io/u2giants/popdam-bridge:latest`.
 
-To apply the update on the NAS, run the convenience script:
+### Primary path — remote update via admin UI
+
+Settings → Agents (Bridge) → Update button. The UI calls `apply-update` on admin-api, which sets an `UPDATE_REQUEST` key in `admin_config`. The bridge agent picks this up on its next heartbeat, pulls `:stable`, and recreates its own container using the Docker socket. No SSH required.
+
+**Requires**: `restart: unless-stopped` in docker-compose.yml **and** `/var/run/docker.sock:/var/run/docker.sock` mounted. Both are set in the reference `deploy/synology/docker-compose.yml`.
+
+### Fallback — manual pull on the NAS
+
+If the remote update fails or the container is dead:
 
 ```bash
-ssh admin@nas "bash /volume1/docker/popdam/update.sh"
+sudo docker compose pull && sudo docker compose down && sudo docker compose up -d
 ```
 
-Or copy `deploy/synology/update.sh` to the NAS and run it locally. The script pulls the latest image, restarts the container, and verifies the agent is running.
+Run this in the directory containing your `docker-compose.yml` (typically `/volume1/docker/popdam/`). After the container starts, wait ~30 seconds for the first heartbeat before checking the version in the admin UI.
 
 ---
 

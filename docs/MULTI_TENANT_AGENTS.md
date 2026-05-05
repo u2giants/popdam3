@@ -1,6 +1,8 @@
 # Multi-Tenant Agents
 
-Both the **Bridge Agent** (Synology Docker) and the **Windows Render Agent** can now serve **multiple Lovable Cloud / Supabase backends from a single install**. This is what powers the PopDAM ↔ PopSG sister-app architecture.
+Both the **Bridge Agent** (Synology Docker) and the **Windows Render Agent** can serve **multiple Supabase backends from a single install** via the `TENANTS` environment variable.
+
+> **Note:** PopDAM and PopSG currently share the same Supabase project (`ryltkzzernhwnojzouyb`) — they are two UI modes of one deployment, not separate backends. Multi-tenant with different `server_url`s applies only if you are running truly separate Supabase instances (e.g., separate deployments for different client organizations). The single-tenant mode (`TENANTS` not set) is what the standard PopDAM/PopSG install uses.
 
 ## How it works
 
@@ -36,16 +38,16 @@ Per-tenant pairing/config files are written to:
     }
   },
   {
-    "name": "popsg",
-    "server_url": "https://eeueczxhezfhyrhdmidg.supabase.co",
+    "name": "client-b",
+    "server_url": "https://<other-project-id>.supabase.co",
     "pairing_code": "DEF-456-UVW",
-    "agent_name": "bridge-popsg",
-    "scan_roots": ["/nas/styleguides"],
+    "agent_name": "bridge-client-b",
+    "scan_roots": ["/nas/client-b"],
     "supabase_anon_key": "eyJ...",
     "do_spaces": {
       "key": "...",
       "secret": "...",
-      "bucket": "popsg",
+      "bucket": "client-b",
       "region": "nyc3",
       "endpoint": "https://nyc3.digitaloceanspaces.com"
     }
@@ -70,12 +72,12 @@ Same shape, except `scan_roots` is replaced with `nas`:
     "do_spaces": { "bucket": "popdam", "key": "...", "secret": "...", "region": "nyc3", "endpoint": "https://nyc3.digitaloceanspaces.com" }
   },
   {
-    "name": "popsg",
-    "server_url": "https://eeueczxhezfhyrhdmidg.supabase.co",
+    "name": "client-b",
+    "server_url": "https://<other-project-id>.supabase.co",
     "pairing_code": "DEF-456-UVW",
-    "agent_name": "windows-popsg",
+    "agent_name": "windows-client-b",
     "nas": { "host": "diskstation", "share": "volume1", "mount_path": "Z:" },
-    "do_spaces": { "bucket": "popsg", "key": "...", "secret": "...", "region": "nyc3", "endpoint": "https://nyc3.digitaloceanspaces.com" }
+    "do_spaces": { "bucket": "client-b", "key": "...", "secret": "...", "region": "nyc3", "endpoint": "https://nyc3.digitaloceanspaces.com" }
   }
 ]
 ```

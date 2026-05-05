@@ -9,6 +9,7 @@ PopDAM is a React + TypeScript single-page application built with Vite, shadcn/u
 | Route | Component | Purpose |
 |-------|-----------|---------|
 | `/` | `Index.tsx` | Main library — browse, search, and tag assets and groups |
+| `/files` | `FileBrowserPage.tsx` | NAS directory browser (available to all authenticated users) |
 | `/settings` | `SettingsPage.tsx` | Admin control panel (multiple tabs) |
 | `/setup` | `SetupPage.tsx` | First-run wizard for initial configuration |
 | `/downloads` | `DownloadsPage.tsx` | Agent installer download links |
@@ -16,7 +17,21 @@ PopDAM is a React + TypeScript single-page application built with Vite, shadcn/u
 | `/ai-tagging/:id` | `AiTaggingDetailPage.tsx` | Detail view for a single AI tagging run |
 | `/scan-diagnostics` | `ScanDiagnosticsPage.tsx` | Bridge Agent scan history and error details |
 
-All routes except `/login` and `/setup` require an authenticated user with at least the `user` role. Admin-only settings tabs additionally require the `admin` role.
+All routes except `/login` and `/setup` require an authenticated user with at least the `user` role. `/files` is available to all authenticated users (not admin-only). Admin-only settings tabs additionally require the `admin` role.
+
+---
+
+## NAS File Browser (`/files`)
+
+Click-through directory browser that shows the server-side filesystem as seen by the bridge agent. Available to all authenticated users from the top nav.
+
+**How it works:** The UI posts a `request-dir-browse` action to admin-api with a path, which writes a `DIR_BROWSE_REQUEST` key to `admin_config`. The bridge agent picks this up on its next heartbeat (within 30s), lists the directory, and posts results back via `report-dir-browse`. The UI polls `get-dir-browse-result` until the `request_id` matches.
+
+- Empty path = lists configured scan roots
+- Click any folder to navigate into it
+- Back and home buttons for navigation
+- Shows file sizes and modification dates for regular files
+- Implemented in `src/components/settings/DirectoryBrowserTab.tsx` (the component) and `src/pages/FileBrowserPage.tsx` (the page wrapper)
 
 ---
 

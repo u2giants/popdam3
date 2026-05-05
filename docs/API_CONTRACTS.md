@@ -72,7 +72,11 @@ Response (Config Sync Payload):
   },
   "commands": {
     "force_scan": false,
-    "abort_scan": false
+    "abort_scan": false,
+    "test_paths": null,
+    "browse_dir": null,
+    "apply_update": false,
+    "force_apply_update": false
   }
 }
 ```
@@ -82,6 +86,9 @@ Notes:
 - `do_spaces` contains only non-secret fields from `SPACES_CONFIG`. The agent uses its local `.env` for S3 credentials.
 - `scanning.roots` from cloud overrides the agent's env `SCAN_ROOTS` when non-empty.
 - `commands.force_scan` and `commands.abort_scan` are consumed once and cleared server-side.
+- `commands.test_paths` — when non-null: `{ request_id: string; paths: string[] }`. Agent validates each path and calls `report-path-test` with results.
+- `commands.browse_dir` — when non-null: `{ request_id: string; path: string }`. Agent lists directory contents and calls `report-dir-browse` with results. Empty `path` lists scan roots.
+- `commands.apply_update` — when true: agent pulls latest Docker image and recreates its own container.
 - `resource_guard` values reflect the active schedule (or defaults if no schedule matches).
 
 ### POST /agent/ingest
@@ -166,6 +173,27 @@ Request:
 
 Response: combined config + scan state + any pending commands
 
+### POST /agent/report-path-test
+
+Purpose: bridge agent reports path validation results (response to `commands.test_paths`)
+
+Request:
+- `request_id` — must match the pending `PATH_TEST_REQUEST.request_id`
+- `results` — array of `{ path, exists, readable, error? }`
+
+Response: `{ ok: true }`
+
+### POST /agent/report-dir-browse
+
+Purpose: bridge agent reports directory listing results (response to `commands.browse_dir`)
+
+Request:
+- `request_id` — must match the pending `DIR_BROWSE_REQUEST.request_id`
+- `path` — the directory that was listed
+- `entries` — array of `{ name, type: "dir"|"file", size?, modified_at? }`
+
+Response: `{ ok: true }`
+
 ### POST /agent/pairing-codes/generate
 
 Purpose: generate a one-time pairing code for a new agent (admin-initiated)
@@ -189,6 +217,24 @@ Response: `{ assets[], total, page, page_size }`
 ### PUT /admin/assets/:id
 
 Manual field edits + admin review resolution.
+
+### POST /admin/request-dir-browse
+
+Purpose: request the bridge agent to list a directory on the NAS
+
+Request: `{ path?: string }` — empty string or omitted = list scan roots
+
+Response: `{ ok: true, request_id: string }`
+
+The agent picks this up on its next heartbeat (within 30s) via `commands.browse_dir` and posts results back via `report-dir-browse`. Poll `get-dir-browse-result` until `result.request_id` matches.
+
+### POST /admin/get-dir-browse-result
+
+Purpose: retrieve the most recent directory browse result
+
+Request: none
+
+Response: `{ ok: true, result: { request_id, path, entries, browsed_at } | null }`
 
 ### GET|PUT /admin/config
 

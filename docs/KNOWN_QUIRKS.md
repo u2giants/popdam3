@@ -278,7 +278,40 @@ Traefik watches this directory (`--providers.file.watch=true`) and picks up chan
 
 ---
 
-## 25. Bulk DELETE on Large Tables Must Use Service Role
+## 25. Bridge Agent Imports `ws` and Polyfills `globalThis.WebSocket`
+
+**File**: `apps/bridge-agent/src/realtime-watcher.ts`
+
+**What it looks like**: The `ws` package is listed as a production dependency and the first thing `realtime-watcher.ts` does is `(globalThis as Record<string, unknown>).WebSocket = ws`. This looks like a clumsy hack.
+
+**Why**: `@supabase/realtime-js` >= 2.11 detects the Node.js version at runtime and throws a fatal error ("Node.js 20 detected without native WebSocket support") if `globalThis.WebSocket` is undefined. Node.js 20 (used in the bridge agent's Docker image) has no native WebSocket implementation — that was added in Node.js 22. Setting the polyfill at module initialization time, before any Supabase client is created, satisfies the check for all subsequent code.
+
+**What breaks if you remove it**: The bridge agent crash-loops every ~60 seconds on startup with the error above — this was the v1.9.5 → v1.9.6 regression.
+
+**Why not upgrade Node.js to 22**: Would require rebuilding native modules (`sharp`, `mupdf`) and revalidating rendering. The `ws` polyfill is lower risk and forward-compatible (Node.js 22's native WebSocket satisfies the same check so the polyfill becomes a no-op when we eventually upgrade).
+
+---
+
+## 26. Bridge Agent Self-Update Uses `docker inspect` + `docker run`, Not `docker compose up`
+
+**Files**: `apps/bridge-agent/src/index.ts` (`handleApplyUpdate`, `recreateViaDockerRun`)
+
+**What it looks like**: Overly complex self-update logic — why not just call `docker compose up -d --force-recreate`?
+
+**Why Compose alone fails**: The bridge agent runs inside a Docker container. Its Docker socket mount (`/var/run/docker.sock`) lets it control the Docker daemon, but it has no access to the `docker-compose.yml` file that lives on the host filesystem. To find the compose file, the agent reads the `com.docker.compose.project.working_dir` label that Compose stamps on all containers it creates. If that label is absent or the compose file can't be found, `docker compose up` is impossible.
+
+**The fallback (`recreateViaDockerRun`)**: Uses `docker inspect` to read the running container's full config (env vars, volume binds, network, restart policy) and then:
+1. `docker run` a replacement container with the new image and the same config, under a temp name
+2. `docker stop` + `docker rm` the old container
+3. `docker rename` the temp container to the original name
+
+**Why not `docker stop` alone**: `restart: unless-stopped` does **not** restart a container after an explicit `docker stop`. A stopped container stays dead until someone restarts it manually. This was the root cause of the original update bug — the agent stopped itself and never came back.
+
+**What breaks if you "simplify" it**: Either the compose-file path fails silently (agent stops, never restarts), or the container stops and stays dead.
+
+---
+
+## 27. Bulk DELETE on Large Tables Must Use Service Role
 
 **Pattern in**: `handleClearFailedSGRenders`, `handleClearFailedRenders`
 
