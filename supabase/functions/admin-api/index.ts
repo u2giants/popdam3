@@ -42,7 +42,6 @@ import {
   handleTriggerScan,
 } from "../_shared/admin-handlers/agent-handlers.ts";
 
-import { handleRelinkOrphanedAssets } from "../_shared/admin-handlers/style-group-handlers.ts";
 
 import { handleCountUntaggedAssets } from "../_shared/admin-handlers/ai-tagging-handlers.ts";
 
@@ -1206,10 +1205,6 @@ corsServe(async (req: Request) => {
         return await handleReprocessAssetMetadata(body);
       case "backfill-sku-names":
         return await handleBackfillSkuNames();
-
-      // ── Style groups (from style-group-handlers.ts) ──
-      case "relink-orphaned-assets":
-        return await handleRelinkOrphanedAssets(body);
 
       // ── AI tagging (from ai-tagging-handlers.ts) ──
       case "count-untagged-assets":

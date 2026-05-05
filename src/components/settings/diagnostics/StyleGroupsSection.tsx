@@ -1,5 +1,5 @@
 import React from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -198,6 +198,7 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
   const rebuildOp = usePersistentOperation("rebuild-style-groups");
   const reconcileOp = usePersistentOperation("reconcile-style-group-stats");
   const cleanupOp = usePersistentOperation("cleanup-mega-group-tags");
+  const relinkOp = usePersistentOperation("relink-orphaned-assets");
 
   const { data: stats } = useQuery({
     queryKey: ["style-group-stats"],
@@ -229,31 +230,14 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
     staleTime: 15_000,
   });
 
-  // Relink orphaned assets — polls cursor-batched endpoint until done
-  const relinkMutation = useMutation({
-    mutationFn: async () => {
-      let totalRelinked = 0;
-      let totalErrors = 0;
-      let cursor: string | null = null;
-      while (true) {
-        const result = await call("relink-orphaned-assets", cursor ? { cursor } : {});
-        totalRelinked += result.relinked ?? 0;
-        totalErrors += result.errors ?? 0;
-        cursor = result.cursor ?? null;
-        if (result.done) break;
-      }
-      return { relinked: totalRelinked, errors: totalErrors };
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["style-group-stats"] });
-      toast.success("Orphaned assets relinked", {
-        description: `Relinked ${data.relinked} assets${data.errors ? `, ${data.errors} errors` : ""}`,
-      });
-    },
-    onError: (e: Error) => {
-      toast.error("Failed to relink orphaned assets", { description: e.message });
-    },
-  });
+  function runRelink() {
+    requestOp("relink-orphaned-assets", OP_NAMES["relink-orphaned-assets"],
+      () => relinkOp.start({
+        confirmMessage: `Relink ${stats?.orphaned ?? "?"} orphaned assets to their style groups?`,
+      }),
+      () => relinkOp.queue({}),
+    );
+  }
 
   function runRebuild(forceRestart = false) {
     const isFreshStart = forceRestart || !rebuildOp.isInterrupted;
@@ -295,6 +279,7 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
   const showRebuildDetail = rebuildOp.state.status !== "idle";
   const showReconcileDetail = reconcileOp.state.status !== "idle";
   const showCleanupDetail = cleanupOp.state.status !== "idle";
+  const showRelinkDetail = relinkOp.state.status !== "idle";
 
   return (
     <Card>
@@ -387,20 +372,16 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
             <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => reconcileOp.reset()}>Dismiss Reconcile</Button>
           )}
           {/* Relink orphaned assets button */}
-          {Number(stats?.orphaned ?? 0) > 0 && (
+          {(Number(stats?.orphaned ?? 0) > 0 || relinkOp.isActive || relinkOp.isQueued) && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="outline" size="sm" className="gap-1.5"
-                    onClick={() => {
-                      if (confirm(`Relink ${stats.orphaned} orphaned assets to their style groups?`)) {
-                        relinkMutation.mutate();
-                      }
-                    }}
-                    disabled={relinkMutation.isPending}
+                    onClick={runRelink}
+                    disabled={relinkOp.isActive || relinkOp.isQueued || rebuildOp.isActive}
                   >
-                    {relinkMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                    {relinkOp.isActive ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
                     Relink Orphans
                   </Button>
                 </TooltipTrigger>
@@ -409,6 +390,9 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+          )}
+          {(relinkOp.isInterrupted || relinkOp.state.status === "failed" || relinkOp.state.status === "completed") && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => relinkOp.reset()}>Dismiss Relink</Button>
           )}
           {/* Cleanup mega-group tags button */}
           {Number(stats?.megaGroups ?? 0) > 0 && (
@@ -465,6 +449,38 @@ export function StyleGroupsSection({ requestOp }: { requestOp: RequestOpFn }) {
             )}
             {cleanupOp.state.error && (
               <p className="text-xs text-destructive">{cleanupOp.state.error}</p>
+            )}
+          </div>
+        )}
+
+        {showRelinkDetail && (
+          <div className="border border-border rounded-md p-3 space-y-2 mt-2">
+            <div className="flex items-center gap-2 text-sm">
+              {relinkOp.isActive
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                : relinkOp.state.status === "completed"
+                  ? <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--success))]" />
+                  : <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />}
+              <span className="font-medium">
+                {relinkOp.isActive ? "Relinking orphaned assets…"
+                  : relinkOp.state.status === "completed" ? "Relink complete"
+                  : relinkOp.isInterrupted ? "Relink interrupted"
+                  : "Relink failed"}
+              </span>
+            </div>
+            {relinkOp.state.progress && (
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p>Relinked: <span className="text-foreground font-medium">{((relinkOp.state.progress.relinked as number) || 0).toLocaleString()}</span></p>
+                {((relinkOp.state.progress.errors as number) || 0) > 0 && (
+                  <p>Errors: <span className="text-destructive font-medium">{(relinkOp.state.progress.errors as number).toLocaleString()}</span></p>
+                )}
+              </div>
+            )}
+            {relinkOp.state.result_message && (
+              <p className="text-xs text-[hsl(var(--success))]">{relinkOp.state.result_message}</p>
+            )}
+            {relinkOp.state.error && (
+              <p className="text-xs text-destructive">{relinkOp.state.error}</p>
             )}
           </div>
         )}

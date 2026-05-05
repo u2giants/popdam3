@@ -17,6 +17,7 @@ import { logger } from "./logger.js";
 import type { BatchResult, OpState } from "./types.js";
 import { handleBulkAiTag } from "./handlers/ai-tagging.js";
 import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
+import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
 
@@ -42,6 +43,7 @@ const OP_LANES: Record<string, string> = {
   "erp-classify": "erp",
   "propagate-group-tags": "style-groups",
   "cleanup-mega-group-tags": "style-groups",
+  "relink-orphaned-assets": "style-groups",
 };
 
 // Cross-lane conflicts — operations in DIFFERENT lanes that still cannot run simultaneously.
@@ -144,6 +146,11 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
         characters_deleted: ((prev.characters_deleted as number) || 0) + ((batch.characters_deleted as number) || 0),
         metadata_cleared: ((prev.metadata_cleared as number) || 0) + ((batch.metadata_cleared as number) || 0),
       };
+    case "relink-orphaned-assets":
+      return {
+        relinked: ((prev.relinked as number) || 0) + ((batch.relinked as number) || 0),
+        errors: ((prev.errors as number) || 0) + ((batch.errors as number) || 0),
+      };
     default:
       return { ...prev, ...batch };
   }
@@ -229,6 +236,8 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
       return `Propagated tags across ${progress.propagated || 0} groups (${progress.skipped || 0} skipped)`;
     case "cleanup-mega-group-tags":
       return `Cleaned ${progress.groups_processed || 0} mega-groups: ${progress.tags_deleted || 0} tags deleted, ${progress.characters_deleted || 0} characters removed, ${progress.metadata_cleared || 0} assets metadata cleared`;
+    case "relink-orphaned-assets":
+      return `Relinked ${progress.relinked || 0} orphaned assets${progress.errors ? `, ${progress.errors} errors` : ""}`;
     default:
       return "Operation completed";
   }
@@ -256,6 +265,8 @@ async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
       return handlePropagateGroupTags(opState);
     case "cleanup-mega-group-tags":
       return handleCleanupMegaGroupTags(opState);
+    case "relink-orphaned-assets":
+      return handleRelinkOrphanedAssets(opState);
     case "erp-enrichment":
       return handleApplyErpEnrichment(opState);
     case "erp-classify":
