@@ -180,6 +180,9 @@ Deletes orphaned render jobs (jobs whose asset no longer exists). No body parame
 ### `clear-failed-renders`
 Deletes all render jobs in `failed` status. No body parameters.
 
+### `clear-failed-sg-renders`
+Deletes all PopSG `style_guide_render_queue` rows in `failed` status. No body parameters. Uses the service role client to bypass RLS — the authenticated role's `has_role()` policy would time out at PostgreSQL's 8s statement limit when evaluated per-row on tens of thousands of rows.
+
 ### `send-test-render`
 Queues a test asset for rendering to verify the Windows Render Agent is working. No body parameters.
 
@@ -228,29 +231,7 @@ Returns all available filter facets (licensors, properties, workflow_status valu
 
 ## Style Groups
 
-### `rebuild-style-groups`
-Performs a full 4-stage rebuild of style group assignments. This is a long-running operation managed by `bulk-job-runner`; this handler processes one stage/batch per call.
-
-**Stages:**
-1. `clear_assets` — sets `style_group_id = NULL` on all assets (batched)
-2. `delete_groups` — deletes all existing style_groups rows
-3. `rebuild_assets` — assigns assets to groups based on SKU and folder path (calls `assign_assets_to_style_groups` DB RPC)
-4. `finalize_stats` — updates `asset_count` and `primary_asset_id` for all groups (two sub-stages: `counts` and `primaries`)
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `stage` | `string` (optional) | Current stage (managed by runner) |
-| `substage` | `string` (optional) | Current sub-stage |
-| `offset` | `number` | Cursor for current stage |
-| `batch_size` | `number` | Default: 500 |
-
-### `reconcile-style-group-stats`
-Recalculates `asset_count` and `primary_asset_id` for style groups without doing a full rebuild. Safe to run on a live system.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `offset` | `string` (UUID cursor, optional) | Resume from this group |
-| `batch_size` | `number` | Default: 200 |
+> **Note:** `rebuild-style-groups`, `reconcile-style-group-stats`, `cleanup-mega-group-tags`, and `relink-orphaned-assets` are **not** admin-api routes. They are bulk operations handled entirely by the Railway worker (`apps/worker/`). Start them via the Diagnostics UI which writes `status: "running"` to `admin_config.BULK_OPERATIONS`. See `docs/BULK_JOBS.md`.
 
 ### `sync-group-tags`
 Immediately propagates tags from the primary asset to all sibling assets in a specific group. (Inline operation — not batched through bulk-job-runner.)
@@ -263,19 +244,7 @@ Immediately propagates tags from the primary asset to all sibling assets in a sp
 
 ## AI Tagging
 
-### `bulk-ai-tag`
-Tags untagged assets (those with a thumbnail but no `ai_tagged_at`) using the Gemini Flash AI model. Processes assets in batches with concurrency = 2.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `offset` | `number` | Cursor for batch resumption |
-| `group_ids` | `string[]` (optional) | Limit to specific style groups |
-| `batch_size` | `number` | Default: 6 |
-
-Returns: `{ tagged, failed, skipped, failure_samples, skip_samples }`.
-
-### `bulk-ai-tag-all`
-Same as `bulk-ai-tag` but also re-tags assets that were already tagged (sets `force = true`).
+> **Note:** `bulk-ai-tag`, `bulk-ai-tag-all`, and `ai-tag-groups` are **not** admin-api routes. They are bulk operations handled entirely by the Railway worker (`apps/worker/`). See `docs/BULK_JOBS.md`.
 
 ### `count-untagged-assets`
 Returns the count of assets that have a thumbnail URL but no `ai_tagged_at`. No body parameters.

@@ -45,9 +45,10 @@ All batch AI operations are handled by a persistent Node.js worker running on Ra
 
 **Operations handled by the Railway worker:**
 - AI image tagging (`ai-tag-untagged`, `ai-tag-all`, `ai-tag-groups`)
-- Style group rebuild, reconcile, tag propagation
+- Style group rebuild, reconcile, cleanup-mega-group-tags, relink-orphaned-assets
+- Tag propagation (`propagate-group-tags`)
 - ERP enrichment and ERP AI classification
-- All other bulk operations tracked in `admin_config.BULK_OPERATIONS`
+- Metadata reprocessing and SKU backfill (worker calls admin-api per batch)
 
 **How it works:** The worker polls `admin_config.BULK_OPERATIONS` every 5 seconds, picks up any operation with `status: "running"`, executes one batch, and writes progress back. The UI writes `status: "running"` to start an op; the worker detects it and runs it.
 
@@ -140,9 +141,8 @@ There are 10 Edge Functions. All are deployed to Supabase Edge Runtime (Deno).
 **Pattern:** Single endpoint, action-based routing. Body must contain `"action": "<action-name>"`.
 
 **Handler modules** (in `supabase/functions/_shared/admin-handlers/`):
-- `agent-handlers.ts` — agent management, scan control, render queue
-- `style-group-handlers.ts` — rebuild-style-groups, reconcile-style-group-stats
-- `ai-tagging-handlers.ts` — bulk-ai-tag, count-untagged-assets
+- `agent-handlers.ts` — agent management, scan control, render queue, clear-failed-sg-renders
+- `ai-tagging-handlers.ts` — count-untagged-assets (bulk tagging ops moved to Railway worker)
 - `tag-propagation-handlers.ts` — bulk-propagate-group-tags, count-groups-for-propagation
 - `erp-handlers.ts` — apply-erp-enrichment, classify-erp-categories
 - `erp-browse-handlers.ts` — trigger-erp-sync, erp-sync-runs, erp-review-queue, erp-review-action, erp-items-browse
@@ -153,6 +153,8 @@ There are 10 Edge Functions. All are deployed to Supabase Edge Runtime (Deno).
 - `sibling-scan-handlers.ts` — sibling image discovery and ingest
 - `hygiene-handlers.ts` — file hygiene scanning
 - `coldlion-handlers.ts` — ColdLion API integration
+
+Note: `style-group-handlers.ts` was deleted — rebuild-style-groups, reconcile-style-group-stats, cleanup-mega-group-tags, and relink-orphaned-assets are now handled directly by the Railway worker (`apps/worker/src/handlers/style-groups.ts`, `relink-orphaned.ts`).
 
 See `docs/ADMIN_OPERATIONS.md` for the complete route reference.
 

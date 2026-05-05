@@ -5,9 +5,10 @@ Bulk operations are orchestrated by a **persistent Node.js worker running on Rai
 The worker polls `admin_config.BULK_OPERATIONS` every **5 seconds**. When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no timeout constraint — it runs until the operation completes, the user stops it, or it errors. The pg_cron schedule that previously called the edge function every minute was removed in migration `20260322000000`.
 
 **Authoritative code locations:**
-- Orchestrator: `apps/worker/src/` (Railway)
+- Orchestrator: `apps/worker/src/operation-loop.ts` (Railway)
 - Operation definitions: `supabase/functions/_shared/operation-constants.ts`
-- Per-operation handlers: `supabase/functions/_shared/admin-handlers/`
+- Railway-native handlers: `apps/worker/src/handlers/` — AI tagging, style groups, relink-orphaned, ERP, tag propagation
+- Admin-api handlers (called by Railway via HTTP): `supabase/functions/_shared/admin-handlers/` — metadata reprocessing, SKU backfill, some ERP ops
 
 ---
 
@@ -21,6 +22,8 @@ The worker polls `admin_config.BULK_OPERATIONS` every **5 seconds**. When it fin
 | `propagate-group-tags` | style-groups | assets, asset_tags, asset_characters | manual |
 | `rebuild-style-groups` | style-groups | assets (style_group_id), style_groups | manual |
 | `reconcile-style-group-stats` | style-groups | style_groups | manual / auto-queued after rebuild |
+| `cleanup-mega-group-tags` | style-groups | asset_tags, asset_characters, assets | manual |
+| `relink-orphaned-assets` | style-groups | assets (style_group_id) | manual |
 | `reprocess-metadata` | metadata | assets (licensor_id, property_id, is_licensed, workflow_status, SKU fields) | manual |
 | `backfill-sku-names` | metadata | assets, style_groups (licensor/property codes) | manual |
 | `erp-enrichment` | erp | assets, style_groups (ERP codes) | manual |
@@ -80,7 +83,7 @@ The conflict map is checked in **four** places:
    "new-job-key":    ["existing-job-that-shares-table"],
    "existing-job":   [...existingConflicts, "new-job-key"],
    ```
-4. Add the handler to `OP_ACTIONS` and the appropriate admin-handler file.
+4. Add a handler. For Railway-native ops (no edge function involvement), add a handler file in `apps/worker/src/handlers/`, import it in `operation-loop.ts`, and wire `mergeProgress` and `buildResultMessage` cases. For ops that call through admin-api, add the handler in `supabase/functions/_shared/admin-handlers/` and register the route in `admin-api/index.ts`. Update `OP_ACTIONS` in `operation-constants.ts` for admin-api-routed ops.
 5. Update the job inventory table above.
 6. Update this doc.
 

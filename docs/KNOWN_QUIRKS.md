@@ -276,3 +276,17 @@ Traefik watches this directory (`--providers.file.watch=true`) and picks up chan
 
 **What breaks if you delete it**: Nothing — as long as you also disable or delete `deploy-popsg-supabase.yml`. Do not trigger that workflow.
 
+---
+
+## 25. Bulk DELETE on Large Tables Must Use Service Role
+
+**Pattern in**: `handleClearFailedSGRenders`, `handleClearFailedRenders`
+
+**What it looks like**: You click "Clear Failed" in the UI and get "canceling statement due to statement timeout."
+
+**Why**: When an admin client (authenticated role) runs a DELETE with an RLS policy, PostgreSQL evaluates the policy predicate — typically `has_role(auth.uid(), 'admin')` — for **every row** in the result set. On a table with 30,000+ failed rows this becomes 30,000+ PL/pgSQL function calls inside a single transaction, which blows Supabase's default 8-second statement timeout for the authenticated role.
+
+**Fix**: Route bulk deletes through an `admin-api` action that uses `serviceClient()` (service role). The service role bypasses RLS entirely — the delete runs as a single statement with no per-row policy overhead.
+
+**What breaks if you "fix" it by raising the statement_timeout**: The authenticated role timeout protects against runaway queries from the browser. Raising it globally allows accidental or malicious long-running client queries. The service role bypass is scoped to explicit admin-api actions, not all client code.
+

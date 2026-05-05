@@ -15,10 +15,9 @@ Responsibilities:
 - Web UI (browse/search/filter/tag)
 - Authentication + roles (invitation-only)
 - Admin config + diagnostics
-- API endpoints for agents and admins
-- AI tagging orchestration (cloud calls model using thumbnail_url)
+- API endpoints for agents and admins (`admin-api`, `agent-api` Supabase edge functions)
 
-Runs on managed hosting (no SSH, no servers to maintain).
+Runs on managed hosting (Supabase + Coolify on VPS). No SSH, no servers to maintain.
 
 ### B) Muscle (Bridge Agent on Synology NAS)
 Responsibilities:
@@ -38,6 +37,19 @@ Only used when `.ai` thumbnails can’t be reliably generated on the NAS.
 - Renders via Illustrator API (ExtendScript)
 - Uploads thumbnail to Spaces
 - Reports completion via agent API
+
+### D) Railway Worker (Bulk Operation Runner)
+Persistent Node.js process running on Railway. Handles all batch operations that are too long-lived for edge functions.
+
+Responsibilities:
+- AI image tagging (`ai-tag-untagged`, `ai-tag-all`, `ai-tag-groups`)
+- Style group rebuild, reconcile, cleanup-mega-group-tags, relink-orphaned-assets
+- Tag propagation (`propagate-group-tags`)
+- ERP enrichment and ERP AI classification
+
+How it works: polls `admin_config.BULK_OPERATIONS` every 5 seconds. When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no timeout constraint.
+
+**See `apps/worker/src/` for the implementation and `docs/BULK_JOBS.md` for the full operation reference.**
 
 ---
 
@@ -64,7 +76,7 @@ But it is not required for the core worker-to-cloud workflow.
 ---
 
 ## 3) API Boundaries (Critical)
-Two separate APIs (or edge functions):
+Two separate edge function APIs plus the Railway worker:
 
 ### agent-api (verify_jwt = false)
 - Auth: `x-agent-key`
@@ -72,9 +84,15 @@ Two separate APIs (or edge functions):
 - Strict request/response validation (Zod)
 
 ### admin-api (verify_jwt = true)
-- Auth: user JWT + admin role
-- Routes for: config, invites, diagnostics, key generation
+- Auth: user JWT + admin role, **or** the Supabase service role key as Bearer token
+- Routes for: config, invites, diagnostics, key generation, per-batch operations called by the Railway worker
 - Strict validation (Zod)
+- Service role key auth maps to `userId: "system"` — used by the Railway worker for server-to-server calls (no user JWT in a background process)
+
+### Railway worker (server process, no HTTP listener)
+- Auth: uses `SUPABASE_SERVICE_ROLE_KEY` env var to create a service role Supabase client directly
+- For operations it cannot execute via DB RPC, it calls `admin-api` with the service role key as Bearer token
+- Bypasses RLS entirely (service role)
 
 Hard rule: never mix admin + agent routes in one function.
 
