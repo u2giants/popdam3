@@ -1244,6 +1244,7 @@ async function handleApplyUpdate() {
   const execFileAsync = promisify(execFile);
 
   const startedAt = new Date().toISOString();
+  const NEW_IMAGE = "ghcr.io/u2giants/popdam-bridge:stable";
 
   // ── Pre-flight: verify Docker socket is accessible ────────────────
   try {
@@ -1263,8 +1264,8 @@ async function handleApplyUpdate() {
 
   // ── Step 1: Pull the latest :stable image ─────────────────────────
   try {
-    logger.info("Pulling ghcr.io/u2giants/popdam-bridge:stable ...");
-    await execFileAsync("docker", ["pull", "ghcr.io/u2giants/popdam-bridge:stable"], { timeout: 240_000 } as never);
+    logger.info(`Pulling ${NEW_IMAGE} ...`);
+    await execFileAsync("docker", ["pull", NEW_IMAGE], { timeout: 240_000 } as never);
     logger.info("Pull complete");
   } catch (e) {
     const msg = `docker pull failed: ${(e as Error).message}`;
@@ -1273,34 +1274,119 @@ async function handleApplyUpdate() {
     return;
   }
 
-  // ── Step 2: Recreate container via docker compose ─────────────────
-  // docker stop + restart-policy only brings back the same image digest.
-  // We must recreate the container so Docker picks up the newly-pulled image.
-  const composePath = process.env.POPDAM_COMPOSE_PATH || "/volume1/docker/popdam/docker-compose.yml";
-  logger.info("Recreating container via compose", { composePath });
-
-  exec(
-    `docker compose -f "${composePath}" up -d --force-recreate`,
-    { timeout: 120_000 },
-    async (err: Error | null) => {
-      if (!err) return; // new container is up — this one exits naturally
-
-      // compose failed (compose file not accessible from inside the container).
-      // Fall back to docker stop and rely on the restart policy to bring it back.
-      const composeErr = err.message;
-      logger.warn("docker compose up failed — falling back to docker stop", { error: composeErr, composePath });
-
-      try {
-        await execFileAsync("docker", ["stop", containerId]);
-      } catch (stopErr) {
-        const msg = `compose up failed: ${composeErr} | docker stop also failed: ${(stopErr as Error).message}. ` +
-          `Mount the compose file inside the container (e.g. -v /volume1/docker/popdam:/volume1/docker/popdam) ` +
-          `or set POPDAM_COMPOSE_PATH env var.`;
-        logger.error("Self-update failed", { error: msg });
-        await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
+  // ── Step 2: Inspect container to find compose project dir ─────────
+  // Docker Compose sets com.docker.compose.project.working_dir on all
+  // containers it creates — use that to find the compose file without
+  // requiring POPDAM_COMPOSE_PATH to be set.
+  let composePath: string | null = null;
+  try {
+    const { stdout: workingDirOut } = await execFileAsync("docker", [
+      "inspect", containerId,
+      "--format", '{{index .Config.Labels "com.docker.compose.project.working_dir"}}',
+    ]);
+    const workingDir = workingDirOut.trim();
+    if (workingDir) {
+      for (const name of ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]) {
+        const candidate = `${workingDir}/${name}`;
+        try { await stat(candidate); composePath = candidate; break; } catch { /* try next */ }
       }
     }
-  );
+  } catch { /* inspect failed — fall through */ }
+
+  // Fall back to explicit env var or Synology default
+  if (!composePath) {
+    const envPath = process.env.POPDAM_COMPOSE_PATH;
+    if (envPath) {
+      composePath = envPath;
+    } else {
+      // Try common Synology Container Manager project paths
+      for (const candidate of [
+        "/volume1/docker/popdam/docker-compose.yml",
+        "/volume1/docker/popdam3/docker-compose.yml",
+        "/volume1/docker/popdam-bridge/docker-compose.yml",
+      ]) {
+        try { await stat(candidate); composePath = candidate; break; } catch { /* try next */ }
+      }
+    }
+  }
+
+  // ── Step 3a: Recreate via docker compose (preferred) ──────────────
+  if (composePath) {
+    logger.info("Recreating container via compose", { composePath });
+    exec(
+      `docker compose -f "${composePath}" up -d --force-recreate`,
+      { timeout: 120_000 },
+      async (err: Error | null) => {
+        if (!err) return; // new container is up — this one exits naturally
+        logger.warn("docker compose up failed — falling back to docker run recreation", { error: err.message });
+        await recreateViaDockerRun(containerId, NEW_IMAGE, startedAt, execFileAsync);
+      },
+    );
+    return;
+  }
+
+  // ── Step 3b: No compose file found — recreate via docker run ───────
+  logger.warn("No compose file found — recreating container via docker run");
+  await recreateViaDockerRun(containerId, NEW_IMAGE, startedAt, execFileAsync);
+}
+
+async function recreateViaDockerRun(
+  containerId: string,
+  newImage: string,
+  startedAt: string,
+  execFileAsync: (cmd: string, args: string[], opts?: object) => Promise<{ stdout: string; stderr: string }>,
+) {
+  try {
+    // Inspect the running container to clone its config
+    const { stdout: inspectOut } = await execFileAsync("docker", [
+      "inspect", containerId, "--format", "{{json .}}",
+    ]);
+    const info = JSON.parse(inspectOut.trim());
+
+    const rawName: string = info.Name || "";
+    const containerName = rawName.replace(/^\//, ""); // strip leading slash
+
+    // Collect -e flags
+    const envArgs: string[] = (info.Config?.Env ?? []).flatMap((e: string) => ["-e", e]);
+
+    // Collect -v flags
+    const bindArgs: string[] = (info.HostConfig?.Binds ?? []).flatMap((b: string) => ["-v", b]);
+
+    // Collect --network flags (connect to first network; others added after start)
+    const networks = Object.keys(info.NetworkSettings?.Networks ?? {});
+    const primaryNetwork = networks[0];
+    const networkArgs: string[] = primaryNetwork ? ["--network", primaryNetwork] : [];
+
+    // Restart policy
+    const restartPolicy: string = info.HostConfig?.RestartPolicy?.Name || "unless-stopped";
+    const restartArgs = ["--restart", restartPolicy];
+
+    // Temp name to avoid naming conflict while old container is still running
+    const tempName = `${containerName}-updating-${Date.now()}`;
+
+    logger.info("Starting replacement container", { tempName, newImage });
+    await execFileAsync("docker", [
+      "run", "-d",
+      "--name", tempName,
+      ...restartArgs,
+      ...networkArgs,
+      ...envArgs,
+      ...bindArgs,
+      newImage,
+    ]);
+
+    // Stop and remove old container, then rename new one
+    logger.info("Stopping old container", { containerId });
+    await execFileAsync("docker", ["stop", containerId]).catch(() => {});
+    await execFileAsync("docker", ["rm", containerId]).catch(() => {});
+    await execFileAsync("docker", ["rename", tempName, containerName]).catch(() => {});
+
+    logger.info("Container recreated successfully via docker run", { containerName });
+  } catch (e) {
+    const msg = `Failed to recreate container: ${(e as Error).message}. Mount the compose file into the container or set POPDAM_COMPOSE_PATH.`;
+    logger.error("Self-update recreation failed", { error: msg });
+    await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
+  }
 }
 
 // Legacy polling loop removed.
