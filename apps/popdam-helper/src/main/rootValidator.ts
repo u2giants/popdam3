@@ -56,7 +56,7 @@ function readMarker(dir: string): MarkerFile | null {
 }
 
 /**
- * Search up to 3 levels up and 1 level down for a marker file.
+ * Search up to 4 levels up and 2 levels down for a marker file.
  * Used to auto-correct if the user selected a subfolder or parent folder.
  */
 function findMarkerNearby(startPath: string): { path: string; marker: MarkerFile } | null {
@@ -64,9 +64,9 @@ function findMarkerNearby(startPath: string): { path: string; marker: MarkerFile
   const direct = readMarker(startPath);
   if (direct) return { path: startPath, marker: direct };
 
-  // Check up to 2 levels up
+  // Check up to 4 levels up
   let current = startPath;
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 4; i++) {
     const parent = dirname(current);
     if (parent === current) break; // reached fs root
     const m = readMarker(parent);
@@ -74,19 +74,27 @@ function findMarkerNearby(startPath: string): { path: string; marker: MarkerFile
     current = parent;
   }
 
-  // Check immediate children (1 level down)
-  try {
-    const entries = readdirSync(startPath);
-    for (const entry of entries) {
-      const child = join(startPath, entry);
-      try {
-        if (statSync(child).isDirectory()) {
-          const m = readMarker(child);
-          if (m) return { path: child, marker: m };
-        }
-      } catch { /* skip */ }
-    }
-  } catch { /* skip */ }
+  // Check 2 levels down (immediate children and their children)
+  function searchDown(dir: string, depth: number): { path: string; marker: MarkerFile } | null {
+    if (depth === 0) return null;
+    try {
+      const entries = readdirSync(dir);
+      for (const entry of entries) {
+        const child = join(dir, entry);
+        try {
+          if (statSync(child).isDirectory()) {
+            const m = readMarker(child);
+            if (m) return { path: child, marker: m };
+            const deeper = searchDown(child, depth - 1);
+            if (deeper) return deeper;
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* skip */ }
+    return null;
+  }
+  const down = searchDown(startPath, 2);
+  if (down) return down;
 
   return null;
 }
