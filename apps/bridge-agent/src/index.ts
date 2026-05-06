@@ -1375,13 +1375,23 @@ async function recreateViaDockerRun(
       newImage,
     ]);
 
-    // Stop and remove old container, then rename new one
-    logger.info("Stopping old container", { containerId });
-    await execFileAsync("docker", ["stop", containerId]).catch(() => {});
+    // Suppress SIGTERM so we can complete cleanup before exiting.
+    // docker stop sends SIGTERM to us (via dumb-init), which would kill node
+    // before docker rm / rename can run. We ignore it, finish cleanup, then exit.
+    process.removeAllListeners("SIGTERM");
+    process.on("SIGTERM", () => { /* suppressed — cleanup in progress */ });
+
+    // Fire docker stop in background (it sends SIGTERM, which we now suppress)
+    exec(`docker stop --time 15 ${containerId}`, () => {});
+
+    // Wait for SIGTERM to be delivered, then complete cleanup
+    await new Promise(r => setTimeout(r, 2_000));
     await execFileAsync("docker", ["rm", containerId]).catch(() => {});
     await execFileAsync("docker", ["rename", tempName, containerName]).catch(() => {});
 
     logger.info("Container recreated successfully via docker run", { containerName });
+    // Exit cleanly — docker stop was already issued so unless-stopped won't restart
+    process.exit(0);
   } catch (e) {
     const msg = `Failed to recreate container: ${(e as Error).message}. Mount the compose file into the container or set POPDAM_COMPOSE_PATH.`;
     logger.error("Self-update recreation failed", { error: msg });

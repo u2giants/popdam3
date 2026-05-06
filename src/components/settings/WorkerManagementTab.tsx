@@ -1282,13 +1282,13 @@ export function UpdateAgentButton() {
     try {
       const triggerTime = Date.now();
       await call("trigger-agent-update", { update_action: "apply" });
-      setUpdateStatusMsg({ type: "info", text: "Update queued — bridge will pull the new image and restart (up to ~90s)…" });
+      setUpdateStatusMsg({ type: "info", text: "Update queued — bridge will pull the new image and restart (up to ~5 minutes on a slow NAS)…" });
 
       // Poll for the agent to report failure OR come back on a new version.
       // AGENT_UPDATE_STATUS is set by the agent when docker exec starts/fails.
       // We also watch for the agent to change version in list-agents.
       const startedAt = Date.now();
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 60; i++) {
         await new Promise((r) => setTimeout(r, 5_000));
 
         // Check if the agent reported a failure — but only consider statuses
@@ -1324,7 +1324,7 @@ export function UpdateAgentButton() {
       }
 
       // Timed out
-      setUpdateStatusMsg({ type: "error", text: "Timed out — agent did not restart within 2 minutes. Check that /var/run/docker.sock is mounted in your docker-compose.yml and restart: unless-stopped is set." });
+      setUpdateStatusMsg({ type: "error", text: "Timed out — agent did not report back within 5 minutes. If it comes back online shortly, the update succeeded. Otherwise check Container Manager logs." });
       toast.warning("Bridge agent hasn't restarted yet — check Container Manager or agent logs");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to trigger update";
