@@ -84,10 +84,9 @@ async function handleRegisterDevice(req: Request): Promise<Response> {
   return json({ ok: true, device_id: data.id });
 }
 
-async function handleGetConfig(req: Request): Promise<Response> {
-  const userId = await getUserId(req);
-  if (!userId) return err("Unauthorized", 401);
-
+async function handleGetConfig(_req: Request): Promise<Response> {
+  // No user auth required — root mappings are the same for all users and not sensitive.
+  // The Supabase anon key (enforced by the edge function invocation layer) is sufficient.
   const db = serviceClient();
 
   // Load root_mappings and synology config from admin_config
