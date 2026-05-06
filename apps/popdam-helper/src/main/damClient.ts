@@ -19,11 +19,20 @@ async function getHeaders(): Promise<Record<string, string>> {
 }
 
 function apiUrl(path: string): string {
-  const { damUrl } = getConfig();
-  // damUrl is e.g. https://dam.designflow.app
-  // The Supabase edge function is at /functions/v1/helper-api
-  const base = damUrl.replace(/\/$/, "");
+  const { supabaseUrl, damUrl } = getConfig();
+  // supabaseUrl is the Supabase project URL (e.g. https://xyz.supabase.co)
+  // discovered from ${damUrl}/dam-config.json on first setup.
+  const base = (supabaseUrl || damUrl).replace(/\/$/, "");
   return `${base}/functions/v1/helper-api${path}`;
+}
+
+export async function discoverSupabaseUrl(damUrl: string): Promise<string> {
+  const base = damUrl.replace(/\/$/, "");
+  const res = await fetch(`${base}/dam-config.json`);
+  if (!res.ok) throw new Error(`Could not fetch dam-config.json (${res.status})`);
+  const json = await res.json();
+  if (!json.supabase_url) throw new Error("dam-config.json missing supabase_url");
+  return json.supabase_url as string;
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {

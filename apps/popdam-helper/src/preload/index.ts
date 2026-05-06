@@ -49,6 +49,10 @@ const api = {
   hasSynologyCredentials: (): Promise<IpcResponse<boolean>> =>
     ipcRenderer.invoke("has-synology-credentials"),
 
+  // Supabase URL auto-discovery
+  discoverSupabaseUrl: (damUrl: string): Promise<IpcResponse<string>> =>
+    ipcRenderer.invoke("discover-supabase-url", damUrl),
+
   // Server-defined root mappings
   fetchServerRoots: (): Promise<IpcResponse<Array<{ root_id: string; display_name: string; server_path: string }>>> =>
     ipcRenderer.invoke("fetch-server-roots"),

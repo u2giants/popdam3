@@ -27,6 +27,7 @@ function defaultConfig(): LocalConfig {
     deviceOs: process.platform === "win32" ? "windows" : "macos",
     helperVersion: HELPER_VERSION,
     damUrl: "https://dam.designflow.app",
+    supabaseUrl: "",
     workspacePath: defaultWorkspacePath(),
     rootMappings: [],
   };

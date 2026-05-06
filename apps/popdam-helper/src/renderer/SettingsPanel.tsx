@@ -34,10 +34,20 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
     | { status: "error"; message: string };
   const [rootValidStates, setRootValidStates] = useState<Record<string, RootValidState>>({});
 
-  async function fetchRoots(): Promise<void> {
+  async function fetchRoots(cfg?: typeof config): Promise<void> {
+    const activeConfig = cfg ?? config;
+    if (!activeConfig?.damUrl) return;
     setRootsFetching(true);
     setRootsFetchError(null);
     try {
+      // Auto-discover Supabase URL if not yet configured
+      if (!activeConfig.supabaseUrl) {
+        const disc = await window.popdam.discoverSupabaseUrl(activeConfig.damUrl);
+        if (!disc.ok) {
+          setRootsFetchError(`Could not connect to ${activeConfig.damUrl} — check your DAM URL.`);
+          return;
+        }
+      }
       const res = await window.popdam.fetchServerRoots();
       if (res.ok && res.data) {
         setServerRoots(res.data);
@@ -58,7 +68,7 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
         const paths: Record<string, string> = {};
         for (const m of res.data.rootMappings) paths[m.root_id] = m.local_path;
         setLocalPaths(paths);
-        if (res.data.damUrl) fetchRoots();
+        if (res.data.damUrl) fetchRoots(res.data);
       }
     });
     window.popdam.hasSynologyCredentials().then((res) => {

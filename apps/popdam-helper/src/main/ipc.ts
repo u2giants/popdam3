@@ -14,7 +14,7 @@ import {
   openFile,
 } from "./checkoutManager";
 import { getPendingJobs } from "./uploadQueue";
-import { fetchConfig } from "./damClient";
+import { fetchConfig, discoverSupabaseUrl } from "./damClient";
 import { validateRoot } from "./rootValidator";
 import { shell } from "electron";
 import { log } from "./logger";
@@ -129,6 +129,17 @@ export function registerIpcHandlers(): void {
     try {
       const result = validateRoot(path, rootId);
       return { ok: true, data: result };
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) };
+    }
+  });
+
+  // ── Supabase URL discovery ──────────────────────────────────────────────────
+  ipcMain.handle("discover-supabase-url", async (_event, damUrl: string) => {
+    try {
+      const supabaseUrl = await discoverSupabaseUrl(damUrl);
+      saveConfig({ supabaseUrl });
+      return { ok: true, data: supabaseUrl };
     } catch (e: unknown) {
       return { ok: false, error: String(e) };
     }

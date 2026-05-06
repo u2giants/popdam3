@@ -60,6 +60,7 @@ export interface LocalConfig {
   deviceOs: "windows" | "macos";
   helperVersion: string;
   damUrl: string;
+  supabaseUrl: string;   // API base URL — auto-discovered from ${damUrl}/dam-config.json
   workspacePath: string;
   rootMappings: RootMapping[];
 }

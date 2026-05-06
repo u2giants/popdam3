@@ -24,6 +24,9 @@ body {
   height: 100vh;
 }
 
+/* Allow copying error messages and path text */
+.error-msg, .meta, input, .filename { user-select: text; }
+
 #root {
   height: 100%;
   display: flex;
