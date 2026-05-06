@@ -631,6 +631,16 @@ export async function renderPdf(filePath: string): Promise<PdfRenderResult> {
 
 // ── Main entry: full fallback chain ─────────────────────────────
 
+export async function renderNativeImage(filePath: string): Promise<RenderResult> {
+  const buffer = await sharp(filePath, { limitInputPixels: false })
+    .flatten({ background: "#ffffff" })
+    .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  const meta = await sharp(buffer).metadata();
+  return { buffer, width: meta.width || 0, height: meta.height || 0 };
+}
+
 export async function renderFile(
   uncPath: string,
   fileType: "ai" | "psd" | "pdf",

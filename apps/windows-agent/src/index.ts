@@ -15,7 +15,7 @@
 import { config } from "./config";
 import { logger, getLogTail } from "./logger";
 import * as api from "./api-client";
-import { renderFile, type PdfRenderResult, type CompatWorker } from "./renderer";
+import { renderFile, renderNativeImage, type PdfRenderResult, type CompatWorker } from "./renderer";
 import { uploadThumbnail, uploadPdfPage, uploadSgThumbnail, reinitializeS3Client } from "./uploader";
 import { runPreflight, type HealthStatus } from "./preflight";
 import { initUpdater, postRestartHealthCheck, getUpdateState, triggerImmediateUpdate, RESTART_EXIT_CODE } from "./updater";
@@ -565,8 +565,11 @@ async function processSgJob(job: api.SgRenderJob): Promise<void> {
   }
 
   try {
-    const fileType = (job.file_type === "psd") ? "psd" : (job.file_type === "pdf") ? "pdf" : "ai" as const;
-    const result = await renderFile(uncPath, fileType);
+    const ext = (job.file_type || "").toLowerCase();
+    const NATIVE_IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "tif", "tiff"]);
+    const result = NATIVE_IMAGE_EXTS.has(ext)
+      ? await renderNativeImage(uncPath)
+      : await renderFile(uncPath, ext === "psd" ? "psd" : ext === "pdf" ? "pdf" : "ai");
     const thumbnailUrl = await uploadSgThumbnail(job.style_guide_file_id, result.buffer);
     await api.completeSgRender(job.job_id, true, thumbnailUrl);
     jobsCompleted++;
