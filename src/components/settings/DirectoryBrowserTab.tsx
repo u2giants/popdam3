@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { FolderOpen, FileText, RefreshCw, ChevronRight, Loader2, Home, ArrowLeft } from "lucide-react";
+import { FolderOpen, FileText, RefreshCw, ChevronRight, Loader2, Home, ArrowLeft, Monitor } from "lucide-react";
+
+const LOCAL_HELPER = "http://localhost:47380";
 
 interface DirEntry {
   name: string;
@@ -19,6 +21,15 @@ interface BrowseResult {
   path: string;
   entries: DirEntry[];
   listed_at: string;
+}
+
+async function browseViaHelper(path: string): Promise<BrowseResult> {
+  const url = `${LOCAL_HELPER}/browse?path=${encodeURIComponent(path)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Helper returned ${resp.status}`);
+  const data = await resp.json();
+  if (!data.ok) throw new Error(data.error ?? "Helper error");
+  return { request_id: "local", path: data.path, entries: data.entries, listed_at: data.listed_at };
 }
 
 function formatBytes(bytes: number): string {
@@ -35,7 +46,16 @@ export default function DirectoryBrowserTab() {
   const [result, setResult] = useState<BrowseResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
+  const [helperAvailable, setHelperAvailable] = useState<boolean | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Detect whether the local helper is running
+  useEffect(() => {
+    fetch(`${LOCAL_HELPER}/status`, { signal: AbortSignal.timeout(2000) })
+      .then((r) => r.json())
+      .then((d) => setHelperAvailable(d.ok === true))
+      .catch(() => setHelperAvailable(false));
+  }, []);
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -44,69 +64,91 @@ export default function DirectoryBrowserTab() {
     }
   };
 
+  const browseViaAgent = useCallback(async (path: string): Promise<BrowseResult> => {
+    const { request_id } = await call("request-dir-browse", { path });
+
+    return new Promise<BrowseResult>((resolve, reject) => {
+      let done = false;
+
+      const finish = (r: BrowseResult) => {
+        if (done) return;
+        done = true;
+        stopPolling();
+        channel.unsubscribe();
+        clearTimeout(timeoutHandle);
+        resolve(r);
+      };
+
+      const fail = (msg: string) => {
+        if (done) return;
+        done = true;
+        stopPolling();
+        channel.unsubscribe();
+        reject(new Error(msg));
+      };
+
+      // Primary: Realtime — fires the instant the agent writes DIR_BROWSE_RESULT
+      const channel = supabase
+        .channel(`dir-browse-${request_id}`)
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "admin_config", filter: "key=eq.DIR_BROWSE_RESULT" },
+          (payload) => {
+            const v = (payload.new as Record<string, unknown>).value as Record<string, unknown> | null;
+            if (!v || v.request_id !== request_id) return;
+            finish({ request_id: v.request_id as string, path: v.path as string, entries: v.entries as DirEntry[], listed_at: v.listed_at as string });
+          }
+        )
+        .subscribe();
+
+      // Fallback: poll every 500ms in case Realtime misses the event
+      pollRef.current = setInterval(async () => {
+        try {
+          const resp = await call("get-dir-browse-result");
+          const r = resp?.result as BrowseResult | null;
+          if (r?.request_id === request_id) finish(r);
+        } catch { /* keep polling */ }
+      }, 500);
+
+      const timeoutHandle = setTimeout(() => fail("Timed out — agent did not respond within 60s"), 60_000);
+    });
+  }, [call]);
+
   const browse = useCallback(async (path: string) => {
     stopPolling();
     setLoading(true);
     try {
-      const { request_id } = await call("request-dir-browse", { path });
-
-      await new Promise<void>((resolve, reject) => {
-        let done = false;
-
-        const finish = (r: BrowseResult) => {
-          if (done) return;
-          done = true;
-          stopPolling();
-          channel.unsubscribe();
-          clearTimeout(timeoutHandle);
+      let r: BrowseResult;
+      if (helperAvailable) {
+        r = await browseViaHelper(path);
+      } else {
+        r = await browseViaAgent(path);
+      }
+      setResult(r);
+      setCurrentPath(r.path);
+      setPathInput(r.path);
+    } catch (e) {
+      // If helper failed mid-session, retry via agent
+      if (helperAvailable) {
+        setHelperAvailable(false);
+        try {
+          const r = await browseViaAgent(path);
           setResult(r);
           setCurrentPath(r.path);
           setPathInput(r.path);
-          resolve();
-        };
-
-        const fail = (msg: string) => {
-          if (done) return;
-          done = true;
-          stopPolling();
-          channel.unsubscribe();
-          reject(new Error(msg));
-        };
-
-        // Primary: Realtime — fires the instant the agent writes DIR_BROWSE_RESULT
-        const channel = supabase
-          .channel(`dir-browse-${request_id}`)
-          .on(
-            "postgres_changes",
-            { event: "UPDATE", schema: "public", table: "admin_config", filter: "key=eq.DIR_BROWSE_RESULT" },
-            (payload) => {
-              const v = (payload.new as Record<string, unknown>).value as Record<string, unknown> | null;
-              if (!v || v.request_id !== request_id) return;
-              finish({ request_id: v.request_id as string, path: v.path as string, entries: v.entries as DirEntry[], listed_at: v.listed_at as string });
-            }
-          )
-          .subscribe();
-
-        // Fallback: poll every 500ms in case Realtime misses the event
-        pollRef.current = setInterval(async () => {
-          try {
-            const resp = await call("get-dir-browse-result");
-            const r = resp?.result as BrowseResult | null;
-            if (r?.request_id === request_id) finish(r);
-          } catch { /* keep polling */ }
-        }, 500);
-
-        const timeoutHandle = setTimeout(() => fail("Timed out — agent did not respond within 60s"), 60_000);
-      });
-    } catch (e) {
+          return;
+        } catch { /* fall through to original error */ }
+      }
       toast.error(e instanceof Error ? e.message : "Browse failed");
     } finally {
       setLoading(false);
     }
-  }, [call]);
+  }, [helperAvailable, browseViaAgent]);
 
-  // Auto-load scan roots when the component mounts
-  useEffect(() => { browse(""); }, [browse]);
+  // Auto-load scan roots once helper detection completes
+  useEffect(() => {
+    if (helperAvailable !== null) browse("");
+  }, [helperAvailable]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBrowse = (path: string) => {
     if (currentPath && path !== currentPath) {
@@ -148,12 +190,19 @@ export default function DirectoryBrowserTab() {
         <CardTitle className="flex items-center gap-2 text-base">
           <FolderOpen className="h-4 w-4" />
           Directory Browser
+          {helperAvailable && (
+            <span className="ml-auto flex items-center gap-1 text-xs font-normal text-green-600">
+              <Monitor className="h-3 w-3" />
+              Local helper
+            </span>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Browse the directory structure as seen by the bridge agent on the server. Leave the path
-          empty to list scan roots.
+          {helperAvailable
+            ? "Browsing via local POP DAM Helper — fast local filesystem access."
+            : "Browse the directory structure as seen by the bridge agent on the server. Leave the path empty to list scan roots."}
         </p>
 
         <div className="flex gap-2">
@@ -244,7 +293,7 @@ export default function DirectoryBrowserTab() {
 
         {!result && !loading && (
           <p className="text-center text-sm text-muted-foreground py-8">
-            Click Browse to list directories via the agent.
+            Click Browse to list directories.
           </p>
         )}
       </CardContent>

@@ -18,6 +18,7 @@ import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress } from ".
 import { heartbeat } from "./damClient";
 import { getConfig, loadConfig } from "./config";
 import { log } from "./logger";
+import { startLocalServer } from "./localServer";
 import { HEARTBEAT_INTERVAL_MS, HELPER_VERSION } from "@shared/constants";
 import { sendToRenderer } from "./tray";
 
@@ -56,6 +57,7 @@ app.whenReady().then(async () => {
   loadConfig();
   registerIpcHandlers();
   createTray();
+  startLocalServer();
 
   // Init SQLite upload queue
   initQueue();
