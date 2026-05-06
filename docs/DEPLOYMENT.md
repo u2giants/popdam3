@@ -69,14 +69,20 @@ The Helper is an Electron desktop app built with electron-vite and packaged by e
 Triggered by `publish-popdam-helper.yml` on every push to `main` that touches `apps/popdam-helper/**`.
 
 Two parallel jobs:
-- **Build Mac** (`macos-latest`): produces `release/*.dmg` (x64 + arm64)
-- **Build Windows** (`windows-latest`): produces `release/*.exe` NSIS installer (x64 + ia32)
+- **Build Mac** (`macos-latest`): produces `POP-DAM-Helper-Mac-arm64.dmg` and `POP-DAM-Helper-Mac-x64.dmg`
+- **Build Windows** (`windows-latest`): produces `POP-DAM-Helper-Windows-Setup.exe` (x64 only)
 
 Both jobs run `npm run build` (electron-vite) then `electron-builder`. Code signing is disabled in CI (`CSC_IDENTITY_AUTO_DISCOVERY=false`, `SKIP_NOTARIZATION=true`). The artifacts are uploaded to the GitHub Release tagged `popdam-helper-latest`.
 
+The Windows job caches `%APPDATA%\Local\electron\Cache` to avoid re-downloading the Electron binary on every run (~150 MB). Building ia32 on a 64-bit runner causes the Electron binary download to be incomplete (`ffmpeg.dll` is missing from the ia32 archive), so only x64 is built.
+
 ### Auto-update
 
-`electron-updater` is configured to pull from the same GitHub release. The Helper checks for updates on startup via `autoUpdater.checkForUpdatesAndNotify()`. The `publish.provider` in `electron-builder.yml` points to `github`, `owner: u2giants`, `repo: popdam3`.
+**Not yet implemented.** The `publish` block in `electron-builder.yml` is present for future use. Auto-update via `electron-updater` requires a code-signed build:
+- **macOS**: Apple Developer account ($99/yr); notarization is free via `notarytool`.
+- **Windows**: OV code signing certificate (≈$60–$150/yr, e.g. Certum). Without it, SmartScreen shows a warning on every install including auto-updates. EV certificate (≈$300–$500/yr) removes the SmartScreen warning immediately.
+
+Until signing is in place, users must manually download and reinstall from GitHub Releases to update.
 
 ### Local development
 
@@ -93,7 +99,7 @@ The main process tsconfig is `tsconfig.node.json`; the renderer is `tsconfig.web
 
 1. Download the installer from GitHub Releases → `popdam-helper-latest`.
 2. Run the `.exe` (Windows) or `.dmg` (macOS).
-3. On first launch, the Helper prompts for the DAM URL and asks you to select your local workspace folder.
+3. On first launch (no root mappings configured yet), the Helper automatically opens the Settings panel. Configure the DAM URL, local workspace folder, and at least one NAS root mapping.
 4. The `popdam://` protocol is registered with the OS automatically by the installer (NSIS / macOS plist).
 
 ---

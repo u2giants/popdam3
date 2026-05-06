@@ -151,7 +151,21 @@ See `docs/DEPLOYMENT.md §5` for the full CI/build/distribution workflow.
 Quick reference:
 ```bash
 npm run build          # electron-vite production build → out/
-npm run dist:win       # build + electron-builder --win
+npm run dist:win       # build + electron-builder --win --x64
 npm run dist:mac       # build + electron-builder --mac
 npm run typecheck      # tsc --noEmit on both tsconfigs
 ```
+
+---
+
+## Auto-update (not yet implemented)
+
+The `publish` block in `electron-builder.yml` points to the GitHub release, which is the prerequisite for `electron-updater`. Auto-update is blocked on code signing:
+
+| Platform | Requirement | Cost |
+|----------|-------------|------|
+| macOS | Apple Developer account + notarization | $99/yr |
+| Windows (OV cert) | Auto-update works; SmartScreen warns on every install | ~$60–$150/yr (e.g. Certum) |
+| Windows (EV cert) | No SmartScreen warning, silent updates | ~$300–$500/yr |
+
+Until a cert is purchased, users update by downloading and reinstalling manually from GitHub Releases. To implement once signed: add `electron-updater` to `dependencies`, call `autoUpdater.checkForUpdatesAndNotify()` in `main.ts` after app ready, and set `CSC_LINK` / `CSC_KEY_PASSWORD` secrets in GitHub Actions.
