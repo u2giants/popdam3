@@ -5,7 +5,7 @@ Source design files (`.psd`, `.ai`) live on a Synology NAS. PopDAM ingests them,
 thumbnails, uploads to cloud storage, and gives the team a dark-mode web UI for browsing,
 searching, filtering, and tagging assets.
 
-## Architecture — Brain + Muscle
+## Architecture — Brain + Muscle + Helper
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -14,6 +14,7 @@ searching, filtering, and tagging assets.
 │  Web App (Lovable/React)   Edge Functions (Supabase/Deno)    │
 │  - browse, search, filter  - admin-api (admin UI ops)        │
 │  - admin config/monitoring - agent-api (agent comms)         │
+│  - checkout/checkin UI     - helper-api (desktop helper)     │
 │                            - erp-sync, export-*, etc.        │
 │                                                              │
 │  Cloud Worker (Railway/Node.js)                              │
@@ -23,19 +24,21 @@ searching, filtering, and tagging assets.
 │                                                              │
 │  Supabase: PostgreSQL + Auth + Realtime                      │
 │  DigitalOcean Spaces: thumbnail storage (S3-compatible)      │
-└───────────────────────────┬──────────────────────────────────┘
-                            │ HTTPS (poll only — NAS never receives inbound calls)
-            ┌───────────────┴───────────────┐
-            │                               │
-┌───────────▼──────────┐    ┌───────────────▼──────────────┐
-│  Bridge Agent        │    │  Windows Render Agent         │
-│  (Synology Docker)   │    │  (optional, .ai files only)   │
-│  - scans NAS         │    │  - renders via Illustrator    │
-│  - quick hash        │    │  - TIFF optimization          │
-│  - thumbnail gen     │    │  - hygiene scanning           │
-│  - uploads to Spaces │    │  - reports via agent-api      │
-│  - reports to cloud  │    └───────────────────────────────┘
-└──────────────────────┘
+└─────────┬─────────────────────────────────┬─────────────────┘
+          │ HTTPS                           │ HTTPS
+          │ (poll only — NAS               │
+          │  never receives inbound)        │
+┌─────────▼──────────┐    ┌────────────────▼──────────────────┐
+│  Bridge Agent      │    │  POP DAM Helper (Electron)        │
+│  (Synology Docker) │    │  Windows / macOS desktop app      │
+│  - scans NAS       │    │  - checkout + checkin workflow    │
+│  - quick hash      │    │  - local server :47380 for fast   │
+│  - thumbnail gen   │    │    directory browsing             │
+│  - uploads Spaces  │    │  - uploads via Synology API       │
+└────────────────────┘    └───────────────────────────────────┘
+│  Windows Render Agent (optional, .ai files only)
+│  - renders via Illustrator, TIFF optimization, hygiene scan
+└──────────────────────────────────────────────────────────────
 ```
 
 The cloud never reaches into the NAS. Agents poll outward via HTTPS.
@@ -59,7 +62,7 @@ popdam3/
 │   ├── bridge-agent/     ← Synology NAS Docker agent (TypeScript)
 │   ├── windows-agent/    ← Windows Illustrator render agent (TypeScript)
 │   ├── worker/           ← Cloud background worker (AI tagging, ERP, propagation)
-│   └── popdam-helper/    ← Helper utilities
+│   └── popdam-helper/    ← Windows/macOS Electron desktop app (checkout/checkin workflow)
 ├── src/                  ← React web app (Lovable-generated, Vite + Tailwind)
 ├── supabase/             ← Supabase migrations and Edge Functions
 └── docs/                 ← All documentation
@@ -81,6 +84,7 @@ popdam3/
 | [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md) | API contracts between Brain and Muscle |
 | [docs/PATH_UTILS.md](docs/PATH_UTILS.md) | Path canonicalization rules (prevents the most common class of bugs) |
 | [docs/WINDOWS_AGENT_RUNBOOK.md](docs/WINDOWS_AGENT_RUNBOOK.md) | Windows render agent operation |
+| [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md) | POP DAM Helper desktop app — architecture, build, install, checkout workflow |
 | [docs/AI_OPERATING_RULES.md](docs/AI_OPERATING_RULES.md) | Rules for AI tools working in this repo |
 | [docs/ADMIN_OPERATIONS.md](docs/ADMIN_OPERATIONS.md) | Admin operations and maintenance tasks |
 | [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) | Infrastructure: Supabase, Spaces, Coolify, Tailscale |

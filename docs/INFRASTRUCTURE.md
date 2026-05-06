@@ -128,7 +128,36 @@ The service role key is stored in Supabase Vault for use by any pg_cron jobs tha
 
 ## Edge Functions
 
-There are 10 Edge Functions. All are deployed to Supabase Edge Runtime (Deno).
+There are 11 Edge Functions. All are deployed to Supabase Edge Runtime (Deno).
+
+---
+
+### 0. `helper-api`
+
+**Purpose:** All communication between the POP DAM Helper (Electron desktop app) and the cloud, plus token generation from the web DAM.
+
+**Auth:** User JWT (Bearer token) for all routes. No agent key — the Helper authenticates as the logged-in user.
+
+**Routes:**
+
+| Method | Path | Caller | Purpose |
+|--------|------|--------|---------|
+| `POST` | `/register-device` | Helper | Register or update this device on first run / version change |
+| `GET` | `/config` | Helper | Fetch root mappings + Synology URL + DAM URL on startup |
+| `POST` | `/tokens` | Web DAM | Generate a short-lived `popdam://` one-time token for a checkout/checkin action |
+| `POST` | `/checkouts/start` | Helper | Validate token, check for conflicting checkout, create `asset_checkouts` row |
+| `POST` | `/checkouts/prepare-checkin` | Helper | Validate snapshot hash, return upload path instructions |
+| `POST` | `/checkouts/complete-checkin` | Helper | Record final hash + file size, set checkout to `complete`, unlock asset |
+| `POST` | `/checkouts/discard` | Helper or web | Abandon a checkout, set status to `discarded` |
+| `POST` | `/checkouts/heartbeat` | Helper | Keep checkout alive, update `last_heartbeat_at` |
+| `GET` | `/checkouts/open` | Helper | List user's active checkouts on startup (to resume watchers) |
+| `POST` | `/logs` | Helper | Store audit / error events |
+
+**Token flow:** The web DAM calls `POST /tokens` with `{ action, asset_id }`. The function writes a row to `helper_tokens` (32-char random hex, 5-minute TTL) and returns a `popdam://action?token=X&assetId=Y` URL. The OS hands this URL to the running Helper. The Helper calls `/checkouts/start` with the token — which validates it is unused and unexpired, then marks it consumed.
+
+**Race condition on start:** If two users click "Check Out" simultaneously, `/checkouts/start` handles the race via a unique partial index on `asset_checkouts(asset_id) WHERE status IN ('active', 'checkin_queued', 'uploading', 'verifying')`. The second request gets a `23505` unique violation and returns a `409 Conflict` with the existing checkout's owner info.
+
+**DB tables:** `helper_devices`, `helper_tokens`, `asset_checkouts` (added in migration `20260506004845`). See `docs/SCHEMA.md` for column details.
 
 ---
 

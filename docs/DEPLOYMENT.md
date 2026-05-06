@@ -60,7 +60,45 @@ Run this in the directory containing your `docker-compose.yml` (typically `/volu
 
 ---
 
-## 5) Secrets Handling
+## 5) POP DAM Helper — Build and Distribution
+
+The Helper is an Electron desktop app built with electron-vite and packaged by electron-builder. It is distributed via GitHub Releases, not via any app store.
+
+### CI build
+
+Triggered by `publish-popdam-helper.yml` on every push to `main` that touches `apps/popdam-helper/**`.
+
+Two parallel jobs:
+- **Build Mac** (`macos-latest`): produces `release/*.dmg` (x64 + arm64)
+- **Build Windows** (`windows-latest`): produces `release/*.exe` NSIS installer (x64 + ia32)
+
+Both jobs run `npm run build` (electron-vite) then `electron-builder`. Code signing is disabled in CI (`CSC_IDENTITY_AUTO_DISCOVERY=false`, `SKIP_NOTARIZATION=true`). The artifacts are uploaded to the GitHub Release tagged `popdam-helper-latest`.
+
+### Auto-update
+
+`electron-updater` is configured to pull from the same GitHub release. The Helper checks for updates on startup via `autoUpdater.checkForUpdatesAndNotify()`. The `publish.provider` in `electron-builder.yml` points to `github`, `owner: u2giants`, `repo: popdam3`.
+
+### Local development
+
+```bash
+cd apps/popdam-helper
+npm install
+npm run dev        # electron-vite dev server + Electron
+npm run typecheck  # tsc on both main (node) and renderer (web) tsconfigs
+```
+
+The main process tsconfig is `tsconfig.node.json`; the renderer is `tsconfig.web.json`. They are self-contained (no `extends`) to avoid CI issues with missing `@electron-toolkit/tsconfig` devDep resolution order.
+
+### Installing for end users
+
+1. Download the installer from GitHub Releases → `popdam-helper-latest`.
+2. Run the `.exe` (Windows) or `.dmg` (macOS).
+3. On first launch, the Helper prompts for the DAM URL and asks you to select your local workspace folder.
+4. The `popdam://` protocol is registered with the OS automatically by the installer (NSIS / macOS plist).
+
+---
+
+## 6) Secrets Handling
 - Never commit secrets to git.
 - `.env.example` is required for all components.
 - Raw agent keys must never be stored in DB or returned by APIs.

@@ -156,7 +156,8 @@ popdam3/
 ├── apps/
 │   ├── bridge-agent/             # Synology NAS scanner + thumbnailer
 │   ├── windows-agent/            # Windows rendering + TIFF optimization
-│   └── worker/                   # Railway-hosted background worker
+│   ├── worker/                   # Railway-hosted background worker
+│   └── popdam-helper/            # Windows/macOS Electron app (checkout/checkin workflow)
 │
 ├── packages/
 │   └── path-filters/             # Shared path filtering (junk files, excluded dirs)
@@ -534,6 +535,7 @@ The `@popdam/path-filters` package (in `packages/path-filters/`) provides shared
 | **Bridge Agent** | GitHub Actions builds Docker → GHCR → SSH update on NAS | Push to `main` (if `apps/bridge-agent/` changed) |
 | **Windows Agent** | GitHub Actions builds NSIS installer → GitHub Releases | Push to `main` (if `apps/windows-agent/` changed) |
 | **Cloud Worker** | Railway auto-deploy | Push to `main` (if `apps/worker/` changed) |
+| **POP DAM Helper** | GitHub Actions `publish-popdam-helper.yml` → DMG + NSIS → GitHub Releases | Push to `main` (if `apps/popdam-helper/` changed) |
 
 ### Bridge Agent versioning
 When making changes to `apps/bridge-agent/`, bump the version in `apps/bridge-agent/package.json` in the same commit. The Docker image tag includes this version.

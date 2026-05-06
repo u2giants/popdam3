@@ -323,3 +323,61 @@ Traefik watches this directory (`--providers.file.watch=true`) and picks up chan
 
 **What breaks if you "fix" it by raising the statement_timeout**: The authenticated role timeout protects against runaway queries from the browser. Raising it globally allows accidental or malicious long-running client queries. The service role bypass is scoped to explicit admin-api actions, not all client code.
 
+---
+
+## 28. `popdam-helper` Has a No-Op `postcss.config.js`
+
+**File**: `apps/popdam-helper/postcss.config.js`
+
+**What it looks like**: An empty PostCSS config — `export default { plugins: {} }`. Seems pointless.
+
+**Why**: Vite walks up the filesystem looking for a PostCSS config. Without this file, it finds the monorepo root's `postcss.config.js`, which loads the Tailwind plugin and its content glob. Tailwind then tries to scan the popdam-helper renderer source for class names, errors on missing content, and breaks the build. The stub prevents inheritance by shadowing the parent config.
+
+**What breaks if you delete it**: The helper renderer build fails with a Tailwind PostCSS error.
+
+---
+
+## 29. `safeStorage` Instead of `keytar` for Credential Storage
+
+**File**: `apps/popdam-helper/src/main/credentials.ts`
+
+**What it looks like**: Uses Electron's `safeStorage.encryptString()` instead of the more common `keytar` package.
+
+**Why**: `keytar` is a native module that must be compiled for the target Electron version at package-install time (node-gyp). This requires build toolchain on both the developer's machine and in CI, and the compiled binary is platform-specific. `safeStorage` is built into Electron (DPAPI on Windows, Keychain on macOS) and requires no compilation.
+
+**What breaks if you switch to `keytar`**: CI would need `libsecret-dev` (Linux), Python, and node-gyp pre-installed; the Windows build would also need MSVC build tools. It's a significant CI complexity increase for no functional benefit.
+
+---
+
+## 30. JSON File Upload Queue Instead of SQLite
+
+**File**: `apps/popdam-helper/src/main/uploadQueue.ts`
+
+**What it looks like**: Persists the upload queue as a plain JSON file (`userData/upload-queue.json`) rather than using SQLite.
+
+**Why**: Same reason as `safeStorage` above — `better-sqlite3` is a native module that requires compilation. A JSON file is entirely sufficient for the queue use case: uploads are sequential (one at a time), the queue is short-lived, and crash recovery just re-reads the file on restart. There are no concurrent readers or complex queries.
+
+**What breaks if you switch to SQLite**: Same CI/build complexity as keytar.
+
+---
+
+## 31. Local Helper Detection Uses `AbortSignal.timeout(2000)` — Not a Bug
+
+**File**: `src/components/settings/DirectoryBrowserTab.tsx`
+
+**What it looks like**: `fetch("http://localhost:47380/status", { signal: AbortSignal.timeout(2000) })` — fetching from localhost with a timeout looks paranoid.
+
+**Why**: The web app runs in a browser over HTTPS. When the Helper is not installed, the `fetch()` call hangs for ~30 seconds (the browser's default TCP connection timeout to a closed port) before failing. Without the explicit 2-second abort, the directory browser renders in a 30-second loading state on every page load for users without the Helper. The 2-second limit is aggressive enough to be imperceptible, but well above any realistic startup lag.
+
+**Why `helperAvailable` starts as `null` (not `false`)**: The initial `null` state prevents the auto-load `useEffect` from firing before the probe completes. If it started as `false`, the component would immediately trigger the slow bridge agent path and then redundantly re-trigger via the probe effect when it resolved — causing two concurrent browse requests on mount.
+
+---
+
+## 32. `popdam-helper` Local Server Port 47380 Is Fixed, Not Random
+
+**File**: `apps/popdam-helper/src/main/localServer.ts`
+
+**What it looks like**: Magic number — why 47380 specifically?
+
+**Why**: The web app needs a fixed port to probe at startup. A random port would require an OS-level mechanism to advertise it (registry key, named pipe, temp file) that a web page can't read. The port was chosen to be above the ephemeral range (49152+), far from well-known services, and unlikely to conflict with developer tooling. `EADDRINUSE` is handled gracefully — the Helper logs a warning and continues without the local server rather than crashing.
+

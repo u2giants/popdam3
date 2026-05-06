@@ -38,7 +38,25 @@ Only used when `.ai` thumbnails can’t be reliably generated on the NAS.
 - Uploads thumbnail to Spaces
 - Reports completion via agent API
 
-### D) Railway Worker (Bulk Operation Runner)
+### D) POP DAM Helper (Desktop App)
+Electron app for Windows and macOS. Enables the checkout/check-in workflow — designers lock a file, edit it locally, and check it back in without manually browsing the NAS.
+
+**How it fits into the system:**
+- Users click "Check Out & Open" in the web DAM. The web app calls `helper-api` to generate a short-lived `popdam://` token, which opens the Helper via OS protocol handler.
+- The Helper validates the token, downloads the file from the Synology NAS, copies it to a local workspace, and opens it in the native app.
+- On check-in, the Helper uploads the modified file back to Synology, records a snapshot, and updates the cloud checkout record via `helper-api`.
+- On the same machine, the directory browser at `/files` sends a `/status` probe to `http://127.0.0.1:47380` on page load. If the Helper is running, all directory listings go directly to it via `GET /browse?path=...` — no cloud roundtrip. If not, the request falls back to the bridge agent path.
+
+**Local HTTP server (port 47380):**
+The Helper listens on `127.0.0.1:47380` from app launch. Two endpoints:
+- `GET /status` — `{ ok, version, roots[] }`
+- `GET /browse?path=X` — directory listing; `path=""` returns configured roots, `path="root_id/sub/dir"` resolves via root mappings
+
+CORS is restricted to `*.designflow.app` and `localhost`. The port is fixed so the web app always knows where to probe.
+
+**Distribution:** GitHub Releases, built by `publish-popdam-helper.yml` (electron-builder). Windows: NSIS installer (x64 + ia32). macOS: DMG (x64 + arm64).
+
+### E) Railway Worker (Bulk Operation Runner)
 Persistent Node.js process running on Railway. Handles all batch operations that are too long-lived for edge functions.
 
 Responsibilities:
