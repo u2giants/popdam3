@@ -20,15 +20,19 @@ if (typeof globalThis.WebSocket === "undefined") {
   (globalThis as Record<string, unknown>).WebSocket = ws;
 }
 
+// Keys whose pending state should trigger an immediate heartbeat rather than
+// waiting up to 30s for the next scheduled poll.
+const WATCHED_KEYS = ["SCAN_REQUEST", "DIR_BROWSE_REQUEST", "PATH_TEST_REQUEST"];
+
 export function startRealtimeWatcher(
   supabaseUrl: string,
   anonKey: string,
   agentId: string,
-  onScanRequested: () => void,
+  onCommandPending: () => void,
 ): () => Promise<void> {
   if (!anonKey) {
     logger.info(
-      "SUPABASE_ANON_KEY not set — Realtime watcher disabled (heartbeat-only mode, scan triggers up to 30s delayed)",
+      "SUPABASE_ANON_KEY not set — Realtime watcher disabled (heartbeat-only mode, commands up to 30s delayed)",
     );
     return () => Promise.resolve();
   }
@@ -39,34 +43,35 @@ export function startRealtimeWatcher(
   });
 
   client
-    .channel("agent-scan-watcher")
+    .channel("agent-command-watcher")
     .on(
       "postgres_changes",
       {
         event: "*",
         schema: "public",
         table: "admin_config",
-        filter: "key=eq.SCAN_REQUEST",
+        filter: `key=in.(${WATCHED_KEYS.join(",")})`,
       },
       (payload) => {
         const row = (payload.new ?? {}) as Record<string, unknown>;
+        const key = row.key as string | undefined;
         const value = row.value as Record<string, unknown> | undefined;
         if (!value) return;
 
         const status = value.status as string | undefined;
         const targetAgentId = value.target_agent_id as string | undefined;
 
-        // Only react to a freshly-pending request that targets this agent (or all agents).
+        // Only react to freshly-pending requests that target this agent (or all agents).
         if (status !== "pending") return;
         if (targetAgentId && targetAgentId !== agentId) return;
 
-        logger.info("Realtime: SCAN_REQUEST detected — triggering immediate heartbeat");
-        onScanRequested();
+        logger.info(`Realtime: ${key} detected — triggering immediate heartbeat`);
+        onCommandPending();
       },
     )
     .subscribe((status, err) => {
       if (status === "SUBSCRIBED") {
-        logger.info("Realtime watcher active — scan requests will be delivered instantly");
+        logger.info(`Realtime watcher active — commands (${WATCHED_KEYS.join(", ")}) will be delivered instantly`);
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         logger.warn("Realtime watcher connection issue — falling back to heartbeat polling", {
           status,
