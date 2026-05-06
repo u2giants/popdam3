@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { HardDrive, FolderPlus, Trash2, Save, Gauge, Clock, Calendar as CalendarIcon, ArrowRight, FlaskConical, CheckCircle2, XCircle, Loader2, RefreshCw, Square, FolderOpen, AlertTriangle, FolderX } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1247,11 +1247,15 @@ export function ScanningTab() {
 
 // ── Update Bridge Agent ─────────────────────────────────────────────
 
+const BRIDGE_UPDATE_SESSION_KEY = "bridge_update_pending";
+
 export function UpdateAgentButton() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [isPending, setIsPending] = useState(false);
   const [updateStatusMsg, setUpdateStatusMsg] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
 
   const { data: agentsData } = useQuery({
     queryKey: ["admin-agents"],
@@ -1276,6 +1280,70 @@ export function UpdateAgentButton() {
   const latestPublishedAt = latestBuildData?.published_at as string | null;
   const updateAvailable = latestVersion && currentVersion && latestVersion !== "0.0.0" && latestVersion !== currentVersion;
 
+  // Extracted polling loop — survives navigation via sessionStorage resume.
+  const runUpdatePoll = useCallback(async (triggerTime: number, fromVersion: string | null) => {
+    const MAX_WAIT_MS = 5 * 60 * 1000;
+    try {
+      while (Date.now() - triggerTime < MAX_WAIT_MS) {
+        await new Promise((r) => setTimeout(r, 5_000));
+        if (!mountedRef.current) return; // unmounted mid-poll; sessionStorage entry stays for resume
+
+        const statusResp = await call("get-update-status").catch(() => null);
+        const updateStatus = statusResp?.status as Record<string, unknown> | null;
+        const statusReportedAt = updateStatus?.reported_at
+          ? new Date(updateStatus.reported_at as string).getTime() : 0;
+        if (statusReportedAt >= triggerTime - 5_000 && updateStatus?.status === "failed") {
+          const errMsg = (updateStatus.error as string) || "unknown error";
+          setUpdateStatusMsg({ type: "error", text: `Update failed: ${errMsg}` });
+          toast.error(`Bridge update failed: ${errMsg}`);
+          sessionStorage.removeItem(BRIDGE_UPDATE_SESSION_KEY);
+          return;
+        }
+
+        const agentsResp = await call("list-agents").catch(() => null);
+        const agents = (agentsResp?.agents || []) as Record<string, unknown>[];
+        const bridge = agents.find((a) => a.type === "bridge");
+        const newVi = bridge?.version_info as Record<string, unknown> | null;
+        const newVersion = newVi?.version as string | null;
+        if (newVersion && fromVersion && newVersion !== fromVersion) {
+          setUpdateStatusMsg({ type: "success", text: `Updated to v${newVersion}` });
+          toast.success(`Bridge agent updated to v${newVersion}`);
+          queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+          sessionStorage.removeItem(BRIDGE_UPDATE_SESSION_KEY);
+          return;
+        }
+
+        const elapsed = Math.round((Date.now() - triggerTime) / 1000);
+        setUpdateStatusMsg({ type: "info", text: `Waiting for agent to restart… (${elapsed}s)` });
+      }
+
+      setUpdateStatusMsg({ type: "error", text: "Timed out — agent did not report back within 5 minutes. If it comes back online shortly, the update succeeded. Otherwise check Container Manager logs." });
+      toast.warning("Bridge agent hasn't restarted yet — check Container Manager or agent logs");
+      sessionStorage.removeItem(BRIDGE_UPDATE_SESSION_KEY);
+    } finally {
+      if (mountedRef.current) setIsPending(false);
+    }
+  }, [call, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On mount: resume polling if an update was in flight when the user navigated away.
+  useEffect(() => {
+    const raw = sessionStorage.getItem(BRIDGE_UPDATE_SESSION_KEY);
+    if (!raw) return;
+    try {
+      const { triggeredAt, fromVersion } = JSON.parse(raw) as { triggeredAt: number; fromVersion: string | null };
+      if (Date.now() - triggeredAt >= 5 * 60 * 1000) {
+        sessionStorage.removeItem(BRIDGE_UPDATE_SESSION_KEY);
+        return;
+      }
+      const elapsed = Math.round((Date.now() - triggeredAt) / 1000);
+      setIsPending(true);
+      setUpdateStatusMsg({ type: "info", text: `Waiting for agent to restart… (${elapsed}s)` });
+      runUpdatePoll(triggeredAt, fromVersion);
+    } catch {
+      sessionStorage.removeItem(BRIDGE_UPDATE_SESSION_KEY);
+    }
+  }, [runUpdatePoll]);
+
   const handleUpdate = async () => {
     setIsPending(true);
     setUpdateStatusMsg({ type: "info", text: "Sending update request to bridge agent…" });
@@ -1283,54 +1351,13 @@ export function UpdateAgentButton() {
       const triggerTime = Date.now();
       await call("trigger-agent-update", { update_action: "apply" });
       setUpdateStatusMsg({ type: "info", text: "Update queued — bridge will pull the new image and restart (up to ~5 minutes on a slow NAS)…" });
-
-      // Poll for the agent to report failure OR come back on a new version.
-      // AGENT_UPDATE_STATUS is set by the agent when docker exec starts/fails.
-      // We also watch for the agent to change version in list-agents.
-      const startedAt = Date.now();
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => setTimeout(r, 5_000));
-
-        // Check if the agent reported a failure — but only consider statuses
-        // written AFTER we triggered this update (ignores stale previous runs).
-        const statusResp = await call("get-update-status").catch(() => null);
-        const updateStatus = statusResp?.status as Record<string, unknown> | null;
-        const statusReportedAt = updateStatus?.reported_at
-          ? new Date(updateStatus.reported_at as string).getTime()
-          : 0;
-        const isCurrentRun = statusReportedAt >= triggerTime - 5_000;
-        if (isCurrentRun && updateStatus?.status === "failed") {
-          const errMsg = (updateStatus.error as string) || "unknown error";
-          setUpdateStatusMsg({ type: "error", text: `Update failed: ${errMsg}` });
-          toast.error(`Bridge update failed: ${errMsg}`);
-          return;
-        }
-
-        // Check if version changed (new container is up)
-        const agentsResp = await call("list-agents").catch(() => null);
-        const agents = (agentsResp?.agents || []) as Record<string, unknown>[];
-        const bridge = agents.find((a) => a.type === "bridge");
-        const newVi = bridge?.version_info as Record<string, unknown> | null;
-        const newVersion = newVi?.version as string | null;
-        if (newVersion && newVersion !== currentVersion) {
-          setUpdateStatusMsg({ type: "success", text: `Updated to v${newVersion}` });
-          toast.success(`Bridge agent updated to v${newVersion}`);
-          queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
-          return;
-        }
-
-        const elapsed = Math.round((Date.now() - startedAt) / 1000);
-        setUpdateStatusMsg({ type: "info", text: `Waiting for agent to restart… (${elapsed}s)` });
-      }
-
-      // Timed out
-      setUpdateStatusMsg({ type: "error", text: "Timed out — agent did not report back within 5 minutes. If it comes back online shortly, the update succeeded. Otherwise check Container Manager logs." });
-      toast.warning("Bridge agent hasn't restarted yet — check Container Manager or agent logs");
+      sessionStorage.setItem(BRIDGE_UPDATE_SESSION_KEY, JSON.stringify({ triggeredAt: triggerTime, fromVersion: currentVersion }));
+      await runUpdatePoll(triggerTime, currentVersion);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to trigger update";
       setUpdateStatusMsg({ type: "error", text: msg });
       toast.error(msg);
-    } finally {
+      sessionStorage.removeItem(BRIDGE_UPDATE_SESSION_KEY);
       setIsPending(false);
     }
   };
