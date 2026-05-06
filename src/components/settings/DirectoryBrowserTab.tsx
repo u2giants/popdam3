@@ -49,11 +49,11 @@ export default function DirectoryBrowserTab() {
   const [helperAvailable, setHelperAvailable] = useState<boolean | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Detect whether the local helper is running
+  // Detect whether the local helper is running and has roots configured
   useEffect(() => {
     fetch(`${LOCAL_HELPER}/status`, { signal: AbortSignal.timeout(2000) })
       .then((r) => r.json())
-      .then((d) => setHelperAvailable(d.ok === true))
+      .then((d) => setHelperAvailable(d.ok === true && Array.isArray(d.roots) && d.roots.length > 0))
       .catch(() => setHelperAvailable(false));
   }, []);
 
@@ -186,7 +186,7 @@ export default function DirectoryBrowserTab() {
         <p className="text-sm text-muted-foreground">
           {helperAvailable
             ? "Browsing via local POP DAM Helper — fast local filesystem access."
-            : "Browse the directory structure as seen by the bridge agent on the server. Leave the path empty to list scan roots."}
+            : "Browse the directory structure as seen by the bridge agent on the server. Leave the path empty to list scan roots. If you have the Helper installed, configure a root path in the Helper app to enable fast local browsing."}
         </p>
 
         <div className="flex gap-2">
