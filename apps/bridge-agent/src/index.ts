@@ -108,7 +108,6 @@ let cloudGoogleAiApiKey = "";
 let cloudAiModels: AiModelDef[] = [];
 let cloudPdfExtractionConfig: { ai_vision_model_id: string } | null = null;
 
-let cloudHelperRootMappings: Array<{ root_id: string; display_name: string; server_path: string }> = [];
 
 // Auto-scan state
 let autoScanEnabled = false;
@@ -306,7 +305,6 @@ interface CloudConfig {
   windows_healthy?: boolean;
   pending_render_jobs?: number;
   style_guide_scanning?: { roots: string[] };
-  helper_root_mappings?: Array<{ root_id: string; display_name: string; server_path: string }>;
   ai?: {
     anthropic_api_key?: string;
     google_ai_api_key?: string;
@@ -427,9 +425,10 @@ function applyCloudConfig(cfg: CloudConfig) {
   }
 
   // Write .pop-root.json markers to each NAS root so Helper users can auto-validate
-  if (Array.isArray(cfg.helper_root_mappings) && cfg.helper_root_mappings.length > 0) {
-    cloudHelperRootMappings = cfg.helper_root_mappings;
-    ensureRootMarkers(cfg.helper_root_mappings).catch((e) =>
+  // Derived from scan roots — same source of truth, no separate config needed
+  if (cfg.scanning?.roots && cfg.scanning.roots.length > 0) {
+    const rootMappings = cfg.scanning.roots.map((r) => ({ root_id: r, display_name: r, server_path: r }));
+    ensureRootMarkers(rootMappings).catch((e) =>
       logger.warn("Root marker write failed (non-fatal)", { error: (e as Error).message })
     );
   }

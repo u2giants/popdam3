@@ -89,28 +89,35 @@ async function handleGetConfig(_req: Request): Promise<Response> {
   // The Supabase anon key (enforced by the edge function invocation layer) is sufficient.
   const db = serviceClient();
 
-  // Load root_mappings and synology config from admin_config
+  // Load config from admin_config — root_mappings derived from SCAN_ROOTS (same source the bridge agent uses)
   const { data: rows } = await db
     .from("admin_config")
     .select("key, value")
     .in("key", [
-      "HELPER_ROOT_MAPPINGS",
+      "SCAN_ROOTS",
       "HELPER_SYNOLOGY_URL",
       "HELPER_SYNOLOGY_PORT",
       "HELPER_DAM_URL",
     ]);
 
-  const cfg: Record<string, string> = {};
+  const cfg: Record<string, unknown> = {};
   for (const row of rows ?? []) {
     cfg[row.key] = row.value;
   }
 
+  const scanRoots: string[] = Array.isArray(cfg["SCAN_ROOTS"]) ? (cfg["SCAN_ROOTS"] as string[]) : [];
+  const rootMappings = scanRoots.map((r) => ({
+    root_id: r,
+    display_name: r,
+    server_path: r,
+  }));
+
   return json({
     ok: true,
-    dam_url: cfg["HELPER_DAM_URL"] ?? null,
-    synology_url: cfg["HELPER_SYNOLOGY_URL"] ?? null,
-    synology_port: cfg["HELPER_SYNOLOGY_PORT"] ?? "5001",
-    root_mappings: cfg["HELPER_ROOT_MAPPINGS"] ? JSON.parse(cfg["HELPER_ROOT_MAPPINGS"]) : [],
+    dam_url: (cfg["HELPER_DAM_URL"] as string) ?? null,
+    synology_url: (cfg["HELPER_SYNOLOGY_URL"] as string) ?? null,
+    synology_port: (cfg["HELPER_SYNOLOGY_PORT"] as string) ?? "5001",
+    root_mappings: rootMappings,
   });
 }
 

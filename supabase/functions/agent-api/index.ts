@@ -129,7 +129,6 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "AI_TASK_MODELS",
   "PDF_EXTRACTION_CONFIG",
   "PDF_TEXT_SAMPLE_REQUEST",
-  "HELPER_ROOT_MAPPINGS",
 ];
 
 // Config keys needed only by Windows render agents
@@ -596,7 +595,7 @@ async function handleHeartbeat(
       style_guide_scanning: {
         roots: (configMap.STYLE_GUIDE_SCAN_ROOTS as string[]) || [],
       },
-      helper_root_mappings: (configMap.HELPER_ROOT_MAPPINGS as Array<{ root_id: string; display_name: string; server_path: string }>) || [],
+      helper_root_mappings: ((configMap.SCAN_ROOTS as string[]) || []).map((r: string) => ({ root_id: r, display_name: r, server_path: r })),
       ai: {
         anthropic_api_key: (configMap.ANTHROPIC_API_KEY as string) || "",
         google_ai_api_key: (configMap.GOOGLE_AI_API_KEY as string) || "",
