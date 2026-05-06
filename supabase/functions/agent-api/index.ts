@@ -205,6 +205,10 @@ async function handleHeartbeat(
         updating: versionInfo.updating ?? false,
         update_error: versionInfo.update_error ?? null,
         last_reported_at: new Date().toISOString(),
+        // Only update deployed_at when the version actually changes
+        deployed_at: (versionInfo.version !== (metadata.version_info as Record<string, unknown>)?.version)
+          ? new Date().toISOString()
+          : ((metadata.version_info as Record<string, unknown>)?.deployed_at ?? new Date().toISOString()),
       }
       : metadata.version_info,
     // Structured health payload from Windows agent preflight

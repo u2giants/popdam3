@@ -1275,7 +1275,7 @@ export function UpdateAgentButton() {
   const bridgeAgent = bridgeAgents[0] as Record<string, unknown> | undefined;
   const vi = bridgeAgent?.version_info as Record<string, unknown> | null;
   const currentVersion = vi?.version as string | null;
-  const deployedAt = vi?.last_reported_at as string | null;
+  const deployedAt = (vi?.deployed_at ?? vi?.last_reported_at) as string | null;
   const latestVersion = latestBuildData?.latest_version as string | null;
   const latestPublishedAt = latestBuildData?.published_at as string | null;
   const updateAvailable = latestVersion && currentVersion && latestVersion !== "0.0.0" && latestVersion !== currentVersion;
