@@ -42,16 +42,13 @@ export function startRealtimeWatcher(
     auth: { persistSession: false },
   });
 
-  client
-    .channel("agent-command-watcher")
-    .on(
+  // Use separate eq filters per key — the `in` operator is less reliable in
+  // Postgres Changes than chained eq subscriptions on the same channel.
+  let channel = client.channel("agent-command-watcher");
+  for (const watchedKey of WATCHED_KEYS) {
+    channel = channel.on(
       "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "admin_config",
-        filter: `key=in.(${WATCHED_KEYS.join(",")})`,
-      },
+      { event: "*", schema: "public", table: "admin_config", filter: `key=eq.${watchedKey}` },
       (payload) => {
         const row = (payload.new ?? {}) as Record<string, unknown>;
         const key = row.key as string | undefined;
@@ -68,8 +65,9 @@ export function startRealtimeWatcher(
         logger.info(`Realtime: ${key} detected — triggering immediate heartbeat`);
         onCommandPending();
       },
-    )
-    .subscribe((status, err) => {
+    );
+  }
+  channel.subscribe((status, err) => {
       if (status === "SUBSCRIBED") {
         logger.info(`Realtime watcher active — commands (${WATCHED_KEYS.join(", ")}) will be delivered instantly`);
       } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {

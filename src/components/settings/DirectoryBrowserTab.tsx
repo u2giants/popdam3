@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,7 +96,7 @@ export default function DirectoryBrowserTab() {
           } catch { /* keep polling */ }
         }, 500);
 
-        const timeoutHandle = setTimeout(() => fail("Timed out — agent did not respond within 30s"), 30_000);
+        const timeoutHandle = setTimeout(() => fail("Timed out — agent did not respond within 60s"), 60_000);
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Browse failed");
@@ -104,6 +104,9 @@ export default function DirectoryBrowserTab() {
       setLoading(false);
     }
   }, [call]);
+
+  // Auto-load scan roots when the component mounts
+  useEffect(() => { browse(""); }, [browse]);
 
   const handleBrowse = (path: string) => {
     if (currentPath && path !== currentPath) {
