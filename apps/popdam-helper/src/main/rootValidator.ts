@@ -127,54 +127,10 @@ export function validateRoot(chosenPath: string, expectedRootId: string): Valida
   const nearby = findMarkerNearby(chosenPath);
 
   if (!nearby) {
-    // No marker found anywhere. Fall back to folder-name matching:
-    // if the chosen folder's name matches the expected root_id, accept it.
-    // Markers require the bridge agent to have NAS write access; this fallback
-    // keeps things working until the Docker volume is mounted read-write.
-    const folderName = chosenPath.replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? "";
-    if (folderName === expectedRootId) {
-      return { ok: true, resolvedPath: chosenPath };
-    }
-
-    // Check if any ancestor or child has a matching name (level correction without marker)
-    let cur = chosenPath;
-    for (let i = 0; i < 4; i++) {
-      const parent = dirname(cur);
-      if (parent === cur) break;
-      const parentName = parent.replace(/[/\\]+$/, "").split(/[/\\]/).pop() ?? "";
-      if (parentName === expectedRootId) {
-        return { ok: false, reason: "too_deep", suggestedPath: parent, message: `You selected a subfolder. The correct root appears to be:\n${parent}` };
-      }
-      cur = parent;
-    }
-    function findMatchingChild(dir: string, depth: number): string | null {
-      if (depth === 0) return null;
-      try {
-        for (const entry of readdirSync(dir)) {
-          if (entry === expectedRootId) {
-            const child = join(dir, entry);
-            try { if (statSync(child).isDirectory()) return child; } catch { /* skip */ }
-          }
-          const child = join(dir, entry);
-          try {
-            if (statSync(child).isDirectory()) {
-              const found = findMatchingChild(child, depth - 1);
-              if (found) return found;
-            }
-          } catch { /* skip */ }
-        }
-      } catch { /* skip */ }
-      return null;
-    }
-    const matchingChild = findMatchingChild(chosenPath, 2);
-    if (matchingChild) {
-      return { ok: false, reason: "too_shallow", suggestedPath: matchingChild, message: `You selected a parent folder. The correct root appears to be:\n${matchingChild}` };
-    }
-
     return {
       ok: false,
       reason: "no_marker",
-      message: `Could not find a folder named "${expectedRootId}" at or near "${chosenPath}". Make sure you're browsing to the right location.`,
+      message: `No POP root marker found in or near "${chosenPath}". Contact your IT admin to set up the root.`,
     };
   }
 
