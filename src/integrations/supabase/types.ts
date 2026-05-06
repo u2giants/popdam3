@@ -3912,6 +3912,10 @@ export type Database = {
         Returns: number
       }
       resolve_sku_files_used: { Args: never; Returns: number }
+      retry_sg_render_errors: {
+        Args: { p_file_ids?: string[] }
+        Returns: number
+      }
       run_full_rebuild_style_groups: {
         Args: never
         Returns: {
