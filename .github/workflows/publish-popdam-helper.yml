@@ -27,23 +27,33 @@ jobs:
         with:
           node-version: "20"
 
+      # Cache the Electron binary so it isn't re-downloaded on every run.
+      # A missing or partially downloaded Electron distribution is the most
+      # common cause of "ffmpeg.dll was not found" on Windows.
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-win-${{ hashFiles('apps/popdam-helper/package-lock.json') }}
+          restore-keys: electron-win-
+
       - name: Install dependencies
         run: npm install
 
       - name: Build TypeScript + Vite
         run: npm run build
 
-      - name: Package with electron-builder
+      - name: Package with electron-builder (x64 only)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip code signing for now — add certs later
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --x64 --publish never
 
       - name: List release artifacts
         shell: powershell
-        run: |
-          Get-ChildItem release -Recurse -Include "*.exe","*.zip" | Select FullName
+        run: Get-ChildItem release -Recurse | Select-Object FullName, Length
 
       - name: Upload Windows installer
         uses: softprops/action-gh-release@v2
@@ -54,13 +64,12 @@ jobs:
             Desktop helper app for Windows and macOS.
             Enables Check Out & Open / Check In workflow from the POP DAM web app.
 
-            **Windows**: download and run the `.exe` installer.
+            **Windows**: download and run `POP.DAM.Helper.Setup.*.exe` (x64).
             **macOS**: download the `.dmg`, open it, drag to Applications.
 
-            Requires the POP DAM Helper to be set up once (Settings → root folder mapping).
+            Requires one-time setup after install (Settings → workspace folder + root mappings).
           files: |
-            apps/popdam-helper/release/**/*.exe
-            apps/popdam-helper/release/**/*.zip
+            apps/popdam-helper/release/*.exe
           prerelease: false
 
   # ── macOS — Electron Builder ──────────────────────────────────────
@@ -78,6 +87,15 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-mac-${{ hashFiles('apps/popdam-helper/package-lock.json') }}
+          restore-keys: electron-mac-
+
       - name: Install dependencies
         run: npm install
 
@@ -87,13 +105,12 @@ jobs:
       - name: Package with electron-builder
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip code signing for now — add Apple Developer cert later
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           SKIP_NOTARIZATION: "true"
         run: npx electron-builder --mac --publish never
 
       - name: List release artifacts
-        run: find release -name "*.dmg" -o -name "*.zip" | head -20
+        run: find release -type f | head -20
 
       - name: Upload macOS installer
         uses: softprops/action-gh-release@v2
@@ -101,6 +118,5 @@ jobs:
           tag_name: popdam-helper-latest
           name: POP DAM Helper (latest)
           files: |
-            apps/popdam-helper/release/**/*.dmg
-            apps/popdam-helper/release/**/*.zip
+            apps/popdam-helper/release/*.dmg
           prerelease: false

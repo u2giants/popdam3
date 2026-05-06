@@ -23,7 +23,6 @@ win:
     - target: nsis
       arch:
         - x64
-        - ia32
 
 nsis:
   shortcutName: POP DAM Helper
