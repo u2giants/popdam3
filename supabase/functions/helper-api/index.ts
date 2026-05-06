@@ -106,11 +106,10 @@ async function handleGetConfig(_req: Request): Promise<Response> {
   }
 
   const scanRoots: string[] = Array.isArray(cfg["SCAN_ROOTS"]) ? (cfg["SCAN_ROOTS"] as string[]) : [];
-  const rootMappings = scanRoots.map((r) => ({
-    root_id: r,
-    display_name: r,
-    server_path: r,
-  }));
+  const rootMappings = scanRoots.map((r) => {
+    const name = r.replace(/\/+$/, "").split("/").pop() || r;
+    return { root_id: name, display_name: name, server_path: r };
+  });
 
   return json({
     ok: true,

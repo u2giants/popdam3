@@ -595,7 +595,7 @@ async function handleHeartbeat(
       style_guide_scanning: {
         roots: (configMap.STYLE_GUIDE_SCAN_ROOTS as string[]) || [],
       },
-      helper_root_mappings: ((configMap.SCAN_ROOTS as string[]) || []).map((r: string) => ({ root_id: r, display_name: r, server_path: r })),
+      helper_root_mappings: ((configMap.SCAN_ROOTS as string[]) || []).map((r: string) => { const name = r.replace(/\/+$/, "").split("/").pop() || r; return { root_id: name, display_name: name, server_path: r }; }),
       ai: {
         anthropic_api_key: (configMap.ANTHROPIC_API_KEY as string) || "",
         google_ai_api_key: (configMap.GOOGLE_AI_API_KEY as string) || "",

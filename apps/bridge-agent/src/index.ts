@@ -319,8 +319,10 @@ async function ensureRootMarkers(
   const mountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
   for (const rm of rootMappings) {
     if (!rm.root_id || !rm.server_path) continue;
-    const serverPath = rm.server_path.replace(/^\/+/, "");
-    const rootPath = `${mountRoot}/${serverPath}`;
+    // server_path may be absolute (e.g. /mnt/nas/mac/Decor) or relative (e.g. Decor)
+    const rootPath = rm.server_path.startsWith("/")
+      ? rm.server_path.replace(/\/+$/, "")
+      : `${mountRoot}/${rm.server_path.replace(/^\/+/, "")}`;
     const markerPath = `${rootPath}/.pop-root.json`;
 
     try {
@@ -427,7 +429,10 @@ function applyCloudConfig(cfg: CloudConfig) {
   // Write .pop-root.json markers to each NAS root so Helper users can auto-validate
   // Derived from scan roots — same source of truth, no separate config needed
   if (cfg.scanning?.roots && cfg.scanning.roots.length > 0) {
-    const rootMappings = cfg.scanning.roots.map((r) => ({ root_id: r, display_name: r, server_path: r }));
+    const rootMappings = cfg.scanning.roots.map((r) => {
+      const name = r.replace(/\/+$/, "").split("/").pop() || r;
+      return { root_id: name, display_name: name, server_path: r };
+    });
     ensureRootMarkers(rootMappings).catch((e) =>
       logger.warn("Root marker write failed (non-fatal)", { error: (e as Error).message })
     );
