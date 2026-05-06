@@ -60,6 +60,7 @@ jobs:
         with:
           tag_name: popdam-helper-latest
           name: POP DAM Helper (latest)
+          make_latest: true
           body: |
             ## Downloads
 
@@ -122,6 +123,7 @@ jobs:
         with:
           tag_name: popdam-helper-latest
           name: POP DAM Helper (latest)
+          make_latest: true
           files: |
             apps/popdam-helper/release/POP-DAM-Helper-Mac-arm64.dmg
             apps/popdam-helper/release/POP-DAM-Helper-Mac-x64.dmg

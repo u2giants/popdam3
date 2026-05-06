@@ -1,4 +1,4 @@
-import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen, Terminal, Apple } from "lucide-react";
+import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen, Laptop } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,8 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
   );
 }
 
+const HELPER_BASE = "https://github.com/u2giants/popdam3/releases/download/popdam-helper-latest";
+
 export default function DownloadsPage() {
   const { isAdmin } = useIsAdmin();
   const download = useBlobDownload();
@@ -64,8 +66,63 @@ export default function DownloadsPage() {
       <p className="text-muted-foreground text-sm">
         {isAdmin
           ? "PopDAM uses agents to scan your NAS and render thumbnails. Download and deploy them below."
-          : "Install the protocol handler to enable \"Open Containing Folder\" from the asset browser."}
+          : "Install the DAM Helper app to enable \"Open Containing Folder\" from the asset browser."}
       </p>
+
+      {/* DAM Helper — visible to all users */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Laptop className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">DAM Helper App</CardTitle>
+          </div>
+          <CardDescription>
+            Install on your workstation to enable the <code>popdam://</code> protocol handler.
+            This lets "Open Containing Folder" buttons open asset folders directly in Explorer or Finder.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
+              <Badge variant="secondary" className="text-[10px]">Windows 10 / 11</Badge>
+              <p className="text-xs text-muted-foreground">Run the installer, then launch from the Start Menu.</p>
+              <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
+                <a href={`${HELPER_BASE}/POP-DAM-Helper-Windows-Setup.exe`} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-3 w-3" />
+                  Download (.exe)
+                </a>
+              </Button>
+            </div>
+
+            <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
+              <Badge variant="secondary" className="text-[10px]">macOS — Apple Silicon</Badge>
+              <p className="text-xs text-muted-foreground">M1 / M2 / M3. Open the DMG, drag to Applications.</p>
+              <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
+                <a href={`${HELPER_BASE}/POP-DAM-Helper-Mac-arm64.dmg`} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-3 w-3" />
+                  Download (.dmg)
+                </a>
+              </Button>
+            </div>
+
+            <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
+              <Badge variant="secondary" className="text-[10px]">macOS — Intel</Badge>
+              <p className="text-xs text-muted-foreground">Older Intel Mac. Open the DMG, drag to Applications.</p>
+              <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
+                <a href={`${HELPER_BASE}/POP-DAM-Helper-Mac-x64.dmg`} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-3 w-3" />
+                  Download (.dmg)
+                </a>
+              </Button>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            After installing, open the app once to complete setup. Then go to{" "}
+            <strong>Settings → Path Tester</strong> to choose your preferred path mode.
+          </p>
+        </CardContent>
+      </Card>
 
       {isAdmin && (
       <div className="grid gap-6 md:grid-cols-2">
@@ -160,74 +217,19 @@ export default function DownloadsPage() {
       </div>
       )}
 
-      {/* Protocol Handler Card — visible to all users */}
-      <Card className="mt-6">
+      {/* Manual Protocol Handler — visible to all users */}
+      <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <FolderOpen className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">"Open Folder" Protocol Handler</CardTitle>
+            <CardTitle className="text-lg">Manual Protocol Handler Setup</CardTitle>
           </div>
           <CardDescription>
-            Install the <code>popdam://</code> protocol handler on your workstation to enable "Open Containing Folder"
-            buttons in the asset browser. Clicking the button opens the asset's folder directly in Explorer or Finder.
+            Alternative to the DAM Helper app. Manually register the <code>popdam://</code> protocol
+            using PowerShell or a shell script — no app install required.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Pre-built Binaries (Recommended) */}
-          <div>
-            <h4 className="text-sm font-semibold text-foreground mb-3">Recommended: Pre-Built Binaries</h4>
-            <div className="grid gap-3 md:grid-cols-2">
-              {/* Windows Pre-Built */}
-              <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[10px]">Windows</Badge>
-                </div>
-                <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
-                  <li>Download and unzip</li>
-                  <li>Run <span className="font-mono text-[10px]">Install.bat</span> once</li>
-                  <li>Done — works in any browser</li>
-                </ol>
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 w-full" asChild>
-                  <a
-                    href="https://github.com/u2giants/popdam3/releases/download/popdam-helper-latest/popdam-helper-windows-x64.zip"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Download className="h-3 w-3" />
-                    Download for Windows
-                  </a>
-                </Button>
-              </div>
-
-              {/* Mac Pre-Built */}
-              <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-[10px]">Mac</Badge>
-                </div>
-                <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
-                  <li>Download and unzip</li>
-                  <li>Move <span className="font-mono text-[10px]">PopDAM Helper.app</span> to Applications</li>
-                  <li>Open it once to register</li>
-                </ol>
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 w-full" asChild>
-                  <a
-                    href="https://github.com/u2giants/popdam3/releases/download/popdam-helper-latest/popdam-helper-mac.zip"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Download className="h-3 w-3" />
-                    Download for Mac
-                  </a>
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-border pt-4">
-            <h4 className="text-sm font-semibold text-foreground mb-3">Alternative: Manual Setup</h4>
-            <p className="text-xs text-muted-foreground mb-3">If you prefer not to install the pre-built app, you can manually register the protocol using PowerShell or shell scripts.</p>
-          </div>
-
+        <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             {/* Windows */}
             <div className="border border-border rounded-md p-4 space-y-3">
