@@ -1,11 +1,22 @@
-import { app } from "electron";
 import { join } from "path";
 import { mkdirSync, appendFileSync } from "fs";
+import { homedir } from "os";
 import { LOGS_SUBDIR } from "@shared/constants";
 
-const logDir = join(app.getPath("userData"), LOGS_SUBDIR);
-mkdirSync(logDir, { recursive: true });
+function resolveLogDir(): string {
+  // Use APPDATA on Windows, ~/Library/Application Support on Mac, ~/.local on Linux
+  const appName = "POP DAM Helper";
+  if (process.platform === "win32") {
+    return join(process.env.APPDATA ?? join(homedir(), "AppData", "Roaming"), appName, LOGS_SUBDIR);
+  }
+  if (process.platform === "darwin") {
+    return join(homedir(), "Library", "Application Support", appName, LOGS_SUBDIR);
+  }
+  return join(homedir(), ".config", appName, LOGS_SUBDIR);
+}
 
+const logDir = resolveLogDir();
+mkdirSync(logDir, { recursive: true });
 const logFile = join(logDir, `helper-${new Date().toISOString().slice(0, 10)}.log`);
 
 type Level = "info" | "warn" | "error" | "debug";

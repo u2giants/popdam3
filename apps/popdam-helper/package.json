@@ -17,15 +17,12 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
-    "better-sqlite3": "^9.6.0",
     "chokidar": "^3.6.0",
-    "electron-updater": "^6.3.9",
-    "keytar": "^7.9.0"
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

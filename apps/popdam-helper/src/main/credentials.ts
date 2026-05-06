@@ -1,59 +1,77 @@
 /**
- * OS credential storage — uses Windows Credential Manager on Windows,
- * macOS Keychain on Mac. Never stores tokens in plain JSON config.
+ * OS credential storage using Electron's built-in safeStorage API.
+ *
+ * safeStorage uses the OS credential store under the hood:
+ *  - Windows: DPAPI (Data Protection API)
+ *  - macOS: Keychain
+ *  - Linux: Secret Service / fallback encryption
+ *
+ * Encrypted blobs are stored in a JSON file in userData.
+ * No native module compilation needed — safeStorage is part of Electron.
  */
 
+import { safeStorage, app } from "electron";
+import { join } from "path";
+import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { log } from "./logger";
 
-const SERVICE = "POP DAM Helper";
+const STORE_PATH = join(app.getPath("userData"), "credentials.enc.json");
 
-// Lazy-load keytar so the app doesn't crash if native module is missing during dev
-let _keytar: typeof import("keytar") | null = null;
-async function keytar() {
-  if (!_keytar) {
-    try {
-      _keytar = await import("keytar");
-    } catch (e) {
-      log.error("keytar not available:", e);
-    }
+function loadStore(): Record<string, string> {
+  try {
+    const raw = readFileSync(STORE_PATH, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
   }
-  return _keytar;
 }
 
-export async function storeToken(account: string, token: string): Promise<void> {
-  const kt = await keytar();
-  if (!kt) return;
-  await kt.setPassword(SERVICE, account, token);
+function saveStore(store: Record<string, string>): void {
+  mkdirSync(app.getPath("userData"), { recursive: true });
+  writeFileSync(STORE_PATH, JSON.stringify(store), "utf-8");
 }
 
-export async function loadToken(account: string): Promise<string | null> {
-  const kt = await keytar();
-  if (!kt) return null;
-  return kt.getPassword(SERVICE, account);
+export function storeToken(account: string, token: string): void {
+  if (!safeStorage.isEncryptionAvailable()) {
+    log.warn("safeStorage encryption not available — skipping credential store");
+    return;
+  }
+  const store = loadStore();
+  store[account] = safeStorage.encryptString(token).toString("base64");
+  saveStore(store);
 }
 
-export async function deleteToken(account: string): Promise<void> {
-  const kt = await keytar();
-  if (!kt) return;
-  await kt.deletePassword(SERVICE, account);
+export function loadToken(account: string): string | null {
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  const store = loadStore();
+  const enc = store[account];
+  if (!enc) return null;
+  try {
+    return safeStorage.decryptString(Buffer.from(enc, "base64"));
+  } catch {
+    return null;
+  }
 }
 
-// Convenience wrappers for Supabase session
-export async function storeSession(accessToken: string, refreshToken: string): Promise<void> {
-  await storeToken("access_token", accessToken);
-  await storeToken("refresh_token", refreshToken);
+export function deleteToken(account: string): void {
+  const store = loadStore();
+  delete store[account];
+  saveStore(store);
 }
 
-export async function loadSession(): Promise<{ accessToken: string; refreshToken: string } | null> {
-  const [accessToken, refreshToken] = await Promise.all([
-    loadToken("access_token"),
-    loadToken("refresh_token"),
-  ]);
+export function storeSession(accessToken: string, refreshToken: string): void {
+  storeToken("access_token", accessToken);
+  storeToken("refresh_token", refreshToken);
+}
+
+export function loadSession(): { accessToken: string; refreshToken: string } | null {
+  const accessToken = loadToken("access_token");
+  const refreshToken = loadToken("refresh_token");
   if (!accessToken || !refreshToken) return null;
   return { accessToken, refreshToken };
 }
 
-export async function clearSession(): Promise<void> {
-  await deleteToken("access_token");
-  await deleteToken("refresh_token");
+export function clearSession(): void {
+  deleteToken("access_token");
+  deleteToken("refresh_token");
 }
