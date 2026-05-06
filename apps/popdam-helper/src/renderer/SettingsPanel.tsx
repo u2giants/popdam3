@@ -73,13 +73,12 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
     try {
       // Build rootMappings: use server roots when available (authoritative list),
       // otherwise keep existing saved mappings (e.g. if server was unreachable).
-      let rootMappings: RootMapping[];
       const roots = serverRoots ?? config.rootMappings.map(m => ({
         root_id: m.root_id,
         display_name: m.display_name,
         server_path: "",
       }));
-      rootMappings = roots.map((r) => {
+      const rootMappings = roots.map((r) => {
         const newPath = localPaths[r.root_id] ?? "";
         const prev = config.rootMappings.find(m => m.root_id === r.root_id);
         const pathChanged = prev?.local_path !== newPath;
