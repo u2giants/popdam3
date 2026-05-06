@@ -8,8 +8,8 @@
  * Base URL: https://<nas>:<port>/webapi/
  */
 
-import { createReadStream, statSync } from "fs";
-import { basename } from "path";
+import { createReadStream, statSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { basename, dirname } from "path";
 import { log } from "./logger";
 import { loadToken, storeToken, deleteToken } from "./credentials";
 
@@ -124,7 +124,6 @@ async function uploadChunked(
 
   // Read file into buffer (for files up to ~500MB this is fine;
   // for very large files a streaming approach would be needed)
-  const { readFileSync } = await import("fs");
   const fileBuffer = readFileSync(localPath);
   const blob = new Blob([fileBuffer]);
   formData.append("file", blob, destFilename);
@@ -196,8 +195,6 @@ export async function downloadFile(
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Synology download failed: ${res.status}`);
 
-  const { writeFileSync, mkdirSync } = await import("fs");
-  const { dirname } = await import("path");
   mkdirSync(dirname(localDestPath), { recursive: true });
 
   const buf = Buffer.from(await res.arrayBuffer());

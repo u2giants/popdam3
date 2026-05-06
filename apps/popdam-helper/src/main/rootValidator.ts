@@ -9,7 +9,7 @@
  */
 
 import { join, dirname, sep } from "path";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "fs";
 import {
   FORBIDDEN_ROOT_PREFIXES_WIN,
   FORBIDDEN_ROOT_PREFIXES_MAC,
@@ -76,7 +76,6 @@ function findMarkerNearby(startPath: string): { path: string; marker: MarkerFile
 
   // Check immediate children (1 level down)
   try {
-    const { readdirSync, statSync } = require("fs");
     const entries = readdirSync(startPath);
     for (const entry of entries) {
       const child = join(startPath, entry);
@@ -157,7 +156,6 @@ export function validateRoot(chosenPath: string, expectedRootId: string): Valida
 }
 
 export function writeMarker(rootPath: string, rootId: string, company = "POP Creations"): void {
-  const { writeFileSync } = require("fs");
   const marker: MarkerFile = {
     type: "pop-dam-root",
     root_id: rootId,

@@ -4,7 +4,7 @@
  */
 
 import { app } from "electron";
-import { join } from "path";
+import { join, dirname } from "path";
 import { existsSync } from "fs";
 import Database from "better-sqlite3";
 import { log } from "./logger";
@@ -132,7 +132,6 @@ async function processJob(row: Record<string, unknown>): Promise<void> {
     const tempName = filename + (row.temp_suffix as string);
 
     // Extract the directory part of the relative path
-    const { dirname } = await import("path");
     const remoteDir = dirname(relativePath);
     const shareName = relativePath.split("/")[0] ?? relativePath.split("\\")[0];
 

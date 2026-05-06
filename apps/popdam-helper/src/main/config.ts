@@ -6,7 +6,7 @@
 import { app } from "electron";
 import { join } from "path";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
-import { homedir } from "os";
+import { homedir, hostname } from "os";
 import { LocalConfig } from "@shared/types";
 import { HELPER_VERSION } from "@shared/constants";
 import { log } from "./logger";
@@ -23,7 +23,7 @@ function defaultWorkspacePath(): string {
 function defaultConfig(): LocalConfig {
   return {
     deviceId: null,
-    deviceName: require("os").hostname(),
+    deviceName: hostname(),
     deviceOs: process.platform === "win32" ? "windows" : "macos",
     helperVersion: HELPER_VERSION,
     damUrl: "https://dam.designflow.app",

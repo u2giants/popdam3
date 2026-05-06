@@ -3,10 +3,11 @@
  * Creates the icon and manages the popup window.
  */
 
-import { app, Tray, BrowserWindow, nativeImage, screen, Menu } from "electron";
+import { app, Tray, BrowserWindow, nativeImage, screen, Menu, shell } from "electron";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { getActiveCheckouts } from "./checkoutManager";
+import { getConfig } from "./config";
 import { log } from "./logger";
 
 let tray: Tray | null = null;
@@ -31,7 +32,7 @@ export function createTray(): void {
 
 function showContextMenu(): void {
   const menu = Menu.buildFromTemplate([
-    { label: "Open DAM", click: () => require("./ipc") },
+    { label: "Open DAM", click: () => shell.openExternal(getConfig().damUrl) },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() },
   ]);
