@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,29 +50,53 @@ export default function DirectoryBrowserTab() {
     try {
       const { request_id } = await call("request-dir-browse", { path });
 
-      let attempts = 0;
-      const MAX_ATTEMPTS = 20;
-
       await new Promise<void>((resolve, reject) => {
+        let done = false;
+
+        const finish = (r: BrowseResult) => {
+          if (done) return;
+          done = true;
+          stopPolling();
+          channel.unsubscribe();
+          clearTimeout(timeoutHandle);
+          setResult(r);
+          setCurrentPath(r.path);
+          setPathInput(r.path);
+          resolve();
+        };
+
+        const fail = (msg: string) => {
+          if (done) return;
+          done = true;
+          stopPolling();
+          channel.unsubscribe();
+          reject(new Error(msg));
+        };
+
+        // Primary: Realtime — fires the instant the agent writes DIR_BROWSE_RESULT
+        const channel = supabase
+          .channel(`dir-browse-${request_id}`)
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "admin_config", filter: "key=eq.DIR_BROWSE_RESULT" },
+            (payload) => {
+              const v = (payload.new as Record<string, unknown>).value as Record<string, unknown> | null;
+              if (!v || v.request_id !== request_id) return;
+              finish({ request_id: v.request_id as string, path: v.path as string, entries: v.entries as DirEntry[], listed_at: v.listed_at as string });
+            }
+          )
+          .subscribe();
+
+        // Fallback: poll every 500ms in case Realtime misses the event
         pollRef.current = setInterval(async () => {
-          attempts++;
-          if (attempts > MAX_ATTEMPTS) {
-            stopPolling();
-            reject(new Error("Timed out waiting for agent response"));
-            return;
-          }
           try {
             const resp = await call("get-dir-browse-result");
             const r = resp?.result as BrowseResult | null;
-            if (r && r.request_id === request_id) {
-              stopPolling();
-              setResult(r);
-              setCurrentPath(r.path);
-              setPathInput(r.path);
-              resolve();
-            }
+            if (r?.request_id === request_id) finish(r);
           } catch { /* keep polling */ }
-        }, 1500);
+        }, 500);
+
+        const timeoutHandle = setTimeout(() => fail("Timed out — agent did not respond within 30s"), 30_000);
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Browse failed");
