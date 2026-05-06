@@ -1,19 +1,40 @@
 {
   "name": "popdam-helper",
   "version": "1.0.0",
-  "description": "PopDAM local protocol handler — opens NAS folders in Explorer/Finder from the web app",
-  "main": "dist/index.js",
+  "description": "POP DAM Helper — desktop app for local file checkout, editing, and check-in",
+  "main": "dist/main/main.js",
+  "author": "POP Creations",
+  "private": true,
   "scripts": {
-    "build": "tsc",
-    "pkg": "pkg dist/index.js --target node18-win-x64 --output popdam-helper.exe"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:all": "npm run build && electron-builder --win --mac",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "better-sqlite3": "^9.6.0",
+    "chokidar": "^3.6.0",
+    "electron-updater": "^6.3.9",
+    "keytar": "^7.9.0"
   },
   "devDependencies": {
-    "@types/node": "^18.0.0",
-    "pkg": "^5.8.1",
-    "typescript": "^5.0.0"
-  },
-  "pkg": {
-    "assets": [],
-    "targets": ["node18-win-x64"]
+    "@electron-toolkit/eslint-config-ts": "^3.0.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.6"
   }
 }
