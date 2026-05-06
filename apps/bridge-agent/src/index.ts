@@ -1361,13 +1361,18 @@ async function recreateViaDockerRun(
     const restartPolicy: string = info.HostConfig?.RestartPolicy?.Name || "unless-stopped";
     const restartArgs = ["--restart", restartPolicy];
 
-    // Temp name to avoid naming conflict while old container is still running
-    const tempName = `${containerName}-updating-${Date.now()}`;
+    // Rename ourselves to a temp name first — this frees up the original name
+    // while we're still running, so the new container can claim it immediately.
+    // docker rename works on running containers without disrupting the process.
+    const oldTempName = `${containerName}-old-${Date.now()}`;
+    logger.info("Renaming current container to free up name", { from: containerName, to: oldTempName });
+    await execFileAsync("docker", ["rename", containerId, oldTempName]);
 
-    logger.info("Starting replacement container", { tempName, newImage });
+    // Start new container with the ORIGINAL name — no rename needed at the end
+    logger.info("Starting replacement container", { name: containerName, newImage });
     await execFileAsync("docker", [
       "run", "-d",
-      "--name", tempName,
+      "--name", containerName,
       ...restartArgs,
       ...networkArgs,
       ...envArgs,
@@ -1377,17 +1382,16 @@ async function recreateViaDockerRun(
 
     // Suppress SIGTERM so we can complete cleanup before exiting.
     // docker stop sends SIGTERM to us (via dumb-init), which would kill node
-    // before docker rm / rename can run. We ignore it, finish cleanup, then exit.
+    // before docker rm can run. We ignore it, finish cleanup, then exit.
     process.removeAllListeners("SIGTERM");
     process.on("SIGTERM", () => { /* suppressed — cleanup in progress */ });
 
-    // Fire docker stop in background (it sends SIGTERM, which we now suppress)
+    // Fire docker stop on ourselves (now named oldTempName, still same containerId)
     exec(`docker stop --time 15 ${containerId}`, () => {});
 
-    // Wait for SIGTERM to be delivered, then complete cleanup
+    // Wait for SIGTERM to be delivered, then remove ourselves
     await new Promise(r => setTimeout(r, 2_000));
     await execFileAsync("docker", ["rm", containerId]).catch(() => {});
-    await execFileAsync("docker", ["rename", tempName, containerName]).catch(() => {});
 
     logger.info("Container recreated successfully via docker run", { containerName });
     // Exit cleanly — docker stop was already issued so unless-stopped won't restart

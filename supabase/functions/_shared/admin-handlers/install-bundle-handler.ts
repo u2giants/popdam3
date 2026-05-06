@@ -56,6 +56,7 @@ export async function handleGenerateInstallBundle(
   if (pairErr) return err(pairErr.message, 500);
 
   const serverUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   const zip = new JSZip();
 
   if (agentType === "bridge") {
@@ -67,6 +68,10 @@ export async function handleGenerateInstallBundle(
       "POPDAM_SERVER_URL=" + serverUrl,
       "POPDAM_PAIRING_CODE=" + pairingCode,
       "AGENT_NAME=" + agentName,
+      "",
+      "# Enables instant command delivery (scan triggers, dir browse, path test) via Realtime.",
+      "# Without this, commands wait up to 30s for the next heartbeat poll.",
+      "SUPABASE_ANON_KEY=" + anonKey,
       "",
       "# Volume mapping (set in docker-compose.yml)",
       "NAS_CONTAINER_MOUNT_ROOT=" + containerMountRoot,
