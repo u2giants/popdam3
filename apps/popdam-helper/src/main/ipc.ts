@@ -14,6 +14,8 @@ import {
   openFile,
 } from "./checkoutManager";
 import { getPendingJobs } from "./uploadQueue";
+import { fetchConfig } from "./damClient";
+import { validateRoot } from "./rootValidator";
 import { shell } from "electron";
 import { log } from "./logger";
 import type { LocalConfig } from "@shared/types";
@@ -120,5 +122,25 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("has-synology-credentials", async () => {
     const u = await loadToken("synology_username");
     return { ok: true, data: !!u };
+  });
+
+  // ── Root path validation ────────────────────────────────────────────────────
+  ipcMain.handle("validate-root", (_event, { path, rootId }: { path: string; rootId: string }) => {
+    try {
+      const result = validateRoot(path, rootId);
+      return { ok: true, data: result };
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) };
+    }
+  });
+
+  // ── Server root mappings ────────────────────────────────────────────────────
+  ipcMain.handle("fetch-server-roots", async () => {
+    try {
+      const res = await fetchConfig();
+      return { ok: true, data: res.root_mappings };
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) };
+    }
   });
 }

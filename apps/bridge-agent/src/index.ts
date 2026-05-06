@@ -17,7 +17,7 @@ import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { readFileSync } from "node:fs";
 import { exec } from "node:child_process";
-import { stat, readdir, writeFile, mkdir } from "node:fs/promises";
+import { stat, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, isPdfCandidate, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail, isAiWithoutPdfCompat, isCompatAlertThumbnail, createCompatAuditWorker, type PdfThumbnailResult } from "./thumbnailer.js";
@@ -107,6 +107,8 @@ let cloudAnthropicApiKey = "";
 let cloudGoogleAiApiKey = "";
 let cloudAiModels: AiModelDef[] = [];
 let cloudPdfExtractionConfig: { ai_vision_model_id: string } | null = null;
+
+let cloudHelperRootMappings: Array<{ root_id: string; display_name: string; server_path: string }> = [];
 
 // Auto-scan state
 let autoScanEnabled = false;
@@ -304,12 +306,54 @@ interface CloudConfig {
   windows_healthy?: boolean;
   pending_render_jobs?: number;
   style_guide_scanning?: { roots: string[] };
+  helper_root_mappings?: Array<{ root_id: string; display_name: string; server_path: string }>;
   ai?: {
     anthropic_api_key?: string;
     google_ai_api_key?: string;
     models?: Array<{ id: string; provider: string; apiModel: string; capabilities: string[] }>;
     pdf_extraction?: { ai_vision_model_id?: string } | null;
   };
+}
+
+async function ensureRootMarkers(
+  rootMappings: Array<{ root_id: string; display_name: string; server_path: string }>,
+): Promise<void> {
+  const mountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
+  for (const rm of rootMappings) {
+    if (!rm.root_id || !rm.server_path) continue;
+    const serverPath = rm.server_path.replace(/^\/+/, "");
+    const rootPath = `${mountRoot}/${serverPath}`;
+    const markerPath = `${rootPath}/.pop-root.json`;
+
+    try {
+      const s = await stat(rootPath);
+      if (!s.isDirectory()) {
+        logger.warn("Root marker: path is not a directory", { rootId: rm.root_id, path: rootPath });
+        continue;
+      }
+    } catch {
+      logger.warn("Root marker: path not accessible", { rootId: rm.root_id, path: rootPath });
+      continue;
+    }
+
+    // Skip if marker already correct
+    try {
+      const existing = JSON.parse(await readFile(markerPath, "utf-8"));
+      if (existing.root_id === rm.root_id && existing.type === "pop-dam-root") continue;
+    } catch { /* not found or invalid — write it */ }
+
+    const marker = {
+      type: "pop-dam-root",
+      root_id: rm.root_id,
+      company: "POP Creations",
+      created_by: "POP DAM Bridge Agent",
+      canonical_server_path: rm.server_path,
+      do_not_move: true,
+      schema_version: 1,
+    };
+    await writeFile(markerPath, JSON.stringify(marker, null, 2), "utf-8");
+    logger.info("Root marker written", { rootId: rm.root_id, path: markerPath });
+  }
 }
 
 function applyCloudConfig(cfg: CloudConfig) {
@@ -380,6 +424,14 @@ function applyCloudConfig(cfg: CloudConfig) {
   // Update style guide scanning roots
   if (cfg.style_guide_scanning?.roots) {
     cloudStyleGuideRoots = cfg.style_guide_scanning.roots;
+  }
+
+  // Write .pop-root.json markers to each NAS root so Helper users can auto-validate
+  if (Array.isArray(cfg.helper_root_mappings) && cfg.helper_root_mappings.length > 0) {
+    cloudHelperRootMappings = cfg.helper_root_mappings;
+    ensureRootMarkers(cfg.helper_root_mappings).catch((e) =>
+      logger.warn("Root marker write failed (non-fatal)", { error: (e as Error).message })
+    );
   }
 
   // Update AI config

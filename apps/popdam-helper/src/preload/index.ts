@@ -4,7 +4,7 @@
  */
 
 import { contextBridge, ipcRenderer } from "electron";
-import type { LocalConfig, IpcResponse } from "../shared/types";
+import type { LocalConfig, IpcResponse, ValidationResult } from "../shared/types";
 
 const api = {
   // Config
@@ -48,6 +48,14 @@ const api = {
     ipcRenderer.invoke("save-synology-credentials", creds),
   hasSynologyCredentials: (): Promise<IpcResponse<boolean>> =>
     ipcRenderer.invoke("has-synology-credentials"),
+
+  // Server-defined root mappings
+  fetchServerRoots: (): Promise<IpcResponse<Array<{ root_id: string; display_name: string; server_path: string }>>> =>
+    ipcRenderer.invoke("fetch-server-roots"),
+
+  // Root path validation (runs in main process — has filesystem access)
+  validateRoot: (path: string, rootId: string): Promise<IpcResponse<ValidationResult>> =>
+    ipcRenderer.invoke("validate-root", { path, rootId }),
 
   // Events from main → renderer
   onCheckoutsChanged: (cb: () => void): (() => void) => {

@@ -33,6 +33,16 @@ export interface CheckoutRecord {
   errorMessage: string | null;
 }
 
+// ─── Root validation ──────────────────────────────────────────────────────────
+
+export type ValidationResult =
+  | { ok: true; resolvedPath: string }
+  | { ok: false; reason: "forbidden"; message: string }
+  | { ok: false; reason: "no_marker"; message: string }
+  | { ok: false; reason: "wrong_root_id"; expected: string; actual: string; message: string }
+  | { ok: false; reason: "too_deep"; suggestedPath: string; message: string }
+  | { ok: false; reason: "too_shallow"; suggestedPath: string; message: string };
+
 // ─── Root mappings ────────────────────────────────────────────────────────────
 
 export interface RootMapping {

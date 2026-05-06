@@ -25,6 +25,7 @@ import {
 } from "./damClient";
 import { enqueue } from "./uploadQueue";
 import { getConfig } from "./config";
+import { validateRoot } from "./rootValidator";
 import { log } from "./logger";
 import type { CheckoutRecord, RootMapping } from "@shared/types";
 
@@ -110,6 +111,24 @@ export async function checkout(
       marker_verified: local?.marker_verified ?? false,
     };
   });
+
+  // Double-check each mapping's local path is still pointing at the right folder level
+  for (const mapping of mergedMappings) {
+    if (!mapping.local_path) continue;
+    const vResult = validateRoot(mapping.local_path, mapping.root_id);
+    if (!vResult.ok) {
+      if (vResult.reason === "too_deep" || vResult.reason === "too_shallow") {
+        // Auto-correct in memory for this checkout — user should fix in Settings
+        log.warn(`Root path level mismatch for "${mapping.root_id}" — correcting to ${vResult.suggestedPath}`);
+        mapping.local_path = vResult.suggestedPath;
+      } else if (vResult.reason === "wrong_root_id") {
+        throw new Error(
+          `Folder mapping for "${mapping.root_id}" points to the wrong NAS root ("${vResult.actual}"). Please fix your folder mappings in Settings.`,
+        );
+      }
+      // no_marker and forbidden are non-blocking here — resolveAssetPath will fail if path is truly wrong
+    }
+  }
 
   let sourcePath: string;
   try {

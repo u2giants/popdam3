@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from "react";
-import type { LocalConfig, RootMapping } from "../shared/types";
+import type { LocalConfig, RootMapping, ValidationResult } from "../shared/types";
+
+interface ServerRoot {
+  root_id: string;
+  display_name: string;
+  server_path: string;
+}
 
 interface Props {
   onBack: () => void;
 }
-
-const EMPTY_MAPPING: RootMapping = {
-  root_id: "",
-  display_name: "",
-  local_path: "",
-  marker_verified: false,
-};
 
 export default function SettingsPanel({ onBack }: Props): React.ReactElement {
   const [config, setConfig] = useState<LocalConfig | null>(null);
@@ -21,9 +20,46 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [serverRoots, setServerRoots] = useState<ServerRoot[] | null>(null);
+  const [rootsFetching, setRootsFetching] = useState(false);
+  const [rootsFetchError, setRootsFetchError] = useState<string | null>(null);
+  // local_path per root_id, edited independently of config
+  const [localPaths, setLocalPaths] = useState<Record<string, string>>({});
+  // validation result per root_id
+  type RootValidState =
+    | { status: "idle" }
+    | { status: "validating" }
+    | { status: "ok" }
+    | { status: "corrected"; from: string; to: string }
+    | { status: "error"; message: string };
+  const [rootValidStates, setRootValidStates] = useState<Record<string, RootValidState>>({});
+
+  async function fetchRoots(): Promise<void> {
+    setRootsFetching(true);
+    setRootsFetchError(null);
+    try {
+      const res = await window.popdam.fetchServerRoots();
+      if (res.ok && res.data) {
+        setServerRoots(res.data);
+      } else {
+        setRootsFetchError(res.error ?? "Could not load folder list from server.");
+      }
+    } catch (e) {
+      setRootsFetchError(String(e));
+    } finally {
+      setRootsFetching(false);
+    }
+  }
+
   useEffect(() => {
     window.popdam.getConfig().then((res) => {
-      if (res.ok && res.data) setConfig(res.data);
+      if (res.ok && res.data) {
+        setConfig(res.data);
+        const paths: Record<string, string> = {};
+        for (const m of res.data.rootMappings) paths[m.root_id] = m.local_path;
+        setLocalPaths(paths);
+        if (res.data.damUrl) fetchRoots();
+      }
     });
     window.popdam.hasSynologyCredentials().then((res) => {
       if (res.ok) setHasCreds(!!res.data);
@@ -35,7 +71,32 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
     setSaving(true);
     setError(null);
     try {
-      await window.popdam.saveConfig(config);
+      // Build rootMappings: use server roots when available (authoritative list),
+      // otherwise keep existing saved mappings (e.g. if server was unreachable).
+      let rootMappings: RootMapping[];
+      const roots = serverRoots ?? config.rootMappings.map(m => ({
+        root_id: m.root_id,
+        display_name: m.display_name,
+        server_path: "",
+      }));
+      rootMappings = roots.map((r) => {
+        const newPath = localPaths[r.root_id] ?? "";
+        const prev = config.rootMappings.find(m => m.root_id === r.root_id);
+        const pathChanged = prev?.local_path !== newPath;
+        const vState = rootValidStates[r.root_id];
+        const markerVerified = (vState?.status === "ok" || vState?.status === "corrected")
+          ? true
+          : pathChanged ? false : (prev?.marker_verified ?? false);
+        return {
+          root_id: r.root_id,
+          display_name: r.display_name,
+          local_path: newPath,
+          marker_verified: markerVerified,
+        };
+      });
+
+      await window.popdam.saveConfig({ ...config, rootMappings });
+
       if (synologyUser && synologyPass) {
         await window.popdam.saveSynologyCredentials({ username: synologyUser, password: synologyPass });
         setHasCreds(true);
@@ -51,28 +112,55 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
     }
   }
 
-  function updateRoot(index: number, field: keyof RootMapping, value: string | boolean): void {
-    if (!config) return;
-    const mappings = [...config.rootMappings];
-    mappings[index] = { ...mappings[index], [field]: value };
-    setConfig({ ...config, rootMappings: mappings });
-  }
-
-  function addRoot(): void {
-    if (!config) return;
-    setConfig({ ...config, rootMappings: [...config.rootMappings, { ...EMPTY_MAPPING }] });
-  }
-
-  function removeRoot(index: number): void {
-    if (!config) return;
-    const mappings = config.rootMappings.filter((_, i) => i !== index);
-    setConfig({ ...config, rootMappings: mappings });
-  }
-
-  async function browseForFolder(index: number): Promise<void> {
+  async function browseForRoot(rootId: string): Promise<void> {
     const res = await window.popdam.browseForFolder();
-    if (res.ok && res.data) updateRoot(index, "local_path", res.data);
+    if (!res.ok || !res.data) return;
+    const chosen = res.data;
+
+    setRootValidStates(prev => ({ ...prev, [rootId]: { status: "validating" } }));
+    setLocalPaths(prev => ({ ...prev, [rootId]: chosen }));
+
+    const vRes = await window.popdam.validateRoot(chosen, rootId);
+    if (!vRes.ok || !vRes.data) {
+      setRootValidStates(prev => ({ ...prev, [rootId]: { status: "error", message: "Validation failed — try again." } }));
+      return;
+    }
+
+    const v: ValidationResult = vRes.data;
+    if (v.ok) {
+      setRootValidStates(prev => ({ ...prev, [rootId]: { status: "ok" } }));
+    } else if (v.reason === "too_deep" || v.reason === "too_shallow") {
+      // Auto-correct to the right folder level — no user decision needed
+      setLocalPaths(prev => ({ ...prev, [rootId]: v.suggestedPath }));
+      setRootValidStates(prev => ({ ...prev, [rootId]: { status: "corrected", from: chosen, to: v.suggestedPath } }));
+    } else {
+      setRootValidStates(prev => ({ ...prev, [rootId]: { status: "error", message: v.message } }));
+    }
   }
+
+  async function revalidateRoot(rootId: string, path: string): Promise<void> {
+    if (!path) return;
+    setRootValidStates(prev => ({ ...prev, [rootId]: { status: "validating" } }));
+    const vRes = await window.popdam.validateRoot(path, rootId);
+    if (!vRes.ok || !vRes.data) {
+      setRootValidStates(prev => ({ ...prev, [rootId]: { status: "error", message: "Validation failed — try again." } }));
+      return;
+    }
+    const v: ValidationResult = vRes.data;
+    if (v.ok) {
+      setRootValidStates(prev => ({ ...prev, [rootId]: { status: "ok" } }));
+    } else if (v.reason === "too_deep" || v.reason === "too_shallow") {
+      setLocalPaths(prev => ({ ...prev, [rootId]: v.suggestedPath }));
+      setRootValidStates(prev => ({ ...prev, [rootId]: { status: "corrected", from: path, to: v.suggestedPath } }));
+    } else {
+      setRootValidStates(prev => ({ ...prev, [rootId]: { status: "error", message: v.message } }));
+    }
+  }
+
+  // Prefer server roots; fall back to whatever is already saved locally.
+  const displayRoots: Array<{ root_id: string; display_name: string }> =
+    serverRoots ??
+    (config?.rootMappings.map(m => ({ root_id: m.root_id, display_name: m.display_name })) ?? []);
 
   if (!config) return <div className="content"><div className="empty-state">Loading…</div></div>;
 
@@ -119,74 +207,87 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-          <span className="section-label" style={{ flex: 1 }}>NAS Folder Mappings</span>
-          <button onClick={addRoot} style={{ padding: "2px 10px", fontSize: 12 }}>+ Add</button>
-        </div>
+        <div className="section-label" style={{ marginBottom: 8 }}>Your NAS Folders</div>
 
-        <div className="meta" style={{ marginBottom: 10 }}>
-          Map each NAS root to where it appears on this computer (SMB drive, Synology Drive client,
-          Seafile, etc.). The <strong>Root ID</strong> must match what the server expects — ask your
-          admin or check the Directory Browser in the web DAM.
-        </div>
-
-        {config.rootMappings.length === 0 && (
-          <div className="empty-state" style={{ marginBottom: 10 }}>
-            No mappings yet. Click <strong>+ Add</strong> to add one.
+        {!config.damUrl && (
+          <div className="meta" style={{ marginBottom: 10 }}>
+            Enter your DAM URL above to load your folder list.
           </div>
         )}
 
-        {config.rootMappings.map((mapping, i) => (
-          <div key={i} className="checkout-card" style={{ marginBottom: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span className="filename">{mapping.display_name || mapping.root_id || `Root ${i + 1}`}</span>
-              <button
-                onClick={() => removeRoot(i)}
-                style={{ padding: "1px 8px", fontSize: 11, opacity: 0.7 }}
-              >
-                Remove
-              </button>
+        {config.damUrl && rootsFetching && (
+          <div className="meta" style={{ marginBottom: 10 }}>Loading folder list…</div>
+        )}
+
+        {config.damUrl && rootsFetchError && !rootsFetching && (
+          <div style={{ marginBottom: 10 }}>
+            <div className="meta" style={{ color: "var(--color-error, #c00)", marginBottom: 4 }}>
+              {rootsFetchError}
             </div>
-            <div className="field" style={{ marginBottom: 4 }}>
-              <label>Root ID</label>
-              <input
-                value={mapping.root_id}
-                onChange={(e) => updateRoot(i, "root_id", e.target.value)}
-                placeholder="e.g. design_hot"
-              />
-            </div>
-            <div className="field" style={{ marginBottom: 4 }}>
-              <label>Display Name</label>
-              <input
-                value={mapping.display_name}
-                onChange={(e) => updateRoot(i, "display_name", e.target.value)}
-                placeholder="e.g. Design Hot"
-              />
-            </div>
-            <div className="field" style={{ marginBottom: 4 }}>
-              <label>Local Path</label>
-              <div style={{ display: "flex", gap: 6 }}>
-                <input
-                  style={{ flex: 1 }}
-                  value={mapping.local_path}
-                  onChange={(e) => updateRoot(i, "local_path", e.target.value)}
-                  placeholder={`e.g. Z:\\design_hot  or  /Volumes/design_hot`}
-                />
-                <button
-                  style={{ whiteSpace: "nowrap" }}
-                  onClick={() => browseForFolder(i)}
-                >
-                  Browse…
-                </button>
-              </div>
-            </div>
-            {mapping.local_path && (
-              <div className="meta">
-                {mapping.marker_verified ? "✓ Marker verified" : "Not yet verified — will check on next browse"}
-              </div>
-            )}
+            <button style={{ padding: "2px 10px", fontSize: 12 }} onClick={fetchRoots}>
+              Retry
+            </button>
           </div>
-        ))}
+        )}
+
+        {config.damUrl && !rootsFetching && !rootsFetchError && displayRoots.length === 0 && (
+          <div className="empty-state" style={{ marginBottom: 10 }}>
+            No folders have been configured on the server yet.
+          </div>
+        )}
+
+        {displayRoots.map((root) => {
+          const localPath = localPaths[root.root_id] ?? "";
+          const vState = rootValidStates[root.root_id] ?? { status: "idle" };
+          return (
+            <div key={root.root_id} className="checkout-card" style={{ marginBottom: 8 }}>
+              <div className="filename" style={{ marginBottom: 6 }}>
+                {root.display_name || root.root_id}
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>Local folder on this computer</label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    style={{ flex: 1 }}
+                    value={localPath}
+                    onChange={(e) => {
+                      setLocalPaths(prev => ({ ...prev, [root.root_id]: e.target.value }));
+                      setRootValidStates(prev => ({ ...prev, [root.root_id]: { status: "idle" } }));
+                    }}
+                    placeholder={`e.g. Z:\\${root.root_id}  or  /Volumes/${root.root_id}`}
+                  />
+                  <button style={{ whiteSpace: "nowrap" }} onClick={() => browseForRoot(root.root_id)}>
+                    Browse…
+                  </button>
+                </div>
+              </div>
+              {localPath && vState.status === "idle" && (
+                <div className="meta" style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span>Not yet verified</span>
+                  <button style={{ padding: "1px 8px", fontSize: 11 }} onClick={() => revalidateRoot(root.root_id, localPath)}>
+                    Verify
+                  </button>
+                </div>
+              )}
+              {vState.status === "validating" && (
+                <div className="meta" style={{ marginTop: 4 }}>Checking folder…</div>
+              )}
+              {vState.status === "ok" && (
+                <div className="meta" style={{ marginTop: 4, color: "var(--color-success, #0a0)" }}>✓ Correct folder confirmed</div>
+              )}
+              {vState.status === "corrected" && (
+                <div className="meta" style={{ marginTop: 4, color: "var(--color-success, #0a0)" }}>
+                  ✓ Folder level corrected automatically
+                </div>
+              )}
+              {vState.status === "error" && (
+                <div className="meta" style={{ marginTop: 4, color: "var(--color-error, #c00)" }}>
+                  {vState.message}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         <div className="section-label" style={{ marginBottom: 8 }}>Synology Credentials</div>
         <div className="checkout-card">
