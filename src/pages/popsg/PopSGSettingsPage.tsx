@@ -49,7 +49,7 @@ type SgErroredFile = {
   thumbnail_error: string | null;
 };
 
-function SgRenderErrorsTable() {
+function SgRenderErrorsTable({ totalErrored }: { totalErrored?: number }) {
   const queryClient = useQueryClient();
   const [showAll, setShowAll] = useState(false);
   const COLLAPSED_LIMIT = 20;
@@ -117,7 +117,7 @@ function SgRenderErrorsTable() {
               disabled={retryAllMutation.isPending}
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              {retryAllMutation.isPending ? "Requeueing…" : `Retry All (${erroredFiles.length.toLocaleString()})`}
+              {retryAllMutation.isPending ? "Requeueing…" : `Retry All (${(totalErrored ?? erroredFiles.length).toLocaleString()})`}
             </Button>
           )}
           <Button variant="ghost" size="icon" onClick={() => refetch()} title="Refresh">
@@ -1002,7 +1002,7 @@ export default function PopSGSettingsPage() {
           <WindowsAgentStatus />
           <AgentRemoteControls />
           <AgentLogTail />
-          <SgRenderErrorsTable />
+          <SgRenderErrorsTable totalErrored={previewStats?.render_errored} />
           <SgRenderJobsTable queueStats={queueStats} />
         </TabsContent>
 
