@@ -169,6 +169,78 @@ export type Database = {
           },
         ]
       }
+      asset_checkouts: {
+        Row: {
+          asset_id: string
+          checked_in_at: string | null
+          checked_out_at: string
+          checkin_hash: string | null
+          checkin_size: number | null
+          created_at: string
+          device_id: string | null
+          error_message: string | null
+          id: string
+          source_hash: string
+          source_size: number
+          status: Database["public"]["Enums"]["checkout_status"]
+          synology_upload_user: string | null
+          updated_at: string
+          upload_method: string | null
+          user_id: string
+        }
+        Insert: {
+          asset_id: string
+          checked_in_at?: string | null
+          checked_out_at?: string
+          checkin_hash?: string | null
+          checkin_size?: number | null
+          created_at?: string
+          device_id?: string | null
+          error_message?: string | null
+          id?: string
+          source_hash: string
+          source_size: number
+          status?: Database["public"]["Enums"]["checkout_status"]
+          synology_upload_user?: string | null
+          updated_at?: string
+          upload_method?: string | null
+          user_id: string
+        }
+        Update: {
+          asset_id?: string
+          checked_in_at?: string | null
+          checked_out_at?: string
+          checkin_hash?: string | null
+          checkin_size?: number | null
+          created_at?: string
+          device_id?: string | null
+          error_message?: string | null
+          id?: string
+          source_hash?: string
+          source_size?: number
+          status?: Database["public"]["Enums"]["checkout_status"]
+          synology_upload_user?: string | null
+          updated_at?: string
+          upload_method?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_checkouts_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_checkouts_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "helper_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       asset_path_history: {
         Row: {
           asset_id: string
@@ -703,6 +775,84 @@ export type Database = {
           total_upserted?: number | null
         }
         Relationships: []
+      }
+      helper_devices: {
+        Row: {
+          device_name: string
+          device_os: string
+          helper_version: string
+          id: string
+          last_seen_at: string
+          registered_at: string
+          user_id: string
+        }
+        Insert: {
+          device_name: string
+          device_os: string
+          helper_version: string
+          id?: string
+          last_seen_at?: string
+          registered_at?: string
+          user_id: string
+        }
+        Update: {
+          device_name?: string
+          device_os?: string
+          helper_version?: string
+          id?: string
+          last_seen_at?: string
+          registered_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      helper_tokens: {
+        Row: {
+          action: string
+          asset_id: string | null
+          checkout_id: string | null
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          asset_id?: string | null
+          checkout_id?: string | null
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          asset_id?: string | null
+          checkout_id?: string | null
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "helper_tokens_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "helper_tokens_checkout_id_fkey"
+            columns: ["checkout_id"]
+            isOneToOne: false
+            referencedRelation: "asset_checkouts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hygiene_findings: {
         Row: {
@@ -3857,6 +4007,15 @@ export type Database = {
         | "packaging"
         | "tech_pack"
         | "photography"
+      checkout_status:
+        | "active"
+        | "checkin_queued"
+        | "uploading"
+        | "verifying"
+        | "complete"
+        | "discarded"
+        | "error"
+        | "conflict"
       file_type: "psd" | "ai" | "jpg" | "png" | "pdf"
       queue_status:
         | "pending"
@@ -4018,6 +4177,16 @@ export const Constants = {
         "packaging",
         "tech_pack",
         "photography",
+      ],
+      checkout_status: [
+        "active",
+        "checkin_queued",
+        "uploading",
+        "verifying",
+        "complete",
+        "discarded",
+        "error",
+        "conflict",
       ],
       file_type: ["psd", "ai", "jpg", "png", "pdf"],
       queue_status: ["pending", "claimed", "processing", "completed", "failed"],
