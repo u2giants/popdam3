@@ -92,7 +92,7 @@ export async function handleGenerateInstallBundle(
       "    cpu_shares: 1024",
       "    mem_limit: 2g",
       "    volumes:",
-      `      - ${nasHostPath}:${containerMountRoot}:ro`,
+      `      - ${nasHostPath}:${containerMountRoot}`,
       "      - popdam-data:/data",
       "      - /var/run/docker.sock:/var/run/docker.sock",
     ].join("\n");
