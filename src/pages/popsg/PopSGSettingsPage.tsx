@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ExternalLink, Eye, EyeOff, RotateCw, RotateCcw, Save, RefreshCw, Trash2, Settings,
+  CheckCircle2, Clock, AlertCircle, FileX,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_APP } from "@/lib/app-mode";
@@ -175,7 +176,12 @@ function SgRenderJobsTable({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base">Render Jobs</CardTitle>
+        <div>
+          <CardTitle className="text-base">Render Job History</CardTitle>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Counts job attempts — one file can appear multiple times. See Preview Coverage above for per-file stats.
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           {statusFilter === "failed" && failedCount > 0 && (
             <>
@@ -473,6 +479,23 @@ export default function PopSGSettingsPage() {
     refetchInterval: 10_000,
   });
 
+  const { data: previewStats, refetch: refetchPreviewStats, isFetching: previewStatsFetching } = useQuery({
+    queryKey: ["popsg", "preview_stats"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_sg_preview_stats");
+      if (error) throw error;
+      return data as {
+        total_active: number;
+        has_preview: number;
+        renderable_no_preview: number;
+        render_errored: number;
+        unsupported: number;
+        queued_now: number;
+      };
+    },
+    refetchInterval: 30_000,
+  });
+
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
       <div className="flex items-center gap-3">
@@ -656,37 +679,119 @@ export default function PopSGSettingsPage() {
                 Save
               </Button>
 
-              {queueStats && (
-                <div className="rounded-md border border-border bg-muted/30 p-3">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Render queue summary
-                  </p>
-                  <div className="grid grid-cols-4 gap-3 text-xs">
-                    <div>
-                      <div className="text-muted-foreground">Pending</div>
-                      <div className="font-mono text-sm font-semibold">{queueStats.pending.toLocaleString()}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">In flight</div>
-                      <div className="font-mono text-sm font-semibold">{queueStats.claimed.toLocaleString()}</div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Done</div>
-                      <div className="font-mono text-sm font-semibold text-success">
-                        {queueStats.completed.toLocaleString()}
+            </CardContent>
+          </Card>
+
+          {/* Preview Coverage */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div>
+                <CardTitle className="text-base">Preview Coverage</CardTitle>
+                <CardDescription className="text-xs">
+                  Per-file stats — each file counted once regardless of how many render attempts it took.
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => refetchPreviewStats()}
+                disabled={previewStatsFetching}
+                title="Refresh"
+              >
+                <RefreshCw className={`h-4 w-4 ${previewStatsFetching ? "animate-spin" : ""}`} />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!previewStats ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : (
+                <>
+                  {/* Progress bar */}
+                  {(() => {
+                    const pct = previewStats.total_active > 0
+                      ? Math.round((previewStats.has_preview / previewStats.total_active) * 1000) / 10
+                      : 0;
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex items-baseline justify-between text-sm">
+                          <span className="font-semibold">
+                            {previewStats.has_preview.toLocaleString()}
+                            <span className="text-muted-foreground font-normal">
+                              {" "}of {previewStats.total_active.toLocaleString()} active files have a preview
+                            </span>
+                          </span>
+                          <span className="font-mono text-base font-bold">{pct}%</span>
+                        </div>
+                        <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       </div>
+                    );
+                  })()}
+
+                  {/* Breakdown rows */}
+                  <div className="rounded-md border border-border divide-y divide-border text-sm">
+                    {/* Has preview */}
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                      <span className="flex-1 text-foreground">Has preview</span>
+                      <span className="font-mono font-semibold tabular-nums">
+                        {previewStats.has_preview.toLocaleString()}
+                      </span>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground">Failed</div>
-                      <div className="font-mono text-sm font-semibold text-destructive">
-                        {queueStats.failed.toLocaleString()}
+
+                    {/* Renderable, no preview */}
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                      <div className="flex-1">
+                        <div className="text-foreground">Renderable, no preview yet</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          pdf / ai / psd files not yet rendered
+                          {previewStats.queued_now > 0 && (
+                            <> — <span className="text-amber-600 font-medium">{previewStats.queued_now.toLocaleString()} currently in queue</span></>
+                          )}
+                          {previewStats.queued_now === 0 && previewStats.renderable_no_preview > 0 && (
+                            <> — none queued, trigger a crawl to schedule them</>
+                          )}
+                        </div>
                       </div>
+                      <span className="font-mono font-semibold tabular-nums">
+                        {previewStats.renderable_no_preview.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Render errors */}
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                      <div className="flex-1">
+                        <div className="text-foreground">Render errors</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          pdf / ai / psd files where rendering failed — see Render Job History for details
+                        </div>
+                      </div>
+                      <span className={`font-mono font-semibold tabular-nums ${previewStats.render_errored > 0 ? "text-destructive" : ""}`}>
+                        {previewStats.render_errored.toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Unsupported */}
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <FileX className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1">
+                        <div className="text-foreground">Unsupported format</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          jpg, png, mp4, etc. — no preview will ever be generated
+                        </div>
+                      </div>
+                      <span className="font-mono font-semibold tabular-nums text-muted-foreground">
+                        {previewStats.unsupported.toLocaleString()}
+                      </span>
                     </div>
                   </div>
-                  <p className="mt-2 text-[10px] text-muted-foreground">
-                    See Render Agent tab for job details and failure reasons.
-                  </p>
-                </div>
+                </>
               )}
             </CardContent>
           </Card>
