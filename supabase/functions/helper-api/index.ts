@@ -111,9 +111,7 @@ async function handleGetConfig(req: Request): Promise<Response> {
     dam_url: cfg["HELPER_DAM_URL"] ?? null,
     synology_url: cfg["HELPER_SYNOLOGY_URL"] ?? null,
     synology_port: cfg["HELPER_SYNOLOGY_PORT"] ?? "5001",
-    root_mappings: cfg["HELPER_ROOT_MAPPINGS"]
-      ? JSON.parse(cfg["HELPER_ROOT_MAPPINGS"])
-      : [],
+    root_mappings: cfg["HELPER_ROOT_MAPPINGS"] ? JSON.parse(cfg["HELPER_ROOT_MAPPINGS"]) : [],
   });
 }
 
@@ -505,16 +503,16 @@ corsServe(async (req: Request): Promise<Response> => {
   const method = req.method;
 
   if (method === "POST" && path === "/register-device") return handleRegisterDevice(req);
-  if (method === "GET"  && path === "/config")           return handleGetConfig(req);
-  if (method === "POST" && path === "/tokens")           return handleCreateToken(req);
-  if (method === "POST" && path === "/checkouts/start")           return handleStartCheckout(req);
+  if (method === "GET" && path === "/config") return handleGetConfig(req);
+  if (method === "POST" && path === "/tokens") return handleCreateToken(req);
+  if (method === "POST" && path === "/checkouts/start") return handleStartCheckout(req);
   if (method === "POST" && path === "/checkouts/prepare-checkin") return handlePrepareCheckin(req);
-  if (method === "POST" && path === "/checkouts/complete-checkin")return handleCompleteCheckin(req);
-  if (method === "POST" && path === "/checkouts/discard")         return handleDiscard(req);
-  if (method === "POST" && path === "/checkouts/heartbeat")       return handleHeartbeat(req);
-  if (method === "GET"  && path === "/checkouts/open")            return handleGetOpenCheckouts(req);
-  if (method === "POST" && path === "/logs")                      return handleLogs(req);
-  if (method === "POST" && path === "/admin/force-discard")       return handleAdminForceDiscard(req);
+  if (method === "POST" && path === "/checkouts/complete-checkin") return handleCompleteCheckin(req);
+  if (method === "POST" && path === "/checkouts/discard") return handleDiscard(req);
+  if (method === "POST" && path === "/checkouts/heartbeat") return handleHeartbeat(req);
+  if (method === "GET" && path === "/checkouts/open") return handleGetOpenCheckouts(req);
+  if (method === "POST" && path === "/logs") return handleLogs(req);
+  if (method === "POST" && path === "/admin/force-discard") return handleAdminForceDiscard(req);
 
   return err("Not found", 404);
 });
