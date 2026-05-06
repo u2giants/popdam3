@@ -15,7 +15,7 @@
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { exec } from "node:child_process";
 import { stat, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, isPdfCandidate, type FileCandidate, type ScanCallbacks } from "./scanner.js";
@@ -23,7 +23,7 @@ import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail, isAiWithoutPdfCompat, isCompatAlertThumbnail, createCompatAuditWorker, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { startRealtimeWatcher } from "./realtime-watcher.js";
 import { crawlStyleGuides } from "./style-guide-crawler.js";
 import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler.js";
@@ -1405,8 +1405,9 @@ async function recreateViaDockerRun(
     // Collect -e flags
     const envArgs: string[] = (info.Config?.Env ?? []).flatMap((e: string) => ["-e", e]);
 
-    // Collect -v flags
-    const bindArgs: string[] = (info.HostConfig?.Binds ?? []).flatMap((b: string) => ["-v", b]);
+    // Collect -v flags, stripping :ro from all bind mounts so the recreated container
+    // always has read-write access (fixes NAS volume mounted :ro via old install bundle).
+    const bindArgs: string[] = (info.HostConfig?.Binds ?? []).flatMap((b: string) => ["-v", b.replace(/:ro$/, "")]);
 
     // Collect --network flags (connect to first network; others added after start)
     const networks = Object.keys(info.NetworkSettings?.Networks ?? {});
@@ -1424,8 +1425,12 @@ async function recreateViaDockerRun(
     logger.info("Renaming current container to free up name", { from: containerName, to: oldTempName });
     await execFileAsync("docker", ["rename", containerId, oldTempName]);
 
+    // Use inspected image if caller didn't specify one (e.g. self-heal path)
+    const imageToRun = newImage || (info.Config?.Image as string) || "";
+    if (!imageToRun) throw new Error("Cannot determine image name for recreated container");
+
     // Start new container with the ORIGINAL name — no rename needed at the end
-    logger.info("Starting replacement container", { name: containerName, newImage });
+    logger.info("Starting replacement container", { name: containerName, image: imageToRun });
     await execFileAsync("docker", [
       "run", "-d",
       "--name", containerName,
@@ -1433,7 +1438,7 @@ async function recreateViaDockerRun(
       ...networkArgs,
       ...envArgs,
       ...bindArgs,
-      newImage,
+      imageToRun,
     ]);
 
     // Suppress SIGTERM so we can complete cleanup before exiting.
@@ -1456,6 +1461,40 @@ async function recreateViaDockerRun(
     const msg = `Failed to recreate container: ${(e as Error).message}. Mount the compose file into the container or set POPDAM_COMPOSE_PATH.`;
     logger.error("Self-update recreation failed", { error: msg });
     await api.reportUpdateStatus({ status: "failed", error: msg, started_at: startedAt, failed_at: new Date().toISOString() }).catch(() => {});
+  }
+}
+
+/**
+ * On startup, write a small test file into the NAS mount root.
+ * If the filesystem is read-only (EROFS), recreate the container without :ro
+ * on the bind mounts so the next start can write marker files normally.
+ */
+async function checkAndHealReadOnlyMount(): Promise<void> {
+  const testPath = join(config.nasContainerMountRoot, ".pop-rw-test");
+  try {
+    writeFileSync(testPath, "rw-check");
+    unlinkSync(testPath);
+  } catch (e: unknown) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "EROFS" || code === "EACCES") {
+      logger.warn("NAS volume is read-only — recreating container without :ro bind mounts", {
+        mountRoot: config.nasContainerMountRoot,
+        code,
+      });
+      const selfId = process.env.HOSTNAME ?? "";
+      if (!selfId) {
+        logger.error("Cannot self-heal: HOSTNAME env var not set (container ID unknown)");
+        return;
+      }
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execFileAsync = promisify(execFile);
+      // Pass empty newImage — recreateViaDockerRun falls back to docker inspect image.
+      await recreateViaDockerRun(selfId, "", new Date().toISOString(), execFileAsync);
+      // recreateViaDockerRun calls process.exit(0) on success; reaching here means
+      // it failed — log and continue so the rest of startup can proceed (degraded).
+    }
+    // ENOENT = mount root doesn't exist yet (scanRoot not configured); skip silently.
   }
 }
 
@@ -1509,6 +1548,9 @@ async function main() {
     batchSize: config.ingestBatchSize,
     paired: config.isPaired,
   });
+
+  // Self-heal: if NAS volume is mounted read-only, recreate container without :ro
+  await checkAndHealReadOnlyMount();
 
   // Warn about missing DO Spaces credentials (expected — will arrive via heartbeat)
   if (!config.doSpacesKey || !config.doSpacesSecret) {
