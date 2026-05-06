@@ -19,6 +19,7 @@ files:
 win:
   executableName: popdam-helper
   icon: resources/icon.ico
+  artifactName: "POP-DAM-Helper-Windows-Setup.exe"
   target:
     - target: nsis
       arch:
@@ -46,7 +47,7 @@ mac:
         - arm64
 
 dmg:
-  artifactName: "${productName}-${version}-${arch}.dmg"
+  artifactName: "POP-DAM-Helper-Mac-${arch}.dmg"
 
 protocols:
   - name: POP DAM Helper
