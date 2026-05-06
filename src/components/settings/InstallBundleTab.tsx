@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import {
   Download, Server, Plus, Trash2, Package,
-  Loader2, AlertTriangle, FolderPlus, FolderOpen, Monitor, Apple,
+  Loader2, AlertTriangle, FolderPlus, FolderOpen, Monitor, Apple, FolderTree,
 } from "lucide-react";
 
 // ── Shared download helper ──────────────────────────────────────────
@@ -245,6 +246,188 @@ function BridgeAgentBundle() {
   );
 }
 
+// ── Helper Root Mappings ────────────────────────────────────────────
+
+interface RootMapping {
+  root_id: string;
+  display_name: string;
+  server_path: string;
+}
+
+function HelperRootMappingsCard() {
+  const { call } = useAdminApi();
+  const [roots, setRoots] = useState<RootMapping[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newRootId, setNewRootId] = useState("");
+  const [newDisplayName, setNewDisplayName] = useState("");
+  const [newServerPath, setNewServerPath] = useState("");
+
+  useEffect(() => {
+    call("get-config", { keys: ["HELPER_ROOT_MAPPINGS"] })
+      .then((data) => {
+        const val = data?.config?.HELPER_ROOT_MAPPINGS?.value;
+        if (Array.isArray(val)) setRoots(val);
+      })
+      .catch(() => { /* leave empty */ })
+      .finally(() => setLoading(false));
+  }, [call]);
+
+  async function save(updated: RootMapping[]) {
+    setSaving(true);
+    try {
+      await call("set-config", { entries: { HELPER_ROOT_MAPPINGS: updated } });
+      setRoots(updated);
+      toast.success("Root mappings saved");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addRoot() {
+    const id = newRootId.trim();
+    const name = newDisplayName.trim();
+    const path = newServerPath.trim().replace(/\/+$/, "");
+    if (!id || !name || !path) { toast.error("All three fields are required"); return; }
+    if (roots.some(r => r.root_id === id)) { toast.error("Root ID already exists"); return; }
+    const updated = [...roots, { root_id: id, display_name: name, server_path: path }];
+    setNewRootId(""); setNewDisplayName(""); setNewServerPath("");
+    save(updated);
+  }
+
+  function removeRoot(rootId: string) {
+    save(roots.filter(r => r.root_id !== rootId));
+  }
+
+  function updateRoot(rootId: string, field: keyof RootMapping, value: string) {
+    setRoots(prev => prev.map(r => r.root_id === rootId ? { ...r, [field]: value } : r));
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <FolderTree className="h-4 w-4" />
+          NAS Root Folders
+          <Badge variant="secondary" className="text-[10px]">Helper App</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Define the top-level NAS folders that Helper app users map to their local drives. These appear in the Helper Settings as the list of folders to browse for.
+        </p>
+
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          </div>
+        ) : (
+          <>
+            {roots.length > 0 && (
+              <div className="space-y-2">
+                {roots.map((root) => (
+                  <div key={root.root_id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+                    <Input
+                      className="font-mono text-xs h-7"
+                      value={root.root_id}
+                      onChange={(e) => updateRoot(root.root_id, "root_id", e.target.value)}
+                      placeholder="Root ID"
+                    />
+                    <Input
+                      className="text-xs h-7"
+                      value={root.display_name}
+                      onChange={(e) => updateRoot(root.root_id, "display_name", e.target.value)}
+                      placeholder="Display Name"
+                    />
+                    <Input
+                      className="font-mono text-xs h-7"
+                      value={root.server_path}
+                      onChange={(e) => updateRoot(root.root_id, "server_path", e.target.value)}
+                      placeholder="/path/on/nas"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => removeRoot(root.root_id)}
+                      disabled={saving}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="grid grid-cols-3 gap-2 text-[10px] text-muted-foreground px-0.5">
+                  <span>Root ID (unique key)</span>
+                  <span>Display Name (shown to user)</span>
+                  <span>Server Path (on NAS)</span>
+                </div>
+                {roots.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-1"
+                    disabled={saving}
+                    onClick={() => save(roots)}
+                  >
+                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                    Save Changes
+                  </Button>
+                )}
+              </div>
+            )}
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label className="text-xs">Add Root Folder</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Input
+                  className="font-mono text-xs h-7"
+                  value={newRootId}
+                  onChange={(e) => setNewRootId(e.target.value)}
+                  placeholder="e.g. decor"
+                  onKeyDown={(e) => e.key === "Enter" && addRoot()}
+                />
+                <Input
+                  className="text-xs h-7"
+                  value={newDisplayName}
+                  onChange={(e) => setNewDisplayName(e.target.value)}
+                  placeholder="e.g. Decor"
+                  onKeyDown={(e) => e.key === "Enter" && addRoot()}
+                />
+                <Input
+                  className="font-mono text-xs h-7"
+                  value={newServerPath}
+                  onChange={(e) => setNewServerPath(e.target.value)}
+                  placeholder="/volume1/decor"
+                  onKeyDown={(e) => e.key === "Enter" && addRoot()}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[10px] text-muted-foreground px-0.5">
+                <span>Root ID</span>
+                <span>Display Name</span>
+                <span>NAS Path</span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={addRoot}
+                disabled={saving}
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Add
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── PopDAM Helper ───────────────────────────────────────────────────
 
 function PopDamHelperCard() {
@@ -334,6 +517,7 @@ export default function InstallBundleTab() {
           Generate ready-to-run install packages for new agents. Each bundle contains a one-time pairing code — no manual .env editing required.
         </p>
       </div>
+      <HelperRootMappingsCard />
       <PopDamHelperCard />
       <BridgeAgentBundle />
       <Card className="border-dashed">
