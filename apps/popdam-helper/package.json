@@ -2,7 +2,7 @@
   "name": "popdam-helper",
   "version": "1.0.0",
   "description": "POP DAM Helper — desktop app for local file checkout, editing, and check-in",
-  "main": "dist/main/main.js",
+  "main": "out/main/main.js",
   "author": "POP Creations",
   "private": true,
   "scripts": {
@@ -12,7 +12,7 @@
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:all": "npm run build && electron-builder --win --mac",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",

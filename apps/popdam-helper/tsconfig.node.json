@@ -8,7 +8,7 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist/main",
+    "outDir": "out/main",
     "rootDir": "src",
     "types": ["node"],
     "paths": {
