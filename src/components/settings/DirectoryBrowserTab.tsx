@@ -25,7 +25,7 @@ interface BrowseResult {
 
 async function browseViaHelper(path: string): Promise<BrowseResult> {
   const url = `${LOCAL_HELPER}/browse?path=${encodeURIComponent(path)}`;
-  const resp = await fetch(url);
+  const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
   if (!resp.ok) throw new Error(`Helper returned ${resp.status}`);
   const data = await resp.json();
   if (!data.ok) throw new Error(data.error ?? "Helper error");
@@ -118,27 +118,11 @@ export default function DirectoryBrowserTab() {
     stopPolling();
     setLoading(true);
     try {
-      let r: BrowseResult;
-      if (helperAvailable) {
-        r = await browseViaHelper(path);
-      } else {
-        r = await browseViaAgent(path);
-      }
+      const r = helperAvailable ? await browseViaHelper(path) : await browseViaAgent(path);
       setResult(r);
       setCurrentPath(r.path);
       setPathInput(r.path);
     } catch (e) {
-      // If helper failed mid-session, retry via agent
-      if (helperAvailable) {
-        setHelperAvailable(false);
-        try {
-          const r = await browseViaAgent(path);
-          setResult(r);
-          setCurrentPath(r.path);
-          setPathInput(r.path);
-          return;
-        } catch { /* fall through to original error */ }
-      }
       toast.error(e instanceof Error ? e.message : "Browse failed");
     } finally {
       setLoading(false);
