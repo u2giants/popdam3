@@ -29,6 +29,16 @@ import path from "node:path";
 import { logger } from "./logger";
 import { isCompatAlertBuffer, createCompatAuditWorker } from "./compat-audit";
 
+// On Windows, paths longer than MAX_PATH (260) fail silently with Win32 APIs.
+// Prefixing with \\?\ enables extended-length paths in Node fs and Sharp (libvips).
+// Shell tools (GS, IM, Inkscape) don't support this prefix — they get the short temp copy instead.
+function withLongPathPrefix(p: string): string {
+  if (process.platform !== "win32" || p.startsWith("\\\\?\\")) return p;
+  if (/^[A-Za-z]:\\/.test(p)) return `\\\\?\\${p}`;
+  if (p.startsWith("\\\\")) return `\\\\?\\UNC\\${p.slice(2)}`;
+  return p;
+}
+
 export type CompatWorker = Awaited<ReturnType<typeof createCompatAuditWorker>>;
 
 const execFileAsync = promisify(execFile);
@@ -236,7 +246,7 @@ const POPPLER_EXE = findPoppler();
  */
 async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
   const READ_SIZE = 65536; // 64 KB — enough for DSC comments and PDF structure markers
-  const fh = await open(filePath, "r");
+  const fh = await open(withLongPathPrefix(filePath), "r");
   try {
     const buf = Buffer.alloc(READ_SIZE);
     const { bytesRead } = await fh.read(buf, 0, READ_SIZE, 0);
@@ -471,7 +481,7 @@ async function renderFromSibling(
 
   let files: string[];
   try {
-    files = await readdir(dir);
+    files = await readdir(withLongPathPrefix(dir));
   } catch {
     throw new Error("cannot read directory");
   }
@@ -485,7 +495,7 @@ async function renderFromSibling(
       const siblingPath = path.join(dir, match);
       logger.info("Using sibling image", { filePath, sibling: match });
 
-      const buffer = await sharp(siblingPath)
+      const buffer = await sharp(withLongPathPrefix(siblingPath))
         .flatten({ background: "#ffffff" })
         .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, {
           fit: "inside",
@@ -518,7 +528,7 @@ export async function renderPdf(filePath: string): Promise<PdfRenderResult> {
     let effectivePath = filePath;
     if (filePath.length > 230) {
       const shortPath = path.join(tmpDir, `in${path.extname(filePath)}`);
-      await copyFile(filePath, shortPath);
+      await copyFile(withLongPathPrefix(filePath), shortPath);
       logger.info("Long PDF path copied to temp", { length: filePath.length });
       effectivePath = shortPath;
     }
@@ -632,7 +642,8 @@ export async function renderPdf(filePath: string): Promise<PdfRenderResult> {
 // ── Main entry: full fallback chain ─────────────────────────────
 
 export async function renderNativeImage(filePath: string): Promise<RenderResult> {
-  const buffer = await sharp(filePath, { limitInputPixels: false })
+  const effectivePath = filePath.length > 230 ? withLongPathPrefix(filePath) : filePath;
+  const buffer = await sharp(effectivePath, { limitInputPixels: false })
     .flatten({ background: "#ffffff" })
     .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 85 })
@@ -659,7 +670,7 @@ export async function renderFile(
   if (uncPath.length > 230) {
     shortPathTmp = await mkdtemp(path.join(tmpdir(), "popdam-lp-"));
     const dest = path.join(shortPathTmp, `in${path.extname(uncPath)}`);
-    await copyFile(uncPath, dest);
+    await copyFile(withLongPathPrefix(uncPath), dest);
     effectivePath = dest;
     logger.info("Long path resolved to temp for render", { length: uncPath.length });
   }
