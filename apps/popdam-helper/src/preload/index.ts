@@ -39,6 +39,10 @@ const api = {
   logout: (): Promise<IpcResponse> =>
     ipcRenderer.invoke("logout"),
 
+  // Folder picker (native OS dialog)
+  browseForFolder: (): Promise<IpcResponse<string | null>> =>
+    ipcRenderer.invoke("browse-for-folder"),
+
   // Synology credentials
   saveSynologyCredentials: (creds: { username: string; password: string }): Promise<IpcResponse> =>
     ipcRenderer.invoke("save-synology-credentials", creds),

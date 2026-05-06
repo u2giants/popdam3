@@ -10,13 +10,13 @@
 
 import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
-import { createTray, updateTrayIcon } from "./tray";
+import { createTray, updateTrayIcon, showWindow } from "./tray";
 import { registerIpcHandlers } from "./ipc";
 import { registerProtocol } from "./protocol";
 import { initQueue, setProgressCallback, processQueue } from "./uploadQueue";
 import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress } from "./checkoutManager";
 import { heartbeat } from "./damClient";
-import { getConfig, loadConfig } from "./config";
+import { loadConfig } from "./config";
 import { log } from "./logger";
 import { startLocalServer } from "./localServer";
 import { HEARTBEAT_INTERVAL_MS, HELPER_VERSION } from "@shared/constants";
@@ -54,10 +54,16 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window);
   });
 
-  loadConfig();
+  const config = loadConfig();
   registerIpcHandlers();
   createTray();
   startLocalServer();
+
+  // First run: open the popup automatically so the user knows the app is running
+  // and can complete setup (root mappings, workspace folder).
+  if (!config.deviceId || config.rootMappings.length === 0) {
+    setTimeout(() => showWindow(), 600);
+  }
 
   // Init SQLite upload queue
   initQueue();
@@ -81,7 +87,6 @@ app.whenReady().then(async () => {
   });
 
   // Heartbeat timer
-  const config = getConfig();
   if (config.deviceId) {
     setInterval(async () => {
       await heartbeat({ device_id: config.deviceId ?? undefined });

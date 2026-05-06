@@ -3,7 +3,7 @@
  * The renderer never calls Node APIs directly; it goes through these handlers.
  */
 
-import { ipcMain } from "electron";
+import { ipcMain, dialog } from "electron";
 import { getConfig, saveConfig } from "./config";
 import { clearSession, storeToken, loadToken } from "./credentials";
 import {
@@ -96,6 +96,15 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("logout", async () => {
     await clearSession();
     return { ok: true };
+  });
+
+  // ── Folder picker ──────────────────────────────────────────────────────────
+  ipcMain.handle("browse-for-folder", async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ["openDirectory"],
+      title: "Select the local folder for this NAS root",
+    });
+    return { ok: true, data: result.canceled ? null : (result.filePaths[0] ?? null) };
   });
 
   // ── Synology credentials ────────────────────────────────────────────────────

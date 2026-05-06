@@ -14,7 +14,12 @@ let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;
 
 export function createTray(): void {
-  const iconPath = join(__dirname, "../../resources/icon.png");
+  // In packaged app, resources/ is at process.resourcesPath.
+  // In dev, it's two levels up from out/main/.
+  const resourcesPath = app.isPackaged
+    ? process.resourcesPath
+    : join(__dirname, "../../resources");
+  const iconPath = join(resourcesPath, "icon.png");
   const icon = nativeImage.createFromPath(iconPath);
 
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
