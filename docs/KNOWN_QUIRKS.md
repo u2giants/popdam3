@@ -435,3 +435,39 @@ Shell commands (Ghostscript, ImageMagick, Inkscape, Poppler) use the short temp-
 
 **Why**: The web app needs a fixed port to probe at startup. A random port would require an OS-level mechanism to advertise it (registry key, named pipe, temp file) that a web page can't read. The port was chosen to be above the ephemeral range (49152+), far from well-known services, and unlikely to conflict with developer tooling. `EADDRINUSE` is handled gracefully — the Helper logs a warning and continues without the local server rather than crashing.
 
+---
+
+## 36. `renderNativeImage` Uses Temp-Copy for Long Paths, Not `\\?\` Prefix
+
+**File**: `apps/windows-agent/src/renderer.ts`
+
+**What it looks like**: Inconsistency — PDF/AI/PSD rendering uses `withLongPathPrefix(\\?\)` for long-path files, but native image rendering (JPG/PNG/TIFF/etc.) copies to a temp path first.
+
+**Why**: Sharp/libvips does **not** reliably support the `\\?\` extended-length path prefix on Windows. Even though `\\?\` works for Win32 `fs` calls, Sharp's underlying C++ (libvips) uses its own file I/O which does not honour the prefix and still fails on paths > 260 chars. The temp-copy pattern (already used by `renderFile` and `renderPdf`) copies the source to a short temp path, renders from there, and then cleans up — this sidesteps the libvips limitation entirely.
+
+**What breaks if you add `withLongPathPrefix` to Sharp's source path**: The render will still fail with `Input file is missing` for paths > 260 chars because libvips sees the `\\?\` prefix but can't open the file.
+
+---
+
+## 37. AI Vision Model Picker Fetches from OpenRouter Live — Not from `AI_MODELS`
+
+**File**: `src/components/settings/PdfTextSamplesTab.tsx`, `supabase/functions/admin-api/index.ts`
+
+**What it looks like**: The AI vision model dropdown calls an edge function on every page load instead of reading from a local config table.
+
+**Why**: The `AI_MODELS` / `admin_config` approach required manually maintaining a list of OpenRouter models that support image input. OpenRouter's model catalog changes frequently. The `get-openrouter-vision-models` edge function calls `https://openrouter.ai/api/v1/models` and filters on `architecture.input_modalities includes "image"` — no manual maintenance required. Results are React Query cached for 5 minutes.
+
+**Prerequisite**: `OPENROUTER_API_KEY` must be set in `admin_config`. If it isn't, the dropdown shows an error and AI vision extraction won't work.
+
+---
+
+## 38. Nightly Crawl Cron Is Scheduled in UTC, Not ET
+
+**DB object**: `pg_cron` job `nightly-sg-crawl` (`20260507154819_schedule_nightly_sg_crawl.sql`)
+
+**What it looks like**: The crawl is supposed to run at 9pm ET, but the cron expression is `'0 2 * * *'` (02:00 UTC).
+
+**Why**: The `cron.timezone` GUC on this Supabase version cannot be changed without a server restart (not possible on managed Supabase). `02:00 UTC = 9pm EST`. In EDT (summer, UTC-4), `02:00 UTC = 10pm EDT` — a 1-hour drift. This is acceptable for a nightly maintenance job.
+
+**What breaks if you change the expression to a local time without verifying `cron.timezone`**: The job will run at the wrong time silently — pg_cron always interprets schedule expressions as UTC unless `cron.timezone` is explicitly set.
+

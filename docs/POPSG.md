@@ -145,9 +145,19 @@ The Windows Render Agent generates thumbnails for `style_guide_files`. The pipel
 3. Failures set `thumbnail_error` on the file row and the queue job to `status = 'failed'`.
 4. Admin clicks "Retry All" on the "Files with Render Errors" tab → calls `retry_sg_render_errors()` in 500-file batches until it returns 0.
 
-**Extension allowlist** (in `queue_sg_render_jobs_by_ids` and `get_sg_preview_stats`): `pdf`, `ai`, `psd`, `jpg`, `jpeg`, `png`, `tif`, `tiff`, `svg`, `indd`, `eps` (EPS was not originally in the list — see Known Quirks #23). Files with unlisted extensions get `thumbnail_error = 'unsupported_extension'` immediately on queue attempt.
+**Extension allowlist** (in `queue_sg_render_jobs_by_ids` and `get_sg_preview_stats`): `pdf`, `ai`, `psd`, `jpg`, `jpeg`, `png`, `tif`, `tiff`, `svg`, `indd`, `eps`. Files with unlisted extensions get `thumbnail_error = 'unsupported_extension'` immediately on queue attempt. Note: EPS was added 2026-05-07 (migration `20260507173844`) — about 23,242 files need to be queued and rendered.
 
 **Known large failure categories**: see Known Quirks #23 and #34 for the full breakdown and fixes.
+
+---
+
+## Nightly Crawl
+
+A `pg_cron` job (`nightly-sg-crawl`) fires at **02:00 UTC every day** (= 9pm EST / 10pm EDT). It upserts `STYLE_GUIDE_CRAWL_REQUEST = { status: "pending" }` into `admin_config`. The bridge agent picks this up on its next heartbeat and begins a full crawl.
+
+- The cron expression is UTC-fixed (see Known Quirks #38 for why `cron.timezone` can't be changed)
+- Manual trigger still works: Settings → File Health → Style Guide Crawl → "Trigger Crawl"
+- The crawl marks stale files `is_active = false` at completion via `sg_staleness_cleanup()`
 
 ---
 
