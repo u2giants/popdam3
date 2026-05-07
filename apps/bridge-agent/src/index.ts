@@ -339,13 +339,13 @@ async function writeMarkerViaDocker(
   // Pass JSON content via env var to avoid any shell escaping issues.
   // printf "%s" avoids echo adding a trailing newline or interpreting escapes.
   const markerJson = JSON.stringify(marker, null, 2);
-  await (execFileAsync as Function)("docker", [
+  await execFileAsync("docker", [
     "run", "--rm",
     "-e", `MARKER_CONTENT=${markerJson}`,
     "-v", `${hostPath}:/w`,
     "alpine",
     "sh", "-c", 'printf "%s" "$MARKER_CONTENT" > /w/.pop-root.json',
-  ], { timeout: 30_000 });
+  ], { timeout: 30_000 } as never);
 }
 
 async function ensureRootMarkers(
