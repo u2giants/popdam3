@@ -2365,6 +2365,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      deactivate_stale_sg_files: {
+        Args: { p_root_label: string; p_run_id: string }
+        Returns: number
+      }
       drop_constraints: {
         Args: {
           p_child_table: string
