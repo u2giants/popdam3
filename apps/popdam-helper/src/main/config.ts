@@ -28,6 +28,7 @@ function defaultConfig(): LocalConfig {
     helperVersion: HELPER_VERSION,
     damUrl: "https://dam.designflow.app",
     supabaseUrl: "",
+    supabaseAnonKey: "",
     workspacePath: defaultWorkspacePath(),
     rootMappings: [],
   };

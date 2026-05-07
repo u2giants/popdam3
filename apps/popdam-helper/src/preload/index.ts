@@ -36,8 +36,8 @@ const api = {
   // Auth
   getAuthState: (): Promise<IpcResponse<{ loggedIn: boolean; userId: string | null; email: string | null; accessToken: string | null }>> =>
     ipcRenderer.invoke("get-auth-state"),
-  signIn: (provider?: string): Promise<IpcResponse> =>
-    ipcRenderer.invoke("sign-in", provider ?? "google"),
+  signIn: (email: string, password: string): Promise<IpcResponse> =>
+    ipcRenderer.invoke("sign-in", { email, password }),
   logout: (): Promise<IpcResponse> =>
     ipcRenderer.invoke("logout"),
 

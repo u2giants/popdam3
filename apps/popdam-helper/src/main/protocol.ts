@@ -11,12 +11,8 @@
 
 import { app } from "electron";
 import { log } from "./logger";
-import { checkout, checkin, discard, revealFile, openFile, loadActiveCheckouts } from "./checkoutManager";
-import { showWindow, sendToRenderer } from "./tray";
-import { storeSession } from "./credentials";
-import { getConfig, saveConfig } from "./config";
-import { registerDevice } from "./damClient";
-import { HELPER_VERSION } from "@shared/constants";
+import { checkout, checkin, discard, revealFile, openFile } from "./checkoutManager";
+import { showWindow } from "./tray";
 
 export interface ParsedLink {
   action: "checkout" | "checkin" | "open" | "reveal" | "discard";
@@ -44,57 +40,8 @@ export function parseDeepLink(url: string): ParsedLink | null {
   }
 }
 
-async function handleAuthCallback(url: string): Promise<void> {
-  // URL format: popdam://auth#access_token=...&refresh_token=...&token_type=bearer&expires_in=3600
-  const parsed = new URL(url);
-  const params = new URLSearchParams(parsed.hash.slice(1));
-  const accessToken = params.get("access_token");
-  const refreshToken = params.get("refresh_token");
-
-  if (!accessToken || !refreshToken) {
-    log.warn("Auth callback missing tokens — check Supabase redirect URL config");
-    return;
-  }
-
-  storeSession(accessToken, refreshToken);
-  log.info("Session stored from OAuth callback");
-
-  const config = getConfig();
-  try {
-    const result = await registerDevice({
-      device_name: config.deviceName,
-      device_os: config.deviceOs,
-      helper_version: HELPER_VERSION,
-      device_id: config.deviceId,
-    });
-    if (result.ok && result.device_id !== config.deviceId) {
-      saveConfig({ deviceId: result.device_id });
-      log.info("Device registered:", result.device_id);
-    }
-  } catch (e) {
-    log.warn("Device registration failed after login:", e);
-  }
-
-  await loadActiveCheckouts().catch(() => {});
-  sendToRenderer("auth-changed");
-  sendToRenderer("checkouts-changed");
-}
-
 export async function handleDeepLink(url: string): Promise<void> {
   log.info("Deep link received:", url);
-
-  // OAuth callback — popdam://auth#access_token=...
-  try {
-    const parsed = new URL(url);
-    if (parsed.hostname === "auth") {
-      await handleAuthCallback(url);
-      showWindow();
-      return;
-    }
-  } catch {
-    // fall through to normal deep link handling
-  }
-
   showWindow();
 
   const link = parseDeepLink(url);

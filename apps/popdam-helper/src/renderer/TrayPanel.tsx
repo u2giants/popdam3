@@ -50,6 +50,10 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authState, setAuthState] = useState<{ loggedIn: boolean; email: string | null }>({ loggedIn: true, email: null });
+  const [signInEmail, setSignInEmail] = useState("");
+  const [signInPassword, setSignInPassword] = useState("");
+  const [signInBusy, setSignInBusy] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const res = await window.popdam.getCheckouts();
@@ -114,15 +118,47 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
         {!authState.loggedIn && (
           <div className="checkout-card" style={{ marginBottom: 12 }}>
             <div className="meta" style={{ marginBottom: 8 }}>
-              Sign in to sync your checked-out files with the DAM.
+              Sign in with your PopDAM account.
             </div>
-            <button
-              className="primary"
-              style={{ width: "100%" }}
-              onClick={() => window.popdam.signIn().catch(() => {})}
-            >
-              Sign in with Google
-            </button>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setSignInBusy(true);
+              setSignInError(null);
+              const res = await window.popdam.signIn(signInEmail, signInPassword);
+              setSignInBusy(false);
+              if (!res.ok) setSignInError(res.error ?? "Sign-in failed");
+              else { setSignInEmail(""); setSignInPassword(""); }
+            }}>
+              <input
+                type="email"
+                placeholder="Email"
+                value={signInEmail}
+                onChange={(e) => setSignInEmail(e.target.value)}
+                style={{ width: "100%", marginBottom: 6, boxSizing: "border-box" }}
+                required
+                autoComplete="username"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={signInPassword}
+                onChange={(e) => setSignInPassword(e.target.value)}
+                style={{ width: "100%", marginBottom: 6, boxSizing: "border-box" }}
+                required
+                autoComplete="current-password"
+              />
+              {signInError && (
+                <div className="error-msg" style={{ marginBottom: 6 }}>{signInError}</div>
+              )}
+              <button
+                className="primary"
+                type="submit"
+                style={{ width: "100%" }}
+                disabled={signInBusy}
+              >
+                {signInBusy ? "Signing in…" : "Sign In"}
+              </button>
+            </form>
           </div>
         )}
 

@@ -26,13 +26,16 @@ function apiUrl(path: string): string {
   return `${base}/functions/v1/helper-api${path}`;
 }
 
-export async function discoverSupabaseUrl(damUrl: string): Promise<string> {
+export async function discoverSupabaseConfig(damUrl: string): Promise<{ supabaseUrl: string; supabaseAnonKey: string }> {
   const base = damUrl.replace(/\/$/, "");
   const res = await fetch(`${base}/dam-config.json`);
   if (!res.ok) throw new Error(`Could not fetch dam-config.json (${res.status})`);
   const json = await res.json();
   if (!json.supabase_url) throw new Error("dam-config.json missing supabase_url");
-  return json.supabase_url as string;
+  return {
+    supabaseUrl: json.supabase_url as string,
+    supabaseAnonKey: (json.supabase_anon_key ?? "") as string,
+  };
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {

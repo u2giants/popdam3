@@ -14,7 +14,7 @@ import {
   openFile,
 } from "./checkoutManager";
 import { getPendingJobs } from "./uploadQueue";
-import { fetchConfig, discoverSupabaseUrl } from "./damClient";
+import { fetchConfig, discoverSupabaseConfig } from "./damClient";
 import { validateRoot } from "./rootValidator";
 import { shell } from "electron";
 import { log } from "./logger";
@@ -103,17 +103,51 @@ export function registerIpcHandlers(): void {
     return { ok: true, data: { loggedIn: true, userId, email, accessToken: session.accessToken } };
   });
 
-  // Opens the browser to Supabase Google OAuth. On success, Supabase redirects to
-  // popdam://auth#access_token=...&refresh_token=... which protocol.ts catches.
-  // IMPORTANT: add "popdam://auth" to Allowed Redirect URLs in Supabase Dashboard → Auth → URL Configuration.
-  ipcMain.handle("sign-in", (_event, provider: string = "google") => {
-    const { supabaseUrl, damUrl } = getConfig();
+  ipcMain.handle("sign-in", async (_event, { email, password }: { email: string; password: string }) => {
+    const { supabaseUrl, supabaseAnonKey, damUrl } = getConfig();
     const base = (supabaseUrl || damUrl).replace(/\/$/, "");
     if (!base) return { ok: false, error: "Set your DAM URL in Settings first" };
-    const redirectTo = encodeURIComponent("popdam://auth");
-    const authUrl = `${base}/auth/v1/authorize?provider=${provider}&redirect_to=${redirectTo}&response_type=token`;
-    shell.openExternal(authUrl);
-    return { ok: true };
+    const anonKey = supabaseAnonKey || "";
+    try {
+      const res = await fetch(`${base}/auth/v1/token?grant_type=password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": anonKey,
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = await res.json() as Record<string, unknown>;
+      if (!res.ok) {
+        const msg = (json.error_description ?? json.message ?? "Sign-in failed") as string;
+        return { ok: false, error: msg };
+      }
+      const accessToken = json.access_token as string;
+      const refreshToken = json.refresh_token as string;
+      storeSession(accessToken, refreshToken);
+
+      const config = getConfig();
+      const { registerDevice } = await import("./damClient");
+      const { loadActiveCheckouts } = await import("./checkoutManager");
+      const { sendToRenderer } = await import("./tray");
+      try {
+        const reg = await registerDevice({
+          device_name: config.deviceName,
+          device_os: config.deviceOs,
+          helper_version: (await import("@shared/constants")).HELPER_VERSION,
+          device_id: config.deviceId,
+        });
+        if (reg.ok && reg.device_id !== config.deviceId) saveConfig({ deviceId: reg.device_id });
+      } catch (e) {
+        log.warn("Device registration failed after sign-in:", e);
+      }
+      await loadActiveCheckouts().catch(() => {});
+      sendToRenderer("auth-changed");
+      sendToRenderer("checkouts-changed");
+      return { ok: true };
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
   });
 
   ipcMain.handle("logout", () => {
@@ -158,8 +192,8 @@ export function registerIpcHandlers(): void {
   // ── Supabase URL discovery ──────────────────────────────────────────────────
   ipcMain.handle("discover-supabase-url", async (_event, damUrl: string) => {
     try {
-      const supabaseUrl = await discoverSupabaseUrl(damUrl);
-      saveConfig({ supabaseUrl });
+      const { supabaseUrl, supabaseAnonKey } = await discoverSupabaseConfig(damUrl);
+      saveConfig({ supabaseUrl, supabaseAnonKey });
       return { ok: true, data: supabaseUrl };
     } catch (e: unknown) {
       return { ok: false, error: String(e) };
