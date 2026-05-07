@@ -19,6 +19,17 @@
 
 **To preview PopSG locally:** add `?mode=popsg` to the URL (persisted in sessionStorage for the tab).
 
+## No Workarounds
+
+**When a required tool or resource is unavailable, stop and ask — never substitute a workaround.**
+
+Examples of prohibited workarounds:
+- A tool (e.g. Supabase MCP) is down → do NOT make a frontend-only code change instead of the DB change the user requested. Stop and say the tool is unavailable and what you need to proceed.
+- A credential is missing → do NOT skip the step or use a placeholder. Ask for the credential.
+- An API call fails → do NOT silently fall back to hardcoded data. Surface the error.
+
+If you catch yourself writing "I couldn't do X so instead I did Y", that is a workaround. Undo it and ask.
+
 ## Git Workflow
 
 **Always push directly to `main`. Never use feature branches or PRs.**

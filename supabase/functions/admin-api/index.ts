@@ -848,6 +848,39 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
   });
 }
 
+// ── Route: get-openrouter-vision-models ─────────────────────────────
+
+async function handleGetOpenrouterVisionModels() {
+  const db = serviceClient();
+  const { data: keyRow } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "OPENROUTER_API_KEY")
+    .maybeSingle();
+
+  const apiKey = (keyRow?.value as string | null) ?? null;
+  if (!apiKey) return err("OPENROUTER_API_KEY not configured in admin_config", 400);
+
+  const resp = await fetch("https://openrouter.ai/api/v1/models", {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!resp.ok) return err(`OpenRouter API error: ${resp.status} ${resp.statusText}`, 502);
+
+  const payload = await resp.json() as { data: Array<Record<string, unknown>> };
+  const models = (payload.data ?? []).filter((m) => {
+    const arch = m.architecture as Record<string, unknown> | undefined;
+    const modalities = arch?.input_modalities as string[] | undefined;
+    return Array.isArray(modalities) && modalities.includes("image");
+  }).map((m) => ({
+    id: m.id as string,
+    name: (m.name as string | null) ?? (m.id as string),
+    context_length: m.context_length as number | null,
+    pricing: m.pricing as Record<string, unknown> | null,
+  }));
+
+  return json({ ok: true, models });
+}
+
 // ── Route: trigger-pdf-text-sample ──────────────────────────────────
 
 async function handleTriggerPdfTextSample(body: Record<string, unknown>) {
@@ -1356,6 +1389,8 @@ corsServe(async (req: Request) => {
         return await handleGetStyleGuideCrawlStatus();
       case "browse-style-guide-files":
         return await handleBrowseStyleGuideFiles(body);
+      case "get-openrouter-vision-models":
+        return await handleGetOpenrouterVisionModels();
       case "trigger-pdf-text-sample":
         return await handleTriggerPdfTextSample(body);
       case "backfill-pdf-files-used":

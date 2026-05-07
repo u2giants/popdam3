@@ -13,14 +13,6 @@ import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface AiModelDef {
-  id: string;
-  provider: string;
-  apiModel: string;
-  displayName: string;
-  capabilities: string[];
-}
-
 interface PdfSample {
   id: string;
   asset_id: string | null;
@@ -368,23 +360,31 @@ function LiveProgressPanel({ request, agentStatuses, targetAgentType }: {
   );
 }
 
+interface OpenRouterModel {
+  id: string;
+  name: string;
+  context_length: number | null;
+}
+
 // ── AI vision model config card ───────────────────────────────────────────────
 
 function AiVisionConfigCard() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
 
-  const { data: configData } = useQuery({
-    queryKey: ["admin-config", "AI_MODELS", "PDF_EXTRACTION_CONFIG"],
-    queryFn: () => call("get-config", { keys: ["AI_MODELS", "PDF_EXTRACTION_CONFIG"] }),
+  // Fetch vision models live from OpenRouter and saved selection in parallel
+  const { data: modelsData, isLoading: modelsLoading, error: modelsError } = useQuery({
+    queryKey: ["openrouter-vision-models"],
+    queryFn: () => call("get-openrouter-vision-models"),
+    staleTime: 5 * 60_000,
   });
 
-  const allModels: AiModelDef[] = (() => {
-    const raw = configData?.config?.AI_MODELS?.value ?? configData?.config?.AI_MODELS;
-    return Array.isArray(raw) ? (raw as AiModelDef[]) : [];
-  })();
+  const { data: configData } = useQuery({
+    queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG"],
+    queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG"] }),
+  });
 
-  const visionModels = allModels.filter((m) => m.capabilities.includes("vision") && m.provider === "openrouter");
+  const visionModels: OpenRouterModel[] = (modelsData?.models ?? []) as OpenRouterModel[];
 
   const savedModelId: string = (() => {
     const raw = configData?.config?.PDF_EXTRACTION_CONFIG?.value ?? configData?.config?.PDF_EXTRACTION_CONFIG;
@@ -406,7 +406,7 @@ function AiVisionConfigCard() {
       call("set-config", { entries: { PDF_EXTRACTION_CONFIG: { ai_vision_model_id: selectedModelId } } }),
     onSuccess: () => {
       toast.success("AI vision model saved — takes effect on next PDF sample run");
-      queryClient.invalidateQueries({ queryKey: ["admin-config", "AI_MODELS", "PDF_EXTRACTION_CONFIG"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-config", "PDF_EXTRACTION_CONFIG"] });
       setLoaded(false);
     },
     onError: (e: Error) => toast.error(e.message || "Failed to save"),
@@ -425,25 +425,36 @@ function AiVisionConfigCard() {
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
           Used as the final fallback when mupdf text extraction and OCR both fail (e.g. scanned PDFs with no machine-readable text).
-          Only models with <code className="text-xs">vision</code> capability are shown.
+          Sourced live from OpenRouter — all models that accept image input are shown.
         </p>
-        {visionModels.length === 0 ? (
-          <p className="text-sm text-amber-600">
-            No vision models found. Add models to <code className="text-xs">AI_MODELS</code> in admin_config (same format as Openclaw <code className="text-xs">config/models.json</code>).
+        {modelsLoading && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading models from OpenRouter…
+          </div>
+        )}
+        {modelsError && (
+          <p className="text-sm text-destructive">
+            Could not load models from OpenRouter: {(modelsError as Error).message}
           </p>
-        ) : (
+        )}
+        {!modelsLoading && !modelsError && visionModels.length === 0 && (
+          <p className="text-sm text-amber-600">
+            No vision models returned. Check that <code className="text-xs">OPENROUTER_API_KEY</code> is set in admin_config.
+          </p>
+        )}
+        {visionModels.length > 0 && (
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
-              <Label className="text-xs">Vision model</Label>
+              <Label className="text-xs">Vision model ({visionModels.length} available)</Label>
               <Select value={selectedModelId} onValueChange={setSelectedModelId}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select a vision model…" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-72">
                   {visionModels.map((m) => (
                     <SelectItem key={m.id} value={m.id} className="text-xs">
-                      {m.displayName || m.id}
-                      <span className="ml-2 text-muted-foreground text-[10px]">({m.provider})</span>
+                      {m.name}
+                      <span className="ml-2 text-muted-foreground text-[10px]">{m.id}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -459,9 +470,6 @@ function AiVisionConfigCard() {
             </Button>
           </div>
         )}
-        <p className="text-xs text-muted-foreground">
-          API keys: set <code>GOOGLE_AI_API_KEY</code> or <code>ANTHROPIC_API_KEY</code> in admin_config.
-        </p>
       </CardContent>
     </Card>
   );
