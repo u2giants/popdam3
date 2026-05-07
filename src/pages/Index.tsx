@@ -214,6 +214,7 @@ export default function LibraryPage() {
                 assets={assets}
                 selectedIds={selectedIds}
                 onSelect={handleSelect}
+                onOpenDetail={setDetailAssetId}
                 isLoading={isLoading}
               />
             ) : (
