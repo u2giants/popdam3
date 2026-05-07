@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, setUserSyncRoot, type NasConfig } from "@/lib/path-utils";
-import { getOpenFolderUri, getPreferredPathMode, setPreferredPathMode, type PathMode } from "@/lib/open-folder";
+import { getOpenFolderUri, buildOpenFolderUri, getPreferredPathMode, setPreferredPathMode, type PathMode } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -52,7 +52,7 @@ interface AssetDetailPanelProps {
   onClose: () => void;
 }
 
-function CopyButton({ value, label }: { value: string; label: string }) {
+function CopyButton({ value, label, folderUri }: { value: string; label: string; folderUri?: string }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -65,7 +65,17 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     <div className="group flex items-start gap-2">
       <div className="flex-1 min-w-0">
         <span className="text-[10px] uppercase text-muted-foreground tracking-wider">{label}</span>
-        <p className="text-xs font-mono break-all text-foreground/80 mt-0.5">{value}</p>
+        {folderUri ? (
+          <a
+            href={folderUri}
+            className="block text-xs font-mono break-all text-foreground/80 mt-0.5 hover:text-foreground hover:underline cursor-pointer"
+            title="Click to open containing folder"
+          >
+            {value}
+          </a>
+        ) : (
+          <p className="text-xs font-mono break-all text-foreground/80 mt-0.5">{value}</p>
+        )}
       </div>
       <Button
         variant="ghost"
@@ -583,9 +593,12 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
             <CopyButton label="Relative" value={asset.relative_path} />
             {paths && (
               <>
-                <CopyButton label="Office UNC (hostname)" value={paths.uncHost} />
-                <CopyButton label="Office UNC (IP)" value={paths.uncIp} />
-                {paths.remote && <CopyButton label="Remote (Synology Drive)" value={paths.remote} />}
+                <CopyButton label="Office UNC (hostname)" value={paths.uncHost}
+                  folderUri={buildOpenFolderUri(paths.uncHost.substring(0, Math.max(paths.uncHost.lastIndexOf("\\"), paths.uncHost.lastIndexOf("/"))))} />
+                <CopyButton label="Office UNC (IP)" value={paths.uncIp}
+                  folderUri={buildOpenFolderUri(paths.uncIp.substring(0, Math.max(paths.uncIp.lastIndexOf("\\"), paths.uncIp.lastIndexOf("/"))))} />
+                {paths.remote && <CopyButton label="Remote (Synology Drive)" value={paths.remote}
+                  folderUri={buildOpenFolderUri(paths.remote.substring(0, paths.remote.lastIndexOf("/")))} />}
               </>
             )}
           </section>
