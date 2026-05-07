@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2, Eye, Users } from "lucide-react";
+import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2, Eye, Users, Search, X } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -1110,6 +1110,110 @@ function TipTab({ value, label, tip }: { value: string; label: string; tip: stri
   );
 }
 
+// ── Sub-tab bar ─────────────────────────────────────────────────────
+
+function SubTabBar({ tabs, active, onChange }: { tabs: { id: string; label: string }[]; active: string; onChange: (id: string) => void }) {
+  return (
+    <div className="flex gap-1 border-b border-border pb-2">
+      {tabs.map(({ id, label }) => (
+        <button
+          key={id}
+          onClick={() => onChange(id)}
+          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${active === id ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Settings search ─────────────────────────────────────────────────
+
+const SETTINGS_SEARCH_ITEMS: { label: string; desc: string; tab: string; subTab?: string }[] = [
+  { label: "Users & Access", desc: "Manage users, roles, and invitations", tab: "general" },
+  { label: "App Password", desc: "Helper app password for Synology integration", tab: "general" },
+  { label: "NAS & Folders", desc: "Volume mapping, scan folders, subfolder filters", tab: "storage", subTab: "nas" },
+  { label: "Scanning", desc: "Auto-scan intervals, batch size, date cutoffs, resource guard", tab: "storage", subTab: "scanning" },
+  { label: "Image Output", desc: "Thumbnail and preview output settings", tab: "storage", subTab: "image-output" },
+  { label: "Path Tester", desc: "Test and validate NAS paths", tab: "storage", subTab: "paths" },
+  { label: "Bridge Agent (NAS)", desc: "Status, pairing codes, throughput, live scan monitor", tab: "agents", subTab: "bridge" },
+  { label: "Windows Render Agent", desc: "Status, remote controls, agent logs", tab: "agents", subTab: "windows" },
+  { label: "PopSG Connection", desc: "Connect PopSG style guide agent", tab: "agents", subTab: "popsg" },
+  { label: "Install Bundles", desc: "Download Bridge and Windows agent installers", tab: "agents", subTab: "install" },
+  { label: "AI Tagging", desc: "Run AI tagging jobs, configure models and instructions", tab: "processing", subTab: "ai-tagging" },
+  { label: "PDF Text Extraction", desc: "Test and review PDF text and OCR extraction", tab: "processing", subTab: "pdf-text" },
+  { label: "ERP Sync", desc: "Sync and enrich product data from your ERP system", tab: "processing", subTab: "erp" },
+  { label: "Taxonomy / APIs", desc: "Manage licensors, properties, characters — sync from external APIs", tab: "processing", subTab: "taxonomy" },
+  { label: "Style Guide Crawl", desc: "Crawl and index style guide files", tab: "file-health", subTab: "style-guide" },
+  { label: "TIFF Compression", desc: "Scan and compress uncompressed TIFF files", tab: "file-health", subTab: "tiff" },
+  { label: "File Quality Checks", desc: "Scan for and review embedded-file quality issues", tab: "file-health", subTab: "files" },
+  { label: "Maintenance & Bulk Jobs", desc: "Rebuild style groups, reprocess metadata, rebuild indexes", tab: "maintenance" },
+  { label: "Diagnostics", desc: "System health, connected agents, error history, database inspector", tab: "diagnostics" },
+];
+
+function SettingsSearch({ onNavigate }: { onNavigate: (tab: string, subTab?: string) => void }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const results = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    return SETTINGS_SEARCH_ITEMS.filter(
+      (item) => item.label.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q)
+    );
+  }, [query]);
+
+  return (
+    <div className="relative w-72">
+      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+      <Input
+        ref={inputRef}
+        placeholder="Search settings…"
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="pl-8 pr-8"
+      />
+      {query && (
+        <button
+          className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+          onMouseDown={(e) => { e.preventDefault(); setQuery(""); inputRef.current?.focus(); }}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+      {open && results.length > 0 && (
+        <div className="absolute top-full mt-1 left-0 w-full min-w-[280px] bg-popover border border-border rounded-md shadow-md z-50 overflow-hidden">
+          {results.map((item, i) => (
+            <button
+              key={i}
+              className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex flex-col gap-0.5"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onNavigate(item.tab, item.subTab);
+                setQuery("");
+                setOpen(false);
+                inputRef.current?.blur();
+              }}
+            >
+              <span className="font-medium">{item.label}</span>
+              <span className="text-xs text-muted-foreground">{item.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && query && results.length === 0 && (
+        <div className="absolute top-full mt-1 left-0 w-full bg-popover border border-border rounded-md shadow-md z-50 px-3 py-2 text-sm text-muted-foreground">
+          No settings found
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Helper App Password ─────────────────────────────────────────────
 
 function HelperPasswordCard() {
@@ -1184,15 +1288,25 @@ function HelperPasswordCard() {
 
 export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "storage";
+  const activeTab = searchParams.get("tab") || "general";
   const handleTabChange = useCallback((value: string) => {
     setSearchParams({ tab: value }, { replace: true });
   }, [setSearchParams]);
 
-  // Sub-tab state for merged tabs
   const [storageSubTab, setStorageSubTab] = useState("nas");
   const [agentsSubTab, setAgentsSubTab] = useState("bridge");
-  const [hygieneSubTab, setHygieneSubTab] = useState("tiff");
+  const [processingSubTab, setProcessingSubTab] = useState("ai-tagging");
+  const [fileHealthSubTab, setFileHealthSubTab] = useState("style-guide");
+
+  const navigateTo = useCallback((tab: string, subTab?: string) => {
+    handleTabChange(tab);
+    if (subTab) {
+      if (tab === "storage") setStorageSubTab(subTab);
+      else if (tab === "agents") setAgentsSubTab(subTab);
+      else if (tab === "processing") setProcessingSubTab(subTab);
+      else if (tab === "file-health") setFileHealthSubTab(subTab);
+    }
+  }, [handleTabChange]);
 
   return (
     <div className="container max-w-7xl py-8 space-y-6">
@@ -1201,69 +1315,62 @@ export default function SettingsPage() {
           <SettingsIcon className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-semibold">Settings</h1>
         </div>
-        <span className="text-xs text-muted-foreground font-mono select-all" title="Git commit hash and date of this build">
-          {__APP_COMMIT__} · {__APP_DATE__}
-        </span>
+        <div className="flex items-center gap-4">
+          <SettingsSearch onNavigate={navigateTo} />
+          <span className="text-xs text-muted-foreground font-mono select-all" title="Git commit hash and date of this build">
+            {__APP_COMMIT__} · {__APP_DATE__}
+          </span>
+        </div>
       </div>
-
-      <HelperPasswordCard />
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TipTab value="ai-tagging" label="AI Tagging" tip="Run AI tagging jobs and configure tagging behavior" />
-          <TipTab value="taxonomy" label="Taxonomy" tip="Manage licensors, properties, and characters — sync from external APIs" />
-          <TipTab value="erp" label="ERP" tip="Sync and enrich product data from your ERP system" />
-          <TipTab value="hygiene" label="Hygiene" tip="TIFF compression optimization and embedded-file quality checks" />
-          <TipTab value="operations" label="Operations" tip="Bulk data maintenance: reprocess metadata, rebuild style groups, and more" />
-          <TabsTrigger value="users">Users</TabsTrigger>
+          <TipTab value="processing" label="Processing" tip="AI tagging, PDF text extraction, ERP sync, and taxonomy APIs" />
+          <TipTab value="file-health" label="File Health" tip="Style guide crawl, TIFF compression, and file quality checks" />
+          <TipTab value="maintenance" label="Maintenance" tip="Bulk data operations: rebuild style groups, reprocess metadata" />
           <TipTab value="diagnostics" label="Diagnostics" tip="System health, connected agents, recent errors, and database inspector" />
         </TabsList>
 
-        {/* ── Storage (NAS + Scanning + Image Output) ── */}
+        {/* ── General (Users + App Password) ── */}
+        <TabsContent value="general" className="space-y-4">
+          <HelperPasswordCard />
+          <UsersSection />
+          <InvitationSection />
+        </TabsContent>
+
+        {/* ── Storage ── */}
         <TabsContent value="storage" className="space-y-4">
-          <div className="flex gap-1 border-b border-border pb-2">
-            {[
+          <SubTabBar
+            tabs={[
               { id: "nas", label: "NAS & Folders" },
               { id: "scanning", label: "Scanning" },
               { id: "image-output", label: "Image Output" },
               { id: "paths", label: "Path Tester" },
-            ].map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setStorageSubTab(id)}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${storageSubTab === id ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+            ]}
+            active={storageSubTab}
+            onChange={setStorageSubTab}
+          />
           {storageSubTab === "nas" && <NasStorageTab />}
           {storageSubTab === "scanning" && <ScanningTab />}
           {storageSubTab === "image-output" && <ImageOutputTab />}
           {storageSubTab === "paths" && <PathTesterSection />}
         </TabsContent>
 
-        {/* ── Agents (Bridge + Windows + Install) ── */}
+        {/* ── Agents ── */}
         <TabsContent value="agents" className="space-y-4">
-          <div className="flex gap-1 border-b border-border pb-2">
-            {[
+          <SubTabBar
+            tabs={[
               { id: "bridge", label: "Bridge Agent (NAS)" },
               { id: "windows", label: "Windows Render Agent" },
               { id: "popsg", label: "PopSG Connection" },
-              { id: "pdf-text", label: "PDF Text" },
               { id: "install", label: "Install Bundles" },
-            ].map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setAgentsSubTab(id)}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${agentsSubTab === id ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+            ]}
+            active={agentsSubTab}
+            onChange={setAgentsSubTab}
+          />
           {agentsSubTab === "bridge" && (
             <div className="space-y-4">
               <PairingCodesSection defaultAgentType="bridge" />
@@ -1271,59 +1378,50 @@ export default function SettingsPage() {
               <AgentThroughputChart />
               <LiveScanMonitor />
               <UpdateAgentButton />
-              <StyleGuideCrawlTab />
             </div>
           )}
           {agentsSubTab === "windows" && <WindowsAgentTab />}
           {agentsSubTab === "popsg" && <PopSGAgentTab />}
-          {agentsSubTab === "pdf-text" && <PdfTextSamplesTab />}
           {agentsSubTab === "install" && <InstallBundleTab />}
         </TabsContent>
 
-        {/* ── AI Tagging ── */}
-        <TabsContent value="ai-tagging" className="space-y-4">
-          <AiTaggingTab />
+        {/* ── Processing (AI Tagging + PDF Text + ERP + Taxonomy) ── */}
+        <TabsContent value="processing" className="space-y-4">
+          <SubTabBar
+            tabs={[
+              { id: "ai-tagging", label: "AI Tagging" },
+              { id: "pdf-text", label: "PDF Text" },
+              { id: "erp", label: "ERP Sync" },
+              { id: "taxonomy", label: "Taxonomy" },
+            ]}
+            active={processingSubTab}
+            onChange={setProcessingSubTab}
+          />
+          {processingSubTab === "ai-tagging" && <AiTaggingTab />}
+          {processingSubTab === "pdf-text" && <PdfTextSamplesTab />}
+          {processingSubTab === "erp" && <ErpEnrichmentTab />}
+          {processingSubTab === "taxonomy" && <ApisTab />}
         </TabsContent>
 
-        {/* ── Taxonomy ── */}
-        <TabsContent value="taxonomy" className="space-y-4">
-          <ApisTab />
-        </TabsContent>
-
-        {/* ── ERP ── */}
-        <TabsContent value="erp" className="space-y-4">
-          <ErpEnrichmentTab />
-        </TabsContent>
-
-        {/* ── Hygiene (TIFF + File) ── */}
-        <TabsContent value="hygiene" className="space-y-4">
-          <div className="flex gap-1 border-b border-border pb-2">
-            {[
+        {/* ── File Health (Style Guide + TIFF + File Quality) ── */}
+        <TabsContent value="file-health" className="space-y-4">
+          <SubTabBar
+            tabs={[
+              { id: "style-guide", label: "Style Guide Crawl" },
               { id: "tiff", label: "TIFF Compression" },
               { id: "files", label: "File Quality" },
-            ].map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setHygieneSubTab(id)}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${hygieneSubTab === id ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {hygieneSubTab === "tiff" && <TiffHygieneTab />}
-          {hygieneSubTab === "files" && <FileHygieneTab />}
+            ]}
+            active={fileHealthSubTab}
+            onChange={setFileHealthSubTab}
+          />
+          {fileHealthSubTab === "style-guide" && <StyleGuideCrawlTab />}
+          {fileHealthSubTab === "tiff" && <TiffHygieneTab />}
+          {fileHealthSubTab === "files" && <FileHygieneTab />}
         </TabsContent>
 
-        {/* ── Operations ── */}
-        <TabsContent value="operations" className="space-y-4">
+        {/* ── Maintenance ── */}
+        <TabsContent value="maintenance" className="space-y-4">
           <OperationsTab />
-        </TabsContent>
-
-        {/* ── Users ── */}
-        <TabsContent value="users" className="space-y-4">
-          <UsersSection />
-          <InvitationSection />
         </TabsContent>
 
         {/* ── Diagnostics ── */}
