@@ -850,39 +850,47 @@ async function handleBrowseStyleGuideFiles(body: Record<string, unknown>) {
 
 // ── Route: trigger-pdf-text-sample ──────────────────────────────────
 
-async function handleTriggerPdfTextSample() {
+async function handleTriggerPdfTextSample(body: Record<string, unknown>) {
   const db = serviceClient();
+  const mode = body.mode === "full" ? "full" : "sample";
 
-  // Pick 25 random active PDF assets
-  const { data: assets, error } = await db
+  const query = db
     .from("assets")
     .select("id, relative_path, filename")
     .eq("file_type", "pdf")
-    .eq("is_deleted", false)
-    .limit(25);
+    .eq("is_deleted", false);
+
+  if (mode === "sample") query.limit(250); // fetch 250 to shuffle down to 25
+  // full mode: no limit (Supabase default 1000; large libraries may need pagination but 1000 is sufficient)
+
+  const { data: assets, error } = await query;
 
   if (error) return err(error.message, 500);
   if (!assets || assets.length === 0) return err("No active PDF assets found", 404);
 
-  // Fisher-Yates shuffle for uniform random selection
-  const shuffled = [...assets];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  let selected = assets;
+  if (mode === "sample") {
+    // Fisher-Yates shuffle for uniform random selection
+    const shuffled = [...assets];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    selected = shuffled.slice(0, 25);
   }
-  shuffled.splice(25);
 
   await db.from("admin_config").upsert({
     key: "PDF_TEXT_SAMPLE_REQUEST",
     value: {
       status: "pending",
-      assets: shuffled.map((a) => ({ id: a.id, relative_path: a.relative_path, filename: a.filename })),
+      mode,
+      assets: selected.map((a) => ({ id: a.id, relative_path: a.relative_path, filename: a.filename })),
       requested_at: new Date().toISOString(),
     },
     updated_at: new Date().toISOString(),
   });
 
-  return json({ ok: true, queued: shuffled.length });
+  return json({ ok: true, queued: selected.length, mode });
 }
 
 // ── Route: get-pdf-text-samples ──────────────────────────────────────
@@ -902,7 +910,7 @@ async function handleGetPdfTextSamples() {
           .from("pdf_text_samples")
           .select("id,asset_id,filename,relative_path,extraction_method,extracted_text,page_count,char_count,extraction_error,sampled_at")
           .order("sampled_at", { ascending: false })
-          .limit(25);
+          .limit(5000);
         if (!error) return data ?? [];
         console.warn("pdf_text_samples query failed (table may not exist):", error.message);
         return [];
@@ -927,7 +935,7 @@ async function handleGetPdfTextSamples() {
   if (settled[2].status === "rejected") console.error("get-pdf-text-samples agents query failed:", settled[2].reason);
   if (settled[3].status === "rejected") console.error("get-pdf-text-samples policy query failed:", settled[3].reason);
 
-  const samples = samplesResult;
+  let samples = samplesResult as Array<Record<string, unknown>>;
   const agents = agentsResult.data ?? [];
   const now = Date.now();
   const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 min
@@ -1063,6 +1071,24 @@ async function handleGetPdfTextSamples() {
         });
         request = timedOut;
       }
+    }
+  }
+
+  // Enrich samples with thumbnail_url from assets
+  const assetIds = samples.map((s) => s.asset_id as string).filter(Boolean);
+  if (assetIds.length > 0) {
+    try {
+      const { data: assetRows } = await db
+        .from("assets")
+        .select("id, thumbnail_url")
+        .in("id", assetIds);
+      const thumbMap = new Map((assetRows ?? []).map((a) => [a.id as string, a.thumbnail_url as string | null]));
+      samples = samples.map((s) => ({
+        ...s,
+        thumbnail_url: s.asset_id ? (thumbMap.get(s.asset_id as string) ?? null) : null,
+      }));
+    } catch (e) {
+      console.warn("get-pdf-text-samples thumbnail enrichment failed:", e);
     }
   }
 
@@ -1331,7 +1357,7 @@ corsServe(async (req: Request) => {
       case "browse-style-guide-files":
         return await handleBrowseStyleGuideFiles(body);
       case "trigger-pdf-text-sample":
-        return await handleTriggerPdfTextSample();
+        return await handleTriggerPdfTextSample(body);
       case "backfill-pdf-files-used":
         return await handleBackfillPdfFilesUsed();
       case "resolve-sku-files-used":

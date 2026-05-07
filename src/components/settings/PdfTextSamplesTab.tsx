@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server } from "lucide-react";
+import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ interface PdfSample {
   char_count: number;
   extraction_error: string | null;
   sampled_at: string;
+  thumbnail_url: string | null;
 }
 
 interface FileProgressEntry {
@@ -383,7 +384,7 @@ function AiVisionConfigCard() {
     return Array.isArray(raw) ? (raw as AiModelDef[]) : [];
   })();
 
-  const visionModels = allModels.filter((m) => m.capabilities.includes("vision"));
+  const visionModels = allModels.filter((m) => m.capabilities.includes("vision") && m.provider === "openrouter");
 
   const savedModelId: string = (() => {
     const raw = configData?.config?.PDF_EXTRACTION_CONFIG?.value ?? configData?.config?.PDF_EXTRACTION_CONFIG;
@@ -484,9 +485,11 @@ export default function PdfTextSamplesTab() {
   });
 
   const triggerMutation = useMutation({
-    mutationFn: () => call("trigger-pdf-text-sample"),
+    mutationFn: (mode: "sample" | "full") => call("trigger-pdf-text-sample", { mode }),
     onSuccess: (res) => {
-      toast.success(`Queued ${(res as Record<string, unknown>).queued} PDFs for text extraction`);
+      const r = res as Record<string, unknown>;
+      const label = r.mode === "full" ? "Full scan" : "Sample";
+      toast.success(`${label} queued — ${r.queued} PDFs`);
       queryClient.invalidateQueries({ queryKey: ["pdf-text-samples"] });
     },
     onError: (e) => toast.error(`Failed: ${(e as Error).message}`),
@@ -513,6 +516,15 @@ export default function PdfTextSamplesTab() {
   const likelyScanned = samples.filter((s) => s.extraction_method === "likely_scanned").length;
   const failed = samples.filter((s) => s.extraction_method === "failed").length;
 
+  // PDFs that are likely placeholder/compat pages: no extractable text, scanned-only, or failed
+  const placeholderCandidates = samples.filter(
+    (s) =>
+      (s.extraction_method === "likely_scanned" || s.extraction_method === "failed") &&
+      s.thumbnail_url,
+  );
+
+  const requestMode = (request?.mode as string) ?? "sample";
+
   return (
     <div className="space-y-4">
       <Card>
@@ -520,7 +532,7 @@ export default function PdfTextSamplesTab() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              PDF Text Extraction Sample
+              PDF Text Extraction
             </CardTitle>
             <div className="flex items-center gap-2">
               {isActive && (
@@ -536,13 +548,25 @@ export default function PdfTextSamplesTab() {
               )}
               <Button
                 size="sm"
-                onClick={() => triggerMutation.mutate()}
+                variant="outline"
+                onClick={() => triggerMutation.mutate("sample")}
                 disabled={triggerMutation.isPending || isActive}
               >
-                {triggerMutation.isPending || isActive ? (
+                {triggerMutation.isPending && requestMode === "sample" ? (
                   <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Running…</>
                 ) : (
                   "Run Sample (25 PDFs)"
+                )}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => triggerMutation.mutate("full")}
+                disabled={triggerMutation.isPending || isActive}
+              >
+                {isActive && requestMode === "full" ? (
+                  <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Running…</>
+                ) : (
+                  "Run Full Scan"
                 )}
               </Button>
             </div>
@@ -550,11 +574,11 @@ export default function PdfTextSamplesTab() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Picks 25 random tech pack / licensing sheet PDFs and attempts text extraction via mupdf → OCR → AI vision cascade.
-            Results show how each PDF is classified.
+            Attempts text extraction on PDFs via mupdf → OCR → AI vision cascade.
+            Sample picks 25 random PDFs; Full Scan processes all PDFs in the library.
           </p>
 
-          {/* Agent status (always visible) */}
+          {/* Agent status (always visible when idle) */}
           {!isActive && agentStatuses.length > 0 && (
             <div className="mt-3">
               <p className="text-xs text-muted-foreground mb-1.5">Agent connectivity (target: {targetAgentType === "windows-render" ? "Windows" : "Bridge"})</p>
@@ -572,6 +596,44 @@ export default function PdfTextSamplesTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Placeholder / Compat Preview ── */}
+      {placeholderCandidates.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ImageIcon className="h-4 w-4 text-amber-500" />
+              Possible Placeholder PDFs
+              <Badge className="bg-amber-100 text-amber-800 ml-1">{placeholderCandidates.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              These PDFs produced no extractable text — they may be Illustrator "no PDF compatibility" placeholder pages or purely scanned images.
+              Check the thumbnails below to confirm.
+            </p>
+            <div className="grid grid-cols-6 gap-2 max-h-80 overflow-y-auto pr-1">
+              {placeholderCandidates.map((s) => (
+                <div key={s.id} className="space-y-1">
+                  <div className="aspect-square bg-muted rounded overflow-hidden border border-border">
+                    <img
+                      src={s.thumbnail_url!}
+                      alt={s.relative_path}
+                      className="w-full h-full object-contain"
+                      loading="lazy"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-muted-foreground truncate leading-tight" title={s.relative_path}>
+                    {s.filename}
+                  </p>
+                  <MethodBadge method={s.extraction_method} />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <AiVisionConfigCard />
 
