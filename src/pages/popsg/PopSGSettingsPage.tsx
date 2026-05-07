@@ -88,9 +88,17 @@ function SgRenderErrorsTable({ totalErrored }: { totalErrored?: number }) {
 
   const retryAllMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc("retry_sg_render_errors");
-      if (error) throw error;
-      return data as number;
+      let total = 0;
+      // Loop in batches of 500 — each call is bounded so it completes within
+      // the DB proxy's statement timeout. Stops when the function returns 0.
+      while (true) {
+        const { data, error } = await supabase.rpc("retry_sg_render_errors", { p_limit: 500 });
+        if (error) throw error;
+        const queued = data as number;
+        total += queued;
+        if (queued === 0) break;
+      }
+      return total;
     },
     onSuccess: (count) => { toast.success(`${count} files requeued`); invalidate(); },
     onError: (e) => toast.error((e as Error).message),
