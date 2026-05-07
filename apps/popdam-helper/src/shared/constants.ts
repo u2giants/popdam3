@@ -1,4 +1,4 @@
-export const HELPER_VERSION = "1.1.0";
+export const HELPER_VERSION = "1.1.1";
 export const PROTOCOL = "popdam";
 export const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -38,7 +38,7 @@ export const UPLOAD_CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB
 export const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 
 // Marker file name that lives at the root of every managed root
-export const ROOT_MARKER_FILENAME = ".pop-root.json";
+export const ROOT_MARKER_FILENAME = "pop-root.json";
 
 // Local app data subdirs
 export const WORKSPACE_SUBDIR = "CheckedOut";

@@ -344,7 +344,7 @@ async function writeMarkerViaDocker(
     "-e", `MARKER_CONTENT=${markerJson}`,
     "-v", `${hostPath}:/w`,
     "alpine",
-    "sh", "-c", 'printf "%s" "$MARKER_CONTENT" > /w/.pop-root.json',
+    "sh", "-c", 'printf "%s" "$MARKER_CONTENT" > /w/pop-root.json',
   ], { timeout: 30_000 } as never);
 }
 
@@ -360,7 +360,7 @@ async function ensureRootMarkers(
     const rootPath = rm.server_path.startsWith("/")
       ? rm.server_path.replace(/\/+$/, "")
       : `${mountRoot}/${rm.server_path.replace(/^\/+/, "")}`;
-    const markerPath = `${rootPath}/.pop-root.json`;
+    const markerPath = `${rootPath}/pop-root.json`;
 
     try {
       const s = await stat(rootPath);
@@ -500,7 +500,7 @@ function applyCloudConfig(cfg: CloudConfig) {
     cloudStyleGuideRoots = cfg.style_guide_scanning.roots;
   }
 
-  // Write .pop-root.json markers to each NAS root so Helper users can auto-validate
+  // Write pop-root.json markers to each NAS root so Helper users can auto-validate
   // Derived from scan roots — same source of truth, no separate config needed
   if (cfg.scanning?.roots && cfg.scanning.roots.length > 0) {
     const rootMappings = cfg.scanning.roots.map((r) => {
