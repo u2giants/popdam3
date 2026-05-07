@@ -1,6 +1,6 @@
 {
   "name": "popdam-helper",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "POP DAM Helper — desktop app for local file checkout, editing, and check-in",
   "main": "out/main/main.js",
   "author": "POP Creations",
@@ -28,6 +28,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "electron": "^31.7.7",
+    "@electron/notarize": "^2.5.0",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
     "react": "^18.3.1",

@@ -10,13 +10,14 @@
 
 import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
+import { autoUpdater } from "electron-updater";
 import { createTray, updateTrayIcon, showWindow } from "./tray";
 import { registerIpcHandlers } from "./ipc";
 import { registerProtocol } from "./protocol";
 import { initQueue, setProgressCallback, processQueue } from "./uploadQueue";
 import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress } from "./checkoutManager";
 import { heartbeat } from "./damClient";
-import { loadConfig } from "./config";
+import { loadConfig, getConfig } from "./config";
 import { log } from "./logger";
 import { startLocalServer } from "./localServer";
 import { HEARTBEAT_INTERVAL_MS, HELPER_VERSION } from "@shared/constants";
@@ -86,12 +87,19 @@ app.whenReady().then(async () => {
     updateTrayIcon();
   });
 
-  // Heartbeat timer
-  if (config.deviceId) {
-    setInterval(async () => {
-      await heartbeat({ device_id: config.deviceId ?? undefined });
-    }, HEARTBEAT_INTERVAL_MS);
-  }
+  // Heartbeat — reads deviceId dynamically so it works after OAuth sign-in
+  setInterval(async () => {
+    const cfg = getConfig();
+    if (cfg.deviceId) {
+      await heartbeat({ device_id: cfg.deviceId });
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  // Auto-update check — silently checks GitHub for a newer release
+  autoUpdater.logger = log;
+  autoUpdater.checkForUpdatesAndNotify().catch((e: unknown) => {
+    log.debug("Auto-update check skipped:", (e as Error).message);
+  });
 
   log.info(`POP DAM Helper v${HELPER_VERSION} started`);
 });

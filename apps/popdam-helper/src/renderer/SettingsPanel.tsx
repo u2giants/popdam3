@@ -19,6 +19,7 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authEmail, setAuthEmail] = useState<string | null | undefined>(undefined); // undefined = loading
 
   const [serverRoots, setServerRoots] = useState<ServerRoot[] | null>(null);
   const [rootsFetching, setRootsFetching] = useState(false);
@@ -73,6 +74,9 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
     });
     window.popdam.hasSynologyCredentials().then((res) => {
       if (res.ok) setHasCreds(!!res.data);
+    });
+    window.popdam.getAuthState().then((res) => {
+      setAuthEmail(res.data?.loggedIn ? (res.data.email ?? null) : null);
     });
   }, []);
 
@@ -182,6 +186,25 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
 
       <div className="content settings-panel">
         {error && <div className="error-msg">{error}</div>}
+
+        {authEmail === null && (
+          <div className="checkout-card" style={{ marginBottom: 12 }}>
+            <div className="meta" style={{ marginBottom: 8 }}>
+              Not signed in — some features require authentication.
+            </div>
+            <button
+              className="primary"
+              onClick={() => window.popdam.signIn().catch(() => {})}
+            >
+              Sign in with Google
+            </button>
+          </div>
+        )}
+        {authEmail && (
+          <div className="meta" style={{ marginBottom: 12 }}>
+            Signed in as {authEmail}
+          </div>
+        )}
 
         <div className="field">
           <label>DAM URL</label>
