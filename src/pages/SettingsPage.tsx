@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2, Eye, Users } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { NasStorageTab, ImageOutputTab, ScanningTab, LiveScanMonitor, UpdateAgentButton } from "@/components/settings/WorkerManagementTab";
 import ApisTab from "@/components/settings/ApisTab";
@@ -1109,6 +1110,76 @@ function TipTab({ value, label, tip }: { value: string; label: string; tip: stri
   );
 }
 
+// ── Helper App Password ─────────────────────────────────────────────
+
+function HelperPasswordCard() {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const confirmRef = useRef<HTMLInputElement>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password !== confirm) {
+      toast.error("Passwords do not match");
+      confirmRef.current?.focus();
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Helper app password set");
+      setPassword("");
+      setConfirm("");
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Helper App Password</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Set a password so you can sign in to the POP DAM Helper desktop app.
+          Use the same email address as your account here.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 max-w-sm">
+          <Input
+            type="password"
+            placeholder="New password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            required
+            minLength={8}
+          />
+          <Input
+            ref={confirmRef}
+            type="password"
+            placeholder="Confirm password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            autoComplete="new-password"
+            required
+            minLength={8}
+          />
+          <Button type="submit" disabled={busy} className="w-fit">
+            {busy ? "Saving…" : "Set Password"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Settings Page ──────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -1134,6 +1205,8 @@ export default function SettingsPage() {
           {__APP_COMMIT__} · {__APP_DATE__}
         </span>
       </div>
+
+      <HelperPasswordCard />
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1">
