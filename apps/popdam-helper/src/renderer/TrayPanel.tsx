@@ -49,7 +49,7 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
   const [state, setState] = useState<CheckoutState>({ checkouts: [], uploadJobs: [] });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loggedIn, setLoggedIn] = useState(true);
+  const [authState, setAuthState] = useState<{ loggedIn: boolean; email: string | null }>({ loggedIn: true, email: null });
 
   const refresh = useCallback(async () => {
     const res = await window.popdam.getCheckouts();
@@ -57,13 +57,17 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
       setState(res.data as CheckoutState);
     }
     const auth = await window.popdam.getAuthState();
-    setLoggedIn(!!auth.data?.loggedIn);
+    setAuthState({
+      loggedIn: !!auth.data?.loggedIn,
+      email: auth.data?.email ?? null,
+    });
   }, []);
 
   useEffect(() => {
     refresh();
-    const unsub = window.popdam.onCheckoutsChanged(refresh);
-    return unsub;
+    const unsubCheckouts = window.popdam.onCheckoutsChanged(refresh);
+    const unsubAuth = window.popdam.onAuthChanged(refresh);
+    return () => { unsubCheckouts(); unsubAuth(); };
   }, [refresh]);
 
   async function handleCheckin(id: string): Promise<void> {
@@ -90,7 +94,7 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Title bar */}
       <div className="titlebar">
-        <span className={`status-dot ${loggedIn ? "" : "offline"}`} />
+        <span className={`status-dot ${authState.loggedIn ? "" : "offline"}`} />
         <h1>POP DAM Helper</h1>
       </div>
 
@@ -103,6 +107,21 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
               onClick={() => setError(null)}
             >
               Dismiss
+            </button>
+          </div>
+        )}
+
+        {!authState.loggedIn && (
+          <div className="checkout-card" style={{ marginBottom: 12 }}>
+            <div className="meta" style={{ marginBottom: 8 }}>
+              Sign in to sync your checked-out files with the DAM.
+            </div>
+            <button
+              className="primary"
+              style={{ width: "100%" }}
+              onClick={() => window.popdam.signIn().catch(() => {})}
+            >
+              Sign in with Google
             </button>
           </div>
         )}
@@ -182,7 +201,14 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
           Open DAM
         </button>
         <button onClick={onOpenSettings}>Settings</button>
-        <button onClick={() => window.popdam.logout().then(refresh)}>Sign Out</button>
+        {authState.loggedIn ? (
+          <button
+            title={authState.email ?? "Sign out"}
+            onClick={() => window.popdam.logout().then(refresh)}
+          >
+            Sign Out
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -49,6 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # No Windows code signing cert — auto-update still works but SmartScreen warns on install
         run: npx electron-builder --win --x64 --publish never
 
       - name: List release artifacts
@@ -76,6 +77,7 @@ jobs:
             After installing, open the app once to complete one-time setup: set your workspace folder and map your NAS roots in Settings.
           files: |
             apps/popdam-helper/release/POP-DAM-Helper-Windows-Setup.exe
+            apps/popdam-helper/release/latest.yml
           prerelease: false
 
   # ── macOS — Electron Builder ──────────────────────────────────────
@@ -112,7 +114,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          SKIP_NOTARIZATION: "true"
+          # Add APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID secrets to enable notarization.
+          # The afterSign hook in scripts/notarize.cjs skips silently if APPLE_ID is not set.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --mac --publish never
 
       - name: List release artifacts
@@ -127,4 +133,5 @@ jobs:
           files: |
             apps/popdam-helper/release/POP-DAM-Helper-Mac-arm64.dmg
             apps/popdam-helper/release/POP-DAM-Helper-Mac-x64.dmg
+            apps/popdam-helper/release/latest-mac.yml
           prerelease: false

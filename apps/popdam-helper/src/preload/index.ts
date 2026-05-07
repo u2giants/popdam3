@@ -34,8 +34,10 @@ const api = {
     ipcRenderer.invoke("open-dam"),
 
   // Auth
-  getAuthState: (): Promise<IpcResponse<{ loggedIn: boolean; accessToken: string | null }>> =>
+  getAuthState: (): Promise<IpcResponse<{ loggedIn: boolean; userId: string | null; email: string | null; accessToken: string | null }>> =>
     ipcRenderer.invoke("get-auth-state"),
+  signIn: (provider?: string): Promise<IpcResponse> =>
+    ipcRenderer.invoke("sign-in", provider ?? "google"),
   logout: (): Promise<IpcResponse> =>
     ipcRenderer.invoke("logout"),
 
@@ -66,6 +68,11 @@ const api = {
     const handler = () => cb();
     ipcRenderer.on("checkouts-changed", handler);
     return () => ipcRenderer.removeListener("checkouts-changed", handler);
+  },
+  onAuthChanged: (cb: () => void): (() => void) => {
+    const handler = () => cb();
+    ipcRenderer.on("auth-changed", handler);
+    return () => ipcRenderer.removeListener("auth-changed", handler);
   },
 };
 

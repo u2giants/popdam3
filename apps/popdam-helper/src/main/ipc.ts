@@ -5,7 +5,7 @@
 
 import { ipcMain, dialog } from "electron";
 import { getConfig, saveConfig } from "./config";
-import { clearSession, storeToken, loadToken } from "./credentials";
+import { clearSession, storeToken, loadToken, loadSession } from "./credentials";
 import {
   getActiveCheckouts,
   checkin,
@@ -84,19 +84,40 @@ export function registerIpcHandlers(): void {
   });
 
   // ── Auth ────────────────────────────────────────────────────────────────────
-  ipcMain.handle("get-auth-state", async () => {
-    const accessToken = await loadToken("access_token");
-    return {
-      ok: true,
-      data: {
-        loggedIn: !!accessToken,
-        accessToken,
-      },
-    };
+  ipcMain.handle("get-auth-state", () => {
+    const session = loadSession();
+    if (!session) {
+      return { ok: true, data: { loggedIn: false, userId: null, email: null, accessToken: null } };
+    }
+    // Decode JWT payload to extract sub (userId) and email without a crypto library
+    let userId: string | null = null;
+    let email: string | null = null;
+    try {
+      const payloadB64 = session.accessToken.split(".")[1];
+      const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf-8"));
+      userId = (payload.sub as string) ?? null;
+      email = (payload.email as string) ?? null;
+    } catch {
+      // JWT decode failed — session still valid, just no email display
+    }
+    return { ok: true, data: { loggedIn: true, userId, email, accessToken: session.accessToken } };
   });
 
-  ipcMain.handle("logout", async () => {
-    await clearSession();
+  // Opens the browser to Supabase Google OAuth. On success, Supabase redirects to
+  // popdam://auth#access_token=...&refresh_token=... which protocol.ts catches.
+  // IMPORTANT: add "popdam://auth" to Allowed Redirect URLs in Supabase Dashboard → Auth → URL Configuration.
+  ipcMain.handle("sign-in", (_event, provider: string = "google") => {
+    const { supabaseUrl, damUrl } = getConfig();
+    const base = (supabaseUrl || damUrl).replace(/\/$/, "");
+    if (!base) return { ok: false, error: "Set your DAM URL in Settings first" };
+    const redirectTo = encodeURIComponent("popdam://auth");
+    const authUrl = `${base}/auth/v1/authorize?provider=${provider}&redirect_to=${redirectTo}&response_type=token`;
+    shell.openExternal(authUrl);
+    return { ok: true };
+  });
+
+  ipcMain.handle("logout", () => {
+    clearSession();
     return { ok: true };
   });
 

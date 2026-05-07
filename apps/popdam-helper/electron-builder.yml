@@ -22,9 +22,11 @@ files:
   - "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!{tsconfig,tsconfig.*}.json"
 
+afterSign: scripts/notarize.cjs
+
 win:
   executableName: popdam-helper
-  icon: resources/icon.ico
+  icon: resources/icon.png
   artifactName: "POP-DAM-Helper-Windows-Setup.exe"
   target:
     - target: nsis
@@ -39,13 +41,16 @@ nsis:
   runAfterFinish: true
 
 mac:
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  icon: resources/icon.icns
+  icon: resources/icon.png
   target:
     - target: dmg
       arch:
