@@ -568,6 +568,7 @@ async function handleHeartbeat(
       },
       scanning: {
         container_mount_root: (configMap.NAS_CONTAINER_MOUNT_ROOT as string) || "",
+        nas_host_path: (configMap.NAS_HOST_PATH as string) || "",
         roots: scanRoots,
         batch_size: (guard.batch_size as number) || pollingConfig.batch_size || DEFAULT_BATCH_SIZE,
         scan_min_date: (configMap.SCAN_MIN_DATE as string) || null,
