@@ -50,8 +50,8 @@ The server derives most metadata from the file path on ingest — the agent only
 | `style_guide_folder` | Server-derived: third path segment |
 | `depth` | Server-derived: segment count |
 | `normalized_name` | Server-derived: lowercased, non-alphanum stripped |
-| `thumbnail_url` | Not populated — no thumbnail pipeline for PopSG (see KNOWN_QUIRKS.md) |
-| `thumbnail_error` | Not populated |
+| `thumbnail_url` | Set by Windows Render Agent on success; `null` = no preview yet |
+| `thumbnail_error` | Set by Windows Render Agent on failure; see KNOWN_QUIRKS.md #23 for breakdown of failure categories |
 
 ---
 
@@ -136,9 +136,24 @@ Agent finishes:
 
 ---
 
+## PopSG Render Pipeline
+
+The Windows Render Agent generates thumbnails for `style_guide_files`. The pipeline is triggered from the PopSG Settings page:
+
+1. Admin clicks "Queue Render Jobs" → calls `queue_sg_render_jobs_by_ids()` (or the queue-all variant) → inserts rows into `style_guide_render_queue`.
+2. Windows Agent polls `style_guide_render_queue` for `status = 'pending'` jobs, claims one, renders the file (Sharp / Ghostscript / ImageMagick / Inkscape / Poppler depending on extension), uploads the thumbnail to Supabase Storage, and updates `thumbnail_url` on the file row.
+3. Failures set `thumbnail_error` on the file row and the queue job to `status = 'failed'`.
+4. Admin clicks "Retry All" on the "Files with Render Errors" tab → calls `retry_sg_render_errors()` in 500-file batches until it returns 0.
+
+**Extension allowlist** (in `queue_sg_render_jobs_by_ids` and `get_sg_preview_stats`): `pdf`, `ai`, `psd`, `jpg`, `jpeg`, `png`, `tif`, `tiff`, `svg`, `indd`, `eps` (EPS was not originally in the list — see Known Quirks #23). Files with unlisted extensions get `thumbnail_error = 'unsupported_extension'` immediately on queue attempt.
+
+**Known large failure categories**: see Known Quirks #23 and #34 for the full breakdown and fixes.
+
+---
+
 ## Auth Configuration
 
-- **Google OAuth**: Enabled — `u2giants@gmail.com` successfully signed in.
-- **Email/password**: No email/password users in the DB. Enable in Auth → Providers if needed.
+- **Google OAuth**: Enabled.
+- **Email/password**: Enabled. Users who sign in via Google OAuth and also need to use the PopDAM Helper can set a password in PopDAM Settings → "Helper App Password" (calls `supabase.auth.updateUser({ password })` — same account, no new user created).
 - **Redirect URLs**: Verify `https://sg.designflow.app/**` and `https://sg.designflow.app/auth/callback` are listed under Auth → URL Configuration in the Supabase Dashboard.
 - **App access**: Users need an `app_access` row with `app = 'styleguides'` to enter PopSG. The invite flow grants this automatically when the invitation `apps` array includes `'styleguides'`.

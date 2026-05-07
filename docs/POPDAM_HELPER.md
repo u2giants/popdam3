@@ -132,9 +132,29 @@ The Helper requires each root mapping to have a `.pop-root.json` marker file at 
 
 ---
 
+## Authentication
+
+The Helper uses two independent credential sets:
+
+### 1. Supabase session (PopDAM account)
+
+Used to call the `helper-api` edge function (checkout tracking, heartbeat, device registration). The user signs in with the same email + password they use on the PopDAM web app.
+
+**Sign-in flow:**
+- On first launch (or after sign-out), the Helper's tray panel and Settings panel each show an email + password form.
+- Submitting calls `ipc:sign-in`, which POSTs to `${supabaseUrl}/auth/v1/token?grant_type=password` with the `apikey` header set to the Supabase anon key.
+- On success, the access + refresh tokens are stored in the OS keychain via `safeStorage`. The session is refreshed automatically via `damClient.ts`.
+- The Supabase anon key is **not hardcoded**. It is auto-discovered at sign-in time by fetching `${damUrl}/dam-config.json` (field: `supabase_anon_key`) and saved to `userData/config.json` as `supabaseAnonKey`.
+
+**Google SSO users** (users who sign into the PopDAM web app via Google OAuth) have no Supabase password by default. They must first visit PopDAM web Settings → "Helper App Password" to set one. This calls `supabase.auth.updateUser({ password })`, which attaches email+password auth to the existing Google-linked account — same UUID, same email, Google SSO continues to work on the web. No new account is created.
+
+### 2. Synology credentials
+
+Used to upload checked-in files back to the NAS via WebDAV. Entered once in Settings under "Synology Credentials". Stored separately from the Supabase session.
+
 ## Credential storage
 
-Synology credentials (username, password, SID) are encrypted via `safeStorage.encryptString()` (DPAPI on Windows, Keychain on macOS) and stored as base64 blobs in `userData/credentials.enc.json`. No third-party native module is used. See Known Quirks #29.
+Both credential sets are encrypted via `safeStorage.encryptString()` (DPAPI on Windows, Keychain on macOS) and stored as base64 blobs in `userData/credentials.enc.json`. No third-party native module is used. See Known Quirks #29.
 
 ---
 

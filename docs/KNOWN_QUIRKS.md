@@ -256,13 +256,23 @@ Traefik watches this directory (`--providers.file.watch=true`) and picks up chan
 
 ---
 
-## 23. PopSG Shows "No Preview" for All Files
+## 23. PopSG Has a Render Pipeline, But Many Files Still Lack Previews
 
-**What it looks like**: Every file in the PopSG library shows a broken/placeholder image instead of a thumbnail.
+**What it looks like**: Many files in the PopSG library show a broken/placeholder image instead of a thumbnail.
 
-**Why**: This is intentional — there is no thumbnail pipeline for PopSG. Supabase edge functions can't reach files on the NAS over NAT, so there is no equivalent of the Windows Agent thumbnail renderer for style guides. The `thumbnail_url` and `thumbnail_error` columns on `style_guide_files` are never populated. The UI shows a "No preview" placeholder (`ImageOff` icon) when `thumbnail_url` is null.
+**Why**: The Windows Render Agent generates thumbnails for PopSG files, writing results to `style_guide_files.thumbnail_url` (success) or `thumbnail_error` (failure). However, large batches of files fail for various reasons:
 
-**What breaks if you "fix" it**: Nothing breaks from the current state — it is already the correct no-op state. Adding a thumbnail pipeline would require a separate agent process that can both read NAS files and write to Supabase Storage.
+| Category | Root cause |
+|---|---|
+| `unsupported_extension` | Extension not in the render allowlist (biggest: EPS — 23,242 files) |
+| `render_failed: …path…` | Windows MAX_PATH (260-char) limit for paths > 230 chars |
+| `render_failed: …color mode…` | CMYK/Lab PSD or AI files that Sharp and ImageMagick can't handle |
+| `missing_file_on_disk` | File moved or deleted since the last crawl |
+| `other_error: Skipped` | Renderable file blocked by path filter — see `shouldSkipPath()` |
+
+**The render pipeline** (`PopSGSettingsPage.tsx` → `style_guide_render_queue` → Windows agent `processSgJob`) must be triggered manually (or via Retry All). Files are re-queued by `retry_sg_render_errors()`.
+
+**What breaks if you "fix" it wrong**: Adding a format to the extension allowlist without adding a render code path in the Windows agent just causes the job to fail at claim time.
 
 ---
 
@@ -370,6 +380,50 @@ Traefik watches this directory (`--providers.file.watch=true`) and picks up chan
 **Why**: The web app runs in a browser over HTTPS. When the Helper is not installed, the `fetch()` call hangs for ~30 seconds (the browser's default TCP connection timeout to a closed port) before failing. Without the explicit 2-second abort, the directory browser renders in a 30-second loading state on every page load for users without the Helper. The 2-second limit is aggressive enough to be imperceptible, but well above any realistic startup lag.
 
 **Why `helperAvailable` starts as `null` (not `false`)**: The initial `null` state prevents the auto-load `useEffect` from firing before the probe completes. If it started as `false`, the component would immediately trigger the slow bridge agent path and then redundantly re-trigger via the probe effect when it resolved — causing two concurrent browse requests on mount.
+
+---
+
+## 33. Supabase Proxy Enforces Statement Timeout — `SET LOCAL` Is Invisible to It
+
+**What it looks like**: You add `SET LOCAL statement_timeout = 0;` inside a PL/pgSQL function to bypass Supabase's statement timeout for a bulk operation. The query still times out.
+
+**Why**: Supabase routes all client connections through a connection proxy (Supavisor / PgBouncer). The proxy enforces its own statement timeout on the wire — it cuts the connection from the outside if the query runs too long. `SET LOCAL` inside a function changes the PostgreSQL session parameter for that transaction only, but the proxy never sees that change. It is measuring wall-clock time from the moment the query arrived at the proxy.
+
+**Fix**: Batch bulk operations at the client layer. Break the work into chunks (e.g., `p_limit = 500`) and loop until the function returns 0. This keeps each individual query well under the timeout.
+
+**Pattern** (from `retry_sg_render_errors`): the DB function accepts `p_limit int DEFAULT 500` and returns the number of rows it processed. The client (`SgRenderErrorsTable` in `PopSGSettingsPage.tsx`) loops calling it until it returns 0.
+
+**What breaks if you raise the DB-level timeout**: The timeout is a safety valve for runaway client queries. Raising it globally exposes all Supabase clients — not just admin operations — to unbounded query times. Use per-batch looping instead.
+
+---
+
+## 34. Windows MAX_PATH (260-char) Limit in the Windows Render Agent
+
+**What it looks like**: The Windows Render Agent logs `render_failed: …ENOENT…` or `Input file is missing` for files that the bridge agent (on Linux/NAS) found just fine during the crawl.
+
+**Why**: The bridge agent runs on Synology NAS (Linux, no path length limit) and crawls files with paths exceeding 260 characters. The Windows Render Agent maps the same NAS share as a drive letter (e.g. `Y:\`). Windows Win32 APIs have a MAX_PATH limit of 260 characters — calls to `fs.open`, `fs.readdir`, `fs.copyFile`, and Sharp's C++ layer all fail silently or throw `ENOENT` for paths that exceed this limit.
+
+**Fix** (`apps/windows-agent/src/renderer.ts`): The `withLongPathPrefix(p)` helper prepends `\\?\` (Win32 extended-length path prefix) to any path longer than 230 chars. This prefix bypasses the 260-char limit for all Win32 API calls. It is applied to:
+- `renderNativeImage` (Sharp source path)
+- `renderFile` / `renderPdf` (`copyFile` source path for the temp-copy workaround)
+- `renderFromSibling` (`readdir` and Sharp source)
+- `isAiWithoutPdfCompat` (`open()`)
+
+Shell commands (Ghostscript, ImageMagick, Inkscape, Poppler) use the short temp-copy destination path and are unaffected by MAX_PATH.
+
+**Why 230 and not 260**: The threshold is conservative — the temp destination itself adds chars, so starting the prefix at 230 leaves headroom.
+
+**What breaks if you remove it**: Any file on the NAS whose full mapped path (drive letter + relative path) exceeds 260 chars will fail to render. On a share with deeply nested folders this is a large fraction of the file set.
+
+---
+
+## 35. "Retry All" Count and Loop — Two Separate Concerns
+
+**What it looks like**: The "Retry All (N)" button in PopSG Settings shows a different number than you'd expect, and/or it only retries some files.
+
+**Why — the count**: The "Files with Render Errors" table fetches with `.limit(500)` for display performance. The button label reads from `previewStats.render_errored` (from `get_sg_preview_stats()`), which is the actual total count across all files — not capped by the display query.
+
+**Why — the loop**: `retry_sg_render_errors()` accepts `p_limit int DEFAULT 500` and processes at most that many files per call (to stay inside Supabase's statement timeout — see Quirk #33). Clicking "Retry All" causes the client to loop calling it in 500-file batches until it returns 0. All errored files are retried, not just the 500 displayed.
 
 ---
 
