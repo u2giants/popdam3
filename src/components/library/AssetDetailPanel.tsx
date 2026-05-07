@@ -39,13 +39,10 @@ import {
   Loader2,
   FolderOpen,
   Settings2,
-  Download,
-  Upload,
-  Lock,
-  Trash2,
 } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
+import CheckoutBar from "@/components/library/CheckoutBar";
 
 interface AssetDetailPanelProps {
   asset: Asset;
@@ -170,83 +167,6 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
     },
     enabled: !!asset.property_id,
   });
-
-  // Checkout state for this asset
-  const { data: checkout, refetch: refetchCheckout } = useQuery({
-    queryKey: ["asset-checkout", asset.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("asset_checkouts")
-        .select("id, status, checked_out_at, profiles(full_name, email)")
-        .eq("asset_id", asset.id)
-        .in("status", ["active", "checkin_queued", "uploading", "verifying"])
-        .maybeSingle();
-      return data ?? null;
-    },
-    refetchInterval: 15000,
-  });
-
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user;
-    },
-    staleTime: 60000,
-  });
-
-  const [checkoutBusy, setCheckoutBusy] = useState(false);
-
-  async function handleCheckout(): Promise<void> {
-    setCheckoutBusy(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("helper-api/tokens", {
-        body: { action: "checkout", asset_id: asset.id },
-      });
-      if (error || !data?.ok) { toast.error("Could not create checkout link", { description: error?.message ?? data?.error }); return; }
-      window.location.href = data.url;
-      setTimeout(() => refetchCheckout(), 2000);
-    } catch (e: unknown) {
-      toast.error("Checkout failed", { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setCheckoutBusy(false);
-    }
-  }
-
-  async function handleCheckin(): Promise<void> {
-    if (!checkout) return;
-    setCheckoutBusy(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("helper-api/tokens", {
-        body: { action: "checkin", checkout_id: checkout.id },
-      });
-      if (error || !data?.ok) { toast.error("Could not create check-in link", { description: error?.message ?? data?.error }); return; }
-      window.location.href = data.url;
-      setTimeout(() => refetchCheckout(), 2000);
-    } catch (e: unknown) {
-      toast.error("Check-in failed", { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setCheckoutBusy(false);
-    }
-  }
-
-  async function handleDiscard(): Promise<void> {
-    if (!checkout) return;
-    if (!confirm("Discard checkout? The file will be unlocked and your local edits will remain in your workspace.")) return;
-    setCheckoutBusy(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("helper-api/checkouts/discard", {
-        body: { checkout_id: checkout.id },
-      });
-      if (error || !data?.ok) toast.error("Discard failed", { description: error?.message ?? data?.error });
-      else toast("Checkout discarded — file is now available.");
-      refetchCheckout();
-    } catch (e: unknown) {
-      toast.error("Discard failed", { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setCheckoutBusy(false);
-    }
-  }
 
   // Update mutation
   const updateAsset = useMutation({
@@ -373,8 +293,9 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
   return (
     <div className="flex h-full w-[384px] flex-col border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-medium pr-2" title={asset.filename}>{formatFilename(asset.filename, 32)}</h3>
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <h3 className="text-sm font-medium truncate min-w-0 flex-1" title={asset.filename}>{formatFilename(asset.filename, 20)}</h3>
+        <CheckoutBar assetId={asset.id} />
         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
@@ -433,75 +354,6 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
               {(asset as any).technical_designer_name && <MetaRow label="Tech Designer" value={(asset as any).technical_designer_name} />}
               {(asset as any).freelancer_name && <MetaRow label="Freelancer" value={(asset as any).freelancer_name} />}
             </div>
-          </section>
-
-          <Separator />
-
-          {/* Checkout / Lock */}
-          <section className="space-y-2.5">
-            <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <Lock className="h-3.5 w-3.5" /> Edit This File
-            </h4>
-
-            {checkout ? (
-              (() => {
-                const profile = (checkout as any).profiles;
-                const checkedOutByMe = currentUser && profile?.email === currentUser.email;
-                const checkerName = profile?.full_name ?? profile?.email ?? "another user";
-                const since = new Date(checkout.checked_out_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-                const isTransferring = ["checkin_queued", "uploading", "verifying"].includes(checkout.status);
-
-                return (
-                  <div className="rounded-md border px-3 py-2.5 space-y-2.5">
-                    {checkedOutByMe ? (
-                      <>
-                        <p className="text-xs text-amber-500 font-medium">
-                          You have this file checked out
-                          {isTransferring && " — check-in in progress…"}
-                        </p>
-                        <div className="flex gap-1.5">
-                          <Button
-                            size="sm"
-                            className="gap-1.5 text-xs h-7 flex-1"
-                            onClick={handleCheckin}
-                            disabled={checkoutBusy || isTransferring}
-                          >
-                            {isTransferring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                            Check In
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1.5 text-xs h-7"
-                            onClick={handleDiscard}
-                            disabled={checkoutBusy || isTransferring}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            Discard
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                        <Lock className="h-3 w-3 shrink-0 text-amber-500" />
-                        Locked by <span className="font-medium text-foreground">{checkerName}</span> since {since}
-                      </p>
-                    )}
-                  </div>
-                );
-              })()
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs h-7 w-full"
-                onClick={handleCheckout}
-                disabled={checkoutBusy}
-              >
-                {checkoutBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                Check Out &amp; Open
-              </Button>
-            )}
           </section>
 
           <Separator />

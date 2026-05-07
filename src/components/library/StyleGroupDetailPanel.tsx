@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { StyleGroup } from "@/hooks/useStyleGroups";
 import type { Asset } from "@/types/assets";
 import { getPathDisplayModes, getUserSyncRoot, type NasConfig } from "@/lib/path-utils";
-import { getOpenFolderUri } from "@/lib/open-folder";
+import { getOpenFolderUri, buildOpenFolderUri, getPreferredPathMode } from "@/lib/open-folder";
 import { formatFilename } from "@/lib/format-filename";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +24,16 @@ import { toast } from "sonner";
 import {
   X, ImageOff, Copy, Check, Star, Loader2,
   ChevronLeft, ChevronRight, Sparkles, Clock,
-  HardDrive, Tag, FileText, FolderSearch, FolderOpen,
+  HardDrive, Tag, FileText, FolderSearch, FolderOpen, Download,
 } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import CheckoutBar from "@/components/library/CheckoutBar";
 import { cn } from "@/lib/utils";
 import { Constants } from "@/integrations/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -655,12 +663,46 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     setTagInput("");
   }, [detailAsset?.id]);
 
+  async function handleAssetCheckout(assetId: string) {
+    try {
+      const { data, error } = await supabase.functions.invoke("helper-api/tokens", {
+        body: { action: "checkout", asset_id: assetId },
+      });
+      if (error || !data?.ok) {
+        toast.error("Could not create checkout link", { description: error?.message ?? data?.error });
+        return;
+      }
+      window.location.href = data.url;
+    } catch (e: unknown) {
+      toast.error("Checkout failed", { description: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  function handleOpenAssetFolder(a: Asset) {
+    if (!nasConfig) return;
+    const assetPaths = getPathDisplayModes(a.relative_path, nasConfig, null);
+    const mode = getPreferredPathMode();
+    const fullPath = mode === "unc_ip" ? assetPaths.uncIp : mode === "synology_drive" ? assetPaths.remote : assetPaths.uncHost;
+    if (!fullPath) { toast.error("No path available for current path mode"); return; }
+    const lastSep = Math.max(fullPath.lastIndexOf("\\"), fullPath.lastIndexOf("/"));
+    const folder = fullPath.substring(0, lastSep);
+    const el = document.createElement("a");
+    el.href = buildOpenFolderUri(folder); el.rel = "noopener"; el.style.display = "none";
+    document.body.appendChild(el); el.click(); setTimeout(() => el.remove(), 0);
+  }
+
+  async function handleCopyPath(text: string, label: string) {
+    await navigator.clipboard.writeText(text);
+    toast.success(`Copied ${label}`);
+  }
+
   return (
     <TooltipProvider>
       <div className="flex h-full w-[440px] flex-col overflow-hidden border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold truncate pr-2">{group.sku}</h3>
+        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold truncate min-w-0 flex-1">{group.sku}</h3>
+          <CheckoutBar assetId={detailAsset?.id} />
           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -1015,72 +1057,100 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                     const hasThumb = !!asset.thumbnail_url;
                     const thumbIdx = thumbStrip.findIndex((a) => a.id === asset.id);
                     const isViewing = thumbIdx >= 0 && thumbIdx === carouselIndex;
+                    const uncPath = nasConfig ? getPathDisplayModes(asset.relative_path, nasConfig, null).uncHost : null;
                     return (
-                      <div
-                        key={asset.id}
-                        className={cn(
-                          "group flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer transition-colors",
-                          isViewing
-                            ? "bg-primary/10 border-l-2 border-primary"
-                            : "hover:bg-muted/50",
-                        )}
-                        onClick={() => {
-                          setSelectedAssetId(asset.id);
-                          if (thumbIdx >= 0) setCarouselIndex(thumbIdx);
-                        }}
-                      >
-                        {/* Small thumbnail */}
-                        <div className="h-10 w-10 shrink-0 rounded bg-muted/30 overflow-hidden">
-                          {asset.thumbnail_url ? (
-                            <img src={asset.thumbnail_url} alt={asset.filename} className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="flex h-full items-center justify-center">
-                              <ImageOff className="h-4 w-4 text-muted-foreground/30" />
+                      <ContextMenu key={asset.id}>
+                        <ContextMenuTrigger asChild>
+                          <div
+                            className={cn(
+                              "group flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer transition-colors",
+                              isViewing
+                                ? "bg-primary/10 border-l-2 border-primary"
+                                : "hover:bg-muted/50",
+                            )}
+                            onClick={() => {
+                              setSelectedAssetId(asset.id);
+                              if (thumbIdx >= 0) setCarouselIndex(thumbIdx);
+                            }}
+                          >
+                            {/* Small thumbnail */}
+                            <div className="h-10 w-10 shrink-0 rounded bg-muted/30 overflow-hidden">
+                              {asset.thumbnail_url ? (
+                                <img src={asset.thumbnail_url} alt={asset.filename} className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full items-center justify-center">
+                                  <ImageOff className="h-4 w-4 text-muted-foreground/30" />
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
 
-                        {/* Info */}
-                        <div className="flex-1 min-w-0 space-y-0.5">
-                          <p className="text-xs font-medium" title={asset.filename}>{formatFilename(asset.filename, 24)}</p>
-                          <div className="flex items-center gap-1">
-                            <Badge variant="secondary" className="text-[9px] uppercase px-1 py-0">{asset.file_type}</Badge>
-                            {asset.workflow_status && asset.workflow_status !== "other" && (
-                              <span className="rounded bg-tag px-1 py-0 text-[9px] text-tag-foreground capitalize">
-                                {asset.workflow_status.replace(/_/g, " ")}
-                              </span>
-                            )}
-                            {isCover && (
-                              <Badge variant="default" className="text-[9px] px-1 py-0 gap-0.5">
-                                <Star className="h-2.5 w-2.5 fill-current" /> Cover
-                              </Badge>
-                            )}
+                            {/* Info */}
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <p className="text-xs font-medium" title={asset.filename}>{formatFilename(asset.filename, 24)}</p>
+                              <div className="flex items-center gap-1">
+                                <Badge variant="secondary" className="text-[9px] uppercase px-1 py-0">{asset.file_type}</Badge>
+                                {asset.workflow_status && asset.workflow_status !== "other" && (
+                                  <span className="rounded bg-tag px-1 py-0 text-[9px] text-tag-foreground capitalize">
+                                    {asset.workflow_status.replace(/_/g, " ")}
+                                  </span>
+                                )}
+                                {isCover && (
+                                  <Badge variant="default" className="text-[9px] px-1 py-0 gap-0.5">
+                                    <Star className="h-2.5 w-2.5 fill-current" /> Cover
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <CopyInlineButton value={asset.relative_path} />
+                              {!isCover && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => setCover.mutate(asset.id)}
+                                      disabled={!hasThumb || setCover.isPending}
+                                    >
+                                      <Star className="h-3 w-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="text-xs">
+                                    {hasThumb ? "Set as cover" : "No thumbnail available"}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        </ContextMenuTrigger>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <CopyInlineButton value={asset.relative_path} />
-                          {!isCover && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={() => setCover.mutate(asset.id)}
-                                  disabled={!hasThumb || setCover.isPending}
-                                >
-                                  <Star className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="text-xs">
-                                {hasThumb ? "Set as cover" : "No thumbnail available"}
-                              </TooltipContent>
-                            </Tooltip>
+                        <ContextMenuContent className="w-52">
+                          <ContextMenuItem onClick={() => handleAssetCheckout(asset.id)}>
+                            <Download className="h-3.5 w-3.5 mr-2" />
+                            Check Out &amp; Open
+                          </ContextMenuItem>
+                          {nasConfig && (
+                            <ContextMenuItem onClick={() => handleOpenAssetFolder(asset)}>
+                              <FolderOpen className="h-3.5 w-3.5 mr-2" />
+                              Open Containing Folder
+                            </ContextMenuItem>
                           )}
-                        </div>
-                      </div>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem onClick={() => handleCopyPath(asset.relative_path, "relative path")}>
+                            <Copy className="h-3.5 w-3.5 mr-2" />
+                            Copy Relative Path
+                          </ContextMenuItem>
+                          {uncPath && (
+                            <ContextMenuItem onClick={() => handleCopyPath(uncPath, "UNC path")}>
+                              <Copy className="h-3.5 w-3.5 mr-2" />
+                              Copy UNC Path
+                            </ContextMenuItem>
+                          )}
+                        </ContextMenuContent>
+                      </ContextMenu>
                     );
                   })}
                 </div>
