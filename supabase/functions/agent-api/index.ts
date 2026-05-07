@@ -2633,8 +2633,9 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       modified_at: (f.modified_at as string) || null,
       last_seen_at: new Date().toISOString(),
       is_active: true,
-      thumbnail_url: (f.thumbnail_url as string) || null,
-      thumbnail_error: (f.thumbnail_error as string) || null,
+      // thumbnail_url and thumbnail_error are intentionally omitted — the crawl agent
+      // has no knowledge of render state. Including them would overwrite rendered
+      // thumbnails with null on every crawl.
     }));
 
     const { data: upsertedRows, error: upsertErr } = await db
@@ -2680,7 +2681,8 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
       }).eq("id", runId);
 
-      // Mark stale files
+      // Mark stale files via DB function (RPC is reliable; PostgREST PATCH with .neq()
+      // on UUID columns fails silently and leaves ghost rows active).
       const { data: runData } = await db
         .from("style_guide_crawl_runs")
         .select("roots_scanned")
@@ -2688,14 +2690,15 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         .single();
 
       if (runData?.roots_scanned) {
-        // Files from previous runs for the same roots that weren't seen in this run
         for (const root of runData.roots_scanned) {
           const rootLabel = root.split("/").filter(Boolean).pop() || root;
-          await db
-            .from("style_guide_files")
-            .update({ is_active: false })
-            .eq("root_label", rootLabel)
-            .neq("crawl_run_id", runId);
+          const { data: deactivated, error: deactivateErr } = await db
+            .rpc("deactivate_stale_sg_files", { p_root_label: rootLabel, p_run_id: runId });
+          if (deactivateErr) {
+            console.error("[complete-style-guide-crawl] Staleness cleanup failed:", deactivateErr.message);
+          } else {
+            console.log(`[complete-style-guide-crawl] Deactivated ${deactivated} stale files for root "${rootLabel}"`);
+          }
         }
       }
 
