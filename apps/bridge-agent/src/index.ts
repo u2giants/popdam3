@@ -99,6 +99,7 @@ function resetCounters() {
 
 let cloudScanRoots: string[] | null = null; // null = use env fallback
 let cloudMountRoot: string | null = null;
+let cloudNasHostPath: string | null = null; // NAS host-side path (e.g. /volume1/mac), used for Docker-based marker writes
 let cloudBatchSize: number | null = null;
 let cloudConcurrency: number | null = null;
 let cloudScanMinDate: string | null = null;
@@ -173,6 +174,7 @@ async function sendHeartbeat() {
   diagnostics.readable_roots = readableRoots;
   diagnostics.unreadable_roots = unreadableRoots;
   diagnostics.scan_roots_readable = unreadableRoots.length === 0;
+  diagnostics.marker_statuses = { ...markerStatuses };
 
   const response = await api.heartbeat(agentId, { ...counters }, lastError, {
     image_tag: imageTag,
@@ -297,7 +299,7 @@ function onRealtimeScanRequest() {
 
 interface CloudConfig {
   do_spaces?: { key?: string; secret?: string; bucket: string; region: string; endpoint: string };
-  scanning?: { container_mount_root?: string; roots: string[]; batch_size: number; scan_min_date?: string | null; adaptive_polling: { idle_seconds: number; active_seconds: number } };
+  scanning?: { container_mount_root?: string; nas_host_path?: string; roots: string[]; batch_size: number; scan_min_date?: string | null; adaptive_polling: { idle_seconds: number; active_seconds: number } };
   resource_guard?: { cpu_percentage_limit: number; memory_limit_mb: number; concurrency: number };
   auto_scan?: { enabled: boolean; interval_hours: number };
   windows_render_mode?: "fallback_only" | "primary";
@@ -313,33 +315,73 @@ interface CloudConfig {
   };
 }
 
+// Per-root marker write status — included in heartbeat diagnostics
+const markerStatuses: Record<string, { ok: boolean; method?: string; error?: string; at: string }> = {};
+
+async function writeMarkerViaDocker(
+  containerPath: string,
+  containerMountRoot: string,
+  nasHostPath: string,
+  marker: object,
+): Promise<void> {
+  const cleanContainerRoot = containerMountRoot.replace(/\/+$/, "");
+  const cleanHostRoot = nasHostPath.replace(/\/+$/, "");
+  if (!containerPath.startsWith(cleanContainerRoot)) {
+    throw new Error(`Container path ${containerPath} is not under mount root ${cleanContainerRoot}`);
+  }
+  const relative = containerPath.slice(cleanContainerRoot.length);
+  const hostPath = cleanHostRoot + relative;
+
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
+
+  // Pass JSON content via env var to avoid any shell escaping issues.
+  // printf "%s" avoids echo adding a trailing newline or interpreting escapes.
+  const markerJson = JSON.stringify(marker, null, 2);
+  await execFileAsync("docker", [
+    "run", "--rm",
+    "-e", `MARKER_CONTENT=${markerJson}`,
+    "-v", `${hostPath}:/w`,
+    "alpine",
+    "sh", "-c", 'printf "%s" "$MARKER_CONTENT" > /w/pop-root.json',
+  ], { timeout: 30_000 } as never);
+}
+
 async function ensureRootMarkers(
   rootMappings: Array<{ root_id: string; display_name: string; server_path: string }>,
 ): Promise<void> {
   const mountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
+  const nasHostPath = (cloudNasHostPath || "").replace(/\/+$/, "");
+
   for (const rm of rootMappings) {
     if (!rm.root_id || !rm.server_path) continue;
     // server_path may be absolute (e.g. /mnt/nas/mac/Decor) or relative (e.g. Decor)
     const rootPath = rm.server_path.startsWith("/")
       ? rm.server_path.replace(/\/+$/, "")
       : `${mountRoot}/${rm.server_path.replace(/^\/+/, "")}`;
-    const markerPath = `${rootPath}/.pop-root.json`;
+    const markerPath = `${rootPath}/pop-root.json`;
 
     try {
       const s = await stat(rootPath);
       if (!s.isDirectory()) {
         logger.warn("Root marker: path is not a directory", { rootId: rm.root_id, path: rootPath });
+        markerStatuses[rm.root_id] = { ok: false, error: "not_a_directory", at: new Date().toISOString() };
         continue;
       }
     } catch {
       logger.warn("Root marker: path not accessible", { rootId: rm.root_id, path: rootPath });
+      markerStatuses[rm.root_id] = { ok: false, error: "path_not_accessible", at: new Date().toISOString() };
       continue;
     }
 
     // Skip if marker already correct
     try {
       const existing = JSON.parse(await readFile(markerPath, "utf-8"));
-      if (existing.root_id === rm.root_id && existing.type === "pop-dam-root") continue;
+      if (existing.root_id === rm.root_id && existing.type === "pop-dam-root") {
+        markerStatuses[rm.root_id] = { ok: true, method: "exists", at: new Date().toISOString() };
+        continue;
+      }
     } catch { /* not found or invalid — write it */ }
 
     const marker = {
@@ -351,8 +393,37 @@ async function ensureRootMarkers(
       do_not_move: true,
       schema_version: 1,
     };
-    await writeFile(markerPath, JSON.stringify(marker, null, 2), "utf-8");
-    logger.info("Root marker written", { rootId: rm.root_id, path: markerPath });
+
+    // Try direct write first
+    try {
+      await writeFile(markerPath, JSON.stringify(marker, null, 2), "utf-8");
+      logger.info("Root marker written (direct)", { rootId: rm.root_id, path: markerPath });
+      markerStatuses[rm.root_id] = { ok: true, method: "direct", at: new Date().toISOString() };
+      continue;
+    } catch (directErr) {
+      const code = (directErr as NodeJS.ErrnoException).code;
+      logger.warn("Root marker: direct write failed — trying Docker fallback", {
+        rootId: rm.root_id, path: markerPath, code,
+      });
+
+      // Docker fallback: spin up a one-shot container that mounts the directory
+      // as root and writes the marker, bypassing any POSIX permission issue.
+      if (!nasHostPath) {
+        logger.error("Root marker: Docker fallback unavailable (NAS_HOST_PATH not configured)", { rootId: rm.root_id });
+        markerStatuses[rm.root_id] = { ok: false, error: `direct_write_failed:${code}_no_host_path`, at: new Date().toISOString() };
+        continue;
+      }
+      try {
+        await writeMarkerViaDocker(rootPath, mountRoot, nasHostPath, marker);
+        logger.info("Root marker written (Docker fallback)", { rootId: rm.root_id, path: markerPath });
+        markerStatuses[rm.root_id] = { ok: true, method: "docker", at: new Date().toISOString() };
+      } catch (dockerErr) {
+        logger.error("Root marker: Docker fallback also failed", {
+          rootId: rm.root_id, error: (dockerErr as Error).message,
+        });
+        markerStatuses[rm.root_id] = { ok: false, error: `docker_write_failed:${(dockerErr as Error).message}`, at: new Date().toISOString() };
+      }
+    }
   }
 }
 
@@ -371,6 +442,9 @@ function applyCloudConfig(cfg: CloudConfig) {
   if (cfg.scanning) {
     if (cfg.scanning.container_mount_root) {
       cloudMountRoot = cfg.scanning.container_mount_root;
+    }
+    if (cfg.scanning.nas_host_path) {
+      cloudNasHostPath = cfg.scanning.nas_host_path;
     }
     if (cfg.scanning.roots && cfg.scanning.roots.length > 0) {
       cloudScanRoots = cfg.scanning.roots;
@@ -426,7 +500,7 @@ function applyCloudConfig(cfg: CloudConfig) {
     cloudStyleGuideRoots = cfg.style_guide_scanning.roots;
   }
 
-  // Write .pop-root.json markers to each NAS root so Helper users can auto-validate
+  // Write pop-root.json markers to each NAS root so Helper users can auto-validate
   // Derived from scan roots — same source of truth, no separate config needed
   if (cfg.scanning?.roots && cfg.scanning.roots.length > 0) {
     const rootMappings = cfg.scanning.roots.map((r) => {
