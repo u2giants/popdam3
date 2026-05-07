@@ -642,14 +642,27 @@ export async function renderPdf(filePath: string): Promise<PdfRenderResult> {
 // ── Main entry: full fallback chain ─────────────────────────────
 
 export async function renderNativeImage(filePath: string): Promise<RenderResult> {
-  const effectivePath = filePath.length > 230 ? withLongPathPrefix(filePath) : filePath;
-  const buffer = await sharp(effectivePath, { limitInputPixels: false })
-    .flatten({ background: "#ffffff" })
-    .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
-    .jpeg({ quality: 85 })
-    .toBuffer();
-  const meta = await sharp(buffer).metadata();
-  return { buffer, width: meta.width || 0, height: meta.height || 0 };
+  // Sharp/libvips does not reliably support \\?\ extended-length paths on Windows.
+  // Copy to a short temp path for long inputs, same pattern as renderFile.
+  let tmpDir: string | null = null;
+  let effectivePath = filePath;
+  if (filePath.length > 230) {
+    tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-ni-"));
+    const dest = path.join(tmpDir, `in${path.extname(filePath)}`);
+    await copyFile(withLongPathPrefix(filePath), dest);
+    effectivePath = dest;
+  }
+  try {
+    const buffer = await sharp(effectivePath, { limitInputPixels: false })
+      .flatten({ background: "#ffffff" })
+      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    const meta = await sharp(buffer).metadata();
+    return { buffer, width: meta.width || 0, height: meta.height || 0 };
+  } finally {
+    if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 export async function renderFile(
