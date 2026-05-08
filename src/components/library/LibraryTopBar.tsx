@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import type { ViewMode, SortField, SortDirection, LibraryMode } from "@/types/assets";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
 
 interface LibraryTopBarProps {
   search: string;
@@ -289,7 +290,7 @@ export default function LibraryTopBar({
                 <p className="font-medium">Last scan {lastScanStatus}</p>
                 {lastScanTime && (
                   <p className="text-xs text-muted-foreground">
-                    {new Date(lastScanTime).toLocaleString()}
+                    {formatDateTime(lastScanTime)}
                   </p>
                 )}
                 {lastScanSummary && (

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDateTime } from "@/lib/format-date";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -153,7 +154,7 @@ export default function StyleGuideCrawlTab() {
               <div className="text-sm font-medium text-foreground flex items-center justify-center gap-1">
                 <Clock className="h-3 w-3" />
                 {lastRun?.completed_at
-                  ? new Date(lastRun.completed_at as string).toLocaleDateString()
+                  ? formatDateTime(lastRun.completed_at as string)
                   : "Never"}
               </div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Last Completed</div>

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { formatDateTime } from "@/lib/format-date";
 import { Link } from "react-router-dom";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -185,7 +186,7 @@ export default function ScanDiagnosticsPage() {
                 <div>
                   <div className="text-xs text-muted-foreground">Last Updated</div>
                   <div className="font-medium">
-                    {updatedAt ? `${timeAgo(updatedAt)} · ${new Date(updatedAt).toLocaleString()}` : "—"}
+                    {updatedAt ? `${timeAgo(updatedAt)} · ${formatDateTime(updatedAt)}` : "—"}
                   </div>
                 </div>
                 {sessionId && (

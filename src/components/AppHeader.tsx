@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sheet";
 import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw, Menu, Eye, EyeOff, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
 import { useState } from "react";
 import { CURRENT_APP, IS_POPSG } from "@/lib/app-mode";
 
@@ -223,7 +224,7 @@ export default function AppHeader() {
         <div className="flex items-center gap-3">
           {/* Build stamp */}
           <span className="hidden lg:inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground/60 select-all" title="Build info">
-            {__APP_COMMIT__} · {__APP_DATE__}
+            {__APP_COMMIT__} · {formatDateTime(__APP_DATE__)}
           </span>
 
           {/* Bridge agent status */}

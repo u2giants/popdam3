@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { formatDate } from "@/lib/format-date";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -69,10 +70,6 @@ function formatBytes(n: number | null): string {
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[u]}`;
 }
 
-function formatDate(s: string | null): string {
-  if (!s) return "—";
-  return new Date(s).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
 
 // ── Folder tree sidebar ──────────────────────────────────────────────
 

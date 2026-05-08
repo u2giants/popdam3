@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { formatDate } from "@/lib/format-date";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -262,7 +263,7 @@ export default function DirectoryBrowserTab() {
                     )}
                     {entry.modified && (
                       <span className="text-xs text-muted-foreground shrink-0 hidden sm:block">
-                        {new Date(entry.modified).toLocaleDateString()}
+                        {formatDate(entry.modified)}
                       </span>
                     )}
                     {entry.is_dir && (

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_APP } from "@/lib/app-mode";
+import { formatDateTime } from "@/lib/format-date";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
@@ -464,10 +465,10 @@ function SgRenderJobsTable({
                             </Tooltip>
                           </td>
                           <td className="px-3 py-1.5 text-muted-foreground">
-                            {job.created_at ? new Date(job.created_at).toLocaleString() : "—"}
+                            {job.created_at ? formatDateTime(job.created_at) : "—"}
                           </td>
                           <td className="px-3 py-1.5 text-muted-foreground">
-                            {job.completed_at ? new Date(job.completed_at).toLocaleString() : "—"}
+                            {job.completed_at ? formatDateTime(job.completed_at) : "—"}
                           </td>
                           <td className="px-3 py-1.5 text-muted-foreground tabular-nums">
                             {job.attempts}
@@ -715,7 +716,7 @@ export default function PopSGSettingsPage() {
                             </td>
                             <td className="px-3 py-1.5 text-muted-foreground">
                               {a.last_heartbeat
-                                ? new Date(a.last_heartbeat).toLocaleString()
+                                ? formatDateTime(a.last_heartbeat)
                                 : "never"}
                             </td>
                           </tr>
@@ -986,7 +987,7 @@ export default function PopSGSettingsPage() {
 
                 {(crawlProgress.status === "completed" || crawlProgress.status === "failed") && crawlProgress.completedAt && (
                   <span className="text-xs text-muted-foreground">
-                    Last run: {new Date(crawlProgress.completedAt).toLocaleString()}
+                    Last run: {formatDateTime(crawlProgress.completedAt)}
                     {crawlProgress.status === "completed" && crawlProgress.filesFound != null && (
                       <> — {crawlProgress.filesFound.toLocaleString()} files</>
                     )}

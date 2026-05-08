@@ -1,4 +1,5 @@
 import { forwardRef, useMemo, useState } from "react";
+import { formatDateTime } from "@/lib/format-date";
 import { Link, useSearchParams } from "react-router-dom";
 import type { LinkProps } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -173,7 +174,7 @@ export default function AiTaggingDetailPage() {
                   <div>
                     <div className="text-xs text-muted-foreground">Last update</div>
                     <div className="font-medium">
-                      {op?.updated_at ? `${timeAgo(op.updated_at)} (${new Date(op.updated_at).toLocaleString()})` : "—"}
+                      {op?.updated_at ? `${timeAgo(op.updated_at)} (${formatDateTime(op.updated_at)})` : "—"}
                     </div>
                   </div>
                   <div>
