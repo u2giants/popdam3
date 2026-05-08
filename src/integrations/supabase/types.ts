@@ -2527,9 +2527,10 @@ export type Database = {
           new_groups_created: number
         }[]
       }
-      requeue_all_failed_sg_jobs:
-        | { Args: never; Returns: number }
-        | { Args: { p_limit?: number }; Returns: number }
+      requeue_all_failed_sg_jobs: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       reset_mega_group_tagged_assets_batch: { Args: never; Returns: number }
       reset_stale_jobs: {
         Args: { p_timeout_minutes?: number }
