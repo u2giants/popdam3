@@ -569,7 +569,7 @@ async function processSgJob(job: api.SgRenderJob): Promise<void> {
     const NATIVE_IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "tif", "tiff"]);
     const result = NATIVE_IMAGE_EXTS.has(ext)
       ? await renderNativeImage(uncPath)
-      : await renderFile(uncPath, ext === "psd" ? "psd" : ext === "pdf" ? "pdf" : "ai");
+      : await renderFile(uncPath, ext === "psd" ? "psd" : ext === "pdf" ? "pdf" : ext === "eps" ? "eps" : "ai");
     const thumbnailUrl = await uploadSgThumbnail(job.style_guide_file_id, result.buffer);
     await api.completeSgRender(job.job_id, true, thumbnailUrl);
     jobsCompleted++;

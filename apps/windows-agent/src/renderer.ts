@@ -8,6 +8,14 @@
  *   4. Inkscape     — independent engine (no PDF dependency), handles Adobe-specific .ai
  *   5. Sibling image — any .jpg/.png in same folder with matching name
  *
+ * Fallback chain for EPS files:
+ *   1. Ghostscript  — primary; handles EPS natively (same CLI as AI/PDF)
+ *   2. Inkscape     — secondary; can render EPS
+ *   3. Sibling image — any .jpg/.png in same folder with matching name
+ *   (Sharp/libvips can't decode raw PostScript; Poppler is PDF-only.
+ *    The AI compat pre-check is skipped because all EPS start with %!PS-Adobe-
+ *    which would falsely flag them as having no PDF compat.)
+ *
  * Fallback chain for PSD files:
  *   1. Sharp        — fast, handles most .psd
  *   2. ImageMagick  — 16-bit, smart objects, complex layers
@@ -667,7 +675,7 @@ export async function renderNativeImage(filePath: string): Promise<RenderResult>
 
 export async function renderFile(
   uncPath: string,
-  fileType: "ai" | "psd" | "pdf",
+  fileType: "ai" | "psd" | "pdf" | "eps",
   compatWorker?: CompatWorker,
 ): Promise<RenderResult | PdfRenderResult> {
   if (fileType === "pdf") {
@@ -689,6 +697,45 @@ export async function renderFile(
   }
 
   try {
+    // EPS: Ghostscript → Inkscape → sibling.
+    // Sharp can't decode raw PostScript; Poppler is PDF-only.
+    // The AI compat pre-check is intentionally skipped — EPS headers look identical
+    // to "no PDF compat" AI files (%!PS-Adobe- without %PDF-), so the check would
+    // falsely skip GS for every EPS file.
+    if (fileType === "eps") {
+      try {
+        const result = await renderWithGhostscript(effectivePath);
+        logger.info("Ghostscript EPS render succeeded", { uncPath });
+        return result;
+      } catch (e) {
+        const msg = (e as Error).message;
+        failures.push(`ghostscript: ${msg}`);
+        logger.warn("Ghostscript EPS failed", { uncPath, error: msg });
+      }
+
+      try {
+        const result = await renderWithInkscape(effectivePath);
+        logger.info("Inkscape EPS render succeeded", { uncPath });
+        return result;
+      } catch (e) {
+        const msg = (e as Error).message;
+        failures.push(`inkscape: ${msg}`);
+        logger.warn("Inkscape EPS failed", { uncPath, error: msg });
+      }
+
+      try {
+        const result = await renderFromSibling(uncPath);
+        logger.info("Sibling EPS render succeeded", { uncPath });
+        return result;
+      } catch (e) {
+        const msg = (e as Error).message;
+        failures.push(`sibling: ${msg}`);
+        logger.warn("Sibling not found for EPS", { uncPath });
+      }
+
+      throw new Error(`render_failed: ${failures.join(" | ")}`);
+    }
+
     // Pre-flight for AI: detect files saved without PDF compatibility.
     // Sharp, GS, and Poppler all render the /CompatibilityAlert notice page rather than
     // real artwork for these files — skip them.  Inkscape reads the native AI/SVG format
