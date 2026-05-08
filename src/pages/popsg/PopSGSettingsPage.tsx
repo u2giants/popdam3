@@ -307,13 +307,19 @@ function SgRenderJobsTable({
 
   const requeueAllFailedMutation = useMutation({
     mutationFn: async () => {
-      // Use a SECURITY DEFINER RPC to bypass per-row RLS evaluation.
-      // A direct .update().eq("status","failed") times out on 30k+ rows (see KNOWN_QUIRKS #27).
-      const { error } = await supabase.rpc("requeue_all_failed_sg_jobs");
-      if (error) throw error;
+      // Loop in 500-row batches — proxy statement timeout applies per call (KNOWN_QUIRKS #33).
+      let total = 0;
+      while (true) {
+        const { data, error } = await supabase.rpc("requeue_all_failed_sg_jobs", { p_limit: 500 });
+        if (error) throw error;
+        const count = data as number;
+        total += count;
+        if (count === 0) break;
+      }
+      return total;
     },
-    onSuccess: () => {
-      toast.success("All failed jobs requeued");
+    onSuccess: (count) => {
+      toast.success(`${count.toLocaleString()} jobs requeued`);
       queryClient.invalidateQueries({ queryKey: ["popsg", "sg_render_jobs"] });
       queryClient.invalidateQueries({ queryKey: ["popsg", "render_queue_stats"] });
     },
