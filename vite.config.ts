@@ -13,7 +13,7 @@ function getGitInfo() {
   }
   try {
     const hash = execSync("git rev-parse --short HEAD").toString().trim();
-    const date = execSync("git log -1 --format=%cd --date=format:%Y-%m-%d").toString().trim();
+    const date = execSync("git log -1 --format=%cd --date=format:%Y-%m-%d %H:%M").toString().trim();
     return { hash, date };
   } catch {
     return { hash: envHash || "unknown", date: envDate || "unknown" };
