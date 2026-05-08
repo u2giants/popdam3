@@ -451,9 +451,11 @@ async function renderWithImageMagick(
   try {
     // Prefix with PSD: format specifier to prevent ImageMagick from misinterpreting
     // Windows drive letters (e.g. "y:") as format specifiers.
+    // -colorspace sRGB converts CMYK/Lab PSDs to sRGB before compositing; no-op for sRGB files.
     const imInput = /^[A-Za-z]:/.test(filePath) ? `PSD:${filePath}[0]` : `${filePath}[0]`;
     await execFileAsync(IM_EXE, [
       imInput,
+      "-colorspace", "sRGB",
       "-background", "white",
       "-flatten",
       "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
@@ -473,6 +475,38 @@ async function renderWithImageMagick(
       width: meta.width || 0,
       height: meta.height || 0,
     };
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// ── ImageMagick for native images (TIFF/JPEG/PNG fallback) ─────
+
+async function renderWithImageMagickNative(filePath: string): Promise<RenderResult> {
+  if (!IM_EXE) throw new Error("ImageMagick not installed");
+
+  const tmpDir = await mkdtemp(path.join(tmpdir(), "popdam-im-"));
+  const outPath = path.join(tmpDir, "thumb.jpg");
+
+  try {
+    // -colorspace sRGB converts CMYK/Lab TIFFs and JPEGs to sRGB. No-op for sRGB files.
+    await execFileAsync(IM_EXE, [
+      filePath,
+      "-colorspace", "sRGB",
+      "-background", "white",
+      "-flatten",
+      "-resize", `${THUMB_MAX_DIM}x${THUMB_MAX_DIM}>`,
+      "-quality", "85",
+      outPath,
+    ], { timeout: 120_000 });
+
+    if (!existsSync(outPath)) {
+      throw new Error("ImageMagick produced no output");
+    }
+
+    const buffer = await sharp(outPath, { limitInputPixels: false }).jpeg({ quality: 85 }).toBuffer();
+    const meta = await sharp(buffer).metadata();
+    return { buffer, width: meta.width || 0, height: meta.height || 0 };
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -661,13 +695,23 @@ export async function renderNativeImage(filePath: string): Promise<RenderResult>
     effectivePath = dest;
   }
   try {
-    const buffer = await sharp(effectivePath, { limitInputPixels: false })
-      .flatten({ background: "#ffffff" })
-      .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-    const meta = await sharp(buffer).metadata();
-    return { buffer, width: meta.width || 0, height: meta.height || 0 };
+    try {
+      const buffer = await sharp(effectivePath, { limitInputPixels: false })
+        .flatten({ background: "#ffffff" })
+        .resize(THUMB_MAX_DIM, THUMB_MAX_DIM, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      const meta = await sharp(buffer).metadata();
+      return { buffer, width: meta.width || 0, height: meta.height || 0 };
+    } catch (sharpErr) {
+      // Sharp failed (likely CMYK/Lab color space). Try ImageMagick with sRGB conversion.
+      if (!IM_EXE) throw sharpErr;
+      logger.warn("Sharp native image failed, falling back to ImageMagick", {
+        filePath,
+        error: (sharpErr as Error).message,
+      });
+      return await renderWithImageMagickNative(effectivePath);
+    }
   } finally {
     if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
