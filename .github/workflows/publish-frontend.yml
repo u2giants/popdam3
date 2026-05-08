@@ -35,7 +35,7 @@ jobs:
         id: meta
         run: |
           echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          echo "date=$(git log -1 --format=%cd --date=format:%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          echo "date=$(git log -1 --format=%cd --date=format:%Y-%m-%d\ %H:%M)" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v4
