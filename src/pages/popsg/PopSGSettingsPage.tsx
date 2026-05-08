@@ -307,16 +307,9 @@ function SgRenderJobsTable({
 
   const requeueAllFailedMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("style_guide_render_queue")
-        .update({
-          status: "pending",
-          error_message: null,
-          completed_at: null,
-          claimed_at: null,
-          claimed_by: null,
-        })
-        .eq("status", "failed");
+      // Use a SECURITY DEFINER RPC to bypass per-row RLS evaluation.
+      // A direct .update().eq("status","failed") times out on 30k+ rows (see KNOWN_QUIRKS #27).
+      const { error } = await supabase.rpc("requeue_all_failed_sg_jobs");
       if (error) throw error;
     },
     onSuccess: () => {
