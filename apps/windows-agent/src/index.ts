@@ -551,12 +551,10 @@ async function processSgJob(job: api.SgRenderJob): Promise<void> {
     uncPath,
   });
 
-  if (shouldSkipPath(job.relative_path, logger.warn)) {
-    logger.info("Skipping excluded SG path", { relativePath: job.relative_path });
-    await api.completeSgRender(job.job_id, false, undefined, "Skipped: excluded by path filter");
-    return;
-  }
-
+  // Don't apply the shared shouldSkipPath filter here. The SG crawler is the
+  // gatekeeper — if it ingested a file into style_guide_files, the render agent
+  // should render it. The shared blocklist (e.g. "_old") is for PopDAM scanner
+  // exclusions and should not override the crawler's decision.
   const filename = path.basename(job.relative_path);
   if (filename.startsWith("~") || filename.startsWith("._")) {
     logger.info("Skipping junk SG file", { relativePath: job.relative_path });
