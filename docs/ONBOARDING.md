@@ -292,11 +292,35 @@ All admin API calls go through this hook which handles:
 
 ## 8. Authentication & Authorization
 
-### Invitation-only
-Users cannot self-register. An admin creates an invitation (email + role) via the admin UI. When the invited user signs up (email/password or Google OAuth), the `handle_new_user()` database trigger:
+There are four ways to log in. All paths produce a standard Supabase JWT — the rest of the app doesn't care which path was used.
+
+| Path | Who uses it | Requires invitation? |
+|------|-------------|----------------------|
+| **Authentik SSO** (company AD accounts) | Internal employees | No — AD users are auto-provisioned |
+| **Google OAuth** | External collaborators | Yes |
+| **Microsoft OAuth** | External collaborators | Yes |
+| **Email + password** | Anyone with an invite | Yes |
+
+Full details and the exact flow for each path are in `docs/AUTHENTICATION.md`.
+
+### Authentik SSO — primary path (added 2026-05-09)
+
+All employees with a company Active Directory account use the "Sign in with company account" button. They are redirected to `auth.designflow.app`, authenticate with their AD password, and come back with a full session. No invitation needed.
+
+**How it works under the hood:**
+1. Browser does a PKCE authorization code flow directly against Authentik (public client — no secret)
+2. The `id_token` from Authentik is sent to the `authenticate-with-authentik` Supabase edge function
+3. The edge function validates the token via Authentik's JWKS, then creates or looks up the Supabase user
+4. A magic-link `token_hash` is returned; the frontend exchanges it for a live Supabase session
+
+**New user provisioning:** When an AD user logs in for the first time, the edge function creates their Supabase user with `app_metadata.provider = 'authentik'`. The `handle_new_user` database trigger detects this and auto-assigns the `user` role without requiring an invitation (migration `20260509000000_authentik_invitation_bypass`).
+
+### Invitation-only (all other paths)
+
+For Google OAuth, Microsoft OAuth, and email/password: users cannot self-register. An admin creates an invitation (email + role) via the admin UI. The `handle_new_user()` trigger:
 1. Checks the `invitations` table for a matching email
 2. If found: creates a `profiles` row + `user_roles` row, marks invitation accepted
-3. If not found: **raises an exception**, blocking signup
+3. If not found: raises an exception, blocking signup
 
 ### Roles
 - **`admin`** — Full access to settings, diagnostics, bulk operations, agent management
@@ -304,9 +328,6 @@ Users cannot self-register. An admin creates an invitation (email + role) via th
 
 ### Impersonation
 Admins can "impersonate" a regular user to see the UI as they would. This is **client-side only** — stored in `sessionStorage`, hides admin UI elements, does not change the JWT or actual permissions.
-
-### OAuth
-Google OAuth is configured on the external Supabase project. MS/Azure SSO is explicitly prohibited.
 
 ---
 
