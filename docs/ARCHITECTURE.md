@@ -13,7 +13,7 @@ This system is intentionally split so:
 ### A) Brain (Cloud)
 Responsibilities:
 - Web UI (browse/search/filter/tag)
-- Authentication + roles (invitation-only)
+- Authentication + roles (Authentik SSO for AD users; invitation-only for all other paths)
 - Admin config + diagnostics
 - API endpoints for agents and admins (`admin-api`, `agent-api` Supabase edge functions)
 
