@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, Shield } from "lucide-react";
+import { redirectToAuthentik } from "@/lib/authentik";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -38,7 +39,7 @@ export default function LoginPage() {
       }
     }
 
-    // Also check query params (some error flows use ?error=...)
+    // Also check query params (some error flows use ?error=..., including Authentik callback errors)
     const queryError = params.get("error_description") || params.get("error");
     if (queryError) {
       setError(decodeURIComponent(queryError));
@@ -57,6 +58,15 @@ export default function LoginPage() {
   if (user) {
     return <Navigate to="/library" replace />;
   }
+
+  const handleAuthentikSignIn = async () => {
+    setError(null);
+    try {
+      await redirectToAuthentik();
+    } catch (e: any) {
+      setError(e.message || "Sign-in failed");
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     setError(null);
@@ -129,6 +139,27 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Authentik SSO (company AD accounts) */}
+            <Button
+              variant="default"
+              className="w-full"
+              onClick={handleAuthentikSignIn}
+              type="button"
+              aria-label="Sign in with company account"
+            >
+              <Shield className="mr-2 h-4 w-4" />
+              Sign in with company account
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">or</span>
+              </div>
+            </div>
+
             {/* Google OAuth */}
             <Button
               variant="outline"

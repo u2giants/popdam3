@@ -19,6 +19,7 @@ import AiTaggingDetailPage from "./pages/AiTaggingDetailPage";
 import ScanDiagnosticsPage from "./pages/ScanDiagnosticsPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
 import NotFound from "./pages/NotFound";
 import PopSGLibraryPage from "./pages/popsg/PopSGLibraryPage";
 import PopSGSettingsPage from "./pages/popsg/PopSGSettingsPage";
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
