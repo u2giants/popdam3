@@ -32,9 +32,9 @@ On push to `main` when `apps/bridge-agent/**` changes, `publish-bridge-agent.yml
 
 | Tag | Use |
 |-----|-----|
-| `:latest` | What `docker compose pull` gets by default |
-| `:stable` | What the in-app self-update pulls (same commit, explicit tag) |
-| `:v{version}` | Pinned rollback target (e.g. `:v1.9.6`) |
+| `:latest` | Exists but not used by the reference compose file or self-update |
+| `:stable` | What `deploy/synology/docker-compose.yml` tracks; what the in-app self-update pulls |
+| `:v{version}` | Pinned rollback target (e.g. `:v1.10.0`) |
 
 Version is tracked in `apps/bridge-agent/package.json`. Bump it in the same commit as your changes (patch for bug fixes, minor for features, major for breaking changes). After publishing, `BRIDGE_LATEST_BUILD` is written to `admin_config` so the admin UI can show the new version and offer an update.
 
@@ -46,7 +46,7 @@ Version is tracked in `apps/bridge-agent/package.json`. Bump it in the same comm
 
 Settings → Agents (Bridge) → Update button. The UI calls `apply-update` on admin-api, which sets an `UPDATE_REQUEST` key in `admin_config`. The bridge agent picks this up on its next heartbeat, pulls `:stable`, and recreates its own container using the Docker socket. No SSH required.
 
-**Requires**: `restart: unless-stopped` in docker-compose.yml **and** `/var/run/docker.sock:/var/run/docker.sock` mounted. Both are set in the reference `deploy/synology/docker-compose.yml`.
+**Requires**: `restart: unless-stopped` in docker-compose.yml **and** `/var/run/docker.sock:/var/run/docker.sock` mounted **and** `POPDAM_CONTAINER_NAME: popdam-bridge` set in the environment block. All three are set in the reference `deploy/synology/docker-compose.yml`. Without `POPDAM_CONTAINER_NAME`, each update cycle inherits the running container's (possibly mutated) name and a graveyard of stopped containers accumulates — see KNOWN_QUIRKS.md #26.
 
 ### Fallback — manual pull on the NAS
 

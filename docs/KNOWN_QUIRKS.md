@@ -308,16 +308,25 @@ Traefik watches this directory (`--providers.file.watch=true`) and picks up chan
 
 **What it looks like**: Overly complex self-update logic — why not just call `docker compose up -d --force-recreate`?
 
-**Why Compose alone fails**: The bridge agent runs inside a Docker container. Its Docker socket mount (`/var/run/docker.sock`) lets it control the Docker daemon, but it has no access to the `docker-compose.yml` file that lives on the host filesystem. To find the compose file, the agent reads the `com.docker.compose.project.working_dir` label that Compose stamps on all containers it creates. If that label is absent or the compose file can't be found, `docker compose up` is impossible.
+**Why Compose alone fails**: The bridge agent runs inside a Docker container. Its Docker socket mount (`/var/run/docker.sock`) lets it control the Docker daemon, but it has no access to the `docker-compose.yml` file that lives on the host filesystem. To find the compose file, the agent reads the `com.docker.compose.project.working_dir` label that Compose stamps on all containers it creates. If that label is absent or the compose file can't be found at that path, `docker compose up` is impossible.
 
-**The fallback (`recreateViaDockerRun`)**: Uses `docker inspect` to read the running container's full config (env vars, volume binds, network, restart policy) and then:
-1. `docker run` a replacement container with the new image and the same config, under a temp name
-2. `docker stop` + `docker rm` the old container
-3. `docker rename` the temp container to the original name
+**Compose file detection order (three fallbacks in `handleApplyUpdate`)**:
+1. `com.docker.compose.project.working_dir` label → look for compose file there
+2. Host-side paths from every bind mount (`docker inspect .HostConfig.Binds`) — reliable on Synology CM where the label path can differ from where the file actually is
+3. `POPDAM_COMPOSE_PATH` env var → explicit override
+4. Hardcoded Synology CM project paths (`/volume1/docker/popdam/docker-compose.yml`, etc.)
+
+**The fallback (`recreateViaDockerRun`)**: Used when no compose file is found. Uses `docker inspect` to read the running container's full config (env vars, volume binds, network, restart policy) and then:
+1. `docker rename {containerId} {canonicalName}-old-{timestamp}` — frees up the canonical name while the old container is still running
+2. `docker run --name {canonicalName} ...` — new container immediately claims the canonical name
+3. Prune any stopped containers matching `{canonicalName}-old-*` or `{canonicalName}-updating-*` (graveyard cleanup, best-effort)
+4. `docker stop {containerId}` + `docker rm {containerId}` — stop and remove the old (now renamed) container
+
+**`POPDAM_CONTAINER_NAME` env var (critical)**: The canonical name is read from this env var, not from `info.Name` of the running container. Without this anchor, each update cycle inherits the name from the current container — if a previous cycle left the container named `popdam-bridge-old-123`, the next update would name the new one `popdam-bridge-old-123` and rename the old one to `popdam-bridge-old-123-old-456`, and so on indefinitely. The `deploy/synology/docker-compose.yml` sets `POPDAM_CONTAINER_NAME: popdam-bridge` explicitly for this reason.
 
 **Why not `docker stop` alone**: `restart: unless-stopped` does **not** restart a container after an explicit `docker stop`. A stopped container stays dead until someone restarts it manually. This was the root cause of the original update bug — the agent stopped itself and never came back.
 
-**What breaks if you "simplify" it**: Either the compose-file path fails silently (agent stops, never restarts), or the container stops and stays dead.
+**What breaks if you "simplify" it**: Either the compose-file path fails silently (agent stops, never restarts), or the container stops and stays dead. If you remove the `POPDAM_CONTAINER_NAME` env var, the graveyard accumulates on every update cycle.
 
 ---
 
@@ -470,4 +479,20 @@ Shell commands (Ghostscript, ImageMagick, Inkscape, Poppler) use the short temp-
 **Why**: The `cron.timezone` GUC on this Supabase version cannot be changed without a server restart (not possible on managed Supabase). `02:00 UTC = 9pm EST`. In EDT (summer, UTC-4), `02:00 UTC = 10pm EDT` — a 1-hour drift. This is acceptable for a nightly maintenance job.
 
 **What breaks if you change the expression to a local time without verifying `cron.timezone`**: The job will run at the wrong time silently — pg_cron always interprets schedule expressions as UTC unless `cron.timezone` is explicitly set.
+
+---
+
+## 39. `ensureRootMarkers` Refuses to Write to Synology Internal Directories
+
+**File**: `apps/bridge-agent/src/index.ts` (`ensureRootMarkers`)
+
+**What it looks like**: The agent silently skips writing `pop-root.json` to a configured root and logs an error instead of proceeding.
+
+**Why**: If an `agent_root_mappings` record has a `server_path` that resolves to a Synology internal data store — `@synologydrive`, `@SynologyDriveShareSync`, `@appdata`, or `@docker` — writing a marker file there and then trying to traverse the directory would be catastrophic. These directories contain millions of opaque internal files; any recursive operation (scan, file walk, grep) on them can run for days (confirmed: 4+ days on production) and generate enormous disk I/O.
+
+The guard checks the resolved `rootPath` (lowercased) for any of those path segments. If found, it logs at `error` level, sets `markerStatuses[root_id] = { ok: false, error: "forbidden_path" }`, and skips the root entirely for that scan cycle.
+
+**What breaks if you remove it**: A misconfigured root mapping pointing at a Synology internal store would allow the agent to scan millions of internal files, causing severe disk I/O pressure and potentially running for days without completing.
+
+**Intentional behavior**: This is a hard stop, not a warning. The correct fix is to correct the root mapping in the admin UI, not to remove the guard.
 

@@ -1,6 +1,6 @@
 # Session Handoff
 
-_Last updated: 2026-05-07_
+_Last updated: 2026-05-11_
 
 This file captures decisions made and work left to do that aren't obvious from the code or git log. Delete sections once the work is complete.
 
@@ -17,6 +17,25 @@ Always verify before any DB work:
 # Check you're on main and up to date:
 git fetch github main && git checkout main && git reset --hard github/main
 ```
+
+---
+
+## Recently completed (2026-05-11)
+
+### Bridge Agent v1.10.0 — self-update hardening (commit `af4302d`)
+
+Four bugs fixed in `apps/bridge-agent/src/index.ts` and `deploy/synology/docker-compose.yml`:
+
+| Fix | Detail |
+|-----|--------|
+| **Container name graveyard** | `recreateViaDockerRun` now reads canonical name from `POPDAM_CONTAINER_NAME` env var instead of inspecting the running container's (possibly mutated) `info.Name`. Prevents `popdam-bridge-old-123-old-456-old-789` accumulation. |
+| **Graveyard prune** | After each successful update, any stopped containers matching `{canonicalName}-old-*` or `{canonicalName}-updating-*` are removed automatically. |
+| **Bind-mount compose detection** | `handleApplyUpdate` now tries the host-side paths of every bind mount as a second fallback before falling back to hardcoded paths. Fixes Synology CM deployments where the label path differs from actual location. |
+| **Forbidden path guard** | `ensureRootMarkers` refuses to write `pop-root.json` to paths containing `@synologydrive`, `@SynologyDriveShareSync`, `@appdata`, or `@docker`. Prevents catastrophic I/O if a root mapping is misconfigured. |
+
+`docker-compose.yml` also updated: image changed to `:stable`, `cpu_shares`/`mem_limit` replaced with `deploy.resources.limits` (hard cap, not relative weight), `POPDAM_CONTAINER_NAME` env anchor added.
+
+Exited dead containers on edgesynology2 were cleaned manually by operator (`docker ps -a --filter status=exited | xargs docker rm`).
 
 ---
 
