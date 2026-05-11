@@ -3,12 +3,19 @@
 version: "3.8"
 services:
   bridge-agent:
-    image: ghcr.io/u2giants/popdam-bridge:latest
+    image: ghcr.io/u2giants/popdam-bridge:stable
     container_name: popdam-bridge
     restart: unless-stopped
     env_file: .env
-    cpu_shares: 1024
-    mem_limit: 2g
+    environment:
+      # Canonical container name — anchors the self-update path so it never
+      # inherits a mutated name from a previous update cycle.
+      POPDAM_CONTAINER_NAME: popdam-bridge
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'    # hard cap — prevents 100% CPU during RAID scrub windows
+          memory: 2g
     volumes:
       - /volume1/nas-share:/mnt/nas/mac:ro  # host-path:container-path
       - /volume1/styleguides:/mnt/nas/styleguides:ro  # Style Guides folder (read-only crawl)

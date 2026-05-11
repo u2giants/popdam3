@@ -354,6 +354,11 @@ async function ensureRootMarkers(
   const mountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
   const nasHostPath = (cloudNasHostPath || "").replace(/\/+$/, "");
 
+  // Synology internal stores that must never be traversed or written to.
+  // These directories contain millions of opaque file objects; writing or searching
+  // there causes catastrophic disk I/O (confirmed: grep -R here ran for 4+ days).
+  const FORBIDDEN_PATH_SEGMENTS = ["@synologydrive", "@synologydrivesharesync", "@appdata", "@docker"];
+
   for (const rm of rootMappings) {
     if (!rm.root_id || !rm.server_path) continue;
     // server_path may be absolute (e.g. /mnt/nas/mac/Decor) or relative (e.g. Decor)
@@ -361,6 +366,16 @@ async function ensureRootMarkers(
       ? rm.server_path.replace(/\/+$/, "")
       : `${mountRoot}/${rm.server_path.replace(/^\/+/, "")}`;
     const markerPath = `${rootPath}/pop-root.json`;
+
+    // Safety guard: refuse to write into Synology internal data stores.
+    const lowerPath = rootPath.toLowerCase();
+    if (FORBIDDEN_PATH_SEGMENTS.some((seg) => lowerPath.includes("/" + seg))) {
+      logger.error("Root marker: refusing to write to Synology internal directory — this path must never be traversed", {
+        rootId: rm.root_id, path: rootPath,
+      });
+      markerStatuses[rm.root_id] = { ok: false, error: "forbidden_path", at: new Date().toISOString() };
+      continue;
+    }
 
     try {
       const s = await stat(rootPath);
@@ -1423,13 +1438,34 @@ async function handleApplyUpdate() {
     }
   } catch { /* inspect failed — fall through */ }
 
-  // Fall back to explicit env var or Synology default
+  // Fallback 2: try the host-side directories of every bind mount.
+  // On Synology, the compose project dir is often mounted into the container
+  // (e.g. /volume1/docker/popdam:/app/compose), so checking the host side of
+  // each bind is more reliable than the label path when CM rewrites labels.
+  if (!composePath) {
+    try {
+      const { stdout: bindsOut } = await execFileAsync("docker", [
+        "inspect", containerId, "--format", "{{json .HostConfig.Binds}}",
+      ]);
+      const binds: string[] = JSON.parse(bindsOut.trim()) ?? [];
+      for (const bind of binds) {
+        const hostDir = bind.split(":")[0];
+        if (!hostDir || hostDir === "/var/run/docker.sock") continue;
+        for (const name of ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]) {
+          const candidate = `${hostDir}/${name}`;
+          try { await stat(candidate); composePath = candidate; break; } catch { /* try next */ }
+        }
+        if (composePath) break;
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Fallback 3: explicit env var or known Synology Container Manager project paths
   if (!composePath) {
     const envPath = process.env.POPDAM_COMPOSE_PATH;
     if (envPath) {
       composePath = envPath;
     } else {
-      // Try common Synology Container Manager project paths
       for (const candidate of [
         "/volume1/docker/popdam/docker-compose.yml",
         "/volume1/docker/popdam3/docker-compose.yml",
@@ -1473,8 +1509,10 @@ async function recreateViaDockerRun(
     ]);
     const info = JSON.parse(inspectOut.trim());
 
-    const rawName: string = info.Name || "";
-    const containerName = rawName.replace(/^\//, ""); // strip leading slash
+    // Use POPDAM_CONTAINER_NAME as the canonical target name, regardless of how the
+    // current container is named. Without this anchor, each update cycle inherits the
+    // mutated name from the previous cycle (e.g. popdam-bridge-old-123-old-456-old-789).
+    const canonicalName = process.env.POPDAM_CONTAINER_NAME || "popdam-bridge";
 
     // Collect -e flags
     const envArgs: string[] = (info.Config?.Env ?? []).flatMap((e: string) => ["-e", e]);
@@ -1492,28 +1530,53 @@ async function recreateViaDockerRun(
     const restartPolicy: string = info.HostConfig?.RestartPolicy?.Name || "unless-stopped";
     const restartArgs = ["--restart", restartPolicy];
 
-    // Rename ourselves to a temp name first — this frees up the original name
+    // Rename ourselves to a temp name first — this frees up the canonical name
     // while we're still running, so the new container can claim it immediately.
     // docker rename works on running containers without disrupting the process.
-    const oldTempName = `${containerName}-old-${Date.now()}`;
-    logger.info("Renaming current container to free up name", { from: containerName, to: oldTempName });
+    const oldTempName = `${canonicalName}-old-${Date.now()}`;
+    logger.info("Renaming current container to free up name", { from: containerId, to: oldTempName });
     await execFileAsync("docker", ["rename", containerId, oldTempName]);
 
     // Use inspected image if caller didn't specify one (e.g. self-heal path)
     const imageToRun = newImage || (info.Config?.Image as string) || "";
     if (!imageToRun) throw new Error("Cannot determine image name for recreated container");
 
-    // Start new container with the ORIGINAL name — no rename needed at the end
-    logger.info("Starting replacement container", { name: containerName, image: imageToRun });
+    // Start new container with the canonical name — always anchored, never mutated
+    logger.info("Starting replacement container", { name: canonicalName, image: imageToRun });
     await execFileAsync("docker", [
       "run", "-d",
-      "--name", containerName,
+      "--name", canonicalName,
       ...restartArgs,
       ...networkArgs,
       ...envArgs,
       ...bindArgs,
       imageToRun,
     ]);
+
+    // Prune graveyard: remove any stopped containers whose names match the -old-* or
+    // -updating-* patterns that accumulate from previous update cycles. Best-effort.
+    try {
+      const { stdout: psOut } = await execFileAsync("docker", [
+        "ps", "-a", "--format", "{{.Names}}\t{{.Status}}",
+      ]);
+      const deadNames = psOut.trim().split("\n")
+        .filter((line) => {
+          const [name, status] = line.split("\t");
+          return (
+            status?.startsWith("Exited") &&
+            (name?.startsWith(`${canonicalName}-old-`) || name?.startsWith(`${canonicalName}-updating-`))
+          );
+        })
+        .map((line) => line.split("\t")[0]!);
+      if (deadNames.length > 0) {
+        logger.info("Pruning dead update containers", { count: deadNames.length, names: deadNames });
+        await execFileAsync("docker", ["rm", ...deadNames]).catch((e) =>
+          logger.warn("Partial failure pruning dead containers", { error: (e as Error).message })
+        );
+      }
+    } catch (e) {
+      logger.warn("Container graveyard cleanup failed (non-fatal)", { error: (e as Error).message });
+    }
 
     // Suppress SIGTERM so we can complete cleanup before exiting.
     // docker stop sends SIGTERM to us (via dumb-init), which would kill node
@@ -1528,7 +1591,7 @@ async function recreateViaDockerRun(
     await new Promise(r => setTimeout(r, 2_000));
     await execFileAsync("docker", ["rm", containerId]).catch(() => {});
 
-    logger.info("Container recreated successfully via docker run", { containerName });
+    logger.info("Container recreated successfully via docker run", { canonicalName });
     // Exit cleanly — docker stop was already issued so unless-stopped won't restart
     process.exit(0);
   } catch (e) {
