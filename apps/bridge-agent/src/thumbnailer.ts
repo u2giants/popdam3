@@ -9,6 +9,12 @@
 
 import sharp from "sharp";
 import { execFile } from "node:child_process";
+
+// Disable libvips' operation cache — it accumulates native heap that V8's GC
+// cannot reclaim, causing the process to grow to ~1 GB after days of idle
+// post-scan operation.  Throughput impact is negligible for batch-once-per-scan
+// usage patterns.
+sharp.cache(false);
 import { promisify } from "node:util";
 import { mkdtemp, readFile, rm, readdir, open } from "node:fs/promises";
 import { tmpdir } from "node:os";
