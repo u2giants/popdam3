@@ -2557,6 +2557,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_style_group_cover: {
+        Args: { p_asset_id: string; p_group_id: string }
+        Returns: undefined
+      }
       show_partition_info: {
         Args: {
           p_child_table: string
