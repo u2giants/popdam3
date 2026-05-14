@@ -171,8 +171,9 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
   // Update mutation
   const updateAsset = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
-      const { error } = await supabase.from("assets").update(updates).eq("id", asset.id);
+      const { data, error } = await supabase.from("assets").update(updates).eq("id", asset.id).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update was blocked — you may not have permission to edit this asset");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assets"] });
@@ -261,12 +262,16 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
   const addTag = async () => {
     const tag = tagInput.trim().toLowerCase();
     if (!tag || asset.tags.includes(tag)) return;
-    const { error } = await supabase.from("asset_tags").upsert(
+    const { data, error } = await supabase.from("asset_tags").upsert(
       { asset_id: asset.id, tag, source: "manual" },
       { onConflict: "asset_id,tag" }
-    );
+    ).select("id");
     if (error) {
       toast.error("Failed to add tag", { description: error.message });
+      return;
+    }
+    if (!data || data.length === 0) {
+      toast.error("Failed to add tag", { description: "Write was blocked — you may not have permission" });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["assets"] });
@@ -275,13 +280,18 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
   };
 
   const removeTag = async (tag: string) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("asset_tags")
       .delete()
       .eq("asset_id", asset.id)
-      .eq("tag", tag);
+      .eq("tag", tag)
+      .select("id");
     if (error) {
       toast.error("Failed to remove tag", { description: error.message });
+      return;
+    }
+    if (!data || data.length === 0) {
+      toast.error("Failed to remove tag", { description: "Write was blocked — you may not have permission" });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["assets"] });

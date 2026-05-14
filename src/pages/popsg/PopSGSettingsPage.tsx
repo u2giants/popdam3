@@ -623,12 +623,13 @@ export default function PopSGSettingsPage() {
         { key: "WINDOWS_AGENT_SG_NAS_PASS", value: sgNasPass },
       ];
       for (const entry of entries) {
-        const { error } = await supabase.from("admin_config").upsert({
+        const { data, error } = await supabase.from("admin_config").upsert({
           key: entry.key,
           value: entry.value,
           updated_at: new Date().toISOString(),
-        });
+        }).select("key");
         if (error) throw error;
+        if (!data || data.length === 0) throw new Error(`Save was blocked for config key "${entry.key}" — you may not have permission`);
       }
     },
     onSuccess: () => {

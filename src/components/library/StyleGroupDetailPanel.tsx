@@ -553,8 +553,9 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const updateAsset = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
       if (!detailAsset) return;
-      const { error } = await supabase.from("assets").update(updates).eq("id", detailAsset.id);
+      const { data, error } = await supabase.from("assets").update(updates).eq("id", detailAsset.id).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update was blocked — you may not have permission to edit this asset");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });

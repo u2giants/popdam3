@@ -86,11 +86,13 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
   const bulkWorkflow = useMutation({
     mutationFn: async (status: string) => {
       const ids = selectedGroups.map((g) => g.id);
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("style_groups")
         .update({ workflow_status: status as Enums<"workflow_status"> })
-        .in("id", ids);
+        .in("id", ids)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update was blocked — you may not have permission to change workflow status");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["style-groups"] });
