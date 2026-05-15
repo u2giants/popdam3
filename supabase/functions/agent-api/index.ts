@@ -3431,6 +3431,23 @@ corsServe(async (req: Request) => {
         return await handleUpdateCompatAuditPreview(body);
       case "complete-compat-audit-preview":
         return await handleCompleteCompatAuditPreview(body);
+      case "load-ai-ignore-list": {
+        const { data, error } = await db
+          .from("scanner_ai_ignores")
+          .select("relative_path, reason");
+        if (error) return err(`load-ai-ignore-list failed: ${error.message}`, 500);
+        return json({ ok: true, ignores: data ?? [] });
+      }
+      case "mark-ai-ignored": {
+        const relativePath = body.relative_path as string | undefined;
+        const reason = body.reason as string | undefined;
+        if (!relativePath || !reason) return err("relative_path and reason required", 400);
+        const { error } = await db
+          .from("scanner_ai_ignores")
+          .upsert({ relative_path: relativePath, reason }, { onConflict: "relative_path", ignoreDuplicates: true });
+        if (error) return err(`mark-ai-ignored failed: ${error.message}`, 500);
+        return json({ ok: true });
+      }
       default:
         return err(`Unknown action: ${action}`, 404);
     }

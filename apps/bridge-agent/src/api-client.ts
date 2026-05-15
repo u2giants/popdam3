@@ -470,3 +470,30 @@ export async function reportPdfBackfillProgress(
     logger.warn("PDF backfill: progress report failed (non-fatal)", { error: (e as Error).message });
   }
 }
+
+// ── AI ignore list ──────────────────────────────────────────────────
+
+/** Load all permanently ignored .ai relative paths from the cloud DB. */
+export async function loadAiIgnoreList(): Promise<Set<string>> {
+  try {
+    const data = await callApi("load-ai-ignore-list");
+    const ignores = (data.ignores as Array<{ relative_path: string }>) ?? [];
+    return new Set(ignores.map((r) => r.relative_path));
+  } catch (e) {
+    logger.warn("Failed to load AI ignore list (proceeding without it)", { error: (e as Error).message });
+    return new Set();
+  }
+}
+
+/**
+ * Permanently mark an .ai file as ignored.
+ * reason: 'pdf_sibling' | 'no_pdf_compat'
+ * Fire-and-forget safe — caller should not rely on success.
+ */
+export async function markAiIgnored(relativePath: string, reason: string): Promise<void> {
+  try {
+    await callApi("mark-ai-ignored", { relative_path: relativePath, reason });
+  } catch (e) {
+    logger.warn("Failed to record AI ignore entry", { path: relativePath, reason, error: (e as Error).message });
+  }
+}

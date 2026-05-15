@@ -23,7 +23,7 @@ import { computeQuickHash } from "./hasher.js";
 import { generateThumbnail, isAiWithoutPdfCompat, isCompatAlertThumbnail, createCompatAuditWorker, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
-import { dirname, join } from "node:path";
+import { dirname, join, basename } from "node:path";
 import { startRealtimeWatcher } from "./realtime-watcher.js";
 import { crawlStyleGuides } from "./style-guide-crawler.js";
 import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler.js";
@@ -33,6 +33,9 @@ import { runPdfBackfill } from "./pdf-backfill.js";
 
 let agentId: string = "";
 let isScanning = false;
+// Loaded from scanner_ai_ignores at the start of each scan. .ai files whose
+// relative_path is in this set are skipped immediately, before hashing or thumbnailing.
+let aiIgnoreSet: Set<string> = new Set();
 let abortRequested = false;
 let lastError: string | undefined;
 const MAX_SKIPPED_DIRS = 500;
@@ -732,6 +735,10 @@ async function runScan(providedSessionId?: string) {
 
   logger.info("Scan starting", { sessionId, roots: effectiveRoots, resumeFromDir: resumeFromDir || "none" });
 
+  // Load permanent .ai ignore list before scanning so processFile can do O(1) lookups.
+  aiIgnoreSet = await api.loadAiIgnoreList();
+  logger.info("AI ignore list loaded", { count: aiIgnoreSet.size });
+
   try {
     // §4.1: Validate roots first
     const rootsValid = await validateScanRoots(counters, effectiveRoots, cloudMountRoot || undefined);
@@ -943,6 +950,46 @@ async function processFile(file: FileCandidate) {
     counters.skipped_before_min_date++;
     return;
   }
+
+  // ── .ai pre-flight checks ───────────────────────────────────────────────────
+  if (file.fileType === "ai") {
+    // 1. Permanent ignore list (O(1) — loaded at scan start from scanner_ai_ignores table)
+    if (aiIgnoreSet.has(file.relativePath)) {
+      logger.debug("Skipping .ai: in permanent ignore list", { path: file.relativePath });
+      counters.rejected_junk_file++;
+      return;
+    }
+
+    // 2. PDF sibling check: if Foo.pdf exists in the same directory, skip Foo.ai.
+    //    The PDF is the canonical distributable; the .ai is redundant source.
+    const dir = dirname(file.absolutePath);
+    const base = basename(file.filename, ".ai");
+    const pdfSiblingPath = join(dir, `${base}.pdf`);
+    try {
+      await stat(pdfSiblingPath);
+      // PDF sibling exists — record and skip forever
+      logger.info("Skipping .ai: PDF sibling exists — recording in ignore list", { ai: file.relativePath, pdf: pdfSiblingPath });
+      counters.rejected_junk_file++;
+      aiIgnoreSet.add(file.relativePath);
+      api.markAiIgnored(file.relativePath, "pdf_sibling").catch(() => {});
+      return;
+    } catch {
+      // No sibling — continue
+    }
+
+    // 3. Sentinel check: reads 64KB of the file header to detect the Adobe
+    //    "no PDF compatibility" marker. No mupdf needed — pure file read.
+    //    Only runs on .ai files that passed the above two checks.
+    const isSentinel = await isAiWithoutPdfCompat(file.absolutePath);
+    if (isSentinel) {
+      logger.info("Skipping .ai: no PDF compat (sentinel) — recording in ignore list", { path: file.relativePath });
+      counters.rejected_junk_file++;
+      aiIgnoreSet.add(file.relativePath);
+      api.markAiIgnored(file.relativePath, "no_pdf_compat").catch(() => {});
+      return;
+    }
+  }
+  // ── end .ai pre-flight ──────────────────────────────────────────────────────
 
   try {
     // 1. Quick hash
