@@ -881,6 +881,72 @@ async function handleGetOpenrouterVisionModels() {
   return json({ ok: true, models });
 }
 
+// ── Routes: pdf-backfill ─────────────────────────────────────────────────────
+
+async function handleTriggerPdfBackfill() {
+  const db = serviceClient();
+
+  // Count all unprocessed PDFs (approximate: total PDFs minus those already sampled)
+  const [{ count: totalPdfs }, { count: donePdfs }] = await Promise.all([
+    db.from("assets").select("*", { count: "exact", head: true })
+      .eq("file_type", "pdf").eq("is_deleted", false),
+    db.from("pdf_text_samples").select("*", { count: "exact", head: true })
+      .not("asset_id", "is", null),
+  ]);
+
+  const remaining = Math.max(0, (totalPdfs ?? 0) - (donePdfs ?? 0));
+  const nowIso = new Date().toISOString();
+
+  await db.from("admin_config").upsert({
+    key: "PDF_BACKFILL",
+    value: {
+      status: "running",
+      started_at: nowIso,
+      total: remaining,
+      processed: 0,
+      last_batch_at: null,
+      claimed_by_agent_id: null,
+      claimed_by_agent_name: null,
+    },
+    updated_at: nowIso,
+  });
+
+  return json({ ok: true, total: remaining });
+}
+
+async function handlePausePdfBackfill() {
+  const db = serviceClient();
+  const { data: row } = await db.from("admin_config")
+    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+  const bf = (row?.value as Record<string, unknown>) || {};
+  await db.from("admin_config").upsert({
+    key: "PDF_BACKFILL",
+    value: { ...bf, status: "paused" },
+    updated_at: new Date().toISOString(),
+  });
+  return json({ ok: true });
+}
+
+async function handleResumePdfBackfill() {
+  const db = serviceClient();
+  const { data: row } = await db.from("admin_config")
+    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+  const bf = (row?.value as Record<string, unknown>) || {};
+  await db.from("admin_config").upsert({
+    key: "PDF_BACKFILL",
+    value: { ...bf, status: "running", resumed_at: new Date().toISOString() },
+    updated_at: new Date().toISOString(),
+  });
+  return json({ ok: true });
+}
+
+async function handleGetPdfBackfillStatus() {
+  const db = serviceClient();
+  const { data: row } = await db.from("admin_config")
+    .select("value, updated_at").eq("key", "PDF_BACKFILL").maybeSingle();
+  return json({ backfill: row?.value ?? null });
+}
+
 // ── Route: trigger-pdf-text-sample ──────────────────────────────────
 
 async function handleTriggerPdfTextSample(body: Record<string, unknown>) {
@@ -1391,6 +1457,14 @@ corsServe(async (req: Request) => {
         return await handleBrowseStyleGuideFiles(body);
       case "get-openrouter-vision-models":
         return await handleGetOpenrouterVisionModels();
+      case "trigger-pdf-backfill":
+        return await handleTriggerPdfBackfill();
+      case "pause-pdf-backfill":
+        return await handlePausePdfBackfill();
+      case "resume-pdf-backfill":
+        return await handleResumePdfBackfill();
+      case "get-pdf-backfill-status":
+        return await handleGetPdfBackfillStatus();
       case "trigger-pdf-text-sample":
         return await handleTriggerPdfTextSample(body);
       case "backfill-pdf-files-used":

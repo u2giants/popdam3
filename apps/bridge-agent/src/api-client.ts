@@ -158,6 +158,7 @@ export interface HeartbeatResponse {
     trigger_style_guide_crawl?: boolean;
     trigger_pdf_text_sample?: boolean;
     pdf_text_sample_assets?: unknown[];
+    trigger_pdf_backfill?: boolean;
     audit_compat_thumbnails?: boolean;
     audit_compat_preview?: boolean;
     browse_dir?: { request_id: string; path: string } | null;
@@ -416,4 +417,56 @@ export async function completeCompatAuditPreview(
   error?: string,
 ): Promise<void> {
   await callApi("complete-compat-audit-preview", { scanned, flagged, error });
+}
+
+// ── PDF Backfill ────────────────────────────────────────────────────
+
+export interface BackfillAsset {
+  id: string;
+  filename: string;
+  relative_path: string;
+  needs_thumbnail: boolean;
+}
+
+export interface BackfillResult {
+  asset_id: string;
+  filename: string;
+  relative_path: string;
+  extraction_method: string;
+  extracted_text: string | null;
+  page_count: number | null;
+  char_count: number;
+  extraction_error: string | null;
+  sample_thumbnail_url: string | null;
+  asset_thumbnail_url: string | null;
+}
+
+export async function claimPdfBackfillBatch(): Promise<{
+  assets: BackfillAsset[];
+  remaining: number;
+  total: number;
+  status: string;
+}> {
+  const data = await callApi("claim-pdf-backfill-batch", {});
+  return data as { assets: BackfillAsset[]; remaining: number; total: number; status: string };
+}
+
+export async function completePdfBackfillBatch(
+  results: BackfillResult[],
+): Promise<{ remaining: number }> {
+  const data = await callApi("complete-pdf-backfill-batch", { results }, 120_000);
+  return { remaining: (data.remaining as number) ?? 0 };
+}
+
+export async function reportPdfBackfillProgress(
+  processed: number,
+  total: number,
+  currentFile: string | null,
+  currentStep: string,
+): Promise<void> {
+  try {
+    await callApi("pdf-backfill-progress", { processed, total, current_file: currentFile, current_step: currentStep });
+  } catch (e) {
+    logger.warn("PDF backfill: progress report failed (non-fatal)", { error: (e as Error).message });
+  }
 }

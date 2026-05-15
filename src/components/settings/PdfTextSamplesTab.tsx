@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon } from "lucide-react";
+import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -477,6 +477,159 @@ function AiVisionConfigCard() {
 
 // ── Main tab ──────────────────────────────────────────────────────────────────
 
+// ── PDF Backfill Card ─────────────────────────────────────────────────────────
+
+function PdfBackfillCard() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const { data } = useQuery({
+    queryKey: ["pdf-backfill-status"],
+    queryFn: () => call("get-pdf-backfill-status"),
+    refetchInterval: (query) => {
+      const bf = query.state.data?.backfill as Record<string, unknown> | null;
+      return bf?.status === "running" ? 3000 : 15000;
+    },
+  });
+
+  const triggerMutation = useMutation({
+    mutationFn: () => call("trigger-pdf-backfill"),
+    onSuccess: (res) => {
+      const r = res as Record<string, unknown>;
+      toast.success(`Backfill started — ${(r.total as number).toLocaleString()} PDFs queued`);
+      queryClient.invalidateQueries({ queryKey: ["pdf-backfill-status"] });
+    },
+    onError: (e) => toast.error(`Failed: ${(e as Error).message}`),
+  });
+
+  const pauseMutation = useMutation({
+    mutationFn: () => call("pause-pdf-backfill"),
+    onSuccess: () => {
+      toast.success("Backfill paused");
+      queryClient.invalidateQueries({ queryKey: ["pdf-backfill-status"] });
+    },
+    onError: (e) => toast.error(`Failed: ${(e as Error).message}`),
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: () => call("resume-pdf-backfill"),
+    onSuccess: () => {
+      toast.success("Backfill resumed");
+      queryClient.invalidateQueries({ queryKey: ["pdf-backfill-status"] });
+    },
+    onError: (e) => toast.error(`Failed: ${(e as Error).message}`),
+  });
+
+  const bf = data?.backfill as Record<string, unknown> | null;
+  const status = (bf?.status as string) ?? "idle";
+  const total = (bf?.total as number) ?? 0;
+  const processed = (bf?.live_processed as number) ?? (bf?.processed as number) ?? 0;
+  const currentFile = bf?.live_current_file as string | null;
+  const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+  const startedAt = bf?.started_at ? new Date(bf.started_at as string).getTime() : null;
+  const elapsedSec = startedAt ? Math.floor((nowMs - startedAt) / 1000) : 0;
+  const elapsedStr = elapsedSec < 60
+    ? `${elapsedSec}s`
+    : elapsedSec < 3600
+      ? `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`
+      : `${Math.floor(elapsedSec / 3600)}h ${Math.floor((elapsedSec % 3600) / 60)}m`;
+
+  // Estimated time remaining
+  const etaStr = (() => {
+    if (status !== "running" || processed === 0 || !startedAt) return null;
+    const rate = processed / ((nowMs - startedAt) / 1000); // files/sec
+    if (rate <= 0) return null;
+    const remainSec = Math.round((total - processed) / rate);
+    if (remainSec < 60) return `~${remainSec}s`;
+    if (remainSec < 3600) return `~${Math.floor(remainSec / 60)}m`;
+    return `~${Math.floor(remainSec / 3600)}h ${Math.floor((remainSec % 3600) / 60)}m`;
+  })();
+
+  const statusBadge = (() => {
+    switch (status) {
+      case "running": return <Badge className="bg-blue-100 text-blue-800 gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Running</Badge>;
+      case "paused": return <Badge className="bg-amber-100 text-amber-800 gap-1"><Pause className="h-3 w-3" /> Paused</Badge>;
+      case "completed": return <Badge className="bg-green-100 text-green-800 gap-1"><CheckCircle2 className="h-3 w-3" /> Completed</Badge>;
+      case "error": return <Badge className="bg-red-100 text-red-800 gap-1"><XCircle className="h-3 w-3" /> Error</Badge>;
+      default: return <Badge variant="outline" className="text-muted-foreground">Idle</Badge>;
+    }
+  })();
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ImageIcon className="h-4 w-4" />
+              Full Library Backfill
+            </CardTitle>
+            {statusBadge}
+          </div>
+          <div className="flex items-center gap-2">
+            {status === "running" && (
+              <Button size="sm" variant="outline" onClick={() => pauseMutation.mutate()} disabled={pauseMutation.isPending}>
+                {pauseMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Pause className="mr-1.5 h-3.5 w-3.5" />}
+                Pause
+              </Button>
+            )}
+            {status === "paused" && (
+              <Button size="sm" variant="outline" onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending}>
+                {resumeMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1.5 h-3.5 w-3.5" />}
+                Resume
+              </Button>
+            )}
+            {(status === "completed" || status === "error") && (
+              <Button size="sm" variant="outline" onClick={() => triggerMutation.mutate()} disabled={triggerMutation.isPending}>
+                {triggerMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 h-3.5 w-3.5" />}
+                Re-run
+              </Button>
+            )}
+            {(status === "idle" || !bf) && (
+              <Button size="sm" onClick={() => triggerMutation.mutate()} disabled={triggerMutation.isPending}>
+                {triggerMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1.5 h-3.5 w-3.5" />}
+                Start Backfill
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Processes every PDF in the library: extracts text, generates thumbnails for assets missing one, and populates the Files Used table. Runs on the Bridge Agent and can be paused and resumed at any time.
+        </p>
+        {bf && status !== "idle" && (
+          <>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{processed.toLocaleString()} / {total.toLocaleString()} files</span>
+                <span className="flex items-center gap-2">
+                  {status === "running" && <span className="text-blue-600">{elapsedStr} elapsed{etaStr ? ` · ${etaStr} remaining` : ""}</span>}
+                  <span>{percent}%</span>
+                </span>
+              </div>
+              <Progress value={percent} className="h-2" />
+            </div>
+            {status === "running" && currentFile && (
+              <p className="text-xs text-muted-foreground truncate" title={currentFile}>
+                Processing: <span className="font-mono">{currentFile}</span>
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Main tab ──────────────────────────────────────────────────────────────────
+
 export default function PdfTextSamplesTab() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
@@ -642,6 +795,8 @@ export default function PdfTextSamplesTab() {
           </CardContent>
         </Card>
       )}
+
+      <PdfBackfillCard />
 
       <AiVisionConfigCard />
 

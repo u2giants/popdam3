@@ -27,6 +27,7 @@ import { dirname, join } from "node:path";
 import { startRealtimeWatcher } from "./realtime-watcher.js";
 import { crawlStyleGuides } from "./style-guide-crawler.js";
 import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler.js";
+import { runPdfBackfill } from "./pdf-backfill.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -38,6 +39,7 @@ const MAX_SKIPPED_DIRS = 500;
 let skippedDirs: string[] = [];
 let isCrawlingStyleGuides = false;
 let isSamplingPdfText = false;
+let isPdfBackfilling = false;
 let isAuditingCompatThumbnails = false;
 let isPreviewingCompatThumbnails = false;
 
@@ -228,6 +230,19 @@ async function sendHeartbeat() {
         anthropicApiKey: cloudAnthropicApiKey,
       }).finally(() => {
         isSamplingPdfText = false;
+      });
+    }
+    // PDF backfill (self-driven claim loop — no asset list passed)
+    if (response.commands.trigger_pdf_backfill && !isPdfBackfilling) {
+      isPdfBackfilling = true;
+      logger.info("PDF backfill requested via heartbeat");
+      runPdfBackfill(config.nasContainerMountRoot, {
+        models: cloudAiModels,
+        pdf_extraction: cloudPdfExtractionConfig,
+        googleApiKey: cloudGoogleAiApiKey,
+        anthropicApiKey: cloudAnthropicApiKey,
+      }).finally(() => {
+        isPdfBackfilling = false;
       });
     }
     // Compat audit

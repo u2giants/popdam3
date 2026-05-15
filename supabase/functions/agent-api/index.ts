@@ -129,6 +129,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "AI_TASK_MODELS",
   "PDF_EXTRACTION_CONFIG",
   "PDF_TEXT_SAMPLE_REQUEST",
+  "PDF_BACKFILL",
 ];
 
 // Config keys needed only by Windows render agents
@@ -636,6 +637,12 @@ async function handleHeartbeat(
       })(),
       ...pdfTextSampleCommand,
       ...compatAuditCommand,
+      // PDF backfill: dispatch to bridge agents only while status is "running"
+      trigger_pdf_backfill: (() => {
+        if (agentType !== "bridge") return false;
+        const bf = configMap.PDF_BACKFILL as Record<string, unknown> | undefined;
+        return bf?.status === "running";
+      })(),
     },
   };
 
@@ -2809,6 +2816,180 @@ async function handleCompleteSgRender(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── PDF Backfill helpers ──────────────────────────────────────────────────────
+
+/** Mirror of the PL/pgSQL parse_pdf_files_used — runs in TS to avoid statement timeouts. */
+function parseFilesUsedFromText(text: string): string[] {
+  const lines = text.split("\n");
+  const found: string[] = [];
+  let inSection = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const headerMatch = trimmed.match(/^(files?\s+used|source\s+files?|art\s+files?|design\s+files?)\s*:(.*)/i);
+    if (headerMatch) {
+      inSection = true;
+      const inline = headerMatch[2].trim();
+      if (inline) {
+        for (const e of inline.split(",")) {
+          const entry = e.trim();
+          if (entry && entry.length >= 2 && !/^\d+$/.test(entry)) found.push(entry);
+        }
+        inSection = false;
+      }
+      continue;
+    }
+    if (inSection) {
+      if (!trimmed || /^\S[^:]*:\s*$/.test(trimmed)) { inSection = false; continue; }
+      if (/^\d+$/.test(trimmed) || trimmed.length < 2) continue;
+      found.push(trimmed);
+    }
+  }
+  return [...new Set(found)];
+}
+
+// ── Route: claim-pdf-backfill-batch ──────────────────────────────────────────
+
+async function handleClaimPdfBackfillBatch() {
+  const db = serviceClient();
+
+  const { data: bfRow } = await db.from("admin_config")
+    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+  const bf = (bfRow?.value as Record<string, unknown>) || {};
+
+  if (bf.status !== "running") {
+    return json({ assets: [], remaining: 0, total: bf.total ?? 0, status: (bf.status as string) ?? "idle" });
+  }
+
+  // Fetch next batch of PDFs not yet in pdf_text_samples
+  const { data: assets } = await db.rpc("claim_pdf_backfill_batch", { p_limit: 25 });
+  const rows = (assets as Array<{ id: string; filename: string; relative_path: string; needs_thumbnail: boolean }>) || [];
+
+  const { data: countRow } = await db.rpc("count_pdf_backfill_remaining");
+  const remaining = (countRow as number) ?? 0;
+
+  return json({
+    assets: rows,
+    remaining,
+    total: (bf.total as number) ?? 0,
+    status: "running",
+  });
+}
+
+// ── Route: complete-pdf-backfill-batch ───────────────────────────────────────
+
+async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const results = (body.results as Record<string, unknown>[]) || [];
+  if (results.length === 0) return json({ ok: true, remaining: 0 });
+
+  // 1. Insert into pdf_text_samples (skip assets already there)
+  const sampleRows = results.map((r) => ({
+    asset_id: (r.asset_id as string) || null,
+    filename: r.filename as string,
+    relative_path: r.relative_path as string,
+    extraction_method: r.extraction_method as string,
+    extracted_text: (r.extracted_text as string) || null,
+    page_count: (r.page_count as number) || null,
+    char_count: (r.char_count as number) || 0,
+    extraction_error: (r.extraction_error as string) || null,
+    thumbnail_url: (r.sample_thumbnail_url as string) || null,
+    sampled_at: new Date().toISOString(),
+  }));
+  await db.from("pdf_text_samples").upsert(sampleRows, { onConflict: "asset_id", ignoreDuplicates: true });
+
+  // 2. Parse FILES USED sections and insert to sku_files_used
+  const resultsWithText = results.filter((r) => r.extracted_text && r.asset_id);
+  if (resultsWithText.length > 0) {
+    const { data: skuRows } = await db.from("assets")
+      .select("id, sku")
+      .in("id", resultsWithText.map((r) => r.asset_id as string))
+      .not("sku", "is", null)
+      .neq("sku", "");
+
+    const skuMap = new Map((skuRows || []).map((r: { id: string; sku: string }) => [r.id, r.sku]));
+
+    const filesUsedRows: { sku: string; file_name: string }[] = [];
+    for (const r of resultsWithText) {
+      const sku = skuMap.get(r.asset_id as string);
+      if (!sku) continue;
+      const fileNames = parseFilesUsedFromText(r.extracted_text as string);
+      for (const fn of fileNames) {
+        filesUsedRows.push({ sku, file_name: fn });
+      }
+    }
+
+    if (filesUsedRows.length > 0) {
+      await db.from("sku_files_used").upsert(filesUsedRows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+    }
+  }
+
+  // 3. Update assets.thumbnail_url where currently NULL
+  const thumbnailUpdates = results.filter((r) => r.asset_thumbnail_url && r.asset_id);
+  for (const r of thumbnailUpdates) {
+    await db.from("assets")
+      .update({ thumbnail_url: r.asset_thumbnail_url as string, thumbnail_error: null })
+      .eq("id", r.asset_id as string)
+      .is("thumbnail_url", null);
+  }
+
+  // 4. Increment processed count in admin_config
+  const { data: bfRow } = await db.from("admin_config")
+    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+  const bf = (bfRow?.value as Record<string, unknown>) || {};
+  const newProcessed = ((bf.processed as number) ?? 0) + results.length;
+  const total = (bf.total as number) ?? 0;
+  const nowIso = new Date().toISOString();
+
+  const newBf: Record<string, unknown> = {
+    ...bf,
+    processed: newProcessed,
+    last_batch_at: nowIso,
+  };
+  if (newProcessed >= total && total > 0) {
+    newBf.status = "completed";
+    newBf.completed_at = nowIso;
+  }
+
+  await db.from("admin_config").upsert({ key: "PDF_BACKFILL", value: newBf, updated_at: nowIso });
+
+  // 5. Count remaining
+  const { data: countRow2 } = await db.rpc("count_pdf_backfill_remaining");
+  const remaining = (countRow2 as number) ?? 0;
+
+  console.log(`[complete-pdf-backfill-batch] committed ${results.length} results, remaining=${remaining}`);
+  return json({ ok: true, remaining });
+}
+
+// ── Route: pdf-backfill-progress ─────────────────────────────────────────────
+
+async function handlePdfBackfillProgress(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const processed = (body.processed as number) ?? 0;
+  const total = (body.total as number) ?? 0;
+  const currentFile = optionalString(body, "current_file") ?? null;
+  const currentStep = optionalString(body, "current_step") ?? null;
+
+  const { data: bfRow } = await db.from("admin_config")
+    .select("value").eq("key", "PDF_BACKFILL").maybeSingle();
+  const bf = (bfRow?.value as Record<string, unknown>) || {};
+
+  await db.from("admin_config").upsert({
+    key: "PDF_BACKFILL",
+    value: {
+      ...bf,
+      live_processed: processed,
+      live_total: total,
+      live_current_file: currentFile,
+      live_current_step: currentStep,
+      live_updated_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  return json({ ok: true });
+}
+
 // ── Route: complete-pdf-text-sample ─────────────────────────────────
 
 async function handleCompletePdfTextSample(body: Record<string, unknown>) {
@@ -3203,6 +3384,12 @@ corsServe(async (req: Request) => {
         return await handleClaimSgRender(body);
       case "complete-sg-render":
         return await handleCompleteSgRender(body);
+      case "claim-pdf-backfill-batch":
+        return await handleClaimPdfBackfillBatch();
+      case "complete-pdf-backfill-batch":
+        return await handleCompletePdfBackfillBatch(body);
+      case "pdf-backfill-progress":
+        return await handlePdfBackfillProgress(body);
       case "complete-pdf-text-sample":
         return await handleCompletePdfTextSample(body);
       case "pdf-text-sample-progress":
