@@ -2417,6 +2417,16 @@ export type Database = {
         Returns: string
       }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
+      find_ai_pdf_duplicates: {
+        Args: never
+        Returns: {
+          filename: string
+          id: string
+          relative_path: string
+          style_group_id: string
+          thumbnail_url: string
+        }[]
+      }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
