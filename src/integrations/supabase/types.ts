@@ -1173,6 +1173,7 @@ export type Database = {
           page_count: number | null
           relative_path: string
           sampled_at: string
+          thumbnail_url: string | null
         }
         Insert: {
           asset_id?: string | null
@@ -1185,6 +1186,7 @@ export type Database = {
           page_count?: number | null
           relative_path: string
           sampled_at?: string
+          thumbnail_url?: string | null
         }
         Update: {
           asset_id?: string | null
@@ -1197,6 +1199,7 @@ export type Database = {
           page_count?: number | null
           relative_path?: string
           sampled_at?: string
+          thumbnail_url?: string | null
         }
         Relationships: [
           {
