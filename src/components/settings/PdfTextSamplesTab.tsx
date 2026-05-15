@@ -1020,9 +1020,7 @@ export default function PdfTextSamplesTab() {
 
   // PDFs that are likely placeholder/compat pages: no extractable text, scanned-only, or failed
   const placeholderCandidates = samples.filter(
-    (s) =>
-      (s.extraction_method === "likely_scanned" || s.extraction_method === "failed") &&
-      s.thumbnail_url,
+    (s) => s.extraction_method === "likely_scanned" || s.extraction_method === "failed",
   );
 
   const requestMode = (request?.mode as string) ?? "sample";
@@ -1132,14 +1130,18 @@ export default function PdfTextSamplesTab() {
             <div className="grid grid-cols-6 gap-2 max-h-80 overflow-y-auto pr-1">
               {placeholderCandidates.map((s) => (
                 <div key={s.id} className="space-y-1">
-                  <div className="aspect-square bg-muted rounded overflow-hidden border border-border">
-                    <img
-                      src={s.thumbnail_url!}
-                      alt={s.relative_path}
-                      className="w-full h-full object-contain"
-                      loading="lazy"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
+                  <div className="aspect-square bg-muted rounded overflow-hidden border border-border flex items-center justify-center">
+                    {s.thumbnail_url ? (
+                      <img
+                        src={s.thumbnail_url}
+                        alt={s.relative_path}
+                        className="w-full h-full object-contain"
+                        loading="lazy"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                    )}
                   </div>
                   <p className="text-[9px] text-muted-foreground truncate leading-tight" title={s.relative_path}>
                     {s.filename}

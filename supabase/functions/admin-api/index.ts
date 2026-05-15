@@ -1211,7 +1211,8 @@ async function handleGetPdfTextSamples() {
       const { data: assetRows } = await db
         .from("assets")
         .select("id, thumbnail_url")
-        .in("id", assetIds);
+        .in("id", assetIds)
+        .limit(5000); // must match the samples query limit above
       const thumbMap = new Map((assetRows ?? []).map((a) => [a.id as string, a.thumbnail_url as string | null]));
       samples = samples.map((s) => ({
         ...s,
