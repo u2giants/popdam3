@@ -1065,9 +1065,12 @@ export default function PdfTextSamplesTab() {
   const likelyScanned = samples.filter((s) => s.extraction_method === "likely_scanned").length;
   const failed = samples.filter((s) => s.extraction_method === "failed").length;
 
-  // PDFs that are likely placeholder/compat pages: no extractable text, scanned-only, or failed
+  // PDFs that are likely placeholder/compat pages: no extractable text, scanned-only, or failed.
+  // Exclude .ai files — those are handled by the sentinel cleanup section above.
   const placeholderCandidates = samples.filter(
-    (s) => s.extraction_method === "likely_scanned" || s.extraction_method === "failed",
+    (s) =>
+      (s.extraction_method === "likely_scanned" || s.extraction_method === "failed") &&
+      !s.filename.toLowerCase().endsWith(".ai"),
   );
 
   const requestMode = (request?.mode as string) ?? "sample";
