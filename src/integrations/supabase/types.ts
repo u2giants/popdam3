@@ -2146,6 +2146,7 @@ export type Database = {
         Args: { p_assignments: Json }
         Returns: number
       }
+      bulk_insert_pdf_text_samples: { Args: { p_rows: Json }; Returns: number }
       calculate_time_partition_info: {
         Args: {
           p_date_trunc_interval?: string
