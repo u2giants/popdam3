@@ -115,6 +115,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_sentinel_cleanup_log: {
+        Row: {
+          ai_asset_id: string
+          ai_filename: string
+          ai_relative_path: string
+          created_at: string | null
+          id: string
+          replacement_asset_id: string | null
+          replacement_filename: string | null
+          replacement_had_thumbnail: boolean | null
+          replacement_queued_for_thumbnail: boolean | null
+          replacement_relative_path: string | null
+        }
+        Insert: {
+          ai_asset_id: string
+          ai_filename: string
+          ai_relative_path: string
+          created_at?: string | null
+          id?: string
+          replacement_asset_id?: string | null
+          replacement_filename?: string | null
+          replacement_had_thumbnail?: boolean | null
+          replacement_queued_for_thumbnail?: boolean | null
+          replacement_relative_path?: string | null
+        }
+        Update: {
+          ai_asset_id?: string
+          ai_filename?: string
+          ai_relative_path?: string
+          created_at?: string | null
+          id?: string
+          replacement_asset_id?: string | null
+          replacement_filename?: string | null
+          replacement_had_thumbnail?: boolean | null
+          replacement_queued_for_thumbnail?: boolean | null
+          replacement_relative_path?: string | null
+        }
+        Relationships: []
+      }
       app_access: {
         Row: {
           app: Database["public"]["Enums"]["app_name"]
@@ -2427,6 +2466,7 @@ export type Database = {
           thumbnail_url: string
         }[]
       }
+      get_ai_sentinel_stats: { Args: never; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
