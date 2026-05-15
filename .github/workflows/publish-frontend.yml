@@ -72,7 +72,14 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i ~/.ssh/vps_key root@178.156.180.212 << 'SSHEOF'
+          # Retry up to 3 times with 10s back-off to handle transient SSH timeouts
+          for attempt in 1 2 3; do
+            echo "SSH attempt $attempt/3..."
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 \
+                -i ~/.ssh/vps_key root@178.156.180.212 << 'SSHEOF' && break
+            echo "Attempt $attempt failed, waiting 10s..."
+            sleep 10
+          done
             set -e
             echo '${{ secrets.GHCR_PAT }}' | docker login ghcr.io -u u2giants --password-stdin
             docker pull ghcr.io/u2giants/popdam-frontend:latest
