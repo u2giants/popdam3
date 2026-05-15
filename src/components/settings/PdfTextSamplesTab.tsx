@@ -737,7 +737,7 @@ function AiSentinelCleanupCard() {
             </div>
 
             {/* Sentinel scan button + progress */}
-            {!isScanning && stats.sentinel_pending === 0 && (
+            {!isScanning && (
               <div className="flex items-center gap-3">
                 <Button
                   size="sm"
