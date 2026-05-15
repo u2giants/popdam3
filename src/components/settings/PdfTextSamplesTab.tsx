@@ -603,6 +603,180 @@ function AiDuplicatesCard() {
   );
 }
 
+// ── AI Sentinel Cleanup Card ──────────────────────────────────────────────────
+// TEMPORARY — remove this card (and the ai_sentinel_cleanup_log table + stats fn
+// migrations) once the reconciliation pass is complete. See CLAUDE.md.
+
+interface AiSentinelStats {
+  total_ai: number;
+  sampled: number;
+  sentinel_pending: number;
+  cleaned_up: number;
+  no_replacement_found: number;
+}
+
+interface SentinelLogEntry {
+  id: string;
+  ai_filename: string;
+  ai_relative_path: string;
+  replacement_filename: string | null;
+  replacement_queued_for_thumbnail: boolean;
+  created_at: string;
+}
+
+function AiSentinelCleanupCard() {
+  const { call } = useAdminApi();
+  const queryClient = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ["ai-sentinel-status"],
+    queryFn: () => call<{ ok: boolean; stats: AiSentinelStats; recent_log: SentinelLogEntry[] }>("get-ai-sentinel-status"),
+    refetchInterval: 15000,
+  });
+
+  const cleanupMutation = useMutation({
+    mutationFn: () => call<{ ok: boolean; processed: number; with_replacement: number; without_replacement: number }>("run-ai-sentinel-cleanup", { limit: 100 }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["ai-sentinel-status"] });
+      if (data.processed === 0) {
+        toast.info("No sentinel files pending cleanup right now.");
+      } else {
+        toast.success(
+          `Cleaned up ${data.processed} .ai files — ${data.with_replacement} had replacements, ${data.without_replacement} did not.`,
+        );
+      }
+      setConfirmOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const stats = status?.stats;
+  const log = status?.recent_log ?? [];
+  const sampledPct = stats ? Math.round((stats.sampled / Math.max(stats.total_ai, 1)) * 100) : 0;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-500" />
+          .ai Sentinel Cleanup
+          <Badge variant="outline" className="text-xs font-normal ml-1">Temporary</Badge>
+        </CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Finds .ai files saved without "Create PDF Compatible File" (they contain only Adobe's boilerplate warning, not artwork),
+          deletes them, and thumbnails the nearest PDF/PNG/JPG tech pack in the same folder instead.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          </div>
+        ) : stats ? (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div className="rounded border p-2">
+                <div className="text-muted-foreground text-xs">Total .ai files</div>
+                <div className="font-semibold">{stats.total_ai.toLocaleString()}</div>
+              </div>
+              <div className="rounded border p-2">
+                <div className="text-muted-foreground text-xs">Sampled</div>
+                <div className="font-semibold">{stats.sampled.toLocaleString()} <span className="text-muted-foreground font-normal text-xs">({sampledPct}%)</span></div>
+              </div>
+              <div className="rounded border p-2">
+                <div className="text-muted-foreground text-xs">Sentinel pending</div>
+                <div className={`font-semibold ${stats.sentinel_pending > 0 ? "text-amber-600" : "text-green-600"}`}>
+                  {stats.sentinel_pending.toLocaleString()}
+                </div>
+              </div>
+              <div className="rounded border p-2">
+                <div className="text-muted-foreground text-xs">Cleaned up</div>
+                <div className="font-semibold">{stats.cleaned_up.toLocaleString()}</div>
+                {stats.no_replacement_found > 0 && (
+                  <div className="text-xs text-amber-600">{stats.no_replacement_found} without replacement</div>
+                )}
+              </div>
+            </div>
+
+            {stats.sampled < stats.total_ai && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Backfill progress ({stats.sampled.toLocaleString()} / {stats.total_ai.toLocaleString()})</span>
+                  <span>{sampledPct}%</span>
+                </div>
+                <Progress value={sampledPct} className="h-1.5" />
+                <p className="text-xs text-muted-foreground">
+                  Backfill is running automatically. Re-run cleanup as more files are sampled.
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              {!confirmOpen ? (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={stats.sentinel_pending === 0 || cleanupMutation.isPending}
+                  onClick={() => setConfirmOpen(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  {stats.sentinel_pending === 0 ? "Nothing pending" : `Clean up ${stats.sentinel_pending} files`}
+                </Button>
+              ) : (
+                <>
+                  <span className="text-sm text-destructive font-medium">Delete {stats.sentinel_pending} .ai files?</span>
+                  <Button size="sm" variant="destructive" disabled={cleanupMutation.isPending} onClick={() => cleanupMutation.mutate()}>
+                    {cleanupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                    Confirm
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+                </>
+              )}
+              {log.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={() => setShowLog(!showLog)}>
+                  {showLog ? <ChevronUp className="h-3.5 w-3.5 mr-1" /> : <ChevronDown className="h-3.5 w-3.5 mr-1" />}
+                  {showLog ? "Hide" : "Show"} log ({log.length})
+                </Button>
+              )}
+            </div>
+
+            {showLog && log.length > 0 && (
+              <div className="overflow-auto max-h-64 rounded border text-xs">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Deleted .ai</TableHead>
+                      <TableHead>Replacement found</TableHead>
+                      <TableHead>Thumbnail queued</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {log.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell className="font-mono max-w-[200px] truncate" title={entry.ai_relative_path}>{entry.ai_filename}</TableCell>
+                        <TableCell className={entry.replacement_filename ? "" : "text-amber-600"}>
+                          {entry.replacement_filename ?? "None found"}
+                        </TableCell>
+                        <TableCell>{entry.replacement_queued_for_thumbnail ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : "—"}</TableCell>
+                        <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">Failed to load status.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main tab ──────────────────────────────────────────────────────────────────
 
 // ── PDF Backfill Card ─────────────────────────────────────────────────────────
@@ -925,6 +1099,8 @@ export default function PdfTextSamplesTab() {
       )}
 
       <PdfBackfillCard />
+
+      <AiSentinelCleanupCard />
 
       <AiDuplicatesCard />
 

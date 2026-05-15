@@ -1,0 +1,164 @@
+/**
+ * Handlers for the .ai sentinel cleanup flow.
+ *
+ * "Sentinel" .ai files are those saved from Illustrator without the
+ * "Create PDF Compatible File" option — their embedded PDF contains only
+ * Adobe's boilerplate warning text, not the actual artwork.
+ *
+ * TEMPORARY — delete these handlers (and the ai_sentinel_cleanup_log table,
+ * ai_sentinel_stats_fn migration, and the Settings UI card) once the
+ * reconciliation pass is complete and ingestion logic prevents this from
+ * recurring. See CLAUDE.md for details.
+ */
+
+import { err, json } from "../http.ts";
+import { serviceClient } from "../service-client.ts";
+import { credentialsFromConfig, deleteSpacesObjects } from "../spaces-delete.ts";
+
+const SENTINEL_TEXT = "saved without PDF Content";
+
+// ── GET: stats + recent log ───────────────────────────────────────────
+
+export async function handleGetAiSentinelStatus() {
+  const db = serviceClient();
+  try {
+    const [statsRes, logRes] = await Promise.all([
+      db.rpc("get_ai_sentinel_stats"),
+      db
+        .from("ai_sentinel_cleanup_log")
+        .select("id, ai_filename, ai_relative_path, replacement_filename, replacement_queued_for_thumbnail, created_at")
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ]);
+
+    if (statsRes.error) throw new Error(`Stats RPC failed: ${statsRes.error.message}`);
+
+    return json({
+      ok: true,
+      stats: statsRes.data,
+      recent_log: logRes.data ?? [],
+    });
+  } catch (e) {
+    return err((e as Error).message, 500);
+  }
+}
+
+// ── POST: run a cleanup batch ─────────────────────────────────────────
+
+export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const limit = Math.min(Number(body.limit) || 50, 200);
+
+  // 1. Find .ai assets with sentinel text not yet cleaned up
+  const { data: pending, error: pendingErr } = await db
+    .from("pdf_text_samples")
+    .select("asset_id, filename, relative_path, extraction_method")
+    .like("extracted_text", `%${SENTINEL_TEXT}%`)
+    .limit(limit * 2); // over-fetch; we filter out already-logged below
+
+  if (pendingErr) return err(`Query failed: ${pendingErr.message}`, 500);
+  if (!pending || pending.length === 0) {
+    return json({ ok: true, processed: 0, message: "No sentinel .ai files pending cleanup" });
+  }
+
+  // Filter to assets that are still alive and not yet in the log
+  const assetIds = pending.map((r: { asset_id: string }) => r.asset_id);
+  const [assetsRes, alreadyDoneRes] = await Promise.all([
+    db.from("assets").select("id, filename, relative_path, thumbnail_url, style_group_id").in("id", assetIds).eq("is_deleted", false).eq("file_type", "ai"),
+    db.from("ai_sentinel_cleanup_log").select("ai_asset_id").in("ai_asset_id", assetIds),
+  ]);
+
+  const alreadyDone = new Set((alreadyDoneRes.data ?? []).map((r: { ai_asset_id: string }) => r.ai_asset_id));
+  const assets = (assetsRes.data ?? []).filter((a: { id: string }) => !alreadyDone.has(a.id)).slice(0, limit);
+
+  if (assets.length === 0) {
+    return json({ ok: true, processed: 0, message: "All found sentinel files already cleaned up" });
+  }
+
+  // Load DO Spaces credentials once
+  const { data: configRows } = await db
+    .from("admin_config")
+    .select("key, value")
+    .in("key", ["DO_SPACES_KEY", "DO_SPACES_SECRET", "SPACES_CONFIG"]);
+
+  const configMap: Record<string, unknown> = {};
+  for (const row of configRows ?? []) configMap[row.key] = row.value;
+  const creds = credentialsFromConfig(configMap);
+
+  const results: Array<{
+    ai_asset_id: string;
+    ai_filename: string;
+    replacement_asset_id: string | null;
+    replacement_filename: string | null;
+    queued: boolean;
+  }> = [];
+
+  for (const asset of assets as Array<{ id: string; filename: string; relative_path: string; thumbnail_url: string | null; style_group_id: string | null }>) {
+    // 2. Soft-delete the .ai asset
+    await db.from("assets").update({ is_deleted: true, thumbnail_url: null }).eq("id", asset.id);
+
+    // 3. Delete its thumbnail from DO Spaces
+    if (asset.thumbnail_url && creds) {
+      try {
+        await deleteSpacesObjects([`thumbnails/${asset.id}.jpg`], creds);
+      } catch (e) {
+        console.warn(`ai-sentinel: thumbnail delete failed for ${asset.id}:`, (e as Error).message);
+      }
+    }
+
+    // 4. Find a replacement PDF/PNG/JPG with 'tech pack' in the name, same dir or subdir
+    const dirPrefix = asset.relative_path.replace(/\/[^/]*$/, "");
+    const { data: replacements } = await db
+      .from("assets")
+      .select("id, filename, relative_path, thumbnail_url")
+      .in("file_type", ["pdf", "png", "jpg"])
+      .eq("is_deleted", false)
+      .ilike("filename", "%tech pack%")
+      .like("relative_path", `${dirPrefix}/%`)
+      .order("thumbnail_url", { ascending: false }) // prefer assets that already have thumbnails
+      .limit(1);
+
+    const replacement = replacements?.[0] ?? null;
+    let queued = false;
+
+    if (replacement && !replacement.thumbnail_url) {
+      // Queue thumbnail render for the replacement
+      const { error: rqErr } = await db
+        .from("render_queue")
+        .insert({ asset_id: replacement.id, status: "pending" });
+      if (!rqErr) queued = true;
+    }
+
+    // 5. Log the action
+    await db.from("ai_sentinel_cleanup_log").insert({
+      ai_asset_id: asset.id,
+      ai_filename: asset.filename,
+      ai_relative_path: asset.relative_path,
+      replacement_asset_id: replacement?.id ?? null,
+      replacement_filename: replacement?.filename ?? null,
+      replacement_relative_path: replacement?.relative_path ?? null,
+      replacement_had_thumbnail: replacement ? !!replacement.thumbnail_url : null,
+      replacement_queued_for_thumbnail: queued,
+    });
+
+    results.push({
+      ai_asset_id: asset.id,
+      ai_filename: asset.filename,
+      replacement_asset_id: replacement?.id ?? null,
+      replacement_filename: replacement?.filename ?? null,
+      queued,
+    });
+  }
+
+  const withReplacement = results.filter((r) => r.replacement_asset_id !== null).length;
+  const withoutReplacement = results.length - withReplacement;
+
+  return json({
+    ok: true,
+    processed: results.length,
+    with_replacement: withReplacement,
+    without_replacement: withoutReplacement,
+    queued_for_thumbnail: results.filter((r) => r.queued).length,
+    results,
+  });
+}

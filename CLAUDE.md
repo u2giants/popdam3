@@ -265,6 +265,24 @@ Both files must agree on the MerchGroup schema — if new MG01/02/03 codes are a
 
 ---
 
+## Temporary: .ai Sentinel Cleanup (delete when done)
+
+The `.ai` file library contained files saved from Illustrator without "Create PDF Compatible File" enabled. These have no usable content — only Adobe's boilerplate warning. A one-time reconciliation pass is in progress to delete them and replace their thumbnails with the nearest PDF/PNG/JPG tech pack in the same folder.
+
+**Delete all of this once the reconciliation is confirmed complete:**
+
+| What | Where |
+|------|-------|
+| `ai_sentinel_cleanup_log` table | migration `20260515132205_ai_sentinel_cleanup_log.sql` |
+| `get_ai_sentinel_stats()` function | migration `20260515132212_ai_sentinel_stats_fn.sql` |
+| `AiSentinelCleanupCard` UI | `src/components/settings/PdfTextSamplesTab.tsx` |
+| Handler | `supabase/functions/_shared/admin-handlers/ai-sentinel-handlers.ts` |
+| Routes in admin-api | `get-ai-sentinel-status`, `run-ai-sentinel-cleanup` in `admin-api/index.ts` |
+
+The `pdf_text_samples` table and `claim_pdf_backfill_batch()` function now cover `.ai` files in addition to PDFs — this is **permanent** (needed to detect sentinel files going forward).
+
+**Going forward:** The scanner (`apps/bridge-agent/src/scanner.ts`) indexes both `.ai` and `.pdf` files independently. If a `.ai` is saved alongside its `.pdf` counterpart, both get indexed. The backfill will sample the `.ai` and the sentinel check will catch it. The ingestion logic does not currently prevent this — if that is fixed at the source (e.g., filtering out `.ai` files when a sibling `.pdf` exists), the sentinel cleanup can be retired entirely.
+
 ## Versioning
 
 Whenever changes are made to `apps/bridge-agent/`, bump `apps/bridge-agent/package.json` version as part of the same commit:
