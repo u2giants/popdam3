@@ -240,6 +240,7 @@ export async function handleTriggerAiSentinelScan(body: Record<string, unknown>)
       mode: "ai_sentinel",
       force_bridge: true,
       target,
+      batch_size: AI_SENTINEL_BATCH_SIZE,
       found: 0,
       processed: 0,
       total_ai: totalAi ?? 0,

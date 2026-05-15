@@ -3163,7 +3163,7 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
     const prevProcessed = (existingValue.processed as number) ?? 0;
     const lastId = existingValue.last_id as string | null;
     const totalAi = (existingValue.total_ai as number) ?? 0;
-    const batchSize = AI_SENTINEL_BATCH_SIZE;
+    const batchSize = (existingValue.batch_size as number) ?? AI_SENTINEL_BATCH_SIZE;
     const newProcessed = prevProcessed + rows.length;
 
     // Count sentinel files found so far across all batches
@@ -3192,7 +3192,7 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
         updated_at: nowIso,
       });
     } else {
-      // Advance: next batch after last_id
+      // Advance: next batch after last_id (use same batch_size as the original request)
       const { data: nextBatch } = await db
         .from("assets")
         .select("id, filename, relative_path")
