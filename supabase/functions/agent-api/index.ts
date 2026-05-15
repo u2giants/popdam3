@@ -2840,7 +2840,10 @@ function parseFilesUsedFromText(text: string): string[] {
       continue;
     }
     if (inSection) {
-      if (!trimmed || /^\S[^:]*:\s*$/.test(trimmed)) { inSection = false; continue; }
+      if (!trimmed || /^\S[^:]*:\s*$/.test(trimmed)) {
+        inSection = false;
+        continue;
+      }
       if (/^\d+$/.test(trimmed) || trimmed.length < 2) continue;
       found.push(trimmed);
     }
