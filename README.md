@@ -51,8 +51,9 @@ npm install
 npm run dev
 ```
 
-Requires `.env.local` with at minimum `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. The project uses the **external** Supabase project (`ryltkzzernhwnojzouyb`), not the Lovable-provisioned one — see quirk #1 in [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md).
-See [docs/ONBOARDING.md](docs/ONBOARDING.md) for the full setup checklist.
+No `.env.local` needed — the Supabase URL and anon key are hardcoded in `src/lib/app-mode.ts` and connect to the production project (`ryltkzzernhwnojzouyb`) by default. See quirk #1 in [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md) for why.
+
+See [docs/ONBOARDING.md](docs/ONBOARDING.md) for the full setup checklist and [docs/development.md](docs/development.md) for local dev reference.
 
 ## Repo structure
 
@@ -83,8 +84,10 @@ popdam3/
 | [docs/ERP_ENRICHMENT_PLAN.md](docs/ERP_ENRICHMENT_PLAN.md) | ERP sync, MG code resolution, category classification |
 | [docs/STYLE_GROUPS.md](docs/STYLE_GROUPS.md) | Style group system — grouping logic, cover assets, tag propagation |
 | [docs/UI_OVERVIEW.md](docs/UI_OVERVIEW.md) | Frontend page inventory and component map |
-| [SELFHOST.md](SELFHOST.md) | Frontend deployment: VPS architecture, CI/CD pipeline, ops runbook |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Worker (Railway) and Supabase deployment |
+| [SELFHOST.md](SELFHOST.md) | Frontend VPS deployment: Coolify, Traefik routing, CI/CD pipeline, ops runbook |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Bridge Agent + Helper release pipeline and distribution |
+| [docs/development.md](docs/development.md) | Local dev setup, running, testing |
+| [docs/configuration.md](docs/configuration.md) | Environment variables, GitHub secrets, admin config |
 | [docs/ONBOARDING.md](docs/ONBOARDING.md) | Local setup, environment, first-run checklist |
 | [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md) | Intentional oddities — read before changing anything |
 | [docs/API_CONTRACTS.md](docs/API_CONTRACTS.md) | API contracts between Brain and Muscle |
@@ -108,6 +111,6 @@ popdam3/
 
 ## Deployment
 
-Push to `main` → GitHub Actions builds Docker image → SSHes into VPS → `docker run` + injects Traefik config.
+Push to `main` → GitHub Actions builds Docker image → pushes to GHCR → triggers Coolify API → Coolify pulls image and updates the production container.
 
-The VPS runs Coolify (which provides the Docker network and Traefik reverse-proxy), but the `popdam-frontend` container is managed directly by GitHub Actions, not through Coolify's UI. See [SELFHOST.md](SELFHOST.md) for the full deployment architecture and ops runbook.
+The VPS runs Coolify, which owns the `popdam-frontend` container (UUID `qxj8a0j3tpa9lq4q5rs6pezy`). GitHub Actions never SSHes into the server. See [SELFHOST.md](SELFHOST.md) for the full architecture, required secrets, and ops runbook.

@@ -520,3 +520,39 @@ The trigger function checks `current_setting('app.skip_parse_pdf_trigger', true)
 
 **Intentional behavior**: The bypass is scoped to the transaction via `SET LOCAL` — no other code is affected. The RPC is `SECURITY DEFINER` and `GRANT EXECUTE` is limited to `service_role`.
 
+---
+
+## 41. Coolify Container Name Changes on Every Deploy; Traefik Service Name Does Not
+
+**File**: `SELFHOST.md`, Traefik labels on `popdam-frontend`
+
+**What it looks like**: The running container for `popdam-frontend` has a timestamp suffix (e.g., `qxj8a0j3tpa9lq4q5rs6pezy-131243298897`) that changes on every deployment. You can't reference the container by name in Traefik config.
+
+**Why**: Coolify appends a timestamp to the container name on each deploy to distinguish old from new during the rollover. However, the Traefik **service** name is derived from the Coolify app UUID (`qxj8a0j3tpa9lq4q5rs6pezy`), not the container name, and is therefore stable across redeploys:
+
+```
+traefik.http.services.https-0-qxj8a0j3tpa9lq4q5rs6pezy.loadbalancer.server.port=80
+```
+
+The `sg.designflow.app` file provider references this service as `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker`. The `@docker` provider suffix is required; without it, Traefik looks for the service in the file provider (same file), where it doesn't exist.
+
+**What breaks if you reference the container name instead**: The Traefik config would need to be updated on every deployment, because the container name changes each time.
+
+**Intentional behavior**: File provider references the UUID-based service name with `@docker`. This is stable forever as long as the Coolify app UUID doesn't change.
+
+---
+
+## 42. nginx Must Listen on `[::]:80` for Coolify Health Check to Pass
+
+**File**: `nginx.conf`
+
+**What it looks like**: The container runs nginx successfully (curl from outside works), but `docker ps` shows `(unhealthy)` and `dam.designflow.app` returns 404 from Traefik.
+
+**Why**: Coolify's default container health check runs `wget -q --spider http://localhost/ || exit 1` inside the container. On a host with IPv6 enabled, `localhost` resolves to `::1` (IPv6 loopback). nginx's `listen 80;` directive only binds to `0.0.0.0:80` (IPv4). The IPv6 connection attempt is refused, health check fails, and Traefik excludes the container from routing (Traefik v3 skips containers Docker marks unhealthy).
+
+The fix is `listen [::]:80;` in the server block alongside `listen 80;`. Both are present in this repo's `nginx.conf`.
+
+**What breaks if you remove `listen [::]:80;`**: The container becomes unhealthy immediately after startup and Traefik stops routing `dam.designflow.app`. The app is unreachable within seconds of a deploy.
+
+**Intentional behavior**: Both directives are required. This is not redundant — IPv4 and IPv6 loopback are separate interfaces.
+
