@@ -2817,9 +2817,6 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
 
   if (results.length === 0) return json({ ok: true });
 
-  // Clear existing sample rows then insert fresh results
-  await db.from("pdf_text_samples").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
   const rows = results.map((r) => ({
     asset_id: (r.asset_id as string) || null,
     filename: r.filename as string,
@@ -2830,17 +2827,14 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
     char_count: (r.char_count as number) || 0,
     extraction_error: (r.extraction_error as string) || null,
     thumbnail_url: (r.thumbnail_url as string) || null,
-    sampled_at: new Date().toISOString(),
   }));
 
-  // Insert one row at a time to avoid a bulk-insert triggering parse_pdf_files_used
-  // 25 times within a single statement, which hits the statement timeout.
-  for (const row of rows) {
-    const { error } = await db.from("pdf_text_samples").insert(row);
-    if (error) {
-      console.error("[complete-pdf-text-sample] Insert error:", error);
-      return err(`Insert failed: ${error.message}`, 500);
-    }
+  // Use the bulk RPC which bypasses the per-row trigger, then calls
+  // parse_pdf_files_used once per asset — avoids statement-timeout on 25 rows.
+  const { error } = await db.rpc("bulk_insert_pdf_text_samples", { p_rows: rows });
+  if (error) {
+    console.error("[complete-pdf-text-sample] Bulk insert error:", error);
+    return err(`Insert failed: ${error.message}`, 500);
   }
 
   // Mark the request as completed
