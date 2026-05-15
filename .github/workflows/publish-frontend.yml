@@ -62,74 +62,26 @@ jobs:
             -t ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }} \
             .
 
-      - name: Push
+      - name: Push image to GHCR
         run: |
           docker push ghcr.io/u2giants/popdam-frontend:latest
           docker push ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }}
 
-      - name: Deploy to VPS
+      - name: Deploy via Coolify
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
-          chmod 600 ~/.ssh/vps_key
-          # Retry up to 3 times with 10s back-off to handle transient SSH timeouts
-          for attempt in 1 2 3; do
-            echo "SSH attempt $attempt/3..."
-            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=15 \
-                -i ~/.ssh/vps_key root@178.156.180.212 << 'SSHEOF' && break
-            echo "Attempt $attempt failed, waiting 10s..."
-            sleep 10
-          done
-            set -e
-            echo '${{ secrets.GHCR_PAT }}' | docker login ghcr.io -u u2giants --password-stdin
-            docker pull ghcr.io/u2giants/popdam-frontend:latest
+          echo "Triggering Coolify deployment for app ${{ secrets.COOLIFY_APP_UUID }}..."
+          response=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Accept: application/json" \
+            "${{ secrets.COOLIFY_URL }}/api/v1/deploy?uuid=${{ secrets.COOLIFY_APP_UUID }}&force=false")
 
-            docker ps -q --filter "ancestor=ghcr.io/u2giants/popdam-frontend" | xargs -r docker stop
-            docker ps -aq --filter "ancestor=ghcr.io/u2giants/popdam-frontend" | xargs -r docker rm
-            docker rm -f popdam-frontend 2>/dev/null || true
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+          echo "Response: $body"
 
-            # Start container - no traefik.docker.network label (let Traefik pick any network)
-            docker run -d \
-              --name popdam-frontend \
-              --network coolify \
-              --restart unless-stopped \
-              -p 8781:80 \
-              -l "traefik.enable=true" \
-              -l "traefik.http.routers.popdam-http.rule=Host(\`dam.designflow.app\`) || Host(\`sg.designflow.app\`)" \
-              -l "traefik.http.routers.popdam-http.entrypoints=http" \
-              -l "traefik.http.routers.popdam-http.service=popdam-svc" \
-              -l "traefik.http.routers.popdam-https.rule=Host(\`dam.designflow.app\`) || Host(\`sg.designflow.app\`)" \
-              -l "traefik.http.routers.popdam-https.entrypoints=https" \
-              -l "traefik.http.routers.popdam-https.tls=true" \
-              -l "traefik.http.routers.popdam-https.tls.certresolver=letsencrypt" \
-              -l "traefik.http.routers.popdam-https.service=popdam-svc" \
-              -l "traefik.http.services.popdam-svc.loadbalancer.server.port=80" \
-              ghcr.io/u2giants/popdam-frontend:latest
+          if [ "$http_code" != "200" ]; then
+            echo "Coolify deploy trigger failed with HTTP $http_code"
+            exit 1
+          fi
 
-            # Write Traefik file-provider config into the coolify-proxy container.
-            # Uses popdam-frontend hostname (Docker DNS) since Traefik and the app share the coolify network.
-            # Uses letsencrypt-dns (Cloudflare DNS-01) - configured in Traefik with CF credentials in env.
-            # base64 of: http routers for BOTH dam.designflow.app AND sg.designflow.app
-            # (sg routes to the same container; the app detects hostname at runtime to switch
-            # between PopDAM and PopSG Supabase projects — see src/lib/app-mode.ts).
-            echo 'aHR0cDoKICByb3V0ZXJzOgogICAgcG9wZGFtLWh0dHA6CiAgICAgIHJ1bGU6ICJIb3N0KGBkYW0uZGVzaWduZmxvdy5hcHBgKSB8fCBIb3N0KGBzZy5kZXNpZ25mbG93LmFwcGApIgogICAgICBlbnRyeXBvaW50czogW2h0dHBdCiAgICAgIHNlcnZpY2U6IHBvcGRhbS1zdmMKICAgIHBvcGRhbS1odHRwczoKICAgICAgcnVsZTogIkhvc3QoYGRhbS5kZXNpZ25mbG93LmFwcGApIHx8IEhvc3QoYHNnLmRlc2lnbmZsb3cuYXBwYCkiCiAgICAgIGVudHJ5cG9pbnRzOiBbaHR0cHNdCiAgICAgIHRsczoKICAgICAgICBjZXJ0UmVzb2x2ZXI6IGxldHNlbmNyeXB0LWRucwogICAgICBzZXJ2aWNlOiBwb3BkYW0tc3ZjCiAgc2VydmljZXM6CiAgICBwb3BkYW0tc3ZjOgogICAgICBsb2FkQmFsYW5jZXI6CiAgICAgICAgc2VydmVyczoKICAgICAgICAgIC0gdXJsOiAiaHR0cDovL3BvcGRhbS1mcm9udGVuZDo4MCIK' | base64 -d > /tmp/popdam-traefik.yml
-
-            TRAEFIK_CONT=$(docker ps --format '{{.Names}}' | grep -iE '^coolify-proxy$|^traefik$' | head -1 || true)
-            if [ -n "$TRAEFIK_CONT" ]; then
-              echo "Writing config into Traefik container: $TRAEFIK_CONT"
-              docker exec "$TRAEFIK_CONT" mkdir -p /traefik/dynamic 2>/dev/null || true
-              docker cp /tmp/popdam-traefik.yml "$TRAEFIK_CONT":/traefik/dynamic/popdam-frontend.yml
-            else
-              echo "No Traefik container found - writing to host path"
-              mkdir -p /traefik/dynamic
-              cp /tmp/popdam-traefik.yml /traefik/dynamic/popdam-frontend.yml
-            fi
-
-            echo "Container status:"
-            docker ps --filter "name=popdam-frontend" --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
-            sleep 3
-            echo "Routing test (dam):"
-            curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Host: dam.designflow.app" http://127.0.0.1:80/ || echo "curl failed"
-            echo "Routing test (sg):"
-            curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Host: sg.designflow.app" http://127.0.0.1:80/ || echo "curl failed"
-          SSHEOF
+          echo "Coolify deployment queued. Coolify will pull ghcr.io/u2giants/popdam-frontend:latest and update the production container."
