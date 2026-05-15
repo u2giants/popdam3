@@ -487,7 +487,8 @@ async function handleHeartbeat(
       targetAgentType = "windows-render";
     }
 
-    if (agentType === targetAgentType) {
+    const forceTargetType = sampleReq.force_bridge === true ? "bridge" : targetAgentType;
+    if (agentType === forceTargetType) {
       const nowIso = new Date().toISOString();
       const assets = Array.isArray(sampleReq.assets) ? (sampleReq.assets as unknown[]) : [];
       const claimedSampleReq: Record<string, unknown> = {
@@ -3150,18 +3151,93 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
     return err(`Insert failed: ${error.message}`, 500);
   }
 
-  // Mark the request as completed — read existing value first to preserve mode
+  // Read existing request to get mode and ai_sentinel state
   const { data: existingReq } = await db.from("admin_config").select("value").eq("key", "PDF_TEXT_SAMPLE_REQUEST").maybeSingle();
   const existingValue = (existingReq?.value as Record<string, unknown>) ?? {};
+  const mode = (existingValue.mode as string) ?? "sample";
+  const nowIso = new Date().toISOString();
+
+  // ── ai_sentinel mode: count found sentinels and auto-advance until target met ──
+  if (mode === "ai_sentinel") {
+    const target = (existingValue.target as number) ?? 25;
+    const prevProcessed = (existingValue.processed as number) ?? 0;
+    const lastId = existingValue.last_id as string | null;
+    const totalAi = (existingValue.total_ai as number) ?? 0;
+    const batchSize = AI_SENTINEL_BATCH_SIZE;
+    const newProcessed = prevProcessed + rows.length;
+
+    // Count sentinel files found so far across all batches
+    const { count: sentinelCount } = await db
+      .from("pdf_text_samples")
+      .select("*", { count: "exact", head: true })
+      .like("extracted_text", "%saved without PDF Content%");
+
+    const found = sentinelCount ?? 0;
+
+    // Update AI_SENTINEL_SCAN_REQUEST progress tracker
+    const { data: scanRow } = await db.from("admin_config").select("value").eq("key", "AI_SENTINEL_SCAN_REQUEST").maybeSingle();
+    const scan = (scanRow?.value as Record<string, unknown>) ?? {};
+
+    const done = found >= target || rows.length < batchSize;
+
+    if (done) {
+      await db.from("admin_config").upsert({
+        key: "PDF_TEXT_SAMPLE_REQUEST",
+        value: { status: "completed", completed_at: nowIso, count: rows.length, mode },
+        updated_at: nowIso,
+      });
+      await db.from("admin_config").upsert({
+        key: "AI_SENTINEL_SCAN_REQUEST",
+        value: { ...scan, status: "completed", found, processed: newProcessed, completed_at: nowIso },
+        updated_at: nowIso,
+      });
+    } else {
+      // Advance: next batch after last_id
+      const { data: nextBatch } = await db
+        .from("assets")
+        .select("id, filename, relative_path")
+        .eq("file_type", "ai")
+        .eq("is_deleted", false)
+        .gt("id", lastId ?? "00000000-0000-0000-0000-000000000000")
+        .order("id", { ascending: true })
+        .limit(batchSize);
+
+      if (!nextBatch || nextBatch.length === 0) {
+        await db.from("admin_config").upsert({
+          key: "PDF_TEXT_SAMPLE_REQUEST",
+          value: { status: "completed", completed_at: nowIso, count: rows.length, mode },
+          updated_at: nowIso,
+        });
+        await db.from("admin_config").upsert({
+          key: "AI_SENTINEL_SCAN_REQUEST",
+          value: { ...scan, status: "completed", found, processed: newProcessed, completed_at: nowIso },
+          updated_at: nowIso,
+        });
+      } else {
+        const nextLastId = nextBatch[nextBatch.length - 1].id as string;
+        // Queue next batch — heartbeat dispatch will pick this up and send to bridge agent
+        await db.from("admin_config").upsert({
+          key: "PDF_TEXT_SAMPLE_REQUEST",
+          value: { ...existingValue, status: "pending", found, processed: newProcessed, last_id: nextLastId, assets: nextBatch, requested_at: nowIso },
+          updated_at: nowIso,
+        });
+        await db.from("admin_config").upsert({
+          key: "AI_SENTINEL_SCAN_REQUEST",
+          value: { ...scan, status: "scanning", found, processed: newProcessed, total_ai: totalAi },
+          updated_at: nowIso,
+        });
+      }
+    }
+
+    console.log(`[complete-pdf-text-sample] ai_sentinel batch done: processed=${newProcessed}, sentinel_found=${found}, done=${done}`);
+    return json({ ok: true });
+  }
+
+  // Standard (non-sentinel) completion
   await db.from("admin_config").upsert({
     key: "PDF_TEXT_SAMPLE_REQUEST",
-    value: {
-      status: "completed",
-      completed_at: new Date().toISOString(),
-      count: rows.length,
-      mode: existingValue.mode ?? "sample",
-    },
-    updated_at: new Date().toISOString(),
+    value: { status: "completed", completed_at: nowIso, count: rows.length, mode },
+    updated_at: nowIso,
   });
 
   console.log(`[complete-pdf-text-sample] Stored ${rows.length} results`);

@@ -190,21 +190,29 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
 }
 
 // ── POST: start an AI sentinel scan ──────────────────────────────────────────
+// Reuses the existing PDF_TEXT_SAMPLE_REQUEST / trigger_pdf_text_sample
+// pipeline so the current bridge agent (which already handles that command)
+// can do the work without requiring a code update.
 
-const AI_SENTINEL_BATCH_SIZE = 100;
+const AI_SENTINEL_BATCH_SIZE = 50;
 
 export async function handleTriggerAiSentinelScan(body: Record<string, unknown>) {
   const db = serviceClient();
   const target = Math.min(Number(body.target) || 25, 500);
 
-  // Total un-deleted .ai assets
+  // Block if an active PDF sample (non-sentinel) is already running
+  const { data: existing } = await db.from("admin_config").select("value").eq("key", "PDF_TEXT_SAMPLE_REQUEST").maybeSingle();
+  const existingReq = existing?.value as Record<string, unknown> | null;
+  if (existingReq && (existingReq.status === "pending" || existingReq.status === "processing")) {
+    return err("A PDF text sample is already in progress. Wait for it to finish first.", 409);
+  }
+
   const { count: totalAi } = await db
     .from("assets")
     .select("*", { count: "exact", head: true })
     .eq("file_type", "ai")
     .eq("is_deleted", false);
 
-  // First batch ordered by id (keyset pagination)
   const { data: firstBatch, error } = await db
     .from("assets")
     .select("id, filename, relative_path")
@@ -217,21 +225,31 @@ export async function handleTriggerAiSentinelScan(body: Record<string, unknown>)
   if (!firstBatch || firstBatch.length === 0) return err("No .ai assets found", 404);
 
   const lastId = firstBatch[firstBatch.length - 1].id as string;
+  const nowIso = new Date().toISOString();
 
+  // Queue via the existing PDF text sample pipeline (bridge agent already handles this)
   await db.from("admin_config").upsert({
-    key: "AI_SENTINEL_SCAN_REQUEST",
+    key: "PDF_TEXT_SAMPLE_REQUEST",
     value: {
-      status: "scanning",
+      status: "pending",
+      mode: "ai_sentinel",
+      force_bridge: true,
       target,
       found: 0,
       processed: 0,
       total_ai: totalAi ?? 0,
-      batch: firstBatch,
       last_id: lastId,
-      batch_size: AI_SENTINEL_BATCH_SIZE,
-      started_at: new Date().toISOString(),
+      assets: firstBatch,
+      requested_at: nowIso,
     },
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
+  });
+
+  // Lightweight progress tracker for the sentinel status card
+  await db.from("admin_config").upsert({
+    key: "AI_SENTINEL_SCAN_REQUEST",
+    value: { status: "scanning", target, found: 0, processed: 0, total_ai: totalAi ?? 0, started_at: nowIso },
+    updated_at: nowIso,
   });
 
   return json({ ok: true, total_ai: totalAi, batch_size: AI_SENTINEL_BATCH_SIZE, target });
