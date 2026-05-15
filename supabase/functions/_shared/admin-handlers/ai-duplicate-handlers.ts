@@ -67,13 +67,16 @@ export async function handleDeleteAiPdfDuplicates() {
   const assetIds = duplicates.map((d) => d.id);
   const affectedGroupIds = [...new Set(duplicates.map((d) => d.style_group_id).filter(Boolean))] as string[];
 
-  // ── 2. Soft-delete assets in DB and clear thumbnail_url ──
-  const { error: delErr } = await db
-    .from("assets")
-    .update({ is_deleted: true, thumbnail_url: null })
-    .in("id", assetIds);
-
-  if (delErr) return err(`DB delete failed: ${delErr.message}`, 500);
+  // ── 2. Soft-delete assets in DB and clear thumbnail_url (batched to avoid URL length limits) ──
+  const BATCH = 500;
+  for (let i = 0; i < assetIds.length; i += BATCH) {
+    const chunk = assetIds.slice(i, i + BATCH);
+    const { error: delErr } = await db
+      .from("assets")
+      .update({ is_deleted: true, thumbnail_url: null })
+      .in("id", chunk);
+    if (delErr) return err(`DB delete failed: ${delErr.message}`, 500);
+  }
 
   // ── 3. Refresh style groups ──
   if (affectedGroupIds.length > 0) {
