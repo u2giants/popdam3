@@ -102,7 +102,7 @@ export function useStyleGroups(
       let query = supabase
         .from("style_groups")
         .select(
-          `*`,
+          `*, primary_asset:assets!style_groups_primary_asset_id_fkey(thumbnail_url, thumbnail_error)`,
           { count: "exact" },
         );
 
@@ -126,7 +126,9 @@ export function useStyleGroups(
           ...row,
           asset_count: row.asset_count ?? 0,
           workflow_status: row.workflow_status ?? "other",
-          thumbnail_url: row.primary_thumbnail_url ?? null,
+          // Prefer live thumbnail from the joined primary asset over the cached column —
+          // eliminates stale-cache display bugs when the two drift out of sync.
+          thumbnail_url: (row.primary_asset as any)?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
         };
       });
 
