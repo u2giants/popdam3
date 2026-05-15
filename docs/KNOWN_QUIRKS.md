@@ -504,7 +504,7 @@ The guard checks the resolved `rootPath` (lowercased) for any of those path segm
 
 **What it looks like**: The `trg_fn_parse_pdf_files_used` trigger silently returns early on some INSERT statements, meaning `parse_pdf_files_used()` doesn't run for newly inserted rows.
 
-**Why**: The per-row trigger calls `parse_pdf_files_used(NEW.asset_id)` — a PL/pgSQL function that queries `assets`, scans `pdf_text_samples`, and inserts into `sku_files_used`. With 25 rows being inserted sequentially (one HTTP round-trip each), the total time per request exceeded the Supabase 120 s statement timeout, causing the `complete-pdf-text-sample` edge function to return HTTP 500.
+**Why**: The per-row trigger calls `parse_pdf_files_used(NEW.asset_id)` — a PL/pgSQL function that queries `assets`, scans `pdf_text_samples`, and inserts into `sku_files_used`. With 25 rows being inserted sequentially (one HTTP round-trip each), the total time per request exceeded the Supabase 120 s statement timeout, causing the `complete-pdf-text-sample` edge function to return HTTP 500. The RPC also uses `DELETE FROM pdf_text_samples WHERE id IS NOT NULL` rather than `DELETE FROM pdf_text_samples` because Supabase enforces `pg_safeupdate`, which blocks DELETE without a WHERE clause even inside stored procedures.
 
 The fix is a PostgreSQL RPC `bulk_insert_pdf_text_samples(p_rows jsonb)` that:
 1. Sets `SET LOCAL app.skip_parse_pdf_trigger = '1'` for the transaction
