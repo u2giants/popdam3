@@ -45,7 +45,7 @@ export async function deleteSpacesObject(
   creds: SpacesCredentials,
 ): Promise<boolean> {
   const now = new Date();
-  const amzDate = now.toISOString().replace(/[:\-]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const amzDate = now.toISOString().replace(/[:-]/g, "").replace(/\.\d{3}Z$/, "Z");
   const dateStamp = amzDate.slice(0, 8);
 
   const host = `${creds.bucket}.${creds.region}.digitaloceanspaces.com`;
