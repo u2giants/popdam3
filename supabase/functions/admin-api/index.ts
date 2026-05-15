@@ -84,6 +84,8 @@ import {
 
 import { handleDebugColdlionLookup, handleRepairInvalidPropertyNames } from "../_shared/admin-handlers/coldlion-handlers.ts";
 
+import { handleDeleteAiPdfDuplicates, handleFindAiPdfDuplicates } from "../_shared/admin-handlers/ai-duplicate-handlers.ts";
+
 import {
   handleListHygieneFindings,
   handleStopHygieneScan,
@@ -951,6 +953,34 @@ async function handleGetPdfBackfillStatus() {
 
 async function handleTriggerPdfTextSample(body: Record<string, unknown>) {
   const db = serviceClient();
+
+  // If explicit asset_ids are provided, use those directly (bypasses file_type filter —
+  // used for targeted analysis of .ai files or other non-PDF assets).
+  const explicitIds = Array.isArray(body.asset_ids) ? (body.asset_ids as string[]) : null;
+  if (explicitIds && explicitIds.length > 0) {
+    const { data: assets, error } = await db
+      .from("assets")
+      .select("id, relative_path, filename")
+      .in("id", explicitIds)
+      .eq("is_deleted", false);
+
+    if (error) return err(error.message, 500);
+    if (!assets || assets.length === 0) return err("None of the specified asset IDs were found", 404);
+
+    await db.from("admin_config").upsert({
+      key: "PDF_TEXT_SAMPLE_REQUEST",
+      value: {
+        status: "pending",
+        mode: "targeted",
+        assets: assets.map((a) => ({ id: a.id, relative_path: a.relative_path, filename: a.filename })),
+        requested_at: new Date().toISOString(),
+      },
+      updated_at: new Date().toISOString(),
+    });
+
+    return json({ ok: true, queued: assets.length, mode: "targeted" });
+  }
+
   const mode = body.mode === "full" ? "full" : "sample";
 
   const query = db
@@ -1467,6 +1497,10 @@ corsServe(async (req: Request) => {
         return await handleGetPdfBackfillStatus();
       case "trigger-pdf-text-sample":
         return await handleTriggerPdfTextSample(body);
+      case "find-ai-pdf-duplicates":
+        return await handleFindAiPdfDuplicates();
+      case "delete-ai-pdf-duplicates":
+        return await handleDeleteAiPdfDuplicates();
       case "backfill-pdf-files-used":
         return await handleBackfillPdfFilesUsed();
       case "resolve-sku-files-used":
