@@ -176,6 +176,46 @@ If the cloud misses 3 heartbeats, it marks the worker Offline in the UI.
 
 ---
 
+## 10) PDF Text Extraction Pipeline
+
+Both the Bridge Agent (`apps/bridge-agent/src/pdf-text-sampler.ts`) and the Windows Render Agent (`apps/windows-agent/src/pdf-text-sampler.ts`) implement an identical cascade for sampling text from PDF assets.
+
+### Trigger
+
+The cloud sends a `claim-pdf-text-sample` response (via heartbeat). The agent claims it, processes all listed assets, and calls `complete-pdf-text-sample` when done. Only one agent runs a given sample at a time — the first to claim wins.
+
+### Per-file cascade
+
+| Step | Method | Success threshold | On failure |
+|------|--------|-------------------|------------|
+| 1 | **mupdf text extraction** — structured-text parser | ≥ 100 chars | fall through |
+| 2 | **Render page 0 to PNG** — mupdf pixmap at 2× scale | PNG produced | skip steps 3–4 |
+| 3 | **OCR via tesseract.js** — English language model | ≥ 100 chars | fall through |
+| 4 | **AI vision** — OpenRouter (configurable model, default `google/gemini-2.0-flash-001`) or direct Gemini/Anthropic API | any text returned | mark as `likely_scanned` or `failed` |
+
+If step 2 succeeds (PNG rendered), a **thumbnail is uploaded to DigitalOcean Spaces** under `pdf-pages/{assetId}_p0.jpg` via `uploadPdfPage()`. The URL is stored in `pdf_text_samples.thumbnail_url` and shown in the UI as a preview for scanned/placeholder PDFs.
+
+### File size guard
+
+Files > **100 MB** are skipped (`extraction_method = "skipped"`) without loading into memory. The limit is `PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024`.
+
+### Results upload
+
+All results are sent to the edge function in a single call to `bulk_insert_pdf_text_samples(p_rows jsonb)` — a PostgreSQL RPC that bypasses the per-row `trg_pdf_text_samples_parse_files` trigger during the bulk INSERT, then calls `parse_pdf_files_used()` once per unique asset_id. This avoids the statement timeout that would occur if the trigger ran 25 times within one request. See quirk #40 in [docs/KNOWN_QUIRKS.md](KNOWN_QUIRKS.md).
+
+### Extraction methods recorded
+
+| `extraction_method` | Meaning |
+|---------------------|---------|
+| `pdf_text` | mupdf yielded ≥ 100 chars |
+| `ocr_text` | tesseract yielded ≥ 100 chars |
+| `ai_vision` | AI returned any text |
+| `likely_scanned` | Cascade exhausted; < 100 chars found |
+| `failed` | Cascade exhausted; 0 chars found |
+| `skipped` | File > 100 MB size limit |
+
+---
+
 ## 9) Golden Rule: File Date Preservation (Non-Negotiable)
 **The Bridge Agent must NEVER modify the created or modified date of any source file.**
 

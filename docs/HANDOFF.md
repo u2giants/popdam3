@@ -1,6 +1,6 @@
 # Session Handoff
 
-_Last updated: 2026-05-11_
+_Last updated: 2026-05-15_
 
 This file captures decisions made and work left to do that aren't obvious from the code or git log. Delete sections once the work is complete.
 
@@ -17,6 +17,25 @@ Always verify before any DB work:
 # Check you're on main and up to date:
 git fetch github main && git checkout main && git reset --hard github/main
 ```
+
+---
+
+## Recently completed (2026-05-15)
+
+### PDF text extraction — insert timeout fixed + thumbnails shipping (commit `db62f5c`)
+
+**Bridge Agent v1.11.0 + Windows Agent v0.15.0**
+
+| Fix | Detail |
+|-----|--------|
+| **Insert timeout root cause** | `complete-pdf-text-sample` edge function was inserting 25 rows sequentially. Each row fired `trg_pdf_text_samples_parse_files`, which ran `parse_pdf_files_used()` — a full PL/pgSQL text-parse query per row. The cumulative time exceeded the 120 s Supabase statement timeout, causing HTTP 500. |
+| **DB fix** | New RPC `bulk_insert_pdf_text_samples(p_rows jsonb)` (migration `20260515082342`). Sets `SET LOCAL app.skip_parse_pdf_trigger = '1'`, deletes old rows, inserts all rows in one statement, then calls `parse_pdf_files_used()` once per unique `asset_id`. Trigger function updated to check the session variable and skip early when set. |
+| **Edge function** | `handleCompletePdfTextSample` now calls `db.rpc("bulk_insert_pdf_text_samples", { p_rows: rows })` — one DB round-trip for all 25 rows. |
+| **Thumbnails — bridge agent** | Already in v1.11.0 (prior session). Uploads page-0 PNG to `pdf-pages/{assetId}_p0.jpg` during render step. |
+| **Thumbnails — Windows agent** | Added in v0.15.0 (this session). Same pattern: `uploadPdfPage(asset.id, 0, pngBuffer)` during render step. `thumbnail_url` field added to `PdfTextSampleResult` interface. |
+| **DB column** | `pdf_text_samples.thumbnail_url text` added in migration `20260515075627`. |
+
+All four CI workflows passed (CI, Edge Functions Format, Deploy Supabase, Publish Windows Agent).
 
 ---
 
@@ -77,9 +96,9 @@ All coding work on the render pipeline is now done. Windows Agent is on **v0.14.
 
 ### 1. PopSG — run Retry All (operational, not coding)
 
-Windows Agent is on **v0.14.2** with all render fixes deployed. The next step is operational:
+Windows Agent is on **v0.15.0** with all render fixes and thumbnail upload deployed. The next step is operational:
 
-1. **Confirm windows-agent is on v0.14.2** — check Settings → Agents → Windows Agent version.
+1. **Confirm windows-agent is on v0.15.0** — check Settings → Agents → Windows Agent version.
 2. **Run Retry All** — PopSG Settings → Files with Render Errors → "Retry All". It loops in 500-file batches automatically.
 3. **Also queue the EPS files** that were previously `unsupported_extension` (not `render_failed`) — these need a separate queue pass, not just a retry. Use `queue_sg_render_jobs_by_ids` or the "Queue All Renderable" button if one exists.
 4. **Check results** — expect EPS, CMYK PSD, long-path native images, and `_Old` folder files to resolve substantially.
@@ -118,13 +137,14 @@ Supabase project: `ryltkzzernhwnojzouyb` (popdam-prod).
 
 Gatekeeper blocks the app on macOS 10.15+. Users right-click → Open to bypass. Blocked on same Apple Developer account as auto-update.
 
-### 4. PDF text extraction — not yet production-validated
+### 4. PDF text extraction — ready for production use
 
-The pipeline is built. To run it:
+The insert timeout (500 error) is fixed. Thumbnails are uploaded by both agents. To run it:
 - Set `OPENROUTER_API_KEY` in `admin_config` (Settings → AI Models)
 - Select AI vision model in Settings → Processing → PDF Text → AI Vision Config
 - Run full scan: Settings → Processing → PDF Text → "Run Full Scan"
 - Review placeholder candidates grid for false positives
+- Thumbnails appear automatically for scanned/OCR/AI-vision PDFs (both agents upload page-0 PNG)
 
 ---
 
@@ -140,6 +160,7 @@ The pipeline is built. To run it:
 - **SG crawler has its own path filter** (`style-guide-crawler.ts`) — does NOT use the shared `shouldSkipPath` from `packages/path-filters`. The render agent used to run `shouldSkipPath` on SG jobs too, blocking `_Old` folders that the crawler had already ingested. This was fixed in v0.14.1: render agent no longer calls `shouldSkipPath` for SG jobs.
 - **EPS render path skips AI compat pre-check** — all EPS start with `%!PS-Adobe-` without `%PDF-`, which `isAiWithoutPdfCompat` would falsely flag as "no PDF compat", causing GS to be skipped. The EPS branch in `renderFile` bypasses this check entirely.
 - **CMYK fix via `-colorspace sRGB`** — added to both `renderWithImageMagick` (PSDs) and `renderWithImageMagickNative` (TIFFs/JPEGs). Without this flag, IM exits 1 with no stderr on CMYK inputs.
+- **`bulk_insert_pdf_text_samples` trigger bypass** — The `trg_pdf_text_samples_parse_files` trigger is suppressed during bulk PDF sample inserts via `SET LOCAL app.skip_parse_pdf_trigger = '1'`. The RPC drives `parse_pdf_files_used()` once per asset after all rows are visible. This avoids 25× per-row trigger work in a single HTTP call. See quirk #40.
 - **OpenRouter-only AI models** — the PDF text AI vision config no longer reads from `AI_MODELS` / `admin_config`. It calls `get-openrouter-vision-models` live.
 - **Nightly crawl fires at 02:00 UTC** — 9pm EST / 10pm EDT. `cron.timezone` can't be changed without a server restart.
 - **Both apps share one Supabase project** (`ryltkzzernhwnojzouyb`). Mode switching is UI-only.

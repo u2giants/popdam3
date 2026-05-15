@@ -75,8 +75,14 @@ popdam3/
 | [docs/PROJECT_BIBLE.md](docs/PROJECT_BIBLE.md) | Non-negotiables, golden rules, architecture constraints. **Highest authority — read first.** |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Brain + Muscle system, networking model, API boundaries |
 | [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema reference |
-| [docs/WORKER_LOGIC.md](docs/WORKER_LOGIC.md) | Background worker behavior (AI tagging, propagation, ERP, rebuild) |
+| [docs/WORKER_LOGIC.md](docs/WORKER_LOGIC.md) | Bridge/Windows agent behavior: AI tagging, PDF text extraction, ERP, propagation |
 | [docs/BULK_JOBS.md](docs/BULK_JOBS.md) | Bulk/background job system and cross-lane conflict map |
+| [docs/POPSG.md](docs/POPSG.md) | PopSG style guide mode — schema, crawl flow, render pipeline, nightly cron |
+| [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Auth paths: Authentik SSO, Google/Microsoft OAuth, email/password |
+| [docs/MULTI_TENANT_AGENTS.md](docs/MULTI_TENANT_AGENTS.md) | Multi-tenant agent architecture |
+| [docs/ERP_ENRICHMENT_PLAN.md](docs/ERP_ENRICHMENT_PLAN.md) | ERP sync, MG code resolution, category classification |
+| [docs/STYLE_GROUPS.md](docs/STYLE_GROUPS.md) | Style group system — grouping logic, cover assets, tag propagation |
+| [docs/UI_OVERVIEW.md](docs/UI_OVERVIEW.md) | Frontend page inventory and component map |
 | [SELFHOST.md](SELFHOST.md) | Frontend deployment: VPS architecture, CI/CD pipeline, ops runbook |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Worker (Railway) and Supabase deployment |
 | [docs/ONBOARDING.md](docs/ONBOARDING.md) | Local setup, environment, first-run checklist |
@@ -86,6 +92,7 @@ popdam3/
 | [docs/WINDOWS_AGENT_RUNBOOK.md](docs/WINDOWS_AGENT_RUNBOOK.md) | Windows render agent operation |
 | [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md) | POP DAM Helper desktop app — architecture, build, install, checkout workflow |
 | [docs/AI_OPERATING_RULES.md](docs/AI_OPERATING_RULES.md) | Rules for AI tools working in this repo |
+| [docs/MODEL_RULES.md](docs/MODEL_RULES.md) | AI model catalogue — capabilities, routing, constraints |
 | [docs/ADMIN_OPERATIONS.md](docs/ADMIN_OPERATIONS.md) | Admin operations and maintenance tasks |
 | [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) | Infrastructure: Supabase, Spaces, Coolify, Tailscale |
 

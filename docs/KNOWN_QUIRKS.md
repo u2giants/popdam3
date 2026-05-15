@@ -496,3 +496,27 @@ The guard checks the resolved `rootPath` (lowercased) for any of those path segm
 
 **Intentional behavior**: This is a hard stop, not a warning. The correct fix is to correct the root mapping in the admin UI, not to remove the guard.
 
+---
+
+## 40. `bulk_insert_pdf_text_samples` Bypasses Per-Row Trigger via Session Variable
+
+**File**: `supabase/migrations/20260515082342_bulk_insert_pdf_text_samples_rpc.sql`, `supabase/functions/agent-api/index.ts`
+
+**What it looks like**: The `trg_fn_parse_pdf_files_used` trigger silently returns early on some INSERT statements, meaning `parse_pdf_files_used()` doesn't run for newly inserted rows.
+
+**Why**: The per-row trigger calls `parse_pdf_files_used(NEW.asset_id)` — a PL/pgSQL function that queries `assets`, scans `pdf_text_samples`, and inserts into `sku_files_used`. With 25 rows being inserted sequentially (one HTTP round-trip each), the total time per request exceeded the Supabase 120 s statement timeout, causing the `complete-pdf-text-sample` edge function to return HTTP 500.
+
+The fix is a PostgreSQL RPC `bulk_insert_pdf_text_samples(p_rows jsonb)` that:
+1. Sets `SET LOCAL app.skip_parse_pdf_trigger = '1'` for the transaction
+2. Deletes existing rows
+3. Inserts all rows in one statement
+4. Calls `parse_pdf_files_used()` once per unique `asset_id` after all rows are visible
+
+The trigger function checks `current_setting('app.skip_parse_pdf_trigger', true)` and returns `NEW` immediately when set, skipping the parse. After the bulk INSERT, the RPC drives the per-asset parse itself.
+
+**What breaks if you remove the trigger bypass**: PDF text sample saves revert to 500 errors when there are ≥ ~15 assets (depending on parse complexity) because the cumulative trigger work per request exceeds the proxy-enforced statement timeout.
+
+**What breaks if you remove the per-row trigger entirely without the RPC**: Single-row inserts (any future path that inserts one row at a time outside the RPC) would silently skip `sku_files_used` population.
+
+**Intentional behavior**: The bypass is scoped to the transaction via `SET LOCAL` — no other code is affected. The RPC is `SECURITY DEFINER` and `GRANT EXECUTE` is limited to `service_role`.
+
