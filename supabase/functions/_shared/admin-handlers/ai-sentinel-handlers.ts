@@ -17,25 +17,47 @@ import { credentialsFromConfig, deleteSpacesObjects } from "../spaces-delete.ts"
 
 const SENTINEL_TEXT = "saved without PDF Content";
 
-// ── GET: stats + recent log ───────────────────────────────────────────
+// ── GET: stats + pending files (with asset thumbnails) + recent log ──────────
 
 export async function handleGetAiSentinelStatus() {
   const db = serviceClient();
   try {
-    const [statsRes, logRes] = await Promise.all([
+    const [statsRes, logRes, pendingRes] = await Promise.all([
       db.rpc("get_ai_sentinel_stats"),
       db
         .from("ai_sentinel_cleanup_log")
         .select("id, ai_filename, ai_relative_path, replacement_filename, replacement_queued_for_thumbnail, created_at")
         .order("created_at", { ascending: false })
         .limit(100),
+      // Fetch pending sentinel files with asset thumbnail so the UI can preview them.
+      db
+        .from("pdf_text_samples")
+        .select("asset_id, filename, relative_path, assets!inner(thumbnail_url, is_deleted)")
+        .like("extracted_text", `%${SENTINEL_TEXT}%`)
+        .eq("assets.is_deleted", false)
+        .not("asset_id", "in", `(select ai_asset_id from ai_sentinel_cleanup_log)`)
+        .limit(200),
     ]);
 
     if (statsRes.error) throw new Error(`Stats RPC failed: ${statsRes.error.message}`);
 
+    // Flatten the join: pull thumbnail_url out of the nested assets object
+    const pendingFiles = (pendingRes.data ?? []).map((r: {
+      asset_id: string;
+      filename: string;
+      relative_path: string;
+      assets: { thumbnail_url: string | null } | null;
+    }) => ({
+      asset_id: r.asset_id,
+      filename: r.filename,
+      relative_path: r.relative_path,
+      thumbnail_url: r.assets?.thumbnail_url ?? null,
+    }));
+
     return json({
       ok: true,
       stats: statsRes.data,
+      pending_files: pendingFiles,
       recent_log: logRes.data ?? [],
     });
   } catch (e) {

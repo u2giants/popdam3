@@ -615,6 +615,13 @@ interface AiSentinelStats {
   no_replacement_found: number;
 }
 
+interface SentinelPendingFile {
+  asset_id: string;
+  filename: string;
+  relative_path: string;
+  thumbnail_url: string | null;
+}
+
 interface SentinelLogEntry {
   id: string;
   ai_filename: string;
@@ -629,10 +636,11 @@ function AiSentinelCleanupCard() {
   const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  const [showPending, setShowPending] = useState(false);
 
   const { data: status, isLoading } = useQuery({
     queryKey: ["ai-sentinel-status"],
-    queryFn: () => call<{ ok: boolean; stats: AiSentinelStats; recent_log: SentinelLogEntry[] }>("get-ai-sentinel-status"),
+    queryFn: () => call<{ ok: boolean; stats: AiSentinelStats; pending_files: SentinelPendingFile[]; recent_log: SentinelLogEntry[] }>("get-ai-sentinel-status"),
     refetchInterval: 15000,
   });
 
@@ -654,6 +662,7 @@ function AiSentinelCleanupCard() {
 
   const stats = status?.stats;
   const log = status?.recent_log ?? [];
+  const pendingFiles = status?.pending_files ?? [];
   const sampledPct = stats ? Math.round((stats.sampled / Math.max(stats.total_ai, 1)) * 100) : 0;
 
   return (
@@ -710,6 +719,36 @@ function AiSentinelCleanupCard() {
                 <p className="text-xs text-muted-foreground">
                   Backfill is running automatically. Re-run cleanup as more files are sampled.
                 </p>
+              </div>
+            )}
+
+            {pendingFiles.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-amber-700">
+                    {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} flagged for deletion
+                  </span>
+                  <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setShowPending(!showPending)}>
+                    {showPending ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+                    {showPending ? "Hide" : "Preview"}
+                  </Button>
+                </div>
+                {showPending && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-72 overflow-y-auto p-1 rounded border bg-muted/30">
+                    {pendingFiles.map((f) => (
+                      <div key={f.asset_id} className="flex flex-col gap-1" title={f.relative_path}>
+                        <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center">
+                          {f.thumbnail_url ? (
+                            <img src={f.thumbnail_url} alt={f.filename} className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground truncate leading-tight">{f.filename}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
