@@ -28,30 +28,24 @@ export async function handleListSiblingImages(body: Record<string, unknown>) {
       if (!val || val.folder_path !== folderPath) continue;
 
       if (val.status === "completed") {
-        const processedAt = val.processed_at as string;
-        if (processedAt && Date.now() - new Date(processedAt).getTime() < 24 * 60 * 60 * 1000) {
-          console.log(`[list-sibling-images] Returning cached result for ${folderPath}`);
-          return json({
-            ok: true,
-            status: "completed",
-            request_id: row.key.replace("sibling_scan_request_", ""),
-            images: val.images ?? [],
-          });
-        }
+        console.log(`[list-sibling-images] Returning cached result for ${folderPath}`);
+        return json({
+          ok: true,
+          status: "completed",
+          request_id: row.key.replace("sibling_scan_request_", ""),
+          images: val.images ?? [],
+        });
       }
 
       if (val.status === "failed") {
-        const processedAt = val.processed_at as string;
-        if (processedAt && Date.now() - new Date(processedAt).getTime() < 24 * 60 * 60 * 1000) {
-          console.log(`[list-sibling-images] Returning cached failure for ${folderPath}`);
-          return json({
-            ok: true,
-            status: "failed",
-            request_id: row.key.replace("sibling_scan_request_", ""),
-            images: [],
-            error_message: val.error_message ?? "Scan failed",
-          });
-        }
+        console.log(`[list-sibling-images] Returning cached failure for ${folderPath}`);
+        return json({
+          ok: true,
+          status: "failed",
+          request_id: row.key.replace("sibling_scan_request_", ""),
+          images: [],
+          error_message: val.error_message ?? "Scan failed",
+        });
       }
 
       if (val.status === "pending" || val.status === "claimed") {
