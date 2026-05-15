@@ -14,6 +14,7 @@
 import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { credentialsFromConfig, deleteSpacesObjects } from "../spaces-delete.ts";
+import { requireBridgeVersion } from "../bridge-version.ts";
 
 const SENTINEL_TEXT = "saved without PDF Content";
 
@@ -196,8 +197,17 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
 
 const AI_SENTINEL_BATCH_SIZE = 50;
 
+// Minimum bridge agent version required to run sentinel scans.
+// Bump this whenever a new bridge feature is needed by this handler.
+const SENTINEL_SCAN_MIN_BRIDGE_VERSION = "1.14.0";
+
 export async function handleTriggerAiSentinelScan(body: Record<string, unknown>) {
   const db = serviceClient();
+
+  // Fail fast if the bridge agent is too old to handle this operation.
+  const versionErr = await requireBridgeVersion(SENTINEL_SCAN_MIN_BRIDGE_VERSION, db);
+  if (versionErr) return versionErr;
+
   const target = Math.min(Number(body.target) || 25, 500);
 
   // Block if an active PDF sample (non-sentinel) is already running
