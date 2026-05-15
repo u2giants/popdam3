@@ -1544,6 +1544,27 @@ export type Database = {
           },
         ]
       }
+      scanner_ai_ignores: {
+        Row: {
+          created_at: string | null
+          id: string
+          reason: string
+          relative_path: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          reason: string
+          relative_path: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          reason?: string
+          relative_path?: string
+        }
+        Relationships: []
+      }
       sku_files_used: {
         Row: {
           created_at: string
