@@ -22,7 +22,7 @@ const SENTINEL_TEXT = "saved without PDF Content";
 export async function handleGetAiSentinelStatus() {
   const db = serviceClient();
   try {
-    const [statsRes, logRes, pendingRes] = await Promise.all([
+    const [statsRes, logRes, pendingRes, scanReqRes] = await Promise.all([
       db.rpc("get_ai_sentinel_stats"),
       db
         .from("ai_sentinel_cleanup_log")
@@ -37,6 +37,7 @@ export async function handleGetAiSentinelStatus() {
         .eq("assets.is_deleted", false)
         .not("asset_id", "in", `(select ai_asset_id from ai_sentinel_cleanup_log)`)
         .limit(200),
+      db.from("admin_config").select("value").eq("key", "AI_SENTINEL_SCAN_REQUEST").maybeSingle(),
     ]);
 
     if (statsRes.error) throw new Error(`Stats RPC failed: ${statsRes.error.message}`);
@@ -54,11 +55,14 @@ export async function handleGetAiSentinelStatus() {
       thumbnail_url: r.assets?.thumbnail_url ?? null,
     }));
 
+    const scanRequest = (scanReqRes.data?.value as Record<string, unknown>) ?? null;
+
     return json({
       ok: true,
       stats: statsRes.data,
       pending_files: pendingFiles,
       recent_log: logRes.data ?? [],
+      scan_request: scanRequest,
     });
   } catch (e) {
     return err((e as Error).message, 500);
@@ -183,4 +187,52 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
     queued_for_thumbnail: results.filter((r) => r.queued).length,
     results,
   });
+}
+
+// ── POST: start an AI sentinel scan ──────────────────────────────────────────
+
+const AI_SENTINEL_BATCH_SIZE = 100;
+
+export async function handleTriggerAiSentinelScan(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const target = Math.min(Number(body.target) || 25, 500);
+
+  // Total un-deleted .ai assets
+  const { count: totalAi } = await db
+    .from("assets")
+    .select("*", { count: "exact", head: true })
+    .eq("file_type", "ai")
+    .eq("is_deleted", false);
+
+  // First batch ordered by id (keyset pagination)
+  const { data: firstBatch, error } = await db
+    .from("assets")
+    .select("id, filename, relative_path")
+    .eq("file_type", "ai")
+    .eq("is_deleted", false)
+    .order("id", { ascending: true })
+    .limit(AI_SENTINEL_BATCH_SIZE);
+
+  if (error) return err(`Failed to fetch .ai assets: ${error.message}`, 500);
+  if (!firstBatch || firstBatch.length === 0) return err("No .ai assets found", 404);
+
+  const lastId = firstBatch[firstBatch.length - 1].id as string;
+
+  await db.from("admin_config").upsert({
+    key: "AI_SENTINEL_SCAN_REQUEST",
+    value: {
+      status: "scanning",
+      target,
+      found: 0,
+      processed: 0,
+      total_ai: totalAi ?? 0,
+      batch: firstBatch,
+      last_id: lastId,
+      batch_size: AI_SENTINEL_BATCH_SIZE,
+      started_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  return json({ ok: true, total_ai: totalAi, batch_size: AI_SENTINEL_BATCH_SIZE, target });
 }

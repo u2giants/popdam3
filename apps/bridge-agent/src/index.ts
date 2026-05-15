@@ -28,6 +28,7 @@ import { startRealtimeWatcher } from "./realtime-watcher.js";
 import { crawlStyleGuides } from "./style-guide-crawler.js";
 import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler.js";
 import { runPdfBackfill } from "./pdf-backfill.js";
+import { runAiSentinelScan } from "./ai-sentinel-scanner.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ let isSamplingPdfText = false;
 let isPdfBackfilling = false;
 let isAuditingCompatThumbnails = false;
 let isPreviewingCompatThumbnails = false;
+let isAiSentinelScanning = false;
 
 // ── Version info (injected via Docker build args or package.json) ──
 const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
@@ -234,6 +236,16 @@ async function sendHeartbeat() {
       }).finally(() => {
         isSamplingPdfText = false;
       });
+    }
+    // AI sentinel scan (fast header-only check per batch)
+    if (response.commands.trigger_ai_sentinel_scan && !isAiSentinelScanning) {
+      const assets = response.commands.ai_sentinel_scan_assets ?? [];
+      if (assets.length > 0) {
+        isAiSentinelScanning = true;
+        logger.info("AI sentinel scan batch requested via heartbeat", { count: assets.length });
+        runAiSentinelScan(assets, config.nasContainerMountRoot)
+          .finally(() => { isAiSentinelScanning = false; });
+      }
     }
     // PDF backfill (self-driven claim loop — no asset list passed)
     if (response.commands.trigger_pdf_backfill && !isPdfBackfilling) {

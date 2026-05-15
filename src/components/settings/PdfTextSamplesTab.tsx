@@ -631,6 +631,16 @@ interface SentinelLogEntry {
   created_at: string;
 }
 
+interface AiSentinelScanRequest {
+  status: "scanning" | "claimed" | "completed" | "error";
+  target: number;
+  found: number;
+  processed: number;
+  total_ai: number;
+  started_at?: string;
+  completed_at?: string;
+}
+
 function AiSentinelCleanupCard() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
@@ -640,8 +650,11 @@ function AiSentinelCleanupCard() {
 
   const { data: status, isLoading } = useQuery({
     queryKey: ["ai-sentinel-status"],
-    queryFn: () => call<{ ok: boolean; stats: AiSentinelStats; pending_files: SentinelPendingFile[]; recent_log: SentinelLogEntry[] }>("get-ai-sentinel-status"),
-    refetchInterval: 15000,
+    queryFn: () => call<{ ok: boolean; stats: AiSentinelStats; pending_files: SentinelPendingFile[]; recent_log: SentinelLogEntry[]; scan_request: AiSentinelScanRequest | null }>("get-ai-sentinel-status"),
+    refetchInterval: (q) => {
+      const sr = q.state.data?.scan_request;
+      return (sr?.status === "scanning" || sr?.status === "claimed") ? 4000 : 15000;
+    },
   });
 
   const cleanupMutation = useMutation({
@@ -660,10 +673,24 @@ function AiSentinelCleanupCard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const scanMutation = useMutation({
+    mutationFn: () => call("trigger-ai-sentinel-scan", { target: 25 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-sentinel-status"] });
+      toast.info("Scanning .ai files for sentinel content…");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const stats = status?.stats;
   const log = status?.recent_log ?? [];
   const pendingFiles = status?.pending_files ?? [];
+  const scanRequest = status?.scan_request ?? null;
+  const isScanning = scanRequest?.status === "scanning" || scanRequest?.status === "claimed";
   const sampledPct = stats ? Math.round((stats.sampled / Math.max(stats.total_ai, 1)) * 100) : 0;
+  const scanPct = scanRequest && scanRequest.total_ai > 0
+    ? Math.round((scanRequest.processed / scanRequest.total_ai) * 100)
+    : 0;
 
   return (
     <Card>
@@ -709,16 +736,36 @@ function AiSentinelCleanupCard() {
               </div>
             </div>
 
-            {stats.sampled < stats.total_ai && (
+            {/* Sentinel scan button + progress */}
+            {!isScanning && stats.sentinel_pending === 0 && (
+              <div className="flex items-center gap-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => scanMutation.mutate()}
+                  disabled={scanMutation.isPending}
+                >
+                  {scanMutation.isPending
+                    ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Starting…</>
+                    : <><ScanLine className="mr-1.5 h-3.5 w-3.5" /> Scan for Sentinel Files</>}
+                </Button>
+                {scanRequest?.status === "completed" && (
+                  <span className="text-xs text-muted-foreground">
+                    Last scan: found {scanRequest.found} sentinel file{scanRequest.found !== 1 ? "s" : ""} in {scanRequest.processed.toLocaleString()} checked
+                  </span>
+                )}
+              </div>
+            )}
+            {isScanning && scanRequest && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Backfill progress ({stats.sampled.toLocaleString()} / {stats.total_ai.toLocaleString()})</span>
-                  <span>{sampledPct}%</span>
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Scanning .ai files — found {scanRequest.found} sentinel so far
+                  </span>
+                  <span>{scanRequest.processed.toLocaleString()} / {scanRequest.total_ai.toLocaleString()} ({scanPct}%)</span>
                 </div>
-                <Progress value={sampledPct} className="h-1.5" />
-                <p className="text-xs text-muted-foreground">
-                  Backfill is running automatically. Re-run cleanup as more files are sampled.
-                </p>
+                <Progress value={scanPct} className="h-1.5" />
               </div>
             )}
 

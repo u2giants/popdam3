@@ -130,6 +130,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "PDF_EXTRACTION_CONFIG",
   "PDF_TEXT_SAMPLE_REQUEST",
   "PDF_BACKFILL",
+  "AI_SENTINEL_SCAN_REQUEST",
 ];
 
 // Config keys needed only by Windows render agents
@@ -554,6 +555,32 @@ async function handleHeartbeat(
     }
   }
 
+  // ── AI Sentinel Scan claim/dispatch ──
+  let aiSentinelScanCommand: Record<string, unknown> = {};
+  if (agentType === "bridge") {
+    const scanReq = configMap.AI_SENTINEL_SCAN_REQUEST as Record<string, unknown> | undefined;
+    if (scanReq?.status === "scanning") {
+      const nowIso = new Date().toISOString();
+      const assets = (scanReq.batch as unknown[]) ?? [];
+      await db.from("admin_config").upsert({
+        key: "AI_SENTINEL_SCAN_REQUEST",
+        value: { ...scanReq, status: "claimed", claimed_by_agent_id: agentId, claimed_at: nowIso },
+        updated_at: nowIso,
+      });
+      aiSentinelScanCommand = { trigger_ai_sentinel_scan: true, ai_sentinel_scan_assets: assets };
+    } else if (scanReq?.status === "claimed") {
+      // Reset stale claims (agent died mid-batch)
+      const claimedAt = scanReq.claimed_at as string | undefined;
+      if (claimedAt && Date.now() - new Date(claimedAt).getTime() > 10 * 60 * 1000) {
+        await db.from("admin_config").upsert({
+          key: "AI_SENTINEL_SCAN_REQUEST",
+          value: { ...scanReq, status: "scanning", claimed_by_agent_id: null, claimed_at: null },
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
   // ── Build response ──
   const responsePayload = {
     ok: true,
@@ -637,6 +664,7 @@ async function handleHeartbeat(
       })(),
       ...pdfTextSampleCommand,
       ...compatAuditCommand,
+      ...aiSentinelScanCommand,
       // PDF backfill: dispatch to bridge agents only while status is "running"
       trigger_pdf_backfill: (() => {
         if (agentType !== "bridge") return false;
@@ -3017,6 +3045,83 @@ async function handlePdfBackfillProgress(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Route: complete-ai-sentinel-scan ────────────────────────────────
+
+const SENTINEL_TEXT = "This is an Adobe® Illustrator® File that was saved without PDF Content.";
+const AI_SENTINEL_BATCH_SIZE = 100;
+
+async function handleCompleteAiSentinelScan(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const results = (body.results as Array<{ asset_id: string; filename: string; relative_path: string; is_sentinel: boolean }>) ?? [];
+
+  const sentinelFiles = results.filter((r) => r.is_sentinel);
+
+  // Upsert sentinel files into pdf_text_samples (unique constraint on asset_id)
+  if (sentinelFiles.length > 0) {
+    const rows = sentinelFiles.map((r) => ({
+      asset_id: r.asset_id,
+      filename: r.filename,
+      relative_path: r.relative_path,
+      extraction_method: "pdf_text",
+      extracted_text: SENTINEL_TEXT,
+      char_count: SENTINEL_TEXT.length,
+      page_count: 1,
+      extraction_error: null,
+      thumbnail_url: null,
+    }));
+    const { error } = await db.rpc("bulk_insert_pdf_text_samples", { p_rows: rows });
+    if (error) console.error("[complete-ai-sentinel-scan] bulk insert error:", error);
+  }
+
+  // Read current scan state
+  const { data: scanRow } = await db.from("admin_config").select("value").eq("key", "AI_SENTINEL_SCAN_REQUEST").maybeSingle();
+  if (!scanRow?.value) return json({ ok: true });
+
+  const scan = scanRow.value as Record<string, unknown>;
+  const target = (scan.target as number) ?? 25;
+  const batchSize = (scan.batch_size as number) ?? AI_SENTINEL_BATCH_SIZE;
+  const newFound = ((scan.found as number) ?? 0) + sentinelFiles.length;
+  const newProcessed = ((scan.processed as number) ?? 0) + results.length;
+  const lastId = scan.last_id as string | null;
+
+  const done = newFound >= target || results.length < batchSize;
+
+  if (done) {
+    await db.from("admin_config").upsert({
+      key: "AI_SENTINEL_SCAN_REQUEST",
+      value: { ...scan, status: "completed", found: newFound, processed: newProcessed, completed_at: new Date().toISOString() },
+      updated_at: new Date().toISOString(),
+    });
+  } else {
+    // Advance: fetch next batch after last_id (keyset pagination — O(1) on PK index)
+    const { data: nextBatch } = await db
+      .from("assets")
+      .select("id, filename, relative_path")
+      .eq("file_type", "ai")
+      .eq("is_deleted", false)
+      .gt("id", lastId ?? "00000000-0000-0000-0000-000000000000")
+      .order("id", { ascending: true })
+      .limit(batchSize);
+
+    if (!nextBatch || nextBatch.length === 0) {
+      await db.from("admin_config").upsert({
+        key: "AI_SENTINEL_SCAN_REQUEST",
+        value: { ...scan, status: "completed", found: newFound, processed: newProcessed, completed_at: new Date().toISOString() },
+        updated_at: new Date().toISOString(),
+      });
+    } else {
+      const nextLastId = nextBatch[nextBatch.length - 1].id as string;
+      await db.from("admin_config").upsert({
+        key: "AI_SENTINEL_SCAN_REQUEST",
+        value: { ...scan, status: "scanning", found: newFound, processed: newProcessed, batch: nextBatch, last_id: nextLastId },
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  return json({ ok: true, found: newFound, processed: newProcessed });
+}
+
 // ── Route: complete-pdf-text-sample ─────────────────────────────────
 
 async function handleCompletePdfTextSample(body: Record<string, unknown>) {
@@ -3454,6 +3559,9 @@ corsServe(async (req: Request) => {
           .upsert({ relative_path: relativePath, reason }, { onConflict: "relative_path", ignoreDuplicates: true });
         if (error) return err(`mark-ai-ignored failed: ${error.message}`, 500);
         return json({ ok: true });
+      }
+      case "complete-ai-sentinel-scan": {
+        return await handleCompleteAiSentinelScan(body);
       }
       default:
         return err(`Unknown action: ${action}`, 404);

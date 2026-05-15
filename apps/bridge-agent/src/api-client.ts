@@ -158,6 +158,8 @@ export interface HeartbeatResponse {
     trigger_style_guide_crawl?: boolean;
     trigger_pdf_text_sample?: boolean;
     pdf_text_sample_assets?: unknown[];
+    trigger_ai_sentinel_scan?: boolean;
+    ai_sentinel_scan_assets?: Array<{ id: string; filename: string; relative_path: string }>;
     trigger_pdf_backfill?: boolean;
     audit_compat_thumbnails?: boolean;
     audit_compat_preview?: boolean;
@@ -496,4 +498,15 @@ export async function markAiIgnored(relativePath: string, reason: string): Promi
   } catch (e) {
     logger.warn("Failed to record AI ignore entry", { path: relativePath, reason, error: (e as Error).message });
   }
+}
+
+export interface AiSentinelScanResult {
+  asset_id: string;
+  filename: string;
+  relative_path: string;
+  is_sentinel: boolean;
+}
+
+export async function completeAiSentinelScan(results: AiSentinelScanResult[]): Promise<void> {
+  await callApi("complete-ai-sentinel-scan", { results }, 60_000);
 }
