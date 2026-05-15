@@ -80,6 +80,7 @@ const counters: api.Counters = {
   noop_unchanged: 0,
   rejected_subfolder: 0,
   skipped_before_min_date: 0,
+  rejected_ai_has_pdf_sibling: 0,
 };
 
 function resetCounters() {
@@ -100,6 +101,7 @@ function resetCounters() {
   counters.noop_unchanged = 0;
   counters.rejected_subfolder = 0;
   counters.skipped_before_min_date = 0;
+  counters.rejected_ai_has_pdf_sibling = 0;
 }
 
 // ── Cloud Config State (overridden by heartbeat config sync) ────────

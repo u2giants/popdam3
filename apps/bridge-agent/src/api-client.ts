@@ -111,6 +111,7 @@ export interface Counters {
   noop_unchanged: number;
   rejected_subfolder: number;
   skipped_before_min_date: number;
+  rejected_ai_has_pdf_sibling: number;
 }
 
 export interface WindowsRenderPolicy {

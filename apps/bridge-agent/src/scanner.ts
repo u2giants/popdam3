@@ -136,6 +136,14 @@ async function* scanDirectory(
     return;
   }
 
+  // Build a set of lowercased PDF basenames in this directory so we can skip
+  // .ai files that have a same-named .pdf sibling (PDF is the canonical form).
+  const pdfBasenames = new Set(
+    entries
+      .filter((e) => extname(e.name).toLowerCase() === ".pdf")
+      .map((e) => e.name.toLowerCase().replace(/\.[^.]+$/, "")),
+  );
+
   for (const entry of entries) {
     if (callbacks?.shouldAbort?.()) return;
 
@@ -201,6 +209,17 @@ async function* scanDirectory(
     if (ext === ".pdf" && !isPdfCandidate(entry.name)) {
       counters.rejected_wrong_type++;
       continue;
+    }
+
+    // Skip .ai files when a same-named .pdf sibling exists in the same directory.
+    // The PDF is the canonical distributable; the .ai is the editable source.
+    if (ext === ".ai") {
+      const aiBase = entry.name.toLowerCase().replace(/\.[^.]+$/, "");
+      if (pdfBasenames.has(aiBase)) {
+        counters.rejected_ai_has_pdf_sibling++;
+        logger.debug("Skipping .ai with .pdf sibling", { file: fullPath });
+        continue;
+      }
     }
 
     counters.files_checked++;
