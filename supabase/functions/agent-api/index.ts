@@ -2829,13 +2829,18 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
     page_count: (r.page_count as number) || null,
     char_count: (r.char_count as number) || 0,
     extraction_error: (r.extraction_error as string) || null,
+    thumbnail_url: (r.thumbnail_url as string) || null,
     sampled_at: new Date().toISOString(),
   }));
 
-  const { error } = await db.from("pdf_text_samples").insert(rows);
-  if (error) {
-    console.error("[complete-pdf-text-sample] Insert error:", error);
-    return err(`Insert failed: ${error.message}`, 500);
+  // Insert one row at a time to avoid a bulk-insert triggering parse_pdf_files_used
+  // 25 times within a single statement, which hits the statement timeout.
+  for (const row of rows) {
+    const { error } = await db.from("pdf_text_samples").insert(row);
+    if (error) {
+      console.error("[complete-pdf-text-sample] Insert error:", error);
+      return err(`Insert failed: ${error.message}`, 500);
+    }
   }
 
   // Mark the request as completed

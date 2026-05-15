@@ -14,6 +14,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
+import { uploadPdfPage } from "./uploader.js";
 
 import * as mupdf from "mupdf";
 import { createWorker } from "tesseract.js";
@@ -51,6 +52,7 @@ export interface PdfTextSampleResult {
   page_count: number | null;
   char_count: number;
   extraction_error: string | null;
+  thumbnail_url?: string;
   /** Set when a file was intentionally skipped rather than failing */
   skip_reason?: string;
 }
@@ -226,6 +228,7 @@ async function processSinglePdf(
   // ── Step 2: render page 0 to PNG ────────────────────────────────────
   await reportProgress(index, total, asset.filename, "rendering", fileResults);
   let pngBuffer: Buffer | null = null;
+  let thumbnailUrl: string | undefined;
   try {
     if (!mupdfDoc) {
       mupdfDoc = mupdf.Document.openDocument(buffer, "application/pdf");
@@ -235,6 +238,14 @@ async function processSinglePdf(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pixmap = page.toPixmap([2, 0, 0, 2, 0, 0] as any, (mupdf as any).ColorSpace.DeviceRGB, false);
     pngBuffer = Buffer.from(pixmap.asPNG() as Uint8Array);
+    // Upload thumbnail so the UI can show a preview (best-effort, non-fatal)
+    try {
+      thumbnailUrl = await uploadPdfPage(asset.id, 0, pngBuffer);
+    } catch (uploadErr) {
+      logger.warn("PDF text sample: thumbnail upload failed (non-fatal)", {
+        filename: asset.filename, error: (uploadErr as Error).message,
+      });
+    }
   } catch (renderErr) {
     logger.warn("PDF text sample: mupdf page render failed", {
       filename: asset.filename, error: (renderErr as Error).message,
@@ -265,6 +276,7 @@ async function processSinglePdf(
       asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
       extraction_method: "ocr_text", extracted_text: ocrText,
       page_count: numPages, char_count: ocrText.length, extraction_error: null,
+      thumbnail_url: thumbnailUrl,
     };
   }
 
@@ -291,6 +303,7 @@ async function processSinglePdf(
       asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
       extraction_method: "ai_vision", extracted_text: aiText,
       page_count: numPages, char_count: aiText.length, extraction_error: null,
+      thumbnail_url: thumbnailUrl,
     };
   }
 
@@ -305,6 +318,7 @@ async function processSinglePdf(
     extracted_text: finalCount > 0 ? finalText : null,
     page_count: numPages, char_count: finalCount,
     extraction_error: aiErrMsg ? aiErrMsg.slice(0, 500) : null,
+    thumbnail_url: thumbnailUrl,
   };
 }
 
