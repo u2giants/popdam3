@@ -1244,7 +1244,7 @@ export type Database = {
           {
             foreignKeyName: "pdf_text_samples_asset_id_fkey"
             columns: ["asset_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "assets"
             referencedColumns: ["id"]
           },
