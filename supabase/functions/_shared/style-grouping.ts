@@ -81,7 +81,7 @@ export function selectPrimaryAsset(
     const base = (dot >= 0 ? a.filename.slice(0, dot) : a.filename).toLowerCase();
     return base.endsWith("3-4");
   };
-  const hasMockup = (a: typeof assets[0]) => fn(a).includes("mockup") || fn(a).includes("mock up");
+  const hasMockup = (a: typeof assets[0]) => fn(a).includes("mock");
   const hasArt = (a: typeof assets[0]) => fn(a).includes("art");
   const hasPackaging = (a: typeof assets[0]) => fn(a).includes("packaging");
   const hasUsableThumbnail = (a: typeof assets[0]) => !!a.thumbnail_url && !a.thumbnail_error;
