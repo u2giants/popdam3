@@ -1065,12 +1065,9 @@ export default function PdfTextSamplesTab() {
   const likelyScanned = samples.filter((s) => s.extraction_method === "likely_scanned").length;
   const failed = samples.filter((s) => s.extraction_method === "failed").length;
 
-  // PDFs that are likely placeholder/compat pages: no extractable text, scanned-only, or failed.
-  // Exclude .ai files — those are handled by the sentinel cleanup section above.
-  const placeholderCandidates = samples.filter(
-    (s) =>
-      (s.extraction_method === "likely_scanned" || s.extraction_method === "failed") &&
-      !s.filename.toLowerCase().endsWith(".ai"),
+  // Only files confirmed to contain the exact Adobe sentinel boilerplate.
+  const placeholderCandidates = samples.filter((s) =>
+    s.extracted_text?.includes("saved without PDF Content"),
   );
 
   const requestMode = (request?.mode as string) ?? "sample";
@@ -1174,7 +1171,7 @@ export default function PdfTextSamplesTab() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              These PDFs produced no extractable text — they may be Illustrator "no PDF compatibility" placeholder pages or purely scanned images.
+              These files contain the exact text "saved without PDF Content" — confirmed Illustrator files saved without PDF compatibility.
               Check the thumbnails below to confirm.
             </p>
             <div className="grid grid-cols-6 gap-2 max-h-80 overflow-y-auto pr-1">
