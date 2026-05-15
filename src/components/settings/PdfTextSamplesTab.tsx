@@ -1096,6 +1096,21 @@ export default function PdfTextSamplesTab() {
               targetAgentType={targetAgentType}
             />
           )}
+
+          {/* Last-run summary when completed */}
+          {!isActive && request?.status === "completed" && (
+            <div className="mt-3 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>
+                Last run completed{" "}
+                {request.completed_at
+                  ? new Date(request.completed_at as string).toLocaleString()
+                  : ""}{" "}
+                — {request.count ?? 0} file{(request.count as number) !== 1 ? "s" : ""} processed
+                {request.mode ? ` (${request.mode})` : ""}
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -3045,10 +3045,17 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
     return err(`Insert failed: ${error.message}`, 500);
   }
 
-  // Mark the request as completed
+  // Mark the request as completed — read existing value first to preserve mode
+  const { data: existingReq } = await db.from("admin_config").select("value").eq("key", "PDF_TEXT_SAMPLE_REQUEST").maybeSingle();
+  const existingValue = (existingReq?.value as Record<string, unknown>) ?? {};
   await db.from("admin_config").upsert({
     key: "PDF_TEXT_SAMPLE_REQUEST",
-    value: { status: "completed", completed_at: new Date().toISOString(), count: rows.length },
+    value: {
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      count: rows.length,
+      mode: existingValue.mode ?? "sample",
+    },
     updated_at: new Date().toISOString(),
   });
 
