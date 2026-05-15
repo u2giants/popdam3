@@ -1157,7 +1157,7 @@ async function handleMoveAsset(body: Record<string, unknown>) {
 
 // ── Route: scan-progress ────────────────────────────────────────────
 
-async function handleScanProgress(body: Record<string, unknown>) {
+async function handleScanProgress(body: Record<string, unknown>, agentId: string) {
   const sessionId = requireString(body, "session_id");
   const status = requireString(body, "status");
   const counters = body.counters as Record<string, unknown> | undefined;
@@ -1244,6 +1244,30 @@ async function handleScanProgress(body: Record<string, unknown>) {
           })
           .eq("key", "SCAN_REQUEST");
       }
+    }
+
+    // Clear stale scan_abort / force_stop flags from agent metadata so future
+    // auto-scans aren't incorrectly aborted by a previous manual Stop Scan action.
+    // These flags are set by handleStopScan and are only cleared by handleTriggerScan
+    // for manual scans; without this cleanup, auto-scans are always aborted immediately
+    // after a Stop Scan, showing as "failed" until the user manually triggers a new scan.
+    try {
+      const { data: agentRow } = await db
+        .from("agent_registrations")
+        .select("metadata")
+        .eq("id", agentId)
+        .maybeSingle();
+      if (agentRow) {
+        const meta = (agentRow.metadata as Record<string, unknown>) || {};
+        if (meta.scan_abort === true || meta.force_stop === true) {
+          await db
+            .from("agent_registrations")
+            .update({ metadata: { ...meta, scan_abort: false, force_stop: false } })
+            .eq("id", agentId);
+        }
+      }
+    } catch (_e) {
+      // Non-fatal: next manual scan trigger will clear the flags
     }
   }
 
@@ -1422,7 +1446,7 @@ async function handleCompleteRender(body: Record<string, unknown>) {
     if (asset?.style_group_id) {
       const { data: groupAssets } = await db
         .from("assets")
-        .select("id, filename, file_type, asset_type, created_at, thumbnail_url, thumbnail_error")
+        .select("id, filename, relative_path, file_type, asset_type, created_at, thumbnail_url, thumbnail_error")
         .eq("style_group_id", asset.style_group_id)
         .eq("is_deleted", false);
 
@@ -3323,7 +3347,7 @@ corsServe(async (req: Request) => {
       case "move-asset":
         return await handleMoveAsset(body);
       case "scan-progress":
-        return await handleScanProgress(body);
+        return await handleScanProgress(body, agentId);
       case "ingestion-progress":
         return await handleIngestionProgress(body);
       case "queue-render":
