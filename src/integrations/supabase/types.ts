@@ -2242,6 +2242,15 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_pdf_backfill_batch: {
+        Args: { p_limit?: number }
+        Returns: {
+          filename: string
+          id: string
+          needs_thumbnail: boolean
+          relative_path: string
+        }[]
+      }
       claim_render_jobs: {
         Args: {
           p_agent_id: string
@@ -2311,6 +2320,7 @@ export type Database = {
           last_id: string
         }[]
       }
+      count_pdf_backfill_remaining: { Args: never; Returns: number }
       create_parent: {
         Args: {
           p_automatic_maintenance?: string
