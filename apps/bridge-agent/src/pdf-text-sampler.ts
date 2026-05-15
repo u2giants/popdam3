@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { uploadPdfPage } from "./uploader.js";
+import { isAiWithoutPdfCompat } from "./thumbnailer.js";
 
 import * as mupdf from "mupdf";
 import { createWorker } from "tesseract.js";
@@ -173,6 +174,20 @@ async function processSinglePdf(
   fileResults: FileProgressEntry[],
 ): Promise<PdfTextSampleResult> {
   await reportProgress(index, total, asset.filename, "reading", fileResults);
+
+  // .ai files: use the 64 KB header check instead of loading into mupdf.
+  // Works regardless of file size; returns the known sentinel text if found.
+  if (asset.filename.toLowerCase().endsWith(".ai")) {
+    const isSentinel = await isAiWithoutPdfCompat(fullPath);
+    const sentinelText = "This is an Adobe® Illustrator® File that was saved without PDF Content.";
+    return {
+      asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
+      extraction_method: "pdf_text",
+      extracted_text: isSentinel ? sentinelText : null,
+      page_count: 1, char_count: isSentinel ? sentinelText.length : 0,
+      extraction_error: null,
+    };
+  }
 
   // Check file size before loading into memory
   const fileStat = await stat(fullPath);
