@@ -1172,28 +1172,14 @@ export default function PdfTextSamplesTab() {
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
               These files contain the exact text "saved without PDF Content" — confirmed Illustrator files saved without PDF compatibility.
-              Check the thumbnails below to confirm.
             </p>
-            <div className="grid grid-cols-6 gap-2 max-h-80 overflow-y-auto pr-1">
+            <div className="max-h-64 overflow-y-auto space-y-0.5">
               {placeholderCandidates.map((s) => (
-                <div key={s.id} className="space-y-1">
-                  <div className="aspect-square bg-muted rounded overflow-hidden border border-border flex items-center justify-center">
-                    {s.thumbnail_url ? (
-                      <img
-                        src={s.thumbnail_url}
-                        alt={s.relative_path}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
-                    ) : (
-                      <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
-                    )}
-                  </div>
-                  <p className="text-[9px] text-muted-foreground truncate leading-tight" title={s.relative_path}>
-                    {s.filename}
-                  </p>
-                  <MethodBadge method={s.extraction_method} />
+                <div key={s.id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/50">
+                  <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span className="text-xs text-muted-foreground truncate" title={s.relative_path}>
+                    {s.relative_path}
+                  </span>
                 </div>
               ))}
             </div>
