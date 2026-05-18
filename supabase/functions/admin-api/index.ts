@@ -1236,25 +1236,22 @@ async function handleGetPdfTextSamples() {
 
       const siblingMap = new Map<string, { thumbnail_url: string; filename: string }>();
       if (sentinelDirs.length > 0) {
-        const orFilter = sentinelDirs.map((d) => `relative_path.like.${d}/%`).join(",");
-        const { data: siblings } = await db
-          .from("assets")
-          .select("filename, relative_path, thumbnail_url")
-          .in("file_type", ["pdf", "png", "jpg"])
-          .eq("is_deleted", false)
-          .not("thumbnail_url", "is", null)
-          .or(orFilter)
-          .limit(500);
-        const dirSet = new Set(sentinelDirs);
-        for (const pass of [true, false]) {
-          for (const sib of (siblings ?? []) as Array<{ filename: string; relative_path: string; thumbnail_url: string }>) {
-            const dir = sib.relative_path.replace(/\/[^/]*$/, "");
-            if (!dirSet.has(dir) || siblingMap.has(dir)) continue;
-            if (pass ? /tech.?pack/i.test(sib.filename) : true) {
-              siblingMap.set(dir, { thumbnail_url: sib.thumbnail_url, filename: sib.filename });
-            }
-          }
-        }
+        // Query each directory individually — .or() with multi-word paths breaks
+        // the PostgREST parser because spaces in values are not quoted.
+        await Promise.all(sentinelDirs.map(async (dir) => {
+          const { data: rows } = await db
+            .from("assets")
+            .select("filename, thumbnail_url")
+            .in("file_type", ["pdf", "png", "jpg"])
+            .eq("is_deleted", false)
+            .not("thumbnail_url", "is", null)
+            .like("relative_path", `${dir}/%`)
+            .limit(20);
+          const siblings = (rows ?? []) as Array<{ filename: string; thumbnail_url: string }>;
+          const techPack = siblings.find((r) => /tech.?pack/i.test(r.filename));
+          const best = techPack ?? siblings[0] ?? null;
+          if (best) siblingMap.set(dir, { thumbnail_url: best.thumbnail_url, filename: best.filename });
+        }));
       }
 
       samples = (samples as Array<Record<string, unknown>>).map((s) => {

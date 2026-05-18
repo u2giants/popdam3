@@ -58,27 +58,22 @@ export async function handleGetAiSentinelStatus() {
     const replacementMap: Map<string, { thumbnail_url: string; filename: string }> = new Map();
 
     if (dirPrefixes.length > 0) {
-      // Filter by the specific sentinel directories so we don't need a large limit.
-      const orFilter = dirPrefixes.map((d) => `relative_path.like.${d}/%`).join(",");
-      const { data: candidates } = await db
-        .from("assets")
-        .select("filename, relative_path, thumbnail_url")
-        .in("file_type", ["pdf", "png", "jpg"])
-        .eq("is_deleted", false)
-        .not("thumbnail_url", "is", null)
-        .or(orFilter)
-        .limit(500);
-
-      const dirSet = new Set(dirPrefixes);
-      for (const pass of [true, false]) {
-        for (const c of (candidates ?? []) as Array<{ filename: string; relative_path: string; thumbnail_url: string }>) {
-          const dir = c.relative_path.replace(/\/[^/]*$/, "");
-          if (!dirSet.has(dir) || replacementMap.has(dir)) continue;
-          if (pass ? /tech.?pack/i.test(c.filename) : true) {
-            replacementMap.set(dir, { thumbnail_url: c.thumbnail_url, filename: c.filename });
-          }
-        }
-      }
+      // Query each directory individually — .or() with multi-word paths breaks
+      // the PostgREST parser because spaces in values are not quoted.
+      await Promise.all(dirPrefixes.map(async (dir) => {
+        const { data: siblings } = await db
+          .from("assets")
+          .select("filename, thumbnail_url")
+          .in("file_type", ["pdf", "png", "jpg"])
+          .eq("is_deleted", false)
+          .not("thumbnail_url", "is", null)
+          .like("relative_path", `${dir}/%`)
+          .limit(20);
+        const rows = (siblings ?? []) as Array<{ filename: string; thumbnail_url: string }>;
+        const techPack = rows.find((r) => /tech.?pack/i.test(r.filename));
+        const best = techPack ?? rows[0] ?? null;
+        if (best) replacementMap.set(dir, { thumbnail_url: best.thumbnail_url, filename: best.filename });
+      }));
     }
 
     const pendingFiles = rawPending.map((r) => {
