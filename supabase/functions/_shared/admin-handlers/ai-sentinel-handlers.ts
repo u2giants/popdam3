@@ -23,7 +23,7 @@ const SENTINEL_TEXT = "saved without PDF Content";
 export async function handleGetAiSentinelStatus() {
   const db = serviceClient();
   try {
-    const [statsRes, logRes, pendingRes, scanReqRes] = await Promise.all([
+    const [statsRes, logRes, pendingRes, cleanedUpRes, scanReqRes] = await Promise.all([
       db.rpc("get_ai_sentinel_stats"),
       db
         .from("ai_sentinel_cleanup_log")
@@ -31,25 +31,31 @@ export async function handleGetAiSentinelStatus() {
         .order("created_at", { ascending: false })
         .limit(100),
       // Fetch pending sentinel files with asset thumbnail so the UI can preview them.
+      // PostgREST can't parse a SQL subquery as a list of UUID values, so we filter
+      // already-cleaned-up assets in application code (cleanedUpRes below).
       db
         .from("pdf_text_samples")
         .select("asset_id, filename, relative_path, assets!inner(thumbnail_url, is_deleted)")
         .like("extracted_text", `%${SENTINEL_TEXT}%`)
         .eq("assets.is_deleted", false)
-        .not("asset_id", "in", `(select ai_asset_id from ai_sentinel_cleanup_log)`)
         .limit(200),
+      db.from("ai_sentinel_cleanup_log").select("ai_asset_id"),
       db.from("admin_config").select("value").eq("key", "AI_SENTINEL_SCAN_REQUEST").maybeSingle(),
     ]);
 
     if (statsRes.error) throw new Error(`Stats RPC failed: ${statsRes.error.message}`);
 
+    const alreadyCleaned = new Set(
+      ((cleanedUpRes.data ?? []) as Array<{ ai_asset_id: string }>).map((r) => r.ai_asset_id),
+    );
+
     // Flatten the join: pull thumbnail_url out of the nested assets object
-    const rawPending = (pendingRes.data ?? []) as Array<{
+    const rawPending = ((pendingRes.data ?? []) as Array<{
       asset_id: string;
       filename: string;
       relative_path: string;
       assets: { thumbnail_url: string | null } | null;
-    }>;
+    }>).filter((r) => !alreadyCleaned.has(r.asset_id));
 
     // For each pending sentinel, find the best sibling tech-pack thumbnail
     // (the .ai itself has no thumbnail — we show the replacement so the user
