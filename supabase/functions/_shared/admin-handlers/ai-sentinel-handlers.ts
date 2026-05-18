@@ -44,17 +44,49 @@ export async function handleGetAiSentinelStatus() {
     if (statsRes.error) throw new Error(`Stats RPC failed: ${statsRes.error.message}`);
 
     // Flatten the join: pull thumbnail_url out of the nested assets object
-    const pendingFiles = (pendingRes.data ?? []).map((r: {
+    const rawPending = (pendingRes.data ?? []) as Array<{
       asset_id: string;
       filename: string;
       relative_path: string;
       assets: { thumbnail_url: string | null } | null;
-    }) => ({
-      asset_id: r.asset_id,
-      filename: r.filename,
-      relative_path: r.relative_path,
-      thumbnail_url: r.assets?.thumbnail_url ?? null,
-    }));
+    }>;
+
+    // For each pending sentinel, find the best sibling tech-pack thumbnail
+    // (the .ai itself has no thumbnail — we show the replacement so the user
+    // can visually verify the detection is correct before deleting).
+    const dirPrefixes = [...new Set(rawPending.map((r) => r.relative_path.replace(/\/[^/]*$/, "")))];
+    let replacementMap: Map<string, { thumbnail_url: string; filename: string }> = new Map();
+
+    if (dirPrefixes.length > 0) {
+      const { data: candidates } = await db
+        .from("assets")
+        .select("filename, relative_path, thumbnail_url")
+        .in("file_type", ["pdf", "png", "jpg"])
+        .eq("is_deleted", false)
+        .not("thumbnail_url", "is", null)
+        .ilike("filename", "%tech pack%")
+        .limit(2000);
+
+      for (const c of (candidates ?? []) as Array<{ filename: string; relative_path: string; thumbnail_url: string }>) {
+        const dir = c.relative_path.replace(/\/[^/]*$/, "");
+        if (dirPrefixes.includes(dir) && !replacementMap.has(dir)) {
+          replacementMap.set(dir, { thumbnail_url: c.thumbnail_url, filename: c.filename });
+        }
+      }
+    }
+
+    const pendingFiles = rawPending.map((r) => {
+      const dir = r.relative_path.replace(/\/[^/]*$/, "");
+      const replacement = replacementMap.get(dir) ?? null;
+      return {
+        asset_id: r.asset_id,
+        filename: r.filename,
+        relative_path: r.relative_path,
+        thumbnail_url: r.assets?.thumbnail_url ?? null,
+        replacement_thumbnail_url: replacement?.thumbnail_url ?? null,
+        replacement_filename: replacement?.filename ?? null,
+      };
+    });
 
     const scanRequest = (scanReqRes.data?.value as Record<string, unknown>) ?? null;
 
