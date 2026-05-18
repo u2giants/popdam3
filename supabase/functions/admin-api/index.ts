@@ -1236,13 +1236,15 @@ async function handleGetPdfTextSamples() {
 
       const siblingMap = new Map<string, { thumbnail_url: string; filename: string }>();
       if (sentinelDirs.length > 0) {
+        const orFilter = sentinelDirs.map((d) => `relative_path.like.${d}/%`).join(",");
         const { data: siblings } = await db
           .from("assets")
           .select("filename, relative_path, thumbnail_url")
           .in("file_type", ["pdf", "png", "jpg"])
           .eq("is_deleted", false)
           .not("thumbnail_url", "is", null)
-          .limit(5000);
+          .or(orFilter)
+          .limit(500);
         const dirSet = new Set(sentinelDirs);
         for (const pass of [true, false]) {
           for (const sib of (siblings ?? []) as Array<{ filename: string; relative_path: string; thumbnail_url: string }>) {
