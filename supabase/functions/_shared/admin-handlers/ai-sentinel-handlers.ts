@@ -58,19 +58,27 @@ export async function handleGetAiSentinelStatus() {
     let replacementMap: Map<string, { thumbnail_url: string; filename: string }> = new Map();
 
     if (dirPrefixes.length > 0) {
+      // Fetch all PDF/PNG/JPG assets with thumbnails in the same directories.
+      // No filename filter — directories are SKU-specific so any sibling is relevant.
+      // Two passes: prefer files with "tech pack" or "techpack" in the name, then
+      // fall back to any PDF/PNG/JPG sibling.
       const { data: candidates } = await db
         .from("assets")
         .select("filename, relative_path, thumbnail_url")
         .in("file_type", ["pdf", "png", "jpg"])
         .eq("is_deleted", false)
         .not("thumbnail_url", "is", null)
-        .ilike("filename", "%tech pack%")
-        .limit(2000);
+        .limit(5000);
 
-      for (const c of (candidates ?? []) as Array<{ filename: string; relative_path: string; thumbnail_url: string }>) {
-        const dir = c.relative_path.replace(/\/[^/]*$/, "");
-        if (dirPrefixes.includes(dir) && !replacementMap.has(dir)) {
-          replacementMap.set(dir, { thumbnail_url: c.thumbnail_url, filename: c.filename });
+      const dirSet = new Set(dirPrefixes);
+      for (const pass of [true, false]) {
+        for (const c of (candidates ?? []) as Array<{ filename: string; relative_path: string; thumbnail_url: string }>) {
+          const dir = c.relative_path.replace(/\/[^/]*$/, "");
+          if (!dirSet.has(dir) || replacementMap.has(dir)) continue;
+          const isTechPack = /tech.?pack/i.test(c.filename);
+          if (pass ? isTechPack : true) {
+            replacementMap.set(dir, { thumbnail_url: c.thumbnail_url, filename: c.filename });
+          }
         }
       }
     }

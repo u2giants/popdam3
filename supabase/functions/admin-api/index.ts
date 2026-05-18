@@ -1204,20 +1204,65 @@ async function handleGetPdfTextSamples() {
     }
   }
 
-  // Enrich samples with thumbnail_url from assets
+  // Enrich samples with thumbnail_url from assets, plus sibling replacement thumbnail
+  // for sentinel .ai files (their own thumbnail renders the Adobe boilerplate warning,
+  // not the artwork — show a sibling PDF/PNG/JPG thumbnail instead).
   const assetIds = samples.map((s) => s.asset_id as string).filter(Boolean);
   if (assetIds.length > 0) {
     try {
       const { data: assetRows } = await db
         .from("assets")
-        .select("id, thumbnail_url")
+        .select("id, thumbnail_url, relative_path, file_type")
         .in("id", assetIds)
-        .limit(5000); // must match the samples query limit above
-      const thumbMap = new Map((assetRows ?? []).map((a) => [a.id as string, a.thumbnail_url as string | null]));
-      samples = samples.map((s) => ({
-        ...s,
-        thumbnail_url: s.asset_id ? (thumbMap.get(s.asset_id as string) ?? null) : null,
-      }));
+        .limit(5000);
+
+      const assetMap = new Map((assetRows ?? []).map((a) => [
+        a.id as string,
+        { thumbnail_url: a.thumbnail_url as string | null, relative_path: a.relative_path as string, file_type: a.file_type as string },
+      ]));
+
+      // For sentinel .ai files, find sibling PDF/PNG/JPG thumbnails
+      const sentinelSamples = (samples as Array<Record<string, unknown>>).filter(
+        (s) => (s.extracted_text as string | null)?.includes("saved without PDF Content") && assetMap.get(s.asset_id as string)?.file_type === "ai"
+      );
+      const sentinelDirs = [...new Set(sentinelSamples.map((s) => {
+        const rp = assetMap.get(s.asset_id as string)?.relative_path ?? "";
+        return rp.replace(/\/[^/]*$/, "");
+      }).filter(Boolean))];
+
+      const siblingMap = new Map<string, { thumbnail_url: string; filename: string }>();
+      if (sentinelDirs.length > 0) {
+        const { data: siblings } = await db
+          .from("assets")
+          .select("filename, relative_path, thumbnail_url")
+          .in("file_type", ["pdf", "png", "jpg"])
+          .eq("is_deleted", false)
+          .not("thumbnail_url", "is", null)
+          .limit(5000);
+        const dirSet = new Set(sentinelDirs);
+        for (const pass of [true, false]) {
+          for (const sib of (siblings ?? []) as Array<{ filename: string; relative_path: string; thumbnail_url: string }>) {
+            const dir = sib.relative_path.replace(/\/[^/]*$/, "");
+            if (!dirSet.has(dir) || siblingMap.has(dir)) continue;
+            if (pass ? /tech.?pack/i.test(sib.filename) : true) {
+              siblingMap.set(dir, { thumbnail_url: sib.thumbnail_url, filename: sib.filename });
+            }
+          }
+        }
+      }
+
+      samples = (samples as Array<Record<string, unknown>>).map((s) => {
+        const asset = assetMap.get(s.asset_id as string);
+        const isSentinel = (s.extracted_text as string | null)?.includes("saved without PDF Content") && asset?.file_type === "ai";
+        const dir = asset?.relative_path.replace(/\/[^/]*$/, "") ?? "";
+        const sibling = isSentinel ? (siblingMap.get(dir) ?? null) : null;
+        return {
+          ...s,
+          thumbnail_url: asset?.thumbnail_url ?? null,
+          replacement_thumbnail_url: sibling?.thumbnail_url ?? null,
+          replacement_filename: sibling?.filename ?? null,
+        };
+      });
     } catch (e) {
       console.warn("get-pdf-text-samples thumbnail enrichment failed:", e);
     }
