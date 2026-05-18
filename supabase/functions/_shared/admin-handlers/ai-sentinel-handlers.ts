@@ -224,9 +224,6 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
 }
 
 // ── POST: start an AI sentinel scan ──────────────────────────────────────────
-// Reuses the existing PDF_TEXT_SAMPLE_REQUEST / trigger_pdf_text_sample
-// pipeline so the current bridge agent (which already handles that command)
-// can do the work without requiring a code update.
 
 const AI_SENTINEL_BATCH_SIZE = 50;
 
@@ -265,29 +262,22 @@ export async function handleTriggerAiSentinelScan(body: Record<string, unknown>)
   const lastId = firstBatch[firstBatch.length - 1].id as string;
   const nowIso = new Date().toISOString();
 
-  // Queue via the existing PDF text sample pipeline (bridge agent already handles this)
+  // Use the dedicated fast-path: heartbeat reads batch + dispatches trigger_ai_sentinel_scan
+  // to the bridge which runs a 64KB header check (runAiSentinelScan) per asset.
+  // complete-ai-sentinel-scan advances the batch until target is met or all assets processed.
   await db.from("admin_config").upsert({
-    key: "PDF_TEXT_SAMPLE_REQUEST",
+    key: "AI_SENTINEL_SCAN_REQUEST",
     value: {
-      status: "pending",
-      mode: "ai_sentinel",
-      force_bridge: true,
+      status: "scanning",
       target,
       batch_size: AI_SENTINEL_BATCH_SIZE,
       found: 0,
       processed: 0,
       total_ai: totalAi ?? 0,
+      batch: firstBatch,
       last_id: lastId,
-      assets: firstBatch,
-      requested_at: nowIso,
+      started_at: nowIso,
     },
-    updated_at: nowIso,
-  });
-
-  // Lightweight progress tracker for the sentinel status card
-  await db.from("admin_config").upsert({
-    key: "AI_SENTINEL_SCAN_REQUEST",
-    value: { status: "scanning", target, found: 0, processed: 0, total_ai: totalAi ?? 0, started_at: nowIso },
     updated_at: nowIso,
   });
 
