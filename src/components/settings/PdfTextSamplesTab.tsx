@@ -788,12 +788,9 @@ function AiSentinelCleanupCard() {
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-72 overflow-y-auto p-1 rounded border bg-muted/30">
                     {pendingFiles.map((f) => (
                       <div key={f.asset_id} className="flex flex-col gap-1" title={f.relative_path}>
-                        <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center relative">
-                          {f.replacement_thumbnail_url ? (
-                            <>
-                              <img src={f.replacement_thumbnail_url} alt={f.replacement_filename ?? f.filename} className="w-full h-full object-cover" />
-                              <span className="absolute bottom-0 inset-x-0 text-center text-[8px] bg-black/50 text-white leading-tight py-0.5 truncate px-0.5" title={f.replacement_filename ?? ""}>sibling</span>
-                            </>
+                        <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center">
+                          {f.thumbnail_url ? (
+                            <img src={f.thumbnail_url} alt={f.filename} className="w-full h-full object-cover" />
                           ) : (
                             <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
                           )}
@@ -1183,12 +1180,9 @@ export default function PdfTextSamplesTab() {
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-72 overflow-y-auto p-1 rounded border bg-muted/30">
               {placeholderCandidates.map((s) => (
                 <div key={s.id} className="flex flex-col gap-1" title={s.relative_path}>
-                  <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center relative">
-                    {s.replacement_thumbnail_url ? (
-                      <>
-                        <img src={s.replacement_thumbnail_url} alt={s.replacement_filename ?? s.filename} className="w-full h-full object-cover" />
-                        <span className="absolute bottom-0 inset-x-0 text-center text-[8px] bg-black/50 text-white leading-tight py-0.5 truncate px-0.5" title={s.replacement_filename ?? ""}>sibling</span>
-                      </>
+                  <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center">
+                    {s.thumbnail_url ? (
+                      <img src={s.thumbnail_url} alt={s.filename} className="w-full h-full object-cover" />
                     ) : (
                       <FileText className="h-6 w-6 text-amber-400/60" />
                     )}
