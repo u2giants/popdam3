@@ -787,9 +787,7 @@ function AiSentinelCleanupCard() {
                     {pendingFiles.map((f) => (
                       <div key={f.asset_id} className="flex flex-col gap-1" title={f.relative_path}>
                         <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center relative">
-                          {f.thumbnail_url ? (
-                            <img src={f.thumbnail_url} alt={f.filename} className="w-full h-full object-cover" />
-                          ) : f.replacement_thumbnail_url ? (
+                          {f.replacement_thumbnail_url ? (
                             <>
                               <img src={f.replacement_thumbnail_url} alt={f.replacement_filename ?? f.filename} className="w-full h-full object-cover" />
                               <span className="absolute bottom-0 inset-x-0 text-center text-[8px] bg-black/50 text-white leading-tight py-0.5 truncate px-0.5" title={f.replacement_filename ?? ""}>sibling</span>
@@ -1180,17 +1178,13 @@ export default function PdfTextSamplesTab() {
             <p className="text-sm text-muted-foreground">
               These files contain the exact text "saved without PDF Content" — confirmed Illustrator files saved without PDF compatibility.
             </p>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-72 overflow-y-auto p-1 rounded border bg-muted/30">
+            <div className="max-h-64 overflow-y-auto space-y-0.5">
               {placeholderCandidates.map((s) => (
-                <div key={s.id} className="flex flex-col gap-1" title={s.relative_path}>
-                  <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center">
-                    {s.thumbnail_url ? (
-                      <img src={s.thumbnail_url} alt={s.filename} className="w-full h-full object-cover" />
-                    ) : (
-                      <FileText className="h-6 w-6 text-amber-400/60" />
-                    )}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground truncate leading-tight">{s.filename}</span>
+                <div key={s.id} className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/50">
+                  <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span className="text-xs text-muted-foreground truncate" title={s.relative_path}>
+                    {s.relative_path}
+                  </span>
                 </div>
               ))}
             </div>
