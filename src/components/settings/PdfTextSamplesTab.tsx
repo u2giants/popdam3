@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, Trash2 } from "lucide-react";
+import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -650,7 +650,8 @@ function AiSentinelCleanupCard() {
   const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
-  const [showPending, setShowPending] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const lastClickedIndexRef = useRef<number | null>(null);
 
   const { data: status, isLoading } = useQuery({
     queryKey: ["ai-sentinel-status"],
@@ -662,9 +663,15 @@ function AiSentinelCleanupCard() {
   });
 
   const cleanupMutation = useMutation({
-    mutationFn: () => call<{ ok: boolean; processed: number; with_replacement: number; without_replacement: number }>("run-ai-sentinel-cleanup", { limit: 100 }),
+    mutationFn: (assetIds: string[]) =>
+      call<{ ok: boolean; processed: number; with_replacement: number; without_replacement: number }>(
+        "run-ai-sentinel-cleanup",
+        { asset_ids: assetIds },
+      ),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["ai-sentinel-status"] });
+      setSelectedIds(new Set());
+      lastClickedIndexRef.current = null;
       if (data.processed === 0) {
         toast.info("No sentinel files pending cleanup right now.");
       } else {
@@ -676,6 +683,30 @@ function AiSentinelCleanupCard() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const handleItemClick = (assetId: string, index: number, e: React.MouseEvent) => {
+    if (e.shiftKey && lastClickedIndexRef.current !== null) {
+      const start = Math.min(lastClickedIndexRef.current, index);
+      const end = Math.max(lastClickedIndexRef.current, index);
+      const rangeIds = pendingFiles.slice(start, end + 1).map((f) => f.asset_id);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        rangeIds.forEach((id) => next.add(id));
+        return next;
+      });
+    } else if (e.ctrlKey || e.metaKey) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(assetId)) next.delete(assetId);
+        else next.add(assetId);
+        return next;
+      });
+      lastClickedIndexRef.current = index;
+    } else {
+      setSelectedIds(new Set([assetId]));
+      lastClickedIndexRef.current = index;
+    }
+  };
 
   const scanMutation = useMutation({
     mutationFn: () => call("trigger-ai-sentinel-scan", { target: 25 }),
@@ -691,6 +722,7 @@ function AiSentinelCleanupCard() {
   const pendingFiles = status?.pending_files ?? [];
   const scanRequest = status?.scan_request ?? null;
   const isScanning = scanRequest?.status === "scanning" || scanRequest?.status === "claimed";
+  const selectedCount = selectedIds.size;
   const sampledPct = stats ? Math.round((stats.sampled / Math.max(stats.total_ai, 1)) * 100) : 0;
   const scanPct = scanRequest && scanRequest.total_ai > 0
     ? Math.round((scanRequest.processed / scanRequest.total_ai) * 100)
@@ -777,29 +809,49 @@ function AiSentinelCleanupCard() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-amber-700">
-                    {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} flagged for deletion
+                    {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} without thumbnails — select to clean up
                   </span>
-                  <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setShowPending(!showPending)}>
-                    {showPending ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
-                    {showPending ? "Hide" : "Preview"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {selectedCount > 0 && (
+                      <button
+                        className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                        onClick={() => { setSelectedIds(new Set()); lastClickedIndexRef.current = null; }}
+                      >
+                        Deselect all
+                      </button>
+                    )}
+                    <button
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                      onClick={() => setSelectedIds(new Set(pendingFiles.map((f) => f.asset_id)))}
+                    >
+                      Select all
+                    </button>
+                  </div>
                 </div>
-                {showPending && (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-72 overflow-y-auto p-1 rounded border bg-muted/30">
-                    {pendingFiles.map((f) => (
-                      <div key={f.asset_id} className="flex flex-col gap-1" title={f.relative_path}>
-                        <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center">
-                          {f.thumbnail_url ? (
-                            <img src={f.thumbnail_url} alt={f.filename} className="w-full h-full object-cover" />
-                          ) : (
-                            <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 max-h-96 overflow-y-auto p-1 rounded border bg-muted/30">
+                  {pendingFiles.map((f, i) => {
+                    const selected = selectedIds.has(f.asset_id);
+                    return (
+                      <div
+                        key={f.asset_id}
+                        title={f.relative_path}
+                        className={`flex flex-col gap-1 cursor-pointer rounded p-0.5 select-none ${selected ? "ring-2 ring-amber-500 bg-amber-500/10" : "hover:bg-muted/60"}`}
+                        onClick={(e) => handleItemClick(f.asset_id, i, e)}
+                      >
+                        <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center relative">
+                          <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                          {selected && (
+                            <div className="absolute top-0.5 left-0.5 h-4 w-4 rounded bg-amber-500 flex items-center justify-center">
+                              <Check className="h-2.5 w-2.5 text-white" />
+                            </div>
                           )}
                         </div>
                         <span className="text-[10px] text-muted-foreground truncate leading-tight">{f.filename}</span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Click to select · Ctrl+click to toggle · Shift+click to range select</p>
               </div>
             )}
 
@@ -808,16 +860,16 @@ function AiSentinelCleanupCard() {
                 <Button
                   size="sm"
                   variant="destructive"
-                  disabled={stats.sentinel_pending === 0 || cleanupMutation.isPending}
+                  disabled={selectedCount === 0 || cleanupMutation.isPending}
                   onClick={() => setConfirmOpen(true)}
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1" />
-                  {stats.sentinel_pending === 0 ? "Nothing pending" : `Clean up ${stats.sentinel_pending} files`}
+                  {selectedCount === 0 ? "Select files to clean up" : `Clean up ${selectedCount} selected`}
                 </Button>
               ) : (
                 <>
-                  <span className="text-sm text-destructive font-medium">Delete {stats.sentinel_pending} .ai files?</span>
-                  <Button size="sm" variant="destructive" disabled={cleanupMutation.isPending} onClick={() => cleanupMutation.mutate()}>
+                  <span className="text-sm text-destructive font-medium">Delete {selectedCount} .ai file{selectedCount !== 1 ? "s" : ""}?</span>
+                  <Button size="sm" variant="destructive" disabled={cleanupMutation.isPending} onClick={() => cleanupMutation.mutate([...selectedIds])}>
                     {cleanupMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
                     Confirm
                   </Button>
