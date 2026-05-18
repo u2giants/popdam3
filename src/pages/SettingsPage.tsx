@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
 import { getUserSyncRoot, setUserSyncRoot } from "@/lib/path-utils";
+import { formatDateTime } from "@/lib/format-date";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1318,7 +1319,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-4">
           <SettingsSearch onNavigate={navigateTo} />
           <span className="text-xs text-muted-foreground font-mono select-all" title="Git commit hash and date of this build">
-            {__APP_COMMIT__} · {__APP_DATE__}
+            {__APP_COMMIT__} · {formatDateTime(__APP_DATE__)}
           </span>
         </div>
       </div>

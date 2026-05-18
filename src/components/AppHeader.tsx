@@ -223,7 +223,7 @@ export default function AppHeader() {
         {/* Right: Agent status + User menu */}
         <div className="flex items-center gap-3">
           {/* Build stamp */}
-          <span className="hidden lg:inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground/60 select-all" title="Build info">
+          <span className="hidden lg:inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground select-all" title="Build info">
             {__APP_COMMIT__} · {formatDateTime(__APP_DATE__)}
           </span>
 
