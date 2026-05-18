@@ -55,7 +55,7 @@ export async function handleGetAiSentinelStatus() {
     // (the .ai itself has no thumbnail — we show the replacement so the user
     // can visually verify the detection is correct before deleting).
     const dirPrefixes = [...new Set(rawPending.map((r) => r.relative_path.replace(/\/[^/]*$/, "")))];
-    let replacementMap: Map<string, { thumbnail_url: string; filename: string }> = new Map();
+    const replacementMap: Map<string, { thumbnail_url: string; filename: string }> = new Map();
 
     if (dirPrefixes.length > 0) {
       // Filter by the specific sentinel directories so we don't need a large limit.
