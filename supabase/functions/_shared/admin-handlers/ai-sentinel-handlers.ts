@@ -30,8 +30,7 @@ export async function handleGetAiSentinelStatus() {
         .select("id, ai_filename, ai_relative_path, replacement_filename, replacement_queued_for_thumbnail, created_at")
         .order("created_at", { ascending: false })
         .limit(100),
-      // Fetch sentinel files that have NO thumbnail — these are the actionable ones.
-      // Files with thumbnails rendered via native AI data are excluded (they have usable previews).
+      // Fetch sentinel files with their asset thumbnails so the UI can show them for visual verification.
       // PostgREST can't parse a SQL subquery as a list of UUID values, so we filter
       // already-cleaned-up assets in application code (cleanedUpRes below).
       db
@@ -39,7 +38,6 @@ export async function handleGetAiSentinelStatus() {
         .select("asset_id, filename, relative_path, assets!inner(thumbnail_url, is_deleted)")
         .like("extracted_text", `%${SENTINEL_TEXT}%`)
         .eq("assets.is_deleted", false)
-        .is("assets.thumbnail_url", null)
         .limit(200),
       db.from("ai_sentinel_cleanup_log").select("ai_asset_id"),
       db.from("admin_config").select("value").eq("key", "AI_SENTINEL_SCAN_REQUEST").maybeSingle(),
@@ -144,8 +142,7 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
     db.from("assets").select("id, filename, relative_path, thumbnail_url, style_group_id")
       .in("id", assetIds)
       .eq("is_deleted", false)
-      .eq("file_type", "ai")
-      .is("thumbnail_url", null),
+      .eq("file_type", "ai"),
     db.from("ai_sentinel_cleanup_log").select("ai_asset_id").in("ai_asset_id", assetIds),
   ]);
 

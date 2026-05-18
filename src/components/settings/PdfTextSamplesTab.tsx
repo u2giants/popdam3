@@ -839,8 +839,10 @@ function AiSentinelCleanupCard() {
                         onClick={(e) => handleItemClick(f.asset_id, i, e)}
                       >
                         <div className="aspect-square rounded overflow-hidden bg-muted flex items-center justify-center relative">
-                          {f.replacement_thumbnail_url ? (
-                            <img src={f.replacement_thumbnail_url} alt={f.replacement_filename ?? f.filename} className="w-full h-full object-cover opacity-60" />
+                          {f.thumbnail_url ? (
+                            <img src={f.thumbnail_url} alt={f.filename} className="w-full h-full object-cover" />
+                          ) : f.replacement_thumbnail_url ? (
+                            <img src={f.replacement_thumbnail_url} alt={f.replacement_filename ?? f.filename} className="w-full h-full object-cover opacity-50" title={`No .ai thumbnail — showing sibling: ${f.replacement_filename}`} />
                           ) : (
                             <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
                           )}
