@@ -24,6 +24,7 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { optionalNumber, optionalString, requireCanonicalRelativePath, requireNumber, requireString } from "../_shared/validators.ts";
 import { type DerivedMetadata, deriveMetadataFromPath, getCachedConfig } from "../_shared/metadata-derivation.ts";
+import { markAiIgnored } from "../_shared/mark-ai-ignored.ts";
 
 // ── Agent auth via x-agent-key ──────────────────────────────────────
 
@@ -3630,10 +3631,11 @@ corsServe(async (req: Request) => {
         const relativePath = body.relative_path as string | undefined;
         const reason = body.reason as string | undefined;
         if (!relativePath || !reason) return err("relative_path and reason required", 400);
-        const { error } = await db
-          .from("scanner_ai_ignores")
-          .upsert({ relative_path: relativePath, reason }, { onConflict: "relative_path", ignoreDuplicates: true });
-        if (error) return err(`mark-ai-ignored failed: ${error.message}`, 500);
+        try {
+          await markAiIgnored(db, relativePath, reason as "no_pdf_compat" | "pdf_sibling");
+        } catch (e) {
+          return err((e as Error).message, 500);
+        }
         return json({ ok: true });
       }
       case "complete-ai-sentinel-scan": {

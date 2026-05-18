@@ -15,6 +15,8 @@ import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { credentialsFromConfig, deleteSpacesObjects } from "../spaces-delete.ts";
 import { requireBridgeLatest } from "../bridge-version.ts";
+import { markAiIgnored } from "../mark-ai-ignored.ts";
+import { handleListSiblingImages } from "./sibling-scan-handlers.ts";
 
 const SENTINEL_TEXT = "saved without PDF Content";
 
@@ -175,9 +177,8 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
     // 2. Soft-delete the .ai asset
     await db.from("assets").update({ is_deleted: true, thumbnail_url: null }).eq("id", asset.id);
 
-    // 3. Add to permanent scanner ignore list so the bridge never re-ingests this file
-    await db.from("scanner_ai_ignores")
-      .upsert({ relative_path: asset.relative_path, reason: "no_pdf_compat" }, { onConflict: "relative_path" });
+    // 3. Add to scanner permanent ignore list — bridge will never re-ingest this path
+    await markAiIgnored(db, asset.relative_path, "no_pdf_compat");
 
     // 4. Delete its thumbnail from DO Spaces
     if (asset.thumbnail_url && creds) {
@@ -188,54 +189,37 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
       }
     }
 
-    // 5. Find any sibling PDF/PNG/JPG in the same dir or subdir (prefer files with thumbnails).
-    // We record the best match for the log but do NOT queue it for ingestion —
-    // the next user who encounters the folder can choose to ingest it.
-    const dirPrefix = asset.relative_path.replace(/\/[^/]*$/, "");
-    const { data: replacements } = await db
-      .from("assets")
-      .select("id, filename, relative_path, thumbnail_url")
-      .in("file_type", ["pdf", "png", "jpg"])
-      .eq("is_deleted", false)
-      .like("relative_path", `${dirPrefix}/%`)
-      .order("thumbnail_url", { ascending: false }) // prefer assets that already have thumbnails
-      .limit(5);
+    // 5. Queue a sibling image scan for this folder using the standard list-sibling-images
+    // flow. The bridge will find any JPG/PNG/PDF on disk; the user can then choose to
+    // ingest them via the normal sibling scan UI. We do not auto-ingest here.
+    const folderPath = asset.relative_path.replace(/\/[^/]*$/, "");
+    await handleListSiblingImages({ folder_path: folderPath, style_group_id: asset.style_group_id ?? undefined });
 
-    // Prefer a file with "tech pack" in the name, otherwise take the first result
-    const rows = (replacements ?? []) as Array<{ id: string; filename: string; relative_path: string; thumbnail_url: string | null }>;
-    const techPack = rows.find((r) => /tech.?pack/i.test(r.filename));
-    const replacement = techPack ?? rows[0] ?? null;
-
-    // 6. Log the action (no auto-queue — let the user choose to ingest the sibling)
+    // 6. Log the action (no replacement recorded — user picks from sibling scan results)
     await db.from("ai_sentinel_cleanup_log").insert({
       ai_asset_id: asset.id,
       ai_filename: asset.filename,
       ai_relative_path: asset.relative_path,
-      replacement_asset_id: replacement?.id ?? null,
-      replacement_filename: replacement?.filename ?? null,
-      replacement_relative_path: replacement?.relative_path ?? null,
-      replacement_had_thumbnail: replacement ? !!replacement.thumbnail_url : null,
+      replacement_asset_id: null,
+      replacement_filename: null,
+      replacement_relative_path: null,
+      replacement_had_thumbnail: null,
       replacement_queued_for_thumbnail: false,
     });
 
     results.push({
       ai_asset_id: asset.id,
       ai_filename: asset.filename,
-      replacement_asset_id: replacement?.id ?? null,
-      replacement_filename: replacement?.filename ?? null,
+      replacement_asset_id: null,
+      replacement_filename: null,
       queued: false,
     });
   }
 
-  const withReplacement = results.filter((r) => r.replacement_asset_id !== null).length;
-  const withoutReplacement = results.length - withReplacement;
-
   return json({
     ok: true,
     processed: results.length,
-    with_replacement: withReplacement,
-    without_replacement: withoutReplacement,
-    queued_for_thumbnail: results.filter((r) => r.queued).length,
+    sibling_scans_queued: results.length,
     results,
   });
 }
