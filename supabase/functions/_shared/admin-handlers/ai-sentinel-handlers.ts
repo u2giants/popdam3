@@ -175,7 +175,11 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
     // 2. Soft-delete the .ai asset
     await db.from("assets").update({ is_deleted: true, thumbnail_url: null }).eq("id", asset.id);
 
-    // 3. Delete its thumbnail from DO Spaces
+    // 3. Add to permanent scanner ignore list so the bridge never re-ingests this file
+    await db.from("scanner_ai_ignores")
+      .upsert({ relative_path: asset.relative_path, reason: "no_pdf_compat" }, { onConflict: "relative_path" });
+
+    // 4. Delete its thumbnail from DO Spaces
     if (asset.thumbnail_url && creds) {
       try {
         await deleteSpacesObjects([`thumbnails/${asset.id}.jpg`], creds);
@@ -184,30 +188,25 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
       }
     }
 
-    // 4. Find a replacement PDF/PNG/JPG with 'tech pack' in the name, same dir or subdir
+    // 5. Find any sibling PDF/PNG/JPG in the same dir or subdir (prefer files with thumbnails).
+    // We record the best match for the log but do NOT queue it for ingestion —
+    // the next user who encounters the folder can choose to ingest it.
     const dirPrefix = asset.relative_path.replace(/\/[^/]*$/, "");
     const { data: replacements } = await db
       .from("assets")
       .select("id, filename, relative_path, thumbnail_url")
       .in("file_type", ["pdf", "png", "jpg"])
       .eq("is_deleted", false)
-      .ilike("filename", "%tech pack%")
       .like("relative_path", `${dirPrefix}/%`)
       .order("thumbnail_url", { ascending: false }) // prefer assets that already have thumbnails
-      .limit(1);
+      .limit(5);
 
-    const replacement = replacements?.[0] ?? null;
-    let queued = false;
+    // Prefer a file with "tech pack" in the name, otherwise take the first result
+    const rows = (replacements ?? []) as Array<{ id: string; filename: string; relative_path: string; thumbnail_url: string | null }>;
+    const techPack = rows.find((r) => /tech.?pack/i.test(r.filename));
+    const replacement = techPack ?? rows[0] ?? null;
 
-    if (replacement && !replacement.thumbnail_url) {
-      // Queue thumbnail render for the replacement
-      const { error: rqErr } = await db
-        .from("render_queue")
-        .insert({ asset_id: replacement.id, status: "pending" });
-      if (!rqErr) queued = true;
-    }
-
-    // 5. Log the action
+    // 6. Log the action (no auto-queue — let the user choose to ingest the sibling)
     await db.from("ai_sentinel_cleanup_log").insert({
       ai_asset_id: asset.id,
       ai_filename: asset.filename,
@@ -216,7 +215,7 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
       replacement_filename: replacement?.filename ?? null,
       replacement_relative_path: replacement?.relative_path ?? null,
       replacement_had_thumbnail: replacement ? !!replacement.thumbnail_url : null,
-      replacement_queued_for_thumbnail: queued,
+      replacement_queued_for_thumbnail: false,
     });
 
     results.push({
@@ -224,7 +223,7 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
       ai_filename: asset.filename,
       replacement_asset_id: replacement?.id ?? null,
       replacement_filename: replacement?.filename ?? null,
-      queued,
+      queued: false,
     });
   }
 
