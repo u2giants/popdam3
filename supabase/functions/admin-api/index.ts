@@ -1223,12 +1223,16 @@ async function handleGetPdfTextSamples() {
 
       // For sentinel .ai files, find sibling PDF/PNG/JPG thumbnails
       const sentinelSamples = (samples as Array<Record<string, unknown>>).filter(
-        (s) => (s.extracted_text as string | null)?.includes("saved without PDF Content") && assetMap.get(s.asset_id as string)?.file_type === "ai"
+        (s) => (s.extracted_text as string | null)?.includes("saved without PDF Content") && assetMap.get(s.asset_id as string)?.file_type === "ai",
       );
-      const sentinelDirs = [...new Set(sentinelSamples.map((s) => {
-        const rp = assetMap.get(s.asset_id as string)?.relative_path ?? "";
-        return rp.replace(/\/[^/]*$/, "");
-      }).filter(Boolean))];
+      const sentinelDirs = [
+        ...new Set(
+          sentinelSamples.map((s) => {
+            const rp = assetMap.get(s.asset_id as string)?.relative_path ?? "";
+            return rp.replace(/\/[^/]*$/, "");
+          }).filter(Boolean),
+        ),
+      ];
 
       const siblingMap = new Map<string, { thumbnail_url: string; filename: string }>();
       if (sentinelDirs.length > 0) {
