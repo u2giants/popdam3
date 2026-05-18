@@ -117,9 +117,7 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
   const db = serviceClient();
   const limit = Math.min(Number(body.limit) || 50, 200);
   // If the caller passes specific asset_ids, only process those; otherwise batch up to limit.
-  const requestedIds = Array.isArray(body.asset_ids) && (body.asset_ids as unknown[]).length > 0
-    ? (body.asset_ids as string[])
-    : null;
+  const requestedIds = Array.isArray(body.asset_ids) && (body.asset_ids as unknown[]).length > 0 ? (body.asset_ids as string[]) : null;
 
   // 1. Find .ai assets with sentinel text and no thumbnail, not yet cleaned up
   let pendingQuery = db
