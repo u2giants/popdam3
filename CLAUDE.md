@@ -265,6 +265,51 @@ Both files must agree on the MerchGroup schema — if new MG01/02/03 codes are a
 
 ---
 
+## ERP Product Category Classification
+
+`product_category` on `style_groups` and `assets` has exactly **one write source**: the ERP enrichment worker (`apps/worker/src/handlers/erp.ts`). The sku-parser no longer writes it (removed 2026-05).
+
+### Why many pre-May-2025 items have null product_category
+
+Before 2025-05-10 the MG01 field from the ERP API was a single letter (M, V, A, …) whose meaning was unstable. After that date the letters map reliably to categories (M=Clock, V=Floor, A=Wall, etc.). In 2026-05 all `product_category` values on assets/style_groups with `erp_updated_at < 2025-05-10` were bulk-nulled. Those ~5,500 style groups need AI classification.
+
+### Classification workflow
+
+1. **Classify Now** (Settings → ERP Enrichment) → triggers `erp-classify` worker op → reads `erp_items_current.item_description` + MG fields → calls AI → inserts rows into `product_category_predictions`
+2. **ERP Items Browser** — review AI proposals (pending predictions only by default); approve, reject, or reclassify inline; bulk approve/reject
+3. **Review Queue** — same predictions, different view (high-confidence auto-applied items show here too)
+4. **Apply ERP Enrichment** — pushes approved categories from `product_category_predictions` to `style_groups` and `assets`
+
+Both Review Queue and ERP Items Browser hit `product_category_predictions` — mutations in either panel invalidate both query caches so they stay in sync.
+
+### product_category_predictions status values
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | confidence < 0.65 — needs human review |
+| `auto_applied` | confidence ≥ 0.65 — applied automatically, can still be reviewed |
+| `approved` | human confirmed (with optional category override) |
+| `rejected` | human rejected — item re-queued for next classify run |
+| `unclassifiable` | AI returned no usable result |
+
+### Categories
+
+`["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden", "Other"]`
+
+### Adding/changing classification rules
+
+The AI prompt lives in `apps/worker/src/handlers/erp.ts` (~line 336). It has two editable sections:
+- **IMPORTANT CLASSIFICATION RULES** — numbered rules for broad patterns
+- **CORRECTION EXAMPLES** — specific phrase → category mappings for counterintuitive cases
+
+Add new counterintuitive mappings to CORRECTION EXAMPLES. After changing the prompt, the next Classify Now run will use the updated rules. Previously classified items are not automatically re-run; reject them manually to re-queue.
+
+### AI model configuration
+
+Model is read from `admin_config.AI_TASK_MODELS.text_classification` (DB, cached 60 s). API key: `OPENROUTER_API_KEY` (preferred) or `ANTHROPIC_API_KEY`. Default model: `anthropic/claude-3.5-haiku`.
+
+---
+
 ## Temporary: .ai Sentinel Cleanup (delete when done)
 
 The `.ai` file library contained files saved from Illustrator without "Create PDF Compatible File" enabled. These have no usable content — only Adobe's boilerplate warning. A one-time reconciliation pass is in progress to delete them and replace their thumbnails with the nearest PDF/PNG/JPG tech pack in the same folder.
