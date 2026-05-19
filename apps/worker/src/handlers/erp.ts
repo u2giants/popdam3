@@ -199,7 +199,7 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
 
 // ── ERP Classification ───────────────────────────────────────────────────────
 
-const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden"];
+const CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden", "Other"];
 
 function isUnclassifiable(item: { item_description: string | null; style_number: string | null; external_id: string }): boolean {
   const desc = (item.item_description || "").trim().toLowerCase();
@@ -341,6 +341,7 @@ export async function handleClassifyErpCategories(opState: OpState): Promise<Bat
 - Workspace (desk organizers, office supplies, pen holders, paperweights, desk lamps)
 - Floor (floor lamps, large sculptures, plant stands, umbrella stands, floor decor)
 - Garden (outdoor décor, planters, garden statues, wind chimes, outdoor signs)
+- Other (odds and ends that don't fit any of the above — use only when no other category applies)
 
 IMPORTANT CLASSIFICATION RULES:
 1. "MDF letter" or "letter" items are WALL products (decorative letters mount on walls)

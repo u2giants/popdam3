@@ -1217,6 +1217,9 @@ function ReviewQueue() {
 
 // ── ERP Items Browser ────────────────────────────────────────────────
 
+const ALL_CATEGORIES = ["Wall", "Tabletop", "Clock", "Storage", "Workspace", "Floor", "Garden", "Other"] as const;
+type Category = typeof ALL_CATEGORIES[number];
+
 const CATEGORY_BADGE: Record<string, string> = {
   Wall: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
   Tabletop: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
@@ -1225,6 +1228,7 @@ const CATEGORY_BADGE: Record<string, string> = {
   Workspace: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
   Floor: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
   Garden: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  Other: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
 function ErpItemsBrowser() {
@@ -1236,9 +1240,11 @@ function ErpItemsBrowser() {
   const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState("prediction_confidence");
   const [sortAsc, setSortAsc] = useState(true);
+  const [groupByCategory, setGroupByCategory] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(true);
   const [selectedPredIds, setSelectedPredIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -1247,13 +1253,15 @@ function ErpItemsBrowser() {
     (window as any).__erpSearchTimer = setTimeout(() => setDebouncedSearch(val), 400);
   };
 
+  const effectiveSortBy = groupByCategory ? "category_then_confidence" : sortBy;
+
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, sortBy, sortAsc, pendingOnly],
+    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, effectiveSortBy, sortAsc, pendingOnly],
     queryFn: () => call("erp-items-browse", {
       search: debouncedSearch,
       page,
       page_size: pageSize,
-      sort_by: sortBy,
+      sort_by: effectiveSortBy,
       sort_asc: sortAsc,
       pending_predictions_only: pendingOnly,
     }),
@@ -1264,10 +1272,15 @@ function ErpItemsBrowser() {
   const totalPages = data?.total_pages ?? 1;
 
   const reviewMutation = useMutation({
-    mutationFn: (params: { action: "approve" | "reject"; prediction_id: string }) =>
-      call("erp-review-action", { review_action: params.action, prediction_id: params.prediction_id }),
+    mutationFn: (params: { action: "approve" | "reject"; prediction_id: string; override_category?: string }) =>
+      call("erp-review-action", {
+        review_action: params.action,
+        prediction_id: params.prediction_id,
+        ...(params.override_category ? { override_category: params.override_category } : {}),
+      }),
     onSuccess: (_, params) => {
       toast.success(params.action === "approve" ? "Approved" : "Rejected");
+      setOverrides((prev) => { const next = { ...prev }; delete next[params.prediction_id]; return next; });
       queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
     },
     onError: (e) => toast.error((e as Error).message),
@@ -1400,6 +1413,13 @@ function ErpItemsBrowser() {
             />
             Pending review only
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input type="checkbox" checked={groupByCategory}
+              onChange={(e) => { setGroupByCategory(e.target.checked); setPage(1); }}
+              className="rounded"
+            />
+            Group by category
+          </label>
         </div>
 
         {isLoading ? (
@@ -1431,80 +1451,112 @@ function ErpItemsBrowser() {
                   </tr>
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
-                  {items.map((item: any, idx: number) => {
-                    const hasPred = !!item.prediction_id;
-                    const confPct = hasPred ? Math.round((item.prediction_confidence ?? 0) * 100) : null;
-                    const confColor = confPct === null ? "" : confPct >= 85 ? "text-green-600 dark:text-green-400" : confPct >= 65 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400";
-                    const catClass = item.predicted_category ? (CATEGORY_BADGE[item.predicted_category] ?? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200") : null;
-                    return (
-                      <tr key={item.id || item.external_id}
-                        className={`border-b transition-colors hover:bg-muted/50 ${selectedPredIds.has(item.prediction_id) ? "bg-primary/10" : ""}`}
-                      >
-                        <td className="px-3 py-2 align-top w-10">
-                          {hasPred && (
-                            <input type="checkbox" checked={selectedPredIds.has(item.prediction_id)}
-                              onClick={(e) => handleRowCheck(item.prediction_id, idx, e as unknown as React.MouseEvent<HTMLInputElement>)}
-                              readOnly className="rounded cursor-pointer mt-0.5"
-                            />
-                          )}
-                        </td>
-                        <td className="px-3 py-2 align-top text-xs font-mono whitespace-nowrap">{item.style_number ?? "—"}</td>
-                        <td className="px-3 py-2 align-top text-xs min-w-[260px] max-w-[520px] whitespace-normal break-words leading-snug">
-                          {item.item_description ?? <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          {catClass ? (
-                            <TooltipProvider delayDuration={200}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium cursor-help ${catClass}`}>
-                                    {item.predicted_category}
-                                  </span>
-                                </TooltipTrigger>
-                                {item.prediction_rationale && (
-                                  <TooltipContent side="top" className="max-w-xs text-xs whitespace-normal">
-                                    {item.prediction_rationale}
-                                  </TooltipContent>
+                  {(() => {
+                    const rows: React.ReactNode[] = [];
+                    let lastCat: string | null = null;
+                    items.forEach((item: any, idx: number) => {
+                      const hasPred = !!item.prediction_id;
+                      const effectiveCat = overrides[item.prediction_id] ?? item.predicted_category ?? null;
+                      const confPct = hasPred ? Math.round((item.prediction_confidence ?? 0) * 100) : null;
+                      const confColor = confPct === null ? "" : confPct >= 85 ? "text-green-600 dark:text-green-400" : confPct >= 65 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400";
+                      const isOverridden = hasPred && !!overrides[item.prediction_id];
+
+                      if (groupByCategory && effectiveCat !== lastCat) {
+                        lastCat = effectiveCat;
+                        const badgeClass = effectiveCat ? (CATEGORY_BADGE[effectiveCat] ?? "bg-gray-100 text-gray-700") : "bg-muted text-muted-foreground";
+                        rows.push(
+                          <tr key={`group-${effectiveCat}-${idx}`} className="border-b bg-muted/40">
+                            <td colSpan={9} className="px-3 py-1.5">
+                              <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${badgeClass}`}>
+                                {effectiveCat ?? "No prediction"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      rows.push(
+                        <tr key={item.id || item.external_id}
+                          className={`border-b transition-colors hover:bg-muted/50 ${selectedPredIds.has(item.prediction_id) ? "bg-primary/10" : ""}`}
+                        >
+                          <td className="px-3 py-2 align-top w-10">
+                            {hasPred && (
+                              <input type="checkbox" checked={selectedPredIds.has(item.prediction_id)}
+                                onClick={(e) => handleRowCheck(item.prediction_id, idx, e as unknown as React.MouseEvent<HTMLInputElement>)}
+                                readOnly className="rounded cursor-pointer mt-0.5"
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-2 align-top text-xs font-mono whitespace-nowrap">{item.style_number ?? "—"}</td>
+                          <td className="px-3 py-2 align-top text-xs min-w-[260px] max-w-[520px] whitespace-normal break-words leading-snug">
+                            {item.item_description ?? <span className="text-muted-foreground/40">—</span>}
+                          </td>
+                          <td className="px-3 py-2 align-top">
+                            {hasPred ? (
+                              <div className="flex flex-col gap-0.5">
+                                <select
+                                  value={effectiveCat ?? ""}
+                                  onChange={(e) => setOverrides((prev) => ({ ...prev, [item.prediction_id]: e.target.value }))}
+                                  className={`rounded px-1.5 py-0.5 text-xs font-medium border-0 cursor-pointer focus:ring-1 focus:ring-primary ${CATEGORY_BADGE[effectiveCat ?? ""] ?? "bg-gray-100 text-gray-700"}`}
+                                >
+                                  {ALL_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                {isOverridden && (
+                                  <span className="text-[10px] text-muted-foreground line-through">{item.predicted_category}</span>
                                 )}
-                              </Tooltip>
-                            </TooltipProvider>
-                          ) : <span className="text-muted-foreground/40 text-xs">—</span>}
-                        </td>
-                        <td className={`px-3 py-2 align-top text-xs font-medium tabular-nums ${confColor}`}>
-                          {confPct !== null ? `${confPct}%` : <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          {renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code), item.raw_mg_fields?.mg01)}
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          {renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code), item.raw_mg_fields?.mg02)}
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          {renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code), item.raw_mg_fields?.mg03)}
-                        </td>
-                        <td className="px-3 py-2 align-top">
-                          {hasPred && (
-                            <div className="flex items-center gap-1">
-                              <Button size="icon" variant="ghost"
-                                className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
-                                onClick={() => reviewMutation.mutate({ action: "approve", prediction_id: item.prediction_id })}
-                                disabled={reviewMutation.isPending} title="Approve"
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost"
-                                className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                onClick={() => reviewMutation.mutate({ action: "reject", prediction_id: item.prediction_id })}
-                                disabled={reviewMutation.isPending} title="Reject"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                              </div>
+                            ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                          </td>
+                          <td className={`px-3 py-2 align-top text-xs font-medium tabular-nums ${confColor}`}>
+                            {hasPred ? (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help">{confPct}%</span>
+                                  </TooltipTrigger>
+                                  {item.prediction_rationale && (
+                                    <TooltipContent side="top" className="max-w-xs text-xs whitespace-normal">
+                                      {item.prediction_rationale}
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : <span className="text-muted-foreground/40">—</span>}
+                          </td>
+                          <td className="px-3 py-2 align-top">
+                            {renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code), item.raw_mg_fields?.mg01)}
+                          </td>
+                          <td className="px-3 py-2 align-top">
+                            {renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code), item.raw_mg_fields?.mg02)}
+                          </td>
+                          <td className="px-3 py-2 align-top">
+                            {renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code), item.raw_mg_fields?.mg03)}
+                          </td>
+                          <td className="px-3 py-2 align-top">
+                            {hasPred && (
+                              <div className="flex items-center gap-1">
+                                <Button size="icon" variant="ghost"
+                                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                  onClick={() => reviewMutation.mutate({ action: "approve", prediction_id: item.prediction_id, override_category: overrides[item.prediction_id] })}
+                                  disabled={reviewMutation.isPending} title="Approve"
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button size="icon" variant="ghost"
+                                  className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  onClick={() => reviewMutation.mutate({ action: "reject", prediction_id: item.prediction_id })}
+                                  disabled={reviewMutation.isPending} title="Reject"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
+                    return rows;
+                  })()}
                 </tbody>
               </table>
             </div>

@@ -307,8 +307,10 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
     erp_updated_at: "e.erp_updated_at",
     prediction_confidence: "p.confidence",
     predicted_category: "p.predicted_category",
+    category_then_confidence: "p.predicted_category",
   };
   const effectiveSort = SORT_MAP[sortBy] ?? "e.synced_at";
+  const secondarySort = sortBy === "category_then_confidence" ? ", p.confidence ASC NULLS LAST" : "";
 
   const conditions: string[] = [];
   if (!showDismissed) conditions.push("e.dismissed = false");
@@ -343,7 +345,7 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
     p.id as prediction_id, p.predicted_category, p.confidence as prediction_confidence,
     p.rationale as prediction_rationale, p.status as prediction_status
   FROM erp_items_current e ${predJoin} ${whereClause}
-  ORDER BY ${effectiveSort} ${sortAsc ? "ASC" : "DESC"} NULLS LAST
+  ORDER BY ${effectiveSort} ${sortAsc ? "ASC" : "DESC"} NULLS LAST${secondarySort}
   LIMIT ${pageSize} OFFSET ${offset}`;
 
   const [countRes, dataRes] = await Promise.all([
