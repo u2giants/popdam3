@@ -93,7 +93,6 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
         property_code: parsed.property_code,
         property_name: parsed.property_name,
         sku_sequence: parsed.sku_sequence,
-        product_category: parsed.product_category,
         division_code: parsed.division_code,
         division_name: parsed.division_name,
       };

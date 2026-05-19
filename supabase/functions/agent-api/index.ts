@@ -732,7 +732,6 @@ async function assignToStyleGroup(
       property_id: skuFields.property_id ?? derived.property_id ?? null,
       property_code: skuFields.property_code ?? null,
       property_name: skuFields.property_name ?? derived.property_name ?? null,
-      product_category: skuFields.product_category ?? null,
       division_code: skuFields.division_code ?? null,
       division_name: skuFields.division_name ?? null,
       mg01_code: skuFields.mg01_code ?? null,
@@ -881,7 +880,6 @@ async function handleIngest(
       licensor_code: parsed.licensor_code,
       property_code: parsed.property_code,
       sku_sequence: parsed.sku_sequence,
-      product_category: parsed.product_category,
       division_code: parsed.division_code,
       division_name: parsed.division_name,
       // NOTE: is_licensed is intentionally EXCLUDED here.
