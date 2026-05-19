@@ -358,6 +358,9 @@ CORRECTION EXAMPLES (learn from these past mistakes):
 - "Canvas stretched Disney Princess" → Wall (stretched canvas wall art)
 - "LED canvas Disney" → Wall (illuminated wall art)
 - "Disney wooden box" → Wall (decorative wooden wall panels, not storage containers)
+- "printed glass" → Wall (glass panels with printed artwork are wall art, not Tabletop)
+- "molded shadowbox" → Wall (shadow boxes in this catalog are wall-hung display frames, not Storage)
+- "shadowbox" → Wall (all shadowbox items are wall-mounted, not freestanding storage)
 
 Product to classify:
 - Style Number: ${item.style_number || "unknown"}

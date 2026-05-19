@@ -842,6 +842,7 @@ function ReviewQueue() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
       queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
     },
     onError: (e) => toast.error(e.message),
@@ -854,6 +855,7 @@ function ReviewQueue() {
       toast.success(`Rejected ${ids.length} predictions`);
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
       queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
     },
     onError: (e) => toast.error(e.message),
@@ -866,6 +868,7 @@ function ReviewQueue() {
       toast.success(`Dismissed ${ids.length} items — they will never be re-classified`);
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
       queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
     },
     onError: (e) => toast.error(e.message),
@@ -1282,6 +1285,8 @@ function ErpItemsBrowser() {
       toast.success(params.action === "approve" ? "Approved" : "Rejected");
       setOverrides((prev) => { const next = { ...prev }; delete next[params.prediction_id]; return next; });
       queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -1294,6 +1299,8 @@ function ErpItemsBrowser() {
       toast.success(params.action === "bulk-approve" ? `Approved ${n} items` : `Rejected ${n} items`);
       setSelectedPredIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["erp-stats"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
