@@ -1550,18 +1550,21 @@ export type Database = {
           id: string
           reason: string
           relative_path: string
+          snoozed_until: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           reason: string
           relative_path: string
+          snoozed_until?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           reason?: string
           relative_path?: string
+          snoozed_until?: string | null
         }
         Relationships: []
       }
