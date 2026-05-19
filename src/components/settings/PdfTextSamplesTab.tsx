@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, Trash2, Check } from "lucide-react";
+import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, Trash2, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -664,10 +664,7 @@ function AiSentinelCleanupCard() {
 
   const cleanupMutation = useMutation({
     mutationFn: (assetIds: string[]) =>
-      call<{ ok: boolean; processed: number; with_replacement: number; without_replacement: number }>(
-        "run-ai-sentinel-cleanup",
-        { asset_ids: assetIds },
-      ),
+      call<{ ok: boolean; processed: number }>("run-ai-sentinel-cleanup", { asset_ids: assetIds }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["ai-sentinel-status"] });
       setSelectedIds(new Set());
@@ -675,11 +672,21 @@ function AiSentinelCleanupCard() {
       if (data.processed === 0) {
         toast.info("No sentinel files pending cleanup right now.");
       } else {
-        toast.success(
-          `Cleaned up ${data.processed} .ai files — ${data.with_replacement} had replacements, ${data.without_replacement} did not.`,
-        );
+        toast.success(`Cleaned up ${data.processed} .ai file${data.processed !== 1 ? "s" : ""} and queued sibling scans.`);
       }
       setConfirmOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const dismissMutation = useMutation({
+    mutationFn: (assetIds: string[]) =>
+      call<{ ok: boolean; dismissed: number }>("dismiss-ai-sentinel", { asset_ids: assetIds }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["ai-sentinel-status"] });
+      setSelectedIds(new Set());
+      lastClickedIndexRef.current = null;
+      toast.success(`Dismissed ${data.dismissed} file${data.dismissed !== 1 ? "s" : ""} — removed from sentinel list.`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -863,15 +870,27 @@ function AiSentinelCleanupCard() {
 
             <div className="flex flex-wrap items-center gap-2">
               {!confirmOpen ? (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={selectedCount === 0 || cleanupMutation.isPending}
-                  onClick={() => setConfirmOpen(true)}
-                >
-                  <Trash2 className="h-3.5 w-3.5 mr-1" />
-                  {selectedCount === 0 ? "Select files to clean up" : `Clean up ${selectedCount} selected`}
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={selectedCount === 0 || cleanupMutation.isPending || dismissMutation.isPending}
+                    onClick={() => setConfirmOpen(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    {selectedCount === 0 ? "Select files to clean up" : `Clean up ${selectedCount} selected`}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={selectedCount === 0 || dismissMutation.isPending || cleanupMutation.isPending}
+                    onClick={() => dismissMutation.mutate([...selectedIds])}
+                    title="Remove from sentinel list without deleting the asset — use when a file was incorrectly flagged"
+                  >
+                    {dismissMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <X className="h-3.5 w-3.5 mr-1" />}
+                    Not sentinel
+                  </Button>
+                </>
               ) : (
                 <>
                   <span className="text-sm text-destructive font-medium">Delete {selectedCount} .ai file{selectedCount !== 1 ? "s" : ""}?</span>

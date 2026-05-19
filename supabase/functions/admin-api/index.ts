@@ -1555,6 +1555,14 @@ corsServe(async (req: Request) => {
         return await handleGetAiSentinelStatus();
       case "run-ai-sentinel-cleanup":
         return await handleRunAiSentinelCleanup(body);
+      case "dismiss-ai-sentinel": {
+        const assetIds = body.asset_ids as string[] | undefined;
+        if (!Array.isArray(assetIds) || assetIds.length === 0) return err("asset_ids required", 400);
+        const db = serviceClient();
+        const { error } = await db.from("pdf_text_samples").delete().in("asset_id", assetIds);
+        if (error) return err(error.message, 500);
+        return json({ ok: true, dismissed: assetIds.length });
+      }
       case "trigger-ai-sentinel-scan":
         return await handleTriggerAiSentinelScan(body);
       case "backfill-pdf-files-used":
