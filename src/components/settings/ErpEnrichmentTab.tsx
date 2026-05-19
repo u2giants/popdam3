@@ -1217,25 +1217,28 @@ function ReviewQueue() {
 
 // ── ERP Items Browser ────────────────────────────────────────────────
 
+const CATEGORY_BADGE: Record<string, string> = {
+  Wall: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  Tabletop: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+  Clock: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  Storage: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  Workspace: "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
+  Floor: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  Garden: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+};
+
 function ErpItemsBrowser() {
   const { call } = useAdminApi();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(1000);
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState("synced_at");
-  const [sortAsc, setSortAsc] = useState(false);
-  const [maxDigitsStyle, setMaxDigitsStyle] = useState<number | null>(null);
-  const [maxDigitsDesc, setMaxDigitsDesc] = useState<number | null>(null);
-  const [showDismissed, setShowDismissed] = useState(false);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pageSize] = useState(50);
+  const [sortBy, setSortBy] = useState("prediction_confidence");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [pendingOnly, setPendingOnly] = useState(true);
+  const [selectedPredIds, setSelectedPredIds] = useState<Set<string>>(new Set());
   const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
-  const [colWidths, setColWidths] = useState<Record<string, number>>({});
-  const [resizing, setResizing] = useState<{ col: string; startX: number; startW: number } | null>(null);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -1245,18 +1248,14 @@ function ErpItemsBrowser() {
   };
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, sortBy, sortAsc, maxDigitsStyle, maxDigitsDesc, showDismissed, dateFrom, dateTo],
+    queryKey: ["erp-items-browse", debouncedSearch, page, pageSize, sortBy, sortAsc, pendingOnly],
     queryFn: () => call("erp-items-browse", {
       search: debouncedSearch,
       page,
       page_size: pageSize,
       sort_by: sortBy,
       sort_asc: sortAsc,
-      show_dismissed: showDismissed,
-      ...(maxDigitsStyle !== null ? { max_digits_style: maxDigitsStyle } : {}),
-      ...(maxDigitsDesc !== null ? { max_digits_desc: maxDigitsDesc } : {}),
-      ...(dateFrom ? { date_from: dateFrom } : {}),
-      ...(dateTo ? { date_to: dateTo } : {}),
+      pending_predictions_only: pendingOnly,
     }),
   });
 
@@ -1264,97 +1263,96 @@ function ErpItemsBrowser() {
   const total = data?.total ?? 0;
   const totalPages = data?.total_pages ?? 1;
 
-  const dismissMutation = useMutation({
-    mutationFn: (params: { ids: string[]; dismiss: boolean }) =>
-      call("erp-items-dismiss", { ids: params.ids, dismiss: params.dismiss }),
+  const reviewMutation = useMutation({
+    mutationFn: (params: { action: "approve" | "reject"; prediction_id: string }) =>
+      call("erp-review-action", { review_action: params.action, prediction_id: params.prediction_id }),
     onSuccess: (_, params) => {
-      toast.success(params.dismiss ? `Dismissed ${params.ids.length} items` : `Restored ${params.ids.length} items`);
-      setSelectedIds(new Set());
+      toast.success(params.action === "approve" ? "Approved" : "Rejected");
+      queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const bulkMutation = useMutation({
+    mutationFn: (params: { action: "bulk-approve" | "bulk-reject"; prediction_ids: string[] }) =>
+      call("erp-review-action", { review_action: params.action, prediction_ids: params.prediction_ids }),
+    onSuccess: (_, params) => {
+      const n = params.prediction_ids.length;
+      toast.success(params.action === "bulk-approve" ? `Approved ${n} items` : `Rejected ${n} items`);
+      setSelectedPredIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["erp-items-browse"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
 
   const handleSort = (col: string) => {
-    if (sortBy === col) {
-      setSortAsc(!sortAsc);
-    } else {
-      setSortBy(col);
-      setSortAsc(true);
-    }
+    if (sortBy === col) setSortAsc(!sortAsc);
+    else { setSortBy(col); setSortAsc(col === "prediction_confidence"); }
     setPage(1);
   };
 
-  // Checkbox click with shift/ctrl support
-  const handleRowCheck = useCallback((id: string, idx: number, e: React.MouseEvent<HTMLInputElement>) => {
-    e.stopPropagation(); // prevent row expand
-    const shiftKey = e.shiftKey;
-    const ctrlKey = e.ctrlKey || e.metaKey;
-
-    setSelectedIds((prev) => {
+  const handleRowCheck = useCallback((predId: string, idx: number, e: React.MouseEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    setSelectedPredIds((prev) => {
       const next = new Set(prev);
-
-      if (shiftKey && lastClickedIdx !== null) {
+      if (e.shiftKey && lastClickedIdx !== null) {
         const start = Math.min(lastClickedIdx, idx);
         const end = Math.max(lastClickedIdx, idx);
         for (let i = start; i <= end; i++) {
-          if (items[i]?.id) next.add(items[i].id);
+          const pid = items[i]?.prediction_id;
+          if (pid) next.add(pid);
         }
-      } else if (ctrlKey) {
-        if (next.has(id)) next.delete(id); else next.add(id);
       } else {
-        if (next.has(id)) next.delete(id); else next.add(id);
+        if (next.has(predId)) next.delete(predId); else next.add(predId);
       }
-
       return next;
     });
     setLastClickedIdx(idx);
   }, [items, lastClickedIdx]);
 
+  const eligibleItems = items.filter((i: any) => i.prediction_id);
   const toggleAll = () => {
-    if (selectedIds.size === items.length) {
-      setSelectedIds(new Set());
+    if (selectedPredIds.size === eligibleItems.length && eligibleItems.length > 0) {
+      setSelectedPredIds(new Set());
     } else {
-      setSelectedIds(new Set(items.map((i: any) => i.id)));
+      setSelectedPredIds(new Set(eligibleItems.map((i: any) => i.prediction_id)));
     }
   };
 
-  // Column resize handlers
-  const handleResizeStart = (col: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const th = (e.target as HTMLElement).closest("th");
-    const startW = colWidths[col] || th?.offsetWidth || 120;
-    setResizing({ col, startX: e.clientX, startW });
-
-    const onMouseMove = (ev: MouseEvent) => {
-      const diff = ev.clientX - e.clientX;
-      setColWidths((prev) => ({ ...prev, [col]: Math.max(60, startW + diff) }));
-    };
-    const onMouseUp = () => {
-      setResizing(null);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+  const renderMgCell = (code: string | null, desc: string | null, rawApiValue?: string | null) => {
+    const effectiveCode = code && code.length === 1 ? code : null;
+    const effectiveRaw = rawApiValue || (code && code.length > 1 ? code : null);
+    if (!effectiveCode && !effectiveRaw) return <span className="text-muted-foreground/40">—</span>;
+    if (!effectiveCode && effectiveRaw) return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help text-amber-600 dark:text-amber-400 text-xs">{effectiveRaw}</span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">Unmatched in MG schema</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help text-xs">{desc || effectiveCode}</span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">Code: {effectiveCode}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   };
 
-  const ATTRIBUTE_COLS = [
-    { key: "style_number", label: "Style #" },
-    { key: "item_description", label: "Description" },
-    { key: "mg_category", label: "Category" },
-    { key: "mg01_code", label: "MG01" },
-    { key: "mg02_code", label: "MG02" },
-    { key: "mg03_code", label: "MG03" },
-    { key: "erp_updated_at", label: "Created Date" },
-    { key: "size_code", label: "Size" },
-    { key: "licensor_code", label: "Licensor" },
-    { key: "property_code", label: "Property" },
-    { key: "division_code", label: "Division" },
-    { key: "prepack_code", label: "Prepack" },
-    { key: "prepack_codes", label: "Prepack Codes" },
-  ];
+  const SortTh = ({ col, label, className }: { col: string; label: string; className?: string }) => (
+    <th
+      className={`h-10 px-3 text-left align-middle font-medium text-muted-foreground text-xs cursor-pointer hover:text-foreground select-none whitespace-nowrap ${className ?? ""}`}
+      onClick={() => handleSort(col)}
+    >
+      {label}{sortBy === col && <span className="ml-1">{sortAsc ? "↑" : "↓"}</span>}
+    </th>
+  );
 
   return (
     <Card className="max-w-none">
@@ -1364,35 +1362,24 @@ function ErpItemsBrowser() {
           <Badge variant="secondary" className="text-xs font-mono">{total.toLocaleString()}</Badge>
         </CardTitle>
         <div className="flex items-center gap-2">
-          {selectedIds.size > 0 && (
+          {selectedPredIds.size > 0 && (
             <>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="text-xs gap-1"
-                onClick={() => dismissMutation.mutate({ ids: [...selectedIds], dismiss: true })}
-                disabled={dismissMutation.isPending} title={dismissMutation.isPending ? "Dismissing…" : undefined}
+              <Button size="sm" variant="outline"
+                className="text-xs gap-1 border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
+                onClick={() => bulkMutation.mutate({ action: "bulk-approve", prediction_ids: [...selectedPredIds] })}
+                disabled={bulkMutation.isPending}
               >
-                <X className="h-3.5 w-3.5" />
-                Dismiss {selectedIds.size}
+                <Check className="h-3.5 w-3.5" /> Approve {selectedPredIds.size}
               </Button>
-              {showDismissed && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs gap-1"
-                  onClick={() => dismissMutation.mutate({ ids: [...selectedIds], dismiss: false })}
-                  disabled={dismissMutation.isPending} title={dismissMutation.isPending ? "Dismissing…" : undefined}
-                >
-                  <Undo2 className="h-3.5 w-3.5" />
-                  Restore {selectedIds.size}
-                </Button>
-              )}
+              <Button size="sm" variant="destructive" className="text-xs gap-1"
+                onClick={() => bulkMutation.mutate({ action: "bulk-reject", prediction_ids: [...selectedPredIds] })}
+                disabled={bulkMutation.isPending}
+              >
+                <X className="h-3.5 w-3.5" /> Reject {selectedPredIds.size}
+              </Button>
             </>
           )}
-          <Button variant="ghost" size="icon" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          <Button variant="ghost" size="icon" onClick={() => refetch()}><RefreshCw className="h-4 w-4" /></Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -1406,73 +1393,12 @@ function ErpItemsBrowser() {
               className="pl-9 h-9"
             />
           </div>
-          <TooltipProvider delayDuration={200}>
-            <div className="flex items-center gap-1.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <label className="text-xs text-muted-foreground whitespace-nowrap cursor-help">Style # max chars:</label>
-                </TooltipTrigger>
-                <TooltipContent>Show items whose Style # has at most this many characters (e.g. 3 → shows "ABC" but not "ABCD")</TooltipContent>
-              </Tooltip>
-              <Input
-                type="number"
-                min={1}
-                max={20}
-                placeholder="—"
-                value={maxDigitsStyle ?? ""}
-                onChange={(e) => { setMaxDigitsStyle(e.target.value ? parseInt(e.target.value) : null); setPage(1); }}
-                className="h-9 w-[70px] text-xs"
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <label className="text-xs text-muted-foreground whitespace-nowrap cursor-help">Desc max chars:</label>
-                </TooltipTrigger>
-                <TooltipContent>Show items whose Description is very short (at most this many characters) — useful for finding junk entries</TooltipContent>
-              </Tooltip>
-              <Input
-                type="number"
-                min={1}
-                max={50}
-                placeholder="—"
-                value={maxDigitsDesc ?? ""}
-                onChange={(e) => { setMaxDigitsDesc(e.target.value ? parseInt(e.target.value) : null); setPage(1); }}
-                className="h-9 w-[70px] text-xs"
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <label className="text-xs text-muted-foreground whitespace-nowrap">Created from:</label>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-                className="h-9 w-[130px] text-xs"
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <label className="text-xs text-muted-foreground whitespace-nowrap">to:</label>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-                className="h-9 w-[130px] text-xs"
-              />
-            </div>
-            {(maxDigitsStyle !== null || maxDigitsDesc !== null || dateFrom || dateTo) && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs px-1.5" onClick={() => { setMaxDigitsStyle(null); setMaxDigitsDesc(null); setDateFrom(""); setDateTo(""); setPage(1); }}>
-                Clear filters
-              </Button>
-            )}
-          </TooltipProvider>
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showDismissed}
-              onChange={(e) => { setShowDismissed(e.target.checked); setPage(1); setSelectedIds(new Set()); }}
+            <input type="checkbox" checked={pendingOnly}
+              onChange={(e) => { setPendingOnly(e.target.checked); setPage(1); setSelectedPredIds(new Set()); }}
               className="rounded"
             />
-            Show dismissed
+            Pending review only
           </label>
         </div>
 
@@ -1485,222 +1411,112 @@ function ErpItemsBrowser() {
         ) : (
           <>
             <div className="overflow-x-auto border border-border rounded-md">
-              <table className="w-full caption-bottom text-sm" style={{ tableLayout: "fixed" }}>
+              <table className="w-full caption-bottom text-sm">
                 <thead className="[&_tr]:border-b">
-                  <tr className="border-b transition-colors">
-                    <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.size === items.length && items.length > 0}
-                        onChange={toggleAll}
-                        className="rounded"
+                  <tr className="border-b">
+                    <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground w-10">
+                      <input type="checkbox"
+                        checked={selectedPredIds.size === eligibleItems.length && eligibleItems.length > 0}
+                        onChange={toggleAll} className="rounded"
                       />
                     </th>
-                    {ATTRIBUTE_COLS.map((col) => (
-                      <th
-                        key={col.key}
-                        className="h-10 px-2 text-left align-middle font-medium text-muted-foreground text-xs cursor-pointer hover:text-foreground select-none relative group"
-                        style={colWidths[col.key] ? { width: colWidths[col.key] } : undefined}
-                        onClick={() => handleSort(col.key)}
-                      >
-                        <span>
-                          {col.label}
-                          {sortBy === col.key && <span className="ml-1">{sortAsc ? "↑" : "↓"}</span>}
-                        </span>
-                        <div
-                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/40 group-hover:bg-border"
-                          onMouseDown={(e) => handleResizeStart(col.key, e)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </th>
-                    ))}
-                    <th
-                      className="h-10 px-2 text-left align-middle font-medium text-muted-foreground text-xs cursor-pointer hover:text-foreground select-none"
-                      style={colWidths["synced_at"] ? { width: colWidths["synced_at"] } : undefined}
-                      onClick={() => handleSort("synced_at")}
-                    >
-                      Synced
-                      {sortBy === "synced_at" && <span className="ml-1">{sortAsc ? "↑" : "↓"}</span>}
-                    </th>
+                    <SortTh col="style_number" label="Style #" className="min-w-[140px]" />
+                    <SortTh col="item_description" label="Description" className="min-w-[260px]" />
+                    <SortTh col="predicted_category" label="AI Category" />
+                    <SortTh col="prediction_confidence" label="Conf" />
+                    <SortTh col="mg01_code" label="MG01" />
+                    <SortTh col="mg02_code" label="MG02" />
+                    <SortTh col="mg03_code" label="MG03" />
+                    <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground text-xs w-20">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
-                  {items.map((item: any, idx: number) => (
-                    <React.Fragment key={item.id || item.external_id}>
-                      <tr
-                        className={`border-b transition-colors hover:bg-muted/50 cursor-pointer ${item.dismissed ? "opacity-50" : ""} ${selectedIds.has(item.id) ? "bg-primary/10" : ""}`}
-                        onClick={() => setExpandedRow(expandedRow === item.external_id ? null : item.external_id)}
+                  {items.map((item: any, idx: number) => {
+                    const hasPred = !!item.prediction_id;
+                    const confPct = hasPred ? Math.round((item.prediction_confidence ?? 0) * 100) : null;
+                    const confColor = confPct === null ? "" : confPct >= 85 ? "text-green-600 dark:text-green-400" : confPct >= 65 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400";
+                    const catClass = item.predicted_category ? (CATEGORY_BADGE[item.predicted_category] ?? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200") : null;
+                    return (
+                      <tr key={item.id || item.external_id}
+                        className={`border-b transition-colors hover:bg-muted/50 ${selectedPredIds.has(item.prediction_id) ? "bg-primary/10" : ""}`}
                       >
-                        <td className="p-2 align-middle w-10" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(item.id)}
-                            onClick={(e) => handleRowCheck(item.id, idx, e as unknown as React.MouseEvent<HTMLInputElement>)}
-                            readOnly
-                            className="rounded cursor-pointer"
-                          />
+                        <td className="px-3 py-2 align-top w-10">
+                          {hasPred && (
+                            <input type="checkbox" checked={selectedPredIds.has(item.prediction_id)}
+                              onClick={(e) => handleRowCheck(item.prediction_id, idx, e as unknown as React.MouseEvent<HTMLInputElement>)}
+                              readOnly className="rounded cursor-pointer mt-0.5"
+                            />
+                          )}
                         </td>
-                        {ATTRIBUTE_COLS.map((col) => {
-                          /**
-                           * Render an MG cell. Shows the human-readable description with a
-                           * tooltip for the code. Handles three data states:
-                           *
-                           * 1. Normal (code + desc resolved): shows desc, tooltip "Code: X"
-                           * 2. Unresolved (no code, but raw API value exists): shows raw value
-                           *    in amber — description not in MG schema, needs ERP correction
-                           * 3. Pre-fix DB rows (description stored in code field): detected by
-                           *    code.length > 1; treated same as unresolved until re-synced
-                           * 4. Empty: shows "—"
-                           */
-                          const renderMgCell = (code: string | null, desc: string | null, rawApiValue?: string | null) => {
-                            // Detect pre-fix rows where description was stored in the code field
-                            const effectiveCode = code && code.length === 1 ? code : null;
-                            const effectiveRaw = rawApiValue || (code && code.length > 1 ? code : null);
-
-                            if (!effectiveCode && !effectiveRaw) return <span className="text-muted-foreground/40">—</span>;
-                            if (!effectiveCode && effectiveRaw) {
-                              // Description from API couldn't be matched to a schema code
-                              return (
-                                <TooltipProvider delayDuration={200}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="cursor-help text-amber-600 dark:text-amber-400">{effectiveRaw}</span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="text-xs">Not matched to MG schema — ERP data may need correction</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              );
-                            }
-                            if (!desc) return (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-help text-destructive font-medium">error</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-xs text-xs">
-                                    Code "{effectiveCode}" has no matching description in the MG schema lookup. This usually means the code exists in the ERP but hasn't been added to mg-lookup.ts yet.
+                        <td className="px-3 py-2 align-top text-xs font-mono whitespace-nowrap">{item.style_number ?? "—"}</td>
+                        <td className="px-3 py-2 align-top text-xs min-w-[260px] max-w-[520px] whitespace-normal break-words leading-snug">
+                          {item.item_description ?? <span className="text-muted-foreground/40">—</span>}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          {catClass ? (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium cursor-help ${catClass}`}>
+                                    {item.predicted_category}
+                                  </span>
+                                </TooltipTrigger>
+                                {item.prediction_rationale && (
+                                  <TooltipContent side="top" className="max-w-xs text-xs whitespace-normal">
+                                    {item.prediction_rationale}
                                   </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            );
-                            return (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-help">{desc}</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    Code: {effectiveCode}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            );
-                          };
-                          return (
-                            <td
-                              key={col.key}
-                              className="p-2 align-middle text-xs overflow-hidden text-ellipsis whitespace-nowrap"
-                              style={colWidths[col.key] ? { width: colWidths[col.key], maxWidth: colWidths[col.key] } : undefined}
-                            >
-                              {col.key === "mg_category" ? (
-                                (() => {
-                                  // mg_category: prefer API value; fall back to lookup from code
-                                  // getMgCategory only works with single-letter codes — safe post-fix
-                                  const effectiveMg01Code = item.mg01_code?.length === 1 ? item.mg01_code : null;
-                                  const cat = item.mg_category || getMgCategory(effectiveMg01Code);
-                                  const derived = !item.mg_category && !!cat;
-                                  return cat
-                                    ? <span className={derived ? "text-foreground/60 italic" : "text-foreground"}>{cat}</span>
-                                    : <span className="text-muted-foreground/40">—</span>;
-                                })()
-                              ) : col.key === "mg01_code" ? (
-                                renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code), item.raw_mg_fields?.mg01)
-                              ) : col.key === "mg02_code" ? (
-                                renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code), item.raw_mg_fields?.mg02)
-                              ) : col.key === "mg03_code" ? (
-                                renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code), item.raw_mg_fields?.mg03)
-                              ) : col.key === "erp_updated_at" ? (
-                                item.erp_updated_at
-                                  ? <span className="text-foreground">{new Date(item.erp_updated_at).toLocaleDateString()}</span>
-                                  : <span className="text-muted-foreground/40">—</span>
-                              ) : col.key === "item_description" && item[col.key] ? (
-                                <TooltipProvider delayDuration={200}>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="text-foreground truncate block cursor-help">{item[col.key]}</span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-md text-xs whitespace-normal">
-                                      {item[col.key]}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              ) : col.key === "prepack_codes" && Array.isArray(item[col.key]) ? (
-                                <span className="text-foreground">{(item[col.key] as string[]).join(", ")}</span>
-                              ) : item[col.key] ? (
-                                <span className="text-foreground">{item[col.key]}</span>
-                              ) : (
-                                <span className="text-muted-foreground/40">—</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td className="p-2 align-middle text-xs text-muted-foreground">
-                          {item.synced_at ? new Date(item.synced_at).toLocaleDateString() : "—"}
+                                )}
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : <span className="text-muted-foreground/40 text-xs">—</span>}
+                        </td>
+                        <td className={`px-3 py-2 align-top text-xs font-medium tabular-nums ${confColor}`}>
+                          {confPct !== null ? `${confPct}%` : <span className="text-muted-foreground/40">—</span>}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          {renderMgCell(item.mg01_code, getMg01Desc(item.mg01_code), item.raw_mg_fields?.mg01)}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          {renderMgCell(item.mg02_code, getMg02Desc(item.mg01_code, item.mg02_code), item.raw_mg_fields?.mg02)}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          {renderMgCell(item.mg03_code, getMg03Desc(item.mg01_code, item.mg02_code, item.mg03_code), item.raw_mg_fields?.mg03)}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          {hasPred && (
+                            <div className="flex items-center gap-1">
+                              <Button size="icon" variant="ghost"
+                                className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                onClick={() => reviewMutation.mutate({ action: "approve", prediction_id: item.prediction_id })}
+                                disabled={reviewMutation.isPending} title="Approve"
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button size="icon" variant="ghost"
+                                className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                onClick={() => reviewMutation.mutate({ action: "reject", prediction_id: item.prediction_id })}
+                                disabled={reviewMutation.isPending} title="Reject"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </td>
                       </tr>
-                      {expandedRow === item.external_id && (
-                        <tr>
-                          <td colSpan={ATTRIBUTE_COLS.length + 2} className="bg-muted/30 p-3">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
-                              {ATTRIBUTE_COLS.map((col) => (
-                                <div key={col.key}>
-                                  <span className="text-muted-foreground">{col.label}: </span>
-                                  <span className="font-mono text-foreground">{item[col.key] ?? "—"}</span>
-                                </div>
-                              ))}
-                              <div>
-                                <span className="text-muted-foreground">External ID: </span>
-                                <span className="font-mono text-foreground">{item.external_id ?? "—"}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">ERP Updated: </span>
-                                <span className="font-mono text-foreground">
-                                  {item.erp_updated_at ? new Date(item.erp_updated_at).toLocaleDateString() : "—"}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Dismissed: </span>
-                                <span className="font-mono text-foreground">{item.dismissed ? "Yes" : "No"}</span>
-                              </div>
-                            </div>
-                            {item.raw_mg_fields && Object.keys(item.raw_mg_fields).some((k: string) => item.raw_mg_fields[k] != null) && (
-                              <details className="mt-2">
-                                <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">Raw MG Fields</summary>
-                                <pre className="mt-1 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all select-all">
-                                  {JSON.stringify(item.raw_mg_fields, null, 2)}
-                                </pre>
-                              </details>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination */}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                Showing {((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, total)} of {total.toLocaleString()}
-              </span>
+              <span>Showing {((page - 1) * pageSize) + 1}–{Math.min(page * pageSize, total)} of {total.toLocaleString()}</span>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page <= 1} title={page <= 1 ? "Already on the first page" : undefined} onClick={() => setPage(page - 1)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="px-2">Page {page} of {totalPages}</span>
-                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page >= totalPages} title={page >= totalPages ? "Already on the last page" : undefined} onClick={() => setPage(page + 1)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

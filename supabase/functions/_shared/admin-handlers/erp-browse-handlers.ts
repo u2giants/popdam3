@@ -210,12 +210,22 @@ export async function handleErpReviewQueue(body: Record<string, unknown> = {}) {
 export async function handleErpReviewAction(body: Record<string, unknown>, userId: string) {
   const action = requireString(body, "review_action");
 
-  if (!["approve", "reject", "revert", "bulk-reject", "bulk-dismiss"].includes(action)) {
-    return err("review_action must be 'approve', 'reject', 'revert', 'bulk-reject', or 'bulk-dismiss'");
+  if (!["approve", "reject", "revert", "bulk-reject", "bulk-dismiss", "bulk-approve"].includes(action)) {
+    return err("review_action must be 'approve', 'reject', 'revert', 'bulk-reject', 'bulk-dismiss', or 'bulk-approve'");
   }
 
   const db = serviceClient();
   const now = new Date().toISOString();
+
+  if (action === "bulk-approve") {
+    const ids = body.prediction_ids;
+    if (!Array.isArray(ids) || ids.length === 0) return err("prediction_ids must be a non-empty array");
+    const { error } = await db.from("product_category_predictions")
+      .update({ status: "approved", reviewed_by: userId === "system" ? null : userId, reviewed_at: now })
+      .in("id", ids);
+    if (error) return err(error.message, 500);
+    return json({ ok: true, count: ids.length });
+  }
 
   if (action === "bulk-reject") {
     const ids = body.prediction_ids;
@@ -274,108 +284,83 @@ export async function handleErpReviewAction(body: Record<string, unknown>, userI
 export async function handleErpItemsBrowse(body: Record<string, unknown>) {
   const db = serviceClient();
   const page = typeof body.page === "number" ? Math.max(1, body.page) : 1;
-  const pageSize = typeof body.page_size === "number" ? Math.min(Math.max(1, body.page_size), 2000) : 1000;
+  const pageSize = typeof body.page_size === "number" ? Math.min(Math.max(1, body.page_size), 500) : 50;
   const search = typeof body.search === "string" ? body.search.trim() : "";
-  const sortBy = typeof body.sort_by === "string" ? body.sort_by : "synced_at";
-  const sortAsc = body.sort_asc === true;
+  const sortBy = typeof body.sort_by === "string" ? body.sort_by : "prediction_confidence";
+  const sortAsc = body.sort_asc !== false;
+  const showDismissed = body.show_dismissed === true;
+  const pendingOnly = body.pending_predictions_only !== false;
   const maxDigitsStyle = typeof body.max_digits_style === "number" ? body.max_digits_style : null;
   const maxDigitsDesc = typeof body.max_digits_desc === "number" ? body.max_digits_desc : null;
-  const showDismissed = body.show_dismissed === true;
   const dateFrom = typeof body.date_from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date_from) ? body.date_from : null;
   const dateTo = typeof body.date_to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date_to) ? body.date_to : null;
   const offset = (page - 1) * pageSize;
 
-  const ALLOWED_SORT_COLS = [
-    "external_id",
-    "style_number",
-    "item_description",
-    "mg_category",
-    "mg01_code",
-    "mg02_code",
-    "mg03_code",
-    "size_code",
-    "licensor_code",
-    "property_code",
-    "division_code",
-    "synced_at",
-    "erp_updated_at",
-  ];
-  const effectiveSort = ALLOWED_SORT_COLS.includes(sortBy) ? sortBy : "synced_at";
+  const SORT_MAP: Record<string, string> = {
+    style_number: "e.style_number",
+    item_description: "e.item_description",
+    mg_category: "e.mg_category",
+    mg01_code: "e.mg01_code",
+    mg02_code: "e.mg02_code",
+    mg03_code: "e.mg03_code",
+    synced_at: "e.synced_at",
+    erp_updated_at: "e.erp_updated_at",
+    prediction_confidence: "p.confidence",
+    predicted_category: "p.predicted_category",
+  };
+  const effectiveSort = SORT_MAP[sortBy] ?? "e.synced_at";
 
-  const useRawSql = maxDigitsStyle !== null || maxDigitsDesc !== null || dateFrom !== null || dateTo !== null;
-
-  if (useRawSql) {
-    const conditions: string[] = [];
-    if (!showDismissed) conditions.push("dismissed = false");
-
-    const digitFilters: string[] = [];
-    if (maxDigitsStyle !== null && maxDigitsStyle > 0) {
-      digitFilters.push(`(style_number IS NOT NULL AND length(style_number) <= ${maxDigitsStyle})`);
-    }
-    if (maxDigitsDesc !== null && maxDigitsDesc > 0) {
-      digitFilters.push(`(item_description IS NOT NULL AND length(item_description) <= ${maxDigitsDesc})`);
-    }
-    if (digitFilters.length > 0) conditions.push(`(${digitFilters.join(" OR ")})`);
-
-    if (dateFrom) conditions.push(`erp_updated_at >= '${dateFrom}'`);
-    if (dateTo) conditions.push(`erp_updated_at < '${dateTo}'::date + interval '1 day'`);
-
-    if (search) {
-      const esc = search.replace(/'/g, "''");
-      conditions.push(`(style_number ILIKE '%${esc}%' OR item_description ILIKE '%${esc}%')`);
-    }
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    const countSql = `SELECT count(*)::int as cnt FROM erp_items_current ${whereClause}`;
-    const dataSql =
-      `SELECT id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, prepack_code, prepack_codes, erp_updated_at, synced_at, raw_mg_fields, external_id, dismissed FROM erp_items_current ${whereClause} ORDER BY ${effectiveSort} ${
-        sortAsc ? "ASC" : "DESC"
-      } NULLS LAST LIMIT ${pageSize} OFFSET ${offset}`;
-
-    const { data: countResult, error: countErr } = await db.rpc("execute_readonly_query", { query_text: countSql });
-    if (countErr) console.error("ERP browse count query failed:", countErr.message);
-    const total = Array.isArray(countResult) ? (countResult[0]?.cnt ?? 0) : 0;
-    const { data: rows, error: dataErr } = await db.rpc("execute_readonly_query", { query_text: dataSql });
-    if (dataErr) return err(`ERP browse query failed: ${dataErr.message}`, 500);
-
-    return json({
-      ok: true,
-      items: Array.isArray(rows) ? rows : [],
-      total,
-      page,
-      page_size: pageSize,
-      total_pages: Math.ceil(total / pageSize),
-    });
+  const conditions: string[] = [];
+  if (!showDismissed) conditions.push("e.dismissed = false");
+  if (maxDigitsStyle !== null && maxDigitsStyle > 0)
+    conditions.push(`(e.style_number IS NOT NULL AND length(e.style_number) <= ${maxDigitsStyle})`);
+  if (maxDigitsDesc !== null && maxDigitsDesc > 0)
+    conditions.push(`(e.item_description IS NOT NULL AND length(e.item_description) <= ${maxDigitsDesc})`);
+  if (dateFrom) conditions.push(`e.erp_updated_at >= '${dateFrom}'`);
+  if (dateTo) conditions.push(`e.erp_updated_at < '${dateTo}'::date + interval '1 day'`);
+  if (search) {
+    const esc = search.replace(/'/g, "''");
+    conditions.push(`(e.style_number ILIKE '%${esc}%' OR e.item_description ILIKE '%${esc}%')`);
   }
+  if (pendingOnly) conditions.push("p.id IS NOT NULL");
 
-  // Standard Supabase query path
-  let countQuery = db.from("erp_items_current").select("id", { count: "exact", head: true });
-  if (!showDismissed) countQuery = countQuery.eq("dismissed", false);
-  if (search) countQuery = countQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
-  if (dateFrom) countQuery = countQuery.gte("erp_updated_at", dateFrom);
-  if (dateTo) countQuery = countQuery.lte("erp_updated_at", dateTo + "T23:59:59Z");
-  const { count, error: countErr } = await countQuery;
-  if (countErr) return err(countErr.message, 500);
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  let dataQuery = db.from("erp_items_current")
-    .select(
-      "id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, mg04_code, mg05_code, mg06_code, size_code, licensor_code, property_code, division_code, prepack_code, prepack_codes, erp_updated_at, synced_at, raw_mg_fields, dismissed",
-    )
-    .order(effectiveSort, { ascending: sortAsc, nullsFirst: false })
-    .range(offset, offset + pageSize - 1);
-  if (!showDismissed) dataQuery = dataQuery.eq("dismissed", false);
-  if (search) dataQuery = dataQuery.or(`style_number.ilike.%${search}%,item_description.ilike.%${search}%`);
-  if (dateFrom) dataQuery = dataQuery.gte("erp_updated_at", dateFrom);
-  if (dateTo) dataQuery = dataQuery.lte("erp_updated_at", dateTo + "T23:59:59Z");
-  const { data, error: dataErr } = await dataQuery;
-  if (dataErr) return err(dataErr.message, 500);
+  const predJoin = `LEFT JOIN (
+    SELECT DISTINCT ON (external_id) id, external_id, predicted_category, confidence, rationale, status
+    FROM product_category_predictions
+    WHERE status = 'pending'
+    ORDER BY external_id, created_at DESC
+  ) p ON p.external_id = e.external_id`;
+
+  const countSql = `SELECT count(*)::int as cnt FROM erp_items_current e ${predJoin} ${whereClause}`;
+  const dataSql = `SELECT
+    e.id, e.external_id, e.style_number, e.item_description, e.mg_category,
+    e.mg01_code, e.mg02_code, e.mg03_code, e.size_code, e.licensor_code,
+    e.property_code, e.division_code, e.erp_updated_at, e.synced_at, e.raw_mg_fields, e.dismissed,
+    p.id as prediction_id, p.predicted_category, p.confidence as prediction_confidence,
+    p.rationale as prediction_rationale, p.status as prediction_status
+  FROM erp_items_current e ${predJoin} ${whereClause}
+  ORDER BY ${effectiveSort} ${sortAsc ? "ASC" : "DESC"} NULLS LAST
+  LIMIT ${pageSize} OFFSET ${offset}`;
+
+  const [countRes, dataRes] = await Promise.all([
+    db.rpc("execute_readonly_query", { query_text: countSql }),
+    db.rpc("execute_readonly_query", { query_text: dataSql }),
+  ]);
+
+  if (countRes.error) console.error("ERP browse count failed:", countRes.error.message);
+  if (dataRes.error) return err(`ERP browse query failed: ${dataRes.error.message}`, 500);
+
+  const total = Array.isArray(countRes.data) ? (countRes.data[0]?.cnt ?? 0) : 0;
 
   return json({
     ok: true,
-    items: data || [],
-    total: count ?? 0,
+    items: Array.isArray(dataRes.data) ? dataRes.data : [],
+    total,
     page,
     page_size: pageSize,
-    total_pages: Math.ceil((count ?? 0) / pageSize),
+    total_pages: Math.ceil(total / pageSize),
   });
 }
 
