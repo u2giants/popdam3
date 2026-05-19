@@ -1563,6 +1563,32 @@ corsServe(async (req: Request) => {
         if (error) return err(error.message, 500);
         return json({ ok: true, dismissed: assetIds.length });
       }
+      case "snooze-ai-sentinel": {
+        const assetIds = body.asset_ids as string[] | undefined;
+        if (!Array.isArray(assetIds) || assetIds.length === 0) return err("asset_ids required", 400);
+        const db = serviceClient();
+        const snoozeUntil = new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString();
+        // Fetch the relative paths for these assets
+        const { data: assets, error: assetsErr } = await db
+          .from("assets")
+          .select("relative_path")
+          .in("id", assetIds);
+        if (assetsErr) return err(assetsErr.message, 500);
+        // Remove from sentinel list
+        await db.from("pdf_text_samples").delete().in("asset_id", assetIds);
+        // Add to scanner ignore list with expiry (upsert — may already exist from a prior snooze)
+        if (assets && assets.length > 0) {
+          await db.from("scanner_ai_ignores").upsert(
+            (assets as Array<{ relative_path: string }>).map((a) => ({
+              relative_path: a.relative_path,
+              reason: "snooze",
+              snoozed_until: snoozeUntil,
+            })),
+            { onConflict: "relative_path" },
+          );
+        }
+        return json({ ok: true, snoozed: assetIds.length, until: snoozeUntil });
+      }
       case "trigger-ai-sentinel-scan":
         return await handleTriggerAiSentinelScan(body);
       case "backfill-pdf-files-used":

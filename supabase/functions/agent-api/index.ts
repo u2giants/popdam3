@@ -3623,7 +3623,8 @@ corsServe(async (req: Request) => {
       case "load-ai-ignore-list": {
         const { data, error } = await db
           .from("scanner_ai_ignores")
-          .select("relative_path, reason");
+          .select("relative_path, reason, snoozed_until")
+          .or("snoozed_until.is.null,snoozed_until.gt." + new Date().toISOString());
         if (error) return err(`load-ai-ignore-list failed: ${error.message}`, 500);
         return json({ ok: true, ignores: data ?? [] });
       }
