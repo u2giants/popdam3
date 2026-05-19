@@ -312,10 +312,12 @@ export async function handleErpItemsBrowse(body: Record<string, unknown>) {
 
   const conditions: string[] = [];
   if (!showDismissed) conditions.push("e.dismissed = false");
-  if (maxDigitsStyle !== null && maxDigitsStyle > 0)
+  if (maxDigitsStyle !== null && maxDigitsStyle > 0) {
     conditions.push(`(e.style_number IS NOT NULL AND length(e.style_number) <= ${maxDigitsStyle})`);
-  if (maxDigitsDesc !== null && maxDigitsDesc > 0)
+  }
+  if (maxDigitsDesc !== null && maxDigitsDesc > 0) {
     conditions.push(`(e.item_description IS NOT NULL AND length(e.item_description) <= ${maxDigitsDesc})`);
+  }
   if (dateFrom) conditions.push(`e.erp_updated_at >= '${dateFrom}'`);
   if (dateTo) conditions.push(`e.erp_updated_at < '${dateTo}'::date + interval '1 day'`);
   if (search) {
