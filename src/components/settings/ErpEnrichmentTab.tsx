@@ -1438,23 +1438,34 @@ function ErpItemsBrowser() {
         ) : (
           <>
             <div className="overflow-x-auto border border-border rounded-md">
-              <table className="w-full caption-bottom text-sm">
+              <table className="w-full table-fixed caption-bottom text-sm">
+                <colgroup>
+                  <col className="w-10" />
+                  <col className="w-[140px]" />
+                  <col />{/* description — takes all remaining space */}
+                  <col className="w-[140px]" />
+                  <col className="w-[60px]" />
+                  <col className="w-[90px]" />
+                  <col className="w-[90px]" />
+                  <col className="w-[90px]" />
+                  <col className="w-[80px]" />
+                </colgroup>
                 <thead className="[&_tr]:border-b">
                   <tr className="border-b">
-                    <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground w-10">
+                    <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground">
                       <input type="checkbox"
                         checked={selectedPredIds.size === eligibleItems.length && eligibleItems.length > 0}
                         onChange={toggleAll} className="rounded"
                       />
                     </th>
-                    <SortTh col="style_number" label="Style #" className="min-w-[140px]" />
-                    <SortTh col="item_description" label="Description" className="min-w-[260px]" />
+                    <SortTh col="style_number" label="Style #" />
+                    <SortTh col="item_description" label="Description" />
                     <SortTh col="predicted_category" label="AI Category" />
                     <SortTh col="prediction_confidence" label="Conf" />
                     <SortTh col="mg01_code" label="MG01" />
                     <SortTh col="mg02_code" label="MG02" />
                     <SortTh col="mg03_code" label="MG03" />
-                    <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground text-xs w-20">Actions</th>
+                    <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground text-xs">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
@@ -1495,7 +1506,7 @@ function ErpItemsBrowser() {
                             )}
                           </td>
                           <td className="px-3 py-2 align-top text-xs font-mono whitespace-nowrap">{item.style_number ?? "—"}</td>
-                          <td className="px-3 py-2 align-top text-xs min-w-[260px] max-w-[520px] whitespace-normal break-words leading-snug">
+                          <td className="px-3 py-2 align-top text-xs whitespace-normal break-words leading-snug">
                             {item.item_description ?? <span className="text-muted-foreground/40">—</span>}
                           </td>
                           <td className="px-3 py-2 align-top">
