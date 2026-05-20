@@ -819,9 +819,6 @@ function ReviewQueue() {
   const [statusFilter, setStatusFilter] = useState("pending");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  // Column resize state
-  const [colWidths, setColWidths] = useState<Record<string, number>>({});
-  const [resizing, setResizing] = useState<{ col: string; startX: number; startW: number } | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["erp-review-queue", statusFilter, page],
@@ -936,26 +933,6 @@ function ReviewQueue() {
     hasActiveFilters: reviewHasActiveFilters,
   } = useTableFilterSort(items, REVIEW_COLS, getReviewCell);
 
-  const handleResizeStart = (col: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const th = (e.target as HTMLElement).closest("th");
-    const startW = colWidths[col] || th?.offsetWidth || 120;
-    setResizing({ col, startX: e.clientX, startW });
-
-    const onMouseMove = (ev: MouseEvent) => {
-      const diff = ev.clientX - e.clientX;
-      setColWidths((prev) => ({ ...prev, [col]: Math.max(60, startW + diff) }));
-    };
-    const onMouseUp = () => {
-      setResizing(null);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
-    };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-  };
-
   return (
     <TooltipProvider delayDuration={200}>
     <Card>
@@ -1042,6 +1019,15 @@ function ReviewQueue() {
         ) : (
           <div className="overflow-x-auto border border-border rounded-md">
               <table className="w-full caption-bottom text-sm" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  {(canReject || canRevert) && <col style={{ width: 40 }} />}
+                  <col style={{ width: 130 }} />
+                  <col />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 80 }} />
+                  <col />
+                  <col style={{ width: 140 }} />
+                </colgroup>
                 <thead className="[&_tr]:border-b">
                   <FilterableHeaderRow
                     columns={REVIEW_COLS}
@@ -1078,44 +1064,26 @@ function ReviewQueue() {
                           />
                         </td>
                       )}
-                      <td
-                        className="p-2 align-middle text-xs font-mono overflow-hidden"
-                        style={colWidths["style"] ? { width: colWidths["style"], maxWidth: colWidths["style"] } : undefined}
-                      >
+                      <td className="p-2 align-middle text-xs font-mono overflow-hidden">
                         <TruncatedCell>{item.style_number || item.external_id || "—"}</TruncatedCell>
                       </td>
-                      <td
-                        className="p-2 align-middle text-xs overflow-hidden"
-                        style={colWidths["description"] ? { width: colWidths["description"], maxWidth: colWidths["description"] } : undefined}
-                      >
+                      <td className="p-2 align-middle text-xs overflow-hidden">
                         <TruncatedCell>{item.description || "—"}</TruncatedCell>
                       </td>
-                      <td
-                        className="p-2 align-middle overflow-hidden"
-                        style={colWidths["predicted"] ? { width: colWidths["predicted"], maxWidth: colWidths["predicted"] } : undefined}
-                      >
+                      <td className="p-2 align-middle overflow-hidden">
                         <Badge variant="outline" className="text-xs">{item.predicted_category}</Badge>
                       </td>
-                      <td
-                        className="p-2 align-middle text-xs overflow-hidden"
-                        style={colWidths["confidence"] ? { width: colWidths["confidence"], maxWidth: colWidths["confidence"] } : undefined}
-                      >
+                      <td className="p-2 align-middle text-xs overflow-hidden">
                         <span className={item.confidence < 0.5 ? "text-destructive" : item.confidence < 0.65 ? "text-[hsl(var(--warning))]" : "text-foreground"}>
                           {(item.confidence * 100).toFixed(0)}%
                         </span>
                       </td>
-                      <td
-                        className="p-2 align-middle text-xs overflow-hidden"
-                        style={colWidths["rationale"] ? { width: colWidths["rationale"], maxWidth: colWidths["rationale"] } : undefined}
-                      >
+                      <td className="p-2 align-middle text-xs overflow-hidden">
                         <TruncatedCell className="text-muted-foreground" tooltipText={item.rationale || "No rationale provided"}>
                           {item.rationale || "—"}
                         </TruncatedCell>
                       </td>
-                      <td
-                        className="p-2 align-middle overflow-hidden"
-                        style={colWidths["actions"] ? { width: colWidths["actions"], maxWidth: colWidths["actions"] } : undefined}
-                      >
+                      <td className="p-2 align-middle overflow-hidden">
                         <div className="flex items-center gap-1">
                           {canApprove && (
                             <Tooltip>
