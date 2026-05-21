@@ -2637,6 +2637,13 @@ export type Database = {
           groups_created: number
         }[]
       }
+      run_full_reconcile_style_group_stats: {
+        Args: never
+        Returns: {
+          counts_updated: number
+          primaries_updated: number
+        }[]
+      }
       run_maintenance: {
         Args: {
           p_analyze?: boolean
