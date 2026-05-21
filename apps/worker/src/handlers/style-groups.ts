@@ -266,117 +266,24 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     };
   }
 
-  // ── Stage 4: finalize stats (counts then primaries) ───────────────
+  // ── Stage 4: finalize stats ───────────────────────────────────────
   if (state.stage === "finalize_stats") {
-    const subStage = state.finalize_sub ?? "counts";
+    const { data, error: rpcErr } = await client.rpc("run_full_reconcile_style_group_stats");
+    if (rpcErr) return { ok: false, done: false, error: rpcErr.message, stage: "finalize_stats" };
 
-    // Count total groups once
-    if (typeof state.total_groups !== "number") {
-      const { count } = await client.from("style_groups").select("id", { count: "exact", head: true });
-      state.total_groups = count ?? 0;
-      await saveState(state);
-    }
-
-    if (subStage === "counts") {
-      let q = client.from("style_groups").select("id").order("id", { ascending: true }).limit(COUNTS_BATCH);
-      if (state.last_stats_group_id) q = q.gt("id", state.last_stats_group_id);
-
-      const { data: groupRows, error: fetchErr } = await q;
-      if (fetchErr) return { ok: false, done: false, error: fetchErr.message, stage: "finalize_stats", sub: "counts" };
-
-      if (!groupRows || groupRows.length === 0) {
-        // Transition to primaries sub-stage
-        state.finalize_sub = "primaries";
-        state.finalize_cursor = 0;
-        state.last_stats_group_id = null;
-        await saveState(state);
-        return {
-          ok: true,
-          done: false,
-          stage: "finalize_stats",
-          sub: "counts_done",
-          counts_processed: state.total_groups ?? 0,
-          nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
-        };
-      }
-
-      let batchIds = groupRows.map((g: { id: string }) => g.id);
-      while (batchIds.length > 0) {
-        const { error: countErr } = await client.rpc("refresh_style_group_counts_batch", { p_group_ids: batchIds });
-        if (!countErr) break;
-        const msg = formatError(countErr);
-        if (isStatementTimeout(msg) && batchIds.length > 1) {
-          batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
-          continue;
-        }
-        return { ok: false, done: false, error: msg, stage: "finalize_stats", sub: "counts" };
-      }
-
-      state.finalize_cursor = (state.finalize_cursor ?? 0) + batchIds.length;
-      state.last_stats_group_id = batchIds[batchIds.length - 1] ?? state.last_stats_group_id ?? null;
-      await saveState(state);
-
-      return {
-        ok: true,
-        done: false,
-        stage: "finalize_stats",
-        sub: "counts",
-        counts_processed: state.finalize_cursor,
-        finalize_total_groups: state.total_groups ?? 0,
-        nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
-      };
-    }
-
-    if (subStage === "primaries") {
-      let q = client.from("style_groups").select("id").order("id", { ascending: true }).limit(PRIMARIES_BATCH);
-      if (state.last_stats_group_id) q = q.gt("id", state.last_stats_group_id);
-
-      const { data: groupRows, error: fetchErr } = await q;
-      if (fetchErr) return { ok: false, done: false, error: fetchErr.message, stage: "finalize_stats", sub: "primaries" };
-
-      if (!groupRows || groupRows.length === 0) {
-        // All done — clear state
-        await clearState();
-        return {
-          ok: true,
-          done: true,
-          stage: "finalize_stats",
-          sub: "complete",
-          primaries_processed: state.total_groups ?? 0,
-          finalize_total_groups: state.total_groups ?? 0,
-          total_assets: state.total_assets ?? 0,
-          nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
-        };
-      }
-
-      let batchIds = groupRows.map((g: { id: string }) => g.id);
-      while (batchIds.length > 0) {
-        const { error: primErr } = await client.rpc("refresh_style_group_primaries", { p_group_ids: batchIds });
-        if (!primErr) break;
-        const msg = formatError(primErr);
-        if (isStatementTimeout(msg) && batchIds.length > 1) {
-          batchIds = batchIds.slice(0, Math.ceil(batchIds.length / 2));
-          continue;
-        }
-        return { ok: false, done: false, error: msg, stage: "finalize_stats", sub: "primaries" };
-      }
-
-      state.finalize_cursor = (state.finalize_cursor ?? 0) + batchIds.length;
-      state.last_stats_group_id = batchIds[batchIds.length - 1] ?? state.last_stats_group_id ?? null;
-      await saveState(state);
-
-      return {
-        ok: true,
-        done: false,
-        stage: "finalize_stats",
-        sub: "primaries",
-        primaries_processed: state.finalize_cursor,
-        finalize_total_groups: state.total_groups ?? 0,
-        nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
-      };
-    }
-
-    return { ok: false, done: false, error: `Unknown finalize sub-stage: ${subStage}`, stage: "finalize_stats" };
+    const row = Array.isArray(data) ? data[0] : data;
+    await clearState();
+    return {
+      ok: true,
+      done: true,
+      stage: "finalize_stats",
+      sub: "complete",
+      counts_processed: row?.counts_updated ?? 0,
+      primaries_processed: row?.primaries_updated ?? 0,
+      finalize_total_groups: row?.counts_updated ?? 0,
+      total_assets: state.total_assets ?? 0,
+      nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
+    };
   }
 
   return { ok: false, done: false, error: "Unknown rebuild state" };
