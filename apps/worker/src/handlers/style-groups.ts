@@ -382,51 +382,23 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
   return { ok: false, done: false, error: "Unknown rebuild state" };
 }
 
-// ── Reconcile stats — batch wrapper for the reconcile-style-group-stats op ──
+// ── Reconcile stats — single DB call that handles both phases internally ──
 
-export async function handleReconcileStyleGroupStats(opState: OpState): Promise<BatchResult> {
+export async function handleReconcileStyleGroupStats(_opState: OpState): Promise<BatchResult> {
   const client = db();
-  const progress = opState.progress ?? {};
-  const currentSub = (progress.stage as string) || "counts";
-  const rpcSub = currentSub === "counts_done" ? "primaries" : (currentSub === "complete" ? "counts" : currentSub);
-  const rpcCursor = (typeof opState.cursor === "string" && opState.cursor !== "0" && opState.cursor !== "") ? opState.cursor : null;
 
-  if (!progress.total_groups) {
-    const { count } = await client.from("style_groups").select("id", { count: "exact", head: true });
-    progress.total_groups = count ?? 0;
-  }
-
-  const { data, error: rpcErr } = await client.rpc("reconcile_style_group_stats_batch", {
-    p_cursor: rpcCursor,
-    p_batch_size: 200,
-    p_sub: rpcSub,
-  });
-
-  if (rpcErr) {
-    return { ok: false, done: false, error: rpcErr.message };
-  }
+  const { data, error: rpcErr } = await client.rpc("run_full_reconcile_style_group_stats");
+  if (rpcErr) return { ok: false, done: false, error: rpcErr.message };
 
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch" };
+  if (!row) return { ok: false, done: false, error: "No result from run_full_reconcile_style_group_stats" };
 
-  const isDone = row.done ?? false;
-  const returnedSub = row.sub ?? rpcSub;
-
-  const batchResult: BatchResult = {
+  return {
     ok: true,
-    done: isDone,
-    sub: returnedSub,
-    nextOffset: row.next_cursor ?? null,
-    total_groups: (progress.total_groups as number) || 0,
+    done: true,
+    counts_processed: row.counts_updated ?? 0,
+    primaries_processed: row.primaries_updated ?? 0,
   };
-
-  if (rpcSub === "counts") {
-    batchResult.counts_processed = ((progress.counts_processed as number) || 0) + (row.processed ?? 0);
-  } else if (rpcSub === "primaries") {
-    batchResult.primaries_processed = ((progress.primaries_processed as number) || 0) + (row.processed ?? 0);
-  }
-
-  return batchResult;
 }
 
 // ── Cleanup mega-group tags — calls the DB function per batch ────────────────
