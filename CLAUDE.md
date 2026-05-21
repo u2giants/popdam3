@@ -273,6 +273,8 @@ Both files must agree on the MerchGroup schema — if new MG01/02/03 codes are a
 
 Before 2025-05-10 the MG01 field from the ERP API was a single letter (M, V, A, …) whose meaning was unstable. After that date the letters map reliably to categories (M=Clock, V=Floor, A=Wall, etc.). In 2026-05 all `product_category` values on assets/style_groups with `erp_updated_at < 2025-05-10` were bulk-nulled. Those ~5,500 style groups need AI classification.
 
+**ERP enrichment respects this cutoff:** the worker (`apps/worker/src/handlers/erp.ts`) only uses `mg_category` to set `product_category` when `erp_updated_at >= 2025-05-10`. Items with an earlier date fall through to the AI prediction path instead. Do not remove this guard.
+
 ### Classification workflow
 
 1. **Classify Now** (Settings → ERP Enrichment) → triggers `erp-classify` worker op → reads `erp_items_current.item_description` + MG fields → calls AI → inserts rows into `product_category_predictions`

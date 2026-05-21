@@ -55,7 +55,7 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
 
   const { data: erpItems, error: erpErr } = await client
     .from("erp_items_current")
-    .select("id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code")
+    .select("id, external_id, style_number, item_description, mg_category, mg01_code, mg02_code, mg03_code, size_code, licensor_code, property_code, division_code, erp_updated_at")
     .not("style_number", "is", null)
     .neq("style_number", "")
     .order("external_id")
@@ -77,7 +77,13 @@ export async function handleApplyErpEnrichment(opState: OpState): Promise<BatchR
     let classificationSource = "erp";
     let confidence: number | null = null;
 
-    if (!erpItem.mg_category) {
+    // MG codes before 2025-05-10 were unreliable; only trust mg_category for items updated on or after that date
+    const mgCategoryReliable =
+      erpItem.mg_category &&
+      erpItem.erp_updated_at &&
+      new Date(erpItem.erp_updated_at) >= new Date("2025-05-10");
+
+    if (!mgCategoryReliable) {
       const { data: predictionRow } = await client
         .from("product_category_predictions")
         .select("predicted_category, confidence, classification_source, status")
