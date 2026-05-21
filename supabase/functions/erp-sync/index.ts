@@ -70,9 +70,10 @@ corsServe(async (req: Request) => {
     }
 
     // For incremental syncs, default endDate = today. For full syncs, send no
-    // date params so the API returns its complete dataset without date filtering.
+    // date params so the API returns its complete dataset without date filtering,
+    // but still record today as the watermark so the next incremental starts here.
     const syncMode = startDate ? "incremental" : "full";
-    if (syncMode === "incremental" && !endDate) {
+    if (!endDate) {
       endDate = fmtDate(new Date());
     }
     console.log(`erp-sync: mode=${syncMode}, startDate=${startDate ?? "none"}, endDate=${endDate ?? "none"}`);
