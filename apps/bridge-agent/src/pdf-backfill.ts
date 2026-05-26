@@ -22,6 +22,7 @@ import * as mupdf from "mupdf";
 import { createWorker } from "tesseract.js";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AiConfig } from "./pdf-text-sampler.js";
+import { isAiWithoutPdfCompat } from "./thumbnailer.js";
 
 const PDF_SIZE_LIMIT_BYTES = 100 * 1024 * 1024;
 const THUMBNAIL_WIDTH = 800;
@@ -90,6 +91,19 @@ async function processOne(
       page_count: null, char_count: 0, extraction_error: null,
       sample_thumbnail_url: null, asset_thumbnail_url: null,
     };
+  }
+
+  if (asset.filename.toLowerCase().endsWith(".ai")) {
+    const isSentinel = await isAiWithoutPdfCompat(fullPath);
+    if (isSentinel) {
+      const sentinelText = "This is an Adobe® Illustrator® File that was saved without PDF Content.";
+      return {
+        asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
+        extraction_method: "pdf_text", extracted_text: sentinelText,
+        page_count: 1, char_count: sentinelText.length, extraction_error: null,
+        sample_thumbnail_url: null, asset_thumbnail_url: null,
+      };
+    }
   }
 
   const buffer = await readFile(fullPath);
