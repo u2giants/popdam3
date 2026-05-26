@@ -3078,13 +3078,14 @@ async function handleCompleteAiSentinelScan(body: Record<string, unknown>) {
   if (!scanRow?.value) return json({ ok: true });
 
   const scan = scanRow.value as Record<string, unknown>;
-  const target = (scan.target as number) ?? 25;
+  const totalAiForScan = (scan.total_ai as number) ?? 999_999;
+  const target = (scan.target as number) || totalAiForScan;
   const batchSize = (scan.batch_size as number) ?? AI_SENTINEL_BATCH_SIZE;
   const newFound = ((scan.found as number) ?? 0) + sentinelFiles.length;
   const newProcessed = ((scan.processed as number) ?? 0) + results.length;
   const lastId = scan.last_id as string | null;
 
-  const done = newFound >= target || results.length < batchSize;
+  const done = newProcessed >= totalAiForScan || results.length < batchSize;
 
   if (done) {
     await db.from("admin_config").upsert({
@@ -3158,10 +3159,9 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
 
   // ── ai_sentinel mode: count found sentinels and auto-advance until target met ──
   if (mode === "ai_sentinel") {
-    const target = (existingValue.target as number) ?? 25;
     const prevProcessed = (existingValue.processed as number) ?? 0;
     const lastId = existingValue.last_id as string | null;
-    const totalAi = (existingValue.total_ai as number) ?? 0;
+    const totalAi = (existingValue.total_ai as number) ?? 999_999;
     const batchSize = (existingValue.batch_size as number) ?? AI_SENTINEL_BATCH_SIZE;
     const newProcessed = prevProcessed + rows.length;
 
@@ -3177,7 +3177,7 @@ async function handleCompletePdfTextSample(body: Record<string, unknown>) {
     const { data: scanRow } = await db.from("admin_config").select("value").eq("key", "AI_SENTINEL_SCAN_REQUEST").maybeSingle();
     const scan = (scanRow?.value as Record<string, unknown>) ?? {};
 
-    const done = found >= target || rows.length < batchSize;
+    const done = newProcessed >= totalAi || rows.length < batchSize;
 
     if (done) {
       await db.from("admin_config").upsert({

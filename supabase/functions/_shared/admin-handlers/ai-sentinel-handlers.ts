@@ -234,7 +234,7 @@ export async function handleTriggerAiSentinelScan(body: Record<string, unknown>)
   const versionErr = await requireBridgeLatest(db);
   if (versionErr) return versionErr;
 
-  const target = Math.min(Number(body.target) || 25, 500);
+  const target = Number(body.target) || (totalAi ?? 999_999);
 
   // Block if an active PDF sample (non-sentinel) is already running
   const { data: existing } = await db.from("admin_config").select("value").eq("key", "PDF_TEXT_SAMPLE_REQUEST").maybeSingle();

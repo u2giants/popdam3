@@ -729,7 +729,7 @@ function AiSentinelCleanupCard() {
   };
 
   const scanMutation = useMutation({
-    mutationFn: () => call("trigger-ai-sentinel-scan", { target: 25 }),
+    mutationFn: () => call("trigger-ai-sentinel-scan", {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-sentinel-status"] });
       toast.info("Scanning .ai files for sentinel content…");
