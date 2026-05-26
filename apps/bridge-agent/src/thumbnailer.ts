@@ -99,7 +99,9 @@ async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
  * Returns true if the file should skip PDF-based rendering.
  */
 export async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
-  const READ_SIZE = 65536; // 64 KB — enough to find DSC comments and PDF structure markers
+  // 512 KB: /CompatibilityAlert can appear well past 64 KB in large .ai files because
+  // the PDF object list grows before the procedure definition is emitted.
+  const READ_SIZE = 524288;
   const fh = await open(filePath, "r");
   try {
     const buf = Buffer.alloc(READ_SIZE);

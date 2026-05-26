@@ -49,6 +49,21 @@ interface AssetDetailPanelProps {
   onClose: () => void;
 }
 
+function CopyIconButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={copy}>
+      {copied ? <Check className="h-3 w-3 text-[hsl(var(--success))]" /> : <Copy className="h-3 w-3" />}
+    </Button>
+  );
+}
+
 function CopyButton({ value, label, folderUri }: { value: string; label: string; folderUri?: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -303,8 +318,9 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
   return (
     <div className="flex h-full w-[384px] flex-col border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+      <div className="group flex items-center gap-2 px-4 py-3 border-b border-border">
         <h3 className="text-sm font-medium truncate min-w-0 flex-1" title={asset.filename}>{formatFilename(asset.filename, 20)}</h3>
+        <CopyIconButton value={asset.filename} />
         <CheckoutBar assetId={asset.id} />
         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
           <X className="h-4 w-4" />

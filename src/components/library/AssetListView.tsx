@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type { Asset } from "@/types/assets";
 import { Badge } from "@/components/ui/badge";
-import { ImageOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ImageOff, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { formatFilename } from "@/lib/format-filename";
@@ -18,6 +20,21 @@ interface AssetListViewProps {
   selectedIds: Set<string>;
   onSelect: (id: string, event: React.MouseEvent) => void;
   isLoading: boolean;
+}
+
+function CopyIconButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={copy}>
+      {copied ? <Check className="h-3 w-3 text-[hsl(var(--success))]" /> : <Copy className="h-3 w-3" />}
+    </Button>
+  );
 }
 
 function formatSize(bytes: number | null): string {
@@ -87,7 +104,10 @@ export default function AssetListView({ assets, selectedIds, onSelect, isLoading
                 </div>
               </TableCell>
               <TableCell>
-                <span className="font-semibold text-sm">{formatFilename(asset.filename, 32)}</span>
+                <div className="group flex items-center" title={asset.filename}>
+                  <span className="font-semibold text-sm">{formatFilename(asset.filename, 32)}</span>
+                  <CopyIconButton value={asset.filename} />
+                </div>
               </TableCell>
               <TableCell>
                 <span className="text-sm font-mono text-muted-foreground">{asset.sku ?? "—"}</span>

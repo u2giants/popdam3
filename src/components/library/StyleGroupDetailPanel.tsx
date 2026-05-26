@@ -772,8 +772,9 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
             {detailAsset && (
               <>
                 <section className="space-y-2">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5" /> <span title={detailAsset.filename}>{formatFilename(detailAsset.filename, 30)}</span>
+                  <h4 className="group flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <CopyInlineButton value={detailAsset.filename} />
+                    <span title={detailAsset.filename}>{formatFilename(detailAsset.filename, 30)}</span>
                   </h4>
                   {erpDescription && (
                     <p className="text-xs text-foreground/70 leading-relaxed -mt-0.5">{erpDescription}</p>
@@ -1096,6 +1097,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
                             {/* Actions */}
                             <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <CopyInlineButton value={asset.filename} />
                               <CopyInlineButton value={asset.relative_path} />
                               {!isCover && (
                                 <Tooltip>
