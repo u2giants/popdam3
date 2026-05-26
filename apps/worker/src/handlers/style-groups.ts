@@ -266,21 +266,59 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     };
   }
 
-  // ── Stage 4: finalize stats ───────────────────────────────────────
+  // ── Stage 4: finalize stats — batched via reconcile_style_group_stats_batch ──
   if (state.stage === "finalize_stats") {
-    const { data, error: rpcErr } = await client.rpc("run_full_reconcile_style_group_stats");
+    const sub = state.finalize_sub ?? "counts";
+    const cursor = state.last_stats_group_id ?? null;
+    const batchSize = sub === "primaries" ? PRIMARIES_BATCH : COUNTS_BATCH;
+
+    const { data, error: rpcErr } = await client.rpc("reconcile_style_group_stats_batch", {
+      p_cursor: cursor,
+      p_batch_size: batchSize,
+      p_sub: sub,
+    });
     if (rpcErr) return { ok: false, done: false, error: rpcErr.message, stage: "finalize_stats" };
 
     const row = Array.isArray(data) ? data[0] : data;
-    await clearState();
+    if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch", stage: "finalize_stats" };
+
+    const returnedSub = (row.sub as string) ?? sub;
+    const isDone = (row.done as boolean) ?? false;
+    const nextCursor = (row.next_cursor as string | null) ?? null;
+    const processed = (row.processed as number) ?? 0;
+
+    if (isDone || returnedSub === "complete") {
+      await clearState();
+      return {
+        ok: true,
+        done: true,
+        stage: "finalize_stats",
+        sub: "complete",
+        counts_processed: processed,
+        primaries_processed: processed,
+        finalize_total_groups: processed,
+        total_assets: state.total_assets ?? 0,
+        nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
+      };
+    }
+
+    // counts_done signals: switch to primaries sub-stage
+    const nextSub = returnedSub === "counts_done" ? "primaries" : sub;
+    const nextStatsCursor: string | null = returnedSub === "counts_done" ? null : nextCursor;
+
+    const nextState: RebuildState = {
+      ...state,
+      finalize_sub: nextSub,
+      last_stats_group_id: nextStatsCursor,
+    };
+    await saveState(nextState);
+
     return {
       ok: true,
-      done: true,
+      done: false,
       stage: "finalize_stats",
-      sub: "complete",
-      counts_processed: row?.counts_updated ?? 0,
-      primaries_processed: row?.primaries_updated ?? 0,
-      finalize_total_groups: row?.counts_updated ?? 0,
+      sub: returnedSub,
+      counts_processed: processed,
       total_assets: state.total_assets ?? 0,
       nextOffset: (typeof opState.cursor === "number" ? opState.cursor : 0) + 1,
     };
@@ -289,22 +327,59 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
   return { ok: false, done: false, error: "Unknown rebuild state" };
 }
 
-// ── Reconcile stats — single DB call that handles both phases internally ──
+// ── Reconcile stats — batched via reconcile_style_group_stats_batch ──
 
-export async function handleReconcileStyleGroupStats(_opState: OpState): Promise<BatchResult> {
+export async function handleReconcileStyleGroupStats(opState: OpState): Promise<BatchResult> {
   const client = db();
 
-  const { data, error: rpcErr } = await client.rpc("run_full_reconcile_style_group_stats");
+  // Decode sub-stage and UUID cursor from the string cursor (e.g. "counts:uuid" or "primaries:uuid").
+  // Initial cursor is numeric 0.
+  let sub = "counts";
+  let cursor: string | null = null;
+  if (typeof opState.cursor === "string" && opState.cursor.includes(":")) {
+    const colonIdx = opState.cursor.indexOf(":");
+    sub = opState.cursor.slice(0, colonIdx);
+    const rest = opState.cursor.slice(colonIdx + 1);
+    cursor = rest === "null" || rest === "" ? null : rest;
+  }
+
+  const batchSize = sub === "primaries" ? PRIMARIES_BATCH : COUNTS_BATCH;
+
+  const { data, error: rpcErr } = await client.rpc("reconcile_style_group_stats_batch", {
+    p_cursor: cursor,
+    p_batch_size: batchSize,
+    p_sub: sub,
+  });
   if (rpcErr) return { ok: false, done: false, error: rpcErr.message };
 
   const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return { ok: false, done: false, error: "No result from run_full_reconcile_style_group_stats" };
+  if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch" };
+
+  const returnedSub = (row.sub as string) ?? sub;
+  const isDone = (row.done as boolean) ?? false;
+  const nextCursor = (row.next_cursor as string | null) ?? null;
+  const processed = (row.processed as number) ?? 0;
+
+  if (isDone || returnedSub === "complete") {
+    return {
+      ok: true,
+      done: true,
+      counts_processed: processed,
+      primaries_processed: processed,
+    };
+  }
+
+  // counts_done → switch to primaries
+  const nextSub = returnedSub === "counts_done" ? "primaries" : sub;
+  const nextCursorVal = returnedSub === "counts_done" ? null : nextCursor;
+  const nextOffset = `${nextSub}:${nextCursorVal ?? "null"}`;
 
   return {
     ok: true,
-    done: true,
-    counts_processed: row.counts_updated ?? 0,
-    primaries_processed: row.primaries_updated ?? 0,
+    done: false,
+    counts_processed: sub === "counts" ? processed : 0,
+    primaries_processed: sub === "primaries" ? processed : 0,
+    nextOffset,
   };
 }
 
