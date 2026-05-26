@@ -556,3 +556,13 @@ The fix is `listen [::]:80;` in the server block alongside `listen 80;`. Both ar
 
 **Intentional behavior**: Both directives are required. This is not redundant — IPv4 and IPv6 loopback are separate interfaces.
 
+---
+
+## 43. Style Group `finalize_stats` Calls `reconcile_style_group_stats_batch` in a Loop, Not `run_full_reconcile_style_group_stats` Once
+
+**What it looks like**: Unnecessary complexity — `run_full_reconcile_style_group_stats` exists and handles both phases in one call.
+
+**Why**: `run_full_reconcile_style_group_stats` has no `SET statement_timeout` or `SET lock_timeout`, so it inherits the DB-level role timeout. After a full "Start Fresh" rebuild (which deletes and recreates all style groups), the function's Phase 1 UPDATE+JOIN across all groups gets killed by the timeout before it finishes. `reconcile_style_group_stats_batch` processes groups in batches of 100/25 and has `SET statement_timeout = '120s'` per batch, which completes reliably at any scale. See worker v1.2.12 commit.
+
+**What breaks if you revert**: "Start Fresh" rebuild reliably times out on the "Compute counts" stage when there are more than ~a few hundred groups, leaving all style groups with `asset_count = 0` and no primary asset.
+

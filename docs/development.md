@@ -124,3 +124,5 @@ git push github main
 ```
 
 After any push touching `supabase/migrations/` or `supabase/functions/`, check the `Deploy Supabase` workflow run in GitHub Actions.
+
+After any push touching `apps/worker/`, Railway auto-deploys. No workflow file — Railway watches `main` directly. Changes to `apps/worker/` do **not** trigger `deploy-supabase.yml` or `publish-frontend.yml`; only Railway picks them up. Bump `apps/worker/package.json` version in the same commit.

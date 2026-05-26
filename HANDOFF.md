@@ -1,6 +1,6 @@
 # Handoff
 
-_Last updated: 2026-05-15_
+_Last updated: 2026-05-26_
 
 Delete this file once all items are done.
 
@@ -53,7 +53,17 @@ Expected unresolvable categories (accept as-is):
 
 ---
 
-## Context that exists only in session history
+## Resolved — context preserved here
+
+### Style group rebuild timeout on "Compute counts" (resolved 2026-05-26)
+
+**Symptom:** "Start Fresh" rebuild failed at stage 4 with "canceling statement due to statement timeout" after ~33 minutes. UI showed "0 groups".
+
+**Root cause:** `run_full_reconcile_style_group_stats` (called once in stage 4) has no `SET statement_timeout` / `SET lock_timeout`, so it inherits the DB-level role timeout. After a full rebuild it processes thousands of groups in a single UPDATE+JOIN and gets killed.
+
+**Fix:** `apps/worker/src/handlers/style-groups.ts` — both `handleRebuildStyleGroups` stage 4 and `handleReconcileStyleGroupStats` now drive `reconcile_style_group_stats_batch` in batches (100 groups for counts, 25 for primaries). That function has `SET statement_timeout = '120s'`. Worker v1.2.12. Railway auto-deployed.
+
+**Do not revert** to the single `run_full_reconcile_style_group_stats` call in `handleRebuildStyleGroups` or `handleReconcileStyleGroupStats`.
 
 ### CI/CD migration (2026-05-15)
 

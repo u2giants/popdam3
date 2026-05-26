@@ -1,5 +1,9 @@
 # Claude Instructions for popdam3
 
+**Start here:** Read [`AGENTS.md`](AGENTS.md) first — it has the full developer/AI guide: project summary, repo structure, task navigation, important identifiers, deployment, and known quirks. This file (`CLAUDE.md`) contains only Claude Code-specific workflow rules.
+
+---
+
 ## Dual-mode deployment (PopDAM + PopSG)
 
 **This single codebase serves two apps:**

@@ -20,22 +20,27 @@ A style group is created (or updated) during the `rebuild-style-groups` bulk ope
 `rebuild-style-groups` is a 4-stage operation orchestrated by `bulk-job-runner`:
 
 ### Stage 1: `clear_assets`
-Sets `style_group_id = NULL` on every asset row, in batches of 500. This dissociates all assets from their current groups before the rebuild.
+Sets `style_group_id = NULL` on every asset row, in adaptive batches (default 1000, halves on timeout). This dissociates all assets from their current groups before the rebuild.
 
 ### Stage 2: `delete_groups`
-Deletes every row from the `style_groups` table. After this point the table is empty.
+Deletes every row from the `style_groups` table in batches of 200. After this stage the table is empty.
 
 ### Stage 3: `rebuild_assets`
-Calls the `assign_assets_to_style_groups` PostgreSQL RPC function. This function:
-- Extracts the SKU from each asset's `filename` (or `relative_path`).
+Calls the `rebuild_style_groups_batch` PostgreSQL RPC function in batches (default 100 assets/batch). This function:
+- Walks each asset's `relative_path` to find the first segment matching the SKU pattern (`^[A-Za-z]{1,6}[0-9]`, length ≥ 10, not the last segment).
 - Groups assets by SKU.
-- Creates a new `style_groups` row for each distinct SKU if it doesn't already exist.
-- Sets `assets.style_group_id` for every asset.
+- Upserts a `style_groups` row for each distinct SKU (inheriting metadata from the first asset in the batch for that SKU).
+- Sets `assets.style_group_id` for every asset in the batch.
+
+Assets whose path contains no matching SKU segment are left ungrouped.
 
 ### Stage 4: `finalize_stats`
-Runs two sub-stages:
-- **`counts`** — updates `asset_count` for each group by counting its member assets.
+Drives `reconcile_style_group_stats_batch` in two sub-stages, **in batches** (100 groups/batch for counts, 25 groups/batch for primaries):
+
+- **`counts`** — updates `asset_count` and `latest_file_date` for each group.
 - **`primaries`** — selects the best asset in each group to be `primary_asset_id` (see Primary Asset Selection below).
+
+Each call to `reconcile_style_group_stats_batch` has `SET statement_timeout = '120s'`. The stage runs as many batch ticks as needed until all groups are processed.
 
 This stage is also independently runnable as the `reconcile-style-group-stats` operation, which is safe to run on a live system without doing a full rebuild.
 
