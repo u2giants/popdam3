@@ -132,6 +132,7 @@ const HEARTBEAT_CONFIG_KEYS_BRIDGE = [
   "PDF_TEXT_SAMPLE_REQUEST",
   "PDF_BACKFILL",
   "AI_SENTINEL_SCAN_REQUEST",
+  "BLANK_THUMB_CLEANUP_REQUEST",
 ];
 
 // Config keys needed only by Windows render agents
