@@ -10,12 +10,11 @@
  * Reports per-file progress back to the cloud so the UI shows real-time status.
  */
 
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, open as fsOpen } from "node:fs/promises";
 import { join } from "node:path";
 import { logger } from "./logger.js";
 import * as api from "./api-client.js";
 import { uploadPdfPage } from "./uploader.js";
-import { isAiWithoutPdfCompat } from "./thumbnailer.js";
 
 import * as mupdf from "mupdf";
 import { createWorker } from "tesseract.js";
@@ -175,18 +174,56 @@ async function processSinglePdf(
 ): Promise<PdfTextSampleResult> {
   await reportProgress(index, total, asset.filename, "reading", fileResults);
 
-  // .ai files: use the 64 KB header check instead of loading into mupdf.
-  // Works regardless of file size; returns the known sentinel text if found.
+  // .ai files: detect sentinels via mupdf text extraction on page 0.
+  // Header byte-search for "/CompatibilityAlert" is unreliable — that string is defined
+  // in the resource dictionary of ALL modern .ai PDFs, not just sentinels.
   if (asset.filename.toLowerCase().endsWith(".ai")) {
-    const isSentinel = await isAiWithoutPdfCompat(fullPath);
-    const sentinelText = "This is an Adobe® Illustrator® File that was saved without PDF Content.";
-    return {
-      asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
-      extraction_method: "pdf_text",
-      extracted_text: isSentinel ? sentinelText : null,
-      page_count: 1, char_count: isSentinel ? sentinelText.length : 0,
-      extraction_error: null,
-    };
+    const SENTINEL_PHRASE = "This is an Adobe® Illustrator® File that was saved without PDF Content.";
+    try {
+      // Old format: pure PostScript, no PDF layer — always a sentinel.
+      const fh = await fsOpen(fullPath, "r");
+      let isPurePs = false;
+      try {
+        const hbuf = Buffer.alloc(512);
+        const { bytesRead } = await fh.read(hbuf, 0, 512, 0);
+        const h = hbuf.slice(0, bytesRead).toString("latin1");
+        isPurePs = h.startsWith("%!PS-Adobe-") && !h.includes("%PDF-");
+      } finally {
+        await fh.close();
+      }
+
+      if (isPurePs) {
+        return {
+          asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
+          extraction_method: "pdf_text", extracted_text: SENTINEL_PHRASE,
+          page_count: 1, char_count: SENTINEL_PHRASE.length, extraction_error: null,
+        };
+      }
+
+      // Modern format: open with mupdf, extract page-0 text.
+      const aiBuffer = await readFile(fullPath);
+      const aiDoc = mupdf.Document.openDocument(aiBuffer, "application/pdf");
+      const numPages = aiDoc.countPages();
+      const aiText = numPages > 0
+        ? aiDoc.loadPage(0).toStructuredText("preserve-whitespace").asText().trim()
+        : "";
+      const isSentinel = aiText.includes("saved without PDF Content");
+      return {
+        asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
+        extraction_method: "pdf_text",
+        extracted_text: isSentinel ? SENTINEL_PHRASE : (aiText || null),
+        page_count: numPages, char_count: isSentinel ? SENTINEL_PHRASE.length : aiText.length,
+        extraction_error: null,
+      };
+    } catch (aiErr) {
+      logger.warn("PDF text sample: .ai mupdf check failed", { filename: asset.filename, error: (aiErr as Error).message });
+      return {
+        asset_id: asset.id, filename: asset.filename, relative_path: asset.relative_path,
+        extraction_method: "failed", extracted_text: null,
+        page_count: null, char_count: 0,
+        extraction_error: ((aiErr as Error).message).slice(0, 500),
+      };
+    }
   }
 
   // Check file size before loading into memory

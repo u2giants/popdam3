@@ -20,6 +20,7 @@ import { mkdtemp, readFile, rm, readdir, open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createWorker } from "tesseract.js";
+import * as mupdf from "mupdf";
 import { logger } from "./logger.js";
 
 const execFileAsync = promisify(execFile);
@@ -93,36 +94,45 @@ async function thumbnailPsd(filePath: string): Promise<ThumbnailResult> {
  * Detect AI files saved without PDF compatibility.
  *
  * When Illustrator saves without the "PDF compatibility" option, the embedded PDF
- * (if any) contains only a /CompatibilityAlert form XObject rather than real artwork.
- * Ghostscript "succeeds" but renders that warning notice — a useless placeholder.
+ * contains only Adobe's compatibility-alert warning page instead of real artwork.
+ *
+ * Detection strategy:
+ *  1. Pure-PostScript .ai (old format): header starts with %!PS-Adobe- and has no %PDF- marker.
+ *  2. PDF-wrapped .ai (modern format): use mupdf to extract page-0 text and check for the
+ *     canonical sentinel phrase. This is the only reliable method — /CompatibilityAlert is
+ *     defined in the resource dictionary of ALL modern .ai PDFs (not just sentinels), so a
+ *     header string-search produces 100% false positives.
  *
  * Returns true if the file should skip PDF-based rendering.
  */
 export async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
-  // 512 KB: /CompatibilityAlert can appear well past 64 KB in large .ai files because
-  // the PDF object list grows before the procedure definition is emitted.
-  const READ_SIZE = 524288;
   const fh = await open(filePath, "r");
+  let head: string;
   try {
-    const buf = Buffer.alloc(READ_SIZE);
-    const { bytesRead } = await fh.read(buf, 0, READ_SIZE, 0);
-    const head = buf.slice(0, bytesRead).toString("latin1");
-
-    // Older Illustrator format: pure PostScript (no embedded PDF stream).
-    // Ghostscript renders the PS content, which is just the compatibility notice.
-    if (head.startsWith("%!PS-Adobe-") && !head.includes("%PDF-")) {
-      return true;
-    }
-
-    // Modern Illustrator format: PDF-wrapped but without real artwork.
-    // The page content calls /CompatibilityAlert instead of actual drawing ops.
-    if (head.includes("/CompatibilityAlert")) {
-      return true;
-    }
-
-    return false;
+    const buf = Buffer.alloc(512);
+    const { bytesRead } = await fh.read(buf, 0, 512, 0);
+    head = buf.slice(0, bytesRead).toString("latin1");
   } finally {
     await fh.close();
+  }
+
+  // Old format: pure PostScript — no PDF stream at all.
+  if (head.startsWith("%!PS-Adobe-") && !head.includes("%PDF-")) {
+    return true;
+  }
+
+  // Modern format: PDF-wrapped. Use mupdf text extraction — the only reliable signal.
+  // Sentinel files render a single page whose text contains the warning phrase.
+  // (Checking for "/CompatibilityAlert" in raw bytes is wrong: it appears in the
+  // resource dictionary of every modern .ai PDF, including fully-compatible ones.)
+  try {
+    const fileBuffer = await readFile(filePath);
+    const doc = mupdf.Document.openDocument(fileBuffer, "application/pdf");
+    if (doc.countPages() === 0) return false;
+    const text = doc.loadPage(0).toStructuredText("preserve-whitespace").asText();
+    return text.includes("saved without PDF Content");
+  } catch {
+    return false;
   }
 }
 
