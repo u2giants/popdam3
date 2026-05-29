@@ -199,6 +199,7 @@ Based on the image and metadata, identify:
 5. Any style numbers or design references visible
 6. Asset type: art_piece or product
 7. Art source: freelancer, straight_style_guide, or style_guide_composition
+7b. Product type — always derive from the ERP Product Description if provided (e.g. "Lap Desk" → tag "lapdesk"), otherwise infer from filename or folder path. Include as a tag even when the image shows artwork rather than the physical product.
 8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
 9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
 10. Cover description rule \u2014 **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
@@ -275,7 +276,7 @@ ${
                         tags: {
                           type: "array",
                           items: { type: "string" },
-                          description: "Descriptive tags: characters, styles, colors, themes",
+                          description: "Descriptive tags: characters, styles, colors, themes, and product type. Always include the specific product type as a tag (e.g. 'lapdesk', 'backpack', 'mug', 'desk organizer', 'lunchbox', 'tee') — derive from the ERP Product Description if provided, otherwise from filename or folder path.",
                         },
                         ai_description: {
                           type: "string",
