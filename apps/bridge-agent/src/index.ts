@@ -1032,6 +1032,14 @@ async function processFile(file: FileCandidate) {
       thumb = await processThumbnail(file, tempId);
     }
 
+    // If the render produced a blank/white image (e.g. die-line templates), permanently ignore.
+    // No point queuing for Windows — it would produce the same blank result.
+    if (thumb.thumbnailError === "blank_render" && file.fileType === "ai") {
+      logger.info("AI blank render — adding to permanent ignore list", { path: file.relativePath });
+      aiIgnoreSet.add(file.relativePath);
+      api.markAiIgnored(file.relativePath, "blank_render").catch(() => {});
+    }
+
     // 3. Ingest to cloud
     const result = await api.ingest({
       relative_path: file.relativePath,
@@ -1082,6 +1090,8 @@ async function processFile(file: FileCandidate) {
 
       // B) Local thumbnail failed — evaluate fallback options
       if (localThumbFailed) {
+        // blank_render: structurally useless file — never queue for Windows
+        if (thumb.thumbnailError === "blank_render") return null;
         // B1) New policy: final_fallback_on_local_failure covers both PSD and AI
         if (policy?.final_fallback_on_local_failure) {
           return "local_thumb_failed";

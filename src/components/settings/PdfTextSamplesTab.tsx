@@ -1060,7 +1060,7 @@ function PdfBackfillCard() {
           <div className="flex items-center gap-2">
             <CardTitle className="text-base flex items-center gap-2">
               <ImageIcon className="h-4 w-4" />
-              Full Library Backfill
+              PDF &amp; .ai Text Extraction — Full Library Backfill
             </CardTitle>
             {statusBadge}
           </div>
@@ -1094,7 +1094,7 @@ function PdfBackfillCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Processes every PDF in the library: extracts text, generates thumbnails for assets missing one, and populates the Files Used table. Runs on the Bridge Agent and can be paused and resumed at any time.
+          Reads every PDF and .ai file in the library and extracts embedded text. This is what populates the <strong className="text-foreground font-medium">Files Used</strong> list in each group's detail panel (parsed from tech pack "Files Used" sections) and gives the AI tagger the full tech pack text when re-tagging. Run this whenever new PDFs have been scanned but their tech pack content isn't showing up yet. Runs on the Bridge Agent and can be paused and resumed.
         </p>
         {bf && status !== "idle" && (
           <>

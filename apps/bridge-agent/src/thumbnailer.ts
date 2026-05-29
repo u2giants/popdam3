@@ -389,6 +389,23 @@ async function thumbnailPdf(filePath: string): Promise<PdfThumbnailResult> {
 }
 
 /**
+ * Returns true when a rendered thumbnail buffer is nearly pure white —
+ * indicating a structurally empty file (e.g. a die-line template with
+ * only hairline strokes, or a blank placeholder).
+ *
+ * Thresholds: all channels have mean > 250 and std < 6. Conservative
+ * enough that any visible artwork (even a thin border on white) passes.
+ */
+async function isBlankThumbnail(buffer: Buffer): Promise<boolean> {
+  try {
+    const stats = await sharp(buffer).stats();
+    return stats.channels.every(ch => ch.mean > 250 && ch.stdev < 6);
+  } catch {
+    return false; // conservative: don't reject on stats failure
+  }
+}
+
+/**
  * Main entry: generate thumbnail based on file type.
  */
 export async function generateThumbnail(
@@ -396,7 +413,14 @@ export async function generateThumbnail(
   fileType: "psd" | "ai" | "pdf",
 ): Promise<ThumbnailResult | PdfThumbnailResult> {
   if (fileType === "psd") return thumbnailPsd(filePath);
-  if (fileType === "ai") return thumbnailAi(filePath);
+  if (fileType === "ai") {
+    const result = await thumbnailAi(filePath);
+    if (await isBlankThumbnail(result.buffer)) {
+      logger.warn("AI thumbnail is blank — likely a die-line or empty template", { filePath });
+      throw new Error("blank_render");
+    }
+    return result;
+  }
   if (fileType === "pdf") return thumbnailPdf(filePath);
   throw new Error(`Unsupported file type: ${fileType}`);
 }
