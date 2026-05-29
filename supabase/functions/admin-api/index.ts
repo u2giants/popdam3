@@ -85,7 +85,13 @@ import {
 import { handleDebugColdlionLookup, handleRepairInvalidPropertyNames } from "../_shared/admin-handlers/coldlion-handlers.ts";
 
 import { handleDeleteAiPdfDuplicates, handleFindAiPdfDuplicates } from "../_shared/admin-handlers/ai-duplicate-handlers.ts";
-import { handleGetAiSentinelStatus, handleRunAiSentinelCleanup, handleTriggerAiSentinelScan, handleTriggerBlankThumbCleanup, handleGetBlankThumbCleanupStatus } from "../_shared/admin-handlers/ai-sentinel-handlers.ts";
+import {
+  handleGetAiSentinelStatus,
+  handleGetBlankThumbCleanupStatus,
+  handleRunAiSentinelCleanup,
+  handleTriggerAiSentinelScan,
+  handleTriggerBlankThumbCleanup,
+} from "../_shared/admin-handlers/ai-sentinel-handlers.ts";
 
 import {
   handleListHygieneFindings,
