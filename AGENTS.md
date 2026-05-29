@@ -213,6 +213,12 @@ Actually: Railway doesn't support path filters. Every push triggers a Railway re
 Looks like: duplication or confusion.
 Actually: `admin_config.OPENROUTER_API_KEY` feeds bridge/windows agents via heartbeat response. Railway env `OPENROUTER_API_KEY` feeds the Railway worker directly. Setting one does not set the other.
 
+### `trg_sync_primary_on_thumbnail` fires on INSERT **and** UPDATE
+
+Looks like: overkill — why would an INSERT need to sync a cover?
+Actually: the bridge agent sets `thumbnail_url` at insert time (single DB write). If the trigger only fired on UPDATE (which it did before migration `20260529132758`), those assets never triggered the sync, leaving `primary_asset_id = null` and no cover image in the library grid even when assets had thumbnails. A backfill in that migration fixed 482 affected groups.
+Do not revert to UPDATE-only — it would silently break cover assignment for any asset inserted with a thumbnail already set.
+
 ---
 
 ## 10. Environment and Credentials
