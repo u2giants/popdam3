@@ -45,17 +45,24 @@ interface StyleGroupDetailPanelProps {
 
 /* ── Tiny helpers ─────────────────────────────────────────── */
 
-function CopyInlineButton({ value }: { value: string }) {
+function CopyInlineButton({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     await navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
-  return (
+  const btn = (
     <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={copy}>
       {copied ? <Check className="h-3 w-3 text-[hsl(var(--success))]" /> : <Copy className="h-3 w-3" />}
     </Button>
+  );
+  if (!label) return btn;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{btn}</TooltipTrigger>
+      <TooltipContent side="top">{copied ? "Copied!" : `Copy ${label}`}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -789,7 +796,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
               <>
                 <section className="space-y-2">
                   <h4 className="group flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <CopyInlineButton value={detailAsset.filename} />
+                    <CopyInlineButton value={detailAsset.filename} label="filename" />
                     <span title={detailAsset.filename}>{formatFilename(detailAsset.filename, 30)}</span>
                   </h4>
                   {erpDescription && (
@@ -1113,8 +1120,8 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
                             {/* Actions */}
                             <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <CopyInlineButton value={asset.filename} />
-                              <CopyInlineButton value={asset.relative_path} />
+                              <CopyInlineButton value={asset.filename} label="filename" />
+                              <CopyInlineButton value={asset.relative_path} label="relative path" />
                               {!isCover && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
