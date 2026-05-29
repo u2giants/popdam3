@@ -234,8 +234,6 @@ export async function handleTriggerAiSentinelScan(body: Record<string, unknown>)
   const versionErr = await requireBridgeLatest(db);
   if (versionErr) return versionErr;
 
-  const target = Number(body.target) || (totalAi ?? 999_999);
-
   // Block if an active PDF sample (non-sentinel) is already running
   const { data: existing } = await db.from("admin_config").select("value").eq("key", "PDF_TEXT_SAMPLE_REQUEST").maybeSingle();
   const existingReq = existing?.value as Record<string, unknown> | null;
@@ -248,6 +246,8 @@ export async function handleTriggerAiSentinelScan(body: Record<string, unknown>)
     .select("*", { count: "exact", head: true })
     .eq("file_type", "ai")
     .eq("is_deleted", false);
+
+  const target = Number(body.target) || (totalAi ?? 999_999);
 
   const { data: firstBatch, error } = await db
     .from("assets")
