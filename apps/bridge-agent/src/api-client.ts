@@ -161,6 +161,8 @@ export interface HeartbeatResponse {
     pdf_text_sample_assets?: unknown[];
     trigger_ai_sentinel_scan?: boolean;
     ai_sentinel_scan_assets?: Array<{ id: string; filename: string; relative_path: string }>;
+    trigger_blank_thumb_cleanup?: boolean;
+    blank_thumb_cleanup_assets?: Array<{ id: string; thumbnail_url: string; file_type: string; relative_path: string }>;
     trigger_pdf_backfill?: boolean;
     audit_compat_thumbnails?: boolean;
     audit_compat_preview?: boolean;
@@ -510,4 +512,16 @@ export interface AiSentinelScanResult {
 
 export async function completeAiSentinelScan(results: AiSentinelScanResult[]): Promise<void> {
   await callApi("complete-ai-sentinel-scan", { results }, 60_000);
+}
+
+export interface BlankThumbCleanupResult {
+  asset_id: string;
+  thumbnail_url: string;
+  file_type: string;
+  relative_path: string;
+  is_blank: boolean;
+}
+
+export async function completeBlankThumbCleanup(results: BlankThumbCleanupResult[]): Promise<void> {
+  await callApi("complete-blank-thumb-cleanup", { results }, 60_000);
 }

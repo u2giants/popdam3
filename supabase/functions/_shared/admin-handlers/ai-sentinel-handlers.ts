@@ -284,3 +284,52 @@ export async function handleTriggerAiSentinelScan(body: Record<string, unknown>)
 
   return json({ ok: true, total_ai: totalAi, batch_size: AI_SENTINEL_BATCH_SIZE, target });
 }
+
+// ── POST: trigger blank thumbnail cleanup ─────────────────────────────────────
+
+const BLANK_THUMB_BATCH_SIZE = 25;
+
+export async function handleTriggerBlankThumbCleanup() {
+  const db = serviceClient();
+
+  const { count: total } = await db
+    .from("assets")
+    .select("*", { count: "exact", head: true })
+    .not("thumbnail_url", "is", null)
+    .eq("is_deleted", false);
+
+  const { data: firstBatch } = await db
+    .from("assets")
+    .select("id, thumbnail_url, file_type, relative_path")
+    .not("thumbnail_url", "is", null)
+    .eq("is_deleted", false)
+    .order("id", { ascending: true })
+    .limit(BLANK_THUMB_BATCH_SIZE);
+
+  if (!firstBatch || firstBatch.length === 0) return err("No assets with thumbnails found", 404);
+
+  const lastId = firstBatch[firstBatch.length - 1].id as string;
+  const nowIso = new Date().toISOString();
+
+  await db.from("admin_config").upsert({
+    key: "BLANK_THUMB_CLEANUP_REQUEST",
+    value: {
+      status: "scanning",
+      total: total ?? 0,
+      processed: 0,
+      cleaned: 0,
+      batch: firstBatch,
+      last_id: lastId,
+      started_at: nowIso,
+    },
+    updated_at: nowIso,
+  });
+
+  return json({ ok: true, total: total ?? 0, batch_size: BLANK_THUMB_BATCH_SIZE });
+}
+
+export async function handleGetBlankThumbCleanupStatus() {
+  const db = serviceClient();
+  const { data } = await db.from("admin_config").select("value").eq("key", "BLANK_THUMB_CLEANUP_REQUEST").maybeSingle();
+  return json({ ok: true, cleanup: data?.value ?? null });
+}

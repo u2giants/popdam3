@@ -396,7 +396,7 @@ async function thumbnailPdf(filePath: string): Promise<PdfThumbnailResult> {
  * Thresholds: all channels have mean > 250 and std < 6. Conservative
  * enough that any visible artwork (even a thin border on white) passes.
  */
-async function isBlankThumbnail(buffer: Buffer): Promise<boolean> {
+export async function isBlankThumbnail(buffer: Buffer): Promise<boolean> {
   try {
     const stats = await sharp(buffer).stats();
     return stats.channels.every(ch => ch.mean > 250 && ch.stdev < 6);

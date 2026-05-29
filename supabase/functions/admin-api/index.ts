@@ -85,7 +85,7 @@ import {
 import { handleDebugColdlionLookup, handleRepairInvalidPropertyNames } from "../_shared/admin-handlers/coldlion-handlers.ts";
 
 import { handleDeleteAiPdfDuplicates, handleFindAiPdfDuplicates } from "../_shared/admin-handlers/ai-duplicate-handlers.ts";
-import { handleGetAiSentinelStatus, handleRunAiSentinelCleanup, handleTriggerAiSentinelScan } from "../_shared/admin-handlers/ai-sentinel-handlers.ts";
+import { handleGetAiSentinelStatus, handleRunAiSentinelCleanup, handleTriggerAiSentinelScan, handleTriggerBlankThumbCleanup, handleGetBlankThumbCleanupStatus } from "../_shared/admin-handlers/ai-sentinel-handlers.ts";
 
 import {
   handleListHygieneFindings,
@@ -1591,6 +1591,10 @@ corsServe(async (req: Request) => {
       }
       case "trigger-ai-sentinel-scan":
         return await handleTriggerAiSentinelScan(body);
+      case "trigger-blank-thumb-cleanup":
+        return await handleTriggerBlankThumbCleanup();
+      case "get-blank-thumb-cleanup-status":
+        return await handleGetBlankThumbCleanupStatus();
       case "backfill-pdf-files-used":
         return await handleBackfillPdfFilesUsed();
       case "resolve-sku-files-used":

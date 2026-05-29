@@ -1,6 +1,6 @@
 {
   "name": "popdam-bridge-agent",
-  "version": "1.15.5",
+  "version": "1.15.6",
   "description": "PopDAM Bridge Agent \u2014 multi-tenant NAS scanner, thumbnail generator, and cloud sync worker",
   "type": "module",
   "main": "dist/index.js",

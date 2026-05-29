@@ -20,7 +20,7 @@ import { exec } from "node:child_process";
 import { stat, readdir, readFile, writeFile, mkdir } from "node:fs/promises";
 import { validateScanRoots, scanFiles, isPdfCandidate, type FileCandidate, type ScanCallbacks } from "./scanner.js";
 import { computeQuickHash } from "./hasher.js";
-import { generateThumbnail, isAiWithoutPdfCompat, isCompatAlertThumbnail, createCompatAuditWorker, type PdfThumbnailResult } from "./thumbnailer.js";
+import { generateThumbnail, isAiWithoutPdfCompat, isCompatAlertThumbnail, createCompatAuditWorker, isBlankThumbnail, type PdfThumbnailResult } from "./thumbnailer.js";
 import { uploadThumbnail, uploadPdfPage, reinitializeS3Client } from "./uploader.js";
 import { randomUUID } from "node:crypto";
 import { dirname, join, basename } from "node:path";
@@ -47,6 +47,7 @@ let isPdfBackfilling = false;
 let isAuditingCompatThumbnails = false;
 let isPreviewingCompatThumbnails = false;
 let isAiSentinelScanning = false;
+let isBlankThumbCleanupRunning = false;
 
 // ── Version info (injected via Docker build args or package.json) ──
 const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
@@ -247,6 +248,17 @@ async function sendHeartbeat() {
         logger.info("AI sentinel scan batch requested via heartbeat", { count: assets.length });
         runAiSentinelScan(assets, config.nasContainerMountRoot)
           .finally(() => { isAiSentinelScanning = false; });
+      }
+    }
+    // Blank thumbnail cleanup
+    if (response.commands.trigger_blank_thumb_cleanup && !isBlankThumbCleanupRunning) {
+      const assets = response.commands.blank_thumb_cleanup_assets ?? [];
+      if (Array.isArray(assets) && assets.length > 0) {
+        logger.info("Blank thumbnail cleanup batch requested", { count: assets.length });
+        runBlankThumbCleanup(assets as Array<{ id: string; thumbnail_url: string; file_type: string; relative_path: string }>).catch((e) => {
+          logger.error("Blank thumbnail cleanup failed", { error: (e as Error).message });
+          isBlankThumbCleanupRunning = false;
+        });
       }
     }
     // PDF backfill (self-driven claim loop — no asset list passed)
@@ -1229,6 +1241,32 @@ async function runCompatAuditPreview(): Promise<void> {
     await api.completeCompatAuditPreview(totalScanned, allFlagged, msg).catch(() => {});
   } finally {
     await worker.terminate();
+  }
+}
+
+async function runBlankThumbCleanup(
+  assets: Array<{ id: string; thumbnail_url: string; file_type: string; relative_path: string }>
+): Promise<void> {
+  if (isBlankThumbCleanupRunning) return;
+  isBlankThumbCleanupRunning = true;
+  try {
+    const results: api.BlankThumbCleanupResult[] = [];
+    for (const asset of assets) {
+      try {
+        const resp = await fetch(asset.thumbnail_url, { signal: AbortSignal.timeout(10_000) });
+        if (!resp.ok) { results.push({ asset_id: asset.id, thumbnail_url: asset.thumbnail_url, file_type: asset.file_type, relative_path: asset.relative_path, is_blank: false }); continue; }
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        const isBlank = await isBlankThumbnail(buffer);
+        if (isBlank) logger.info("Blank thumbnail detected", { path: asset.relative_path });
+        results.push({ asset_id: asset.id, thumbnail_url: asset.thumbnail_url, file_type: asset.file_type, relative_path: asset.relative_path, is_blank: isBlank });
+      } catch (e) {
+        logger.warn("Blank thumb check failed for asset", { id: asset.id, error: (e as Error).message });
+        results.push({ asset_id: asset.id, thumbnail_url: asset.thumbnail_url, file_type: asset.file_type, relative_path: asset.relative_path, is_blank: false });
+      }
+    }
+    await api.completeBlankThumbCleanup(results);
+  } finally {
+    isBlankThumbCleanupRunning = false;
   }
 }
 

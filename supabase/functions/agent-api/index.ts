@@ -583,6 +583,31 @@ async function handleHeartbeat(
     }
   }
 
+  // ── Blank thumbnail cleanup claim/dispatch ──
+  let blankThumbCleanupCommand: Record<string, unknown> = {};
+  if (agentType === "bridge") {
+    const cleanupReq = configMap.BLANK_THUMB_CLEANUP_REQUEST as Record<string, unknown> | undefined;
+    if (cleanupReq?.status === "scanning") {
+      const nowIso = new Date().toISOString();
+      const assets = (cleanupReq.batch as unknown[]) ?? [];
+      await db.from("admin_config").upsert({
+        key: "BLANK_THUMB_CLEANUP_REQUEST",
+        value: { ...cleanupReq, status: "claimed", claimed_by_agent_id: agentId, claimed_at: nowIso },
+        updated_at: nowIso,
+      });
+      blankThumbCleanupCommand = { trigger_blank_thumb_cleanup: true, blank_thumb_cleanup_assets: assets };
+    } else if (cleanupReq?.status === "claimed") {
+      const claimedAt = cleanupReq.claimed_at as string | undefined;
+      if (claimedAt && Date.now() - new Date(claimedAt).getTime() > 10 * 60 * 1000) {
+        await db.from("admin_config").upsert({
+          key: "BLANK_THUMB_CLEANUP_REQUEST",
+          value: { ...cleanupReq, status: "scanning", claimed_by_agent_id: null, claimed_at: null },
+          updated_at: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
   // ── Build response ──
   const responsePayload = {
     ok: true,
@@ -667,6 +692,7 @@ async function handleHeartbeat(
       ...pdfTextSampleCommand,
       ...compatAuditCommand,
       ...aiSentinelScanCommand,
+      ...blankThumbCleanupCommand,
       // PDF backfill: dispatch to bridge agents only while status is "running"
       trigger_pdf_backfill: (() => {
         if (agentType !== "bridge") return false;
@@ -3123,6 +3149,77 @@ async function handleCompleteAiSentinelScan(body: Record<string, unknown>) {
   return json({ ok: true, found: newFound, processed: newProcessed });
 }
 
+// ── Route: complete-blank-thumb-cleanup ─────────────────────────────────────
+
+const BLANK_THUMB_BATCH_SIZE_AGENT = 25;
+
+async function handleCompleteBlankThumbCleanup(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const results = (body.results as Array<{ asset_id: string; thumbnail_url: string; file_type: string; relative_path: string; is_blank: boolean }>) ?? [];
+
+  const blankResults = results.filter((r) => r.is_blank);
+
+  // Clear thumbnail_url and set thumbnail_error for blank assets
+  if (blankResults.length > 0) {
+    const blankIds = blankResults.map((r) => r.asset_id);
+    await db.from("assets").update({ thumbnail_url: null, thumbnail_error: "blank_render" }).in("id", blankIds);
+
+    // Permanently ignore blank .ai files
+    const blankAiFiles = blankResults.filter((r) => r.file_type === "ai");
+    if (blankAiFiles.length > 0) {
+      const ignoreRows = blankAiFiles.map((r) => ({ relative_path: r.relative_path, reason: "blank_render" }));
+      await db.from("scanner_ai_ignores").upsert(ignoreRows, { onConflict: "relative_path", ignoreDuplicates: true });
+    }
+  }
+
+  // Read current state and advance
+  const { data: reqRow } = await db.from("admin_config").select("value").eq("key", "BLANK_THUMB_CLEANUP_REQUEST").maybeSingle();
+  if (!reqRow?.value) return json({ ok: true });
+
+  const req = reqRow.value as Record<string, unknown>;
+  const total = (req.total as number) ?? 0;
+  const newProcessed = ((req.processed as number) ?? 0) + results.length;
+  const newCleaned = ((req.cleaned as number) ?? 0) + blankResults.length;
+  const lastId = req.last_id as string | null;
+  const nowIso = new Date().toISOString();
+
+  const done = newProcessed >= total || results.length < BLANK_THUMB_BATCH_SIZE_AGENT;
+
+  if (done) {
+    await db.from("admin_config").upsert({
+      key: "BLANK_THUMB_CLEANUP_REQUEST",
+      value: { ...req, status: "completed", processed: newProcessed, cleaned: newCleaned, completed_at: nowIso },
+      updated_at: nowIso,
+    });
+  } else {
+    const { data: nextBatch } = await db
+      .from("assets")
+      .select("id, thumbnail_url, file_type, relative_path")
+      .not("thumbnail_url", "is", null)
+      .eq("is_deleted", false)
+      .gt("id", lastId ?? "00000000-0000-0000-0000-000000000000")
+      .order("id", { ascending: true })
+      .limit(BLANK_THUMB_BATCH_SIZE_AGENT);
+
+    if (!nextBatch || nextBatch.length === 0) {
+      await db.from("admin_config").upsert({
+        key: "BLANK_THUMB_CLEANUP_REQUEST",
+        value: { ...req, status: "completed", processed: newProcessed, cleaned: newCleaned, completed_at: nowIso },
+        updated_at: nowIso,
+      });
+    } else {
+      const nextLastId = nextBatch[nextBatch.length - 1].id as string;
+      await db.from("admin_config").upsert({
+        key: "BLANK_THUMB_CLEANUP_REQUEST",
+        value: { ...req, status: "scanning", processed: newProcessed, cleaned: newCleaned, batch: nextBatch, last_id: nextLastId },
+        updated_at: nowIso,
+      });
+    }
+  }
+
+  return json({ ok: true, processed: newProcessed, cleaned: newCleaned });
+}
+
 // ── Route: complete-pdf-text-sample ─────────────────────────────────
 
 async function handleCompletePdfTextSample(body: Record<string, unknown>) {
@@ -3640,6 +3737,8 @@ corsServe(async (req: Request) => {
       case "complete-ai-sentinel-scan": {
         return await handleCompleteAiSentinelScan(body);
       }
+      case "complete-blank-thumb-cleanup":
+        return handleCompleteBlankThumbCleanup(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }
