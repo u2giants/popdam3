@@ -276,7 +276,8 @@ ${
                         tags: {
                           type: "array",
                           items: { type: "string" },
-                          description: "Descriptive tags: characters, styles, colors, themes, and product type. Always include the specific product type as a tag (e.g. 'lapdesk', 'backpack', 'mug', 'desk organizer', 'lunchbox', 'tee') — derive from the ERP Product Description if provided, otherwise from filename or folder path.",
+                          description:
+                            "Descriptive tags: characters, styles, colors, themes, and product type. Always include the specific product type as a tag (e.g. 'lapdesk', 'backpack', 'mug', 'desk organizer', 'lunchbox', 'tee') — derive from the ERP Product Description if provided, otherwise from filename or folder path.",
                         },
                         ai_description: {
                           type: "string",
