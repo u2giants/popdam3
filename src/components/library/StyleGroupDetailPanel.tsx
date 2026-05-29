@@ -695,6 +695,22 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
         <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-border">
           <h3 className="text-sm font-semibold truncate min-w-0 flex-1">{group.sku}</h3>
           <CheckoutBar assetId={detailAsset?.id} />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={handleAiTag}
+                disabled={aiTagging || !detailAsset?.thumbnail_url}
+              >
+                {aiTagging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {aiTagging ? "Re-tagging…" : !detailAsset?.thumbnail_url ? "No thumbnail — cannot re-tag" : "Re-tag with AI"}
+            </TooltipContent>
+          </Tooltip>
           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>

@@ -25,6 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   X,
   Copy,
@@ -316,12 +317,29 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
   const paths = nasConfig ? getPathDisplayModes(asset.relative_path, nasConfig, getUserSyncRoot()) : null;
 
   return (
+    <TooltipProvider>
     <div className="flex h-full w-[384px] flex-col border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
       {/* Header */}
       <div className="group flex items-center gap-2 px-4 py-3 border-b border-border">
         <h3 className="text-sm font-medium truncate min-w-0 flex-1" title={asset.filename}>{formatFilename(asset.filename, 20)}</h3>
         <CopyIconButton value={asset.filename} />
         <CheckoutBar assetId={asset.id} />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={handleAiTag}
+              disabled={aiTagging || !asset.thumbnail_url}
+            >
+              {aiTagging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {aiTagging ? "Re-tagging…" : !asset.thumbnail_url ? "No thumbnail — cannot re-tag" : "Re-tag with AI"}
+          </TooltipContent>
+        </Tooltip>
         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
@@ -651,5 +669,6 @@ export default function AssetDetailPanel({ asset, onClose }: AssetDetailPanelPro
         </div>
       </ScrollArea>
     </div>
+    </TooltipProvider>
   );
 }
