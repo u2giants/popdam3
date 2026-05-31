@@ -1,180 +1,181 @@
-# popdam3 — AGENTS.md
+# AGENTS.md — PopDAM Developer & AI Session Guide
 
 Read this first. Under 5 minutes. Everything else in `docs/` is a deep-dive reference.
 
 ---
 
-## Project Summary
+## 1. Project Summary
 
-**PopDAM** is an internal Digital Asset Manager for licensed consumer-product art (Disney, Marvel, etc.). Source design files (PSD, AI, PDF) live on a Synology NAS. The system ingests them via a Docker-based bridge agent, generates thumbnails, uploads them to DigitalOcean Spaces, and gives the team a dark-mode React web UI for browsing, searching, filtering, tagging, and managing artwork submissions against licensing deadlines. A persistent Railway worker handles AI tagging, ERP enrichment, and style group rebuilds asynchronously. **PopSG** is a second operating mode served by the same Docker image — a licensor-facing style guide library (folder-based, no SKUs or ERP). Hostname at runtime selects the mode; both modes share the same Supabase project (`ryltkzzernhwnojzouyb`).
+**PopDAM** is an internal Digital Asset Manager for licensed consumer-product art (Disney, Marvel, etc.). Source design files (PSD, AI) live on a Synology NAS. The system ingests them, generates thumbnails, uploads them to DigitalOcean Spaces, and gives the team a dark-mode web UI for browsing, searching, filtering, tagging, and managing artwork submissions.
+
+**PopSG** is a second mode served by the same codebase — a style-guide library for licensors (folder-based browsing, no SKUs or ERP). Same Docker image; hostname determines mode at runtime.
+
+**What matters:** assets get processed quickly, thumbnails appear, ERP codes resolve correctly, and style group assignments stay accurate. The team reviews and approves artwork against licensing deadlines.
+
+**Key moving parts:**
+
+| Component | Location | Platform |
+|-----------|----------|----------|
+| React web app | `src/` | Coolify (Docker, self-hosted VPS) |
+| Supabase edge functions | `supabase/functions/` | Supabase (Deno) |
+| PostgreSQL DB | `supabase/migrations/` | Supabase (hosted) |
+| Cloud worker (AI tagging, ERP, rebuild) | `apps/worker/` | Railway (Node.js) |
+| Bridge agent (NAS scanner + thumbnailer) | `apps/bridge-agent/` | Synology Docker |
+| Windows render agent (Illustrator) | `apps/windows-agent/` | Windows VM (manual install) |
+| Desktop helper (checkout/checkin) | `apps/popdam-helper/` | Electron, Mac + Windows |
 
 ---
 
-## Multi-model AI Note
+## 2. Multi-Model AI Note
 
-There is no universal ignore-file standard across AI coding tools.
+This codebase uses multiple AI models in multiple places. Before changing any model reference, check ALL of:
+- `admin_config.AI_TASK_MODELS` (DB table, runtime-configurable)
+- `apps/worker/src/handlers/erp.ts` — ERP classification model
+- `apps/bridge-agent/src/pdf-text-sampler.ts` — PDF extraction cascade
+- `apps/windows-agent/src/pdf-text-sampler.ts` — same cascade on Windows side
+- `supabase/functions/ai-tag/` — legacy vision tagging (now Windows agent only)
 
-`.claudeignore` works for Claude Code.
-
-When using any other AI tool, paste this file as your first message and follow the instructions in the "What to ignore" section.
+Changing a model in one place does not change it in others. Each consumer reads from a different config source.
 
 ---
 
-## Repository Structure
+## 3. Repository Structure
 
 ```
 popdam3/
-├── src/                          ← React web app (Vite + Tailwind + Shadcn)  [OWN]
-│   ├── components/settings/      ← Admin UI — bulk ops, ERP, diagnostics
-│   ├── components/library/       ← Asset grid, detail panel, filters
-│   ├── pages/popsg/              ← PopSG-only pages (IS_POPSG guards)
-│   ├── lib/app-mode.ts           ← Runtime mode detection (hostname + query param)
-│   ├── lib/external-supabase.ts  ← Real Supabase client (Lovable-override-safe)
-│   └── integrations/supabase/    ← client.ts (1-line re-export) + types.ts (generated)
+├── src/                        ← React web app (Vite + Tailwind + Shadcn)
+│   ├── components/settings/    ← Admin UI — bulk ops, ERP, diagnostics
+│   ├── components/library/     ← Asset grid, detail panel, filters
+│   ├── pages/popsg/            ← PopSG-only pages (IS_POPSG guards)
+│   ├── lib/app-mode.ts         ← Runtime mode detection (dam vs sg hostname)
+│   └── integrations/supabase/ ← Generated types + Supabase client
 ├── supabase/
-│   ├── functions/                ← Edge functions (Deno)  [OWN]
-│   │   ├── admin-api/            ← Admin control plane router (~1268 lines)
-│   │   ├── agent-api/            ← Bridge/Windows agent comms (~2781 lines)
-│   │   ├── _shared/              ← Handlers, types, constants, mg-codes
-│   │   └── bulk-job-runner/      ← No-op stub (replaced by Railway worker)
-│   ├── migrations/               ← Timestamped SQL files  [OWN]
-│   └── config.toml               ← Supabase project config (project_id = ryltkzzernhwnojzouyb)
+│   ├── functions/              ← Edge functions (Deno)
+│   │   ├── admin-api/          ← Admin operations router (~1300 lines)
+│   │   ├── agent-api/          ← Bridge/Windows agent comms (~2800 lines)
+│   │   ├── helper-api/         ← Desktop helper checkout/checkin
+│   │   ├── _shared/            ← Shared handlers, types, constants
+│   │   └── bulk-job-runner/    ← No-op stub (replaced by Railway worker)
+│   └── migrations/             ← Timestamped SQL migration files
 ├── apps/
-│   ├── worker/                   ← Railway cloud worker v1.2.12 (Node.js)  [OWN]
-│   │   └── src/handlers/         ← ai-tagging, erp, style-groups, relink-orphaned, tag-propagation
-│   ├── bridge-agent/             ← Synology NAS agent v1.15.8 (Docker)  [OWN]
-│   ├── windows-agent/            ← Windows Illustrator render agent v0.15.0  [OWN]
-│   └── popdam-helper/            ← Electron desktop app v1.2.0 (Mac + Windows)  [OWN]
-├── packages/path-filters/        ← Shared junk-file filter logic  [OWN]
-├── scripts/                      ← Utility scripts (nas-ssh.sh, etc.)  [OWN]
-├── deploy/synology/              ← Reference docker-compose.yml for NAS
-├── .github/workflows/            ← CI/CD pipelines  [OWN]
-│   ├── ci.yml                    ← Lint + test + build (Bun)
-│   ├── publish-frontend.yml      ← Build + push GHCR + trigger Coolify
-│   ├── deploy-supabase.yml       ← supabase db push + deploy functions + gen types
-│   ├── publish-bridge-agent.yml  ← Docker build + GHCR push (:stable, :vX, :latest)
-│   ├── publish-windows-agent.yml ← NSIS installer + GitHub Release
-│   ├── publish-popdam-helper.yml ← Electron DMG/EXE + GitHub Release
-│   ├── edge-functions-format.yml ← deno fmt auto-commit
-│   └── deploy-popsg-supabase.yml ← Manual-only; dead workflow (supabase-popsg/ dead code)
-├── docs/                         ← Deep-dive reference docs  [OWN]
-├── AGENTS.md                     ← This file
-├── CLAUDE.md                     ← Claude Code-specific workflow rules
-├── HANDOFF.md                    ← Unfinished work tracker
-├── README.md                     ← Project readme
-├── SELFHOST.md                   ← VPS/Coolify/Traefik ops guide
-├── Dockerfile / Dockerfile.ci    ← Container build (nginx:1.27-alpine, port 80)
-├── nginx.conf                    ← nginx config (listen [::]:80 required — see Quirks)
-├── vite.config.ts / package.json ← Frontend build config
-└── supabase-popsg/               ← DEAD CODE — do not edit or deploy from here
-
-Generated / vendor (do not edit):
-  src/integrations/supabase/types.ts   ← auto-generated by deploy-supabase.yml
-  dist/                                ← Vite build output
-  node_modules/, apps/*/node_modules/
-  apps/popdam-helper/out/              ← Electron build output
-  .lovable/                            ← Lovable platform memory
-  app/                                 ← Dead symlink to old build snapshot
+│   ├── worker/                 ← Railway cloud worker (Node.js, TypeScript)
+│   │   └── src/handlers/       ← Per-operation batch handlers
+│   ├── bridge-agent/           ← Synology NAS agent (Docker, TypeScript)
+│   ├── windows-agent/          ← Windows Illustrator render agent (TypeScript)
+│   └── popdam-helper/          ← Electron desktop app
+├── packages/path-filters/      ← Shared path filter logic (Node.js workspace pkg)
+├── scripts/                    ← Utility scripts (nas-ssh.sh, etc.)
+├── deploy/synology/            ← Reference docker-compose.yml for NAS
+├── .github/workflows/          ← CI/CD pipelines
+├── docs/                       ← Deep-dive reference docs
+├── CLAUDE.md                   ← Claude Code instructions (read after this)
+├── SELFHOST.md                 ← VPS / Coolify / Traefik ops guide
+└── HANDOFF.md                  ← Unfinished work (delete when done)
 ```
+
+**Generated / third-party (do not edit):**
+- `src/integrations/supabase/types.ts` — auto-generated by `deploy-supabase.yml`
+- `dist/` — Vite build output
+- `node_modules/`, `apps/*/node_modules/`
+- `.lovable/` — Lovable platform memory (ignore)
+- `app/` — symlink to an older build snapshot (dead, ignore)
+- `supabase-popsg/` — dead code directory for an abandoned separate Supabase project
 
 ---
 
-## Prime Directive: Custom-Code Boundary
+## 4. Prime Directive: Custom-Code Boundary
+
+Project-owned code lives in:
 
 ```
-Our custom code lives here:
-- src/
-- apps/bridge-agent/src/
-- apps/worker/src/
-- apps/windows-agent/src/
-- apps/popdam-helper/src/
-- packages/path-filters/src/
-- supabase/functions/
-- supabase/migrations/
-- docs/
-- .github/workflows/
-Everything else requires justification before touching.
+src/
+supabase/functions/
+supabase/migrations/
+apps/worker/src/
+apps/bridge-agent/src/
+apps/windows-agent/src/
+apps/popdam-helper/src/
+packages/path-filters/src/
 ```
+
+**Before touching anything outside these paths, ask why.** The main risk areas:
+- `src/integrations/supabase/client.ts` — re-exports from `external-supabase.ts`; Lovable overwrites this periodically (quirk #2)
+- `src/integrations/supabase/types.ts` — auto-generated; edit will be overwritten on next deploy
+- `supabase-popsg/` — dead code directory, do not edit or deploy from it
 
 ---
 
-## Core Modification Inventory
+## 5. Core Modification Inventory
+
+Files outside project-owned areas that were intentionally modified:
 
 | File | Change made | Why necessary | Upgrade risk |
 |------|------------|---------------|--------------|
-| `nginx.conf` | Added `listen [::]:80;` | Coolify health check resolves `localhost` → `::1` on IPv6; nginx listening only on IPv4 caused health check failures and Traefik routing to stop | Low — standard nginx directive |
+| `nginx.conf` | Added `listen [::]:80;` | Coolify health check resolves `localhost` → `::1` on IPv6; nginx only listening on IPv4 caused health check failures and Traefik routing to stop | Low — standard nginx directive |
 
 ---
 
-## Task-to-File Navigation
+## 6. Task-to-File Navigation
 
 | Task | Files to touch | Files NOT to touch |
 |------|---------------|-------------------|
-| Add new frontend page (PopDAM) | `src/pages/`, `src/App.tsx` | `src/integrations/supabase/types.ts` (auto-generated) |
-| Add new frontend page (PopSG) | `src/pages/popsg/`, `src/App.tsx` (IS_POPSG route guard) | `src/components/library/` (PopDAM-only components) |
-| Add DB migration | New file in `supabase/migrations/` via `apply_migration` MCP (see CLAUDE.md timestamp discipline) | Any existing migration file |
-| Add edge function route | `supabase/functions/admin-api/index.ts` or `agent-api/index.ts`, new handler in `supabase/functions/_shared/admin-handlers/` | `supabase/functions/bulk-job-runner/` (no-op stub) |
-| Add new bulk operation | `src/components/settings/diagnostics/`, `apps/worker/src/handlers/`, `apps/worker/src/operation-loop.ts`, `supabase/functions/_shared/operation-constants.ts` | `supabase/functions/bulk-job-runner/` |
-| Add env var (runtime) | Coolify dashboard (frontend runtime), Railway dashboard (worker), bridge agent `.env` on NAS | `src/lib/app-mode.ts` (hardcoded Supabase config only — see Quirks) |
-| Change ERP classification rules | `apps/worker/src/handlers/erp.ts` (~line 336, IMPORTANT CLASSIFICATION RULES + CORRECTION EXAMPLES sections) | — |
-| Add style group field | New migration via `apply_migration`, `apps/worker/src/handlers/style-groups.ts`; `src/integrations/supabase/types.ts` auto-regenerates on next CI deploy | — |
-| Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts` (reverse lookup), `src/lib/mg-lookup.ts` (forward UI map) | — |
-| Fix bridge agent scan | `apps/bridge-agent/src/scanner.ts`, `apps/bridge-agent/src/index.ts` | — |
+| Add/fix admin UI bulk operation | `src/components/settings/diagnostics/`, `apps/worker/src/handlers/`, `apps/worker/src/operation-loop.ts`, `supabase/functions/_shared/operation-constants.ts` | `supabase/functions/bulk-job-runner/` (no-op stub) |
+| Add/fix edge function route | `supabase/functions/admin-api/index.ts` or `agent-api/index.ts`, `supabase/functions/_shared/admin-handlers/` | `src/integrations/supabase/types.ts` (auto-generated) |
+| DB schema change | New file in `supabase/migrations/` via `apply_migration` MCP | Any existing migration file |
+| Fix style group rebuild | `apps/worker/src/handlers/style-groups.ts`, DB functions in `supabase/migrations/` | `supabase/functions/bulk-job-runner/` |
+| Fix style group asset_count drift | `supabase/migrations/` (new migration), `supabase/functions/_shared/` | — |
+| Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts`, `src/lib/mg-lookup.ts` | — |
+| Fix bridge agent scan | `apps/bridge-agent/src/scanner.ts`, `apps/bridge-agent/src/handlers/` | — |
 | Fix thumbnail generation | `apps/bridge-agent/src/thumbnailer.ts` | — |
-| Change bridge agent sibling scan concurrency | `apps/bridge-agent/src/index.ts` — `SIBLING_SCAN_CONCURRENCY` constant (currently 4) | — |
-| Change Traefik routing | `/data/coolify/proxy/dynamic/` on VPS (bind-mounted into coolify-proxy container), or Coolify app config | `nginx.conf` (unless fixing health check) |
-| Redeploy edge functions after mg-codes change | Push to `main` touching `supabase/functions/**` — `deploy-supabase.yml` fires automatically | — |
-| Bump bridge agent version | `apps/bridge-agent/package.json` — same commit as code change (patch/minor/major per impact) | — |
+| Add PopSG page | `src/pages/popsg/`, `src/App.tsx` (route guard) | `src/components/library/` (PopDAM-only) |
+| Change Traefik routing | `/data/coolify/proxy/dynamic/` on VPS, or Coolify app config | `nginx.conf` (unless fixing health check) |
+| Change AI classification prompt | `apps/worker/src/handlers/erp.ts` (~line 336) | — |
+| Add new pg_cron job | New migration file using `cron.schedule()` | Direct Supabase Dashboard edits |
 
 ---
 
-## Data Model and External Identifiers
+## 7. Important Identifiers
 
-| Identifier | Value | Notes |
-|-----------|-------|-------|
-| Supabase project ID (prod, popdam3) | `ryltkzzernhwnojzouyb` | Both PopDAM and PopSG modes; never confuse with SynoMon |
-| Supabase project ID (SynoMon — NEVER use for popdam3) | `qnjimovrsaacneqkggsn` | Completely separate project |
-| Supabase project ID (old PopSG separate project — dead) | `eeueczxhezfhyrhdmidg` | Referenced only in dead `deploy-popsg-supabase.yml` |
-| Supabase anon key | `sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK` | Hardcoded in `src/lib/app-mode.ts`; publishable key |
-| Supabase URL | `https://ryltkzzernhwnojzouyb.supabase.co` | Hardcoded in `src/lib/app-mode.ts` |
-| Coolify app UUID | `qxj8a0j3tpa9lq4q5rs6pezy` | Embedded in Traefik service name and CI secrets |
-| Coolify Traefik service name | `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` | Referenced in `popdam-sg.yml` file provider on VPS |
-| Coolify URL | `https://coolify.designflow.app` | Used by CI to trigger redeploy |
-| Production domain (PopDAM) | `dam.designflow.app` | Routed via Docker labels by Coolify |
-| Production domain (PopSG) | `sg.designflow.app` | Routed via `/data/coolify/proxy/dynamic/popdam-sg.yml` on VPS |
-| VPS IP | `178.156.180.212` | SSH for emergency break-glass only |
-| GHCR frontend image | `ghcr.io/u2giants/popdam-frontend` | Tags: `:latest`, `:<sha>` |
-| GHCR bridge agent image | `ghcr.io/u2giants/popdam-bridge` | Tags: `:stable` (NAS + self-update), `:v{version}`, `:latest` |
-| DigitalOcean Spaces bucket | `popdam` | Region: `nyc3`; CDN: `cdn.designflow.app` |
-| Thumbnail path format | `thumbnails/{asset_id}.jpg` | In DO Spaces bucket |
-| Auth session storage key | `sb-popdam-auth-token` | localStorage |
-| Authentik app slug | `popdam` | Client ID: `q779goioDDC4P9QzTZM9GiO7SGUraIwPlMvFPb6j` |
-| Authentik redirect URI | `https://dam.designflow.app/auth/callback` | — |
-| Worker app version | `1.2.12` | `apps/worker/package.json` |
-| Bridge agent version | `1.15.8` | `apps/bridge-agent/package.json` |
-| Windows render agent version | `0.15.0` | `apps/windows-agent/package.json` |
-| Helper app version | `1.2.0` | `apps/popdam-helper/package.json` |
-| GitHub Release tag (Helper) | `popdam-helper-latest` | Published by `publish-popdam-helper.yml` |
-| GitHub Release tag (Windows Agent) | `windows-agent-latest` + versioned tag | Published by `publish-windows-agent.yml` |
+| Identifier | Value | Do not... |
+|-----------|-------|-----------|
+| Supabase project ID (prod) | `ryltkzzernhwnojzouyb` | Confuse with SynoMon project `qnjimovrsaacneqkggsn` |
+| Coolify app UUID | `qxj8a0j3tpa9lq4q5rs6pezy` | Regenerate — embedded in Traefik service name and CI secrets |
+| Coolify Traefik service name | `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` | Change — referenced in `popdam-sg.yml` file provider |
+| Production domains | `dam.designflow.app`, `sg.designflow.app` | — |
+| DigitalOcean Spaces bucket | `popdam` (CDN: `cdn.designflow.app`) | Rename without migrating all `thumbnail_url` values |
+| Railway worker service | `apps/worker/` project in Railway | Deploy manually — Railway auto-deploys from `main` |
+| GHCR frontend image | `ghcr.io/u2giants/popdam-frontend` | Rename without updating `Dockerfile.ci` and Coolify app config |
+| GHCR bridge agent image | `ghcr.io/u2giants/popdam-bridge` (`:stable` tag) | Remove `:stable` — in-app self-update and NAS compose file reference it |
+| pg_cron job: nightly SG crawl | `nightly-sg-crawl` | — |
+| pg_cron job: nightly asset count reconcile | `nightly-reconcile-sg-asset-counts` | — |
+| pg_cron job: render queue purge | `purge-render-queue-old-rows` | — |
+| pg_cron job: sg render queue purge | `purge-sg-render-queue-old-rows` | — |
+| pg_cron job: path history purge | `purge-asset-path-history-old-rows` | — |
+| Key DB tables | `assets`, `style_groups`, `erp_items_current`, `style_guide_files`, `admin_config`, `product_category_predictions` | — |
 
 ---
 
-## Container and Service Inventory
+## 8. Services / Containers
 
-| Service | Runtime | Platform | Managed by | Deploy trigger | Notes |
-|---------|---------|----------|-----------|----------------|-------|
-| `popdam-frontend` | nginx:1.27-alpine, port 80 | Coolify on VPS | Coolify | `publish-frontend.yml` → GHCR → Coolify API | UUID `qxj8a0j3tpa9lq4q5rs6pezy`; serves both hostnames |
-| `coolify-proxy` | Traefik | VPS | Coolify | Coolify admin UI | TLS termination; routes both hostnames to `popdam-frontend` |
-| Railway worker | Node.js 20 | Railway | Railway | Push to `main` (any file change — no path filter on Railway) | Polls `admin_config.BULK_OPERATIONS` every 1s |
-| Bridge agent | Node.js Docker | Synology NAS | docker-compose on NAS | In-app update (admin UI → `UPDATE_REQUEST`) or manual `docker compose pull` | Image tag `:stable`; requires `POPDAM_CONTAINER_NAME` env var |
-| Windows render agent | Node.js | Windows VM | Manual | GitHub Release download | Renders `.ai` files via Illustrator; NSIS installer |
-| Supabase edge functions | Deno | Supabase | Supabase | `deploy-supabase.yml` (path: `supabase/functions/**`) | 11 functions deployed |
-| PostgreSQL | Supabase-managed | Supabase | Supabase | `deploy-supabase.yml` (path: `supabase/migrations/**`) | Extensions: `pg_cron`, `pg_net`, `pg_trgm`, `pgcrypto` |
-| PopDAM Helper desktop app | Electron | Mac + Windows | GitHub Release | `publish-popdam-helper.yml` | Release tag `popdam-helper-latest` |
+| Service | Runtime | Managed by | Deploy trigger |
+|---------|---------|-----------|----------------|
+| `popdam-frontend` | nginx:1.27-alpine, port 80 | Coolify on VPS | `publish-frontend.yml` → GHCR → Coolify API |
+| `coolify-proxy` | Traefik | Coolify | Coolify admin UI |
+| Railway worker | Node.js 20 | Railway | Push to `main` (any file change) — Railway auto-detects |
+| Bridge agent | Node.js Docker, Synology | docker-compose on NAS | In-app update or manual `docker compose pull` |
+| Windows render agent | Node.js, Windows VM | Manual | GitHub Release download |
+| Supabase edge functions | Deno | Supabase | `deploy-supabase.yml` (triggers on `supabase/functions/**`) |
+| PostgreSQL | Supabase-managed | Supabase | `deploy-supabase.yml` (triggers on `supabase/migrations/**`) |
+
+**Railway deploy note:** Railway watches `main` and rebuilds on every push. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
+
+**Coolify ownership:** Coolify owns runtime environment variables, domain bindings, health checks, restart policy, and container lifecycle for `popdam-frontend`. Changes to runtime configuration (env vars, feature flags) go through Coolify directly — not via GitHub or SSH. Source code, Dockerfiles, and workflow changes must go through GitHub as normal.
+
+**CI path triggers:** `publish-frontend.yml` triggers only on application file changes (`src/**`, `Dockerfile`, etc.) — documentation-only changes to `docs/**` and top-level `.md` files do not trigger a frontend build. `deploy-supabase.yml` triggers only on `supabase/migrations/**` and `supabase/functions/**` changes.
 
 ---
 
-## What to Ignore
+## 9. What to Ignore
 
 ```
 dist/
@@ -185,156 +186,197 @@ apps/popdam-helper/out/
 .cache/
 coverage/
 app/                    # dead symlink to old build snapshot
-supabase-popsg/         # dead code; old separate PopSG Supabase project — never deploy from here
-.lovable/               # Lovable platform memory — periodically overwrites client.ts and .env
+supabase-popsg/         # dead code, never deploy from here
+.lovable/               # Lovable platform memory
 duplicate-folders.txt   # one-off audit file
 worksp_symlink.md       # harness bookkeeping
-apps/popdam-helper/package-lock.json  # untracked, not used in CI
-server                  # untracked artifact, not part of the project
+server                  # untracked directory, not part of the build
 ```
 
 ---
 
-## Intentional Quirks and Non-Obvious Decisions
+## 10. Intentional Quirks
 
-### Dual-mode single deployment (PopDAM + PopSG from one container)
-**Looks like:** two separate apps that should have separate deployments, separate configs, separate Supabase projects.
-**Actually:** one Docker image, one Coolify app (`popdam-frontend`, UUID `qxj8a0j3tpa9lq4q5rs6pezy`), one Supabase project (`ryltkzzernhwnojzouyb`). Traefik routes `dam.designflow.app` via Docker labels and `sg.designflow.app` via a Traefik file provider (`/data/coolify/proxy/dynamic/popdam-sg.yml`) on the VPS, both to the same container. Mode is resolved once at module load in `src/lib/app-mode.ts` by reading `window.location.host`.
-**Why:** PopSG was added after PopDAM was already deployed. Running two separate infra stacks for what is essentially a different UI over the same DB was not justified.
-**Do not change because:** splitting into two deployments would require duplicating CI/CD, secrets, Supabase project config, and edge function deployments — with no architectural benefit.
+### Dual-mode (PopDAM / PopSG) via hostname detection
 
-### The `sibling_scan_request_*` admin_config pattern (polling instead of realtime)
-**Looks like:** sibling scan requests should use Supabase Realtime like normal scan commands.
-**Actually:** each sibling scan request is stored as a separate `admin_config` row with key `sibling_scan_request_{requestId}`. The bridge agent claims them by fetching all `pending` rows with `key LIKE 'sibling_scan_request_%'` on each heartbeat cycle or when the Realtime channel fires for the `admin_config` table. The agent processes them in batches of 4 (`SIBLING_SCAN_CONCURRENCY`) via `Promise.all`, looping until the queue is empty.
-**Why:** sibling scans are initiated per-folder from the frontend (Style Group detail panel → Sibling Image Finder), so multiple may queue up concurrently. Using a prefix-keyed pattern in `admin_config` gives natural queue semantics without needing a separate table. The pattern matches how other agent commands (scan, update) are delivered.
-**Do not change because:** changing to a separate table would require a migration, new API routes, and updated agent code — the current pattern works.
+**Looks like:** Two separate Supabase projects, two separate deployments.
+**Actually:** One Docker image, one Coolify app, one Supabase project (`ryltkzzernhwnojzouyb`). `src/lib/app-mode.ts` reads `window.location.host` and returns `"popdam"` or `"popsg"`. `IS_POPSG` guards routes, UI panels, and page components throughout `App.tsx` and the components tree.
+**Do not change because:** Splitting the mode into two builds or two containers would double the deployment surface for no functional gain.
+**Local testing:** Add `?mode=popsg` to any localhost URL — stored in `sessionStorage` for the tab.
 
-### Migration timestamp discipline (apply_migration → list_migrations → filename)
-**Looks like:** you should be able to name migration files with any timestamp and apply them.
-**Actually:** Supabase records the migration using the **actual wall-clock time** when `apply_migration` MCP completes — not any timestamp you specify. If the local filename uses a different timestamp, `supabase db push` (run in CI) sees a local file not in history and tries to re-apply it, causing failures.
-**Why:** this is a Supabase platform constraint, not a design choice.
-**Do not change because:** there is no alternative. The required workflow is: (1) call `apply_migration`, (2) immediately call `list_migrations` to read the recorded timestamp, (3) create the local file with that exact timestamp as the prefix, (4) commit and push immediately. See CLAUDE.md for the full discipline.
+### `asset_count` on `style_groups` is a cached field, not computed on read
 
-### Dead code: `supabase-popsg/` directory
-**Looks like:** a separate Supabase project configuration for PopSG.
-**Actually:** PopSG was originally planned with a separate Supabase project (`eeueczxhezfhyrhdmidg`). That plan was abandoned; both modes now use `ryltkzzernhwnojzouyb`. The `supabase-popsg/` directory was never cleaned up.
-**Why it still exists:** oversight when PopSG was merged into the main project.
-**Do not change because:** do not deploy from it. The `deploy-popsg-supabase.yml` workflow remains but should only be triggered manually if the old project is being actively maintained (it is not).
+**Looks like:** `style_groups.asset_count` should always be up to date — just query `COUNT(*) FROM assets WHERE style_group_id = ...`.
+**Actually:** `asset_count` is a denormalized cache. It is maintained by:
+1. A statement-level trigger `trg_refresh_sg_counts_on_asset_change` (migration `20260515080654`) — fires on INSERT/DELETE of `assets` and on UPDATE when `is_deleted` or `style_group_id` changes.
+2. A pg_cron job `nightly-reconcile-sg-asset-counts` (migration `20260531142011`) running at 03:45 UTC daily — calls `refresh_style_group_counts_batch(array_agg(id))` over all groups to catch any drift the trigger missed.
+3. The `reconcile-style-group-stats` Railway worker op — on-demand full reconcile.
+**Why cached:** Computing `COUNT(*)` with a join on every library page load at the style_groups level is prohibitively slow at scale.
+**Drift can occur when:** A bulk asset delete bypasses the trigger (e.g., direct SQL via service role without triggering the transition table logic), or the trigger fires but the DB rolls back after the count update. Before the nightly cron was added (2026-05-31), pre-existing drift from before 2026-05-15 was never cleaned up — 17 style groups had stale counts including 2 with `asset_count=1` but zero actual assets.
+**Do not compute live:** Use `reconcile-style-group-stats` op or the nightly cron to fix drift.
 
-### Bridge agent processes sibling scans 4 at a time
-**Looks like:** serial processing would be safer and simpler.
-**Actually:** `SIBLING_SCAN_CONCURRENCY = 4` in `apps/bridge-agent/src/index.ts`. Each heartbeat cycle (or Realtime event) that triggers `processSiblingScanRequests()` claims up to 4 `sibling_scan_request_*` entries simultaneously via `Promise.all`, processes them in parallel, then loops until the queue is empty. A `siblingScanInProgress` flag prevents re-entrant calls.
-**Why:** sibling scans are I/O-bound filesystem walks. Running 4 in parallel drains a multi-folder backlog (e.g., after `.ai` sentinel cleanup queues many folders) without blocking the main heartbeat. This was changed from a lower value to address a queue backlog incident on 2026-05-31.
-**Do not change because:** reducing to 1 would cause multi-hour queue drain times when many folders are queued simultaneously. Increasing above 4 risks excessive NAS I/O and lock contention on `admin_config`.
+### `supabase-popsg/` directory is dead code
 
-### `product_category` has a single write source and an `erp_updated_at` guard
-**Looks like:** any code that knows a category should be able to write `product_category`.
-**Actually:** `product_category` on both `style_groups` and `assets` has exactly one write source: the ERP enrichment worker in `apps/worker/src/handlers/erp.ts`. The sku-parser was removed as a write source in 2026-05. The worker only uses `mg_category` to set `product_category` when `erp_updated_at >= 2025-05-10`; items with earlier dates fall through to the AI prediction path (`product_category_predictions` table) instead.
-**Why:** before 2025-05-10, the MG01 field letter codes had unstable meanings. In 2026-05, ~5,500 style groups had their `product_category` bulk-nulled. Those items need AI classification, not direct ERP-driven assignment.
-**Do not change because:** removing the date guard would cause pre-May-2025 items to receive incorrect categories derived from unreliable old letter-code data.
+**Looks like:** A separate Supabase project for PopSG with its own functions and workflow.
+**Actually:** PopSG was originally on a separate project (`eeueczxhezfhyrhdmidg`). It was consolidated into the PopDAM project. The directory was never cleaned up.
+**Do not deploy from it:** The `deploy-popsg-supabase.yml` workflow targets the old abandoned project.
 
-### .ai sentinel cleanup is temporary
-**Looks like:** permanent infrastructure for detecting bad Illustrator files.
-**Actually:** the `ai_sentinel_cleanup_log` table, `get_ai_sentinel_stats()` function, `AiSentinelCleanupCard` UI, `ai-sentinel-handlers.ts`, and `admin-api` routes `get-ai-sentinel-status` and `run-ai-sentinel-cleanup` are one-time reconciliation scaffolding. The `pdf_text_samples` table and `claim_pdf_backfill_batch()` function covering `.ai` files is permanent (needed to detect sentinels going forward).
-**Why:** the NAS contained `.ai` files saved from Illustrator without "Create PDF Compatible File" enabled — these contain only Adobe's boilerplate warning and are not usable. A one-time pass deletes them and replaces their thumbnails with the nearest PDF/PNG/JPG sibling.
-**Do not change because:** once the reconciliation is confirmed complete, delete everything listed in the "Temporary: .ai Sentinel Cleanup" table in `CLAUDE.md`. Do not build on top of it.
+### `.ai` file sentinel pattern
+
+**Looks like:** The bridge agent is ignoring many `.ai` files for no obvious reason.
+**Actually:** Adobe Illustrator can save `.ai` files without "Create PDF Compatible File" enabled. These files contain only a boilerplate compatibility-alert warning page — no actual artwork. The bridge agent detects them via `isAiWithoutPdfCompat()` in `apps/bridge-agent/src/thumbnailer.ts` (reads file header, then uses mupdf to check page text for the sentinel phrase "saved without PDF Content"). Detected files are permanently added to `scanner_ai_ignores` so they are never re-processed.
+**Do not remove the check:** Without it, these files generate "compatibility alert" thumbnails that look like real artwork in the library.
+
+### ERP `product_category` cutoff date (2025-05-10)
+
+**Looks like:** Some ERP items have no `product_category` even though they have valid MG codes.
+**Actually:** Before 2025-05-10, the MG01 field from the ERP API used single-letter codes with unstable meanings. After that date the letters reliably map to categories. The worker (`apps/worker/src/handlers/erp.ts`) only uses `mg_category` to set `product_category` when `erp_updated_at >= 2025-05-10`. Items before that date fall through to the AI prediction path. About 5,500 style groups with pre-cutoff ERP data have null `product_category` and need AI classification.
+**Do not remove the guard:** Items before the cutoff would get wrong categories applied automatically.
+
+### Bridge agent defers thumbnails to Windows Render Agent for certain files
+
+**Looks like:** Some `.ai` files get `thumbnail_error = "deferred_to_windows_agent"` even though the bridge agent could attempt to render them.
+**Actually:** When `windows_render_mode = "primary"` or the `windows_render_policy` mode is set to `"shared"` with the file type in `shared_types`, the bridge agent intentionally skips local thumbnailing and queues a `render_queue` job for the Windows agent instead. The policy is set in `admin_config` and delivered via heartbeat response.
+**Do not treat as failures:** These are intentional deferrals, not errors. The Windows agent renders them via Illustrator (higher quality than the PDF-compat path).
+
+### `app/` symlink at repo root
+
+**Looks like:** An older version of the frontend code.
+**Actually:** Dead symlink to an old build snapshot. Has no effect on the build or runtime.
+**Do not use:** Ignore entirely.
+
+### `bulk-job-runner` edge function is a deployed no-op
+
+**Looks like:** A real function that runs batch jobs.
+**Actually:** Returns `{ ok: true, message: "replaced by railway worker" }`. All batch work runs in the Railway worker. The pg_cron schedule that used to call this was removed in migration `20260322000000`.
+**Do not add logic here:** It would conflict with the Railway worker.
+
+### `verify_jwt = false` on `admin-api` in `supabase/config.toml`
+
+**Looks like:** Security hole — admin API doesn't verify JWTs at the gateway level.
+**Actually:** CORS preflight (`OPTIONS`) carries no auth header; gateway-level JWT check rejects it. Verification happens inside the function. See `docs/KNOWN_QUIRKS.md` #4.
+
+### Style group rebuild `finalize_stats` calls `reconcile_style_group_stats_batch` in a loop
+
+**Looks like:** Should just call `run_full_reconcile_style_group_stats` once.
+**Actually:** `run_full_reconcile_style_group_stats` has no `SET statement_timeout`, so after a full rebuild the DB-level role timeout kills it. The batched approach (100 groups/batch for counts, 25 for primaries) each has `SET statement_timeout = '120s'` and completes without hitting the limit.
+**Do not revert:** "Start Fresh" rebuild reliably times out on "Compute counts" when there are many groups.
+
+### `trg_sync_primary_on_thumbnail` fires on INSERT **and** UPDATE
+
+**Looks like:** Overkill — why would an INSERT need to sync a cover?
+**Actually:** The bridge agent sets `thumbnail_url` at insert time (single DB write). If the trigger only fired on UPDATE (which it did before migration `20260529132758`), those assets never triggered the sync, leaving `primary_asset_id = null`. A backfill in that migration fixed 482 affected groups.
+**Do not revert to UPDATE-only:** It would silently break cover assignment for any asset inserted with a thumbnail already set.
+
+### Railway worker deploys on every push to `main`
+
+**Looks like:** Wasteful — most pushes don't touch `apps/worker/`.
+**Actually:** Railway doesn't support path filters. Every push triggers a Railway rebuild regardless of which files changed. This is a Railway platform constraint, not a bug.
+
+### Two separate `OPENROUTER_API_KEY` locations
+
+**Looks like:** Duplication or confusion.
+**Actually:** `admin_config.OPENROUTER_API_KEY` feeds bridge/windows agents via heartbeat response. Railway env `OPENROUTER_API_KEY` feeds the Railway worker directly. Setting one does not set the other.
+
+### `src/integrations/supabase/client.ts` is a one-line re-export
+
+**Looks like:** Should create a Supabase client.
+**Actually:** Re-exports from `external-supabase.ts` so that Lovable overwrites don't break production. See `docs/KNOWN_QUIRKS.md` #2.
+
+### Supabase credentials hardcoded in `src/lib/app-mode.ts`
+
+**Looks like:** Security anti-pattern.
+**Actually:** The anon key is a publishable key (like a Firebase web API key); the service role key is never hardcoded. Lovable overwrites `.env` on every deploy, so env vars can't be trusted. See `docs/KNOWN_QUIRKS.md` #1.
+**Do not move to env vars:** All queries would silently route to the empty Lovable-provisioned project.
 
 ---
 
-## Credentials and Environment
+## 11. Environment and Credentials
 
-| Variable | Purpose | Where set | Required dev | Required prod |
-|----------|---------|-----------|--------------|---------------|
-| `SUPABASE_URL` | Supabase project URL | Railway env, bridge agent `.env`, edge function secrets | No (hardcoded in frontend) | Yes (Railway, bridge agent, edge functions) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role — worker + edge functions | Railway env, Supabase secrets | No | Yes |
-| `SUPABASE_ANON_KEY` | Enables Realtime in bridge agent | Bridge agent `.env` | No (optional but strongly recommended) | Yes (bridge agent) |
-| `SUPABASE_ACCESS_TOKEN` | CLI auth for `supabase db push` + deploy | GitHub secret | No | Yes (CI) |
-| `EXTERNAL_SUPABASE_PROJECT_ID` | = `ryltkzzernhwnojzouyb` | GitHub secret | No | Yes (CI) |
-| `EXTERNAL_SUPABASE_DB_PASSWORD` | DB password for `supabase db push` | GitHub secret | No | Yes (CI) |
-| `OPENROUTER_API_KEY` | AI calls in Railway worker; also stored in `admin_config` for agent heartbeat delivery | Railway env AND `admin_config` row — setting one does not set the other | No | Yes |
-| `ANTHROPIC_API_KEY` | Fallback AI key for worker | Railway env | No | Optional |
-| `GOOGLE_AI_API_KEY` | Google Gemini for AI tagging | Railway env, edge function secrets | No | Optional |
-| `BREVO_API_KEY` | Transactional email (invitations) | Supabase Vault | No | Yes |
-| `GHCR_PAT` | Push Docker images to GHCR | GitHub secret | No | Yes (CI) |
-| `COOLIFY_TOKEN` | Trigger Coolify redeploy via API | GitHub secret | No | Yes (CI) |
-| `COOLIFY_APP_UUID` | = `qxj8a0j3tpa9lq4q5rs6pezy` | GitHub secret | No | Yes (CI) |
-| `COOLIFY_URL` | = `https://coolify.designflow.app` | GitHub secret | No | Yes (CI) |
-| `DEPLOY_WEBHOOK_KEY` | Auth for Windows Agent build notify webhook | GitHub secret, Supabase edge function secret | No | Yes (CI) |
-| `DO_SPACES_KEY` / `DO_SPACES_SECRET` | DigitalOcean Spaces credentials | Bridge agent `.env`, Supabase Vault | Yes (bridge dev) | Yes |
-| `DO_SPACES_BUCKET` | = `popdam` | Bridge agent `.env` | Yes (bridge dev) | Yes |
-| `DO_SPACES_REGION` / `DO_SPACES_ENDPOINT` | `nyc3` / `nyc3.digitaloceanspaces.com` | Bridge agent `.env` | Yes (bridge dev) | Yes |
-| `AGENT_KEY` | Bridge agent authentication key | Bridge agent `.env` | Yes (bridge dev) | Yes |
-| `POPDAM_CONTAINER_NAME` | Bridge agent self-update — identifies own container | Bridge agent `.env` | No | Yes (bridge agent) |
-| `POPDAM_COMPOSE_PATH` | Bridge agent self-update | Bridge agent `.env` | No | Recommended |
-| `NAS_CONTAINER_MOUNT_ROOT` | Root of NAS filesystem inside container | Bridge agent `.env` | Yes (bridge dev) | Yes |
-| `SCAN_ROOTS` | Comma-separated NAS paths to scan | Bridge agent `.env` | Yes (bridge dev) | Yes |
-| `WORKER_POLL_INTERVAL_MS` | Worker poll frequency (default 1000) | Railway env | No | Optional |
-| `APP_COMMIT` / `APP_DATE` | Build-time git metadata injected by Vite | CI build args (Docker) | No | Yes (CI) |
+| Variable | Purpose | Stored where | Required in dev | Required in prod |
+|----------|---------|-------------|----------------|-----------------|
+| `SUPABASE_URL` | Worker → Supabase | Railway env vars | No (hardcoded in app) | Yes (Railway) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Worker → Supabase service role | Railway env vars | No | Yes (Railway) |
+| `OPENROUTER_API_KEY` | Worker AI calls | Railway env vars | No | Yes (Railway) |
+| `SUPABASE_ACCESS_TOKEN` | CI → Supabase CLI | GitHub secret | No | Yes |
+| `EXTERNAL_SUPABASE_PROJECT_ID` | CI → Supabase CLI | GitHub secret | No | Yes |
+| `EXTERNAL_SUPABASE_DB_PASSWORD` | CI → Supabase CLI | GitHub secret | No | Yes |
+| `GHCR_PAT` | CI → GHCR push | GitHub secret | No | Yes |
+| `COOLIFY_TOKEN` | CI → Coolify deploy API | GitHub secret | No | Yes |
+| `COOLIFY_APP_UUID` | CI → Coolify deploy API | GitHub secret | No | Yes |
+| `COOLIFY_URL` | CI → Coolify deploy API | GitHub secret | No | Yes |
+| `GH_TOKEN` | CI → GitHub Releases (Helper) | GitHub secret | No | Yes |
+| `SUPABASE_URL` (CI) | Bridge agent CI notification | GitHub secret | No | Yes |
+| `EXTERNAL_SUPABASE_SERVICE_ROLE_KEY` | Bridge agent CI → admin_config update | GitHub secret | No | Yes |
+| Bridge agent env vars | NAS agent config | `.env` in NAS docker dir | Yes (bridge dev) | Yes |
 
-**Frontend note:** `npm run dev` connects directly to the production Supabase project. No `.env.local` required — the anon key and URL are hardcoded in `src/lib/app-mode.ts`.
+Dev note: the frontend connects directly to the production Supabase project. No `.env.local` required for `npm run dev`.
 
 ---
 
-## Deployment
+## 12. Deployment
 
 ### Frontend (React app)
 
 **Workflow:** `.github/workflows/publish-frontend.yml`
-**Triggers:** push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `nginx.conf`, or the workflow file. Documentation-only changes (`docs/**`, top-level `.md` files) do NOT trigger a build.
-**Steps:** `npm ci` → `vite build` → `docker build -f Dockerfile.ci` (builder: `node:20-bookworm-slim`, runtime: `nginx:1.27-alpine`) → push `ghcr.io/u2giants/popdam-frontend:latest` and `:<sha>` → POST to `$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP_UUID&force=false` with `Authorization: Bearer $COOLIFY_TOKEN`
-**Rollback:** In Coolify UI, select an older `:<sha>` tag and trigger redeploy. SSH (`178.156.180.212`) is emergency break-glass only.
+**Triggers:** push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `nginx.conf`
+**Steps:** npm ci → vite build → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container
+**Rollback:** In Coolify UI, select an older deployment and redeploy. The `:<sha>` tag is the immutable rollback target.
 
 ### Supabase (DB migrations + edge functions)
 
 **Workflow:** `.github/workflows/deploy-supabase.yml`
 **Triggers:** push to `main` touching `supabase/migrations/**` or `supabase/functions/**`
-**Steps:** `supabase link --project-ref ryltkzzernhwnojzouyb` → `supabase db push` (if migrations changed) → deploy all edge functions except `_shared` (if functions changed) → `supabase gen types typescript` → auto-commit `src/integrations/supabase/types.ts` with `[skip ci]`
-**Critical:** local migration filename timestamp must exactly match what Supabase records. See CLAUDE.md.
+**Steps:** `supabase db push` (if migrations changed) → deploy all edge functions (if functions changed) → auto-generate and commit `src/integrations/supabase/types.ts`
+**CRITICAL:** migration filename timestamp must match the timestamp Supabase records. See `CLAUDE.md` for the full discipline.
 
 ### Railway Worker
 
-**Auto-deploys:** Railway watches the `main` branch and rebuilds on every push regardless of which files changed. No path filter available on Railway.
-**No manual step required.** Version bump in `apps/worker/package.json` must be in the same commit as changes.
+**Auto-deploys:** Railway watches the `main` branch. Every push to `main` triggers a Railway rebuild regardless of which files changed.
+**No manual step required.**
 
 ### Bridge Agent
 
 **Workflow:** `.github/workflows/publish-bridge-agent.yml`
-**Triggers:** push to `main` touching `apps/bridge-agent/**` or `packages/path-filters/**`
-**Tags:** `:stable` (what NAS compose and self-update pull), `:v{version}`, `:latest`, `:sha-<7chars>`
-**After publishing:** admin UI → Settings → Agents → Update triggers agent self-update via `UPDATE_REQUEST` in `admin_config`.
-**Version bump:** `apps/bridge-agent/package.json` in same commit as changes.
+**Triggers:** push to `main` touching `apps/bridge-agent/**`
+**Tags:** `:stable` (what NAS compose and self-update pull), `:v{version}`, `:latest`
+**Versioning:** Bump `apps/bridge-agent/package.json` version in same commit.
 
 ### Windows Render Agent
 
 **Workflow:** `.github/workflows/publish-windows-agent.yml`
-**Output:** NSIS installer + zip, published to versioned GitHub Release and `windows-agent-latest` release.
-**Distribution:** download from GitHub Releases; no auto-update path.
+**Distribution:** GitHub Release (`windows-agent-latest` tag)
 
 ### POP DAM Helper (Electron)
 
 **Workflow:** `.github/workflows/publish-popdam-helper.yml`
-**Output:** `POP-DAM-Helper-Windows-Setup.exe` (windows-latest), `POP-DAM-Helper-Mac-arm64.dmg` + `POP-DAM-Helper-Mac-x64.dmg` (macos-latest), published to `popdam-helper-latest` GitHub Release.
-**Auto-update:** not yet active — blocked on code signing certs.
+**Distribution:** GitHub Release (`popdam-helper-latest` tag)
 
 ---
 
-## Critical Incidents
+## 13. Incidents and Pending Work
 
-### [2026-05-31] Sibling scan queue backlog
+### Pending: auto-update code signing certs
 
-During the `.ai` sentinel cleanup reconciliation, the `run-ai-sentinel-cleanup` admin operation queued sibling scan requests for many folders simultaneously (one `sibling_scan_request_{id}` row per folder in `admin_config`). The bridge agent was processing them at low concurrency, causing a large and slow-draining queue. The fix was to raise `SIBLING_SCAN_CONCURRENCY` to 4 in `apps/bridge-agent/src/index.ts`, so the agent claims and processes 4 sibling scans in parallel per heartbeat cycle, then loops until the queue is empty. The `processSiblingScanRequests()` function uses a `while(true)` loop that claims a batch of 4 via `Promise.all`, waits for all to complete, then re-checks — draining the queue efficiently without blocking other agent operations.
+`electron-updater` is wired but code signing certs are not purchased. macOS users must right-click → Open on first launch; Windows users see a SmartScreen warning. See `HANDOFF.md` for exact steps to activate once certs are acquired.
 
----
+### Pending: PopSG render pass
 
-## Pending Work
+Windows Agent is on **v0.15.0** with all render fixes. The render backlog has not been fully processed. See `HANDOFF.md`.
 
-| Status | Item | Owner/next action |
-|--------|------|-------------------|
-| Blocked | Auto-update code signing certs for PopDAM Helper — `electron-updater` wired but no certs. macOS: Apple Developer account ($99/yr) + notarization. Windows: OV cert (~$60–$150/yr) or EV cert (~$300–$500/yr). | Procurement only — no dev work remaining. Once certs acquired: add `CSC_LINK`/`CSC_KEY_PASSWORD` (Windows), `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` (macOS) GitHub secrets; remove `CSC_IDENTITY_AUTO_DISCOVERY=false`. |
-| In progress | PopSG render pass — Windows Agent v0.15.0 has all render fixes; backlog not fully processed. Run "Retry All" from PopSG Settings → Files with Render Errors. Queue EPS files classified as `unsupported_extension` separately. Check with `select * from get_sg_preview_stats()`. | Manual operational task — run from admin UI. |
-| Temporary | `.ai` sentinel cleanup scaffolding — delete `ai_sentinel_cleanup_log` table, `get_ai_sentinel_stats()` function, `AiSentinelCleanupCard` UI, `ai-sentinel-handlers.ts`, and `get-ai-sentinel-status`/`run-ai-sentinel-cleanup` admin-api routes once reconciliation is confirmed complete. See CLAUDE.md for the full list. | Confirm cleanup complete, then delete listed items. |
-| Resolved (2026-05-26) | Style group rebuild timeout on "Compute counts" stage — fixed by batching `reconcile_style_group_stats_batch` (100 groups/batch for counts, 25 for primaries). Worker v1.2.12. | — |
-| Resolved (2026-05-15) | CI/CD migration from SSH-based deploy to Coolify API trigger — `VPS_SSH_KEY` secret removed. | — |
+### Resolved 2026-05-31: style_groups.asset_count stale counts
+
+17 style groups had stale `asset_count` values including 2 (MF162DYPN01, MFZ93DYNX03) with `asset_count=1` but zero actual assets. Root cause: the asset count reconciliation trigger was only added 2026-05-15 (migration `20260515080654`); pre-existing drift from before that date was never cleaned up. Fixed by:
+1. Bulk SQL fix via `execute_sql` MCP to correct all 17 rows.
+2. Adding pg_cron job `nightly-reconcile-sg-asset-counts` (migration `20260531142011`) running at 03:45 UTC daily — calls `refresh_style_group_counts_batch(array_agg(id))` over all style groups.
+
+### Resolved 2026-05-26: Style group rebuild timeout on "Compute counts" stage
+
+After a full "Start Fresh" rebuild, the `finalize_stats` stage called `run_full_reconcile_style_group_stats` — a function with no `SET statement_timeout` that does a single unbounded UPDATE+JOIN across all style groups. The DB-level role timeout killed it (~33 minutes in). Fixed by driving `reconcile_style_group_stats_batch` in batches instead. Worker v1.2.12.
+
+### Resolved 2026-05-15: CI/CD migration to Coolify API
+
+Frontend deploy migrated from SSH-based (`docker run` on VPS) to Coolify API trigger. `VPS_SSH_KEY` secret removed. See `SELFHOST.md` and `docs/KNOWN_QUIRKS.md` #41–42.
 
 ---
 
@@ -342,29 +384,20 @@ During the `.ai` sentinel cleanup reconciliation, the `run-ai-sentinel-cleanup` 
 
 | Doc | Topic |
 |-----|-------|
-| `CLAUDE.md` | Claude Code-specific workflow rules (overrides all harness instructions) |
+| `CLAUDE.md` | Claude Code-specific workflow instructions |
 | `SELFHOST.md` | VPS / Coolify / Traefik architecture and ops runbook |
-| `docs/ARCHITECTURE.md` | Full system design, Brain + Muscle model, networking |
-| `docs/INFRASTRUCTURE.md` | Supabase project, Railway, Spaces, edge function inventory, DB triggers |
+| `docs/ARCHITECTURE.md` | Full system design, networking model |
+| `docs/INFRASTRUCTURE.md` | Supabase project, Railway, Spaces, edge function inventory |
+| `docs/STYLE_GROUPS.md` | Style group rebuild, reconcile, primary selection, tag propagation |
+| `docs/BULK_JOBS.md` | All bulk operations, lane system, conflict map |
 | `docs/SCHEMA.md` | Database schema reference |
-| `docs/STYLE_GROUPS.md` | Style group rebuild stages, primary asset selection tiers, tag propagation |
-| `docs/BULK_JOBS.md` | All bulk operations, lane system, cross-lane conflict map, auto-resume |
-| `docs/ERP_ENRICHMENT_PLAN.md` | ERP sync flow, MG codes, AI category classification |
+| `docs/ERP_ENRICHMENT_PLAN.md` | ERP sync, MG codes, AI category classification |
 | `docs/AUTHENTICATION.md` | Authentik SSO, Google/Microsoft OAuth, email/password |
-| `docs/KNOWN_QUIRKS.md` | 43 documented intentional oddities — read before changing anything |
-| `docs/WORKER_LOGIC.md` | Bridge agent behavior contracts, golden rules, NAS load control |
+| `docs/KNOWN_QUIRKS.md` | Intentional oddities — read before changing anything |
+| `docs/WORKER_LOGIC.md` | Bridge agent behavior contracts |
 | `docs/DEPLOYMENT.md` | Bridge agent + Helper release pipeline |
 | `docs/development.md` | Local dev setup, running, testing |
-| `docs/configuration.md` | Environment variables, GitHub secrets, admin config keys |
-| `docs/ONBOARDING.md` | First-run checklist, business context, architecture walkthrough |
-| `docs/PATH_UTILS.md` | Path canonicalization rules (prevents the most common class of bugs) |
-| `docs/POPSG.md` | PopSG mode — schema, crawl flow, render pipeline, nightly cron |
-| `docs/ADMIN_OPERATIONS.md` | All `admin-api` routes and parameters |
-| `docs/API_CONTRACTS.md` | API contracts between Brain and Muscle (agent-api routes) |
-| `docs/PROJECT_BIBLE.md` | Non-negotiables and golden rules — highest authority |
-| `docs/UI_OVERVIEW.md` | Frontend page inventory and component map |
-| `docs/MULTI_TENANT_AGENTS.md` | Multi-tenant agent architecture |
-| `docs/WINDOWS_AGENT_RUNBOOK.md` | Windows render agent operator guide |
-| `docs/POPDAM_HELPER.md` | POP DAM Helper desktop app — architecture, build, checkout workflow |
-| `docs/MODEL_RULES.md` | AI model catalogue — capabilities, routing, constraints |
-| `docs/AI_OPERATING_RULES.md` | Rules for AI tools working in this repo |
+| `docs/configuration.md` | Environment variables, admin config keys |
+| `docs/ONBOARDING.md` | First-run checklist |
+| `docs/PATH_UTILS.md` | Path canonicalization rules |
+| `docs/POPSG.md` | PopSG mode — schema, crawl flow, render pipeline |
