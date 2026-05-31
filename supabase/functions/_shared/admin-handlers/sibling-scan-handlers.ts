@@ -60,19 +60,6 @@ export async function handleListSiblingImages(body: Record<string, unknown>) {
     }
   }
 
-  // Prune stale pending requests older than 10 minutes to prevent queue buildup
-  const staleRows = (existingRows ?? []).filter((row) => {
-    const val = row.value as Record<string, unknown>;
-    if (val?.status !== "pending") return false;
-    const requested = new Date(val.requested_at as string).getTime();
-    return Date.now() - requested > 10 * 60 * 1000;
-  });
-  if (staleRows.length > 0) {
-    const staleKeys = staleRows.map((r) => r.key);
-    await db.from("admin_config").delete().in("key", staleKeys);
-    console.log(`[list-sibling-images] Pruned ${staleKeys.length} stale pending requests`);
-  }
-
   // No recent result — create new pending request
   const requestId = crypto.randomUUID();
   console.log(`[list-sibling-images] Queuing new request ${requestId} for ${folderPath}`);

@@ -1277,97 +1277,100 @@ async function processSiblingScanRequests() {
   siblingScanInProgress = true;
 
   try {
-    const request = await api.claimSiblingScan();
-    if (!request) return;
+    // Drain the entire queue rather than one per heartbeat
+    while (true) {
+      const request = await api.claimSiblingScan();
+      if (!request) break;
 
-    logger.info("Sibling scan claimed", { requestId: request.request_id, folder: request.folder_path });
+      logger.info("Sibling scan claimed", { requestId: request.request_id, folder: request.folder_path });
 
-    const effectiveMountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
-    // Build absolute path: mountRoot + "/" + folder_path
-    const folderPath = request.folder_path.replace(/^\/+/, "").replace(/\/+$/, "");
-    const absoluteFolder = `${effectiveMountRoot}/${folderPath}`;
+      const effectiveMountRoot = (cloudMountRoot || config.nasContainerMountRoot).replace(/\/+$/, "");
+      // Build absolute path: mountRoot + "/" + folder_path
+      const folderPath = request.folder_path.replace(/^\/+/, "").replace(/\/+$/, "");
+      const absoluteFolder = `${effectiveMountRoot}/${folderPath}`;
 
-    // Safety: ensure resolved path stays inside mount root (no traversal)
-    const { resolve } = await import("node:path");
-    const resolved = resolve(absoluteFolder);
-    if (!resolved.startsWith(resolve(effectiveMountRoot))) {
-      logger.error("Sibling scan path traversal blocked", { requested: absoluteFolder, resolved });
-      await api.completeSiblingScan(request.request_id, "failed", [], "Path traversal detected — folder is outside allowed mount root");
-      return;
-    }
-
-    // Check folder exists
-    try {
-      const s = await stat(resolved);
-      if (!s.isDirectory()) {
-        await api.completeSiblingScan(request.request_id, "failed", [], `Path exists but is not a directory: ${folderPath}`);
-        return;
+      // Safety: ensure resolved path stays inside mount root (no traversal)
+      const { resolve } = await import("node:path");
+      const resolved = resolve(absoluteFolder);
+      if (!resolved.startsWith(resolve(effectiveMountRoot))) {
+        logger.error("Sibling scan path traversal blocked", { requested: absoluteFolder, resolved });
+        await api.completeSiblingScan(request.request_id, "failed", [], "Path traversal detected — folder is outside allowed mount root");
+        continue;
       }
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      const msg = code === "ENOENT" ? `Folder not found: ${folderPath}` : code === "EACCES" ? `Permission denied: ${folderPath}` : `Cannot access folder: ${(e as Error).message}`;
-      logger.warn("Sibling scan folder inaccessible", { folder: folderPath, error: msg });
-      await api.completeSiblingScan(request.request_id, "failed", [], msg);
-      return;
-    }
 
-    // List image files (non-recursive)
-    const entries = await readdir(resolved, { withFileTypes: true });
-    const extensions = new Set((request.extensions || [".jpg", ".jpeg", ".png"]).map(e => e.toLowerCase()));
-    const images: api.SiblingImageResult[] = [];
-
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const ext = "." + entry.name.split(".").pop()?.toLowerCase();
-      if (!extensions.has(ext)) continue;
-
-      // Apply the same PDF keyword filter used by the main scanner
-      if (ext === ".pdf" && !isPdfCandidate(entry.name)) continue;
-
+      // Check folder exists
       try {
-        const filePath = `${resolved}/${entry.name}`;
-        const fileStat = await stat(filePath);
-        const result: api.SiblingImageResult = {
-          filename: entry.name,
-          relative_path: `${folderPath}/${entry.name}`,
-          file_size: fileStat.size,
-        };
+        const s = await stat(resolved);
+        if (!s.isDirectory()) {
+          await api.completeSiblingScan(request.request_id, "failed", [], `Path exists but is not a directory: ${folderPath}`);
+          continue;
+        }
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        const msg = code === "ENOENT" ? `Folder not found: ${folderPath}` : code === "EACCES" ? `Permission denied: ${folderPath}` : `Cannot access folder: ${(e as Error).message}`;
+        logger.warn("Sibling scan folder inaccessible", { folder: folderPath, error: msg });
+        await api.completeSiblingScan(request.request_id, "failed", [], msg);
+        continue;
+      }
 
-        // Generate and upload a small thumbnail for preview
+      // List image files (non-recursive)
+      const entries = await readdir(resolved, { withFileTypes: true });
+      const extensions = new Set((request.extensions || [".jpg", ".jpeg", ".png"]).map(e => e.toLowerCase()));
+      const images: api.SiblingImageResult[] = [];
+
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        const ext = "." + entry.name.split(".").pop()?.toLowerCase();
+        if (!extensions.has(ext)) continue;
+
+        // Apply the same PDF keyword filter used by the main scanner
+        if (ext === ".pdf" && !isPdfCandidate(entry.name)) continue;
+
         try {
-          let buffer: Buffer;
-          if (ext === ".pdf") {
-            const thumbResult = await generateThumbnail(filePath, "pdf");
-            buffer = thumbResult.buffer;
-          } else {
-            const sharp = (await import("sharp")).default;
-            buffer = await sharp(filePath)
-              .flatten({ background: "#ffffff" })
-              .resize(400, 400, { fit: "inside", withoutEnlargement: true })
-              .jpeg({ quality: 75 })
-              .toBuffer();
+          const filePath = `${resolved}/${entry.name}`;
+          const fileStat = await stat(filePath);
+          const result: api.SiblingImageResult = {
+            filename: entry.name,
+            relative_path: `${folderPath}/${entry.name}`,
+            file_size: fileStat.size,
+          };
+
+          // Generate and upload a small thumbnail for preview
+          try {
+            let buffer: Buffer;
+            if (ext === ".pdf") {
+              const thumbResult = await generateThumbnail(filePath, "pdf");
+              buffer = thumbResult.buffer;
+            } else {
+              const sharp = (await import("sharp")).default;
+              buffer = await sharp(filePath)
+                .flatten({ background: "#ffffff" })
+                .resize(400, 400, { fit: "inside", withoutEnlargement: true })
+                .jpeg({ quality: 75 })
+                .toBuffer();
+            }
+
+            // Upload to DO Spaces under siblings/ prefix using a hash of relative_path
+            const { createHash } = await import("node:crypto");
+            const pathHash = createHash("md5").update(result.relative_path).digest("hex");
+            const { uploadSiblingThumbnail } = await import("./uploader.js");
+            result.thumbnail_url = await uploadSiblingThumbnail(pathHash, buffer);
+          } catch (thumbErr) {
+            logger.warn("Sibling thumbnail generation failed", {
+              file: entry.name,
+              error: (thumbErr as Error).message,
+            });
           }
 
-          // Upload to DO Spaces under siblings/ prefix using a hash of relative_path
-          const { createHash } = await import("node:crypto");
-          const pathHash = createHash("md5").update(result.relative_path).digest("hex");
-          const { uploadSiblingThumbnail } = await import("./uploader.js");
-          result.thumbnail_url = await uploadSiblingThumbnail(pathHash, buffer);
-        } catch (thumbErr) {
-          logger.warn("Sibling thumbnail generation failed", {
-            file: entry.name,
-            error: (thumbErr as Error).message,
-          });
+          images.push(result);
+        } catch {
+          // Skip files we can't stat
         }
-
-        images.push(result);
-      } catch {
-        // Skip files we can't stat
       }
-    }
 
-    await api.completeSiblingScan(request.request_id, "completed", images);
-    logger.info("Sibling scan completed", { requestId: request.request_id, folder: folderPath, imageCount: images.length });
+      await api.completeSiblingScan(request.request_id, "completed", images);
+      logger.info("Sibling scan completed", { requestId: request.request_id, folder: folderPath, imageCount: images.length });
+    }
   } catch (e) {
     logger.error("Sibling scan error", { error: (e as Error).message });
   } finally {
