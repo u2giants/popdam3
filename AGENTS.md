@@ -146,6 +146,10 @@ Files outside project-owned areas that were intentionally modified:
 
 **Railway deploy note:** Railway watches `main` and rebuilds on every push. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
 
+**Coolify ownership:** Coolify owns runtime environment variables, domain bindings, health checks, restart policy, and container lifecycle for `popdam-frontend`. Changes to runtime configuration (env vars, feature flags) go through Coolify directly — not via GitHub or SSH. Source code, Dockerfiles, and workflow changes must go through GitHub as normal.
+
+**CI path triggers:** `publish-frontend.yml` triggers only on application file changes (`src/**`, `Dockerfile`, etc.) — documentation-only changes to `docs/**` and top-level `.md` files do not trigger a frontend build. `deploy-supabase.yml` triggers only on `supabase/migrations/**` and `supabase/functions/**` changes.
+
 ---
 
 ## 8. What to Ignore
@@ -248,7 +252,8 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 **Workflow:** `.github/workflows/publish-frontend.yml`
 **Triggers:** push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `nginx.conf`
 **Steps:** npm ci → vite build → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container
-**Rollback:** In Coolify UI, select an older deployment and redeploy.
+**Rollback:** In Coolify UI, select an older deployment and redeploy. The `:<sha>` tag is the immutable rollback target — change the image tag in Coolify to any prior `:<sha>` and trigger a redeploy. SSH into the server is emergency break-glass only; prefer the Coolify UI path.
+**SSH note:** Normal production deployment never requires SSH. SSH into `178.156.180.212` is reserved for incident debugging and emergency repairs only — see `SELFHOST.md`.
 
 ### Supabase (DB migrations + edge functions)
 

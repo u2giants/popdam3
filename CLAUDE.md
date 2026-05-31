@@ -91,6 +91,33 @@ git push origin main
 git push github main
 ```
 
+## Coolify Runtime Configuration (Direct AI Actions)
+
+Coolify is the source of truth for runtime environment variables, domain bindings, health checks, restart policy, and container lifecycle settings. The deployment platform owns these — not GitHub. Changes to runtime configuration must go through Coolify directly.
+
+**AI may configure Coolify directly for:**
+- Runtime environment variables (feature flags, behavior switches, API keys used at runtime)
+- Domain bindings and port mappings
+- Health check settings
+- Restart policy and container resource limits
+- Deployment target settings
+
+**AI must NOT configure via Coolify (use GitHub and the normal deploy path instead):**
+- Application source code
+- Dockerfiles or Docker Compose files
+- GitHub Actions workflows
+- Build logic or undocumented build overrides
+
+The test: would putting this change in GitHub make it more auditable with no loss of runtime flexibility? If yes → GitHub. If the change is inherently runtime state (env values, feature flags, switch states) with no meaningful representation in the repo → Coolify directly.
+
+**SSH is not the deployment path.** Normal production deployment is:
+```
+commit to main → GitHub Actions → GHCR image → Coolify API trigger → Coolify pulls image
+```
+SSH into the production server is allowed only for emergency break-glass repairs, log collection when Coolify cannot provide them, or one-off diagnostics during an incident. Any emergency SSH action must be followed immediately by committing a permanent fix to the repo or recording the change in Coolify, so the server does not become a hidden source of truth.
+
+---
+
 ### CRITICAL: Check CI After Every Push to main
 
 After any push that touches `supabase/migrations/**` or `supabase/functions/**`, immediately check the Deploy Supabase GitHub Actions workflow run. Do not wait for the user to report a failure.

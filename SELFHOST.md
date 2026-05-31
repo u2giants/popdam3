@@ -142,6 +142,11 @@ The `@docker` suffix references the service registered by Coolify's Docker provi
 
 ## Operations Runbook
 
+> **SSH access to the production server is for emergency and diagnostic use only.**
+> Normal deployment uses GitHub Actions → GHCR → Coolify API (no SSH required).
+> SSH commands in this section are for debugging incidents, inspecting logs, and emergency break-glass repairs.
+> They must not become a routine deployment path. Any action taken via SSH must be reflected in the repo or Coolify immediately afterward so the server does not become a hidden source of truth.
+
 ### Force redeploy (without a code change)
 
 ```bash
@@ -161,7 +166,7 @@ curl -H "Authorization: Bearer <COOLIFY_TOKEN>" -H "Accept: application/json" \
 
 Rollback goes through Coolify. Change the image tag in Coolify's UI (`https://coolify.designflow.app`, open the `popdam-frontend` app, edit image tag to `<short-sha>`), then trigger a redeploy.
 
-For emergency rollback without Coolify UI access:
+For emergency rollback without Coolify UI access (break-glass only — restore to Coolify UI management as soon as possible):
 ```bash
 ssh root@178.156.180.212
 docker exec coolify-db psql -U coolify -d coolify -c \
