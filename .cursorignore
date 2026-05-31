@@ -1,0 +1,59 @@
+# Build artifacts and compiled output
+dist/
+build/
+out/
+apps/bridge-agent/dist/
+apps/bridge-agent/out/
+apps/windows-agent/dist/
+apps/windows-agent/out/
+apps/worker/dist/
+apps/worker/out/
+apps/popdam-helper/dist/
+apps/popdam-helper/out/
+
+# Dependencies
+node_modules/
+apps/bridge-agent/node_modules/
+apps/windows-agent/node_modules/
+apps/worker/node_modules/
+apps/popdam-helper/node_modules/
+packages/path-filters/node_modules/
+
+# Dead code — do not edit or deploy from these
+supabase-popsg/
+
+# Lovable platform memory (auto-generated, not project code)
+.lovable/
+
+# Old build snapshot symlink (dead)
+app/
+
+# Cache and coverage
+.cache/
+coverage/
+.nyc_output/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Lock files (informational; rarely useful for AI context)
+package-lock.json
+bun.lock
+bun.lockb
+apps/bridge-agent/package-lock.json
+apps/windows-agent/package-lock.json
+apps/worker/package-lock.json
+apps/popdam-helper/package-lock.json
+packages/path-filters/package-lock.json
+
+# One-off audit file
+duplicate-folders.txt
+
+# Harness bookkeeping
+worksp_symlink.md
+
+# Auto-generated Supabase types (regenerated on every deploy)
+src/integrations/supabase/types.ts
+
+# Electron build temp
+apps/popdam-helper/.webpack/
