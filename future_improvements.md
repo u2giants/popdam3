@@ -15,7 +15,7 @@ The recent Synology incident report in `u2giants/synology-monitor/docs/synology-
 PopDAM already has most of the right foundation for a safer workflow:
 
 - `asset_checkouts` tracks active checkouts and check-ins.
-- A unique partial index enforces one active checkout per asset.
+- A unique partial index enforces one active checkout lifecycle per asset.
 - `helper_tokens` generate short-lived `popdam://` URLs.
 - `helper-api` coordinates checkout, prepare-checkin, complete-checkin, discard, heartbeat, and admin force-discard actions.
 - POP DAM Helper is an Electron app that can copy files to a local workspace, watch them, snapshot them, and upload checked-in files back to Synology.
@@ -60,7 +60,23 @@ Add the missing fields and behaviors to `asset_checkouts`:
 
 The active checkout row should be the lock. It should describe who has the file, where they are, what machine is holding it, and whether the Helper is still alive.
 
-### 2. Move lock acquisition into a PostgreSQL RPC
+### 2. Keep the partial unique index as the database backstop
+
+The database must enforce one active checkout lifecycle per asset. Frontend disabled buttons and application-level "check then insert" logic are helpful, but they are not correctness mechanisms.
+
+The existing migration already creates this kind of partial unique index:
+
+```sql
+CREATE UNIQUE INDEX asset_checkouts_one_active_per_asset
+  ON asset_checkouts(asset_id)
+  WHERE status IN ('active', 'checkin_queued', 'uploading', 'verifying');
+```
+
+Keep the broader status set. An index that only covers `status = 'active'` would allow another checkout while the first user is checking in, uploading, or verifying. The file must remain locked until the check-in has either completed, failed into a recoverable state, conflicted, or been discarded.
+
+If two users click checkout at the same instant, PostgreSQL should reject the second active lifecycle insert with a unique-constraint violation. The API should catch that error and return a clear `409 Conflict`.
+
+### 3. Move lock acquisition into a PostgreSQL RPC
 
 Create a database function such as `start_asset_checkout(...)` or `acquire_asset_checkout(...)` that performs the lock check and checkout insert atomically.
 
@@ -68,7 +84,7 @@ The function should rely on `auth.uid()` for the user identity instead of accept
 
 The unique partial index on `asset_checkouts(asset_id)` for active statuses should remain the final line of defense against races.
 
-### 3. Stop opening source files from local Synology Drive cache
+### 4. Stop opening source files from local Synology Drive cache
 
 The current Helper can resolve a local mapped path and copy from that path into the workspace. That preserves a dangerous failure mode: the local mapped path may be stale.
 
@@ -76,7 +92,7 @@ For checkout, the Helper should fetch the source file from the NAS through Synol
 
 Local Drive mappings can still be useful for browsing or diagnostics, but they should not be trusted as the source of truth for checkout.
 
-### 4. Verify source version before check-in overwrite
+### 5. Verify source version before check-in overwrite
 
 Before overwriting the NAS file, the Helper or `helper-api` should verify that the source file on the NAS still matches the `source_hash`, `source_size`, or source version captured at checkout.
 
@@ -84,22 +100,27 @@ If the NAS file changed underneath the checkout, the check-in should stop and en
 
 This protects against direct NAS edits, admin interventions, sync repairs, and any non-PopDAM write that happened while the checkout was active.
 
-### 5. Make check-in atomic on the NAS
+### 6. Make check-in atomic on the NAS
 
-The Helper should continue uploading to a temporary filename first, then renaming into place. This avoids exposing a half-uploaded PSD or AI file as the live source file.
+The Helper must never upload directly over the production file. If a network connection drops at 85% of a PSD upload, the production file would be corrupted or unusable.
+
+The Helper should upload into a temporary NAS location first, such as `.popdam_tmp/<checkout_id>/<filename>`, or a temporary filename in a dedicated hidden temp directory on the same Synology volume. After the NAS-side upload reports complete and the expected size/hash is verified where possible, the Helper should use the native Synology File Station move/rename operation to replace the production file.
+
+On BTRFS, an intra-volume rename or move is atomic and effectively instantaneous. This only holds when the temp file and production file are on the same volume/share boundary where Synology can perform a rename rather than a copy.
 
 The check-in sequence should be:
 
 1. Wait for local file stability.
 2. Snapshot the local workspace file.
 3. Hash the snapshot.
-4. Upload the snapshot to a temporary filename beside the target.
-5. Verify upload size and, if feasible, hash.
-6. Rename temporary file over the target.
-7. Mark checkout complete.
-8. Trigger or request a PopDAM rescan/metadata refresh for that asset.
+4. Upload the snapshot to a hidden temporary directory or temporary filename on the same NAS volume.
+5. Verify the uploaded file's size and, if feasible, hash.
+6. Confirm the original NAS file still matches the checkout source version.
+7. Move or rename the uploaded temp file over the production file atomically.
+8. Mark checkout complete.
+9. Trigger or request a PopDAM rescan/metadata refresh for that asset.
 
-### 6. Add stale checkout recovery, not casual auto-unlock
+### 7. Add stale checkout recovery, not casual auto-unlock
 
 Design files can stay open for hours. A simple 30-minute expiration would create new data-loss risk.
 
@@ -112,13 +133,13 @@ Expired or stale checkouts should be treated as a recovery state:
 
 Automatic unlock should be used very cautiously, if at all.
 
-### 7. Add Realtime for lock visibility
+### 8. Add Realtime for lock visibility
 
 Supabase Realtime is useful for user experience. The UI should update quickly when someone checks out or checks in a file.
 
 Realtime should not be responsible for correctness. Correctness belongs to PostgreSQL constraints and RPCs. Realtime is only the fast notification layer.
 
-### 8. Expand the UI beyond a small lock badge
+### 9. Expand the UI beyond a small lock badge
 
 The UI should make the workflow obvious:
 
@@ -130,17 +151,21 @@ The UI should make the workflow obvious:
 - Provide admin force-unlock only where appropriate.
 - Show a clear recovery state for stale Helper sessions.
 
-### 9. Reduce direct write access over time
+### 10. Reduce direct write access over time
 
 PopDAM cannot fully enforce file safety if designers can keep opening and saving the same source files directly through Synology Drive or SMB.
 
 The long-term goal should be:
 
 - Normal designers edit through PopDAM Helper.
+- Project directories are read-only for normal designer SMB/Drive accounts.
 - Direct NAS write access is limited to admins, emergency repair, or exceptional workflows.
+- The PopDAM system or service account is the only routine writer to controlled project source directories.
 - Shared folders remain browseable where needed, but source-file overwrite paths are controlled.
 
 This is an operational change as much as a technical one.
+
+Use Synology Permission Inspector during rollout to verify the effective permissions on project directories. If designers can still save directly into the sync folder, they will eventually bypass PopDAM, even with good training. The operating system should enforce the workflow by blocking direct writes for normal users.
 
 ## What Not To Do
 
@@ -160,6 +185,8 @@ The checkout source must come from the NAS current version.
 
 The UI can warn and disable buttons, but two users can still click at nearly the same time or bypass the UI. Race prevention must live in PostgreSQL through an atomic function and the existing unique partial index.
 
+Do not weaken the unique partial index to only `status = 'active'`. The lock must remain active during `checkin_queued`, `uploading`, and `verifying` too.
+
 ### Do not pass `user_id` from the client into a privileged lock function
 
 Use `auth.uid()` inside the database function or verify the caller server-side. Client-supplied user identity is not trustworthy.
@@ -175,6 +202,10 @@ Stale locks need recovery UX, not silent release.
 Direct SMB access reduces sync ambiguity but makes large-file editing slow and frustrating. It also does not provide workflow-level locking, check-in audit, or atomic transfer state.
 
 SMB should remain an emergency or special-case path, not the primary cross-city editing workflow.
+
+### Do not preserve direct write permissions indefinitely
+
+Training alone will not hold once people are under deadline pressure. If direct writes remain possible through Synology Drive or SMB, users will eventually bypass the checkout system. Permission changes are part of the product design, not merely an IT cleanup task.
 
 ### Do not assume PopDAM can fix existing Synology corruption retroactively
 
@@ -203,6 +234,7 @@ The goal is not to make the NAS smarter. The goal is to stop asking the NAS sync
 
 - Add missing checkout fields.
 - Add atomic checkout RPC.
+- Preserve or migrate the partial unique index that covers `active`, `checkin_queued`, `uploading`, and `verifying`.
 - Add source-version verification before check-in overwrite.
 - Improve stale checkout states.
 - Add admin force-unlock audit fields.
@@ -212,7 +244,9 @@ The goal is not to make the NAS smarter. The goal is to stop asking the NAS sync
 - Change checkout source download to use NAS File Station/WebDAV, not local Drive cache.
 - Keep private workspace editing.
 - Keep snapshot-before-upload.
+- Upload to a hidden temporary NAS directory or temp filename on the same volume.
 - Verify uploaded temp file before rename where possible.
+- Replace the production file through native Synology move/rename, not direct overwrite upload.
 - Improve upload progress and failure recovery.
 
 ### Phase 3: UI and Realtime
@@ -227,7 +261,9 @@ The goal is not to make the NAS smarter. The goal is to stop asking the NAS sync
 - Pilot with a small cross-city group.
 - Train users to use **Check Out & Open** instead of direct Drive editing.
 - Monitor conflicts and stale locks.
-- Gradually restrict direct write access where practical.
+- Use Synology Permission Inspector to verify effective permissions.
+- Make controlled project folders read-only for normal designer SMB/Drive accounts.
+- Leave routine write permission only with the PopDAM system account and tightly scoped admin accounts.
 
 ### Phase 5: Reconciliation and incident support
 
