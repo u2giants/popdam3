@@ -2,8 +2,17 @@ import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen, La
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { supabase } from "@/integrations/supabase/client";
+
+interface SeaDriveLatest {
+  version: string;
+  mac_url: string | null;
+  win_url: string | null;
+}
+
+const SEADRIVE_FALLBACK = "https://www.seafile.com/en/download/";
 
 /** Fetch a public file as blob and trigger a real download (bypasses auth bridge). */
 function useBlobDownload() {
@@ -52,6 +61,23 @@ const HELPER_BASE = "https://github.com/u2giants/popdam3/releases/download/popda
 export default function DownloadsPage() {
   const { isAdmin } = useIsAdmin();
   const download = useBlobDownload();
+  const [seadrive, setSeadrive] = useState<SeaDriveLatest | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("admin_config")
+      .select("value")
+      .eq("key", "SEADRIVE_LATEST")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value && (data.value as SeaDriveLatest).version) {
+          setSeadrive(data.value as SeaDriveLatest);
+        }
+      });
+  }, []);
+
+  const seaMac = seadrive?.mac_url ?? SEADRIVE_FALLBACK;
+  const seaWin = seadrive?.win_url ?? SEADRIVE_FALLBACK;
 
   const winStep1 = `New-Item -ItemType Directory -Path 'C:\\PopDAM' -Force | Out-Null; @('@echo off','setlocal','powershell -NoProfile -Command "$u=$args[0];$raw=$u -replace ''^popdam://open-folder\\?path='','''';$p=[uri]::UnescapeDataString($raw);Start-Process explorer.exe $p" -- "%~1"') | Set-Content -Path 'C:\\PopDAM\\popdam-open.bat' -Encoding ASCII; Write-Host '[OK] Created C:\\PopDAM\\popdam-open.bat'`;
 
@@ -130,6 +156,9 @@ export default function DownloadsPage() {
           <div className="flex items-center gap-2">
             <Cloud className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">SeaDrive (Work-from-Home)</CardTitle>
+            {seadrive?.version && (
+              <Badge variant="outline" className="text-[10px]">v{seadrive.version}</Badge>
+            )}
           </div>
           <CardDescription>
             For designers working off-site. SeaDrive mounts the art libraries as an on-demand
@@ -142,9 +171,9 @@ export default function DownloadsPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
               <Badge variant="secondary" className="text-[10px]">macOS</Badge>
-              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client, open the DMG, and drag it to Applications.</p>
+              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client and run the <code>.pkg</code> installer.</p>
               <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
-                <a href="https://www.seafile.com/en/download/" target="_blank" rel="noopener noreferrer">
+                <a href={seaMac} target="_blank" rel="noopener noreferrer">
                   <Download className="h-3 w-3" />
                   Get SeaDrive
                 </a>
@@ -152,9 +181,9 @@ export default function DownloadsPage() {
             </div>
             <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
               <Badge variant="secondary" className="text-[10px]">Windows 10 / 11</Badge>
-              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client and run the installer.</p>
+              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client and run the <code>.msi</code> installer.</p>
               <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
-                <a href="https://www.seafile.com/en/download/" target="_blank" rel="noopener noreferrer">
+                <a href={seaWin} target="_blank" rel="noopener noreferrer">
                   <Download className="h-3 w-3" />
                   Get SeaDrive
                 </a>

@@ -20,6 +20,7 @@ import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileSt
 import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
+import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 
 const CONFIG_KEY = "BULK_OPERATIONS";
 const STALE_RUN_MINUTES = 10;
@@ -305,6 +306,9 @@ async function persistOpState(opKey: string, opState: OpState, onlyIfRunning = f
 
 export async function tick(): Promise<void> {
   const client = db();
+
+  // Best-effort, self-throttled (weekly) — never blocks or breaks the op loop.
+  await maybeMirrorSeaDrive();
 
   // Load all operations
   const { data: configRow, error: configErr } = await client
