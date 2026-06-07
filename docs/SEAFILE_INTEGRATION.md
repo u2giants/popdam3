@@ -39,7 +39,7 @@ SeaDrive keeps an on-demand cache: **recently opened files stay local** (LRU), a
 
 ## SeaDrive client distribution
 
-The client comes from Seafile (`https://www.seafile.com/en/download/`), served from `https://sos-ch-dk-2.exo.io/seafile-downloads/` (e.g. `seadrive-3.0.22-en.msi`, `seadrive-3.0.22.pkg`). PopDAM's `/downloads` page links it. **Planned:** PopDAM self-hosts a pinned latest build and a scheduled checker scrapes the version page so only the latest is offered (see HANDOFF.md).
+PopDAM self-hosts a pinned latest build: the worker's `seadrive-mirror` handler runs weekly from `tick()`, scrapes the official download page (`https://www.seafile.com/en/download/`), and when a newer version appears, mirrors the `.pkg`/`.msi` into our DigitalOcean Spaces bucket and records `admin_config.SEADRIVE_LATEST` (`{version, mac_url, win_url, mirrored, checked_at}`). The `/downloads` page reads that and offers only the latest, hosted by us (falling back to the official seafile.com URLs if a mirror run fails). Spaces creds come from `admin_config.DO_SPACES_*`.
 
 ---
 
