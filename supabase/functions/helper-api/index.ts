@@ -368,8 +368,13 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
 
   const body = await req.json();
   const {
-    checkout_id, final_hash, final_size, upload_method, synology_upload_user,
-    source_provider, source_version,
+    checkout_id,
+    final_hash,
+    final_size,
+    upload_method,
+    synology_upload_user,
+    source_provider,
+    source_version,
   } = body;
   if (!checkout_id) return err("checkout_id required");
 
