@@ -205,6 +205,16 @@ export function registerIpcHandlers(): void {
   ipcMain.handle("fetch-server-roots", async () => {
     try {
       const res = await fetchConfig();
+      // Persist server-driven Seafile catalog + fallback policy. NOT preferredProvider —
+      // that is per-machine/region (Brazil→seafile, USA→synology), set locally at install.
+      const updates: Partial<LocalConfig> = {};
+      if (Array.isArray(res.seafile_libraries)) {
+        updates.seafileLibraries = res.seafile_libraries;
+      }
+      if (typeof res.synology_fallback_allowed === "boolean") {
+        updates.synologyFallbackAllowed = res.synology_fallback_allowed;
+      }
+      if (Object.keys(updates).length) saveConfig(updates);
       return { ok: true, data: res.root_mappings };
     } catch (e: unknown) {
       return { ok: false, error: String(e) };
