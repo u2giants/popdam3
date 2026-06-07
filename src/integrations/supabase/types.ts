@@ -219,8 +219,14 @@ export type Database = {
           device_id: string | null
           error_message: string | null
           id: string
+          last_helper_heartbeat_at: string | null
+          seafile_library_id: string | null
+          seafile_path: string | null
           source_hash: string
+          source_local_path: string | null
+          source_provider: string | null
           source_size: number
+          source_version: string | null
           status: Database["public"]["Enums"]["checkout_status"]
           synology_upload_user: string | null
           updated_at: string
@@ -237,8 +243,14 @@ export type Database = {
           device_id?: string | null
           error_message?: string | null
           id?: string
+          last_helper_heartbeat_at?: string | null
+          seafile_library_id?: string | null
+          seafile_path?: string | null
           source_hash: string
+          source_local_path?: string | null
+          source_provider?: string | null
           source_size: number
+          source_version?: string | null
           status?: Database["public"]["Enums"]["checkout_status"]
           synology_upload_user?: string | null
           updated_at?: string
@@ -255,8 +267,14 @@ export type Database = {
           device_id?: string | null
           error_message?: string | null
           id?: string
+          last_helper_heartbeat_at?: string | null
+          seafile_library_id?: string | null
+          seafile_path?: string | null
           source_hash?: string
+          source_local_path?: string | null
+          source_provider?: string | null
           source_size?: number
+          source_version?: string | null
           status?: Database["public"]["Enums"]["checkout_status"]
           synology_upload_user?: string | null
           updated_at?: string
