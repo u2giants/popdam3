@@ -71,9 +71,9 @@ const api = {
     librariesMissing: string[];
     detail?: string;
   }>> => ipcRenderer.invoke("get-storage-health"),
-  testSeafileMapping: (rootId: string, sampleRelativePath: string): Promise<IpcResponse<{
+  testSeafileMapping: (sampleRelativePath: string): Promise<IpcResponse<{
     ok: boolean; resolvedPath?: string; exists?: boolean; message: string;
-  }>> => ipcRenderer.invoke("test-seafile-mapping", { rootId, sampleRelativePath }),
+  }>> => ipcRenderer.invoke("test-seafile-mapping", { sampleRelativePath }),
   saveSeafileToken: (token: string): Promise<IpcResponse> =>
     ipcRenderer.invoke("save-seafile-token", token),
 

@@ -91,11 +91,13 @@ export async function fetchConfig(): Promise<{
   root_mappings: Array<{ root_id: string; display_name: string; server_path: string }>;
   seafile_preferred?: boolean;
   synology_fallback_allowed?: boolean;
+  seafile_server_url?: string | null;
   seafile_libraries?: Array<{
     libraryId: string;
     displayName: string;
     seaDriveFolder: string;
     rootId: string;
+    pathPrefix: string;
   }>;
 }> {
   return get("/config");

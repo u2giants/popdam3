@@ -117,42 +117,72 @@ function sanitizeRelativePath(p: string): string {
   return normalized;
 }
 
-function findMapping(
-  rootId: string,
-  config: LocalConfig,
-): SeafileLibraryMapping | null {
-  return (config.seafileLibraries ?? []).find((m) => m.rootId === rootId) ?? null;
+function normalizeRel(p: string): string {
+  return p.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
 /**
- * Map a PopDAM root_id + relative_path to an absolute SeaDrive path.
- *
- * relative_path includes the root_id as its first segment
- * (e.g. "design_hot/Walmart/2026/art.ai"); that segment is replaced by the
- * library's seaDriveFolder under the mount root.
- *
- * Throws on: no mount root, no mapping for the root_id, or unsafe path.
+ * Find the Seafile library whose pathPrefix is the longest match for a given
+ * relative_path. A PopDAM root can hold multiple libraries as subfolders
+ * (e.g. "Decor/Character Licensed" and "Decor/Generic Decor"), so we match on
+ * the full prefix, not just the first segment.
  */
-export function resolveSeafilePath(
-  rootId: string,
+function findMappingForPath(
   relativePath: string,
   config: LocalConfig,
-): string {
+): SeafileLibraryMapping | null {
+  const rel = normalizeRel(relativePath);
+  let best: SeafileLibraryMapping | null = null;
+  let bestLen = -1;
+  for (const m of config.seafileLibraries ?? []) {
+    const prefix = normalizeRel(m.pathPrefix);
+    if (rel === prefix || rel.startsWith(prefix + "/")) {
+      if (prefix.length > bestLen) {
+        best = m;
+        bestLen = prefix.length;
+      }
+    }
+  }
+  return best;
+}
+
+export interface SeafileTarget {
+  mapping: SeafileLibraryMapping;
+  localPath: string;  // absolute path under the SeaDrive mount
+  pathInLib: string;  // path within the Seafile library (relative_path minus the prefix)
+}
+
+/**
+ * Resolve a PopDAM relative_path to a SeaDrive target: the matching library,
+ * the absolute local path, and the in-library path.
+ *
+ * Throws on: no mount root, no library covering the path, or unsafe path.
+ */
+export function resolveSeafileTarget(
+  relativePath: string,
+  config: LocalConfig,
+): SeafileTarget {
   const root = detectSeaDriveRoot(config);
   if (!root) throw new Error("SeaDrive mount root not found.");
 
-  const mapping = findMapping(rootId, config);
+  const mapping = findMappingForPath(relativePath, config);
   if (!mapping) {
-    throw new Error(`No Seafile library mapping for root_id "${rootId}".`);
+    throw new Error(`No Seafile library covers "${relativePath}".`);
   }
 
-  // Strip the leading root_id segment, keep the remainder.
-  const rel = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
-  const parts = rel.split("/");
-  const remainder = parts[0] === rootId ? parts.slice(1).join("/") : rel;
+  const rel = normalizeRel(relativePath);
+  const prefix = normalizeRel(mapping.pathPrefix);
+  const remainder = rel === prefix ? "" : rel.slice(prefix.length + 1);
+  const pathInLib = remainder ? sanitizeRelativePath(remainder) : "";
+  const localPath = pathInLib
+    ? join(root, mapping.seaDriveFolder, pathInLib)
+    : join(root, mapping.seaDriveFolder);
+  return { mapping, localPath, pathInLib };
+}
 
-  const safe = sanitizeRelativePath(remainder);
-  return join(root, mapping.seaDriveFolder, safe);
+/** Convenience wrapper returning just the absolute local path. */
+export function resolveSeafilePath(relativePath: string, config: LocalConfig): string {
+  return resolveSeafileTarget(relativePath, config).localPath;
 }
 
 /** Library folders that are actually present (mounted) under the SeaDrive root. */
@@ -334,20 +364,19 @@ export interface MappingTestResult {
 }
 
 export function testSeafileMapping(
-  rootId: string,
   sampleRelativePath: string,
   config: LocalConfig,
 ): MappingTestResult {
   try {
-    const resolved = resolveSeafilePath(rootId, sampleRelativePath, config);
-    const exists = existsSync(resolved);
+    const { localPath, mapping } = resolveSeafileTarget(sampleRelativePath, config);
+    const exists = existsSync(localPath);
     return {
       ok: true,
-      resolvedPath: resolved,
+      resolvedPath: localPath,
       exists,
       message: exists
-        ? "Mapping resolves and the path exists."
-        : "Mapping resolves, but the sample path does not exist yet.",
+        ? `Resolves to library "${mapping.displayName}" and the path exists.`
+        : `Resolves to library "${mapping.displayName}", but the sample path is not hydrated/synced yet.`,
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };

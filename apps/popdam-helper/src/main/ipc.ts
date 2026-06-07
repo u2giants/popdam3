@@ -214,6 +214,9 @@ export function registerIpcHandlers(): void {
       if (typeof res.synology_fallback_allowed === "boolean") {
         updates.synologyFallbackAllowed = res.synology_fallback_allowed;
       }
+      if (res.seafile_server_url) {
+        updates.seafileServerUrl = res.seafile_server_url;
+      }
       if (Object.keys(updates).length) saveConfig(updates);
       return { ok: true, data: res.root_mappings };
     } catch (e: unknown) {
@@ -232,9 +235,9 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "test-seafile-mapping",
-    (_event, { rootId, sampleRelativePath }: { rootId: string; sampleRelativePath: string }) => {
+    (_event, { sampleRelativePath }: { sampleRelativePath: string }) => {
       try {
-        return { ok: true, data: testSeafileMapping(rootId, sampleRelativePath, getConfig()) };
+        return { ok: true, data: testSeafileMapping(sampleRelativePath, getConfig()) };
       } catch (e: unknown) {
         return { ok: false, error: String(e) };
       }

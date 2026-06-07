@@ -10,9 +10,14 @@ export interface StorageHealth {
 
 export interface SeafileLibraryMapping {
   libraryId: string;     // Seafile library UUID
-  displayName: string;   // e.g. "Design Hot"
-  seaDriveFolder: string; // subfolder under seaDriveRoot, e.g. "Design_Hot"
-  rootId: string;        // PopDAM root_id this library maps to
+  displayName: string;   // e.g. "Character Licensed"
+  seaDriveFolder: string; // folder under seaDriveRoot (= the Seafile library name), e.g. "Character Licensed"
+  rootId: string;        // PopDAM root_id this library lives under, e.g. "Decor"
+  // relative_path prefix this library covers, e.g. "Decor/Character Licensed".
+  // A PopDAM root can contain multiple libraries as subfolders, so the library is
+  // resolved by longest-prefix match on relative_path, then the prefix is stripped
+  // to get the in-library path.
+  pathPrefix: string;
 }
 
 export interface HydrationStatus {

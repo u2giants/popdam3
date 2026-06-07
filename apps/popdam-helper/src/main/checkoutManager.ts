@@ -28,7 +28,7 @@ import { getConfig } from "./config";
 import { validateRoot } from "./rootValidator";
 import {
   getSeafileHealth,
-  resolveSeafilePath,
+  resolveSeafileTarget,
   ensureHydrated,
   getSeafileObjId,
 } from "./seafileAdapter";
@@ -157,22 +157,16 @@ export async function checkout(
     const health = getSeafileHealth(config);
     if (health.available) {
       try {
-        const seafilePath = resolveSeafilePath(rootId, asset.relative_path, config);
+        const target = resolveSeafileTarget(asset.relative_path, config);
         // Confirm the file is fully local (or trigger + wait for hydration)
-        await ensureHydrated(seafilePath, {
+        await ensureHydrated(target.localPath, {
           onProgress: (s) =>
-            log.debug(`Hydrating ${seafilePath}: ${s.state} ${s.bytesDone ?? 0}B`),
+            log.debug(`Hydrating ${target.localPath}: ${s.state} ${s.bytesDone ?? 0}B`),
         });
-        sourcePath = seafilePath;
+        sourcePath = target.localPath;
         sourceProvider = "seafile";
-
-        const mapping = (config.seafileLibraries ?? []).find((m) => m.rootId === rootId);
-        if (mapping) {
-          const rel = asset.relative_path.replace(/\\/g, "/").replace(/^\/+/, "");
-          const parts = rel.split("/");
-          const pathInLib = parts[0] === rootId ? parts.slice(1).join("/") : rel;
-          seafileObjId = (await getSeafileObjId(mapping.libraryId, pathInLib, config)) ?? undefined;
-        }
+        seafileObjId =
+          (await getSeafileObjId(target.mapping.libraryId, target.pathInLib, config)) ?? undefined;
       } catch (e) {
         if (!config.synologyFallbackAllowed) throw e;
         log.warn(`Seafile resolution failed, falling back to Synology: ${(e as Error).message}`);

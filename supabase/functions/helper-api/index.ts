@@ -100,6 +100,7 @@ async function handleGetConfig(_req: Request): Promise<Response> {
       "HELPER_DAM_URL",
       "HELPER_SEAFILE_PREFERRED",
       "HELPER_SEAFILE_LIBRARIES",
+      "HELPER_SEAFILE_SERVER_URL",
       "HELPER_SYNOLOGY_FALLBACK_ALLOWED",
     ]);
 
@@ -139,6 +140,7 @@ async function handleGetConfig(_req: Request): Promise<Response> {
     // ── Seafile config (no secrets here — API tokens stay client-side) ──
     seafile_preferred: truthy(cfg["HELPER_SEAFILE_PREFERRED"]),
     synology_fallback_allowed: truthy(cfg["HELPER_SYNOLOGY_FALLBACK_ALLOWED"]),
+    seafile_server_url: (cfg["HELPER_SEAFILE_SERVER_URL"] as string) ?? null,
     seafile_libraries: seafileLibraries,
   });
 }
