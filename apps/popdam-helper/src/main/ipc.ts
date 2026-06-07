@@ -5,7 +5,7 @@
 
 import { ipcMain, dialog } from "electron";
 import { getConfig, saveConfig } from "./config";
-import { clearSession, storeToken, loadToken, loadSession } from "./credentials";
+import { clearSession, storeSession, storeToken, loadToken, loadSession } from "./credentials";
 import {
   getActiveCheckouts,
   checkin,
