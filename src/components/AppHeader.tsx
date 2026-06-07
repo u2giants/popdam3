@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAgentStatus, type AgentRecord } from "@/hooks/useAgentStatus";
@@ -25,7 +27,7 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Library, Settings, Download, LogOut, User, Wand2, RefreshCw, Menu, Eye, EyeOff, FolderOpen } from "lucide-react";
+import { Library, Settings, Download, LogOut, Wand2, RefreshCw, Menu, Eye, EyeOff, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import { useState } from "react";
@@ -142,8 +144,17 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
   );
 }
 
+function initialsOf(name: string, email: string): string {
+  const base = (name && !name.includes("@") ? name : email).replace(/@.*/, "");
+  const parts = base.split(/[ ._-]+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export default function AppHeader() {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const { name, email, avatarUrl } = useUserProfile();
   const { isRealAdmin } = useIsAdmin();
   const { impersonatedRole, startImpersonating, stopImpersonating } = useImpersonation();
   const agent = useAgentStatus();
@@ -259,17 +270,31 @@ export default function AppHeader() {
           {/* User dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-sm text-muted-foreground">
-                <User className="h-4 w-4" />
+              <Button variant="ghost" size="sm" className="gap-2 text-sm text-muted-foreground">
+                <Avatar className="h-6 w-6">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
+                  <AvatarFallback className="bg-primary/15 text-[10px] font-medium text-primary">
+                    {initialsOf(name, email)}
+                  </AvatarFallback>
+                </Avatar>
                 <span className="hidden max-w-[140px] truncate sm:inline">
-                  {user?.email ?? "User"}
+                  {name}
                 </span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem className="text-xs text-muted-foreground" disabled>
-                {user?.email}
-              </DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="flex items-center gap-2 px-2 py-1.5">
+                <Avatar className="h-8 w-8">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
+                  <AvatarFallback className="bg-primary/15 text-xs font-medium text-primary">
+                    {initialsOf(name, email)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{email}</p>
+                </div>
+              </div>
               <DropdownMenuSeparator />
 
               {/* Impersonation controls — only for real admins */}

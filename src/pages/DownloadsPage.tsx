@@ -1,4 +1,4 @@
-import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen, Laptop } from "lucide-react";
+import { Download, Container, Monitor, Copy, Check, ExternalLink, FolderOpen, Laptop, Cloud } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,6 +121,55 @@ export default function DownloadsPage() {
             After installing, open the app once to complete setup. Then go to{" "}
             <strong>Settings → Path Tester</strong> to choose your preferred path mode.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* SeaDrive — for work-from-home / Seafile users */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Cloud className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">SeaDrive (Work-from-Home)</CardTitle>
+          </div>
+          <CardDescription>
+            For designers working off-site. SeaDrive mounts the art libraries as an on-demand
+            virtual drive (<code>~/SeaDrive</code>) — files download only when you open them, so a
+            laptop never has to hold the whole library. Sign in with your <strong>Microsoft account</strong>.
+            Install this <em>and</em> the DAM Helper above, then choose <strong>Seafile</strong> in the Helper&apos;s settings.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
+              <Badge variant="secondary" className="text-[10px]">macOS</Badge>
+              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client (not the “Seafile” sync client), open the DMG, drag to Applications.</p>
+              <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
+                <a href="https://www.seafile.com/en/download/" target="_blank" rel="noopener noreferrer">
+                  <Download className="h-3 w-3" />
+                  Get SeaDrive
+                </a>
+              </Button>
+            </div>
+            <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
+              <Badge variant="secondary" className="text-[10px]">Windows 10 / 11</Badge>
+              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client (not the “Seafile” sync client) and run the installer.</p>
+              <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
+                <a href="https://www.seafile.com/en/download/" target="_blank" rel="noopener noreferrer">
+                  <Download className="h-3 w-3" />
+                  Get SeaDrive
+                </a>
+              </Button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://seafile.designflow.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                <ExternalLink className="h-3 w-3" />
+                Open Seafile web
+              </a>
+            </Button>
+            <span className="text-xs text-muted-foreground">Server: <code>seafile.designflow.app</code></span>
+          </div>
         </CardContent>
       </Card>
 

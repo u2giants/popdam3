@@ -84,7 +84,8 @@ export default function LoginPage() {
     const { error } = await externalSupabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        scopes: "email",
+        // profile → display name; User.Read → Microsoft Graph profile photo
+        scopes: "openid profile email offline_access User.Read",
         redirectTo: window.location.origin,
       },
     });
