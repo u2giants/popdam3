@@ -26,8 +26,14 @@ import {
 import { enqueue } from "./uploadQueue";
 import { getConfig } from "./config";
 import { validateRoot } from "./rootValidator";
+import {
+  getSeafileHealth,
+  resolveSeafilePath,
+  ensureHydrated,
+  getSeafileObjId,
+} from "./seafileAdapter";
 import { log } from "./logger";
-import type { CheckoutRecord, RootMapping } from "@shared/types";
+import type { CheckoutRecord, RootMapping, StorageProvider } from "@shared/types";
 
 // In-memory map of active checkouts: checkoutId → record
 const active = new Map<string, CheckoutRecord>();
@@ -130,18 +136,60 @@ export async function checkout(
     }
   }
 
-  let sourcePath: string;
-  try {
-    sourcePath = resolveAssetPath(
-      asset.relative_path.split("/")[0] ?? asset.relative_path.split("\\")[0],
-      asset.relative_path,
-      mergedMappings,
-    );
-  } catch {
-    // Fall back: try all mappings
-    throw new Error(
-      `No local path configured for this asset. Please set up your folder mappings in Settings.`,
-    );
+  const rootId = asset.relative_path.split("/")[0] ?? asset.relative_path.split("\\")[0];
+  const preferred: StorageProvider = config.preferredProvider ?? "synology";
+
+  const resolveSynologyPath = (): string => {
+    try {
+      return resolveAssetPath(rootId, asset.relative_path, mergedMappings);
+    } catch {
+      throw new Error(
+        `No local path configured for this asset. Please set up your folder mappings in Settings.`,
+      );
+    }
+  };
+
+  let sourcePath: string | null = null;
+  let sourceProvider: StorageProvider = "synology";
+  let seafileObjId: string | undefined;
+
+  if (preferred === "seafile") {
+    const health = getSeafileHealth(config);
+    if (health.available) {
+      try {
+        const seafilePath = resolveSeafilePath(rootId, asset.relative_path, config);
+        // Confirm the file is fully local (or trigger + wait for hydration)
+        await ensureHydrated(seafilePath, {
+          onProgress: (s) =>
+            log.debug(`Hydrating ${seafilePath}: ${s.state} ${s.bytesDone ?? 0}B`),
+        });
+        sourcePath = seafilePath;
+        sourceProvider = "seafile";
+
+        const mapping = (config.seafileLibraries ?? []).find((m) => m.rootId === rootId);
+        if (mapping) {
+          const rel = asset.relative_path.replace(/\\/g, "/").replace(/^\/+/, "");
+          const parts = rel.split("/");
+          const pathInLib = parts[0] === rootId ? parts.slice(1).join("/") : rel;
+          seafileObjId = (await getSeafileObjId(mapping.libraryId, pathInLib, config)) ?? undefined;
+        }
+      } catch (e) {
+        if (!config.synologyFallbackAllowed) throw e;
+        log.warn(`Seafile resolution failed, falling back to Synology: ${(e as Error).message}`);
+      }
+    } else if (!config.synologyFallbackAllowed) {
+      throw new Error(
+        "Seafile/SeaDrive is unavailable and fallback is not enabled for this account." +
+          (health.detail ? `\n\n${health.detail}` : ""),
+      );
+    } else {
+      log.warn(`Seafile unavailable (${health.detail ?? "unknown"}); falling back to Synology.`);
+    }
+  }
+
+  if (!sourcePath) {
+    sourcePath = resolveSynologyPath();
+    sourceProvider = "synology";
   }
 
   if (!existsSync(sourcePath)) {
@@ -168,6 +216,9 @@ export async function checkout(
     source_hash: asset.expected_hash ?? copied.hash,
     source_size: asset.expected_size ?? copied.size,
     dam_url: `${config.damUrl}/assets/${asset.asset_id}`,
+    source_provider: sourceProvider,
+    source_local_path: sourcePath,
+    seafile_obj_id: seafileObjId,
   });
 
   const record: CheckoutRecord = {
@@ -185,6 +236,9 @@ export async function checkout(
     sourceSize: asset.expected_size ?? copied.size,
     workspacePath: copied.workspacePath,
     snapshotPath: null,
+    sourceProvider,
+    sourceLocalPath: sourcePath,
+    seafileObjId,
     uploadProgress: null,
     errorMessage: null,
   };
@@ -246,6 +300,8 @@ export async function checkin(checkoutId: string): Promise<void> {
     tempSuffix: instructions.upload_instructions.temp_suffix,
     retryCount: 0,
     addedAt: Date.now(),
+    sourceProvider: record.sourceProvider,
+    seafileObjId: record.seafileObjId,
   });
 
   updateStatus(checkoutId, "uploading");

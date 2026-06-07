@@ -25,6 +25,18 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
   const [signInBusy, setSignInBusy] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
 
+  type StorageHealth = {
+    available: boolean;
+    installed: boolean;
+    running: boolean;
+    root: string | null;
+    librariesMounted: string[];
+    librariesMissing: string[];
+    detail?: string;
+  };
+  const [storageHealth, setStorageHealth] = useState<StorageHealth | null>(null);
+  const [seafileToken, setSeafileToken] = useState("");
+
   const [serverRoots, setServerRoots] = useState<ServerRoot[] | null>(null);
   const [rootsFetching, setRootsFetching] = useState(false);
   const [rootsFetchError, setRootsFetchError] = useState<string | null>(null);
@@ -82,7 +94,13 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
     window.popdam.getAuthState().then((res) => {
       setAuthEmail(res.data?.loggedIn ? (res.data.email ?? null) : null);
     });
+    refreshStorageHealth();
   }, []);
+
+  async function refreshStorageHealth(): Promise<void> {
+    const res = await window.popdam.getStorageHealth();
+    if (res.ok && res.data) setStorageHealth(res.data);
+  }
 
   async function handleSave(): Promise<void> {
     if (!config) return;
@@ -120,6 +138,11 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
         setSynologyUser("");
         setSynologyPass("");
       }
+      if (seafileToken.trim()) {
+        await window.popdam.saveSeafileToken(seafileToken.trim());
+        setSeafileToken("");
+      }
+      await refreshStorageHealth();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
@@ -352,6 +375,85 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
             </div>
           );
         })}
+
+        <div className="section-label" style={{ marginBottom: 8 }}>Seafile / SeaDrive</div>
+        <div className="checkout-card" style={{ marginBottom: 12 }}>
+          <div className="field" style={{ marginBottom: 8 }}>
+            <label>Preferred source for checkout</label>
+            <select
+              value={config.preferredProvider ?? "synology"}
+              onChange={(e) =>
+                setConfig({ ...config, preferredProvider: e.target.value as "seafile" | "synology" })
+              }
+              style={{ width: "100%" }}
+            >
+              <option value="synology">Synology (office / admin)</option>
+              <option value="seafile">Seafile / SeaDrive (work from home)</option>
+            </select>
+          </div>
+
+          <div className="field" style={{ marginBottom: 8 }}>
+            <label>SeaDrive mount folder</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                style={{ flex: 1 }}
+                value={config.seaDriveRoot ?? ""}
+                onChange={(e) => setConfig({ ...config, seaDriveRoot: e.target.value })}
+                placeholder={storageHealth?.root ?? "Auto-detected (~/SeaDrive)"}
+              />
+              <button
+                style={{ whiteSpace: "nowrap" }}
+                onClick={async () => {
+                  const res = await window.popdam.browseForFolder();
+                  if (res.ok && res.data) setConfig({ ...config, seaDriveRoot: res.data });
+                }}
+              >
+                Browse…
+              </button>
+            </div>
+          </div>
+
+          <div className="meta" style={{ marginBottom: 8 }}>
+            {storageHealth ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span>SeaDrive installed: {storageHealth.installed ? "✓" : "✗"}</span>
+                <span>Running: {storageHealth.running ? "✓" : "✗"}</span>
+                <span>Mount root: {storageHealth.root ?? "not found"}</span>
+                <span>
+                  Libraries mounted:{" "}
+                  {storageHealth.librariesMounted.length
+                    ? storageHealth.librariesMounted.join(", ")
+                    : "none"}
+                </span>
+                {storageHealth.librariesMissing.length > 0 && (
+                  <span style={{ color: "var(--color-error, #c00)" }}>
+                    Missing: {storageHealth.librariesMissing.join(", ")}
+                  </span>
+                )}
+                {storageHealth.detail && <span>{storageHealth.detail}</span>}
+              </div>
+            ) : (
+              <span>Checking SeaDrive status…</span>
+            )}
+            <button
+              style={{ padding: "1px 8px", fontSize: 11, marginTop: 4 }}
+              onClick={refreshStorageHealth}
+            >
+              Refresh status
+            </button>
+          </div>
+
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Seafile API token (optional)</label>
+            <input
+              type="password"
+              value={seafileToken}
+              onChange={(e) => setSeafileToken(e.target.value)}
+              placeholder="Enables server-side version tracking (source_version)"
+              autoComplete="off"
+            />
+          </div>
+        </div>
 
         <div className="section-label" style={{ marginBottom: 8 }}>Synology Credentials</div>
         <div className="checkout-card">

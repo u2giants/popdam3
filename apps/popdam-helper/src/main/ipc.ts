@@ -16,6 +16,7 @@ import {
 import { getPendingJobs } from "./uploadQueue";
 import { fetchConfig, discoverSupabaseConfig } from "./damClient";
 import { validateRoot } from "./rootValidator";
+import { getSeafileHealth, testSeafileMapping } from "./seafileAdapter";
 import { shell } from "electron";
 import { log } from "./logger";
 import type { LocalConfig } from "@shared/types";
@@ -205,6 +206,35 @@ export function registerIpcHandlers(): void {
     try {
       const res = await fetchConfig();
       return { ok: true, data: res.root_mappings };
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) };
+    }
+  });
+
+  // ── Seafile / SeaDrive ───────────────────────────────────────────────────────
+  ipcMain.handle("get-storage-health", () => {
+    try {
+      return { ok: true, data: getSeafileHealth(getConfig()) };
+    } catch (e: unknown) {
+      return { ok: false, error: String(e) };
+    }
+  });
+
+  ipcMain.handle(
+    "test-seafile-mapping",
+    (_event, { rootId, sampleRelativePath }: { rootId: string; sampleRelativePath: string }) => {
+      try {
+        return { ok: true, data: testSeafileMapping(rootId, sampleRelativePath, getConfig()) };
+      } catch (e: unknown) {
+        return { ok: false, error: String(e) };
+      }
+    },
+  );
+
+  ipcMain.handle("save-seafile-token", async (_event, token: string) => {
+    try {
+      await storeToken("seafile_api_token", token);
+      return { ok: true };
     } catch (e: unknown) {
       return { ok: false, error: String(e) };
     }

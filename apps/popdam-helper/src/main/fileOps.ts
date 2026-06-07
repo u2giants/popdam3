@@ -113,6 +113,10 @@ export interface CheckoutMeta {
   source_hash: string;
   source_size: number;
   dam_url: string;
+  // Storage provider the source was read from (default "synology" when absent).
+  source_provider?: string;
+  source_local_path?: string;
+  seafile_obj_id?: string;
 }
 
 export function writeCheckoutMeta(destDir: string, meta: CheckoutMeta): void {

@@ -89,6 +89,14 @@ export async function fetchConfig(): Promise<{
   synology_url: string | null;
   synology_port: string;
   root_mappings: Array<{ root_id: string; display_name: string; server_path: string }>;
+  seafile_preferred?: boolean;
+  synology_fallback_allowed?: boolean;
+  seafile_libraries?: Array<{
+    libraryId: string;
+    displayName: string;
+    seaDriveFolder: string;
+    rootId: string;
+  }>;
 }> {
   return get("/config");
 }
@@ -141,6 +149,8 @@ export async function completeCheckin(params: {
   final_size: number;
   upload_method: string;
   synology_upload_user?: string | null;
+  source_provider?: string;
+  source_version?: string | null;
 }): Promise<{ ok: boolean }> {
   return post("/checkouts/complete-checkin", params);
 }
@@ -153,6 +163,8 @@ export async function heartbeat(params: {
   checkout_id?: string;
   device_id?: string;
   status?: string;
+  hydration_bytes_done?: number;
+  hydration_bytes_total?: number;
 }): Promise<{ ok: boolean }> {
   return post("/checkouts/heartbeat", params).catch((e) => {
     log.warn("Heartbeat failed:", e.message);

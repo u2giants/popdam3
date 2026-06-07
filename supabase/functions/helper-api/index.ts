@@ -98,6 +98,9 @@ async function handleGetConfig(_req: Request): Promise<Response> {
       "HELPER_SYNOLOGY_URL",
       "HELPER_SYNOLOGY_PORT",
       "HELPER_DAM_URL",
+      "HELPER_SEAFILE_PREFERRED",
+      "HELPER_SEAFILE_LIBRARIES",
+      "HELPER_SYNOLOGY_FALLBACK_ALLOWED",
     ]);
 
   const cfg: Record<string, unknown> = {};
@@ -111,12 +114,32 @@ async function handleGetConfig(_req: Request): Promise<Response> {
     return { root_id: name, display_name: name, server_path: r };
   });
 
+  // HELPER_SEAFILE_LIBRARIES is stored as a JSON string (array of mappings).
+  let seafileLibraries: unknown[] = [];
+  const rawLibs = cfg["HELPER_SEAFILE_LIBRARIES"];
+  if (Array.isArray(rawLibs)) {
+    seafileLibraries = rawLibs;
+  } else if (typeof rawLibs === "string" && rawLibs.trim()) {
+    try {
+      const parsed = JSON.parse(rawLibs);
+      if (Array.isArray(parsed)) seafileLibraries = parsed;
+    } catch {
+      // malformed config — return empty rather than failing the whole request
+    }
+  }
+
+  const truthy = (v: unknown) => v === true || v === "true";
+
   return json({
     ok: true,
     dam_url: (cfg["HELPER_DAM_URL"] as string) ?? null,
     synology_url: (cfg["HELPER_SYNOLOGY_URL"] as string) ?? null,
     synology_port: (cfg["HELPER_SYNOLOGY_PORT"] as string) ?? "5001",
     root_mappings: rootMappings,
+    // ── Seafile config (no secrets here — API tokens stay client-side) ──
+    seafile_preferred: truthy(cfg["HELPER_SEAFILE_PREFERRED"]),
+    synology_fallback_allowed: truthy(cfg["HELPER_SYNOLOGY_FALLBACK_ALLOWED"]),
+    seafile_libraries: seafileLibraries,
   });
 }
 
@@ -344,7 +367,10 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
   if (!userId) return err("Unauthorized", 401);
 
   const body = await req.json();
-  const { checkout_id, final_hash, final_size, upload_method, synology_upload_user } = body;
+  const {
+    checkout_id, final_hash, final_size, upload_method, synology_upload_user,
+    source_provider, source_version,
+  } = body;
   if (!checkout_id) return err("checkout_id required");
 
   const db = serviceClient();
@@ -371,6 +397,8 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
     checkin_size: final_size ?? null,
     upload_method: upload_method ?? null,
     synology_upload_user: synology_upload_user ?? null,
+    source_provider: source_provider ?? null,
+    source_version: source_version ?? null,
   }).eq("id", checkout_id);
 
   // Update asset quick_hash and file_size if provided
@@ -415,12 +443,20 @@ async function handleHeartbeat(req: Request): Promise<Response> {
   if (!userId) return err("Unauthorized", 401);
 
   const body = await req.json();
+  // hydration_bytes_done / hydration_bytes_total are accepted for forward-compat
+  // (Seafile hydration progress) but not persisted to dedicated columns yet.
   const { checkout_id, device_id, status } = body;
 
   const db = serviceClient();
 
   if (checkout_id) {
-    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const update: Record<string, unknown> = {
+      updated_at: now,
+      last_helper_heartbeat_at: now,
+    };
+    // NOTE: "hydrating" is a reported state, not a DB status enum value — do not
+    // write it to the status column. Only real lifecycle statuses are persisted.
     if (status && ["uploading", "verifying"].includes(status)) {
       update.status = status;
     }

@@ -59,6 +59,24 @@ const api = {
   fetchServerRoots: (): Promise<IpcResponse<Array<{ root_id: string; display_name: string; server_path: string }>>> =>
     ipcRenderer.invoke("fetch-server-roots"),
 
+  // Seafile / SeaDrive
+  getStorageHealth: (): Promise<IpcResponse<{
+    provider: "seafile";
+    available: boolean;
+    installed: boolean;
+    running: boolean;
+    root: string | null;
+    librariesConfigured: string[];
+    librariesMounted: string[];
+    librariesMissing: string[];
+    detail?: string;
+  }>> => ipcRenderer.invoke("get-storage-health"),
+  testSeafileMapping: (rootId: string, sampleRelativePath: string): Promise<IpcResponse<{
+    ok: boolean; resolvedPath?: string; exists?: boolean; message: string;
+  }>> => ipcRenderer.invoke("test-seafile-mapping", { rootId, sampleRelativePath }),
+  saveSeafileToken: (token: string): Promise<IpcResponse> =>
+    ipcRenderer.invoke("save-seafile-token", token),
+
   // Root path validation (runs in main process — has filesystem access)
   validateRoot: (path: string, rootId: string): Promise<IpcResponse<ValidationResult>> =>
     ipcRenderer.invoke("validate-root", { path, rootId }),

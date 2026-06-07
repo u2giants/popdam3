@@ -133,6 +133,8 @@ async function processJob(job: StoredJob): Promise<void> {
       final_size: finalSize,
       upload_method: "synology_file_station",
       synology_upload_user: synologyUser,
+      source_provider: job.sourceProvider,
+      source_version: job.seafileObjId ?? null,
     });
 
     removeJob(checkoutId);

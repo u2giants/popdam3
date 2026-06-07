@@ -14,6 +14,7 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { readdirSync, statSync } from "fs";
 import { join } from "path";
 import { getConfig } from "./config";
+import { getSeafileHealth } from "./seafileAdapter";
 import { log } from "./logger";
 import { HELPER_VERSION } from "@shared/constants";
 
@@ -139,6 +140,8 @@ export function startLocalServer(): void {
     try {
       if (url.pathname === "/status") {
         const config = getConfig();
+        const seafile = getSeafileHealth(config);
+        const synologyAvailable = config.rootMappings.some((r) => !!r.local_path);
         send(res, 200, {
           ok: true,
           version: HELPER_VERSION,
@@ -147,6 +150,14 @@ export function startLocalServer(): void {
             display_name: r.display_name,
             local_path: r.local_path,
           })),
+          storageProviders: {
+            seafile: {
+              available: seafile.available,
+              root: seafile.root,
+              libraries: seafile.librariesMounted,
+            },
+            synology: { available: synologyAvailable },
+          },
         }, origin);
         return;
       }

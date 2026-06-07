@@ -1,6 +1,6 @@
 {
   "name": "popdam-helper",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "POP DAM Helper — desktop app for local file checkout, editing, and check-in",
   "main": "out/main/main.js",
   "author": "POP Creations",

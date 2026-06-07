@@ -1,3 +1,32 @@
+// ─── Storage providers (Seafile / Synology / local) ───────────────────────────
+
+export type StorageProvider = "seafile" | "synology" | "local";
+
+export interface StorageHealth {
+  provider: StorageProvider;
+  available: boolean;
+  detail?: string;
+}
+
+export interface SeafileLibraryMapping {
+  libraryId: string;     // Seafile library UUID
+  displayName: string;   // e.g. "Design Hot"
+  seaDriveFolder: string; // subfolder under seaDriveRoot, e.g. "Design_Hot"
+  rootId: string;        // PopDAM root_id this library maps to
+}
+
+export interface HydrationStatus {
+  state: "local" | "hydrating" | "unavailable";
+  bytesDone?: number;
+  bytesTotal?: number;
+}
+
+export interface CheckoutSource {
+  provider: StorageProvider;
+  localPath: string;
+  seafileObjId?: string;
+}
+
 // ─── Checkout lifecycle ───────────────────────────────────────────────────────
 
 export type CheckoutStatus =
@@ -28,6 +57,10 @@ export interface CheckoutRecord {
   // Local paths (machine-specific, not in DB)
   workspacePath: string;
   snapshotPath: string | null;
+  // Source provider (machine-local — where the source file was read from)
+  sourceProvider?: StorageProvider;
+  sourceLocalPath?: string;
+  seafileObjId?: string;       // Seafile obj_id captured at checkout → source_version
   // Upload progress (in-memory only)
   uploadProgress: number | null; // 0–100
   errorMessage: string | null;
@@ -50,6 +83,9 @@ export interface RootMapping {
   display_name: string;      // e.g. "Design Hot"
   local_path: string;        // e.g. "C:\\Users\\Maria\\Seafile\\Design_Hot"
   marker_verified: boolean;
+  // Existing entries default to "synology" — both fields are optional, no migration needed.
+  provider?: StorageProvider;
+  seafileLibraryId?: string;
 }
 
 // ─── Config (persisted locally) ───────────────────────────────────────────────
@@ -64,6 +100,12 @@ export interface LocalConfig {
   supabaseAnonKey: string;    // Public anon key — auto-discovered from ${damUrl}/dam-config.json
   workspacePath: string;
   rootMappings: RootMapping[];
+  // ── Seafile / SeaDrive ──
+  preferredProvider?: StorageProvider;     // "seafile" for WFH, "synology" for office; default "synology"
+  seaDriveRoot?: string;                   // absolute SeaDrive mount point, e.g. /Users/maria/SeaDrive
+  seafileLibraries?: SeafileLibraryMapping[];
+  seafileServerUrl?: string;               // Seafile server base URL (for obj_id REST lookups; optional)
+  synologyFallbackAllowed?: boolean;       // mirror of server config; whether Synology fallback is permitted
 }
 
 // ─── IPC channel types ────────────────────────────────────────────────────────
@@ -78,7 +120,10 @@ export type IpcChannel =
   | "discard"
   | "open-dam"
   | "get-auth-state"
-  | "logout";
+  | "logout"
+  | "get-storage-health"
+  | "test-seafile-mapping"
+  | "save-seafile-token";
 
 export interface IpcResponse<T = unknown> {
   ok: boolean;
@@ -108,4 +153,6 @@ export interface UploadJob {
   tempSuffix: string;
   retryCount: number;
   addedAt: number; // Date.now()
+  sourceProvider?: StorageProvider;
+  seafileObjId?: string;
 }
