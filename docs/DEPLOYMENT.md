@@ -23,8 +23,8 @@ Rules that apply here:
 - **Traceability.** Every prod image is tagged `:latest` **and** `:<commit-sha>`; rollback = redeploy a prior `:<sha>` in Coolify (§2).
 - **Secrets split.** GitHub holds only CI/CD secrets (GHCR + Coolify API). Production runtime secrets live in Coolify. No routine production SSH keys in GitHub Secrets.
 
-### Known deviation (tracked)
-Per the rule "production deploys must be gated by successful required verification," there is **one gap**: verification (`ci.yml`: lint/test/build, on **bun**) and the production deploy (`publish-frontend.yml`: build/push/deploy, on **npm**) are **separate push-triggered workflows with no dependency between them** — so a commit that fails `ci.yml` can still deploy. Recommended fix: gate the frontend deploy on verification (add a `verify` job that `build-and-push` `needs:`, or fold lint/test into `publish-frontend.yml`) and scope `ci.yml` to `pull_request`. Tracked until implemented; do not "fix" by adding cross-workflow run-polling (that's the §12.3 anti-pattern).
+### Verification gate
+`publish-frontend.yml` runs a `verify` job (`npm ci` + `npm run lint`); the `build-and-push` job (which builds, publishes, and triggers Coolify) `needs: verify`, so a lint failure blocks the production deploy — satisfying §11 via a native `needs` dependency (no cross-workflow run-polling). The Docker build step (`npm run build`) gates deploy within the same job. `ci.yml` (bun: lint/test/build) remains the broad repo-wide CI on every push to `main` and on PRs; it is intentionally not the frontend deploy gate (that lives in `publish-frontend.yml`).
 
 ---
 
@@ -54,6 +54,7 @@ SSH into the production server is **emergency break-glass only**. Normal deploym
 Documentation-only changes (`docs/**`, `*.md`) do NOT trigger a frontend build.
 
 **Steps:**
+0. **`verify` job** (gate): `npm ci` + `npm run lint`. `build-and-push` `needs: verify`.
 1. npm ci
 2. `npm run build` (Vite, with `APP_COMMIT` and `APP_DATE` injected)
 3. `docker build -f Dockerfile.ci` — two-stage: Node builder → nginx:1.27-alpine runtime
