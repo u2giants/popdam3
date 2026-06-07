@@ -49,17 +49,17 @@ PopDAM self-hosts a pinned latest build: the worker's `seadrive-mirror` handler 
 
 ### 1. Direct Microsoft (Entra) SSO via OAuth2
 
-First **remove** whatever SSO currently logs users straight in with no Microsoft prompt (a `REMOTE_USER`/proxy-header trust is a security hole). Then register an app in Microsoft Entra (redirect URI `https://seafile.designflow.app/oauth/callback/`, delegated scopes `openid profile email`) and set:
+First **remove** whatever SSO currently logs users straight in with no Microsoft prompt (a `REMOTE_USER`/proxy-header trust is a security hole). The Entra app **already exists**: `Seafile POP Creations` (client/app id `8d9da03c-e5cd-4a23-b987-32aaaed31fe7`), redirect `https://seafile.designflow.app/oauth/callback/`, scopes `openid profile email User.Read`, with client secrets named `seafile-oauth` (exp 2028-01-01). Use that secret's value (or mint a new one under Certificates & secrets — the value can't be read back from Azure). Then set:
 
 ```python
 ENABLE_OAUTH = True
 OAUTH_ENABLE_INSECURE_TRANSPORT = False
-OAUTH_CLIENT_ID = "<entra-application-client-id>"
-OAUTH_CLIENT_SECRET = "<entra-client-secret>"
+OAUTH_CLIENT_ID = "8d9da03c-e5cd-4a23-b987-32aaaed31fe7"
+OAUTH_CLIENT_SECRET = "<value-of-the-seafile-oauth-secret>"   # not committed — from Entra
 OAUTH_REDIRECT_URL = "https://seafile.designflow.app/oauth/callback/"
 OAUTH_PROVIDER_DOMAIN = "designflow.app"
 
-TENANT = "<entra-tenant-id>"
+TENANT = "1caeb1c0-a087-4cb9-b046-a5e22404f971"
 OAUTH_AUTHORIZATION_URL = f"https://login.microsoftonline.com/{TENANT}/oauth2/v2.0/authorize"
 OAUTH_TOKEN_URL         = f"https://login.microsoftonline.com/{TENANT}/oauth2/v2.0/token"
 OAUTH_USER_INFO_URL     = "https://graph.microsoft.com/oidc/userinfo"
