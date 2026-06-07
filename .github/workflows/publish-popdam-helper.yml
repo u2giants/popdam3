@@ -113,9 +113,12 @@ jobs:
       - name: Package with electron-builder
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          # Add APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID secrets to enable notarization.
-          # The afterSign hook in scripts/notarize.cjs skips silently if APPLE_ID is not set.
+          # Code signing: CSC_LINK = base64 of the "Developer ID Application" .p12,
+          # CSC_KEY_PASSWORD = its export password. When unset, electron-builder finds
+          # no identity and produces an UNSIGNED dmg (prior behaviour). When set, it
+          # signs; scripts/notarize.cjs then notarizes (needs the APPLE_* secrets too).
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
