@@ -4,6 +4,30 @@ Goal: You should never have to copy source code to the NAS or "build on Synology
 
 ---
 
+## 0) CI/CD Operating Rules (governing model)
+
+This app follows the standard **single-orchestrated-path, deployment-platform-owned** model. The applicable rules for this repo:
+
+| Owner | Source of truth for |
+|-------|---------------------|
+| **GitHub** (`main`) | application code, Dockerfiles, Compose, GitHub Actions workflows, deployment docs |
+| **GHCR** | built image artifacts (`ghcr.io/u2giants/popdam-frontend`) |
+| **Coolify** | runtime env vars, domains, health checks, restart policy, deploy execution |
+| **Production VPS** | runtime host only — never a configuration source |
+
+Rules that apply here:
+- **One normal path, no SSH deploys.** Push to `main` → GitHub Actions verifies/builds/publishes to GHCR → triggers Coolify API → Coolify pulls the image. GitHub Actions must **never** SSH into the server or run `docker`/`compose` on it as part of normal deploys. (Audited: no workflow contains SSH deploy steps.)
+- **Branch policy: single-branch.** `main` is the only release branch (see `CLAUDE.md`). Do not invent staging/promotion branches.
+- **Runtime config goes in Coolify, directly** — not GitHub Actions shell steps. An AI assistant may change Coolify env vars/flags directly, but must **not** SSH the server to change runtime config. Code/Dockerfile/workflow changes go through the repo.
+- **Schema changes go through committed migrations** (`apply_migration` MCP → matching local file → commit). Never hand-edit prod schema as the normal path. See §3 and `CLAUDE.md`.
+- **Traceability.** Every prod image is tagged `:latest` **and** `:<commit-sha>`; rollback = redeploy a prior `:<sha>` in Coolify (§2).
+- **Secrets split.** GitHub holds only CI/CD secrets (GHCR + Coolify API). Production runtime secrets live in Coolify. No routine production SSH keys in GitHub Secrets.
+
+### Known deviation (tracked)
+Per the rule "production deploys must be gated by successful required verification," there is **one gap**: verification (`ci.yml`: lint/test/build, on **bun**) and the production deploy (`publish-frontend.yml`: build/push/deploy, on **npm**) are **separate push-triggered workflows with no dependency between them** — so a commit that fails `ci.yml` can still deploy. Recommended fix: gate the frontend deploy on verification (add a `verify` job that `build-and-push` `needs:`, or fold lint/test into `publish-frontend.yml`) and scope `ci.yml` to `pull_request`. Tracked until implemented; do not "fix" by adding cross-workflow run-polling (that's the §12.3 anti-pattern).
+
+---
+
 ## 1) Overall Deploy Path
 
 ```

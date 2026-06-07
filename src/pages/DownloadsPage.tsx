@@ -142,7 +142,7 @@ export default function DownloadsPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
               <Badge variant="secondary" className="text-[10px]">macOS</Badge>
-              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client (not the “Seafile” sync client), open the DMG, drag to Applications.</p>
+              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client, open the DMG, and drag it to Applications.</p>
               <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
                 <a href="https://www.seafile.com/en/download/" target="_blank" rel="noopener noreferrer">
                   <Download className="h-3 w-3" />
@@ -152,7 +152,7 @@ export default function DownloadsPage() {
             </div>
             <div className="border border-border rounded-md p-3 space-y-2 bg-muted/20">
               <Badge variant="secondary" className="text-[10px]">Windows 10 / 11</Badge>
-              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client (not the “Seafile” sync client) and run the installer.</p>
+              <p className="text-xs text-muted-foreground">Download the <strong>SeaDrive</strong> client and run the installer.</p>
               <Button size="sm" className="gap-1.5 text-xs w-full" asChild>
                 <a href="https://www.seafile.com/en/download/" target="_blank" rel="noopener noreferrer">
                   <Download className="h-3 w-3" />

@@ -53,19 +53,21 @@ export function detectSeaDriveRoot(config: LocalConfig): string | null {
 
 // ── Install / process detection ─────────────────────────────────────────────
 
-/** Best-effort check for an installed SeaDrive/Seafile client binary. */
+/**
+ * Best-effort check for an installed SeaDrive (virtual-drive) client.
+ * We only support SeaDrive — never the legacy Seafile *sync* client, which would
+ * try to fully download a library to local disk. Do not add sync-client paths here.
+ */
 export function isSeaDriveInstalled(): boolean {
   const paths =
     process.platform === "darwin"
       ? [
           "/Applications/SeaDrive.app",
           join(homedir(), "Applications/SeaDrive.app"),
-          "/Applications/Seafile Client.app",
         ]
       : [
           "C:\\Program Files\\SeaDrive\\seadrive.exe",
           "C:\\Program Files (x86)\\SeaDrive\\seadrive.exe",
-          "C:\\Program Files\\Seafile\\bin\\seafile-applet.exe",
         ];
   return paths.some((p) => {
     try {
