@@ -30,7 +30,23 @@ function applyFilters(query: any, filters: AssetFilters) {
   query = query.eq("is_deleted", false);
 
   if (filters.search) {
-    query = query.ilike("filename", `%${filters.search}%`);
+    // Match filename, customer program, or customer so a search like "Ross Wall 2026"
+    // surfaces every file in that program. Strip PostgREST .or() reserved chars.
+    const term = filters.search.replace(/[(),]/g, " ").trim();
+    if (term) {
+      query = query.or(
+        `filename.ilike.%${term}%,program.ilike.%${term}%,customer.ilike.%${term}%`
+      );
+    }
+  }
+  if (filters.stage.length > 0) {
+    query = query.in("stage", filters.stage);
+  }
+  if (filters.customer) {
+    query = query.eq("customer", filters.customer);
+  }
+  if (filters.program) {
+    query = query.eq("program", filters.program);
   }
   if (filters.fileType.length > 0) {
     query = query.in("file_type", filters.fileType);
@@ -168,6 +184,9 @@ export function useFilterCounts(filters: AssetFilters) {
       if (filters.assetType.length > 0) filterPayload.assetType = filters.assetType;
       if (filters.artSource.length > 0) filterPayload.artSource = filters.artSource;
       if (filters.tagFilter) filterPayload.tagFilter = filters.tagFilter;
+      if (filters.stage.length > 0) filterPayload.stage = filters.stage;
+      if (filters.customer) filterPayload.customer = filters.customer;
+      if (filters.program) filterPayload.program = filters.program;
 
       const { data, error } = await supabase.rpc("get_filter_counts", {
         p_filters: filterPayload as unknown as Json,
@@ -176,6 +195,35 @@ export function useFilterCounts(filters: AssetFilters) {
       return (data ?? {}) as unknown as FacetCounts;
     },
     staleTime: 10_000,
+  });
+}
+
+export interface PathFacet {
+  name: string;
+  count: number;
+}
+
+/**
+ * Distinct customers + programs for the path-attribute filter combos.
+ * Programs are scoped to the selected customer when one is provided.
+ * Sourced from style_groups (the natural per-SKU unit) via the get_path_facets RPC.
+ */
+export function usePathFacets(customer?: string | null) {
+  return useQuery({
+    queryKey: ["path-facets", customer ?? "all"],
+    queryFn: async () => {
+      // Cast: get_path_facets is added by migration; generated types may lag the frontend build.
+      const { data, error } = await (supabase.rpc as any)("get_path_facets", {
+        p_customer: customer ?? undefined,
+      });
+      if (error) throw error;
+      const obj = (data ?? {}) as { customers?: PathFacet[]; programs?: PathFacet[] };
+      return {
+        customers: obj.customers ?? [],
+        programs: obj.programs ?? [],
+      };
+    },
+    staleTime: 60_000,
   });
 }
 

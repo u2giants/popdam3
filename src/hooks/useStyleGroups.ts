@@ -39,18 +39,35 @@ export interface StyleGroup {
   created_at: string;
   updated_at: string;
   cover_description: string | null;
+  stage: string | null;
+  customer: string | null;
+  program: string | null;
 }
 
 const PAGE_SIZE = 200;
 
 function applyStyleGroupFilters(query: any, filters: AssetFilters) {
   if (filters.search) {
-    query = query.or(
-      `sku.ilike.%${filters.search}%,` +
-      `licensor_name.ilike.%${filters.search}%,` +
-      `property_name.ilike.%${filters.search}%,` +
-      `product_category.ilike.%${filters.search}%`
-    );
+    const term = filters.search.replace(/[(),]/g, " ").trim();
+    if (term) {
+      query = query.or(
+        `sku.ilike.%${term}%,` +
+        `licensor_name.ilike.%${term}%,` +
+        `property_name.ilike.%${term}%,` +
+        `product_category.ilike.%${term}%,` +
+        `customer.ilike.%${term}%,` +
+        `program.ilike.%${term}%`
+      );
+    }
+  }
+  if (filters.stage.length > 0) {
+    query = query.in("stage", filters.stage);
+  }
+  if (filters.customer) {
+    query = query.eq("customer", filters.customer);
+  }
+  if (filters.program) {
+    query = query.eq("program", filters.program);
   }
   if (filters.isLicensed !== null) {
     query = query.eq("is_licensed", filters.isLicensed);

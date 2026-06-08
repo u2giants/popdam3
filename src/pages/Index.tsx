@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
-import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate } from "@/hooks/useAssets";
+import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
 import type { Asset } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
@@ -53,6 +53,7 @@ export default function LibraryPage() {
   const { data: assetData, isLoading: assetLoading } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize);
   const { licensors, properties } = useFilterOptions(filters.licensorId);
   const { data: facetCounts } = useFilterCounts(filters);
+  const { data: pathFacets } = usePathFacets(filters.customer);
 
   const isGroupsMode = libraryMode === "groups";
   const groups = sgData?.groups ?? [];
@@ -185,6 +186,8 @@ export default function LibraryPage() {
             licensors={licensors}
             properties={properties}
             facetCounts={facetCounts ?? null}
+            customerOptions={pathFacets?.customers ?? []}
+            programOptions={pathFacets?.programs ?? []}
             mode={libraryMode === "assets" ? "assets" : "groups"}
           />
         )}

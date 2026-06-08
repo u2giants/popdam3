@@ -22,7 +22,22 @@ export interface AssetFilters {
   tagFilter: string;
   fileStatus: FileStatusFilter[];
   productCategory: string[];
+  /** Pipeline stage inferred from the folder under "____New Structure" (multi-select) */
+  stage: string[];
+  /** Customer inferred from the folder path (single-select) */
+  customer: string | null;
+  /** Customer program inferred from the folder path (single-select) */
+  program: string | null;
 }
+
+/** Pipeline stages, as named by the NAS folder tree under "____New Structure". */
+export const STAGE_OPTIONS = [
+  "In Development",
+  "Concept Approved Designs",
+  "Product Ideas",
+  "Freelancer art",
+  "Discontinued",
+] as const;
 
 export const defaultFilters: AssetFilters = {
   search: "",
@@ -37,6 +52,9 @@ export const defaultFilters: AssetFilters = {
   tagFilter: "",
   fileStatus: [],
   productCategory: [],
+  stage: [],
+  customer: null,
+  program: null,
 };
 
 export interface FacetCounts {
@@ -44,6 +62,7 @@ export interface FacetCounts {
   status: Record<string, number>;
   workflowStatus: Record<string, number>;
   isLicensed: { true: number; false: number };
+  stage: Record<string, number>;
 }
 
 export function hasActiveFilters(filters: AssetFilters): boolean {
@@ -59,7 +78,10 @@ export function hasActiveFilters(filters: AssetFilters): boolean {
     filters.artSource.length > 0 ||
     filters.tagFilter !== "" ||
     filters.fileStatus.length > 0 ||
-    filters.productCategory.length > 0
+    filters.productCategory.length > 0 ||
+    filters.stage.length > 0 ||
+    filters.customer !== null ||
+    filters.program !== null
   );
 }
 
@@ -76,5 +98,8 @@ export function countActiveFilters(filters: AssetFilters): number {
   if (filters.tagFilter) count++;
   if (filters.fileStatus.length > 0) count++;
   if (filters.productCategory.length > 0) count++;
+  if (filters.stage.length > 0) count++;
+  if (filters.customer) count++;
+  if (filters.program) count++;
   return count;
 }

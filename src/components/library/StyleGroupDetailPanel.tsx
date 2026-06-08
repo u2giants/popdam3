@@ -843,6 +843,9 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
               <div className="space-y-1.5">
                 <MetaRow label="SKU" value={group.sku} />
                 <MetaRow label="Files" value={`${group.asset_count}`} />
+                {group.stage && <MetaRow label="Stage" value={group.stage} />}
+                {group.customer && <MetaRow label="Customer" value={group.customer} />}
+                {group.program && <MetaRow label="Program" value={group.program} />}
                 <MetaRow label="Division" value={group.division_name} />
                 <MetaRow label="Category" value={group.product_category} />
                 {!isLegacyGroup && (

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import type { AssetFilters, FacetCounts, FileStatusFilter } from "@/types/assets";
+import { STAGE_OPTIONS } from "@/types/assets";
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,8 @@ interface FilterSidebarProps {
   licensors: { id: string; name: string; asset_count: number }[];
   properties: { id: string; name: string; licensor_id: string; asset_count: number }[];
   facetCounts: FacetCounts | null;
+  customerOptions?: { name: string; count: number }[];
+  programOptions?: { name: string; count: number }[];
   mode?: "groups" | "assets";
 }
 
@@ -214,6 +217,8 @@ export default function FilterSidebar({
   licensors,
   properties,
   facetCounts,
+  customerOptions = [],
+  programOptions = [],
   mode = "groups",
 }: FilterSidebarProps) {
   const update = (partial: Partial<AssetFilters>) =>
@@ -233,6 +238,9 @@ export default function FilterSidebar({
       tagFilter: "",
       fileStatus: [],
       productCategory: [],
+      stage: [],
+      customer: null,
+      program: null,
     });
 
   const licensorOptions: ComboOption[] = licensors.map((l) => ({
@@ -245,6 +253,18 @@ export default function FilterSidebar({
     id: p.id,
     name: p.name,
     count: p.asset_count,
+  }));
+
+  const customerComboOptions: ComboOption[] = customerOptions.map((c) => ({
+    id: c.name,
+    name: c.name,
+    count: c.count,
+  }));
+
+  const programComboOptions: ComboOption[] = programOptions.map((p) => ({
+    id: p.name,
+    name: p.name,
+    count: p.count,
   }));
 
   return (
@@ -304,6 +324,39 @@ export default function FilterSidebar({
               })}
             </div>
           </div>
+          <Separator />
+
+          {/* Stage (pipeline folder) */}
+          <CheckboxGroup
+            label="Stage"
+            options={STAGE_OPTIONS}
+            selected={filters.stage}
+            onChange={(v) => update({ stage: v })}
+            counts={facetCounts?.stage}
+          />
+
+          <Separator />
+
+          {/* Customer — searchable */}
+          <SearchableCombo
+            label="Customer"
+            options={customerComboOptions}
+            value={filters.customer}
+            onChange={(id) => update({ customer: id, program: null })}
+            placeholder="Search customers…"
+          />
+
+          <Separator />
+
+          {/* Program — searchable (scoped to selected customer) */}
+          <SearchableCombo
+            label="Program"
+            options={programComboOptions}
+            value={filters.program}
+            onChange={(id) => update({ program: id })}
+            placeholder="Search programs…"
+          />
+
           <Separator />
 
           {/* File Type — assets only */}
