@@ -2,54 +2,94 @@
 
 _Last updated: 2026-06-08. Delete this file once the pilot, code signing, and PopSG render pass are done._
 
-Read `AGENTS.md` first, then this. Self-contained — no prior chat context required.
+Read `AGENTS.md` first. This file is self-contained — a developer with **zero prior context** should be able to continue from here. Background detail lives in `docs/SEAFILE_INTEGRATION.md` and `docs/POPDAM_HELPER.md`.
 
 ---
 
-## Context
+## 0. Prerequisites a new developer needs
 
-Two threads are in flight on top of the stable PopDAM/PopSG system:
-1. **Seafile/SeaDrive Helper integration** — give Brazil (WFH) designers fast file access via the SeaDrive virtual drive, with the desktop Helper supervising it. Background + design: `docs/SEAFILE_INTEGRATION.md`.
-2. **POP DAM Helper code signing** — make the Mac/Windows installers run without Gatekeeper/SmartScreen warnings and enable auto-update.
-
----
-
-## Done (2026-06-07/08, on `main`)
-
-- **Seafile-aware Helper, first slice** (Helper → **v1.4.1**): `seafileAdapter.ts` (SeaDrive-only detection, hydration wait, **longest-path-prefix** library mapping, optional REST `obj_id`); provider selection in `checkoutManager.ts` with the `synologyFallbackAllowed` gate; provenance recorded in `.pop-checkout.json` + DB.
-- **helper-api**: `/config` returns `HELPER_SEAFILE_PREFERRED` / `HELPER_SEAFILE_LIBRARIES` / `HELPER_SEAFILE_SERVER_URL` / `HELPER_SYNOLOGY_FALLBACK_ALLOWED`; `/heartbeat` sets `last_helper_heartbeat_at`; `/complete-checkin` persists `source_provider` + `source_version`.
-- **Migration `20260607120639`** — 6 nullable `asset_checkouts` columns (source provenance + heartbeat). Applied to prod; partial unique index untouched.
-- **`admin_config` seeded**: `HELPER_SEAFILE_LIBRARIES` (Character Licensed `177cf9de…` + Generic Decor `1b116ab7…`, both under root `Decor`), `HELPER_SEAFILE_SERVER_URL=https://seafile.designflow.app`, `HELPER_SYNOLOGY_FALLBACK_ALLOWED=true`, `SEADRIVE_LATEST` (v3.0.22, mirrored to Spaces).
-- **SeaDrive self-host mirror** (worker → **v1.3.0**): `seadrive-mirror` handler weekly-mirrors the latest installer to the `popdam` Spaces bucket; Downloads page serves it.
-- **CI**: frontend production deploy now gated on a `verify` job; fixed pre-existing `ipc.ts` missing-`storeSession` import.
-- **Helper macOS signing wiring**: `publish-popdam-helper.yml` reads `CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`; unsigned until secrets added.
+- **Apps & URLs:** PopDAM web = `https://dam.designflow.app`; PopSG = `https://sg.designflow.app` (same Docker image, mode by hostname). Seafile server = `https://seafile.designflow.app` (a **separate** system, repo `u2giants/seafile` — do not edit it from here).
+- **Admin access:** you need a PopDAM admin account (Microsoft/Authentik SSO or email/password). Admin UI is Settings (gear). For the Seafile side you need the Seafile admin account.
+- **Database / config:** prod Supabase project `ryltkzzernhwnojzouyb`. `admin_config` is a key/value table read by edge functions and agents. Changes to it are plain SQL `UPDATE/INSERT` (Supabase dashboard → SQL editor, or the Supabase MCP). DB **schema** changes go through committed migrations in `supabase/migrations/` — see `CLAUDE.md` for the timestamp discipline.
+- **Git:** trunk-based, commit straight to `main`, push to both `origin` and `github` (see `CLAUDE.md`).
+- **The Helper** (desktop app) is distributed via GitHub Release tag `popdam-helper-latest` and linked from `dam.designflow.app/downloads`.
 
 ---
 
-## Remaining work
+## 1. What this work is and why
 
-### 1. Brazil/Seafile pilot (next concrete step)
-Server-side config is complete. To pilot on one Brazil Mac: install official **SeaDrive** + the **Helper**, sign into SeaDrive with the Microsoft account, let `Character Licensed` + `Generic Decor` sync, pick **Seafile** in Helper Settings, then test a checkout/check-in. Provider auto-selection by region is **not built yet** (see #3) — the pilot uses the manual Settings toggle.
+**Thread A — Seafile/SeaDrive for WFH designers.** Eight designers in Brazil need fast access to a 28 TB NAS library that lives in the NYC office. The chosen transport is **Seafile + the SeaDrive virtual-drive client** (files appear on-demand, not fully synced). The **POP DAM Helper** desktop app *supervises* SeaDrive — at checkout it resolves the file in `~/SeaDrive`, waits for it to hydrate, copies it into a private workspace, opens it, and checks it back in. PopDAM/Supabase stays the checkout/audit plane. Full design: `docs/SEAFILE_INTEGRATION.md`.
 
-### 2. Helper code signing (wiring done; needs certs)
-macOS — no Mac required (CI's `macos-latest` runner signs):
-1. Create a **Developer ID Application** cert (OpenSSL CSR → developer.apple.com → download `.cer` → bundle `.p12`).
-2. Add GitHub secrets: `CSC_LINK` (base64 .p12), `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
-3. Run **Publish PopDAM Helper** → signed + notarized.
-Windows: separate OV/EV cert for SmartScreen (not started).
+**Thread B — Helper code signing.** The Helper installers are unsigned, so macOS Gatekeeper / Windows SmartScreen warn on first launch and auto-update can't work. Goal: sign + notarize so installs are clean.
 
-### 3. Seafile follow-on features (designed, not built)
-- **Region automation**: installer geolocation + per-device region (on `helper_devices`) editable in the PopDAM admin panel → Helper auto-selects provider (Brazil→Seafile, USA→Synology). Decided approach: installer asks, prepopulated by IP geolocation, viewable/settable in admin.
-- **USA direct-SMB write**: switch USA check-in from Synology File Station API to a direct copy into the mounted `edgesynology1` share.
-
-### 4. PopSG render pass (operational)
-Windows Agent on **v0.15.0**. Run **Retry All** (PopSG Settings → Files with Render Errors), queue previously-`unsupported_extension` EPS files, then check `get_sg_preview_stats()`. Accept-as-is categories: AI-no-PDF-compat (~25), missing-on-disk (~3,264), unsupported ZIP/fonts/video/3D (~2,076), exotic-channel TIFF (~30), corrupt JPEG/TIFF (~17).
+**The checkout flow (so "test a checkout" is meaningful):** in PopDAM web, open an asset → **Check Out & Open** → that mints a `popdam://` URL → the running Helper handles it, resolves the source (Seafile or Synology per config), copies it to its workspace, and opens it. Check-in is from the Helper tray. Architecture: `docs/POPDAM_HELPER.md`.
 
 ---
 
-## Cross-repo note
-The **Seafile server** itself lives in `u2giants/seafile` (do not edit it from this repo). Its `seahub_settings.py` still needs the direct-Microsoft OAuth block enabled (the Entra app `8d9da03c…` is ready); until then its SSO is misconfigured.
+## 2. What is fully done (on `main`, 2026-06-07/08)
 
-## Risks / unknowns
-- Seafile is a **partial mirror** of the NAS — unsynced files rely on the Synology/Tailscale fallback; verify fallback works during the pilot.
-- Three Seafile infra secrets were exposed earlier in a chat and should be rotated (MySQL root + seafile-user passwords, JWT private key) — owner action.
+- **Seafile-aware Helper, first slice** (Helper **v1.4.1**): `apps/popdam-helper/src/main/seafileAdapter.ts` (SeaDrive-only detection, hydration wait, **longest-path-prefix** library mapping, optional Seafile REST `obj_id`); provider selection in `checkoutManager.ts` gated by `synologyFallbackAllowed`; provenance written to `.pop-checkout.json` + DB.
+- **helper-api** (`supabase/functions/helper-api/index.ts`): `/config` returns `HELPER_SEAFILE_PREFERRED` / `HELPER_SEAFILE_LIBRARIES` / `HELPER_SEAFILE_SERVER_URL` / `HELPER_SYNOLOGY_FALLBACK_ALLOWED`; `/heartbeat` sets `last_helper_heartbeat_at`; `/complete-checkin` persists `source_provider` + `source_version`. The Helper consumes the Seafile catalog + fallback flag in `ipc.ts` (`fetch-server-roots`) — but **not** `preferredProvider` (that's per-machine; see Decisions).
+- **Migration `20260607120639`** — 6 nullable `asset_checkouts` columns (`source_provider`, `source_local_path`, `seafile_library_id`, `seafile_path`, `source_version`, `last_helper_heartbeat_at`). Applied to prod; the partial unique index was untouched.
+- **`admin_config` seeded** (verify with `SELECT key, value FROM admin_config WHERE key LIKE 'HELPER_SEAFILE%' OR key='SEADRIVE_LATEST';`):
+  - `HELPER_SEAFILE_LIBRARIES` = two entries, both under PopDAM root `Decor`:
+    - `Decor/Character Licensed` → library `177cf9de-3066-482e-956a-7ae8d8786c6d`, SeaDrive folder `Character Licensed`
+    - `Decor/Generic Decor` → library `1b116ab7-d66b-4411-a691-21f34eadb731`, SeaDrive folder `Generic Decor`
+  - `HELPER_SEAFILE_SERVER_URL` = `https://seafile.designflow.app`; `HELPER_SYNOLOGY_FALLBACK_ALLOWED` = `true`.
+  - `SEADRIVE_LATEST` = v3.0.22, mirrored to Spaces.
+- **SeaDrive self-host mirror** (worker **v1.3.0**, `apps/worker/src/handlers/seadrive-mirror.ts`, called weekly from `operation-loop.ts` `tick()`): scrapes the official download page, mirrors the latest `.pkg`/`.msi` to the `popdam` Spaces bucket (creds from `admin_config.DO_SPACES_*`), records `SEADRIVE_LATEST`. The Downloads page reads it. Verified: byte-exact mirror, public.
+- **CI**: frontend production deploy gated on a `verify` job (`.github/workflows/publish-frontend.yml`); fixed a pre-existing `ipc.ts` missing-`storeSession` import.
+- **Helper macOS signing wiring** (`.github/workflows/publish-popdam-helper.yml`): the Mac job reads `CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`; unsigned until secrets are added.
+
+---
+
+## 3. Decisions made (and why)
+
+- **Provider is per-machine/region, not a global flag.** Brazil (WFH) → Seafile/SeaDrive; USA → Synology `edgesynology1` over SMB. The lever is the Helper's local `config.preferredProvider` (set at install). A single global `HELPER_SEAFILE_PREFERRED` does **not** fit and is intentionally not consumed into local config.
+- **Brazil keeps a Synology fallback over Tailscale SMB.** (This reversed an earlier "no fallback for Brazil" assumption — Brazil *can* reach the NAS via Tailscale, so `HELPER_SYNOLOGY_FALLBACK_ALLOWED=true`.)
+- **A library is matched by longest path-prefix** on `relative_path`, because one PopDAM root (`Decor`) contains multiple Seafile libraries as subfolders (`Character Licensed`, `Generic Decor`). Earlier code keyed on `root_id` and stripped only the first segment — that was wrong for this layout and was reworked (see Dead ends).
+- **SeaDrive (virtual drive), never the Seafile *sync* client** — 28 TB can't fully download to a laptop. The Helper only detects SeaDrive; sync-client detection paths were removed.
+- **Helper supervises SeaDrive, does not embed/fork it.** Designers install the official SeaDrive separately; the Helper detects + drives it.
+- **SeaDrive installer is self-hosted + auto-mirrored** so we control the version and always offer the latest.
+- **macOS signing runs on CI's `macos-latest` runner** — no Mac is needed locally; you only produce a Developer ID `.p12` (OpenSSL works on Windows/Linux).
+
+---
+
+## 4. Dead ends / abandoned approaches (don't repeat these)
+
+- **rootId-based library mapping** (`find by root_id`, strip first path segment) — abandoned once the data showed libraries are *subfolders* under a root. Replaced by longest-prefix matching in `seafileAdapter.resolveSeafileTarget`.
+- **"No Seafile→Synology fallback for Brazil"** — abandoned; Tailscale gives Brazil a route to the NAS, so fallback is enabled.
+- **Storage-transport alternatives** (LucidLink, Resilio, JuiceFS) were evaluated and rejected (cost / Windows-centric lock enforcement / running a custom filesystem platform) in favor of Seafile/SeaDrive. Notes: `future_improvements.md` here; `lucid.md` in `u2giants/seafile`.
+
+---
+
+## 5. Remaining work
+
+### 5.1 ⚠️ BLOCKER for the pilot — enable Microsoft SSO on the Seafile server
+The Brazil pilot needs designers to sign into **SeaDrive** with their Microsoft account, which requires real OAuth on `seafile.designflow.app`. **Right now that SSO is misconfigured** — clicking "Single Sign-On" logs straight in with no Microsoft prompt (likely a `REMOTE_USER`/header trust; a security hole). The Entra app is already set up (client id `8d9da03c-e5cd-4a23-b987-32aaaed31fe7`, tenant `1caeb1c0-a087-4cb9-b046-a5e22404f971`, redirect `https://seafile.designflow.app/oauth/callback/`, scopes `openid/profile/email/User.Read`, secrets exist). The fix is server-side in the **`u2giants/seafile`** repo's `seahub_settings.py` (enable the OAuth block, remove the old SSO). **This is not in this repo.** Until done, the pilot can't use Microsoft sign-in.
+
+### 5.2 Brazil/Seafile pilot (after 5.1)
+On one Brazil Mac: (1) install official **SeaDrive** (`dam.designflow.app/downloads` → SeaDrive card, or seafile.com) and sign in with the designer's Microsoft account; (2) confirm the `Character Licensed` + `Generic Decor` libraries appear under `~/SeaDrive` and sync; (3) install the **Helper** (`dam.designflow.app/downloads`), sign in, and in Helper **Settings → Seafile/SeaDrive** set "Preferred source for checkout" to **Seafile** and confirm the mount root; (4) in PopDAM web, **Check Out & Open** a Decor asset and confirm the Helper resolves it from `~/SeaDrive`, hydrates, and opens it; check it back in. Provider auto-selection by region is **not built** (5.4) — the pilot uses the manual toggle. Success = checkout/check-in round-trips a real file via Seafile, with the Synology/Tailscale fallback covering any not-yet-synced file.
+
+### 5.3 Helper code signing (wiring done; needs certs) — no Mac required
+1. Create a **Developer ID Application** cert (this requires the Apple Developer **Account Holder** role). On Windows use **Git Bash** (ships OpenSSL): `openssl genrsa -out popdam_key.pem 2048` then `openssl req -new -key popdam_key.pem -out popdam.csr` (set Common Name = `POP Creations`). Upload `popdam.csr` at developer.apple.com → Certificates → **Developer ID Application** → download `developerID_application.cer`. Bundle: `openssl x509 -inform DER -in developerID_application.cer -out popdam_cert.pem` then `openssl pkcs12 -export -out popdam.p12 -inkey popdam_key.pem -in popdam_cert.pem -name "Developer ID Application"`; `base64 -w0 popdam.p12`.
+2. Add **GitHub repo secrets**: `CSC_LINK` (the base64 .p12), `CSC_KEY_PASSWORD` (.p12 export password), `APPLE_ID` (Apple ID email), `APPLE_APP_SPECIFIC_PASSWORD` (from appleid.apple.com → App-Specific Passwords), `APPLE_TEAM_ID` (10-char, developer.apple.com → Membership).
+3. Run **Actions → Publish PopDAM Helper → Run workflow**. The Mac job signs + notarizes via `scripts/notarize.cjs`. Windows SmartScreen needs a **separate** OV/EV cert (not started).
+
+### 5.4 Seafile follow-on features (designed, not built)
+- **Region automation:** the installer asks the user's region (prepopulated by IP geolocation) and it's viewable/settable in the PopDAM admin panel; the Helper then auto-sets `preferredProvider`. Not built — would need: a `region` field on `helper_devices` (new migration), `helper-api` `register-device` to accept/store it, an admin-panel UI to view/edit per device, and installer/first-run geolocation in `apps/popdam-helper`.
+- **USA direct-SMB write:** USA check-in currently uploads via Synology File Station HTTP (`apps/popdam-helper/src/main/synologyClient.ts` / `uploadQueue.ts`). The decision is to switch USA to a direct file copy into the SMB-mounted `edgesynology1` share. Not built; the mount path convention on USA machines is still unconfirmed.
+
+### 5.5 PopSG render pass (operational, no code)
+Windows Agent is on **v0.15.0**. In **PopSG** (`sg.designflow.app`) admin: Settings → Files with Render Errors → **Retry All** (loops in 500-file batches); then queue the previously-`unsupported_extension` **EPS** files (`queue_sg_render_jobs_by_ids` or a "Queue All Renderable" button); then check `select * from get_sg_preview_stats()`. Accept-as-is: AI-no-PDF-compat (~25), missing-on-disk (~3,264), unsupported ZIP/fonts/video/3D (~2,076), exotic-channel TIFF (~30), corrupt JPEG/TIFF (~17).
+
+---
+
+## 6. Exact next action
+The single most unblocked, in-repo next step is **5.3 (add the Apple signing secrets and run the Helper workflow)** — it depends on nothing else. The pilot (5.2) is blocked until the **Seafile-server SSO (5.1)** is fixed in the `u2giants/seafile` repo.
+
+## 7. Known risks / unknowns
+- Seafile is a **partial mirror** of the NAS; unsynced files rely on the Synology/Tailscale fallback — verify fallback works during the pilot.
+- Three Seafile **infra secrets** were exposed in an earlier chat (MySQL root + seafile-user passwords, JWT private key) and **should be rotated** — owner action; no values are in this repo.
+- The Developer ID cert needs the Apple **Account Holder** role; an Admin/Member can't create it.
+- USA SMB-mount path (5.4) is unconfirmed.
