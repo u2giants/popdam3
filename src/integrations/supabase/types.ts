@@ -376,6 +376,7 @@ export type Database = {
           big_theme: string | null
           cover_description: string | null
           created_at: string
+          customer: string | null
           design_ref: string | null
           design_style: string | null
           designer_name: string | null
@@ -408,6 +409,7 @@ export type Database = {
           primary_sort_tier: number
           product_category: string | null
           product_subtype_id: string | null
+          program: string | null
           property_code: string | null
           property_id: string | null
           property_name: string | null
@@ -419,6 +421,7 @@ export type Database = {
           size_name: string | null
           sku: string | null
           sku_sequence: string | null
+          stage: string | null
           status: Database["public"]["Enums"]["asset_status"] | null
           style_group_id: string | null
           tags: string[]
@@ -439,6 +442,7 @@ export type Database = {
           big_theme?: string | null
           cover_description?: string | null
           created_at?: string
+          customer?: string | null
           design_ref?: string | null
           design_style?: string | null
           designer_name?: string | null
@@ -471,6 +475,7 @@ export type Database = {
           primary_sort_tier?: number
           product_category?: string | null
           product_subtype_id?: string | null
+          program?: string | null
           property_code?: string | null
           property_id?: string | null
           property_name?: string | null
@@ -482,6 +487,7 @@ export type Database = {
           size_name?: string | null
           sku?: string | null
           sku_sequence?: string | null
+          stage?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
           style_group_id?: string | null
           tags?: string[]
@@ -504,6 +510,7 @@ export type Database = {
           big_theme?: string | null
           cover_description?: string | null
           created_at?: string
+          customer?: string | null
           design_ref?: string | null
           design_style?: string | null
           designer_name?: string | null
@@ -536,6 +543,7 @@ export type Database = {
           primary_sort_tier?: number
           product_category?: string | null
           product_subtype_id?: string | null
+          program?: string | null
           property_code?: string | null
           property_id?: string | null
           property_name?: string | null
@@ -547,6 +555,7 @@ export type Database = {
           size_name?: string | null
           sku?: string | null
           sku_sequence?: string | null
+          stage?: string | null
           status?: Database["public"]["Enums"]["asset_status"] | null
           style_group_id?: string | null
           tags?: string[]
@@ -1623,6 +1632,7 @@ export type Database = {
           asset_count: number | null
           cover_description: string | null
           created_at: string | null
+          customer: string | null
           designer_conflict: boolean
           designer_name: string | null
           division_code: string | null
@@ -1646,12 +1656,14 @@ export type Database = {
           primary_thumbnail_error: string | null
           primary_thumbnail_url: string | null
           product_category: string | null
+          program: string | null
           property_code: string | null
           property_id: string | null
           property_name: string | null
           size_code: string | null
           size_name: string | null
           sku: string
+          stage: string | null
           technical_designer_name: string | null
           updated_at: string | null
           workflow_status: Database["public"]["Enums"]["workflow_status"] | null
@@ -1660,6 +1672,7 @@ export type Database = {
           asset_count?: number | null
           cover_description?: string | null
           created_at?: string | null
+          customer?: string | null
           designer_conflict?: boolean
           designer_name?: string | null
           division_code?: string | null
@@ -1683,12 +1696,14 @@ export type Database = {
           primary_thumbnail_error?: string | null
           primary_thumbnail_url?: string | null
           product_category?: string | null
+          program?: string | null
           property_code?: string | null
           property_id?: string | null
           property_name?: string | null
           size_code?: string | null
           size_name?: string | null
           sku: string
+          stage?: string | null
           technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
@@ -1699,6 +1714,7 @@ export type Database = {
           asset_count?: number | null
           cover_description?: string | null
           created_at?: string | null
+          customer?: string | null
           designer_conflict?: boolean
           designer_name?: string | null
           division_code?: string | null
@@ -1722,12 +1738,14 @@ export type Database = {
           primary_thumbnail_error?: string | null
           primary_thumbnail_url?: string | null
           product_category?: string | null
+          program?: string | null
           property_code?: string | null
           property_id?: string | null
           property_name?: string | null
           size_code?: string | null
           size_name?: string | null
           sku?: string
+          stage?: string | null
           technical_designer_name?: string | null
           updated_at?: string | null
           workflow_status?:
@@ -2510,6 +2528,7 @@ export type Database = {
       }
       get_ai_sentinel_stats: { Args: never; Returns: Json }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
+      get_path_facets: { Args: { p_customer?: string }; Returns: Json }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
       has_app_access: {
@@ -2526,6 +2545,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      infer_path_attrs: { Args: { p_path: string }; Returns: Json }
       inherit_replica_identity: {
         Args: {
           p_child_tablename: string
