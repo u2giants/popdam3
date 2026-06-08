@@ -9,7 +9,7 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 ## 0. Prerequisites a new developer needs
 
 - **Apps & URLs:** PopDAM web = `https://dam.designflow.app`; PopSG = `https://sg.designflow.app` (same Docker image, mode by hostname). Seafile server = `https://seafile.designflow.app` (a **separate** system, repo `u2giants/seafile` — do not edit it from here).
-- **Admin access:** you need a PopDAM admin account (Microsoft/Authentik SSO or email/password). Admin UI is Settings (gear). For the Seafile side you need the Seafile admin account.
+- **Admin access:** you need a PopDAM admin account (Microsoft SSO or email/password). Admin UI is Settings (gear). Authentik SSO still exists in the backend but the "Sign in with company account" button is hidden in `src/pages/LoginPage.tsx` as of 2026-06-08. For the Seafile side you need the Seafile admin account.
 - **Database / config:** prod Supabase project `ryltkzzernhwnojzouyb`. `admin_config` is a key/value table read by edge functions and agents. Changes to it are plain SQL `UPDATE/INSERT` (Supabase dashboard → SQL editor, or the Supabase MCP). DB **schema** changes go through committed migrations in `supabase/migrations/` — see `CLAUDE.md` for the timestamp discipline.
 - **Git:** trunk-based, commit straight to `main`, push to both `origin` and `github` (see `CLAUDE.md`).
 - **The Helper** (desktop app) is distributed via GitHub Release tag `popdam-helper-latest` and linked from `dam.designflow.app/downloads`.

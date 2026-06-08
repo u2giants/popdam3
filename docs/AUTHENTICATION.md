@@ -1,12 +1,29 @@
 # Authentication
 
-PopDAM uses Supabase Auth for session management. Login is available through three paths; all paths produce the same kind of Supabase JWT that the rest of the app uses without modification.
+PopDAM uses Supabase Auth for session management. Login is available through Microsoft/Azure, Google, and email/password. A legacy Authentik path still exists in code but is hidden from the login page. All paths produce the same kind of Supabase JWT that the rest of the app uses without modification.
 
 ---
 
-## Path 1 — Authentik SSO (company AD accounts)
+## Path 1 — Microsoft OAuth / Azure AD
 
-**Added 2026-05-09. This is the recommended path for all internal users.**
+**As of 2026-06-08, this is the active company SSO path for internal users.**
+
+Users sign in with their Microsoft / Azure AD account via Supabase's built-in Azure provider. New Azure users bypass invitation rows in `handle_new_user()` and are auto-provisioned with the `user` role and `popdam` app access. Google and email/password still require invitations.
+
+### Relevant files
+
+| File | Purpose |
+|------|---------|
+| `src/pages/LoginPage.tsx` | Renders the "Continue with Microsoft" button |
+| `supabase/migrations/20260608100936_allow_azure_company_sso_signup.sql` | Trigger change — bypasses invitation check for Azure users |
+
+---
+
+## Path 2 — Authentik SSO (legacy company AD accounts)
+
+**Added 2026-05-09. Hidden from the login page on 2026-06-08, but not removed.**
+
+The legacy "Sign in with company account" button is hidden behind `SHOW_AUTHENTIK_SSO = false` in `src/pages/LoginPage.tsx` while Microsoft/Azure is the primary company SSO path. The backend Authentik flow remains in place for compatibility and can be re-enabled by toggling that constant.
 
 Users with a company Active Directory account log in via the "Sign in with company account" button on the login page. They are redirected to `auth.designflow.app`, authenticate with their AD credentials there, and are redirected back.
 
@@ -28,7 +45,7 @@ Users with a company Active Directory account log in via the "Sign in with compa
 |------|---------|
 | `src/lib/authentik.ts` | PKCE helpers — redirect, code exchange |
 | `src/pages/AuthCallbackPage.tsx` | Handles `/auth/callback`, runs steps 4–6 |
-| `src/pages/LoginPage.tsx` | Renders the "Sign in with company account" button |
+| `src/pages/LoginPage.tsx` | Contains the hidden "Sign in with company account" button |
 | `supabase/functions/authenticate-with-authentik/` | Edge function — JWKS validation, user provisioning, token_hash |
 | `supabase/migrations/20260509000000_authentik_invitation_bypass.sql` | Trigger change — bypasses invitation check for Authentik users |
 
@@ -50,15 +67,9 @@ Existing users (anyone who already has a Supabase account) are looked up by emai
 
 ---
 
-## Path 2 — Google OAuth
+## Path 3 — Google OAuth
 
 Users can sign in with a Google account via Supabase's built-in Google OAuth provider. Requires a pending invitation matching the Google account's email.
-
----
-
-## Path 3 — Microsoft OAuth
-
-Users can sign in with a Microsoft / Azure AD account via Supabase's built-in Azure provider. Requires a pending invitation matching the Microsoft account's email.
 
 ---
 

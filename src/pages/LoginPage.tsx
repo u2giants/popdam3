@@ -13,6 +13,8 @@ import { AlertCircle, Loader2, Shield } from "lucide-react";
 import { redirectToAuthentik } from "@/lib/authentik";
 import { toast } from "sonner";
 
+const SHOW_AUTHENTIK_SSO = false;
+
 export default function LoginPage() {
   const { user, loading } = useAuth();
   const [email, setEmail] = useState("");
@@ -140,26 +142,30 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Authentik SSO (company AD accounts) */}
-            <Button
-              variant="default"
-              className="w-full"
-              onClick={handleAuthentikSignIn}
-              type="button"
-              aria-label="Sign in with company account"
-            >
-              <Shield className="mr-2 h-4 w-4" />
-              Sign in with company account
-            </Button>
+            {SHOW_AUTHENTIK_SSO && (
+              <>
+                {/* Authentik SSO (legacy company AD path; hidden while Microsoft is primary) */}
+                <Button
+                  variant="default"
+                  className="w-full"
+                  onClick={handleAuthentikSignIn}
+                  type="button"
+                  aria-label="Sign in with company account"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  Sign in with company account
+                </Button>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <Separator className="w-full" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">or</span>
-              </div>
-            </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <Separator className="w-full" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Google OAuth */}
             <Button
