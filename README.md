@@ -81,6 +81,8 @@ popdam3/
 | [docs/BULK_JOBS.md](docs/BULK_JOBS.md) | Bulk/background job system and cross-lane conflict map |
 | [docs/ERP_ENRICHMENT_PLAN.md](docs/ERP_ENRICHMENT_PLAN.md) | ERP sync, MG codes, AI category classification |
 | [docs/POPSG.md](docs/POPSG.md) | PopSG mode — schema, crawl flow, render pipeline |
+| [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md) | Desktop Helper (checkout/check-in) architecture |
+| [docs/SEAFILE_INTEGRATION.md](docs/SEAFILE_INTEGRATION.md) | Seafile/SeaDrive transport for WFH designers |
 | [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Authentik SSO, Google/Microsoft OAuth, email/password |
 | [docs/WORKER_LOGIC.md](docs/WORKER_LOGIC.md) | Bridge agent behavior contracts |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Bridge Agent + Helper release pipeline |

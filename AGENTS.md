@@ -26,7 +26,50 @@ Read this first. Under 5 minutes. Everything else in `docs/` is a deep-dive refe
 
 ---
 
-## 2. Multi-Model AI Note
+## Multi-model AI note
+
+There is no universal ignore-file standard across AI coding tools.
+
+`.claudeignore` works for Claude Code.
+
+When using any other AI tool, paste this file as your first message and follow the instructions in the "What to Ignore" section.
+
+(`.cursorignore` exists with matching content. There is no `.copilotignore` — GitHub Copilot is not used in this repo.)
+
+---
+
+## Documentation map: what to read for each task
+
+Always start with:
+
+- `AGENTS.md` (this file)
+- `HANDOFF.md` **if it exists** — unfinished/in-progress work; required reading before continuing anything.
+
+Then load additional docs only when relevant — do **not** ingest every `.md` file:
+
+| Task / question | Read these docs | Usually do not need |
+|---|---|---|
+| Quick repo orientation | `README.md`, `AGENTS.md` | Deep docs under `docs/` unless the task needs them |
+| Modify app behavior / project-owned code | `AGENTS.md`, the relevant folder/area, `docs/ARCHITECTURE.md` if system design is affected | `docs/DEPLOYMENT.md` unless deploy behavior changes |
+| Change configuration, env vars, admin_config keys, or runtime settings | `AGENTS.md`, `docs/configuration.md`, `docs/INFRASTRUCTURE.md`; Coolify for prod runtime env | unrelated architecture docs |
+| Change local setup, dev scripts, test/lint, tooling | `AGENTS.md`, `docs/development.md`, the relevant `package.json`/config | `docs/DEPLOYMENT.md` unless CI/CD changes |
+| Change deployment, Docker, CI/CD, hosting, rollback | `AGENTS.md` → Deployment, `docs/DEPLOYMENT.md`, `SELFHOST.md`, `.github/workflows/*` | local-only dev docs |
+| Change DB schema, migrations, models, external IDs, data flow | `AGENTS.md`, `CLAUDE.md` (migration timestamp discipline — **read before any migration**), `docs/SCHEMA.md`, `docs/STYLE_GROUPS.md` if groups are touched | deployment docs unless rollout changes |
+| Work on bulk operations / the Railway worker | `AGENTS.md`, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` | unrelated UI docs |
+| Work on ERP sync / MG codes / category classification | `AGENTS.md`, `docs/ERP_ENRICHMENT_PLAN.md` | deployment docs |
+| Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
+| Work on PopSG (style-guide mode) | `AGENTS.md`, `docs/POPSG.md` | PopDAM-only ERP/style-group docs |
+| Work on auth / SSO / login | `AGENTS.md`, `docs/AUTHENTICATION.md` | unrelated docs |
+| Investigate bugs / incidents | `AGENTS.md` → Incidents + Intentional Quirks, `docs/KNOWN_QUIRKS.md`, `HANDOFF.md` if present | unrelated folder docs |
+| Continue unfinished work | `AGENTS.md`, `HANDOFF.md`, the docs named inside `HANDOFF.md` | docs unrelated to the handoff scope |
+| Claude Code session | `CLAUDE.md`, then `AGENTS.md` | other docs unless the task needs them |
+| Documentation-only cleanup | `AGENTS.md`, `README.md`, the affected docs under `docs/` | source files except as needed to verify accuracy |
+
+> **Doc-set note:** the actively-maintained reference set is the UPPERCASE `docs/*.md` (e.g. `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`) plus the lowercase `docs/configuration.md` and `docs/development.md`. The lowercase `docs/architecture.md` and `docs/deployment.md` are older parallel copies that overlap their UPPERCASE namesakes — prefer the UPPERCASE ones; consolidation is tracked in Pending Work. `lucid.md`/`future_improvements.md` are research/strategy notes, not operating docs.
+
+---
+
+## Multi-model AI usage in code (where models are configured)
 
 This codebase uses multiple AI models in multiple places. Before changing any model reference, check ALL of:
 - `admin_config.AI_TASK_MODELS` (DB table, runtime-configurable)
@@ -78,7 +121,6 @@ popdam3/
 - `dist/` — Vite build output
 - `node_modules/`, `apps/*/node_modules/`
 - `.lovable/` — Lovable platform memory (ignore)
-- `app/` — symlink to an older build snapshot (dead, ignore)
 - `supabase-popsg/` — dead code directory for an abandoned separate Supabase project
 
 ---
@@ -185,13 +227,13 @@ apps/*/dist/
 apps/popdam-helper/out/
 .cache/
 coverage/
-app/                    # dead symlink to old build snapshot
 supabase-popsg/         # dead code, never deploy from here
 .lovable/               # Lovable platform memory
-duplicate-folders.txt   # one-off audit file
 worksp_symlink.md       # harness bookkeeping
-server                  # untracked directory, not part of the build
+server                  # untracked symlink into the Coolify deploy dir — not part of the build
 ```
+
+> Note: `app/` and `duplicate-folders.txt` were one-off local artifacts and have been removed from the tree. `apps/popdam-helper/out/` (Electron build output) and an untracked `apps/popdam-helper/package-lock.json` may reappear locally — both are non-source.
 
 ---
 
@@ -289,6 +331,18 @@ server                  # untracked directory, not part of the build
 **Actually:** The anon key is a publishable key (like a Firebase web API key); the service role key is never hardcoded. Lovable overwrites `.env` on every deploy, so env vars can't be trusted. See `docs/KNOWN_QUIRKS.md` #1.
 **Do not move to env vars:** All queries would silently route to the empty Lovable-provisioned project.
 
+### Helper storage provider is per-machine/region, not a global flag
+
+**Looks like:** `admin_config.HELPER_SEAFILE_PREFERRED` should globally switch all designers to Seafile.
+**Actually:** Transport is chosen **per machine by region** — Brazil (WFH) → Seafile/SeaDrive, USA → Synology `edgesynology1` over SMB. The Helper's local `config.preferredProvider` is the real lever (set at install); `HELPER_SEAFILE_LIBRARIES` + `HELPER_SYNOLOGY_FALLBACK_ALLOWED` flow from `admin_config` via `helper-api /config`. Brazil keeps a Synology fallback over Tailscale SMB. A library is matched by **longest path-prefix** on `relative_path` (a PopDAM root can hold multiple Seafile libraries as subfolders).
+**Do not change because:** A single global flag breaks the region split; see `docs/SEAFILE_INTEGRATION.md`.
+
+### SeaDrive installer is self-hosted and auto-mirrored by the worker
+
+**Looks like:** The Downloads page should just link seafile.com for the SeaDrive client.
+**Actually:** The Railway worker's `seadrive-mirror` handler runs weekly from `tick()`, scrapes the official SeaDrive download page, and mirrors the latest `.pkg`/`.msi` into the `popdam` Spaces bucket, recording `admin_config.SEADRIVE_LATEST` ({version, mac_url, win_url, mirrored, checked_at}). The Downloads page reads that and serves the pinned hosted version (fallback: official URLs). Spaces creds come from `admin_config.DO_SPACES_*` — the worker has no Spaces env var.
+**Do not change because:** Removing the mirror reverts to an uncontrolled third-party download; the LRU cache/pinning is SeaDrive-native (not our code).
+
 ---
 
 ## 11. Environment and Credentials
@@ -320,7 +374,7 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 **Workflow:** `.github/workflows/publish-frontend.yml`
 **Triggers:** push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `nginx.conf`
-**Steps:** npm ci → vite build → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container
+**Steps:** `verify` job (`npm ci` + `npm run lint`) → `build-and-push` (`needs: verify`): npm ci → vite build → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container. The deploy is gated on `verify` via a native `needs` dependency (a lint failure blocks publish + deploy). `ci.yml` (bun lint/test/build) is the broad repo CI and runs in parallel; it is **not** the deploy gate.
 **Rollback:** In Coolify UI, select an older deployment and redeploy. The `:<sha>` tag is the immutable rollback target.
 
 ### Supabase (DB migrations + edge functions)
@@ -349,20 +403,30 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 ### POP DAM Helper (Electron)
 
-**Workflow:** `.github/workflows/publish-popdam-helper.yml`
+**Workflow:** `.github/workflows/publish-popdam-helper.yml` (parallel Windows + macOS jobs)
 **Distribution:** GitHub Release (`popdam-helper-latest` tag)
+**Code signing:** wired but unset. The macOS job reads `CSC_LINK`/`CSC_KEY_PASSWORD` (Developer ID `.p12`) + `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` (notarization via `scripts/notarize.cjs`); with secrets unset it ships an **unsigned** dmg (Gatekeeper right-click→Open) and skips notarization. Windows is unsigned (SmartScreen warns). See `HANDOFF.md`.
+**Seafile/SeaDrive:** the Helper supervises (does not embed) the SeaDrive virtual-drive client for WFH designers; see `docs/SEAFILE_INTEGRATION.md`.
 
 ---
 
 ## 13. Incidents and Pending Work
 
-### Pending: auto-update code signing certs
+### Pending Work
 
-`electron-updater` is wired but code signing certs are not purchased. macOS users must right-click → Open on first launch; Windows users see a SmartScreen warning. See `HANDOFF.md` for exact steps to activate once certs are acquired.
+| Status | Item | Next action |
+|--------|------|-------------|
+| 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice shipped (Helper v1.4.1: provider selection, hydration, prefix-based library mapping; `admin_config` seeded with `HELPER_SEAFILE_*`, `SEADRIVE_LATEST`). Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
+| 🟡 open | **Helper code signing** | Repo wired (macOS `CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`; notarize hook). Blocked on adding the Developer ID `.p12` + Apple secrets to GitHub. Windows needs a separate OV/EV cert. See `HANDOFF.md`. |
+| 🟡 open | **PopSG render pass** | Windows Agent on **v0.15.0**; render backlog not fully processed (operational — run Retry All + queue EPS). See `HANDOFF.md`. |
+| 🟢 external | **Seafile server direct-MS SSO** | Entra app `8d9da03c…` is configured; the `seafile.designflow.app` server (`u2giants/seafile` repo) still needs `seahub_settings.py` OAuth enabled. Not this repo. |
+| 🟢 cleanup | **Consolidate duplicate docs** | `docs/architecture.md`↔`docs/ARCHITECTURE.md` and `docs/deployment.md`↔`docs/DEPLOYMENT.md` differ only by case with overlapping content; pick one canonical per topic and remove/merge the other. |
 
-### Pending: PopSG render pass
+### Resolved 2026-06-07/08: Seafile-aware Helper + SeaDrive self-host + CI gate
 
-Windows Agent is on **v0.15.0** with all render fixes. The render backlog has not been fully processed. See `HANDOFF.md`.
+- Seafile/SeaDrive Helper first slice (provider selection, hydration, prefix-based library mapping, `helper-api` config/heartbeat/complete-checkin) — Helper v1.4.x; migration `20260607120639` (nullable `asset_checkouts` source columns).
+- Worker `seadrive-mirror` (Spaces, weekly) + Downloads page pinned latest — worker v1.3.0.
+- Frontend production deploy now gated on `verify` (`publish-frontend.yml`); `ipc.ts` `storeSession` import bug fixed.
 
 ### Resolved 2026-05-31: style_groups.asset_count stale counts
 
@@ -401,3 +465,8 @@ Frontend deploy migrated from SSH-based (`docker run` on VPS) to Coolify API tri
 | `docs/ONBOARDING.md` | First-run checklist |
 | `docs/PATH_UTILS.md` | Path canonicalization rules |
 | `docs/POPSG.md` | PopSG mode — schema, crawl flow, render pipeline |
+| `docs/POPDAM_HELPER.md` | Desktop Helper architecture (checkout/check-in, local server, auth) |
+| `docs/SEAFILE_INTEGRATION.md` | Seafile/SeaDrive transport for WFH designers (region model, libraries, SeaDrive client) |
+| `docs/ADMIN_OPERATIONS.md` | Admin UI operations reference |
+| `docs/API_CONTRACTS.md` | Edge function API contracts |
+| `docs/WINDOWS_AGENT_RUNBOOK.md` | Windows render agent operations |

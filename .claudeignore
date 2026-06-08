@@ -25,9 +25,6 @@ supabase-popsg/
 # Lovable platform memory (auto-generated, not project code)
 .lovable/
 
-# Old build snapshot symlink (dead)
-app/
-
 # Cache and coverage
 .cache/
 coverage/
@@ -45,9 +42,6 @@ apps/windows-agent/package-lock.json
 apps/worker/package-lock.json
 apps/popdam-helper/package-lock.json
 packages/path-filters/package-lock.json
-
-# One-off audit file
-duplicate-folders.txt
 
 # Harness bookkeeping
 worksp_symlink.md
