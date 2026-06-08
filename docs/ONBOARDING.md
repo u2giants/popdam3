@@ -296,28 +296,32 @@ There are four ways to log in. All paths produce a standard Supabase JWT — the
 
 | Path | Who uses it | Requires invitation? |
 |------|-------------|----------------------|
-| **Authentik SSO** (company AD accounts) | Internal employees | No — AD users are auto-provisioned |
+| **Microsoft/Azure SSO** | Internal employees | No — Azure users are auto-provisioned |
 | **Google OAuth** | External collaborators | Yes |
-| **Microsoft OAuth** | External collaborators | Yes |
 | **Email + password** | Anyone with an invite | Yes |
+| **Authentik SSO** (legacy, hidden) | Existing/backend compatibility | No — retained but hidden from login |
 
 Full details and the exact flow for each path are in `docs/AUTHENTICATION.md`.
 
-### Authentik SSO — primary path (added 2026-05-09)
+### Microsoft/Azure SSO — primary path
 
-All employees with a company Active Directory account use the "Sign in with company account" button. They are redirected to `auth.designflow.app`, authenticate with their AD password, and come back with a full session. No invitation needed.
+Employees use the "Continue with Microsoft" button. Supabase's built-in Azure provider creates the Supabase session. No invitation is needed for new Azure users.
 
 **How it works under the hood:**
-1. Browser does a PKCE authorization code flow directly against Authentik (public client — no secret)
-2. The `id_token` from Authentik is sent to the `authenticate-with-authentik` Supabase edge function
-3. The edge function validates the token via Authentik's JWKS, then creates or looks up the Supabase user
-4. A magic-link `token_hash` is returned; the frontend exchanges it for a live Supabase session
+1. Browser starts Supabase OAuth with provider `azure`
+2. Microsoft redirects back to PopDAM with the OAuth result
+3. Supabase creates or finds the `auth.users` row and returns a standard session
+4. The `handle_new_user` database trigger auto-provisions first-time Azure users with the `user` role and `popdam` app access
 
-**New user provisioning:** When an AD user logs in for the first time, the edge function creates their Supabase user with `app_metadata.provider = 'authentik'`. The `handle_new_user` database trigger detects this and auto-assigns the `user` role without requiring an invitation (migration `20260509000000_authentik_invitation_bypass`).
+**New user provisioning:** When an Azure user logs in for the first time, `handle_new_user` detects `app_metadata.provider = 'azure'` and auto-assigns the `user` role without requiring an invitation (migration `20260608100936_allow_azure_company_sso_signup`).
 
-### Invitation-only (all other paths)
+### Authentik SSO — legacy hidden path
 
-For Google OAuth, Microsoft OAuth, and email/password: users cannot self-register. An admin creates an invitation (email + role) via the admin UI. The `handle_new_user()` trigger:
+Authentik was added on 2026-05-09 as the original company AD path. The backend flow remains in place, but the "Sign in with company account" button is hidden behind `SHOW_AUTHENTIK_SSO = false` in `src/pages/LoginPage.tsx` while Microsoft/Azure is primary.
+
+### Invitation-only paths
+
+For Google OAuth and email/password: users cannot self-register. An admin creates an invitation (email + role) via the admin UI. The `handle_new_user()` trigger:
 1. Checks the `invitations` table for a matching email
 2. If found: creates a `profiles` row + `user_roles` row, marks invitation accepted
 3. If not found: raises an exception, blocking signup

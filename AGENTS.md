@@ -456,7 +456,7 @@ Frontend deploy migrated from SSH-based (`docker run` on VPS) to Coolify API tri
 | `docs/BULK_JOBS.md` | All bulk operations, lane system, conflict map |
 | `docs/SCHEMA.md` | Database schema reference |
 | `docs/ERP_ENRICHMENT_PLAN.md` | ERP sync, MG codes, AI category classification |
-| `docs/AUTHENTICATION.md` | Authentik SSO, Google/Microsoft OAuth, email/password |
+| `docs/AUTHENTICATION.md` | Microsoft/Azure SSO, Google OAuth, email/password, legacy Authentik |
 | `docs/KNOWN_QUIRKS.md` | Intentional oddities — read before changing anything |
 | `docs/WORKER_LOGIC.md` | Bridge agent behavior contracts |
 | `docs/DEPLOYMENT.md` | Bridge agent + Helper release pipeline |

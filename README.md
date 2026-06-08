@@ -83,7 +83,7 @@ popdam3/
 | [docs/POPSG.md](docs/POPSG.md) | PopSG mode — schema, crawl flow, render pipeline |
 | [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md) | Desktop Helper (checkout/check-in) architecture |
 | [docs/SEAFILE_INTEGRATION.md](docs/SEAFILE_INTEGRATION.md) | Seafile/SeaDrive transport for WFH designers |
-| [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Authentik SSO, Google/Microsoft OAuth, email/password |
+| [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Microsoft/Azure SSO, Google OAuth, email/password, legacy Authentik |
 | [docs/WORKER_LOGIC.md](docs/WORKER_LOGIC.md) | Bridge agent behavior contracts |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Bridge Agent + Helper release pipeline |
 | [docs/development.md](docs/development.md) | Local dev setup, running, testing |

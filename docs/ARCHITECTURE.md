@@ -14,7 +14,7 @@ This system is intentionally split so:
 
 Responsibilities:
 - Web UI (browse/search/filter/tag) — React/Vite served via nginx in Docker on Coolify
-- Authentication + roles (Authentik SSO for AD users; invitation-only for all other paths)
+- Authentication + roles (Microsoft/Azure SSO for internal users; invitation-only for Google/email-password; legacy Authentik retained but hidden)
 - Admin config + diagnostics
 - API endpoints for agents and admins (`admin-api`, `agent-api`, `helper-api` Supabase edge functions)
 - Scheduled maintenance (pg_cron: nightly SG crawl, nightly asset count reconcile, queue/history purge)

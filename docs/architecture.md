@@ -138,7 +138,7 @@ Located in `apps/popdam-helper/`. An Electron desktop application (built with el
 | `helper-api` | Checkout/checkin workflow for the Electron desktop helper. Auth: user JWT. |
 | `erp-sync` | Fetches from the DesignFlow ERP API and upserts into `erp_items_current` / `erp_items_raw`. |
 | `ai-tag` | Legacy AI tagging; currently used mainly for PDF text extraction via Google Gemini direct. |
-| `authenticate-with-authentik` | Authentik SSO PKCE flow handler; validates via JWKS, exchanges for Supabase session. |
+| `authenticate-with-authentik` | Legacy Authentik SSO PKCE flow handler; validates via JWKS, exchanges for Supabase session. Hidden from the login page while Microsoft/Azure is primary. |
 | `bulk-job-runner` | No-op stub. Returns `{ ok: true, message: "replaced by railway worker" }`. The pg_cron schedule that called this was removed in migration `20260322000000`. |
 | `sync-external` | Syncs licensors, properties, and characters from external APIs. |
 | `send-invite-email` | Sends invitation emails via Brevo transactional email. |
@@ -185,6 +185,6 @@ The `supabase-popsg/` directory in the repo root is dead code from an earlier ar
 | **Railway** | Hosts the cloud worker (`apps/worker/`). Auto-deploys from every push to `main`. Worker connects to Supabase directly using a service role key. |
 | **DesignFlow ERP API** | `https://api.item.designflow.app/lib/getApiAllItems`. Source of ERP item data synced into `erp_items_current`. |
 | **Brevo** | Transactional email for invitation emails, via the `send-invite-email` edge function. |
-| **Authentik** | Company SSO provider at `auth.designflow.app`. PKCE flow handled by `authenticate-with-authentik` edge function. |
+| **Authentik** | Legacy company SSO provider at `auth.designflow.app`. PKCE flow handled by `authenticate-with-authentik` edge function; login button hidden while Microsoft/Azure is primary. |
 | **GitHub Container Registry (GHCR)** | Stores Docker images: `ghcr.io/u2giants/popdam-frontend` (`:latest`, `:<sha>`) and `ghcr.io/u2giants/popdam-bridge` (`:stable`, `:latest`, `:v{version}`). |
 | **Synology NAS** | On-premises file storage. Source of all design assets. Accessed only by the bridge agent running in Docker on the NAS itself; never accessed directly by the cloud. |

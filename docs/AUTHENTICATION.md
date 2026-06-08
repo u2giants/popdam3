@@ -25,7 +25,7 @@ Users sign in with their Microsoft / Azure AD account via Supabase's built-in Az
 
 The legacy "Sign in with company account" button is hidden behind `SHOW_AUTHENTIK_SSO = false` in `src/pages/LoginPage.tsx` while Microsoft/Azure is the primary company SSO path. The backend Authentik flow remains in place for compatibility and can be re-enabled by toggling that constant.
 
-Users with a company Active Directory account log in via the "Sign in with company account" button on the login page. They are redirected to `auth.designflow.app`, authenticate with their AD credentials there, and are redirected back.
+When this legacy path is re-enabled, users with a company Active Directory account log in via the "Sign in with company account" button on the login page. They are redirected to `auth.designflow.app`, authenticate with their AD credentials there, and are redirected back.
 
 ### How it works
 
