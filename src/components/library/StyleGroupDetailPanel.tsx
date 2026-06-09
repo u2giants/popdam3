@@ -304,7 +304,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         <FolderSearch className="h-3.5 w-3.5" /> Alternative Images
       </h4>
       <p className="text-[10px] text-muted-foreground leading-relaxed">
-        If this group lacks a proper product image, scan the NAS folder for JPG/PNG files that could be used instead.
+        If this group lacks a proper product image, scan the NAS folder for sibling JPG, PNG, or eligible PDF files that could be used instead.
       </p>
       <Button
         variant="outline"
@@ -315,7 +315,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         title={loading ? "Scanning folder…" : polling ? "Waiting for agent response…" : undefined}
       >
         {loading || polling ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSearch className="h-3 w-3" />}
-        {loading ? "Scanning…" : polling ? "Waiting for results…" : siblings ? "Re-scan Folder" : "Find JPG/PNG in Folder"}
+        {loading ? "Scanning…" : polling ? "Waiting for results…" : siblings ? "Re-scan Folder" : "Find Sibling Files"}
       </Button>
 
       {error && (
@@ -403,13 +403,13 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
             <Loader2 className="h-3 w-3 animate-spin" /> Waiting for Bridge Agent…
           </p>
           <p className="text-[10px] text-muted-foreground leading-relaxed">
-            The Bridge Agent is scanning folder <span className="font-mono">{group.folder_path}</span> for JPG/PNG files. This typically takes 10–30 seconds.
+            The Bridge Agent is scanning folder <span className="font-mono">{group.folder_path}</span> for sibling JPG, PNG, and eligible PDF files. This typically takes 10–30 seconds.
           </p>
         </div>
       )}
 
       {siblings && siblings.length === 0 && !polling && (
-        <p className="text-[10px] text-muted-foreground/60">No JPG/PNG files found in this folder.</p>
+        <p className="text-[10px] text-muted-foreground/60">No sibling files found in this folder.</p>
       )}
     </section>
   );

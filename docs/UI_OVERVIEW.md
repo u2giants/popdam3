@@ -152,15 +152,18 @@ Full NAS paths derived from `relative_path` + config:
 
 Each path has a copy-to-clipboard button.
 
-### 12. Sibling Image Finder (`FindAlternativeImages` component)
-Allows discovery and ingestion of JPG/PNG files that sit in the same NAS folder as the group's design files but haven't been ingested yet (photography, renders, mockups).
+### 12. Sibling File Finder (`FindAlternativeImages` component)
+Allows discovery and ingestion of sibling JPG, PNG, and eligible PDF files that sit in the same NAS folder as the group's design files but haven't been ingested yet (photography, renders, mockups, or useful PDFs).
 
 **Flow:**
-1. Click "Scan for Images" — triggers a sibling scan request to the Bridge Agent via `get-sibling-scan-by-folder`.
-2. UI polls for results (up to 60 polls, ~60 seconds).
-3. Results list shows thumbnails of discovered images with filename and file size.
-4. User selects desired images and clicks "Ingest Selected".
-5. Selected images are ingested as new assets and linked to the current style group via `ingest-sibling-images`.
+1. Click "Find Sibling Files" — calls `list-sibling-images`, which either returns a recent completed result or creates a `sibling_scan_request_*` row in `admin_config`.
+2. UI polls `get-sibling-scan-result` for results. The request may be `pending` or `claimed` while the Bridge Agent works.
+3. If a request stays `claimed` for more than 10 minutes, the admin API marks it failed so the UI can show a retryable error instead of waiting forever.
+4. Results list shows thumbnails of discovered files with filename and file size.
+5. User selects desired files and clicks "Ingest Selected".
+6. Selected files are ingested as new assets and linked to the current style group via `ingest-sibling-images`.
+
+Do not remove the stale-claim expiry/reclaim path. It prevents a Bridge Agent restart or mid-scan exception from permanently blocking future sibling scans for the same folder.
 
 ---
 

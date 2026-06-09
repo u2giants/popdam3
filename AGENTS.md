@@ -286,6 +286,12 @@ server                  # untracked symlink into the Coolify deploy dir — not 
 **Actually:** When `windows_render_mode = "primary"` or the `windows_render_policy` mode is set to `"shared"` with the file type in `shared_types`, the bridge agent intentionally skips local thumbnailing and queues a `render_queue` job for the Windows agent instead. The policy is set in `admin_config` and delivered via heartbeat response.
 **Do not treat as failures:** These are intentional deferrals, not errors. The Windows agent renders them via Illustrator (higher quality than the PDF-compat path).
 
+### Sibling file scans need a 10-minute lease/expiry
+
+**Looks like:** `claimed` sibling scan requests should be treated exactly like `pending` requests until the Bridge Agent completes them.
+**Actually:** The "Find Sibling Files" UI stores folder-scan jobs as `admin_config` rows named `sibling_scan_request_*`. The Bridge Agent claims a row, scans the NAS folder for sibling JPG/PNG/eligible PDF files, then reports completion through `complete-sibling-scan`. If the agent restarts or throws after claiming, the row can otherwise stay `claimed` forever and the UI will sit at "Waiting for Bridge Agent..." indefinitely.
+**Do not remove because:** `supabase/functions/_shared/admin-handlers/sibling-scan-handlers.ts` intentionally expires stale `claimed` rows after 10 minutes, and `supabase/functions/agent-api/index.ts` intentionally lets the Bridge Agent reclaim stale claims. `apps/bridge-agent/src/index.ts` also reports a failed scan when a per-request worker throws. Keep these together so a dead agent/request becomes a retryable failure instead of blocking future scans for the same folder.
+
 ### `app/` symlink at repo root
 
 **Looks like:** An older version of the frontend code.

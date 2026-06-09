@@ -412,10 +412,17 @@ Signals the Bridge Agent to abort the active hygiene scan.
 
 ## Sibling Image Discovery
 
-Sibling images are JPG/PNG files that sit in the same NAS folder as a PSD or AI design file. They represent approved product photography or renders that should be linked to the same style group.
+Sibling files are JPG/PNG/eligible PDF files that sit in the same NAS folder as a PSD or AI design file. They represent approved product photography, renders, mockups, or PDFs that should be linked to the same style group.
+
+Scan requests are lightweight `admin_config` rows named `sibling_scan_request_*`. The web UI creates them through `list-sibling-images`, the Bridge Agent claims them through `claim-sibling-scan`, and the agent finishes them through `complete-sibling-scan`.
+
+Important: `claimed` is a lease, not a terminal state. A Bridge Agent can restart or throw after claiming a request; without expiry, the UI will wait forever and future scans for the same folder will keep reusing the stuck row. Keep the 10-minute stale-claim handling in both places:
+- `supabase/functions/_shared/admin-handlers/sibling-scan-handlers.ts` expires old claimed rows as a retryable failure for the UI.
+- `supabase/functions/agent-api/index.ts` lets the Bridge Agent reclaim stale claimed rows.
+- `apps/bridge-agent/src/index.ts` reports a failed scan if a per-request worker throws after claiming.
 
 ### `list-sibling-images`
-Lists potential sibling images for a folder or style group.
+Lists potential sibling files for a folder or style group.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -437,7 +444,7 @@ Retrieves the most recent sibling scan result for a given folder path.
 | `folder_path` | `string` | NAS relative path |
 
 ### `ingest-sibling-images`
-Ingests selected sibling images as assets and links them to the specified style group.
+Ingests selected sibling files as assets and links them to the specified style group.
 
 | Field | Type | Notes |
 |-------|------|-------|

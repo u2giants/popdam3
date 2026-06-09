@@ -1362,13 +1362,32 @@ async function processSiblingScanRequests() {
       const claims = await Promise.all(
         Array.from({ length: SIBLING_SCAN_CONCURRENCY }, () => api.claimSiblingScan())
       );
-      const requests = claims.filter((r): r is api.SiblingScanRequest => r !== null);
+      const requests = Array.from(
+        new Map(
+          claims
+            .filter((r): r is api.SiblingScanRequest => r !== null)
+            .map((r) => [r.request_id, r])
+        ).values()
+      );
       if (requests.length === 0) break;
 
       logger.info(`Sibling scan: processing ${requests.length} folders in parallel`);
-      await Promise.all(requests.map(r => executeSiblingScan(r).catch(e =>
-        logger.error("Sibling scan worker error", { requestId: r.request_id, error: (e as Error).message })
-      )));
+      await Promise.all(requests.map(async (r) => {
+        try {
+          await executeSiblingScan(r);
+        } catch (e) {
+          const message = (e as Error).message;
+          logger.error("Sibling scan worker error", { requestId: r.request_id, error: message });
+          try {
+            await api.completeSiblingScan(r.request_id, "failed", [], `Bridge Agent error: ${message}`);
+          } catch (completeErr) {
+            logger.error("Failed to report sibling scan failure", {
+              requestId: r.request_id,
+              error: (completeErr as Error).message,
+            });
+          }
+        }
+      }));
     }
   } catch (e) {
     logger.error("Sibling scan error", { error: (e as Error).message });

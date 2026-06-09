@@ -4,6 +4,7 @@ const MAX_CLAIM_BATCH = 5;
 const LEASE_DURATION_MINUTES = 5;
 const MAX_RENDER_ATTEMPTS = 5;
 const REQUEST_AGE_MS = 5 * 60 * 1000; // 5 minutes
+const SIBLING_SCAN_LEASE_MS = 10 * 60 * 1000; // 10 minutes
 const WINDOWS_OFFLINE_MS = 5 * 60 * 1000; // 5 minutes
 const COUNTER_HISTORY_LIMIT = 60;
 const ADAPTIVE_IDLE_SECONDS = 30;
@@ -2422,15 +2423,16 @@ async function handleNotifyBuild(
 }
 
 // ── Route: claim-sibling-scan ────────────────────────────────────────
-// Bridge Agent claims the oldest pending sibling scan request.
+// Bridge Agent claims the oldest pending sibling scan request, or reclaims a
+// stale claimed request after its lease expires.
 
 async function handleClaimSiblingScan(_body: Record<string, unknown>, agentId: string) {
   const db = serviceClient();
 
-  // Fetch all sibling_scan_request_* keys that are pending
+  // Fetch all sibling_scan_request_* keys that may be claimable.
   const { data: rows, error: fetchErr } = await db
     .from("admin_config")
-    .select("key, value")
+    .select("key, value, updated_at")
     .like("key", "sibling_scan_request_%")
     .order("updated_at", { ascending: true })
     .limit(20);
@@ -2438,9 +2440,12 @@ async function handleClaimSiblingScan(_body: Record<string, unknown>, agentId: s
   if (fetchErr) return err(fetchErr.message, 500);
 
   const pendingRequests: Array<{ key: string; value: Record<string, unknown> }> = [];
+  const now = Date.now();
   for (const row of rows || []) {
     const val = row.value as Record<string, unknown>;
-    if (val && val.status === "pending") {
+    const claimedAt = typeof val?.claimed_at === "string" ? Date.parse(val.claimed_at) : Date.parse(row.updated_at);
+    const isStaleClaim = val?.status === "claimed" && (!Number.isFinite(claimedAt) || now - claimedAt > SIBLING_SCAN_LEASE_MS);
+    if (val && (val.status === "pending" || isStaleClaim)) {
       pendingRequests.push({ key: row.key, value: val });
     }
   }

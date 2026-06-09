@@ -6,6 +6,37 @@ import { err, json } from "../http.ts";
 import { serviceClient } from "../service-client.ts";
 import { optionalString, requireString } from "../validators.ts";
 
+const SIBLING_SCAN_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function isRecent(updatedAt: string | null | undefined): boolean {
+  if (!updatedAt) return false;
+  const updated = Date.parse(updatedAt);
+  return Number.isFinite(updated) && Date.now() - updated < SIBLING_SCAN_CACHE_TTL_MS;
+}
+
+function isStaleClaim(value: Record<string, unknown>, updatedAt?: string | null): boolean {
+  if (value.status !== "claimed") return false;
+  const claimedAt = typeof value.claimed_at === "string" ? value.claimed_at : updatedAt;
+  return !isRecent(claimedAt);
+}
+
+async function markStaleScanFailed(
+  db: ReturnType<typeof serviceClient>,
+  key: string,
+  value: Record<string, unknown>,
+) {
+  await db.from("admin_config").update({
+    value: {
+      ...value,
+      status: "failed",
+      processed_at: new Date().toISOString(),
+      images: [],
+      error_message: "Bridge Agent did not finish this folder scan within 10 minutes. Please try again.",
+    },
+    updated_at: new Date().toISOString(),
+  }).eq("key", key);
+}
+
 // ── list-sibling-images ─────────────────────────────────────────────
 
 export async function handleListSiblingImages(body: Record<string, unknown>) {
@@ -27,7 +58,14 @@ export async function handleListSiblingImages(body: Record<string, unknown>) {
       const val = row.value as Record<string, unknown>;
       if (!val || val.folder_path !== folderPath) continue;
 
+      if (isStaleClaim(val, row.updated_at)) {
+        console.log(`[list-sibling-images] Expiring stale claimed request for ${folderPath}`);
+        await markStaleScanFailed(db, row.key, val);
+        continue;
+      }
+
       if (val.status === "completed") {
+        if (!isRecent(row.updated_at)) continue;
         console.log(`[list-sibling-images] Returning cached result for ${folderPath}`);
         return json({
           ok: true,
@@ -38,6 +76,7 @@ export async function handleListSiblingImages(body: Record<string, unknown>) {
       }
 
       if (val.status === "failed") {
+        if (!isRecent(row.updated_at)) continue;
         console.log(`[list-sibling-images] Returning cached failure for ${folderPath}`);
         return json({
           ok: true,
@@ -93,7 +132,7 @@ export async function handleGetSiblingScanResult(body: Record<string, unknown>) 
 
   const { data, error } = await db
     .from("admin_config")
-    .select("value")
+    .select("key, value, updated_at")
     .eq("key", `sibling_scan_request_${requestId}`)
     .maybeSingle();
 
@@ -101,6 +140,17 @@ export async function handleGetSiblingScanResult(body: Record<string, unknown>) 
   if (!data) return err("Request not found", 404);
 
   const val = data.value as Record<string, unknown>;
+  if (isStaleClaim(val, data.updated_at)) {
+    await markStaleScanFailed(db, data.key, val);
+    return json({
+      ok: true,
+      status: "failed",
+      images: [],
+      error_message: "Bridge Agent did not finish this folder scan within 10 minutes. Please try again.",
+      processed_at: new Date().toISOString(),
+    });
+  }
+
   return json({
     ok: true,
     status: val.status ?? "pending",
@@ -119,7 +169,7 @@ export async function handleGetSiblingScanByFolder(body: Record<string, unknown>
 
   const { data: rows } = await db
     .from("admin_config")
-    .select("key, value")
+    .select("key, value, updated_at")
     .like("key", "sibling_scan_request_%")
     .order("updated_at", { ascending: false })
     .limit(50);
@@ -130,6 +180,19 @@ export async function handleGetSiblingScanByFolder(body: Record<string, unknown>
       if (!val || val.folder_path !== folderPath) continue;
 
       const requestId = row.key.replace("sibling_scan_request_", "");
+
+      if (isStaleClaim(val, row.updated_at)) {
+        await markStaleScanFailed(db, row.key, val);
+        return json({
+          ok: true,
+          found: true,
+          status: "failed",
+          request_id: requestId,
+          images: [],
+          error_message: "Bridge Agent did not finish this folder scan within 10 minutes. Please try again.",
+          processed_at: new Date().toISOString(),
+        });
+      }
 
       if (val.status === "completed") {
         return json({

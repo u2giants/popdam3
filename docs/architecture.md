@@ -80,9 +80,9 @@ Located in `apps/popdam-helper/`. An Electron desktop application (built with el
 ### 3. Sibling Scan
 
 1. Frontend calls `admin-api` route `list-sibling-images` or `ingest-sibling-images`.
-2. Admin-api writes a `SIBLING_SCAN_REQUEST` payload to `admin_config`.
-3. Bridge agent picks up the request on next heartbeat, walks the specified folder(s) looking for sibling image files alongside existing assets.
-4. Reports results back via `agent-api` route `report-dir-browse` or dedicated sibling handler.
+2. Admin-api writes a `sibling_scan_request_*` row to `admin_config`.
+3. Bridge agent claims the request via `agent-api` route `claim-sibling-scan`, walks the specified folder looking for sibling JPG/PNG/eligible PDF files alongside existing assets, and reports results through `complete-sibling-scan`.
+4. `claimed` is a lease. Admin-api expires stale claimed rows after 10 minutes, and agent-api allows the Bridge Agent to reclaim stale claims. Do not remove this; otherwise a Bridge Agent restart or exception can leave the UI waiting forever for the same folder.
 5. Admin-api handler (`sibling-scan-handlers.ts`) ingests confirmed siblings into `assets`.
 
 ### 4. AI Classification
