@@ -55,6 +55,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Change local setup, dev scripts, test/lint, tooling | `AGENTS.md`, `docs/development.md`, the relevant `package.json`/config | `docs/DEPLOYMENT.md` unless CI/CD changes |
 | Change deployment, Docker, CI/CD, hosting, rollback | `AGENTS.md` → Deployment, `docs/DEPLOYMENT.md`, `SELFHOST.md`, `.github/workflows/*` | local-only dev docs |
 | Change DB schema, migrations, models, external IDs, data flow | `AGENTS.md`, `CLAUDE.md` (migration timestamp discipline — **read before any migration**), `docs/SCHEMA.md`, `docs/STYLE_GROUPS.md` if groups are touched | deployment docs unless rollout changes |
+| Work on stage / customer / program (path-derived attributes) or the Stage/Customer/Program filters | `AGENTS.md`, `docs/PATH_ATTRIBUTES.md` (and `docs/PATH_UTILS.md` for canonical path format) | unrelated UI/ERP docs |
 | Work on bulk operations / the Railway worker | `AGENTS.md`, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` | unrelated UI docs |
 | Work on ERP sync / MG codes / category classification | `AGENTS.md`, `docs/ERP_ENRICHMENT_PLAN.md` | deployment docs |
 | Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
@@ -65,7 +66,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Claude Code session | `CLAUDE.md`, then `AGENTS.md` | other docs unless the task needs them |
 | Documentation-only cleanup | `AGENTS.md`, `README.md`, the affected docs under `docs/` | source files except as needed to verify accuracy |
 
-> **Doc-set note:** the actively-maintained reference set is the UPPERCASE `docs/*.md` (e.g. `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`) plus the lowercase `docs/configuration.md` and `docs/development.md`. The lowercase `docs/architecture.md` and `docs/deployment.md` are older parallel copies that overlap their UPPERCASE namesakes — prefer the UPPERCASE ones; consolidation is tracked in Pending Work. `lucid.md`/`future_improvements.md` are research/strategy notes, not operating docs.
+> **Doc-set note:** the actively-maintained reference set is the UPPERCASE `docs/*.md` (e.g. `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`) plus the lowercase `docs/configuration.md` and `docs/development.md`. The lowercase `docs/architecture.md` and `docs/deployment.md` are older parallel copies that overlap their UPPERCASE namesakes — prefer the UPPERCASE ones; consolidation is tracked in Pending Work. `future_improvements.md` (root, untracked, local) holds storage-transport research notes, not operating docs. (`lucid.md` is **not** in this repo — it lives in `u2giants/seafile`.)
 
 ---
 
@@ -172,6 +173,7 @@ Files outside project-owned areas that were intentionally modified:
 | Add PopSG page | `src/pages/popsg/`, `src/App.tsx` (route guard) | `src/components/library/` (PopDAM-only) |
 | Change Traefik routing | `/data/coolify/proxy/dynamic/` on VPS, or Coolify app config | `nginx.conf` (unless fixing health check) |
 | Change AI classification prompt | `apps/worker/src/handlers/erp.ts` (~line 336) | — |
+| Change stage/customer/program derivation | New migration editing `infer_path_attrs()` + a re-backfill (batched); `src/types/assets.ts`, `src/hooks/useAssets.ts`, `src/hooks/useStyleGroups.ts`, `src/components/library/FilterSidebar.tsx` | `workflow_status` derivation in `_shared/metadata-derivation.ts` (separate concern) |
 | Add new pg_cron job | New migration file using `cron.schedule()` | Direct Supabase Dashboard edits |
 
 ---
@@ -194,6 +196,9 @@ Files outside project-owned areas that were intentionally modified:
 | pg_cron job: sg render queue purge | `purge-sg-render-queue-old-rows` | — |
 | pg_cron job: path history purge | `purge-asset-path-history-old-rows` | — |
 | Key DB tables | `assets`, `style_groups`, `erp_items_current`, `style_guide_files`, `admin_config`, `product_category_predictions` | — |
+| Path-derived columns | `stage`, `customer`, `program` on `assets` **and** `style_groups` (see `docs/PATH_ATTRIBUTES.md`) | Confuse `stage` with `workflow_status` — different source and meaning |
+| Path-attr DB functions | `infer_path_attrs(path)`, `get_path_facets(customer)`; triggers `trg_set_path_attrs` | — |
+| Path-attr anchor folder | `____New Structure` (four leading underscores) | — |
 
 ---
 
@@ -345,6 +350,13 @@ server                  # untracked symlink into the Coolify deploy dir — not 
 
 ---
 
+### `stage` is not `workflow_status` (path-derived attributes)
+
+**Looks like:** `assets.stage` and `assets.workflow_status` are redundant — both come from the folder path, so pick one.
+**Actually:** They answer different questions. `stage` is **positional** — the folder directly under `____New Structure` (one of the 5 lifecycle buckets: In Development, Concept Approved Designs, Product Ideas, Freelancer art, Discontinued), set by a DB trigger. `workflow_status` is a **deepest-first scan** against `admin_config.WORKFLOW_FOLDER_MAP`, set by edge-function ingest code, and its values include adoption/approval states (`customer_adopted`, `licensor_approved`). For the same file, `stage="In Development"` while `workflow_status="customer_adopted"`. `customer`/`program` ride alongside `stage`, derived only in the In Development → Customer Adopted branch.
+**Why:** `workflow_status` predates `____New Structure` and is ambiguous there (it conflates lifecycle with approval and deliberately drops the Concept-Approved signal). `stage` gives a clean lifecycle bucket for the new tree.
+**Do not change because:** Filters, search (`Ross Wall 2026` → its files/groups), and `get_filter_counts`/`get_path_facets` all depend on these columns; the triggers keep them in sync on folder moves. Full rules: `docs/PATH_ATTRIBUTES.md`.
+
 ## 11. Environment and Credentials
 
 | Variable | Purpose | Stored where | Required in dev | Required in prod |
@@ -463,7 +475,8 @@ Frontend deploy migrated from SSH-based (`docker run` on VPS) to Coolify API tri
 | `docs/development.md` | Local dev setup, running, testing |
 | `docs/configuration.md` | Environment variables, admin config keys |
 | `docs/ONBOARDING.md` | First-run checklist |
-| `docs/PATH_UTILS.md` | Path canonicalization rules |
+| `docs/PATH_UTILS.md` | Path canonicalization rules (relative_path format, UNC/display conversion) |
+| `docs/PATH_ATTRIBUTES.md` | Path-derived `stage`/`customer`/`program` columns, triggers, facets, and Stage-vs-workflow_status |
 | `docs/POPSG.md` | PopSG mode — schema, crawl flow, render pipeline |
 | `docs/POPDAM_HELPER.md` | Desktop Helper architecture (checkout/check-in, local server, auth) |
 | `docs/SEAFILE_INTEGRATION.md` | Seafile/SeaDrive transport for WFH designers (region model, libraries, SeaDrive client) |

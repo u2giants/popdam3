@@ -86,6 +86,9 @@ Required columns:
 - `tags text[] NOT NULL DEFAULT '{}'::text[]`
 - `workflow_status workflow_status DEFAULT 'other'`
 - `status asset_status DEFAULT 'pending'`
+- Path-derived attributes (see PATH_ATTRIBUTES.md) — inferred from `relative_path` by a BEFORE INSERT/UPDATE trigger, **not** the same as `workflow_status`:
+  - `stage text NULL` (lifecycle bucket directly under `____New Structure`)
+  - `customer text NULL` / `program text NULL` (only set in the In Development → Customer Adopted branch)
 - Visibility Guard: Add is_deleted boolean DEFAULT false.
 - Integrity Guard: Add UNIQUE(share_id, relative_path) to the assets table to prevent duplicate ingestion.
 
@@ -147,6 +150,7 @@ Hard constraints:
 - `asset_count int DEFAULT 0`
 - `latest_file_date timestamptz NULL`
 - `workflow_status workflow_status DEFAULT 'other'`
+- `stage text NULL` / `customer text NULL` / `program text NULL` — path-derived from `folder_path` by a BEFORE INSERT/UPDATE trigger (see PATH_ATTRIBUTES.md)
 - licensing + taxonomy summary fields (licensor/property/category/division/MG/size)
 - Designer rollup (from member assets, with conflict detection):
   - `designer_name text NULL`
@@ -505,6 +509,7 @@ Create a single SQL function (or view) used everywhere:
 - `handle_new_user()` trigger: invitation-only enforcement
 - queue functions: `claim_jobs(...)` using `FOR UPDATE SKIP LOCKED`, `reset_stale_jobs(...)`
 - optional: `get_filter_counts(filters)` and `get_asset_count(filters)` using the same visibility logic
+- path-derived attributes (see PATH_ATTRIBUTES.md): `infer_path_attrs(path)` (IMMUTABLE) + `trg_set_path_attrs` triggers on `assets`/`style_groups`; `get_path_facets(customer)` for the customer/program filter combos
 
 ---
 
