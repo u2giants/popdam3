@@ -65,8 +65,10 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 
 ## 5. Remaining work
 
-### 5.1 ⚠️ BLOCKER for the pilot — enable Microsoft SSO on the Seafile server
-The Brazil pilot needs designers to sign into **SeaDrive** with their Microsoft account, which requires real OAuth on `seafile.designflow.app`. **Right now that SSO is misconfigured** — clicking "Single Sign-On" logs straight in with no Microsoft prompt (likely a `REMOTE_USER`/header trust; a security hole). The Entra app is already set up (client id `8d9da03c-e5cd-4a23-b987-32aaaed31fe7`, tenant `1caeb1c0-a087-4cb9-b046-a5e22404f971`, redirect `https://seafile.designflow.app/oauth/callback/`, scopes `openid/profile/email/User.Read`, secrets exist). The fix is server-side in the **`u2giants/seafile`** repo's `seahub_settings.py` (enable the OAuth block, remove the old SSO). **This is not in this repo.** Until done, the pilot can't use Microsoft sign-in.
+### 5.1 ✅ DONE — Microsoft SSO on the Seafile server (fixed 2026-06-08)
+Microsoft OAuth is live on `seafile.designflow.app`. The fix required two changes in the `u2giants/seafile` repo (committed to `main`):
+1. `seahub_settings.py` — `OAUTH_ATTRIBUTE_MAP` corrected: `"email"` maps to `"contact_email"` (not `"email"`). Seahub 13's callback reads `oauth_user_info.get('contact_email', '')`, so the wrong key caused a 500 IntegrityError on `/oauth/callback/`. See `docs/SEAFILE_INTEGRATION.md` for the full config.
+2. `nas-settings/app.py` — `is_seafile_admin()` rewritten to use the `seahub_auth` cookie (Token auth over HTTPS) instead of the `sessionid` cookie over `http://seafile`. The internal nginx issues a 308 HTTP→HTTPS redirect that drops the Cookie header, so session-cookie auth always returned 403, trapping authenticated users in a redirect loop (`ERR_TOO_MANY_REDIRECTS`).
 
 ### 5.2 Brazil/Seafile pilot (after 5.1)
 On one Brazil Mac: (1) install official **SeaDrive** (`dam.designflow.app/downloads` → SeaDrive card, or seafile.com) and sign in with the designer's Microsoft account; (2) confirm the `Character Licensed` + `Generic Decor` libraries appear under `~/SeaDrive` and sync; (3) install the **Helper** (`dam.designflow.app/downloads`), sign in, and in Helper **Settings → Seafile/SeaDrive** set "Preferred source for checkout" to **Seafile** and confirm the mount root; (4) in PopDAM web, **Check Out & Open** a Decor asset and confirm the Helper resolves it from `~/SeaDrive`, hydrates, and opens it; check it back in. Provider auto-selection by region is **not built** (5.4) — the pilot uses the manual toggle. Success = checkout/check-in round-trips a real file via Seafile, with the Synology/Tailscale fallback covering any not-yet-synced file.
@@ -86,7 +88,7 @@ Windows Agent is on **v0.15.0**. In **PopSG** (`sg.designflow.app`) admin: Setti
 ---
 
 ## 6. Exact next action
-The single most unblocked, in-repo next step is **5.3 (add the Apple signing secrets and run the Helper workflow)** — it depends on nothing else. The pilot (5.2) is blocked until the **Seafile-server SSO (5.1)** is fixed in the `u2giants/seafile` repo.
+The single most unblocked, in-repo next step is **5.3 (add the Apple signing secrets and run the Helper workflow)** — it depends on nothing else. The pilot (5.2) is now unblocked — SSO (5.1) is fixed.
 
 ## 7. Known risks / unknowns
 - Seafile is a **partial mirror** of the NAS; unsynced files rely on the Synology/Tailscale fallback — verify fallback works during the pilot.

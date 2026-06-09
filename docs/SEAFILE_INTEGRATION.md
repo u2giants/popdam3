@@ -43,19 +43,31 @@ PopDAM self-hosts a pinned latest build: the worker's `seadrive-mirror` handler 
 
 ---
 
+## nas-settings app
+
+The Seafile VPS runs a small Flask app (`ghcr.io/u2giants/seafile:nas-settings-latest`, built from `u2giants/seafile` → `seafile-server/nas-settings/app.py`) mounted at `/nas-settings/` behind Caddy. It is the GUI for controlling the `seaf-cli` daemon on the Synology NAS — ingest-window settings per library, plus live sync status and controls (pause/resume/restart, daemon config, library management). Commands are queued and picked up by the NAS Docker containers on their next status poll (~30 s).
+
+Auth: the app reads the `seahub_auth` cookie (set by Seahub after OAuth login, format `email@<40-char-hex-token>`) and calls `/api/v2.1/admin/sysinfo/` via Token auth over HTTPS to verify the user is a Seafile system admin.
+
+**Do NOT change the auth check back to session-cookie (`sessionid`) + `http://seafile`:** nginx inside the Seafile container issues a **308 HTTP→HTTPS redirect** for all API paths. Python's `urllib` (and most HTTP clients) silently drop the `Cookie` header when following an HTTP→HTTPS redirect. The API call arrives unauthenticated → 403 → `is_seafile_admin()` returns False → nas-settings redirects to login → Seahub sees the user is already authenticated → redirects back to `/nas-settings/` → `ERR_TOO_MANY_REDIRECTS`. Using the `seahub_auth` Token cookie over HTTPS avoids the redirect entirely.
+
+Deploy: `docker pull ghcr.io/u2giants/seafile:nas-settings-latest && docker rm -f nas-settings && cd ~/seafile-repo/seafile-server && docker compose -f nas-settings.yml up -d nas-settings`. The compose file references `env_file: /opt/seafile/.env` which has `NAS_SETTINGS_SECRET_KEY` and `NAS_STATUS_TOKEN`.
+
+---
+
 ## Seahub config snippets (live on the Seafile server, `seahub_settings.py`)
 
-> ⚠️ These run on the Seafile VPS (`seafile-br`), **not** in this repo's deploy path. They are recorded here as operational knowledge only.
+> ⚠️ These run on the Seafile VPS (`seafile-br`), **not** in this repo's deploy path. They are recorded here as the authoritative reference. The live file is at `/shared/seafile/conf/seahub_settings.py` inside the `seafile` Docker container.
 
-### 1. Direct Microsoft (Entra) SSO via OAuth2
+### 1. Microsoft (Entra) SSO via OAuth2 — current live configuration
 
-First **remove** whatever SSO currently logs users straight in with no Microsoft prompt (a `REMOTE_USER`/proxy-header trust is a security hole). The Entra app **already exists**: `Seafile POP Creations` (client/app id `8d9da03c-e5cd-4a23-b987-32aaaed31fe7`), redirect `https://seafile.designflow.app/oauth/callback/`, scopes `openid profile email User.Read`, with client secrets named `seafile-oauth` (exp 2028-01-01). Use that secret's value (or mint a new one under Certificates & secrets — the value can't be read back from Azure). Then set:
+The Entra app is `Seafile POP Creations` (client/app id `8d9da03c-e5cd-4a23-b987-32aaaed31fe7`), redirect `https://seafile.designflow.app/oauth/callback/`, scopes `openid profile email User.Read`, client secret named `seafile-oauth` (exp 2028-01-01). The secret value is in `/opt/seafile/.env` on the VPS (not committed). The current live `seahub_settings.py`:
 
 ```python
 ENABLE_OAUTH = True
 OAUTH_ENABLE_INSECURE_TRANSPORT = False
 OAUTH_CLIENT_ID = "8d9da03c-e5cd-4a23-b987-32aaaed31fe7"
-OAUTH_CLIENT_SECRET = "<value-of-the-seafile-oauth-secret>"   # not committed — from Entra
+OAUTH_CLIENT_SECRET = "<value-of-the-seafile-oauth-secret>"   # not committed — from /opt/seafile/.env
 OAUTH_REDIRECT_URL = "https://seafile.designflow.app/oauth/callback/"
 OAUTH_PROVIDER_DOMAIN = "designflow.app"
 
@@ -71,11 +83,25 @@ OAUTH_ATTRIBUTE_MAP = {
     "email": (False, "contact_email"),
     "name":  (False, "name"),
 }
+
+ENABLE_SIGNUP = False
+
+CUSTOM_NAV_ITEMS = [
+    {
+        "icon": "sf2-icon-cog2",
+        "desc": "NAS Sync",
+        "link": "/nas-settings/",
+    },
+]
 ```
 
-To require approval/restrict to a designer group, either assign only that group to the Entra app, or set Seafile to deactivate new SSO users until an admin activates them (`ACTIVATE_AFTER_FIRST_LOGIN = False` and approve in the admin panel). Restart Seahub after editing. Confirm exact key names against the Seafile 13 OAuth docs for your build.
+**OAUTH_ATTRIBUTE_MAP — do not change the email mapping.** The OAuth callback in Seahub 13 reads `oauth_user_info.get('contact_email', '')` to update the user's profile. The map key is the field name in `oauth_user_info`, set by the second element of the tuple. If you map `"email"` to `"email"` (instead of `"contact_email"`), the contact_email profile field never gets updated via OAuth, and an earlier attempt with the wrong mapping caused a MySQL `IntegrityError` (duplicate `contact_email`) that crashed the `/oauth/callback/` endpoint with a 500, leaving users unable to log in. The `(False, ...)` means the field is optional (not all Microsoft accounts expose email in the userinfo endpoint).
 
-### 2. Custom nav link to PopDAM Downloads (the "Downloads in Seafile too" ask)
+After editing `seahub_settings.py`, restart Seahub: `docker restart seafile`.
+
+To restrict access to specific users: either assign only the relevant group to the Entra app in Entra ID, or set `ACTIVATE_AFTER_FIRST_LOGIN = False` so new SSO users are inactive until an admin activates them in the Seafile admin panel.
+
+### 2. Custom nav link to PopDAM Downloads
 
 ```python
 CUSTOM_NAV_ITEMS = [
