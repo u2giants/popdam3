@@ -106,7 +106,7 @@ export interface LocalConfig {
   workspacePath: string;
   rootMappings: RootMapping[];
   // ── Seafile / SeaDrive ──
-  preferredProvider?: StorageProvider;     // "seafile" for WFH, "synology" for office; default "synology"
+  preferredProvider?: StorageProvider;     // default "seafile" for Brazil/WFH; USA/office users can switch to "synology"
   seaDriveRoot?: string;                   // absolute SeaDrive mount point, e.g. /Users/maria/SeaDrive
   seafileLibraries?: SeafileLibraryMapping[];
   seafileServerUrl?: string;               // Seafile server base URL (for obj_id REST lookups; optional)

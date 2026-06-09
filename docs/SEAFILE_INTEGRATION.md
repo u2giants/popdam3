@@ -28,7 +28,7 @@ A PopDAM root can hold multiple Seafile libraries as subfolders; a library is ma
 ### admin_config keys (read by `helper-api /config`)
 | Key | Value |
 |-----|-------|
-| `HELPER_SEAFILE_PREFERRED` | global default (overridden per-machine by region) |
+| `HELPER_SEAFILE_PREFERRED` | legacy global hint; Helper defaults locally to Seafile and does not consume this as the per-machine provider |
 | `HELPER_SYNOLOGY_FALLBACK_ALLOWED` | `true` |
 | `HELPER_SEAFILE_SERVER_URL` | `https://seafile.designflow.app` |
 | `HELPER_SEAFILE_LIBRARIES` | JSON array of `{libraryId, displayName, seaDriveFolder, rootId, pathPrefix}` |

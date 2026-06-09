@@ -381,14 +381,14 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
           <div className="field" style={{ marginBottom: 8 }}>
             <label>Preferred source for checkout</label>
             <select
-              value={config.preferredProvider ?? "synology"}
+              value={config.preferredProvider ?? "seafile"}
               onChange={(e) =>
                 setConfig({ ...config, preferredProvider: e.target.value as "seafile" | "synology" })
               }
               style={{ width: "100%" }}
             >
-              <option value="synology">Synology (office / admin)</option>
               <option value="seafile">Seafile / SeaDrive (work from home)</option>
+              <option value="synology">Synology (office / admin)</option>
             </select>
           </div>
 

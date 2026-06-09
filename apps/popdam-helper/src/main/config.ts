@@ -31,7 +31,7 @@ function defaultConfig(): LocalConfig {
     supabaseAnonKey: "",
     workspacePath: defaultWorkspacePath(),
     rootMappings: [],
-    preferredProvider: "synology",
+    preferredProvider: "seafile",
     seaDriveRoot: undefined,
     seafileLibraries: [],
     seafileServerUrl: undefined,

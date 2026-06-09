@@ -137,7 +137,7 @@ export async function checkout(
   }
 
   const rootId = asset.relative_path.split("/")[0] ?? asset.relative_path.split("\\")[0];
-  const preferred: StorageProvider = config.preferredProvider ?? "synology";
+  const preferred: StorageProvider = config.preferredProvider ?? "seafile";
 
   const resolveSynologyPath = (): string => {
     try {
