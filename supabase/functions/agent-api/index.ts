@@ -2945,7 +2945,7 @@ async function handleClaimPdfBackfillBatch() {
   const bf = (bfRow?.value as Record<string, unknown>) || {};
 
   if (bf.status !== "running") {
-    return json({ assets: [], remaining: 0, total: bf.total ?? 0, status: (bf.status as string) ?? "idle" });
+    return json({ ok: true, assets: [], remaining: 0, total: bf.total ?? 0, status: (bf.status as string) ?? "idle" });
   }
 
   // Fetch next batch of PDFs not yet in pdf_text_samples
@@ -2956,6 +2956,7 @@ async function handleClaimPdfBackfillBatch() {
   const remaining = (countRow as number) ?? 0;
 
   return json({
+    ok: true,
     assets: rows,
     remaining,
     total: (bf.total as number) ?? 0,

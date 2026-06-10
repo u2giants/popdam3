@@ -270,7 +270,9 @@ async function sendHeartbeat() {
         pdf_extraction: cloudPdfExtractionConfig,
         googleApiKey: cloudGoogleAiApiKey,
         anthropicApiKey: cloudAnthropicApiKey,
-      }).finally(() => {
+      }).catch((e) =>
+        logger.error("PDF backfill error", { error: (e as Error).message })
+      ).finally(() => {
         isPdfBackfilling = false;
       });
     }
