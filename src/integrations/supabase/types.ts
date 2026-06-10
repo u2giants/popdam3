@@ -2226,6 +2226,20 @@ export type Database = {
       }
     }
     Views: {
+      sg_archive_usage: {
+        Row: {
+          active_files: number | null
+          archive_candidate: boolean | null
+          design_ref_count: number | null
+          designs_using: number | null
+          licensor_name: string | null
+          most_recent_design_date: string | null
+          newest_sg_file_date: string | null
+          property_folder: string | null
+          total_files: number | null
+        }
+        Relationships: []
+      }
       style_guide_folders: {
         Row: {
           licensor_name: string | null
