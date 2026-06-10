@@ -87,10 +87,11 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 | `STYLE_GUIDE_CRAWL_REQUEST` | Pending PopSG crawl trigger |
 | `ERP_LAST_SYNC_DATE` | Watermark for incremental ERP sync |
 | `ERP_CATEGORY_CUTOFF_DATE` | Items before this date have mg_category nulled (legacy) |
-| `BRIDGE_LATEST_BUILD` | Latest published bridge agent version info |
+| `BRIDGE_LATEST_BUILD` | Latest published bridge agent build: `{ version, sha, published_at, ... }`. The `sha` (git commit) is the immutable identity the admin UI compares the agent's reported `build_sha` against to detect drift — see the "Agent `version` can lie" quirk in `AGENTS.md`. |
 | `AI_TASK_MODELS` | Per-task AI model overrides (vision_tagging, text_classification, pdf_extraction) |
 | `BLANK_THUMB_CLEANUP_REQUEST` | Pending blank thumbnail cleanup trigger |
 | `UPDATE_REQUEST` | Bridge agent self-update trigger |
+| `CHECKIN_VERIFICATION_ENABLED` | **Feature flag** (boolean). When true, Seafile-sourced check-ins park in `verifying` until the bridge agent confirms receipt on the Synology (size + quick-hash); when false/absent they complete immediately on upload. Activated 2026-06-09. Set to `false` for instant rollback — no redeploy. See the "Seafile check-ins park in `verifying`" quirk in `AGENTS.md`. |
 
 ---
 

@@ -367,10 +367,20 @@ server                  # untracked symlink into the Coolify deploy dir — not 
 
 **Looks like:** Check-in should immediately mark the checkout `complete` once the helper's upload returns, the same as a Synology direct upload.
 **Actually:** For Seafile-sourced check-ins (`source_provider = 'seafile'`), the file travels designer → Seafile server → Synology NAS (extra hop). The helper's upload returning proves only that the file arrived on Seafile, not that it landed intact on the Synology. `helper-api/complete-checkin` parks these checkouts in `status: 'verifying'` (lock still held) instead of `complete`. The bridge agent (running on the Synology) claims pending verifications via `claim-checkin-verifications`, stat-checks the on-disk file for size match, then computes a quick-hash (SHA-256 of first 64 KB + last 64 KB + size — a ~128 KB read). On match it calls `report-checkin-verification` and the checkout advances to `complete`. Synology direct uploads bypass this entirely and complete immediately as before.
+**Feature flag:** gated by `admin_config.CHECKIN_VERIFICATION_ENABLED` (read in `complete-checkin`). **Activated 2026-06-09.** When off/absent, Seafile check-ins complete immediately like before — set it to `false` for instant rollback, no redeploy. It was shipped *dark* first because helper-api and the bridge agent deploy via different pipelines; activating before the verifying-capable agent (≥ v1.16.0) is live would hang check-ins with nothing to confirm them.
 **Why:** Releasing the lock before the file has synced defeats the checkout/check-in guarantee — a second designer could check out and overwrite a partially-synced file.
 **Do not remove because:** `verifying` is included in the `asset_checkouts_one_active_per_asset` partial unique index (same as `active`), so the lock is held throughout. Removing the step silently re-introduces a race condition for WFH Brazil check-ins.
 **Timing / deadlines:** T1 = 30 min (`verify_deadline_at`) — flag surfaced to designer + admin, re-drive triggered. T2 = 2 hours (`verify_resolve_at`) — auto-resolve releases the lock into `error` with diagnostics. Both deadlines freeze when the bridge agent is offline (detected by a gap > 3 heartbeats in `verify_last_attempt_at`); see `handleReportCheckinVerification` in `supabase/functions/agent-api/index.ts`.
 **Code:** `supabase/functions/helper-api/index.ts` (complete-checkin Seafile branch), `supabase/functions/agent-api/index.ts` (claim-checkin-verifications / report-checkin-verification), `apps/bridge-agent/src/checkin-verifier.ts`, migration `20260609120000_asset_checkouts_receipt_verification.sql`.
+
+---
+
+### Agent reported `version` can lie — the admin panel trusts `build_sha`, not the version string
+
+**Looks like:** The Settings → Bridge Agents "Up to date ✅" badge means the agent is running the latest published code.
+**Actually:** The agent reports three identity fields. `version` is read from `package.json` at **runtime** (a mutable, human-edited string); `image_tag` and `build_sha` are baked into the image at **build time** (immutable). A botched self-update can leave a stale container running an old image whose `version` still reads the new number, so a version-string comparison falsely shows "up to date." The panel now compares the agent's `build_sha` against `BRIDGE_LATEST_BUILD.sha` (returned by admin-api `get-latest-agent-build`). "Up to date" is sha-based; a version-matches-but-build-differs state renders a red **"Build mismatch"** warning with the recovery command.
+**Why:** On 2026-06-09 the panel showed v1.16.0 "up to date" while the NAS container was still v1.9.6 — a failed update never swapped the container (see Incidents). The version string hid it; `build_sha` exposed it.
+**Do not change because:** The self-updater is fragile (see `docs/KNOWN_QUIRKS.md` #26 — ~50 iterations to stabilize). Detection via `build_sha` is the safe, no-touch way to catch update failures; reverting the badge to a version-string compare re-introduces the silent-stale-image failure. Code: `src/pages/SettingsPage.tsx` (`AgentStatusSection`), `supabase/functions/admin-api/index.ts` (`handleGetLatestAgentBuild`).
 
 ---
 
@@ -452,7 +462,7 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 | Status | Item | Next action |
 |--------|------|-------------|
-| 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (v1.16.1 bridge agent) shipped. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
+| 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (bridge agent v1.16.x) shipped and **active** (`CHECKIN_VERIFICATION_ENABLED = true`, 2026-06-09); build-drift detection in the admin panel shipped. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip — watch the first real check-in go `verifying → complete`. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
 | 🟡 open | **Helper code signing** | Repo wired (macOS `CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`; notarize hook). Blocked on adding the Developer ID `.p12` + Apple secrets to GitHub. Windows needs a separate OV/EV cert. See `HANDOFF.md`. |
 | 🟡 open | **PopSG render pass** | Windows Agent on **v0.16.0**; render backlog not fully processed (operational — run Retry All + queue EPS). See `HANDOFF.md`. |
 | 🟢 external | **Seafile server direct-MS SSO** | Entra app `8d9da03c…` is configured; the `seafile.designflow.app` server (`u2giants/seafile` repo) still needs `seahub_settings.py` OAuth enabled. Not this repo. |
@@ -468,6 +478,20 @@ Root cause: Missing `ok: true` in `handleClaimPdfBackfillBatch()` return values 
 Recovery: Added `ok: true` to both return paths; added `.catch()` on `runPdfBackfill()`. Deployed as part of bridge agent v1.16.0. Follow-up (v1.16.1): added `unhandledRejection`/`uncaughtException` handlers in `apps/bridge-agent/src/index.ts` as a last-resort safety net; wrapped inner claim/complete loops in `apps/bridge-agent/src/pdf-backfill.ts` with try/catch so a mid-loop fault logs and breaks out instead of propagating. Same-day follow-up also: (1) **offloaded** the full-library backfill to the Windows agent (v0.16.0) behind a version/capability gate (see the "PDF text backfill runs on the Windows agent" quirk); (2) fixed the progress `total` to count `.pdf`+`.ai` via `count_pdf_backfill_remaining()` (was a `.pdf`-only undercount that would have falsely marked the run "completed" early) and made `complete-pdf-backfill-batch` accumulate per-method `stats` + `files_used_added`; (3) surfaced `claim-pdf-backfill-batch` RPC errors as 5xx instead of an opaque empty body; (4) added a completion summary + **stall/offline warning** to the admin Backfill card; (5) added `PDF_BACKFILL` to the `windows-render` heartbeat config keys (without it the Windows trigger was silently always-false).
 
 Rule added to prevent recurrence: Every `json({...})` return in agent-api routes called by the bridge agent must include `ok: true`. The bridge agent's `callApi()` throws on any response where `data.ok` is falsy. All fire-and-forget async calls in `sendHeartbeat()` must have both `.catch()` and `.finally()`.
+
+---
+
+### Resolved 2026-06-09: Bridge agent ran a stale image while the panel showed "up to date"
+
+What happened: After publishing bridge agent v1.16.0, the admin panel showed the agent "up to date" at v1.16.0, but it was still running the old v1.9.6 image. The agent reported a contradictory identity — `version: 1.16.0` (from `package.json`) but `image_tag: v1.9.6` / `build_sha: e0cc499` (the old image's baked env). A manual `docker compose pull && down && up` had pulled the new image but **`down` couldn't remove the running container** ("Running 0/0" — it had drifted out of compose's tracking), so the new container hit a name conflict and never started; the old container kept running.
+
+Impact: The new receipt-verification code wasn't actually running, even though the UI said it was. Nearly activated `CHECKIN_VERIFICATION_ENABLED` against a dead code path (which would have hung Seafile check-ins). Caught because `build_sha` didn't match the published commit.
+
+Root cause: (1) The admin panel computed "up to date" from the **version string**, which can match while the running image differs. (2) The agent's `docker run` self-update fallback creates a container outside the compose project (by design — the agent has no host compose file), so later `docker compose` commands can't manage it.
+
+Recovery: `sudo docker rm -f popdam-bridge && sudo docker compose up -d --remove-orphans` on `edgesynology2` — force-removes the orphan by name, then recreates from the pulled image. Afterward all three identity fields agreed on the new commit.
+
+Rule added to prevent recurrence: The admin Bridge Agents panel now detects drift by comparing `build_sha` to `BRIDGE_LATEST_BUILD.sha` (a red "Build mismatch" badge with the recovery command) — never trust the version string alone. The fragile self-updater was deliberately **not** modified (see `docs/KNOWN_QUIRKS.md` #26); detection, not surgery, is the chosen guard. Confirm an agent's true build via `agent_registrations.metadata->'version_info'` — `version`, `image_tag`, and `build_sha` must all match the intended commit.
 
 ---
 
