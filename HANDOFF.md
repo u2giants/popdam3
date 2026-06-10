@@ -1,6 +1,6 @@
 # Handoff
 
-_Last updated: 2026-06-08. Delete this file once the pilot, code signing, and PopSG render pass are done._
+_Last updated: 2026-06-10. Delete this file once the pilot, code signing, and PopSG render pass are done._
 
 Read `AGENTS.md` first. This file is self-contained — a developer with **zero prior context** should be able to continue from here. Background detail lives in `docs/SEAFILE_INTEGRATION.md` and `docs/POPDAM_HELPER.md`.
 
@@ -26,7 +26,7 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 
 ---
 
-## 2. What is fully done (on `main`, 2026-06-07/08)
+## 2. What is fully done (on `main`, 2026-06-07/10)
 
 - **Seafile-aware Helper, first slice** (Helper **v1.4.1**): `apps/popdam-helper/src/main/seafileAdapter.ts` (SeaDrive-only detection, hydration wait, **longest-path-prefix** library mapping, optional Seafile REST `obj_id`); provider selection in `checkoutManager.ts` gated by `synologyFallbackAllowed`; provenance written to `.pop-checkout.json` + DB.
 - **helper-api** (`supabase/functions/helper-api/index.ts`): `/config` returns `HELPER_SEAFILE_PREFERRED` / `HELPER_SEAFILE_LIBRARIES` / `HELPER_SEAFILE_SERVER_URL` / `HELPER_SYNOLOGY_FALLBACK_ALLOWED`; `/heartbeat` sets `last_helper_heartbeat_at`; `/complete-checkin` persists `source_provider` + `source_version`. The Helper consumes the Seafile catalog + fallback flag in `ipc.ts` (`fetch-server-roots`) — but **not** `preferredProvider` (that's per-machine; see Decisions).
@@ -40,6 +40,7 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 - **SeaDrive self-host mirror** (worker **v1.3.0**, `apps/worker/src/handlers/seadrive-mirror.ts`, called weekly from `operation-loop.ts` `tick()`): scrapes the official download page, mirrors the latest `.pkg`/`.msi` to the `popdam` Spaces bucket (creds from `admin_config.DO_SPACES_*`), records `SEADRIVE_LATEST`. The Downloads page reads it. Verified: byte-exact mirror, public.
 - **CI**: frontend production deploy gated on a `verify` job (`.github/workflows/publish-frontend.yml`); fixed a pre-existing `ipc.ts` missing-`storeSession` import.
 - **Helper macOS signing wiring** (`.github/workflows/publish-popdam-helper.yml`): the Mac job reads `CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`; unsigned until secrets are added.
+- **Seafile check-in receipt verification** (bridge agent **v1.16.1**, 2026-06-10): `helper-api/complete-checkin` now parks Seafile check-ins at `status: 'verifying'` instead of `complete`. The bridge agent claims them via `claim-checkin-verifications`, checks size + quick-hash on the on-disk file (~128 KB read), and calls `report-checkin-verification`. T1 = 30 min flag, T2 = 2h auto-resolve; deadlines freeze during bridge agent downtime. Code: `apps/bridge-agent/src/checkin-verifier.ts`, `agent-api` (2 new routes), `helper-api` (Seafile branch in complete-checkin), migration `20260609120000_asset_checkouts_receipt_verification.sql`.
 
 ---
 
@@ -88,7 +89,7 @@ Windows Agent is on **v0.15.0**. In **PopSG** (`sg.designflow.app`) admin: Setti
 ---
 
 ## 6. Exact next action
-The single most unblocked, in-repo next step is **5.3 (add the Apple signing secrets and run the Helper workflow)** — it depends on nothing else. The pilot (5.2) is now unblocked — SSO (5.1) is fixed.
+The single most unblocked, in-repo next step is **5.3 (add the Apple signing secrets and run the Helper workflow)** — it depends on nothing else. The pilot (5.2) is also unblocked — SSO (5.1) is fixed and receipt verification (bridge agent v1.16.1) is deployed.
 
 ## 7. Known risks / unknowns
 - Seafile is a **partial mirror** of the NAS; unsynced files rely on the Synology/Tailscale fallback — verify fallback works during the pilot.

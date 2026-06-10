@@ -30,12 +30,17 @@ User clicks "Check In" in Helper tray popup
 waitForFileStable() — polls size+mtime until stable
 createSnapshot() — copies file to Snapshots/checkoutId/
 /checkouts/prepare-checkin  →  validate hash, get upload path
-synologyClient.uploadFile() — upload to temp name, rename (atomic)
-/checkouts/complete-checkin  →  record final hash, unlock asset
   │
-  ▼
-asset_checkouts row → status: complete
-Asset is unlocked for the next checkout
+  ├── Synology direct upload: uploadFile() → rename (atomic)
+  │       /checkouts/complete-checkin → asset_checkouts: status: complete
+  │       Asset unlocked immediately
+  │
+  └── Seafile upload: uploadQueue sends file to Seafile server
+          /checkouts/complete-checkin → asset_checkouts: status: verifying
+          Bridge agent (on Synology) polls via claim-checkin-verifications,
+          checks on-disk size + quick-hash, calls report-checkin-verification
+          → status: complete, asset unlocked
+          (T1=30min flag, T2=2h auto-resolve; see AGENTS.md § Seafile verifying)
 ```
 
 ---

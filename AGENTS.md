@@ -174,6 +174,7 @@ Files outside project-owned areas that were intentionally modified:
 | Change Traefik routing | `/data/coolify/proxy/dynamic/` on VPS, or Coolify app config | `nginx.conf` (unless fixing health check) |
 | Change AI classification prompt | `apps/worker/src/handlers/erp.ts` (~line 336) | — |
 | Change stage/customer/program derivation | New migration editing `infer_path_attrs()` + a re-backfill (batched); `src/types/assets.ts`, `src/hooks/useAssets.ts`, `src/hooks/useStyleGroups.ts`, `src/components/library/FilterSidebar.tsx` | `workflow_status` derivation in `_shared/metadata-derivation.ts` (separate concern) |
+| Fix Seafile check-in receipt verification | `apps/bridge-agent/src/checkin-verifier.ts`, `supabase/functions/agent-api/index.ts` (claim-checkin-verifications / report-checkin-verification), `supabase/functions/helper-api/index.ts` (complete-checkin Seafile branch) | — |
 | Add new pg_cron job | New migration file using `cron.schedule()` | Direct Supabase Dashboard edits |
 
 ---
@@ -286,6 +287,12 @@ server                  # untracked symlink into the Coolify deploy dir — not 
 **Actually:** When `windows_render_mode = "primary"` or the `windows_render_policy` mode is set to `"shared"` with the file type in `shared_types`, the bridge agent intentionally skips local thumbnailing and queues a `render_queue` job for the Windows agent instead. The policy is set in `admin_config` and delivered via heartbeat response.
 **Do not treat as failures:** These are intentional deferrals, not errors. The Windows agent renders them via Illustrator (higher quality than the PDF-compat path).
 
+### PDF text backfill runs on the Windows agent, not the bridge agent
+
+**Looks like:** The bridge agent is the natural home for all NAS-side batch work, including the full-library PDF/.ai text extraction backfill.
+**Actually:** `agent-api/handleHeartbeat()` routes `trigger_pdf_backfill` to the `windows-render` agent first (when a healthy Windows agent is present), falling back to the `bridge` agent only if no Windows agent has checked in recently. The Windows agent (`apps/windows-agent/src/pdf-backfill.ts`) runs the same mupdf→OCR→AI extraction loop as the bridge agent and shares the same `claim-pdf-backfill-batch` / `complete-pdf-backfill-batch` endpoints. This offloads the CPU-intensive extraction work onto the Windows VM and away from the Synology.
+**Do not remove the routing:** Reverting to bridge-agent-only would push heavy extraction load onto the NAS CPU. The `windowsHealthy` flag in the heartbeat handler is what controls which agent gets dispatched.
+
 ### Sibling file scans need a 10-minute lease/expiry
 
 **Looks like:** `claimed` sibling scan requests should be treated exactly like `pending` requests until the Bridge Agent completes them.
@@ -353,6 +360,15 @@ server                  # untracked symlink into the Coolify deploy dir — not 
 **Looks like:** The Downloads page should just link seafile.com for the SeaDrive client.
 **Actually:** The Railway worker's `seadrive-mirror` handler runs weekly from `tick()`, scrapes the official SeaDrive download page, and mirrors the latest `.pkg`/`.msi` into the `popdam` Spaces bucket, recording `admin_config.SEADRIVE_LATEST` ({version, mac_url, win_url, mirrored, checked_at}). The Downloads page reads that and serves the pinned hosted version (fallback: official URLs). Spaces creds come from `admin_config.DO_SPACES_*` — the worker has no Spaces env var.
 **Do not change because:** Removing the mirror reverts to an uncontrolled third-party download; the LRU cache/pinning is SeaDrive-native (not our code).
+
+### Seafile check-ins park in `verifying` status before completing
+
+**Looks like:** Check-in should immediately mark the checkout `complete` once the helper's upload returns, the same as a Synology direct upload.
+**Actually:** For Seafile-sourced check-ins (`source_provider = 'seafile'`), the file travels designer → Seafile server → Synology NAS (extra hop). The helper's upload returning proves only that the file arrived on Seafile, not that it landed intact on the Synology. `helper-api/complete-checkin` parks these checkouts in `status: 'verifying'` (lock still held) instead of `complete`. The bridge agent (running on the Synology) claims pending verifications via `claim-checkin-verifications`, stat-checks the on-disk file for size match, then computes a quick-hash (SHA-256 of first 64 KB + last 64 KB + size — a ~128 KB read). On match it calls `report-checkin-verification` and the checkout advances to `complete`. Synology direct uploads bypass this entirely and complete immediately as before.
+**Why:** Releasing the lock before the file has synced defeats the checkout/check-in guarantee — a second designer could check out and overwrite a partially-synced file.
+**Do not remove because:** `verifying` is included in the `asset_checkouts_one_active_per_asset` partial unique index (same as `active`), so the lock is held throughout. Removing the step silently re-introduces a race condition for WFH Brazil check-ins.
+**Timing / deadlines:** T1 = 30 min (`verify_deadline_at`) — flag surfaced to designer + admin, re-drive triggered. T2 = 2 hours (`verify_resolve_at`) — auto-resolve releases the lock into `error` with diagnostics. Both deadlines freeze when the bridge agent is offline (detected by a gap > 3 heartbeats in `verify_last_attempt_at`); see `handleReportCheckinVerification` in `supabase/functions/agent-api/index.ts`.
+**Code:** `supabase/functions/helper-api/index.ts` (complete-checkin Seafile branch), `supabase/functions/agent-api/index.ts` (claim-checkin-verifications / report-checkin-verification), `apps/bridge-agent/src/checkin-verifier.ts`, migration `20260609120000_asset_checkouts_receipt_verification.sql`.
 
 ---
 
@@ -434,11 +450,25 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 | Status | Item | Next action |
 |--------|------|-------------|
-| 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice shipped (Helper v1.4.1: provider selection, hydration, prefix-based library mapping; `admin_config` seeded with `HELPER_SEAFILE_*`, `SEADRIVE_LATEST`). Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
+| 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (v1.16.1 bridge agent) shipped. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
 | 🟡 open | **Helper code signing** | Repo wired (macOS `CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`; notarize hook). Blocked on adding the Developer ID `.p12` + Apple secrets to GitHub. Windows needs a separate OV/EV cert. See `HANDOFF.md`. |
 | 🟡 open | **PopSG render pass** | Windows Agent on **v0.15.0**; render backlog not fully processed (operational — run Retry All + queue EPS). See `HANDOFF.md`. |
 | 🟢 external | **Seafile server direct-MS SSO** | Entra app `8d9da03c…` is configured; the `seafile.designflow.app` server (`u2giants/seafile` repo) still needs `seahub_settings.py` OAuth enabled. Not this repo. |
 | 🟢 cleanup | **Consolidate duplicate docs** | `docs/architecture.md`↔`docs/ARCHITECTURE.md` and `docs/deployment.md`↔`docs/DEPLOYMENT.md` differ only by case with overlapping content; pick one canonical per topic and remove/merge the other. |
+
+### Resolved 2026-06-10: Bridge agent crash loop (PDF_BACKFILL + missing `ok: true`)
+
+What happened: `claim-pdf-backfill-batch` in `agent-api` returned JSON without `ok: true` in both return paths. `callApi()` in the bridge agent treats any response missing `ok: true` as an error and throws. The `runPdfBackfill()` call in `sendHeartbeat()` had `.finally()` but no `.catch()`, so the thrown error became an unhandled promise rejection — Node.js ≥15 terminates on these. With `PDF_BACKFILL` stuck in `"running"` state, every heartbeat triggered the backfill → threw → crashed the process → restarted → crashed again.
+
+Impact: Bridge agent on `edgesynology2` crash-looped for several hours. Alternative Images (sibling folder scan) timed out for all users; all bridge agent work was offline.
+
+Root cause: Missing `ok: true` in `handleClaimPdfBackfillBatch()` return values + missing `.catch()` on the fire-and-forget `runPdfBackfill()` call.
+
+Recovery: Added `ok: true` to both return paths; added `.catch()` on `runPdfBackfill()`. Deployed as part of bridge agent v1.16.0. Follow-up (v1.16.1): added `unhandledRejection`/`uncaughtException` handlers in `apps/bridge-agent/src/index.ts` as a last-resort safety net; wrapped inner claim/complete loops in `apps/bridge-agent/src/pdf-backfill.ts` with try/catch so a mid-loop fault logs and breaks out instead of propagating.
+
+Rule added to prevent recurrence: Every `json({...})` return in agent-api routes called by the bridge agent must include `ok: true`. The bridge agent's `callApi()` throws on any response where `data.ok` is falsy. All fire-and-forget async calls in `sendHeartbeat()` must have both `.catch()` and `.finally()`.
+
+---
 
 ### Resolved 2026-06-07/08: Seafile-aware Helper + SeaDrive self-host + CI gate
 
