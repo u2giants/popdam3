@@ -218,8 +218,14 @@ export type Database = {
           created_at: string
           device_id: string | null
           error_message: string | null
+          expected_quick_hash: string | null
+          final_hash: string | null
+          final_size: number | null
           id: string
           last_helper_heartbeat_at: string | null
+          redrive_count: number
+          redrive_requested: boolean
+          resolution: string | null
           seafile_library_id: string | null
           seafile_path: string | null
           source_hash: string
@@ -232,6 +238,13 @@ export type Database = {
           updated_at: string
           upload_method: string | null
           user_id: string
+          verified_at: string | null
+          verify_attempts: number
+          verify_deadline_at: string | null
+          verify_error: string | null
+          verify_failed_at: string | null
+          verify_last_attempt_at: string | null
+          verify_resolve_at: string | null
         }
         Insert: {
           asset_id: string
@@ -242,8 +255,14 @@ export type Database = {
           created_at?: string
           device_id?: string | null
           error_message?: string | null
+          expected_quick_hash?: string | null
+          final_hash?: string | null
+          final_size?: number | null
           id?: string
           last_helper_heartbeat_at?: string | null
+          redrive_count?: number
+          redrive_requested?: boolean
+          resolution?: string | null
           seafile_library_id?: string | null
           seafile_path?: string | null
           source_hash: string
@@ -256,6 +275,13 @@ export type Database = {
           updated_at?: string
           upload_method?: string | null
           user_id: string
+          verified_at?: string | null
+          verify_attempts?: number
+          verify_deadline_at?: string | null
+          verify_error?: string | null
+          verify_failed_at?: string | null
+          verify_last_attempt_at?: string | null
+          verify_resolve_at?: string | null
         }
         Update: {
           asset_id?: string
@@ -266,8 +292,14 @@ export type Database = {
           created_at?: string
           device_id?: string | null
           error_message?: string | null
+          expected_quick_hash?: string | null
+          final_hash?: string | null
+          final_size?: number | null
           id?: string
           last_helper_heartbeat_at?: string | null
+          redrive_count?: number
+          redrive_requested?: boolean
+          resolution?: string | null
           seafile_library_id?: string | null
           seafile_path?: string | null
           source_hash?: string
@@ -280,6 +312,13 @@ export type Database = {
           updated_at?: string
           upload_method?: string | null
           user_id?: string
+          verified_at?: string | null
+          verify_attempts?: number
+          verify_deadline_at?: string | null
+          verify_error?: string | null
+          verify_failed_at?: string | null
+          verify_last_attempt_at?: string | null
+          verify_resolve_at?: string | null
         }
         Relationships: [
           {
