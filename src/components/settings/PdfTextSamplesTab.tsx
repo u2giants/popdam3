@@ -61,6 +61,23 @@ function stepLabel(step: string | null): string {
   }
 }
 
+function formatDurationMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "0s";
+  const totalSec = Math.floor(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  if (totalSec < 3600) return `${Math.floor(totalSec / 60)}m ${totalSec % 60}s`;
+  return `${Math.floor(totalSec / 3600)}h ${Math.floor((totalSec % 3600) / 60)}m`;
+}
+
+function formatDateTime(value: unknown): string {
+  if (typeof value !== "string" || !value) return "—";
+  return new Date(value).toLocaleString();
+}
+
+function numberValue(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
 // ── Method badge ───────────────────────────────────────────────────────────────
 
 function MethodBadge({ method }: { method: PdfSample["extraction_method"] | string }) {
@@ -994,7 +1011,10 @@ function PdfBackfillCard() {
     mutationFn: () => call("trigger-pdf-backfill"),
     onSuccess: (res) => {
       const r = res as Record<string, unknown>;
-      toast.success(`Backfill started — ${(r.total as number).toLocaleString()} files queued`);
+      const queued = numberValue(r.total);
+      toast.success(queued > 0
+        ? `Backfill started — ${queued.toLocaleString()} files queued`
+        : "Backfill complete — no eligible PDF or .ai files were waiting");
       queryClient.invalidateQueries({ queryKey: ["pdf-backfill-status"] });
     },
     onError: (e) => toast.error(`Failed: ${(e as Error).message}`),
@@ -1020,17 +1040,19 @@ function PdfBackfillCard() {
 
   const bf = data?.backfill as Record<string, unknown> | null;
   const status = (bf?.status as string) ?? "idle";
-  const total = (bf?.total as number) ?? 0;
-  const processed = (bf?.live_processed as number) ?? (bf?.processed as number) ?? 0;
+  const total = numberValue(bf?.live_total, numberValue(bf?.total));
+  const storedProcessed = numberValue(bf?.processed);
+  const liveProcessed = numberValue(bf?.live_processed, storedProcessed);
+  const remaining = numberValue(data?.remaining_count, numberValue(bf?.remaining, Math.max(0, total - Math.max(storedProcessed, liveProcessed))));
+  const processed = status === "completed" && total > 0 && remaining === 0
+    ? Math.max(total, storedProcessed, liveProcessed)
+    : Math.max(storedProcessed, liveProcessed);
   const currentFile = bf?.live_current_file as string | null;
   const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
   const startedAt = bf?.started_at ? new Date(bf.started_at as string).getTime() : null;
-  const elapsedSec = startedAt ? Math.floor((nowMs - startedAt) / 1000) : 0;
-  const elapsedStr = elapsedSec < 60
-    ? `${elapsedSec}s`
-    : elapsedSec < 3600
-      ? `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`
-      : `${Math.floor(elapsedSec / 3600)}h ${Math.floor((elapsedSec % 3600) / 60)}m`;
+  const completedAt = bf?.completed_at ? new Date(bf.completed_at as string).getTime() : null;
+  const elapsedMs = startedAt ? Math.max(0, (completedAt ?? nowMs) - startedAt) : 0;
+  const elapsedStr = formatDurationMs(elapsedMs);
 
   // Estimated time remaining
   const etaStr = (() => {
@@ -1046,13 +1068,14 @@ function PdfBackfillCard() {
   // Health of the designated processor + stall detection. The primary "stalled" signal is
   // a running job whose live progress timestamp has gone stale — this is processor-agnostic
   // and is exactly what was missing when the agent crash-looped (0 progress, looked "idle").
-  const agent = data?.agent as { agent_name: string; online: boolean; seconds_ago: number | null } | null;
+  const agent = data?.agent as { agent_name: string; online: boolean; seconds_ago: number | null; last_heartbeat?: string } | null;
   const stats = (bf?.stats as Record<string, number>) ?? {};
   const filesUsedAdded = (bf?.files_used_added as number) ?? 0;
   const liveUpdatedAt = bf?.live_updated_at ? new Date(bf.live_updated_at as string).getTime() : null;
   const staleMs = liveUpdatedAt ? nowMs - liveUpdatedAt : startedAt ? nowMs - startedAt : 0;
   const stalled = status === "running" && staleMs > 120_000; // no progress for >2 min
   const staleMin = Math.floor(staleMs / 60000);
+  const noWorkQueued = status === "completed" && total === 0;
 
   const STAT_LABELS: Record<string, string> = {
     pdf_text: "Embedded text",
@@ -1117,6 +1140,42 @@ function PdfBackfillCard() {
         <p className="text-xs text-muted-foreground">
           Reads every PDF and .ai file in the library and extracts embedded text. This is what populates the <strong className="text-foreground font-medium">Files Used</strong> list in each group's detail panel (parsed from tech pack "Files Used" sections) and gives the AI tagger the full tech pack text when re-tagging. Run this whenever new PDFs have been scanned but their tech pack content isn't showing up yet. Runs on the Windows render agent and can be paused and resumed.
         </p>
+        {bf && (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-md border bg-muted/25 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Queued</div>
+              <div className="mt-0.5 text-sm font-semibold tabular-nums">{total.toLocaleString()} files</div>
+            </div>
+            <div className="rounded-md border bg-muted/25 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Processed</div>
+              <div className="mt-0.5 text-sm font-semibold tabular-nums">{processed.toLocaleString()} files</div>
+            </div>
+            <div className="rounded-md border bg-muted/25 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Remaining</div>
+              <div className="mt-0.5 text-sm font-semibold tabular-nums">{remaining.toLocaleString()} files</div>
+            </div>
+            <div className="rounded-md border bg-muted/25 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Agent</div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-sm font-medium">
+                <span className={`h-2 w-2 rounded-full ${agent?.online ? "bg-green-500" : "bg-red-500"}`} />
+                <span className="truncate" title={agent?.agent_name ?? "No Windows render agent"}>
+                  {agent?.agent_name ?? "No Windows agent"}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+        {bf && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>Started: <span className="text-foreground">{formatDateTime(bf.started_at)}</span></span>
+            {(status === "completed" || status === "error") && (
+              <span>Finished: <span className="text-foreground">{formatDateTime(bf.completed_at ?? bf.last_batch_at)}</span></span>
+            )}
+            {bf.last_batch_at && <span>Last batch: <span className="text-foreground">{formatDateTime(bf.last_batch_at)}</span></span>}
+            {bf.live_updated_at && <span>Last progress: <span className="text-foreground">{formatDateTime(bf.live_updated_at)}</span></span>}
+            {agent?.last_heartbeat && <span>Agent heartbeat: <span className="text-foreground">{formatDateTime(agent.last_heartbeat)}</span></span>}
+          </div>
+        )}
         {bf && status !== "idle" && (
           <>
             <div className="space-y-1">
@@ -1162,16 +1221,21 @@ function PdfBackfillCard() {
           <div className="rounded-md border border-green-300 bg-green-50 p-2.5 text-xs text-green-900">
             <p className="flex items-center gap-1.5 font-medium">
               <CheckCircle2 className="h-4 w-4" />
-              Completed — {processed.toLocaleString()} files in {elapsedStr}.
+              {noWorkQueued
+                ? "Completed — no eligible PDF or .ai files were waiting for text extraction."
+                : `Completed — ${processed.toLocaleString()} files in ${elapsedStr}.`}
             </p>
-            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-green-800">
-              {Object.entries(stats)
-                .sort((a, b) => b[1] - a[1])
-                .map(([k, v]) => (
-                  <span key={k}>{STAT_LABELS[k] ?? k}: <strong>{v.toLocaleString()}</strong></span>
-                ))}
-              <span>Files-used added: <strong>{filesUsedAdded.toLocaleString()}</strong></span>
-            </div>
+            {!noWorkQueued && (
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-green-800">
+                {Object.entries(stats)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([k, v]) => (
+                    <span key={k}>{STAT_LABELS[k] ?? k}: <strong>{v.toLocaleString()}</strong></span>
+                  ))}
+                {Object.keys(stats).length === 0 && <span>No method stats were reported by the agent.</span>}
+                <span>Files-used added: <strong>{filesUsedAdded.toLocaleString()}</strong></span>
+              </div>
+            )}
           </div>
         )}
 

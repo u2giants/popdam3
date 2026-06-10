@@ -905,14 +905,17 @@ async function handleTriggerPdfBackfill() {
   const { data: remainingCount } = await db.rpc("count_pdf_backfill_remaining");
   const remaining = (remainingCount as number) ?? 0;
   const nowIso = new Date().toISOString();
+  const initialStatus = remaining > 0 ? "running" : "completed";
 
   await db.from("admin_config").upsert({
     key: "PDF_BACKFILL",
     value: {
-      status: "running",
+      status: initialStatus,
       started_at: nowIso,
+      completed_at: remaining > 0 ? null : nowIso,
       total: remaining,
       processed: 0,
+      remaining,
       last_batch_at: null,
       claimed_by_agent_id: null,
       claimed_by_agent_name: null,
@@ -954,7 +957,7 @@ async function handleResumePdfBackfill() {
 
 async function handleGetPdfBackfillStatus() {
   const db = serviceClient();
-  const [{ data: row }, { data: agents }] = await Promise.all([
+  const [{ data: row }, { data: agents }, { data: remainingCount }] = await Promise.all([
     db.from("admin_config")
       .select("value, updated_at").eq("key", "PDF_BACKFILL").maybeSingle(),
     // Health of the agent that runs the backfill (windows-render after the offload).
@@ -962,6 +965,7 @@ async function handleGetPdfBackfillStatus() {
       .select("agent_name, agent_type, last_heartbeat")
       .eq("agent_type", "windows-render")
       .order("last_heartbeat", { ascending: false }),
+    db.rpc("count_pdf_backfill_remaining"),
   ]);
 
   const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 min
@@ -978,7 +982,32 @@ async function handleGetPdfBackfillStatus() {
     }
     : null;
 
-  return json({ backfill: row?.value ?? null, agent });
+  let backfill = (row?.value as Record<string, unknown> | null) ?? null;
+  const remaining = (remainingCount as number) ?? null;
+
+  // If an agent drained the queue but exited before the final status write (or the original
+  // total was stale), normalize it here so the UI shows a terminal result instead of a
+  // forever-running/no-details state.
+  if (backfill?.status === "running" && remaining === 0) {
+    const nowIso = new Date().toISOString();
+    backfill = {
+      ...backfill,
+      status: "completed",
+      completed_at: backfill.completed_at ?? nowIso,
+      remaining: 0,
+      live_current_file: null,
+      live_current_step: "completed",
+    };
+    await db.from("admin_config").upsert({
+      key: "PDF_BACKFILL",
+      value: backfill,
+      updated_at: nowIso,
+    });
+  } else if (backfill && remaining != null && backfill.remaining !== remaining) {
+    backfill = { ...backfill, remaining };
+  }
+
+  return json({ backfill, agent, remaining_count: remaining, updated_at: row?.updated_at ?? null });
 }
 
 // ── Route: trigger-pdf-text-sample ──────────────────────────────────

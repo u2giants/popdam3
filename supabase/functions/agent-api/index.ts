@@ -3067,6 +3067,12 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const total = (bf.total as number) ?? 0;
   const nowIso = new Date().toISOString();
 
+  // Count remaining after the inserts above, then use that as the authoritative
+  // completion signal. The initial total can become stale if files are sampled
+  // outside this job while it is running.
+  const { data: countRow2 } = await db.rpc("count_pdf_backfill_remaining");
+  const remaining = (countRow2 as number) ?? 0;
+
   // Accumulate per-method outcome tallies + files-used added for the UI summary.
   const stats: Record<string, number> = { ...((bf.stats as Record<string, number>) ?? {}) };
   for (const r of results) {
@@ -3080,17 +3086,16 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
     last_batch_at: nowIso,
     stats,
     files_used_added: ((bf.files_used_added as number) ?? 0) + filesUsedAdded,
+    remaining,
   };
-  if (newProcessed >= total && total > 0) {
+  if (remaining <= 0 || (newProcessed >= total && total > 0)) {
     newBf.status = "completed";
     newBf.completed_at = nowIso;
+    newBf.live_current_file = null;
+    newBf.live_current_step = "completed";
   }
 
   await db.from("admin_config").upsert({ key: "PDF_BACKFILL", value: newBf, updated_at: nowIso });
-
-  // 5. Count remaining
-  const { data: countRow2 } = await db.rpc("count_pdf_backfill_remaining");
-  const remaining = (countRow2 as number) ?? 0;
 
   console.log(`[complete-pdf-backfill-batch] committed ${results.length} results, remaining=${remaining}`);
   return json({ ok: true, remaining });
@@ -3117,6 +3122,7 @@ async function handlePdfBackfillProgress(body: Record<string, unknown>) {
       live_total: total,
       live_current_file: currentFile,
       live_current_step: currentStep,
+      live_remaining: Math.max(0, total - processed),
       live_updated_at: new Date().toISOString(),
     },
     updated_at: new Date().toISOString(),
