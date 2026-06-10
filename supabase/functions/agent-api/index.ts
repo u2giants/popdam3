@@ -2729,6 +2729,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   const totalFiles = body.total_files as number | undefined;
   const crawlError = body.error as string | undefined;
   const inaccessibleRoots = (body.inaccessible_roots as string[]) || [];
+  const finalFileCount = totalFiles ?? 0;
 
   if (!runId) return err("run_id is required");
 
@@ -2776,38 +2777,58 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
   }
 
   if (done) {
-    if (crawlError) {
+    const { data: runData } = await db
+      .from("style_guide_crawl_runs")
+      .select("roots_scanned")
+      .eq("id", runId)
+      .single();
+    const rootsScanned = (runData?.roots_scanned as string[] | null) || [];
+    const inaccessibleRootSet = new Set(inaccessibleRoots);
+    const accessibleRoots = rootsScanned.filter((root) =>
+      !inaccessibleRootSet.has(root)
+    );
+    const zeroFileCrawl = finalFileCount === 0;
+    const effectiveCrawlError = crawlError ||
+      (zeroFileCrawl
+        ? inaccessibleRoots.length > 0
+          ? `Style guide crawl found 0 files; inaccessible roots: ${
+            inaccessibleRoots.join(", ")
+          }`
+          : "Style guide crawl found 0 files; stale cleanup skipped"
+        : undefined);
+
+    if (effectiveCrawlError) {
       await db.from("style_guide_crawl_runs").update({
         status: "failed",
-        error_message: crawlError,
+        error_message: effectiveCrawlError,
         completed_at: new Date().toISOString(),
-        files_found: totalFiles ?? 0,
+        files_found: finalFileCount,
         ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
       }).eq("id", runId);
 
       await db.from("admin_config").upsert({
         key: "STYLE_GUIDE_CRAWL_REQUEST",
-        value: { status: "failed", error: crawlError, completed_at: new Date().toISOString(), inaccessible_roots: inaccessibleRoots },
+        value: {
+          status: "failed",
+          error: effectiveCrawlError,
+          completed_at: new Date().toISOString(),
+          files_found: finalFileCount,
+          inaccessible_roots: inaccessibleRoots,
+        },
         updated_at: new Date().toISOString(),
       });
     } else {
       await db.from("style_guide_crawl_runs").update({
         status: "completed",
         completed_at: new Date().toISOString(),
-        files_found: totalFiles ?? 0,
+        files_found: finalFileCount,
         ...(inaccessibleRoots.length ? { inaccessible_roots: inaccessibleRoots } : {}),
       }).eq("id", runId);
 
       // Mark stale files via DB function (RPC is reliable; PostgREST PATCH with .neq()
       // on UUID columns fails silently and leaves ghost rows active).
-      const { data: runData } = await db
-        .from("style_guide_crawl_runs")
-        .select("roots_scanned")
-        .eq("id", runId)
-        .single();
-
-      if (runData?.roots_scanned) {
-        for (const root of runData.roots_scanned) {
+      if (accessibleRoots.length > 0) {
+        for (const root of accessibleRoots) {
           const rootLabel = root.split("/").filter(Boolean).pop() || root;
           const { data: deactivated, error: deactivateErr } = await db
             .rpc("deactivate_stale_sg_files", { p_root_label: rootLabel, p_run_id: runId });
@@ -2821,11 +2842,20 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
 
       await db.from("admin_config").upsert({
         key: "STYLE_GUIDE_CRAWL_REQUEST",
-        value: { status: "completed", completed_at: new Date().toISOString(), files_found: totalFiles, inaccessible_roots: inaccessibleRoots },
+        value: {
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          files_found: finalFileCount,
+          inaccessible_roots: inaccessibleRoots,
+        },
         updated_at: new Date().toISOString(),
       });
     }
-    console.log(`[complete-style-guide-crawl] Run ${runId} done=${done}, files=${totalFiles}, error=${crawlError || "none"}`);
+    console.log(
+      `[complete-style-guide-crawl] Run ${runId} done=${done}, files=${finalFileCount}, error=${
+        effectiveCrawlError || "none"
+      }`,
+    );
   }
 
   return json({ ok: true });
