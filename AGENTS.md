@@ -402,7 +402,8 @@ server                  # untracked symlink into the Coolify deploy dir — not 
 | `SUPABASE_ACCESS_TOKEN` | CI → Supabase CLI | GitHub secret | No | Yes |
 | `EXTERNAL_SUPABASE_PROJECT_ID` | CI → Supabase CLI | GitHub secret | No | Yes |
 | `EXTERNAL_SUPABASE_DB_PASSWORD` | CI → Supabase CLI | GitHub secret | No | Yes |
-| `GHCR_PAT` | Bridge agent CI → GHCR push | GitHub secret | No | Yes |
+| `GHCR_PAT` | GHCR push fallback (frontend) + bridge agent CI | GitHub secret | No | Yes |
+| `GHCR_USERNAME` | Optional username for `GHCR_PAT` owner | GitHub secret | No | No |
 | `COOLIFY_TOKEN` | CI → Coolify deploy API | GitHub secret | No | Yes |
 | `COOLIFY_APP_UUID` | CI → Coolify deploy API | GitHub secret | No | Yes |
 | `COOLIFY_URL` | CI → Coolify deploy API | GitHub secret | No | Yes |
@@ -421,8 +422,9 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 **Workflow:** `.github/workflows/publish-frontend.yml`
 **Triggers:** push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `nginx.conf`, `.github/workflows/publish-frontend.yml`; also `workflow_dispatch` for manual redeploys.
-**Steps:** `verify` job (`npm ci` + `npm run lint`) → `build-and-push` (`needs: verify`): npm ci → vite build → GHCR login with the workflow's implicit `GITHUB_TOKEN` (`packages: write`, no `GHCR_PAT`) → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container. The deploy is gated on `verify` via a native `needs` dependency (a lint failure blocks publish + deploy). `ci.yml` (bun lint/test/build) is the broad repo CI and runs in parallel; it is **not** the deploy gate.
-**Stale-site check:** if the live header shows an old commit, check the latest `Publish Frontend Image` run first. If it failed before "Push image to GHCR" or "Deploy via Coolify", Coolify will keep running the previous successful image (for example, `8c0508d` was live because later runs failed at GHCR login).
+**Steps:** `verify` job (`npm ci` + `npm run lint`) → `build-and-push` (`needs: verify`): npm ci → vite build → GHCR login with `GHCR_PAT` if present, otherwise the workflow `GITHUB_TOKEN` (`packages: write`) → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container. The deploy is gated on `verify` via a native `needs` dependency (a lint failure blocks publish + deploy). `ci.yml` (bun lint/test/build) is the broad repo CI and runs in parallel; it is **not** the deploy gate.
+**GHCR package access:** the existing `ghcr.io/u2giants/popdam-frontend` package must grant `u2giants/popdam3` **Write** under package Settings → Manage Actions access, or `GHCR_PAT` must be a classic PAT with `write:packages` owned by a package admin. If neither is true, the workflow can log in but `docker push` fails with `permission_denied: write_package`.
+**Stale-site check:** if the live header shows an old commit, check the latest `Publish Frontend Image` run first. If it failed before "Push image to GHCR" or "Deploy via Coolify", Coolify will keep running the previous successful image (for example, `8c0508d` stayed live because later runs failed before a newer GHCR `:latest` image was published).
 **Rollback:** In Coolify UI, select an older deployment and redeploy. The `:<sha>` tag is the immutable rollback target.
 
 ### Supabase (DB migrations + edge functions)

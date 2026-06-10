@@ -30,11 +30,13 @@ These are optional; omitting them leaves the version display blank in the header
 
 | Secret | Value | Purpose |
 |--------|-------|---------|
+| `GHCR_PAT` | Optional classic PAT (`write:packages`) owned by a package admin | Fallback for pushing Docker image to GHCR if package Actions access is not granted |
+| `GHCR_USERNAME` | Optional GitHub username for `GHCR_PAT` owner | Required only if `GHCR_PAT` belongs to an account other than `u2giants` |
 | `COOLIFY_TOKEN` | Coolify API token (deploy permission) | Trigger Coolify deployment |
 | `COOLIFY_APP_UUID` | `qxj8a0j3tpa9lq4q5rs6pezy` | Coolify app identifier |
 | `COOLIFY_URL` | `https://coolify.designflow.app` | Coolify API base URL |
 
-Frontend GHCR pushes use the workflow's implicit `GITHUB_TOKEN` with `packages: write`; do not add a frontend `GHCR_PAT` dependency. On 2026-06-10, an expired/missing `GHCR_PAT` dependency left production stuck on commit `8c0508d` because no newer `:latest` image reached GHCR.
+Frontend GHCR pushes prefer `GHCR_PAT` when present and otherwise use the workflow's implicit `GITHUB_TOKEN` with `packages: write`. For `GITHUB_TOKEN` to push the existing `ghcr.io/u2giants/popdam-frontend` package, the package settings must grant repository `u2giants/popdam3` **Write** under "Manage Actions access." Without that package permission or a valid `GHCR_PAT`, `docker push` fails with `permission_denied: write_package`; on 2026-06-10 this left production stuck on commit `8c0508d` because no newer `:latest` image reached GHCR.
 
 ### Supabase deploy (deploy-supabase.yml)
 
