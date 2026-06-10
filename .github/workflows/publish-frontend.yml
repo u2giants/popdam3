@@ -71,10 +71,7 @@ jobs:
           APP_DATE: ${{ steps.meta.outputs.date }}
 
       - name: Log in to GHCR
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_PAT || github.token }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build Docker image
         run: |
@@ -85,21 +82,36 @@ jobs:
 
       - name: Push image to GHCR
         run: |
-          set +e
-          docker push ghcr.io/u2giants/popdam-frontend:latest
-          latest_status=$?
-          if [ "$latest_status" -eq 0 ]; then
+          push_images() {
+            docker push ghcr.io/u2giants/popdam-frontend:latest &&
             docker push ghcr.io/u2giants/popdam-frontend:${{ steps.meta.outputs.commit }}
-            sha_status=$?
-          else
-            sha_status=0
+          }
+
+          set +e
+          push_images
+          push_status=$?
+
+          if [ "$push_status" -ne 0 ] && [ -n "$GHCR_PAT" ]; then
+            echo "GITHUB_TOKEN push failed; retrying with GHCR_PAT..."
+            docker logout ghcr.io >/dev/null 2>&1 || true
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            login_status=$?
+            if [ "$login_status" -eq 0 ]; then
+              push_images
+              push_status=$?
+            else
+              push_status=$login_status
+            fi
           fi
           set -e
 
-          if [ "$latest_status" -ne 0 ] || [ "$sha_status" -ne 0 ]; then
+          if [ "$push_status" -ne 0 ]; then
             echo "::error title=GHCR package write denied::Could not push ghcr.io/u2giants/popdam-frontend. Grant repository u2giants/popdam3 Write access under the package's Manage Actions access settings, or set GHCR_PAT to a classic PAT with write:packages owned by a package admin."
             exit 1
           fi
+        env:
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.repository_owner }}
 
       - name: Deploy via Coolify
         run: |

@@ -36,7 +36,7 @@ These are optional; omitting them leaves the version display blank in the header
 | `COOLIFY_APP_UUID` | `qxj8a0j3tpa9lq4q5rs6pezy` | Coolify app identifier |
 | `COOLIFY_URL` | `https://coolify.designflow.app` | Coolify API base URL |
 
-Frontend GHCR pushes prefer `GHCR_PAT` when present and otherwise use the workflow's implicit `GITHUB_TOKEN` with `packages: write`. For `GITHUB_TOKEN` to push the existing `ghcr.io/u2giants/popdam-frontend` package, the package settings must grant repository `u2giants/popdam3` **Write** under "Manage Actions access." Without that package permission or a valid `GHCR_PAT`, `docker push` fails with `permission_denied: write_package`; on 2026-06-10 this left production stuck on commit `8c0508d` because no newer `:latest` image reached GHCR.
+Frontend GHCR pushes try the workflow's implicit `GITHUB_TOKEN` first (`packages: write`), then retry with `GHCR_PAT` if the push fails and the secret is configured. For `GITHUB_TOKEN` to push the existing `ghcr.io/u2giants/popdam-frontend` package, the package settings must grant repository `u2giants/popdam3` **Write** under "Manage Actions access." Without that package permission or a valid `GHCR_PAT`, `docker push` fails with `permission_denied: write_package`; on 2026-06-10 this left production stuck on commit `8c0508d` because no newer `:latest` image reached GHCR.
 
 ### Supabase deploy (deploy-supabase.yml)
 
