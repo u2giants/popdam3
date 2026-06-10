@@ -688,6 +688,7 @@ async function handleGetLatestAgentBuild(body: Record<string, unknown>) {
     return json({
       ok: true,
       latest_version: "0.0.0",
+      sha: null,
       download_url: agentType === "bridge"
         ? `${repoBase}/latest/download/popdam-bridge-agent.tar.gz`
         : `${repoBase}/latest/download/popdam-windows-agent-dist.zip`,
@@ -701,6 +702,9 @@ async function handleGetLatestAgentBuild(body: Record<string, unknown>) {
   return json({
     ok: true,
     latest_version: val.version || "0.0.0",
+    // The git sha of the published build — the immutable identity the UI compares
+    // the agent's running build_sha against to detect drift (version strings lie).
+    sha: val.sha || null,
     download_url: val.download_url || "",
     checksum_sha256: val.checksum_sha256 || "",
     release_notes: val.release_notes || "",

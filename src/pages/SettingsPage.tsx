@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2, Eye, Users, Search, X } from "lucide-react";
+import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Check, Trash2, MapPin, BarChart3, Play, StopCircle, RotateCcw, Download, Loader2, CheckCircle2, AlertTriangle, Eye, Users, Search, X } from "lucide-react";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -319,6 +319,22 @@ function AgentStatusSection() {
               const latestPublishedAt = buildData?.published_at as string | null;
               const updateAvailable = latestVersion && currentVersion && latestVersion !== "0.0.0" && latestVersion !== currentVersion;
 
+              // ── Build-identity drift detection ───────────────────────────────
+              // The version string is human-edited and can match the latest while
+              // the agent is actually running a different (older) image — exactly
+              // what happened when a botched self-update left a stale container.
+              // build_sha is baked per image build and can't lie, so compare that.
+              const currentSha = (vi?.build_sha as string | null) || null;
+              const latestSha = (buildData?.sha as string | null) || null;
+              const haveShas = !!(currentSha && latestSha);
+              const buildMatches = haveShas && currentSha === latestSha;
+              // Drift = claims to be current (no newer version published) but the
+              // running build is NOT the published build. The dangerous case.
+              const buildDrift = haveShas && !buildMatches && !updateAvailable;
+              // Truly up to date = running the published build (sha-based when we
+              // have shas; otherwise fall back to the version-string comparison).
+              const upToDate = haveShas ? buildMatches : (!!currentVersion && !updateAvailable);
+
               return (
                 <div key={agent.id as string} className="border border-border rounded-md p-3 space-y-2">
                   <div className="flex items-center justify-between">
@@ -376,11 +392,23 @@ function AgentStatusSection() {
                             published {new Date(latestPublishedAt).toLocaleString()}
                           </span>
                         )}
-                        {!updateAvailable && currentVersion && (
+                        {upToDate && !buildDrift && (
                           <span className="text-[hsl(var(--success))] flex items-center gap-1 font-medium">
                             <CheckCircle2 className="h-3.5 w-3.5" /> Up to date
                           </span>
                         )}
+                      </div>
+                    )}
+                    {buildDrift && (
+                      <div className="text-destructive flex items-start gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2 font-medium">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                        <span>
+                          Build mismatch — reports v{currentVersion} but is running{" "}
+                          <span className="font-mono">sha:{currentSha!.slice(0, 7)}</span>, not the published{" "}
+                          <span className="font-mono">sha:{latestSha!.slice(0, 7)}</span>. The update did not take.
+                          Re-run the update, or on the NAS:{" "}
+                          <span className="font-mono">docker rm -f popdam-bridge &amp;&amp; docker compose up -d</span>.
+                        </span>
                       </div>
                     )}
                     {isUpdating && (
