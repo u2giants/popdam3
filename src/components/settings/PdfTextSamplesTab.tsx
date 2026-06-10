@@ -994,7 +994,7 @@ function PdfBackfillCard() {
     mutationFn: () => call("trigger-pdf-backfill"),
     onSuccess: (res) => {
       const r = res as Record<string, unknown>;
-      toast.success(`Backfill started — ${(r.total as number).toLocaleString()} PDFs queued`);
+      toast.success(`Backfill started — ${(r.total as number).toLocaleString()} files queued`);
       queryClient.invalidateQueries({ queryKey: ["pdf-backfill-status"] });
     },
     onError: (e) => toast.error(`Failed: ${(e as Error).message}`),
@@ -1042,6 +1042,27 @@ function PdfBackfillCard() {
     if (remainSec < 3600) return `~${Math.floor(remainSec / 60)}m`;
     return `~${Math.floor(remainSec / 3600)}h ${Math.floor((remainSec % 3600) / 60)}m`;
   })();
+
+  // Health of the designated processor + stall detection. The primary "stalled" signal is
+  // a running job whose live progress timestamp has gone stale — this is processor-agnostic
+  // and is exactly what was missing when the agent crash-looped (0 progress, looked "idle").
+  const agent = data?.agent as { agent_name: string; online: boolean; seconds_ago: number | null } | null;
+  const stats = (bf?.stats as Record<string, number>) ?? {};
+  const filesUsedAdded = (bf?.files_used_added as number) ?? 0;
+  const liveUpdatedAt = bf?.live_updated_at ? new Date(bf.live_updated_at as string).getTime() : null;
+  const staleMs = liveUpdatedAt ? nowMs - liveUpdatedAt : startedAt ? nowMs - startedAt : 0;
+  const stalled = status === "running" && staleMs > 120_000; // no progress for >2 min
+  const staleMin = Math.floor(staleMs / 60000);
+
+  const STAT_LABELS: Record<string, string> = {
+    pdf_text: "Embedded text",
+    ocr_text: "OCR",
+    ai_vision: "AI vision",
+    likely_scanned: "Scanned (no text)",
+    pending_ocr: "Queued for OCR",
+    skipped: "Skipped",
+    failed: "Failed",
+  };
 
   const statusBadge = (() => {
     switch (status) {
@@ -1094,7 +1115,7 @@ function PdfBackfillCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Reads every PDF and .ai file in the library and extracts embedded text. This is what populates the <strong className="text-foreground font-medium">Files Used</strong> list in each group's detail panel (parsed from tech pack "Files Used" sections) and gives the AI tagger the full tech pack text when re-tagging. Run this whenever new PDFs have been scanned but their tech pack content isn't showing up yet. Runs on the Bridge Agent and can be paused and resumed.
+          Reads every PDF and .ai file in the library and extracts embedded text. This is what populates the <strong className="text-foreground font-medium">Files Used</strong> list in each group's detail panel (parsed from tech pack "Files Used" sections) and gives the AI tagger the full tech pack text when re-tagging. Run this whenever new PDFs have been scanned but their tech pack content isn't showing up yet. Runs on the Windows render agent and can be paused and resumed.
         </p>
         {bf && status !== "idle" && (
           <>
@@ -1108,12 +1129,61 @@ function PdfBackfillCard() {
               </div>
               <Progress value={percent} className="h-2" />
             </div>
-            {status === "running" && currentFile && (
+            {status === "running" && currentFile && !stalled && (
               <p className="text-xs text-muted-foreground truncate" title={currentFile}>
                 Processing: <span className="font-mono">{currentFile}</span>
               </p>
             )}
+
+            {/* Stall / processor-down warning — the signal that was missing when the agent crash-looped */}
+            {stalled && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-900">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">
+                    Stalled — no progress for {staleMin >= 1 ? `${staleMin} min` : "over 2 min"}.
+                  </p>
+                  <p className="mt-0.5 text-amber-800">
+                    The render agent may be offline or crash-looping.{" "}
+                    {agent
+                      ? agent.online
+                        ? "Agent is heartbeating but not advancing the job."
+                        : `Agent appears offline${agent.seconds_ago != null ? ` (last heartbeat ${Math.round(agent.seconds_ago / 60)}m ago)` : ""}.`
+                      : "No render agent is registered."}
+                  </p>
+                </div>
+              </div>
+            )}
           </>
+        )}
+
+        {/* Completion summary with per-method outcome breakdown */}
+        {status === "completed" && bf && (
+          <div className="rounded-md border border-green-300 bg-green-50 p-2.5 text-xs text-green-900">
+            <p className="flex items-center gap-1.5 font-medium">
+              <CheckCircle2 className="h-4 w-4" />
+              Completed — {processed.toLocaleString()} files in {elapsedStr}.
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-green-800">
+              {Object.entries(stats)
+                .sort((a, b) => b[1] - a[1])
+                .map(([k, v]) => (
+                  <span key={k}>{STAT_LABELS[k] ?? k}: <strong>{v.toLocaleString()}</strong></span>
+                ))}
+              <span>Files-used added: <strong>{filesUsedAdded.toLocaleString()}</strong></span>
+            </div>
+          </div>
+        )}
+
+        {/* Error banner */}
+        {status === "error" && bf && (
+          <div className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-2.5 text-xs text-red-900">
+            <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">Backfill error</p>
+              {bf.error ? <p className="mt-0.5 font-mono break-all">{String(bf.error)}</p> : null}
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>
