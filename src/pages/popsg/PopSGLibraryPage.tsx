@@ -29,6 +29,7 @@ import {
   HardDrive,
   LayoutList,
   ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
@@ -343,6 +344,24 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   );
 }
 
+function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const message = error instanceof Error ? error.message : "Unable to load style guides.";
+
+  return (
+    <div className="mx-auto flex max-w-md flex-col items-center justify-center py-16 text-center">
+      <div className="mb-4 rounded-full bg-destructive/10 p-4 text-destructive">
+        <AlertCircle className="h-8 w-8" />
+      </div>
+      <h2 className="mb-2 text-base font-semibold text-foreground">Style guides could not load</h2>
+      <p className="mb-6 text-sm text-muted-foreground">{message}</p>
+      <Button variant="outline" size="sm" onClick={onRetry} className="gap-1.5">
+        <RefreshCw className="h-3.5 w-3.5" />
+        Retry
+      </Button>
+    </div>
+  );
+}
+
 // ── File card ─────────────────────────────────────────────────────────
 
 function FileCard({ file, onClick }: { file: StyleGuideFile; onClick: () => void }) {
@@ -414,7 +433,7 @@ export default function PopSGLibraryPage() {
   const crawlActive = crawlProgress.status === "queued" || crawlProgress.status === "running" || crawlTriggered;
 
   // Build folder tree using the style_guide_folders view (distinct licensor/property pairs)
-  const { data: tree = [] } = useQuery<TreeNode[]>({
+  const { data: tree = [], error: treeError, refetch: refetchTree } = useQuery<TreeNode[]>({
     queryKey: ["popsg", "tree"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -443,7 +462,7 @@ export default function PopSGLibraryPage() {
     [licensor, property, nameSearch, fileTypes, thumbStatus],
   );
 
-  const { data: results, isLoading, refetch, isFetching } = useQuery({
+  const { data: results, isLoading, refetch, isFetching, error: resultsError } = useQuery({
     queryKey: ["popsg", "files", filters, page, pageSize],
     queryFn: async () => {
       let q = supabase
@@ -483,6 +502,7 @@ export default function PopSGLibraryPage() {
     fileTypes.length > 0 ||
     thumbStatus !== "any";
   const hasAnyData = tree.length > 0;
+  const queryError = resultsError || treeError;
 
   const toggleFileType = (ext: string) => {
     setFileTypes((prev) => prev.includes(ext) ? prev.filter((t) => t !== ext) : [...prev, ext]);
@@ -688,7 +708,15 @@ export default function PopSGLibraryPage() {
 
         {/* Content area */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {isLoading ? (
+          {queryError ? (
+            <ErrorState
+              error={queryError}
+              onRetry={() => {
+                refetchTree();
+                refetch();
+              }}
+            />
+          ) : isLoading ? (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
               Loading…
             </div>
