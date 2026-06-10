@@ -14,8 +14,8 @@ import { autoUpdater } from "electron-updater";
 import { createTray, updateTrayIcon, showWindow } from "./tray";
 import { registerIpcHandlers } from "./ipc";
 import { registerProtocol } from "./protocol";
-import { initQueue, setProgressCallback, processQueue } from "./uploadQueue";
-import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress } from "./checkoutManager";
+import { initQueue, setProgressCallback, setVerifyingCallback, processQueue } from "./uploadQueue";
+import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, reconcileVerifyingCheckouts } from "./checkoutManager";
 import { heartbeat } from "./damClient";
 import { loadConfig, getConfig } from "./config";
 import { log } from "./logger";
@@ -73,6 +73,13 @@ app.whenReady().then(async () => {
     sendToRenderer("checkouts-changed");
     updateTrayIcon();
   });
+  // Seafile check-ins stay in 'verifying' after upload until the bridge agent
+  // confirms receipt on the Synology — keep them visible, don't mark complete.
+  setVerifyingCallback((checkoutId) => {
+    markVerifying(checkoutId);
+    sendToRenderer("checkouts-changed");
+    updateTrayIcon();
+  });
 
   // Resume any queued uploads from before restart
   processQueue();
@@ -93,6 +100,9 @@ app.whenReady().then(async () => {
     if (cfg.deviceId) {
       await heartbeat({ device_id: cfg.deviceId });
     }
+    // Pick up bridge-agent verification results: 'verifying' → complete (lock
+    // released) or flagged if the file never arrived intact before the deadline.
+    await reconcileVerifyingCheckouts();
   }, HEARTBEAT_INTERVAL_MS);
 
   // Auto-update check — silently checks GitHub for a newer release

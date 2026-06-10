@@ -503,6 +503,39 @@ export async function markAiIgnored(relativePath: string, reason: string): Promi
   }
 }
 
+// ── Check-in receipt verification ──────────────────────────────────
+
+export interface CheckinVerificationItem {
+  checkout_id: string;
+  relative_path: string | null;
+  filename: string | null;
+  expected_hash: string | null;
+  expected_size: number | null;
+  original_hash: string | null;
+  original_size: number | null;
+  verify_deadline_at: string | null;
+  verify_attempts: number;
+  already_flagged: boolean;
+  resolve_due: boolean;
+}
+
+export async function claimCheckinVerifications(limit = 25): Promise<CheckinVerificationItem[]> {
+  const data = await callApi("claim-checkin-verifications", { limit });
+  return (data.items as CheckinVerificationItem[]) ?? [];
+}
+
+export async function reportCheckinVerification(params: {
+  checkout_id: string;
+  outcome: "verified" | "not_ready" | "mismatch" | "resolved";
+  final_hash?: string;
+  final_size?: number;
+  detail?: string;
+  // For 'resolved' (terminal auto-resolve): what is at the master path now.
+  disk_state?: "matches_original" | "foreign" | "missing";
+}): Promise<void> {
+  await callApi("report-checkin-verification", params as unknown as Record<string, unknown>);
+}
+
 export interface AiSentinelScanResult {
   asset_id: string;
   filename: string;

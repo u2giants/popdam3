@@ -160,4 +160,8 @@ export interface UploadJob {
   addedAt: number; // Date.now()
   sourceProvider?: StorageProvider;
   seafileObjId?: string;
+  // Re-drive: re-uploading a stuck 'verifying' check-in from its snapshot. On
+  // success this reports to /redrive-complete instead of /complete-checkin and
+  // does not mark the checkout done — verification continues.
+  isRedrive?: boolean;
 }

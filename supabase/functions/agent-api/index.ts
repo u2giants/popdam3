@@ -3575,6 +3575,223 @@ async function handleCompleteCompatAudit(body: Record<string, unknown>) {
   return json({ ok: true });
 }
 
+// ── Check-in receipt verification (bridge agent confirms files landed) ──────
+//
+// Seafile-sourced check-ins are parked in 'verifying' by helper-api until the
+// bridge agent (running on the NYC Synology) confirms the fully-synced file
+// arrived intact. The agent claims pending verifications, quick-hashes the
+// on-disk file, and reports the outcome here. Stuck check-ins escalate:
+// flag + re-drive (helper re-uploads), then auto-resolve past the deadline.
+
+// If the gap since the last verification attempt exceeds this, the verifier is
+// assumed to have been offline and the deadlines are shifted forward by the gap
+// (clock freeze) — an agent/Synology outage must not burn a check-in's clock.
+const VERIFY_FREEZE_GAP_MS = 90 * 1000; // ~3 heartbeats
+// Max times the helper is asked to re-upload before we give up and auto-resolve.
+const VERIFY_MAX_REDRIVE = 2;
+
+async function handleClaimCheckinVerifications(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const limit = Math.min(Math.max(Number(body.limit) || 25, 1), 100);
+  const nowMs = Date.now();
+
+  const { data, error } = await db
+    .from("asset_checkouts")
+    .select(`
+      id, expected_quick_hash, checkin_size, source_hash, source_size,
+      verify_deadline_at, verify_resolve_at, verify_last_attempt_at, verify_attempts, verify_failed_at,
+      assets (relative_path, filename)
+    `)
+    .eq("status", "verifying")
+    .eq("source_provider", "seafile")
+    .order("verify_resolve_at", { ascending: true })
+    .limit(limit);
+
+  if (error) return err(`claim-checkin-verifications failed: ${error.message}`, 500);
+
+  const items = (data ?? []).map((c) => {
+    const asset = (c as Record<string, unknown>).assets as
+      | { relative_path?: string; filename?: string }
+      | null;
+    const lastAttempt = c.verify_last_attempt_at as string | null;
+    const resolveAt = c.verify_resolve_at as string | null;
+    // Only flag resolve as due when we're genuinely past T2 AND the verifier has
+    // been continuously active (no recent big gap). Right after downtime the next
+    // report will push the deadline forward, so we don't resolve prematurely.
+    const resolveDue =
+      resolveAt != null &&
+      nowMs > new Date(resolveAt).getTime() &&
+      lastAttempt != null &&
+      nowMs - new Date(lastAttempt).getTime() < VERIFY_FREEZE_GAP_MS;
+    return {
+      checkout_id: c.id as string,
+      relative_path: asset?.relative_path ?? null,
+      filename: asset?.filename ?? null,
+      // Quick-hash (head+tail+size) — the agent re-derives this from the on-disk
+      // file with a ~128KB read instead of hashing the whole file.
+      expected_hash: c.expected_quick_hash as string | null,
+      expected_size: c.checkin_size as number | null,
+      // The original master's quick-hash/size at checkout time — lets the agent
+      // tell, at resolve time, whether the original is still in place.
+      original_hash: c.source_hash as string | null,
+      original_size: c.source_size as number | null,
+      verify_deadline_at: c.verify_deadline_at as string | null,
+      verify_attempts: (c.verify_attempts as number | null) ?? 0,
+      already_flagged: c.verify_failed_at != null,
+      resolve_due: resolveDue,
+    };
+  });
+
+  return json({ ok: true, items });
+}
+
+async function handleReportCheckinVerification(body: Record<string, unknown>) {
+  const db = serviceClient();
+  const checkoutId = body.checkout_id as string | undefined;
+  const outcome = body.outcome as string | undefined; // verified | not_ready | mismatch | resolved
+  if (!checkoutId) return err("checkout_id required", 400);
+  if (!outcome || !["verified", "not_ready", "mismatch", "resolved"].includes(outcome)) {
+    return err("outcome must be one of: verified, not_ready, mismatch, resolved", 400);
+  }
+
+  const { data: checkout } = await db
+    .from("asset_checkouts")
+    .select("id, asset_id, status, verify_attempts, verify_deadline_at, verify_resolve_at, verify_last_attempt_at, verify_failed_at, redrive_count, redrive_requested")
+    .eq("id", checkoutId)
+    .maybeSingle();
+
+  if (!checkout) return err("Checkout not found", 404);
+  // Only act on checkouts still awaiting verification. If it already moved on
+  // (e.g. admin discarded it), this is a harmless no-op for the agent.
+  if (checkout.status !== "verifying") {
+    return json({ ok: true, checkout_id: checkoutId, status: checkout.status, noop: true });
+  }
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const nowMs = now.getTime();
+
+  // ── Clock freeze ──────────────────────────────────────────────────────────
+  // If the verifier was offline (large gap since last attempt), shift both
+  // deadlines forward by the gap so the outage doesn't consume the check-in's
+  // retry/resolve window.
+  let deadlineAt = checkout.verify_deadline_at as string | null;
+  let resolveAt = checkout.verify_resolve_at as string | null;
+  const lastAttempt = checkout.verify_last_attempt_at as string | null;
+  const deadlineShift: Record<string, unknown> = { verify_last_attempt_at: nowIso };
+  if (lastAttempt) {
+    const gap = nowMs - new Date(lastAttempt).getTime();
+    if (gap > VERIFY_FREEZE_GAP_MS) {
+      if (deadlineAt) {
+        deadlineAt = new Date(new Date(deadlineAt).getTime() + gap).toISOString();
+        deadlineShift.verify_deadline_at = deadlineAt;
+      }
+      if (resolveAt) {
+        resolveAt = new Date(new Date(resolveAt).getTime() + gap).toISOString();
+        deadlineShift.verify_resolve_at = resolveAt;
+      }
+    }
+  }
+
+  if (outcome === "verified") {
+    const finalHash = (body.final_hash as string | null) ?? null;
+    const finalSize = (body.final_size as number | null) ?? null;
+
+    await db.from("asset_checkouts").update({
+      ...deadlineShift,
+      status: "complete",
+      checked_in_at: nowIso,
+      verified_at: nowIso,
+      final_hash: finalHash,
+      final_size: finalSize,
+      verify_failed_at: null,
+      verify_error: null,
+      redrive_requested: false,
+      resolution: (checkout.redrive_count ?? 0) > 0 ? "verified_late" : "verified",
+      verify_attempts: (checkout.verify_attempts ?? 0) + 1,
+    }).eq("id", checkoutId);
+
+    // Now that the file is confirmed on disk, advance the asset's canonical state.
+    if (finalHash || finalSize) {
+      const assetUpdate: Record<string, unknown> = { updated_at: nowIso };
+      if (finalHash) assetUpdate.quick_hash = finalHash;
+      if (finalSize) assetUpdate.file_size = finalSize;
+      await db.from("assets").update(assetUpdate).eq("id", checkout.asset_id);
+    }
+
+    return json({ ok: true, checkout_id: checkoutId, status: "complete" });
+  }
+
+  // ── Terminal auto-resolve (past T2) ────────────────────────────────────────
+  // The agent only sends 'resolved' when claim told it resolve_due. It includes
+  // disk_state describing what is sitting at the master path. We release the lock
+  // into 'error' (outside the one-active-per-asset index) with diagnostics — the
+  // asset is freed and the designer's retained snapshot lets them re-check-in.
+  if (outcome === "resolved") {
+    const diskState = (body.disk_state as string | undefined) ?? "unknown";
+    const resolutionByState: Record<string, string> = {
+      matches_original: "unverified_released_original",
+      foreign: "unverified_released_foreign",
+      missing: "unverified_released_missing",
+    };
+    const messageByState: Record<string, string> = {
+      matches_original:
+        "Check-in could not be confirmed in time; the original file is still in place on the server. Your work is saved locally — please check in again.",
+      foreign:
+        "Check-in could not be confirmed in time; an unverified file is on the server. An admin has been notified. Your work is saved locally — please check in again.",
+      missing:
+        "Check-in could not be confirmed in time; the file never fully arrived. Your work is saved locally — please check in again.",
+    };
+    await db.from("asset_checkouts").update({
+      ...deadlineShift,
+      status: "error",
+      verify_failed_at: (checkout.verify_failed_at as string | null) ?? nowIso,
+      resolution: resolutionByState[diskState] ?? "unverified_released_unknown",
+      redrive_requested: false,
+      error_message: messageByState[diskState] ??
+        "Check-in could not be confirmed and the lock was released. Your work is saved locally — please check in again.",
+      verify_error: `auto-resolved: ${diskState}`,
+      verify_attempts: (checkout.verify_attempts ?? 0) + 1,
+    }).eq("id", checkoutId);
+
+    return json({ ok: true, checkout_id: checkoutId, status: "error", resolution: diskState });
+  }
+
+  // ── Still in progress: not_ready (not arrived / wrong size) or mismatch ─────
+  // Lock stays held in 'verifying'. Past T1 we flag it and, while re-drives
+  // remain, ask the helper to re-upload from its snapshot to self-heal.
+  const pastFlag = deadlineAt != null && nowMs > new Date(deadlineAt).getTime();
+  const detail = (body.detail as string | undefined)?.slice(0, 500) ??
+    (outcome === "mismatch" ? "On-disk hash did not match the uploaded file" : "File has not fully arrived on the Synology yet");
+
+  const update: Record<string, unknown> = {
+    ...deadlineShift,
+    verify_attempts: (checkout.verify_attempts ?? 0) + 1,
+    verify_error: detail,
+  };
+  let requestedRedrive = false;
+  if (pastFlag) {
+    update.verify_failed_at = (checkout.verify_failed_at as string | null) ?? nowIso;
+    if (
+      !checkout.redrive_requested &&
+      (checkout.redrive_count ?? 0) < VERIFY_MAX_REDRIVE
+    ) {
+      update.redrive_requested = true;
+      requestedRedrive = true;
+    }
+  }
+
+  await db.from("asset_checkouts").update(update).eq("id", checkoutId);
+
+  return json({
+    ok: true,
+    checkout_id: checkoutId,
+    status: "verifying",
+    flagged: pastFlag,
+    redrive_requested: requestedRedrive,
+  });
+}
+
 corsServe(async (req: Request) => {
   if (req.method !== "POST") {
     return err("Method not allowed", 405);
@@ -3746,6 +3963,10 @@ corsServe(async (req: Request) => {
       }
       case "complete-blank-thumb-cleanup":
         return handleCompleteBlankThumbCleanup(body);
+      case "claim-checkin-verifications":
+        return await handleClaimCheckinVerifications(body);
+      case "report-checkin-verification":
+        return await handleReportCheckinVerification(body);
       default:
         return err(`Unknown action: ${action}`, 404);
     }

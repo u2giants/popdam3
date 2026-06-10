@@ -20,6 +20,35 @@ import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Stuck-check-in lifecycle timing (Seafile only). Both deadlines are measured
+// from when the checkout entered 'verifying' but are pushed forward by the
+// agent whenever the verifier was offline, so an agent/Synology outage does not
+// burn the clock (see report-checkin-verification freeze logic).
+//   T1 (flag): surface to designer + admin and start re-driving the upload.
+//   T2 (resolve): if still unverified after re-drives, release the lock into an
+//                 'error' state with diagnostics — the asset is never tied up
+//                 indefinitely, and the designer's snapshot is preserved so they
+//                 can simply check in again.
+const VERIFY_FLAG_MS = 30 * 60 * 1000;        // T1: 30 minutes
+const VERIFY_RESOLVE_MS = 2 * 60 * 60 * 1000; // T2: 2 hours
+
+// Feature flag (admin_config). Ships OFF so the receipt-verification flow can be
+// deployed dark and activated only once the bridge agent that does the verifying
+// is confirmed live on the Synology — otherwise check-ins would park in
+// 'verifying' with nothing to confirm them. When off, Seafile check-ins complete
+// immediately, exactly as before.
+async function isCheckinVerificationEnabled(
+  db: ReturnType<typeof serviceClient>,
+): Promise<boolean> {
+  const { data } = await db
+    .from("admin_config")
+    .select("value")
+    .eq("key", "CHECKIN_VERIFICATION_ENABLED")
+    .maybeSingle();
+  const v = data?.value as unknown;
+  return v === true || v === "true" || (typeof v === "object" && v !== null && (v as { enabled?: boolean }).enabled === true);
+}
+
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
 async function getUserId(req: Request): Promise<string | null> {
@@ -372,6 +401,7 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
   const {
     checkout_id,
     final_hash,
+    final_quick_hash,
     final_size,
     upload_method,
     synology_upload_user,
@@ -396,6 +426,41 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
 
   const now = new Date().toISOString();
 
+  // Seafile-sourced check-ins take an extra hop to reach the NYC Synology, so the
+  // helper's HTTP upload returning does NOT prove the fully-synced file landed
+  // intact. Park them in 'verifying' (lock stays held — 'verifying' is in the
+  // one-active-per-asset index) until the bridge agent on the Synology confirms
+  // receipt. The helper's post-upload full hash/size become the EXPECTED values
+  // the agent will match against; the asset's quick_hash is NOT updated until the
+  // file is confirmed. Synology direct uploads complete immediately as before.
+  if (source_provider === "seafile" && await isCheckinVerificationEnabled(db)) {
+    const nowMs = Date.now();
+    await db.from("asset_checkouts").update({
+      status: "verifying",
+      checkin_hash: final_hash ?? null,            // full content hash (forensic record)
+      expected_quick_hash: final_quick_hash ?? null, // what the bridge agent verifies against
+      checkin_size: final_size ?? null,
+      upload_method: upload_method ?? null,
+      synology_upload_user: synology_upload_user ?? null,
+      source_provider,
+      source_version: source_version ?? null,
+      verify_attempts: 0,
+      verify_deadline_at: new Date(nowMs + VERIFY_FLAG_MS).toISOString(),
+      verify_resolve_at: new Date(nowMs + VERIFY_RESOLVE_MS).toISOString(),
+      verify_last_attempt_at: null,
+      verify_failed_at: null,
+      verify_error: null,
+      verified_at: null,
+      final_hash: null,
+      final_size: null,
+      redrive_count: 0,
+      redrive_requested: false,
+      resolution: null,
+    }).eq("id", checkout_id);
+
+    return json({ ok: true, checkout_id, status: "verifying" });
+  }
+
   // Update checkout to complete
   await db.from("asset_checkouts").update({
     status: "complete",
@@ -415,6 +480,95 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
     if (final_size) assetUpdate.file_size = final_size;
     await db.from("assets").update(assetUpdate).eq("id", checkout.asset_id);
   }
+
+  return json({ ok: true, checkout_id, status: "complete" });
+}
+
+// Re-drive: the server asked the helper to re-upload a stuck check-in from its
+// retained snapshot. Returns fresh Synology upload instructions (allowed while
+// 'verifying', unlike prepare-checkin) and clears the request flag so it isn't
+// double-driven. Deadlines are intentionally NOT reset — re-drive gives the file
+// a fresh chance to land without extending the overall resolve ceiling.
+async function handleRedrive(req: Request): Promise<Response> {
+  const userId = await getUserId(req);
+  if (!userId) return err("Unauthorized", 401);
+
+  const body = await req.json();
+  const { checkout_id } = body;
+  if (!checkout_id) return err("checkout_id required");
+
+  const db = serviceClient();
+
+  const { data: checkout } = await db
+    .from("asset_checkouts")
+    .select("id, status, assets(relative_path, filename)")
+    .eq("id", checkout_id)
+    .eq("user_id", userId)
+    .single();
+
+  if (!checkout) return err("Checkout not found", 404);
+  if (checkout.status !== "verifying") {
+    return err(`Checkout is in status '${checkout.status}', cannot re-drive`);
+  }
+
+  await db.from("asset_checkouts")
+    .update({ redrive_requested: false })
+    .eq("id", checkout_id);
+
+  const { data: cfgRows } = await db
+    .from("admin_config")
+    .select("key, value")
+    .in("key", ["HELPER_SYNOLOGY_URL", "HELPER_SYNOLOGY_PORT"]);
+  const cfg: Record<string, string> = {};
+  for (const r of cfgRows ?? []) cfg[r.key] = r.value;
+
+  const asset = (checkout as any).assets;
+
+  return json({
+    ok: true,
+    checkout_id,
+    upload_instructions: {
+      method: "synology_file_station",
+      synology_url: cfg["HELPER_SYNOLOGY_URL"] ?? null,
+      synology_port: cfg["HELPER_SYNOLOGY_PORT"] ?? "5001",
+      relative_path: asset.relative_path,
+      filename: asset.filename,
+      temp_suffix: `.__pop_uploading_${checkout_id.slice(0, 8)}.tmp`,
+    },
+  });
+}
+
+// The helper finished re-uploading the snapshot. Count the re-drive and clear the
+// flagged state so verification gets a clean shot at the freshly-pushed file.
+// Deadlines are left as-is.
+async function handleRedriveComplete(req: Request): Promise<Response> {
+  const userId = await getUserId(req);
+  if (!userId) return err("Unauthorized", 401);
+
+  const body = await req.json();
+  const { checkout_id } = body;
+  if (!checkout_id) return err("checkout_id required");
+
+  const db = serviceClient();
+
+  const { data: checkout } = await db
+    .from("asset_checkouts")
+    .select("id, status, redrive_count")
+    .eq("id", checkout_id)
+    .eq("user_id", userId)
+    .single();
+
+  if (!checkout) return err("Checkout not found", 404);
+  if (checkout.status !== "verifying") {
+    return json({ ok: true, checkout_id, status: checkout.status, noop: true });
+  }
+
+  await db.from("asset_checkouts").update({
+    redrive_count: (checkout.redrive_count ?? 0) + 1,
+    redrive_requested: false,
+    verify_failed_at: null,
+    verify_error: null,
+  }).eq("id", checkout_id);
 
   return json({ ok: true, checkout_id });
 }
@@ -495,6 +649,7 @@ async function handleGetOpenCheckouts(req: Request): Promise<Response> {
     .from("asset_checkouts")
     .select(`
       id, status, checked_out_at, source_hash, source_size,
+      verify_deadline_at, verify_failed_at, verify_error, redrive_requested, resolution,
       assets (id, filename, relative_path, quick_hash, file_size)
     `)
     .eq("user_id", userId)
@@ -556,6 +711,8 @@ corsServe(async (req: Request): Promise<Response> => {
   if (method === "POST" && path === "/checkouts/start") return handleStartCheckout(req);
   if (method === "POST" && path === "/checkouts/prepare-checkin") return handlePrepareCheckin(req);
   if (method === "POST" && path === "/checkouts/complete-checkin") return handleCompleteCheckin(req);
+  if (method === "POST" && path === "/checkouts/redrive") return handleRedrive(req);
+  if (method === "POST" && path === "/checkouts/redrive-complete") return handleRedriveComplete(req);
   if (method === "POST" && path === "/checkouts/discard") return handleDiscard(req);
   if (method === "POST" && path === "/checkouts/heartbeat") return handleHeartbeat(req);
   if (method === "GET" && path === "/checkouts/open") return handleGetOpenCheckouts(req);

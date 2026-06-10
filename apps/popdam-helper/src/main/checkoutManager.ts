@@ -22,6 +22,7 @@ import {
   prepareCheckin as apiPrepareCheckin,
   discardCheckout as apiDiscard,
   getOpenCheckouts,
+  redrive as apiRedrive,
 } from "./damClient";
 import { enqueue } from "./uploadQueue";
 import { getConfig } from "./config";
@@ -39,6 +40,9 @@ import type { CheckoutRecord, RootMapping, StorageProvider } from "@shared/types
 const active = new Map<string, CheckoutRecord>();
 // File watchers keyed by checkoutId
 const watchers = new Map<string, FSWatcher>();
+// Checkouts currently being re-driven, to avoid double-enqueuing before the
+// server clears redrive_requested.
+const redriving = new Set<string>();
 
 let changeListener: (() => void) | null = null;
 
@@ -348,6 +352,135 @@ function updateStatus(checkoutId: string, status: CheckoutRecord["status"]): voi
   if (!record) return;
   record.status = status;
   notify();
+}
+
+/**
+ * The upload finished but the server is holding the lock in 'verifying' until
+ * the bridge agent confirms the file landed intact on the Synology (Seafile
+ * sources). Keep the checkout visible — it is NOT done yet.
+ */
+export function markVerifying(checkoutId: string): void {
+  const record = active.get(checkoutId);
+  if (!record) return;
+  record.status = "verifying";
+  record.uploadProgress = 100;
+  record.errorMessage = null;
+  notify();
+}
+
+/**
+ * Reconcile locally-'verifying' checkouts against the server. The bridge agent
+ * flips them to 'complete' once it confirms receipt (they drop out of the open
+ * list), or the server flags verify_failed_at if the file never arrives intact
+ * before the deadline (lock stays held — surfaced as an error to the user).
+ * Only touches records currently in 'verifying' so it never disturbs in-flight
+ * uploads or active edits.
+ */
+export async function reconcileVerifyingCheckouts(): Promise<void> {
+  const verifying = getActiveCheckouts().filter((r) => r.status === "verifying");
+  if (verifying.length === 0) return;
+
+  let res;
+  try {
+    res = await getOpenCheckouts();
+  } catch (e) {
+    log.warn("Could not reconcile verifying checkouts:", (e as Error).message);
+    return;
+  }
+
+  const serverById = new Map((res.checkouts ?? []).map((c) => [c.id, c]));
+  let changed = false;
+
+  for (const rec of verifying) {
+    const server = serverById.get(rec.id) as
+      | {
+          status: string;
+          verify_failed_at?: string | null;
+          verify_error?: string | null;
+          redrive_requested?: boolean;
+        }
+      | undefined;
+
+    if (!server) {
+      // No longer open → bridge agent confirmed receipt and it completed.
+      rec.status = "complete";
+      active.delete(rec.id);
+      stopWatcher(rec.id);
+      redriving.delete(rec.id);
+      changed = true;
+      continue;
+    }
+
+    if (server.status === "error") {
+      // Auto-resolved past the deadline: lock released, asset freed. Surface the
+      // server's explanation so the designer knows to check in again.
+      rec.status = "error";
+      rec.errorMessage =
+        server.verify_error ??
+        "Check-in could not be confirmed. Your work is saved locally — please check in again.";
+      redriving.delete(rec.id);
+      changed = true;
+      continue;
+    }
+
+    if (server.redrive_requested) {
+      // Server asked us to re-upload the retained snapshot to self-heal.
+      void triggerRedrive(rec);
+    }
+
+    if (server.verify_failed_at) {
+      // Still locked, but flagged — verification hasn't succeeded yet.
+      rec.errorMessage =
+        server.verify_error ??
+        "Still confirming this check-in reached the server…";
+      changed = true;
+    } else if (rec.errorMessage) {
+      // Recovered (e.g. a re-drive cleared the flag) — drop the stale message.
+      rec.errorMessage = null;
+      changed = true;
+    }
+  }
+
+  if (changed) notify();
+}
+
+/**
+ * Re-upload a stuck check-in's snapshot to the Synology. Best-effort: if the
+ * snapshot is no longer available locally (e.g. after an app restart) we skip and
+ * let the server auto-resolve at its deadline.
+ */
+async function triggerRedrive(rec: CheckoutRecord): Promise<void> {
+  if (redriving.has(rec.id)) return;
+  if (!rec.snapshotPath || !existsSync(rec.snapshotPath)) {
+    log.warn(`Re-drive requested for ${rec.id} but snapshot is unavailable locally — leaving for server auto-resolve`);
+    return;
+  }
+  redriving.add(rec.id);
+  try {
+    const { upload_instructions: ui } = await apiRedrive(rec.id);
+    enqueue({
+      checkoutId: rec.id,
+      snapshotPath: rec.snapshotPath,
+      uploadMethod: "synology_file_station",
+      synologyUrl: ui.synology_url,
+      synologyPort: ui.synology_port,
+      relativePath: ui.relative_path,
+      filename: ui.filename,
+      tempSuffix: ui.temp_suffix,
+      retryCount: 0,
+      addedAt: Date.now(),
+      sourceProvider: rec.sourceProvider,
+      seafileObjId: rec.seafileObjId,
+      isRedrive: true,
+    });
+    log.info(`Re-driving check-in ${rec.id} (re-uploading snapshot)`);
+  } catch (e) {
+    log.warn(`Re-drive trigger failed for ${rec.id}:`, (e as Error).message);
+  } finally {
+    // Clear shortly after so a later genuine re-request can proceed; the server
+    // clears redrive_requested immediately, so this mainly guards the in-flight gap.
+    redriving.delete(rec.id);
+  }
 }
 
 // ── File watcher ──────────────────────────────────────────────────────────────

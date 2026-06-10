@@ -29,6 +29,7 @@ import { crawlStyleGuides } from "./style-guide-crawler.js";
 import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler.js";
 import { runPdfBackfill } from "./pdf-backfill.js";
 import { runAiSentinelScan } from "./ai-sentinel-scanner.js";
+import { verifyPendingCheckins } from "./checkin-verifier.js";
 
 // ── State ───────────────────────────────────────────────────────
 
@@ -305,6 +306,13 @@ async function sendHeartbeat() {
 
   processSiblingScanRequests().catch((e) =>
     logger.error("Sibling scan processing failed", { error: (e as Error).message })
+  );
+
+  // Confirm any Seafile check-ins parked in 'verifying' have actually landed
+  // intact on the Synology before their locks are released. Self-guards against
+  // overlapping passes, so firing on every heartbeat is safe.
+  verifyPendingCheckins(cloudMountRoot || config.nasContainerMountRoot).catch((e) =>
+    logger.error("Check-in verification failed", { error: (e as Error).message })
   );
 
   if (autoScanEnabled && !isScanning) {

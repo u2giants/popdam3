@@ -10,8 +10,8 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { log } from "./logger";
 import { loadToken } from "./credentials";
 import { uploadFile } from "./synologyClient";
-import { completeCheckin } from "./damClient";
-import { sha256File } from "./hash";
+import { completeCheckin, redriveComplete } from "./damClient";
+import { sha256File, quickHashFile } from "./hash";
 import { statSync } from "fs";
 import { UPLOAD_MAX_RETRIES, UPLOAD_RETRY_DELAY_MS } from "@shared/constants";
 import type { UploadJob } from "@shared/types";
@@ -24,15 +24,49 @@ interface StoredJob extends UploadJob {
 let queuePath: string;
 let running = false;
 let progressCallback: ((checkoutId: string, percent: number) => void) | null = null;
+let verifyingCallback: ((checkoutId: string) => void) | null = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 export function initQueue(): void {
   queuePath = join(app.getPath("userData"), "upload-queue.json");
+  recoverStaleJobs();
+}
+
+/**
+ * Crash recovery: any job left in "uploading" status at startup means a previous
+ * run died mid-upload (between marking the job "uploading" and either completing
+ * the check-in or recording a failure). processQueue() only picks up "pending"
+ * jobs, so without this sweep those checkouts would stay locked forever. Reset
+ * them to "pending" so the upload is retried from scratch on resume — the upload
+ * targets a temp filename and overwrites on retry, so re-running is safe.
+ */
+function recoverStaleJobs(): void {
+  const jobs = readJobs();
+  let recovered = 0;
+  for (const job of jobs) {
+    if (job.status === "uploading") {
+      job.status = "pending";
+      recovered++;
+    }
+  }
+  if (recovered > 0) {
+    writeJobs(jobs);
+    log.warn(`Recovered ${recovered} stale upload job(s) interrupted by a previous shutdown — re-queued as pending`);
+  }
 }
 
 export function setProgressCallback(cb: (checkoutId: string, percent: number) => void): void {
   progressCallback = cb;
+}
+
+/**
+ * Called when an upload finished but the server parked the check-in in
+ * 'verifying' (Seafile-sourced) — the lock is NOT released until the bridge
+ * agent confirms the file landed intact on the Synology.
+ */
+export function setVerifyingCallback(cb: (checkoutId: string) => void): void {
+  verifyingCallback = cb;
 }
 
 // ── Persistence helpers ───────────────────────────────────────────────────────
@@ -124,12 +158,27 @@ async function processJob(job: StoredJob): Promise<void> {
       (progress) => progressCallback?.(checkoutId, progress.percent),
     );
 
+    // Re-drive: re-upload of a stuck 'verifying' check-in. The file is already on
+    // the server's side; we just re-pushed the same snapshot. Report to
+    // /redrive-complete and let verification continue — do NOT finalize.
+    if (job.isRedrive) {
+      await redriveComplete(checkoutId);
+      removeJob(checkoutId);
+      log.info(`Re-drive upload finished for checkout ${checkoutId} — verification will retry`);
+      return;
+    }
+
     const finalHash = await sha256File(snapshotPath);
+    // Quick-hash (head+tail+size) is what the Synology-side verifier checks the
+    // landed file against — cheap to verify there. Full hash above is kept as the
+    // forensic content hash recorded on the check-in.
+    const finalQuickHash = await quickHashFile(snapshotPath);
     const finalSize = statSync(snapshotPath).size;
 
-    await completeCheckin({
+    const result = await completeCheckin({
       checkout_id: checkoutId,
       final_hash: finalHash,
+      final_quick_hash: finalQuickHash,
       final_size: finalSize,
       upload_method: "synology_file_station",
       synology_upload_user: synologyUser,
@@ -138,8 +187,15 @@ async function processJob(job: StoredJob): Promise<void> {
     });
 
     removeJob(checkoutId);
-    progressCallback?.(checkoutId, 100);
-    log.info(`Upload complete for checkout ${checkoutId}`);
+    if (result.status === "verifying") {
+      // Upload landed on Synology, but the lock is held until the bridge agent
+      // confirms the fully-synced file is intact. Don't mark it complete here.
+      verifyingCallback?.(checkoutId);
+      log.info(`Upload finished for checkout ${checkoutId} — awaiting server-side receipt confirmation`);
+    } else {
+      progressCallback?.(checkoutId, 100);
+      log.info(`Upload complete for checkout ${checkoutId}`);
+    }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     log.error(`Upload failed for checkout ${checkoutId}:`, msg);

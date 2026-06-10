@@ -148,17 +148,37 @@ export async function prepareCheckin(params: {
 export async function completeCheckin(params: {
   checkout_id: string;
   final_hash: string;
+  final_quick_hash?: string;
   final_size: number;
   upload_method: string;
   synology_upload_user?: string | null;
   source_provider?: string;
   source_version?: string | null;
-}): Promise<{ ok: boolean }> {
+}): Promise<{ ok: boolean; status?: "verifying" | "complete" }> {
   return post("/checkouts/complete-checkin", params);
 }
 
 export async function discardCheckout(checkout_id: string): Promise<{ ok: boolean }> {
   return post("/checkouts/discard", { checkout_id });
+}
+
+export async function redrive(checkout_id: string): Promise<{
+  ok: boolean;
+  checkout_id: string;
+  upload_instructions: {
+    method: string;
+    synology_url: string | null;
+    synology_port: string;
+    relative_path: string;
+    filename: string;
+    temp_suffix: string;
+  };
+}> {
+  return post("/checkouts/redrive", { checkout_id });
+}
+
+export async function redriveComplete(checkout_id: string): Promise<{ ok: boolean }> {
+  return post("/checkouts/redrive-complete", { checkout_id });
 }
 
 export async function heartbeat(params: {
@@ -182,6 +202,11 @@ export async function getOpenCheckouts(): Promise<{
     checked_out_at: string;
     source_hash: string;
     source_size: number;
+    verify_deadline_at?: string | null;
+    verify_failed_at?: string | null;
+    verify_error?: string | null;
+    redrive_requested?: boolean;
+    resolution?: string | null;
     assets: {
       id: string;
       filename: string;
