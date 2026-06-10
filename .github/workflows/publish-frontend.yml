@@ -71,7 +71,9 @@ jobs:
           APP_DATE: ${{ steps.meta.outputs.date }}
 
       - name: Log in to GHCR
-        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "u2giants" --password-stdin
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT || github.token }}
 
       - name: Build Docker image
         run: |
