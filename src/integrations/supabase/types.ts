@@ -2655,6 +2655,7 @@ export type Database = {
           skipped: number
         }[]
       }
+      queue_nightly_rebuild_style_groups: { Args: never; Returns: undefined }
       queue_sg_render_jobs_by_ids: {
         Args: { p_file_ids: string[] }
         Returns: number
