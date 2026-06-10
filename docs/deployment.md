@@ -181,3 +181,35 @@ The cloud worker (`apps/worker/`) runs on Railway as a persistent Node.js proces
 **The worker is not triggered by HTTP.** It runs a continuous polling loop, reading `admin_config.BULK_OPERATIONS` every 1 second. Admin UI actions write a `queued` entry to that config key; the worker picks it up on the next poll.
 
 **Versioning:** bump `apps/worker/package.json` version in the same commit as any worker change.
+
+---
+
+## CI/CD ownership model
+
+Standard single-orchestrated-path, deployment-platform-owned model:
+
+| Owner | Source of truth for |
+|-------|---------------------|
+| **GitHub** (`main`) | application code, Dockerfiles, Compose, GitHub Actions workflows, deployment docs |
+| **GHCR** | built image artifacts (`ghcr.io/u2giants/popdam-frontend`, `ghcr.io/u2giants/popdam-bridge`) |
+| **Coolify** | runtime env vars, domains, health checks, restart policy, deploy execution for `popdam-frontend` |
+| **Railway** | the worker container lifecycle + its runtime env vars |
+| **Production VPS** | runtime host only — never a configuration source |
+
+One normal path, no SSH deploys: push to `main` → GitHub Actions verifies/builds/publishes to GHCR → triggers the Coolify API → Coolify pulls the image. Workflows never SSH the server or run `docker`/`compose` on it as part of a normal deploy. `main` is the only release branch (no staging/promotion).
+
+---
+
+## pg_cron scheduled jobs
+
+pg_cron runs inside Supabase; all jobs are defined in migration files. Current active jobs:
+
+| Job name | Schedule (UTC) | What it does |
+|----------|----------------|-------------|
+| `nightly-sg-crawl` | `0 2 * * *` | Upserts `STYLE_GUIDE_CRAWL_REQUEST` to trigger the PopSG crawl |
+| `nightly-reconcile-sg-asset-counts` | `45 3 * * *` | Calls `refresh_style_group_counts_batch` over all `style_groups` (asset-count drift catch) |
+| `purge-render-queue-old-rows` | `0 3 * * *` | Deletes completed/failed `render_queue` rows older than 30 days |
+| `purge-sg-render-queue-old-rows` | `15 3 * * *` | Same for `style_guide_render_queue` |
+| `purge-asset-path-history-old-rows` | `30 3 * * *` | Deletes `asset_path_history` rows older than 90 days |
+
+The `invoke-bulk-job-runner` cron was removed in migration `20260322000000` — do not re-add it (the `bulk-job-runner` edge function is a deployed no-op; all batch work runs in the Railway worker).

@@ -31,7 +31,7 @@ This document covers two distinct things: (1) which AI models are used inside th
 ### Read Before Coding
 Before implementing any change, read:
 1. `PROJECT_BIBLE.md` — non-negotiable rules (this always wins in a conflict)
-2. The relevant doc(s): `SCHEMA.md`, `PATH_UTILS.md`, `API_CONTRACTS.md`, `DEPLOYMENT.md`
+2. The relevant doc(s): `SCHEMA.md`, `PATH_UTILS.md`, `API_CONTRACTS.md`, `deployment.md`
 3. State which rules apply to the task before writing code
 
 ### Change Discipline

@@ -74,7 +74,7 @@ popdam3/
 | [AGENTS.md](AGENTS.md) | **Start here.** Full developer guide: project summary, repo structure, task navigation, identifiers, deployment, quirks. |
 | [CLAUDE.md](CLAUDE.md) | Claude Code-specific workflow rules (git, migrations, workarounds policy) |
 | [SELFHOST.md](SELFHOST.md) | VPS / Coolify / Traefik ops, CI/CD pipeline, SSH policy |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, components, networking model, API boundaries |
+| [docs/architecture.md](docs/architecture.md) | System design, components, networking model, API boundaries |
 | [docs/SCHEMA.md](docs/SCHEMA.md) | Database schema reference |
 | [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) | Supabase, Spaces, Railway, edge function inventory |
 | [docs/STYLE_GROUPS.md](docs/STYLE_GROUPS.md) | Style group system — rebuild, reconcile, cover assets |
@@ -85,7 +85,7 @@ popdam3/
 | [docs/SEAFILE_INTEGRATION.md](docs/SEAFILE_INTEGRATION.md) | Seafile/SeaDrive transport for WFH designers |
 | [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Microsoft/Azure SSO, Google OAuth, email/password, legacy Authentik |
 | [docs/WORKER_LOGIC.md](docs/WORKER_LOGIC.md) | Bridge agent behavior contracts |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Bridge Agent + Helper release pipeline |
+| [docs/deployment.md](docs/deployment.md) | Full deploy pipeline (frontend, Supabase, Railway, agents, Helper), pg_cron jobs, rollback, SSH policy |
 | [docs/development.md](docs/development.md) | Local dev setup, running, testing |
 | [docs/configuration.md](docs/configuration.md) | Environment variables, GitHub secrets, admin config |
 | [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md) | Intentional oddities — read before changing anything |

@@ -200,11 +200,11 @@ The following docs are authoritative appendices:
 | `docs/ADMIN_OPERATIONS.md` | Every admin-api route with parameters and return values |
 | `docs/UI_OVERVIEW.md` | All pages, detail panels, settings tabs, workflow status values |
 | `docs/API_CONTRACTS.md` | Agent-api request/response contracts |
-| `docs/ARCHITECTURE.md` | Brain + Muscle hybrid system, networking model |
+| `docs/architecture.md` | Brain + Muscle hybrid system, networking model |
 | `docs/WORKER_LOGIC.md` | Bridge Agent (NAS scanner) contract and rules |
 | `docs/PATH_UTILS.md` | Path canonicalization and NAS path mapping |
 | `SELFHOST.md` | Frontend deployment: VPS, GitHub Actions pipeline, Traefik, ops runbook |
-| `docs/DEPLOYMENT.md` | Worker (Railway) and Supabase deployment |
+| `docs/deployment.md` | Worker (Railway) and Supabase deployment |
 
 If code changes schema or API shape, it must update the corresponding doc in the same commit.
 

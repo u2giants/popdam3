@@ -171,7 +171,7 @@ Failed uploads are persisted to `userData/upload-queue.json` and retried with ex
 
 ## Build and distribution
 
-See `docs/DEPLOYMENT.md §5` for the full CI/build/distribution workflow.
+See `docs/deployment.md` ("POP DAM Helper (Electron)" / "Bridge Agent Deployment" sections) for the full CI/build/distribution workflow.
 
 Quick reference:
 ```bash

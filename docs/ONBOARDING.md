@@ -167,8 +167,8 @@ popdam3/
 │   ├── SCHEMA.md                 # Database schema spec
 │   ├── API_CONTRACTS.md          # Endpoint request/response shapes
 │   ├── PATH_UTILS.md             # Path normalization rules
-│   ├── ARCHITECTURE.md           # System architecture details
-│   ├── DEPLOYMENT.md             # How things deploy
+│   ├── architecture.md           # System architecture details
+│   ├── deployment.md             # How things deploy
 │   ├── WORKER_LOGIC.md           # Bridge agent contract
 │   └── ONBOARDING.md             # ← You are here
 │
@@ -623,8 +623,8 @@ Note: `OPENROUTER_API_KEY` set in the admin UI (Settings → AI Models) updates 
 | `docs/SCHEMA.md` | Complete database schema with columns, constraints, indexes |
 | `docs/API_CONTRACTS.md` | Agent and admin API request/response shapes |
 | `docs/PATH_UTILS.md` | Path normalization, conversion, and display rules |
-| `docs/ARCHITECTURE.md` | Detailed architecture with networking model |
-| `docs/DEPLOYMENT.md` | How each component deploys |
+| `docs/architecture.md` | Detailed architecture with networking model |
+| `docs/deployment.md` | How each component deploys |
 | `docs/WORKER_LOGIC.md` | Bridge Agent contract — what it must/must not do |
 | `docs/MODEL_RULES.md` | AI model selection and prompting guidelines |
 | `docs/ERP_ENRICHMENT_PLAN.md` | ERP sync and classification design |

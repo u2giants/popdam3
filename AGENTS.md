@@ -50,10 +50,10 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Task / question | Read these docs | Usually do not need |
 |---|---|---|
 | Quick repo orientation | `README.md`, `AGENTS.md` | Deep docs under `docs/` unless the task needs them |
-| Modify app behavior / project-owned code | `AGENTS.md`, the relevant folder/area, `docs/ARCHITECTURE.md` if system design is affected | `docs/DEPLOYMENT.md` unless deploy behavior changes |
+| Modify app behavior / project-owned code | `AGENTS.md`, the relevant folder/area, `docs/architecture.md` if system design is affected | `docs/deployment.md` unless deploy behavior changes |
 | Change configuration, env vars, admin_config keys, or runtime settings | `AGENTS.md`, `docs/configuration.md`, `docs/INFRASTRUCTURE.md`; Coolify for prod runtime env | unrelated architecture docs |
-| Change local setup, dev scripts, test/lint, tooling | `AGENTS.md`, `docs/development.md`, the relevant `package.json`/config | `docs/DEPLOYMENT.md` unless CI/CD changes |
-| Change deployment, Docker, CI/CD, hosting, rollback | `AGENTS.md` → Deployment, `docs/DEPLOYMENT.md`, `SELFHOST.md`, `.github/workflows/*` | local-only dev docs |
+| Change local setup, dev scripts, test/lint, tooling | `AGENTS.md`, `docs/development.md`, the relevant `package.json`/config | `docs/deployment.md` unless CI/CD changes |
+| Change deployment, Docker, CI/CD, hosting, rollback | `AGENTS.md` → Deployment, `docs/deployment.md`, `SELFHOST.md`, `.github/workflows/*` | local-only dev docs |
 | Change DB schema, migrations, models, external IDs, data flow | `AGENTS.md`, `CLAUDE.md` (migration timestamp discipline — **read before any migration**), `docs/SCHEMA.md`, `docs/STYLE_GROUPS.md` if groups are touched | deployment docs unless rollout changes |
 | Work on stage / customer / program (path-derived attributes) or the Stage/Customer/Program filters | `AGENTS.md`, `docs/PATH_ATTRIBUTES.md` (and `docs/PATH_UTILS.md` for canonical path format) | unrelated UI/ERP docs |
 | Work on bulk operations / the Railway worker | `AGENTS.md`, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` | unrelated UI docs |
@@ -66,7 +66,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Claude Code session | `CLAUDE.md`, then `AGENTS.md` | other docs unless the task needs them |
 | Documentation-only cleanup | `AGENTS.md`, `README.md`, the affected docs under `docs/` | source files except as needed to verify accuracy |
 
-> **Doc-set note:** the actively-maintained reference set is the UPPERCASE `docs/*.md` (e.g. `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`) plus the lowercase `docs/configuration.md` and `docs/development.md`. The lowercase `docs/architecture.md` and `docs/deployment.md` are older parallel copies that overlap their UPPERCASE namesakes — prefer the UPPERCASE ones; consolidation is tracked in Pending Work. `future_improvements.md` (root, untracked, local) holds storage-transport research notes, not operating docs. (`lucid.md` is **not** in this repo — it lives in `u2giants/seafile`.)
+> **Doc-set note:** `docs/` uses one canonical file per topic. The core four are lowercase: `docs/architecture.md`, `docs/deployment.md`, `docs/configuration.md`, `docs/development.md` (the older UPPERCASE `ARCHITECTURE.md`/`DEPLOYMENT.md` duplicates were merged into these and removed on 2026-06-10). `future_improvements.md` (root, untracked, local) holds storage-transport research notes, not operating docs. (`lucid.md` is **not** in this repo — it lives in `u2giants/seafile`.)
 
 ---
 
@@ -290,8 +290,10 @@ server                  # untracked symlink into the Coolify deploy dir — not 
 ### PDF text backfill runs on the Windows agent, not the bridge agent
 
 **Looks like:** The bridge agent is the natural home for all NAS-side batch work, including the full-library PDF/.ai text extraction backfill.
-**Actually:** `agent-api/handleHeartbeat()` routes `trigger_pdf_backfill` to the `windows-render` agent first (when a healthy Windows agent is present), falling back to the `bridge` agent only if no Windows agent has checked in recently. The Windows agent (`apps/windows-agent/src/pdf-backfill.ts`) runs the same mupdf→OCR→AI extraction loop as the bridge agent and shares the same `claim-pdf-backfill-batch` / `complete-pdf-backfill-batch` endpoints. This offloads the CPU-intensive extraction work onto the Windows VM and away from the Synology.
-**Do not remove the routing:** Reverting to bridge-agent-only would push heavy extraction load onto the NAS CPU. The `windowsHealthy` flag in the heartbeat handler is what controls which agent gets dispatched.
+**Actually:** `agent-api/handleHeartbeat()` routes `trigger_pdf_backfill` to the `windows-render` agent when a healthy Windows agent reports a **backfill-capable version (≥ 0.16.0)** — `windowsBackfillCapable` — and falls back to the `bridge` agent otherwise. This version/capability gate makes the cutover automatic and gap-free: the bridge keeps running the backfill until the Windows agent has self-updated to a build that actually contains the loop. The Windows agent (`apps/windows-agent/src/pdf-backfill.ts`) runs the same mupdf→OCR→AI extraction (reusing the `pdf-text-sampler` cascade) and shares the `claim-pdf-backfill-batch` / `complete-pdf-backfill-batch` endpoints, so all extraction CPU runs on the Windows VM instead of the Synology.
+**Config-key gotcha:** the command only fires if `PDF_BACKFILL` is in the agent type's heartbeat config-key set (`getConfigKeysForAgent()` in `agent-api`). It must be present in `HEARTBEAT_CONFIG_KEYS_WINDOWS`, or the `windows-render` heartbeat never sees `configMap.PDF_BACKFILL` and the trigger is silently always-false.
+**Handover gotcha:** the claim loop self-drives — once started it keeps claiming until `PDF_BACKFILL.status != "running"` or the queue is empty, independent of the heartbeat trigger. To hand the job from bridge → Windows cleanly, set `status=paused`, wait for the bridge to stop on its next claim, then `status=running`; otherwise both agents run concurrently (safe via `ON CONFLICT` dedupe, but wasteful).
+**Do not remove the routing/gate:** reverting to bridge-only pushes heavy extraction onto the NAS CPU.
 
 ### Sibling file scans need a 10-minute lease/expiry
 
@@ -452,9 +454,8 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 |--------|------|-------------|
 | 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (v1.16.1 bridge agent) shipped. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
 | 🟡 open | **Helper code signing** | Repo wired (macOS `CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`; notarize hook). Blocked on adding the Developer ID `.p12` + Apple secrets to GitHub. Windows needs a separate OV/EV cert. See `HANDOFF.md`. |
-| 🟡 open | **PopSG render pass** | Windows Agent on **v0.15.0**; render backlog not fully processed (operational — run Retry All + queue EPS). See `HANDOFF.md`. |
+| 🟡 open | **PopSG render pass** | Windows Agent on **v0.16.0**; render backlog not fully processed (operational — run Retry All + queue EPS). See `HANDOFF.md`. |
 | 🟢 external | **Seafile server direct-MS SSO** | Entra app `8d9da03c…` is configured; the `seafile.designflow.app` server (`u2giants/seafile` repo) still needs `seahub_settings.py` OAuth enabled. Not this repo. |
-| 🟢 cleanup | **Consolidate duplicate docs** | `docs/architecture.md`↔`docs/ARCHITECTURE.md` and `docs/deployment.md`↔`docs/DEPLOYMENT.md` differ only by case with overlapping content; pick one canonical per topic and remove/merge the other. |
 
 ### Resolved 2026-06-10: Bridge agent crash loop (PDF_BACKFILL + missing `ok: true`)
 
@@ -464,7 +465,7 @@ Impact: Bridge agent on `edgesynology2` crash-looped for several hours. Alternat
 
 Root cause: Missing `ok: true` in `handleClaimPdfBackfillBatch()` return values + missing `.catch()` on the fire-and-forget `runPdfBackfill()` call.
 
-Recovery: Added `ok: true` to both return paths; added `.catch()` on `runPdfBackfill()`. Deployed as part of bridge agent v1.16.0. Follow-up (v1.16.1): added `unhandledRejection`/`uncaughtException` handlers in `apps/bridge-agent/src/index.ts` as a last-resort safety net; wrapped inner claim/complete loops in `apps/bridge-agent/src/pdf-backfill.ts` with try/catch so a mid-loop fault logs and breaks out instead of propagating.
+Recovery: Added `ok: true` to both return paths; added `.catch()` on `runPdfBackfill()`. Deployed as part of bridge agent v1.16.0. Follow-up (v1.16.1): added `unhandledRejection`/`uncaughtException` handlers in `apps/bridge-agent/src/index.ts` as a last-resort safety net; wrapped inner claim/complete loops in `apps/bridge-agent/src/pdf-backfill.ts` with try/catch so a mid-loop fault logs and breaks out instead of propagating. Same-day follow-up also: (1) **offloaded** the full-library backfill to the Windows agent (v0.16.0) behind a version/capability gate (see the "PDF text backfill runs on the Windows agent" quirk); (2) fixed the progress `total` to count `.pdf`+`.ai` via `count_pdf_backfill_remaining()` (was a `.pdf`-only undercount that would have falsely marked the run "completed" early) and made `complete-pdf-backfill-batch` accumulate per-method `stats` + `files_used_added`; (3) surfaced `claim-pdf-backfill-batch` RPC errors as 5xx instead of an opaque empty body; (4) added a completion summary + **stall/offline warning** to the admin Backfill card; (5) added `PDF_BACKFILL` to the `windows-render` heartbeat config keys (without it the Windows trigger was silently always-false).
 
 Rule added to prevent recurrence: Every `json({...})` return in agent-api routes called by the bridge agent must include `ok: true`. The bridge agent's `callApi()` throws on any response where `data.ok` is falsy. All fire-and-forget async calls in `sendHeartbeat()` must have both `.catch()` and `.finally()`.
 
@@ -498,7 +499,7 @@ Frontend deploy migrated from SSH-based (`docker run` on VPS) to Coolify API tri
 |-----|-------|
 | `CLAUDE.md` | Claude Code-specific workflow instructions |
 | `SELFHOST.md` | VPS / Coolify / Traefik architecture and ops runbook |
-| `docs/ARCHITECTURE.md` | Full system design, networking model |
+| `docs/architecture.md` | Full system design, components, data flow, API boundaries, networking model |
 | `docs/INFRASTRUCTURE.md` | Supabase project, Railway, Spaces, edge function inventory |
 | `docs/STYLE_GROUPS.md` | Style group rebuild, reconcile, primary selection, tag propagation |
 | `docs/BULK_JOBS.md` | All bulk operations, lane system, conflict map |
@@ -507,7 +508,7 @@ Frontend deploy migrated from SSH-based (`docker run` on VPS) to Coolify API tri
 | `docs/AUTHENTICATION.md` | Microsoft/Azure SSO, Google OAuth, email/password, legacy Authentik |
 | `docs/KNOWN_QUIRKS.md` | Intentional oddities — read before changing anything |
 | `docs/WORKER_LOGIC.md` | Bridge agent behavior contracts |
-| `docs/DEPLOYMENT.md` | Bridge agent + Helper release pipeline |
+| `docs/deployment.md` | Full deploy pipeline (frontend, Supabase, Railway, agents, Helper), pg_cron jobs, rollback, SSH policy |
 | `docs/development.md` | Local dev setup, running, testing |
 | `docs/configuration.md` | Environment variables, admin config keys |
 | `docs/ONBOARDING.md` | First-run checklist |

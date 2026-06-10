@@ -188,3 +188,51 @@ The `supabase-popsg/` directory in the repo root is dead code from an earlier ar
 | **Authentik** | Legacy company SSO provider at `auth.designflow.app`. PKCE flow handled by `authenticate-with-authentik` edge function; login button hidden while Microsoft/Azure is primary. |
 | **GitHub Container Registry (GHCR)** | Stores Docker images: `ghcr.io/u2giants/popdam-frontend` (`:latest`, `:<sha>`) and `ghcr.io/u2giants/popdam-bridge` (`:stable`, `:latest`, `:v{version}`). |
 | **Synology NAS** | On-premises file storage. Source of all design assets. Accessed only by the bridge agent running in Docker on the NAS itself; never accessed directly by the cloud. |
+
+---
+
+## Communication Model (no inbound NAS networking)
+
+**Hard rule:** the cloud backend never reaches into the NAS by IP. All NAS↔cloud traffic is **outbound-only** from the agents:
+
+- The cloud sets work flags / queues work in the DB (`admin_config` keys, `render_queue`, etc.).
+- The Bridge Agent and Windows Agent poll outward (HTTPS) to claim work and report progress; they also receive commands instantly via a Supabase Realtime channel.
+- The cloud never initiates a connection to the NAS or the Windows VM.
+
+Tailscale may be used for human remote access to NAS files (Synology Drive) and for WFH Brazil's Seafile→Synology fallback, but it is **not** required for the core agent-to-cloud workflow.
+
+---
+
+## API Boundaries
+
+Three separate edge-function surfaces, never mixed:
+
+### `agent-api` (`verify_jwt = false`)
+- Auth: `x-agent-key` header (SHA-256 hashed, compared against `agent_registrations.agent_key_hash`).
+- Routes: ingest/update/move, scan progress, heartbeat, claim/complete render + PDF-backfill + sibling-scan + checkin-verification jobs, style-guide crawl.
+
+### `admin-api` (`verify_jwt = false` — JWT verified inside the function)
+- Auth: user JWT + admin role check **or** the Supabase service-role key as Bearer (maps to `userId: "system"`, used by the Railway worker for server-to-server calls).
+- The `run-query` action restricts queries to `SELECT` only.
+
+### `helper-api` (`verify_jwt = true` — standard user JWT)
+- Auth: user JWT — the Helper authenticates as the logged-in user.
+- Routes: device registration, token generation, checkout/check-in lifecycle, heartbeat.
+
+### Railway worker (server process, no HTTP listener)
+- Auth: `SUPABASE_SERVICE_ROLE_KEY` env var → service-role Supabase client (bypasses RLS). For operations it can't do via RPC, it calls `admin-api` with the service-role key as Bearer.
+
+---
+
+## Security Rules
+
+- No endpoint accepts arbitrary shell commands or raw command strings.
+- Agent keys: store only hashes; the raw key is shown once on creation and never returned again.
+- All edge functions use `corsServe()` from `supabase/functions/_shared/http.ts`, which validates request `Origin` against an allowlist (`*.designflow.app`, `*.lovable.app`, localhost).
+- `verify_jwt = false` on `admin-api`/`agent-api` is intentional (CORS preflight carries no auth header) — verification happens inside the function body. See `docs/KNOWN_QUIRKS.md` #4.
+
+---
+
+## Golden Rule: file-date preservation
+
+The Bridge Agent must **never** modify file timestamps (mtime/birthtime) on source art. The NAS volume mount should be `:ro` (read-only) wherever possible. Full rule: `docs/PROJECT_BIBLE.md` §15.

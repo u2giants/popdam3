@@ -84,7 +84,7 @@ On one Brazil Mac: (1) install official **SeaDrive** (`dam.designflow.app/downlo
 - **USA direct-SMB write:** USA check-in currently uploads via Synology File Station HTTP (`apps/popdam-helper/src/main/synologyClient.ts` / `uploadQueue.ts`). The decision is to switch USA to a direct file copy into the SMB-mounted `edgesynology1` share. Not built; the mount path convention on USA machines is still unconfirmed.
 
 ### 5.5 PopSG render pass (operational, no code)
-Windows Agent is on **v0.15.0**. In **PopSG** (`sg.designflow.app`) admin: Settings → Files with Render Errors → **Retry All** (loops in 500-file batches); then queue the previously-`unsupported_extension` **EPS** files (`queue_sg_render_jobs_by_ids` or a "Queue All Renderable" button); then check `select * from get_sg_preview_stats()`. Accept-as-is: AI-no-PDF-compat (~25), missing-on-disk (~3,264), unsupported ZIP/fonts/video/3D (~2,076), exotic-channel TIFF (~30), corrupt JPEG/TIFF (~17).
+Windows Agent is on **v0.16.0** (bumped 2026-06-10 when the full-library PDF backfill loop was added to it). In **PopSG** (`sg.designflow.app`) admin: Settings → Files with Render Errors → **Retry All** (loops in 500-file batches); then queue the previously-`unsupported_extension` **EPS** files (`queue_sg_render_jobs_by_ids` or a "Queue All Renderable" button); then check `select * from get_sg_preview_stats()`. Accept-as-is: AI-no-PDF-compat (~25), missing-on-disk (~3,264), unsupported ZIP/fonts/video/3D (~2,076), exotic-channel TIFF (~30), corrupt JPEG/TIFF (~17).
 
 ---
 
