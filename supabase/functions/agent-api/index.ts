@@ -2928,6 +2928,22 @@ async function handleCompleteSgRender(body: Record<string, unknown>) {
 
 // ── PDF Backfill helpers ──────────────────────────────────────────────────────
 
+/**
+ * Style Guide Sources are parsed ONLY from licensing-sheet / tech-pack PDFs.
+ * Mirror of the SQL is_style_guide_source_pdf() predicate. The backfill claim is
+ * already scoped to these PDFs, but we re-check the filename here as defense in depth.
+ */
+function isStyleGuideSourcePdfName(filename: string | null | undefined): boolean {
+  if (!filename) return false;
+  const f = filename.toLowerCase();
+  return (
+    f.includes("licensing sheet") || f.includes("licensing_sheet") ||
+    f.includes("license sheet") || f.includes("license_sheet") ||
+    f.includes("tech pack") || f.includes("tech_pack") ||
+    f.includes("techpack")
+  );
+}
+
 /** Mirror of the PL/pgSQL parse_pdf_files_used — runs in TS to avoid statement timeouts. */
 function parseFilesUsedFromText(text: string): string[] {
   const lines = text.split("\n");
@@ -3019,8 +3035,13 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   }));
   await db.from("pdf_text_samples").upsert(sampleRows, { onConflict: "asset_id", ignoreDuplicates: true });
 
-  // 2. Parse FILES USED sections and insert to sku_files_used
-  const resultsWithText = results.filter((r) => r.extracted_text && r.asset_id);
+  // 2. Parse FILES USED sections and insert to sku_files_used.
+  //    Only licensing-sheet / tech-pack PDFs are a valid source (see migration
+  //    20260610070731). The DB trigger enforces this too; we filter here so the
+  //    files_used_added counter and the direct insert stay consistent with it.
+  const resultsWithText = results.filter(
+    (r) => r.extracted_text && r.asset_id && isStyleGuideSourcePdfName(r.filename as string),
+  );
   if (resultsWithText.length > 0) {
     const { data: skuRows } = await db.from("assets")
       .select("id, sku")
@@ -3030,13 +3051,13 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
 
     const skuMap = new Map((skuRows || []).map((r: { id: string; sku: string }) => [r.id, r.sku]));
 
-    const filesUsedRows: { sku: string; file_name: string }[] = [];
+    const filesUsedRows: { sku: string; file_name: string; source: string }[] = [];
     for (const r of resultsWithText) {
       const sku = skuMap.get(r.asset_id as string);
       if (!sku) continue;
       const fileNames = parseFilesUsedFromText(r.extracted_text as string);
       for (const fn of fileNames) {
-        filesUsedRows.push({ sku, file_name: fn });
+        filesUsedRows.push({ sku, file_name: fn, source: "pdf_text" });
       }
     }
 

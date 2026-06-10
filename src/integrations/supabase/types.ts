@@ -1640,6 +1640,7 @@ export type Database = {
           file_name: string
           id: string
           sku: string
+          source: string | null
           style_guide_file_id: string | null
         }
         Insert: {
@@ -1647,6 +1648,7 @@ export type Database = {
           file_name: string
           id?: string
           sku: string
+          source?: string | null
           style_guide_file_id?: string | null
         }
         Update: {
@@ -1654,6 +1656,7 @@ export type Database = {
           file_name?: string
           id?: string
           sku?: string
+          source?: string | null
           style_guide_file_id?: string | null
         }
         Relationships: [

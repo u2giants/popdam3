@@ -469,13 +469,27 @@ ${
       }
     }
 
-    // Upsert files_used entries to sku_files_used (licensed products only)
-    if (Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0 && asset.sku) {
+    // Upsert files_used entries to sku_files_used (licensed products only).
+    // Style Guide Sources may ONLY come from a licensing-sheet / tech-pack PDF
+    // (see migration 20260610070731). Tagging of other artwork (.ai, packaging,
+    // non-licensing PDFs) must NOT write rows here even if the model returns a
+    // files_used list. ignoreDuplicates keeps pre-gating legacy rows intact.
+    const fname = ((asset.filename as string) || "").toLowerCase();
+    const isLicensingSourcePdf = asset.file_type === "pdf" && (
+      fname.includes("licensing sheet") || fname.includes("licensing_sheet") ||
+      fname.includes("license sheet") || fname.includes("license_sheet") ||
+      fname.includes("tech pack") || fname.includes("tech_pack") ||
+      fname.includes("techpack")
+    );
+    if (
+      isLicensingSourcePdf && asset.sku &&
+      Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0
+    ) {
       const rows = (tagData.files_used as string[])
         .filter((f: string) => typeof f === "string" && f.trim().length > 0)
-        .map((f: string) => ({ sku: asset.sku as string, file_name: f.trim() }));
+        .map((f: string) => ({ sku: asset.sku as string, file_name: f.trim(), source: "ai_tag" }));
       if (rows.length > 0) {
-        await db.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name" });
+        await db.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
       }
     }
 
