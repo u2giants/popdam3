@@ -2604,6 +2604,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_style_guide_source_pdf: {
+        Args: { p_file_type: string; p_filename: string }
+        Returns: boolean
+      }
       normalize_for_sg_match: { Args: { p: string }; Returns: string }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
       partition_data_id: {
