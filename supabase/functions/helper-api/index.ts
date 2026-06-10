@@ -29,7 +29,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 //                 'error' state with diagnostics — the asset is never tied up
 //                 indefinitely, and the designer's snapshot is preserved so they
 //                 can simply check in again.
-const VERIFY_FLAG_MS = 30 * 60 * 1000;        // T1: 30 minutes
+const VERIFY_FLAG_MS = 30 * 60 * 1000; // T1: 30 minutes
 const VERIFY_RESOLVE_MS = 2 * 60 * 60 * 1000; // T2: 2 hours
 
 // Feature flag (admin_config). Ships OFF so the receipt-verification flow can be
@@ -437,7 +437,7 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
     const nowMs = Date.now();
     await db.from("asset_checkouts").update({
       status: "verifying",
-      checkin_hash: final_hash ?? null,            // full content hash (forensic record)
+      checkin_hash: final_hash ?? null, // full content hash (forensic record)
       expected_quick_hash: final_quick_hash ?? null, // what the bridge agent verifies against
       checkin_size: final_size ?? null,
       upload_method: upload_method ?? null,

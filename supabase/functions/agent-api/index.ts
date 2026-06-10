@@ -3618,8 +3618,7 @@ async function handleClaimCheckinVerifications(body: Record<string, unknown>) {
     // Only flag resolve as due when we're genuinely past T2 AND the verifier has
     // been continuously active (no recent big gap). Right after downtime the next
     // report will push the deadline forward, so we don't resolve prematurely.
-    const resolveDue =
-      resolveAt != null &&
+    const resolveDue = resolveAt != null &&
       nowMs > new Date(resolveAt).getTime() &&
       lastAttempt != null &&
       nowMs - new Date(lastAttempt).getTime() < VERIFY_FREEZE_GAP_MS;
@@ -3656,7 +3655,9 @@ async function handleReportCheckinVerification(body: Record<string, unknown>) {
 
   const { data: checkout } = await db
     .from("asset_checkouts")
-    .select("id, asset_id, status, verify_attempts, verify_deadline_at, verify_resolve_at, verify_last_attempt_at, verify_failed_at, redrive_count, redrive_requested")
+    .select(
+      "id, asset_id, status, verify_attempts, verify_deadline_at, verify_resolve_at, verify_last_attempt_at, verify_failed_at, redrive_count, redrive_requested",
+    )
     .eq("id", checkoutId)
     .maybeSingle();
 
@@ -3739,8 +3740,7 @@ async function handleReportCheckinVerification(body: Record<string, unknown>) {
         "Check-in could not be confirmed in time; the original file is still in place on the server. Your work is saved locally — please check in again.",
       foreign:
         "Check-in could not be confirmed in time; an unverified file is on the server. An admin has been notified. Your work is saved locally — please check in again.",
-      missing:
-        "Check-in could not be confirmed in time; the file never fully arrived. Your work is saved locally — please check in again.",
+      missing: "Check-in could not be confirmed in time; the file never fully arrived. Your work is saved locally — please check in again.",
     };
     await db.from("asset_checkouts").update({
       ...deadlineShift,
