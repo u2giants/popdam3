@@ -2948,11 +2948,16 @@ async function handleClaimPdfBackfillBatch() {
     return json({ ok: true, assets: [], remaining: 0, total: bf.total ?? 0, status: (bf.status as string) ?? "idle" });
   }
 
-  // Fetch next batch of PDFs not yet in pdf_text_samples
-  const { data: assets } = await db.rpc("claim_pdf_backfill_batch", { p_limit: 25 });
+  // Fetch next batch of PDFs not yet in pdf_text_samples.
+  // Surface RPC errors as 5xx so the agent retries (and logs a real reason) instead of
+  // receiving an ok:true response with empty/garbage data — the latter previously crashed
+  // the agent's claim loop with an opaque "error: unknown".
+  const { data: assets, error: claimErr } = await db.rpc("claim_pdf_backfill_batch", { p_limit: 25 });
+  if (claimErr) return err(`claim_pdf_backfill_batch failed: ${claimErr.message}`, 500);
   const rows = (assets as Array<{ id: string; filename: string; relative_path: string; needs_thumbnail: boolean }>) || [];
 
-  const { data: countRow } = await db.rpc("count_pdf_backfill_remaining");
+  const { data: countRow, error: countErr } = await db.rpc("count_pdf_backfill_remaining");
+  if (countErr) return err(`count_pdf_backfill_remaining failed: ${countErr.message}`, 500);
   const remaining = (countRow as number) ?? 0;
 
   return json({
@@ -2970,6 +2975,8 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const db = serviceClient();
   const results = (body.results as Record<string, unknown>[]) || [];
   if (results.length === 0) return json({ ok: true, remaining: 0 });
+
+  let filesUsedAdded = 0;
 
   // 1. Insert into pdf_text_samples (skip assets already there)
   const sampleRows = results.map((r) => ({
@@ -3008,7 +3015,12 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
     }
 
     if (filesUsedRows.length > 0) {
-      await db.from("sku_files_used").upsert(filesUsedRows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+      // ignoreDuplicates → returned rows are only the newly-inserted ones, so .select()
+      // gives an accurate count of files-used actually added (for the UI summary).
+      const { data: inserted } = await db.from("sku_files_used")
+        .upsert(filesUsedRows, { onConflict: "sku,file_name", ignoreDuplicates: true })
+        .select("sku");
+      filesUsedAdded = (inserted as unknown[] | null)?.length ?? 0;
     }
   }
 
@@ -3029,10 +3041,19 @@ async function handleCompletePdfBackfillBatch(body: Record<string, unknown>) {
   const total = (bf.total as number) ?? 0;
   const nowIso = new Date().toISOString();
 
+  // Accumulate per-method outcome tallies + files-used added for the UI summary.
+  const stats: Record<string, number> = { ...((bf.stats as Record<string, number>) ?? {}) };
+  for (const r of results) {
+    const method = (r.extraction_method as string) || "unknown";
+    stats[method] = (stats[method] ?? 0) + 1;
+  }
+
   const newBf: Record<string, unknown> = {
     ...bf,
     processed: newProcessed,
     last_batch_at: nowIso,
+    stats,
+    files_used_added: ((bf.files_used_added as number) ?? 0) + filesUsedAdded,
   };
   if (newProcessed >= total && total > 0) {
     newBf.status = "completed";

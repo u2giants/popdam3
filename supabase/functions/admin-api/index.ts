@@ -895,15 +895,11 @@ async function handleGetOpenrouterVisionModels() {
 async function handleTriggerPdfBackfill() {
   const db = serviceClient();
 
-  // Count all unprocessed PDFs (approximate: total PDFs minus those already sampled)
-  const [{ count: totalPdfs }, { count: donePdfs }] = await Promise.all([
-    db.from("assets").select("*", { count: "exact", head: true })
-      .eq("file_type", "pdf").eq("is_deleted", false),
-    db.from("pdf_text_samples").select("*", { count: "exact", head: true })
-      .not("asset_id", "is", null),
-  ]);
-
-  const remaining = Math.max(0, (totalPdfs ?? 0) - (donePdfs ?? 0));
+  // Accurate remaining count over BOTH .pdf and .ai (matches claim_pdf_backfill_batch).
+  // count_pdf_backfill_remaining() is the same NOT-EXISTS predicate the agent claims against,
+  // so the progress bar total stays consistent with the work actually done.
+  const { data: remainingCount } = await db.rpc("count_pdf_backfill_remaining");
+  const remaining = (remainingCount as number) ?? 0;
   const nowIso = new Date().toISOString();
 
   await db.from("admin_config").upsert({
@@ -916,6 +912,9 @@ async function handleTriggerPdfBackfill() {
       last_batch_at: null,
       claimed_by_agent_id: null,
       claimed_by_agent_name: null,
+      // Outcome tallies accumulated by complete-pdf-backfill-batch (reset on each run).
+      stats: {},
+      files_used_added: 0,
     },
     updated_at: nowIso,
   });
@@ -951,9 +950,31 @@ async function handleResumePdfBackfill() {
 
 async function handleGetPdfBackfillStatus() {
   const db = serviceClient();
-  const { data: row } = await db.from("admin_config")
-    .select("value, updated_at").eq("key", "PDF_BACKFILL").maybeSingle();
-  return json({ backfill: row?.value ?? null });
+  const [{ data: row }, { data: agents }] = await Promise.all([
+    db.from("admin_config")
+      .select("value, updated_at").eq("key", "PDF_BACKFILL").maybeSingle(),
+    // Health of the agent that runs the backfill (windows-render after the offload).
+    db.from("agent_registrations")
+      .select("agent_name, agent_type, last_heartbeat")
+      .eq("agent_type", "windows-render")
+      .order("last_heartbeat", { ascending: false }),
+  ]);
+
+  const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 min
+  const now = Date.now();
+  const top = (agents ?? [])[0];
+  const lastHb = top?.last_heartbeat ? new Date(top.last_heartbeat).getTime() : 0;
+  const agent = top
+    ? {
+      agent_name: top.agent_name,
+      agent_type: top.agent_type,
+      last_heartbeat: top.last_heartbeat,
+      seconds_ago: lastHb > 0 ? Math.round((now - lastHb) / 1000) : null,
+      online: lastHb > 0 && (now - lastHb) < OFFLINE_THRESHOLD_MS,
+    }
+    : null;
+
+  return json({ backfill: row?.value ?? null, agent });
 }
 
 // ── Route: trigger-pdf-text-sample ──────────────────────────────────
