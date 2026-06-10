@@ -1639,6 +1639,9 @@ export type Database = {
           created_at: string
           file_name: string
           id: string
+          last_match_attempt_at: string | null
+          match_attempts: number
+          match_best_score: number | null
           sku: string
           source: string | null
           style_guide_file_id: string | null
@@ -1647,6 +1650,9 @@ export type Database = {
           created_at?: string
           file_name: string
           id?: string
+          last_match_attempt_at?: string | null
+          match_attempts?: number
+          match_best_score?: number | null
           sku: string
           source?: string | null
           style_guide_file_id?: string | null
@@ -1655,6 +1661,9 @@ export type Database = {
           created_at?: string
           file_name?: string
           id?: string
+          last_match_attempt_at?: string | null
+          match_attempts?: number
+          match_best_score?: number | null
           sku?: string
           source?: string | null
           style_guide_file_id?: string | null
@@ -2710,6 +2719,10 @@ export type Database = {
         Returns: number
       }
       resolve_sku_files_used: { Args: never; Returns: number }
+      resolve_sku_files_used_fuzzy: {
+        Args: { p_threshold?: number }
+        Returns: number
+      }
       retry_sg_render_errors:
         | { Args: { p_file_ids?: string[] }; Returns: number }
         | { Args: { p_file_ids?: string[]; p_limit?: number }; Returns: number }
