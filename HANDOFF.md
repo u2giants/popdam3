@@ -43,7 +43,6 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 - **Seafile check-in receipt verification** (bridge agent **v1.16.x**, 2026-06-09): `helper-api/complete-checkin` parks Seafile check-ins at `status: 'verifying'` instead of `complete`. The bridge agent claims them via `claim-checkin-verifications`, checks size + quick-hash on the on-disk file (~128 KB read), and calls `report-checkin-verification`. T1 = 30 min flag + re-drive (helper re-uploads the retained snapshot, up to 2×), T2 = 2h auto-resolve (releases the lock into `error` with diagnostics); deadlines freeze during bridge agent downtime. **Gated by `admin_config.CHECKIN_VERIFICATION_ENABLED`, now `true` (active).** Set it `false` for instant rollback. Code: `apps/bridge-agent/src/checkin-verifier.ts`, `agent-api` (2 new routes), `helper-api` (Seafile branch + flag in complete-checkin, `/redrive` + `/redrive-complete`), migration `20260609120000_asset_checkouts_receipt_verification.sql`. Full quirk + incident in `AGENTS.md`.
 - **Admin build-drift detection** (2026-06-09): the Settings → Bridge Agents "Up to date" badge now compares the agent's `build_sha` to `BRIDGE_LATEST_BUILD.sha` (admin-api returns `sha`), showing a red "Build mismatch" when a stale image masquerades as current. The fragile self-updater itself was intentionally **not** touched (`docs/KNOWN_QUIRKS.md` #26). Code: `src/pages/SettingsPage.tsx`, `supabase/functions/admin-api/index.ts`.
 - **PDF/.ai text backfill status UI** (commit `6325a37`, 2026-06-10): Settings → Processing → PDF Text now shows queued/processed/remaining counts, Windows agent heartbeat, timestamps, current file, stalled/offline warning, zero-work completion, method/error stats, and files-used rows added. Backend status was hardened too: `admin-api/get-pdf-backfill-status` returns `remaining_count` from `count_pdf_backfill_remaining()` and normalizes stale `status="running"` rows to `completed` when remaining is zero; `agent-api/complete-pdf-backfill-batch` marks completion from authoritative remaining count, not only `processed >= total`. Code: `src/components/settings/PdfTextSamplesTab.tsx`, `supabase/functions/admin-api/index.ts`, `supabase/functions/agent-api/index.ts`.
-- **Frontend deploy auth/package access** (2026-06-10): production was still on commit `8c0508d` because every later `Publish Frontend Image` run passed build but failed before publishing a newer `popdam-frontend:latest`, so Coolify stayed on the old container. `.github/workflows/publish-frontend.yml` now supports `workflow_dispatch`, logs in with `GITHUB_TOKEN` first, retries with `GHCR_PAT` if push fails, and emits an explicit error if GHCR denies `write_package`. The remaining external requirement: grant repository `u2giants/popdam3` **Write** under the `popdam-frontend` package's "Manage Actions access" settings, or set `GHCR_PAT` to a valid classic PAT with `write:packages` owned by a package admin. Future stale-site checks: compare the live header SHA to the latest successful `Publish Frontend Image` run first.
 
 ---
 
@@ -88,6 +87,40 @@ On one Brazil Mac: (1) install official **SeaDrive** (`dam.designflow.app/downlo
 
 ### 5.5 PopSG render pass (operational, no code)
 Windows Agent is on **v0.16.0** (bumped 2026-06-10 when the full-library PDF backfill loop was added to it). In **PopSG** (`sg.designflow.app`) admin: Settings → Files with Render Errors → **Retry All** (loops in 500-file batches); then queue the previously-`unsupported_extension` **EPS** files (`queue_sg_render_jobs_by_ids` or a "Queue All Renderable" button); then check `select * from get_sg_preview_stats()`. Accept-as-is: AI-no-PDF-compat (~25), missing-on-disk (~3,264), unsupported ZIP/fonts/video/3D (~2,076), exotic-channel TIFF (~30), corrupt JPEG/TIFF (~17).
+
+### 5.6 Frontend deploy GHCR package access
+
+Status:
+Blocked on GitHub Packages configuration.
+
+Done:
+`publish-frontend.yml` now supports `workflow_dispatch`, logs in with `GITHUB_TOKEN` first, retries with `GHCR_PAT` if push fails, and emits an explicit `write_package` remediation error. `Dockerfile.ci` now includes OCI source labels. Docs updated in `AGENTS.md`, `docs/configuration.md`, and `docs/deployment.md`.
+
+Next action:
+Grant repository `u2giants/popdam3` **Write** under the `ghcr.io/u2giants/popdam-frontend` package's Settings → Manage Actions access, or replace `GHCR_PAT` with a valid classic PAT with `write:packages` owned by a package admin. Then manually run `Publish Frontend Image` via `workflow_dispatch`.
+
+Risks / watchouts:
+Production remains on the last successfully published frontend image until GHCR accepts a new `popdam-frontend:latest` push and the Coolify deploy step runs. Verified failures: `GITHUB_TOKEN` push returns `permission_denied: write_package`; existing `GHCR_PAT` retry logs `denied`, so it is absent, invalid, or lacks package rights. Do not assume a passing Vite build means production deployed; compare the live header SHA to the latest successful `Publish Frontend Image` run.
+
+### 5.7 Style Guide Sources resolution + style-guide archival readiness
+
+Status: **partial** — foundation shipped 2026-06-10; depends on a long-running backfill + two unbuilt features. Detail: `docs/POPSG.md` → "Style Guide Sources"; quirks `docs/KNOWN_QUIRKS.md` #46–#48.
+
+Done (on `main`, Deploy Supabase green):
+- `sku_files_used` scoped to licensing/tech-pack PDFs across all 3 write paths + `source` provenance column (`20260610070731`); backfill claim re-scoped to those PDFs (queue 52,862 → 13,819) and re-triggered.
+- `normalize_for_sg_match()` uppercase-deletion bug fixed (`20260610100545`); trigram index `idx_style_guide_files_filename_trgm` (`20260610091711`); fuzzy resolver `resolve_sku_files_used_fuzzy()` (`20260610100856`, trigram-only) + nightly cron `resolve-sku-files-used-nightly` `0 4 * * *` UTC; `sg_archive_usage` view (`20260610104738`).
+- Legacy cleanup: 863 `legacy_ungated` → 730 resolved (592 prior + 138 fuzzy), 88 pending (64 best-guess ≥0.4, 24 low-info), 45 deleted (titles + 1 self-SKU).
+
+Next action:
+1. **Let the licensing-PDF backfill finish** (~13.8k tech-pack PDFs left; runs on the Windows render agent; admin Backfill card) — prerequisite for everything else being trustworthy. The nightly resolver then clears the 88 pending automatically.
+2. **Build a crawl-regression guard** for `deactivate_stale_sg_files` (refuse mass-deactivation when `files_found` drops sharply + alert) — do this *before* archiving (quirk #46).
+3. **Build an `archived` state** (user req): remove old guides from NAS but keep name-only resolvable `style_guide_files` rows (flag distinct from `is_active`).
+4. Optional: pending-review admin panel for the 64 ≥0.4 best-guess rows.
+
+Risks / watchouts:
+- **Do NOT archive style guides off `sg_archive_usage` yet** — it flags ~657/740 guides archivable but most are false positives until backfill #1 raises resolution coverage (only ~646 links resolved now).
+- 730 resolved legacy rows are **kept**; `DELETE FROM sku_files_used WHERE source='legacy_ungated'` only after reviewing per-row `match_best_score` (most are real, OCR-typo'd).
+- `\\edgesynology2\styleguides` failing to mount is **not** a missing crawl root — user confirmed `/mnt/nas/styleguides` is the complete library.
 
 ---
 

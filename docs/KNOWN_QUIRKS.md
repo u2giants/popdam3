@@ -421,3 +421,27 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 **Why**: The bridge agent sets `thumbnail_url` at insert time (single DB write). If the trigger only fired on UPDATE (which it did before migration `20260529132758`), those assets never triggered the sync, leaving `primary_asset_id = null` and no cover image in the library grid even when assets had thumbnails. A backfill in that migration fixed 482 affected groups.
 
 **Do not revert to UPDATE-only**: It would silently break cover assignment for any asset inserted with a thumbnail already set.
+
+---
+
+## 46. `deactivate_stale_sg_files` Has No Low-Count Floor — Empty Crawl Mass-Deactivates
+
+**Why**: At crawl completion, `deactivate_stale_sg_files(root_label, run_id)` flips `is_active = false` for **every** file under that root whose `crawl_run_id != current run`. That is correct for normal deletes/renames, but it is *unconditional* — a partial or empty crawl (e.g. NAS mount glitch, agent error) marks the entire library inactive. This happened on 2026-06-10 and required `20260610180000_restore_popsg_active_files_after_empty_crawl` to recover. The resolver and UI filter `is_active`, so a bad crawl silently hides real files (and breaks files-used resolution) until the next good crawl.
+
+**Do not assume "53k inactive files" means deletions** — much of it is churn + this failure mode. A "files_found dropped sharply → skip mass-deactivation + alert" guard is proposed but **not built** (see `HANDOFF.md`). Until then, after any suspected bad crawl, verify `style_guide_files` active count vs the previous `style_guide_crawl_runs.files_found`.
+
+---
+
+## 47. Style Guide Sources (`sku_files_used`) Only Come From Licensing/Tech-Pack PDFs
+
+**Why**: Looks like a bug that a SKU's `.ai` art files and most PDFs never populate "Style Guide Sources." Intentional (migration `20260610070731`, 2026-06-10): only a PDF whose filename contains `licensing sheet` / `license sheet` / `tech pack` / `techpack` may write `sku_files_used` rows, via `is_style_guide_source_pdf(file_type, filename)`. It gates all three write paths (`parse_pdf_files_used` trigger/RPC, the `agent-api/complete-pdf-backfill-batch` JS parser, and the `ai-tag` vision upsert) and the backfill claim scope. `.ai` files hold the same data but are far harder to extract. Pre-gating rows are stamped `source = 'legacy_ungated'`. Full detail + the fuzzy/continuous resolver: `docs/POPSG.md` → "Style Guide Sources".
+
+**Do not "fix" this by re-broadening the parser to all files** — it would repopulate the garbage that was just cleaned out.
+
+---
+
+## 48. `normalize_for_sg_match()` Used to Delete Uppercase Letters (Fixed 2026-06-10)
+
+**Why**: The function ran `regexp_replace(p, '[^a-z0-9]', '')` **before** `lower()`, so uppercase letters (not in `a-z`) were *stripped entirely* rather than lowercased: `2994221_BG101` → `2994221101` (the `BG` vanished). Any case difference between a files-used entry and the real style-guide filename therefore broke exact resolution silently. Fixed in `20260610100545` (lowercase first). Resolution is now also fuzzy (trigram, threshold 0.6) and continuous (nightly cron). 
+
+**Do not reintroduce an unindexed per-row exact `normalize_for_sg_match(filename)` scan** in batch resolvers — it times out on the 214k-row library (that is why `resolve_sku_files_used_fuzzy` is trigram-only; migration `20260610100856`).

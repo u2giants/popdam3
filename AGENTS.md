@@ -296,6 +296,12 @@ server                  # untracked symlink into the Coolify deploy dir — not 
 **Status/UI gotcha:** the admin Backfill card reads `admin_config.PDF_BACKFILL` through `admin-api/get-pdf-backfill-status`, but the authoritative queue state is `count_pdf_backfill_remaining()`. Completion must be based on **remaining = 0**, not only `processed >= total`, because the initial total can become stale if files are sampled by another path while the job is running. The status route intentionally normalizes a stale `status="running"` row to `completed` when remaining is zero, so the UI shows a terminal result instead of silence or a forever-running state.
 **Do not remove the routing/gate:** reverting to bridge-only pushes heavy extraction onto the NAS CPU.
 
+### Style Guide Sources (`sku_files_used`) only come from licensing/tech-pack PDFs; resolution is fuzzy + continuous
+
+**Looks like:** `.ai` files and ordinary PDFs should populate a SKU's "Style Guide Sources," and unresolved entries are garbage to delete.
+**Actually:** Only PDFs whose filename contains `licensing sheet`/`license sheet`/`tech pack`/`techpack` write `sku_files_used` (gate `is_style_guide_source_pdf()`, migration `20260610070731`). Resolution against the 214k-row `style_guide_files` is trigram-fuzzy (`resolve_sku_files_used_fuzzy`, nightly cron `resolve-sku-files-used-nightly` 04:00 UTC) and **quarantine-model — never auto-deletes/unlinks**. Full detail: `docs/POPSG.md` → "Style Guide Sources"; quirks #46–#48.
+**Do not repeat this mistake:** Do NOT bulk-delete unresolved `sku_files_used` rows that look like filenames — PopSG is not a comprehensive ground truth (a stale crawl can mark real files inactive; see quirk #46), so "no match" ≠ "garbage." Only categorical non-filenames (style-guide titles, a SKU used as its own filename) are safe to delete. Files-used live in PopSG `style_guide_files`, **not** PopDAM `assets` — don't reconcile against `assets`.
+
 ### Sibling file scans need a 10-minute lease/expiry
 
 **Looks like:** `claimed` sibling scan requests should be treated exactly like `pending` requests until the Bridge Agent completes them.

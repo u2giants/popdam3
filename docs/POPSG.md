@@ -157,7 +157,44 @@ A `pg_cron` job (`nightly-sg-crawl`) fires at **02:00 UTC every day** (= 9pm EST
 
 - The cron expression is UTC-fixed (see Known Quirks #38 for why `cron.timezone` can't be changed)
 - Manual trigger still works: Settings → File Health → Style Guide Crawl → "Trigger Crawl"
-- The crawl marks stale files `is_active = false` at completion via `sg_staleness_cleanup()`
+- The crawl marks stale files `is_active = false` at completion via **`deactivate_stale_sg_files(root_label, run_id)`** — it sets `is_active = false` for every file under that root whose `crawl_run_id != current run` (i.e. not seen by the latest crawl: deleted / moved / renamed / not scanned).
+  - **Watchout (no floor):** this function deactivates *unconditionally* — a partial or empty crawl flips **every** file for that root to inactive. This caused a real incident (an empty crawl mass-deactivated the library; recovered by migration `20260610180000_restore_popsg_active_files_after_empty_crawl`). There is **no** "suspiciously-low file count" guard yet — see `HANDOFF.md`.
+
+---
+
+## Style Guide Sources (`sku_files_used`) — files-used resolution
+
+A SKU's **"Style Guide Sources"** panel (`StyleGroupDetailPanel.tsx`) lists the licensor source files used to make a design. Data flow:
+
+```
+licensing-sheet / tech-pack PDF
+  └─ text extracted by the PDF backfill (pdf_text_samples)  [see AGENTS.md "PDF text backfill"]
+       └─ "Files Used:" section parsed → sku_files_used (sku, file_name, source)
+            └─ resolved to a real style_guide_files row → style_guide_file_id
+                 └─ panel shows the resolved file (or "unresolved")
+```
+
+**Scoping rule (migration `20260610070731`, 2026-06-10):** only a **PDF whose filename contains `licensing sheet` / `license sheet` / `tech pack` / `techpack`** may produce `sku_files_used` rows — enforced by `is_style_guide_source_pdf(file_type, filename)`. This gates **all three** write paths:
+1. `parse_pdf_files_used()` (the `pdf_text_samples` AFTER-INSERT trigger + the `backfill_pdf_files_used()` admin RPC)
+2. the JS parser in `agent-api/complete-pdf-backfill-batch`
+3. the `ai-tag` vision `files_used` upsert
+
+The same migration scoped `claim_pdf_backfill_batch()` / `count_pdf_backfill_remaining()` to those PDFs only (was all `.pdf` + `.ai`). `.ai` files carry the same data but are far harder to extract, so they were intentionally dropped from this path.
+
+**Provenance column `sku_files_used.source`:** `pdf_text` | `ai_tag` | `legacy_ungated`. All pre-2026-06-10 rows were stamped `legacy_ungated`. Cleanup query when verified: `DELETE FROM sku_files_used WHERE source = 'legacy_ungated';`
+
+### Resolution: fuzzy + continuous (migrations `20260610091711`, `100545`, `100856`)
+- **`normalize_for_sg_match()` bug fixed:** it stripped `[^a-z0-9]` **before** `lower()`, which *deleted* uppercase letters (`2994221_BG101` → `2994221101`) so any case difference broke exact resolution. Now lowercases first.
+- **`resolve_sku_files_used_fuzzy(threshold default 0.6)`** matches unresolved rows against active `style_guide_files` via a **trigram gin index** `idx_style_guide_files_filename_trgm` on `lower(filename)`. Auto-links at similarity ≥ 0.6; records `match_best_score` / `match_attempts` / `last_match_attempt_at` otherwise. **Quarantine model — never deletes or unlinks.**
+- Scheduled nightly: `pg_cron` job **`resolve-sku-files-used-nightly` at `0 4 * * *` UTC** (after the `0 2` crawl), so pending rows self-link as PopSG heals/grows. (The prior in-loop *exact* normalize scan timed out on the 214k-row library — `100856` made it trigram-only; do not reintroduce an unindexed per-row scan.)
+- `sku_files_used.style_guide_file_id` FK is **`ON DELETE SET NULL`**: archiving/deleting a `style_guide_files` row only nulls the link — `file_name` (plain text) is retained forever.
+
+### `sg_archive_usage` view (migration `20260610104738`) — archival decisions
+Per style guide (`licensor_name`, `property_folder`): the most recent PopDAM design that referenced it (resolved `sku_files_used` → `style_groups.latest_file_date`) and an `archive_candidate` flag (no known design used it in the last 3 years).
+
+> **⚠️ Do not archive off this view until resolution coverage is high.** It is only as complete as `sku_files_used` resolution, and that is fed by the licensing-PDF backfill which is barely started (~13.8k PDFs pending). Today it flags ~657/740 guides as archivable, but most are false positives (their tech packs simply aren't parsed yet). Trustworthy only after the backfill + nightly resolver catch up. See `HANDOFF.md`.
+
+**Note:** `sku_files_used` files-used are licensor source art → they live in **PopSG (`style_guide_files`)**, *not* PopDAM `assets`. Do not try to reconcile files-used against the PopDAM `assets` table (a dead-end considered and rejected this session).
 
 ---
 

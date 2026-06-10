@@ -249,10 +249,21 @@ Crawled style guide files from the NAS. Agent sends raw data; server derives pat
 - `thumbnail_url text NULL`, `thumbnail_error text NULL` — not populated (no thumbnail pipeline)
 - `crawl_run_id uuid FK`
 
-Unique constraint: `(root_label, relative_path)`. Indexes: `licensor_name`, `property_folder`, `style_guide_folder`, `is_active`.
+Unique constraint: `(root_label, relative_path)`. Indexes: `licensor_name`, `property_folder`, `style_guide_folder`, `is_active`, and `idx_style_guide_files_filename_trgm` — gin trigram on `lower(filename)` (added 2026-06-10 for fuzzy files-used resolution). `is_active` is set false by `deactivate_stale_sg_files(root_label, run_id)` at crawl completion for any file not in the latest run; it has **no low-count floor** (KNOWN_QUIRKS.md #46).
 
 #### `style_guide_folders` (view)
 DISTINCT `licensor_name, property_folder` pairs for the sidebar tree. `security_invoker = true` so RLS applies. Used by the frontend to build the folder tree without hitting the PostgREST 1000-row default cap on `style_guide_files`.
+
+#### `sku_files_used`
+"Style Guide Sources" for a SKU — licensor source files parsed from a design's licensing-sheet/tech-pack PDF. Full data flow + scoping rule: `docs/POPSG.md` → "Style Guide Sources".
+- `id uuid PK`, `sku text`, `file_name text` (parsed name — plain text, permanent)
+- `style_guide_file_id uuid FK style_guide_files **ON DELETE SET NULL**` — resolved link; null = unresolved/pending
+- `source text` — provenance: `pdf_text` | `ai_tag` | `legacy_ungated` (all pre-2026-06-10 rows)
+- `match_best_score real`, `match_attempts int`, `last_match_attempt_at timestamptz` — fuzzy-resolution tracking
+- Unique `(sku, file_name)`. Rows written only for licensing/tech-pack PDFs (`is_style_guide_source_pdf()` gate); resolved by `resolve_sku_files_used_fuzzy()` (nightly cron `resolve-sku-files-used-nightly`, `0 4 * * *` UTC).
+
+#### `sg_archive_usage` (view)
+Per style guide (`licensor_name`, `property_folder`): most recent referencing design (`style_groups.latest_file_date`) + `archive_candidate` flag (unused by any design in 3 years). Reliability scales with `sku_files_used` resolution coverage — **not yet trustworthy** (see POPSG.md / HANDOFF.md).
 
 #### `tiff_optimization_queue`
 Queue for TIFF compression jobs run by the Windows Agent.
