@@ -30,10 +30,11 @@ These are optional; omitting them leaves the version display blank in the header
 
 | Secret | Value | Purpose |
 |--------|-------|---------|
-| `GHCR_PAT` | GitHub PAT (`write:packages`) | Push Docker image to GHCR |
 | `COOLIFY_TOKEN` | Coolify API token (deploy permission) | Trigger Coolify deployment |
 | `COOLIFY_APP_UUID` | `qxj8a0j3tpa9lq4q5rs6pezy` | Coolify app identifier |
 | `COOLIFY_URL` | `https://coolify.designflow.app` | Coolify API base URL |
+
+Frontend GHCR pushes use the workflow's implicit `GITHUB_TOKEN` with `packages: write`; do not add a frontend `GHCR_PAT` dependency. On 2026-06-10, an expired/missing `GHCR_PAT` dependency left production stuck on commit `8c0508d` because no newer `:latest` image reached GHCR.
 
 ### Supabase deploy (deploy-supabase.yml)
 

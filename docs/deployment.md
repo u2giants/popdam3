@@ -6,7 +6,7 @@ Every production change follows this path:
 
 1. Developer commits and pushes to `main` on both `origin` (harness proxy) and `github` (direct GitHub remote).
 2. GitHub Actions evaluates path filters and runs the relevant workflow(s).
-3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest` and `:<short-sha>`, then calls the Coolify deploy API.
+3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest` and `:<short-sha>` using the workflow `GITHUB_TOKEN`, then calls the Coolify deploy API.
 4. Coolify receives the webhook, pulls `:latest` from GHCR, and replaces the running container. No SSH is involved.
 5. For Supabase changes: `deploy-supabase.yml` runs `supabase db push` (migrations) and/or deploys all edge functions, then auto-generates and commits `src/integrations/supabase/types.ts`.
 6. For Railway worker changes: Railway detects the push to `main` and triggers its own rebuild automatically — no GitHub Actions step required.
@@ -20,7 +20,7 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 | Name | File | Trigger | What it does |
 |------|------|---------|-------------|
 | CI | `ci.yml` | Push or PR to `main` | Lint, test, and build the frontend with Bun. No deployment. |
-| Publish Frontend Image | `publish-frontend.yml` | Push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `nginx.conf`, or the workflow file | `npm ci` → `vite build` → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → POST Coolify deploy API |
+| Publish Frontend Image | `publish-frontend.yml` | Push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `nginx.conf`, or the workflow file; also `workflow_dispatch` | `npm ci` → `vite build` → GHCR login via `GITHUB_TOKEN` → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → POST Coolify deploy API |
 | Deploy Supabase (Edge Functions + Migrations) | `deploy-supabase.yml` | Push to `main` touching `supabase/functions/**`, `supabase/migrations/**`, or the workflow file; also `workflow_dispatch` | `supabase db push` (if migrations changed) → deploy all edge functions except `_shared` → generate TypeScript types → commit types back to `main` with `[skip ci]` |
 | Edge Functions Format | `edge-functions-format.yml` | Push or PR to `main` touching `supabase/functions/**/*.ts`; also `workflow_dispatch` | Runs `deno fmt` on `supabase/functions/` and commits any formatting changes back |
 | Publish Bridge Agent | `publish-bridge-agent.yml` | Push to `main` touching `apps/bridge-agent/**` or `packages/path-filters/**`; also tags matching `bridge-v*` | Builds and pushes Docker image `ghcr.io/u2giants/popdam-bridge` to GHCR with tags `:latest`, `:stable`, `:v{version}`, `:<sha>`; upserts `BRIDGE_LATEST_BUILD` in `admin_config` via Supabase PostgREST |
@@ -29,6 +29,8 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 | Deploy PopSG Supabase (Edge Functions) | `deploy-popsg-supabase.yml` | `workflow_dispatch` only | Deploys edge functions from `supabase-popsg/` to the old PopSG Supabase project. **This workflow targets dead code and should not be used.** |
 
 **CI path filters:** `publish-frontend.yml` does not trigger on changes to `docs/**` or top-level `.md` files. `deploy-supabase.yml` does not trigger on frontend source changes.
+
+**Stale frontend diagnostic:** if the live app still shows an old commit, compare it to the latest successful `Publish Frontend Image` run. Coolify only moves after GHCR `:latest` is pushed and the Coolify deploy API step succeeds; a workflow failure before those steps leaves production on the previous successful image. Frontend GHCR auth must stay on the workflow `GITHUB_TOKEN` (`packages: write`) rather than a long-lived PAT secret.
 
 ---
 
