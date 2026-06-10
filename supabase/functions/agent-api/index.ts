@@ -2784,16 +2784,12 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       .single();
     const rootsScanned = (runData?.roots_scanned as string[] | null) || [];
     const inaccessibleRootSet = new Set(inaccessibleRoots);
-    const accessibleRoots = rootsScanned.filter((root) =>
-      !inaccessibleRootSet.has(root)
-    );
+    const accessibleRoots = rootsScanned.filter((root) => !inaccessibleRootSet.has(root));
     const zeroFileCrawl = finalFileCount === 0;
     const effectiveCrawlError = crawlError ||
       (zeroFileCrawl
         ? inaccessibleRoots.length > 0
-          ? `Style guide crawl found 0 files; inaccessible roots: ${
-            inaccessibleRoots.join(", ")
-          }`
+          ? `Style guide crawl found 0 files; inaccessible roots: ${inaccessibleRoots.join(", ")}`
           : "Style guide crawl found 0 files; stale cleanup skipped"
         : undefined);
 
@@ -2852,9 +2848,7 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
       });
     }
     console.log(
-      `[complete-style-guide-crawl] Run ${runId} done=${done}, files=${finalFileCount}, error=${
-        effectiveCrawlError || "none"
-      }`,
+      `[complete-style-guide-crawl] Run ${runId} done=${done}, files=${finalFileCount}, error=${effectiveCrawlError || "none"}`,
     );
   }
 
