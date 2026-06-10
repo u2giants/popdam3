@@ -28,6 +28,7 @@ import { startJanitor } from "./janitor";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import { runPdfTextSample, type PdfSampleAsset, type AiModelDef } from "./pdf-text-sampler";
+import { runPdfBackfill } from "./pdf-backfill";
 import { runCompatAudit, runCompatAuditPreview, createCompatAuditWorker } from "./compat-audit";
 
 // ── State ───────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ async function getCompatWorker(): Promise<CompatWorker | undefined> {
   return compatWorker;
 }
 let isSamplingPdfText = false;
+let isBackfillingPdfText = false;
 let isRunningCompatAudit = false;
 let isRunningCompatAuditPreview = false;
 let lastError: string | undefined;
@@ -356,6 +358,27 @@ function startHeartbeat() {
         });
       }
 
+      // Full-library PDF/.ai backfill (self-driven claim loop — no asset list passed).
+      // Runs the entire mupdf→OCR→AI extraction on this Windows VM so the load stays off
+      // the Synology. runPdfBackfill never throws; the finally just clears the guard.
+      if (response.commands?.trigger_pdf_backfill && !isBackfillingPdfText) {
+        const mountRoot = cloudNasMountPath.trim() || `\\\\${cloudNasHost}\\${cloudNasShare}`;
+        isBackfillingPdfText = true;
+        logger.info("PDF backfill requested via heartbeat");
+        runPdfBackfill(mountRoot, {
+          models: cloudAiModels,
+          pdf_extraction: cloudPdfExtractionConfig,
+          googleApiKey: cloudGoogleAiApiKey,
+          anthropicApiKey: cloudAnthropicApiKey,
+          openRouterApiKey: cloudOpenRouterApiKey,
+          aiTaskModels: cloudAiTaskModels,
+        }).catch((e) =>
+          logger.error("PDF backfill error", { error: (e as Error).message })
+        ).finally(() => {
+          isBackfillingPdfText = false;
+        });
+      }
+
       // Check if cloud requests immediate update (standard — respects idle check)
       if (response.commands?.trigger_update) {
         logger.info("Cloud requested immediate update check");
@@ -655,6 +678,19 @@ function startPolling() {
 }
 
 // ── Main ────────────────────────────────────────────────────────
+
+// Process-level safety nets: a fault in a background job (e.g. the PDF backfill loop) must
+// NOT take down the whole agent — heartbeat, rendering, and updates have to keep running.
+// An unhandled rejection here previously crash-looped the bridge agent (exit 1) on every
+// backfill trigger.
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection (kept alive)", {
+    error: reason instanceof Error ? reason.message : String(reason),
+  });
+});
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception (kept alive)", { error: err.message, stack: err.stack });
+});
 
 async function main() {
   // Validate critical config before anything else

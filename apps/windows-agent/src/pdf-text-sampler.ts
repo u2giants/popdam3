@@ -79,7 +79,7 @@ interface FileProgressEntry {
 
 const PDF_EXTRACTION_PROMPT = "Extract all text from this document page. Return only the raw extracted text with no commentary.";
 
-async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
+export async function callAiVision(pngBuffer: Buffer, aiConfig: AiConfig): Promise<string> {
   const base64 = pngBuffer.toString("base64");
 
   // ── Path 1: OpenRouter (preferred when key is configured) ───────────────

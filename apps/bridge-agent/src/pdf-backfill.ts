@@ -240,7 +240,15 @@ export async function runPdfBackfill(
   let totalProcessed = 0;
 
   for (;;) {
-    const batch = await api.claimPdfBackfillBatch();
+    // Never throw out of this function — a claim fault here previously crashed the entire
+    // agent process (exit 1) and crash-looped. Log, stop, let the next heartbeat re-trigger.
+    let batch: Awaited<ReturnType<typeof api.claimPdfBackfillBatch>>;
+    try {
+      batch = await api.claimPdfBackfillBatch();
+    } catch (e) {
+      logger.error("PDF backfill: claim failed — stopping (will retry on next heartbeat)", { error: (e as Error).message });
+      break;
+    }
 
     if (batch.status !== "running") {
       logger.info("PDF backfill: stopped by server", { status: batch.status });
@@ -281,14 +289,19 @@ export async function runPdfBackfill(
       }
     }
 
-    const { remaining } = await api.completePdfBackfillBatch(results);
-    totalProcessed += results.length;
+    try {
+      const { remaining } = await api.completePdfBackfillBatch(results);
+      totalProcessed += results.length;
 
-    await api.reportPdfBackfillProgress(totalProcessed, batch.total, null, "idle");
-    logger.info("PDF backfill: batch committed", { totalProcessed, remaining });
+      await api.reportPdfBackfillProgress(totalProcessed, batch.total, null, "idle");
+      logger.info("PDF backfill: batch committed", { totalProcessed, remaining });
 
-    if (remaining <= 0) {
-      logger.info("PDF backfill: all files processed", { totalProcessed });
+      if (remaining <= 0) {
+        logger.info("PDF backfill: all files processed", { totalProcessed });
+        break;
+      }
+    } catch (e) {
+      logger.error("PDF backfill: commit failed — stopping (will retry on next heartbeat)", { error: (e as Error).message });
       break;
     }
   }

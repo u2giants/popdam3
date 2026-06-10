@@ -461,14 +461,32 @@ async function handleHeartbeat(
   // ── Windows agent health + pending render jobs ──
   const windowsAgents = windowsAgentsResult.data || [];
   let windowsHealthy = false;
+  // Backfill-capable: a healthy Windows agent running >= 0.16.0 (the version that added the
+  // full-library backfill loop). Gating the backfill routing on this makes the cutover from
+  // the bridge agent automatic and gap-free — the bridge keeps doing it until the Windows
+  // agent has actually self-updated to a capable build.
+  let windowsBackfillCapable = false;
+  const versionGte = (v: string | undefined, target: [number, number, number]): boolean => {
+    if (!v) return false;
+    const p = v.split(".").map((n) => parseInt(n, 10));
+    for (let i = 0; i < 3; i++) {
+      const a = p[i] ?? 0;
+      if (a > target[i]) return true;
+      if (a < target[i]) return false;
+    }
+    return true;
+  };
   if (windowsAgents.length > 0) {
-    windowsHealthy = windowsAgents.some((wa: Record<string, unknown>) => {
+    for (const wa of windowsAgents as Record<string, unknown>[]) {
       const lastHb = wa.last_heartbeat ? new Date(wa.last_heartbeat as string).getTime() : 0;
-      if (lastHb === 0 || now.getTime() - lastHb > WINDOWS_OFFLINE_MS) return false;
+      if (lastHb === 0 || now.getTime() - lastHb > WINDOWS_OFFLINE_MS) continue;
       const wMeta = (wa.metadata as Record<string, unknown>) || {};
       const wHealth = wMeta.health as Record<string, unknown> | undefined;
-      return wHealth?.healthy === true;
-    });
+      if (wHealth?.healthy !== true) continue;
+      windowsHealthy = true;
+      const vInfo = wMeta.version_info as Record<string, unknown> | undefined;
+      if (versionGte(vInfo?.version as string | undefined, [0, 16, 0])) windowsBackfillCapable = true;
+    }
   }
 
   const pendingRenderJobs = renderQueueResult.count ?? 0;
@@ -695,11 +713,15 @@ async function handleHeartbeat(
       ...compatAuditCommand,
       ...aiSentinelScanCommand,
       ...blankThumbCleanupCommand,
-      // PDF backfill: dispatch to bridge agents only while status is "running"
+      // PDF backfill: prefer the Windows render agent (keeps all text-extraction CPU off
+      // the Synology); fall back to the bridge agent only when no healthy Windows agent is
+      // available, so the backfill still proceeds if the Windows VM is down.
       trigger_pdf_backfill: (() => {
-        if (agentType !== "bridge") return false;
         const bf = configMap.PDF_BACKFILL as Record<string, unknown> | undefined;
-        return bf?.status === "running";
+        if (bf?.status !== "running") return false;
+        // Prefer the Windows agent once it's actually capable; otherwise the bridge keeps it.
+        const target = windowsBackfillCapable ? "windows-render" : "bridge";
+        return agentType === target;
       })(),
     },
   };

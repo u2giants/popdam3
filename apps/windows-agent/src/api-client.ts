@@ -78,6 +78,7 @@ export interface WindowsHeartbeatResponse {
     trigger_update?: boolean;
     trigger_pdf_text_sample?: boolean;
     pdf_text_sample_assets?: unknown[];
+    trigger_pdf_backfill?: boolean;
     force_restart?: boolean;
     force_apply_update?: boolean;
     force_stop_jobs?: boolean;
@@ -187,6 +188,60 @@ export async function completePdfTextSample(results: unknown[]): Promise<void> {
 
 export async function reportPdfTextSampleProgress(payload: Record<string, unknown>): Promise<void> {
   await callApi("pdf-text-sample-progress", payload);
+}
+
+// ── Full-library PDF/.ai backfill (self-claim loop) ──────────────────────────
+// Same agent-type-agnostic endpoints the bridge agent uses; routed here once the
+// Windows agent is the designated backfill processor (see agent-api trigger_pdf_backfill).
+
+export interface BackfillAsset {
+  id: string;
+  filename: string;
+  relative_path: string;
+  needs_thumbnail: boolean;
+}
+
+export interface BackfillResult {
+  asset_id: string;
+  filename: string;
+  relative_path: string;
+  extraction_method: string;
+  extracted_text: string | null;
+  page_count: number | null;
+  char_count: number;
+  extraction_error: string | null;
+  sample_thumbnail_url: string | null;
+  asset_thumbnail_url: string | null;
+}
+
+export async function claimPdfBackfillBatch(): Promise<{
+  assets: BackfillAsset[];
+  remaining: number;
+  total: number;
+  status: string;
+}> {
+  const data = await callApi("claim-pdf-backfill-batch", {});
+  return data as { assets: BackfillAsset[]; remaining: number; total: number; status: string };
+}
+
+export async function completePdfBackfillBatch(
+  results: BackfillResult[],
+): Promise<{ remaining: number }> {
+  const data = await callApi("complete-pdf-backfill-batch", { results });
+  return { remaining: (data.remaining as number) ?? 0 };
+}
+
+export async function reportPdfBackfillProgress(
+  processed: number,
+  total: number,
+  currentFile: string | null,
+  currentStep: string,
+): Promise<void> {
+  try {
+    await callApi("pdf-backfill-progress", { processed, total, current_file: currentFile, current_step: currentStep });
+  } catch (e) {
+    logger.warn("PDF backfill: progress report failed (non-fatal)", { error: (e as Error).message });
+  }
 }
 
 /**

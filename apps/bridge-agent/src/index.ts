@@ -1922,6 +1922,18 @@ async function main() {
   process.on("SIGTERM", () => { shutdown("SIGTERM").catch(() => process.exit(0)); });
   process.on("SIGINT",  () => { shutdown("SIGINT").catch(() => process.exit(0)); });
 
+  // Safety nets: a fault in a background job (e.g. the PDF backfill loop) must NOT take down
+  // the whole agent — scanning + heartbeat have to keep running. An unhandled rejection here
+  // previously crash-looped this agent (exit 1) on every backfill trigger.
+  process.on("unhandledRejection", (reason) => {
+    logger.error("Unhandled promise rejection (kept alive)", {
+      error: reason instanceof Error ? reason.message : String(reason),
+    });
+  });
+  process.on("uncaughtException", (err) => {
+    logger.error("Uncaught exception (kept alive)", { error: err.message, stack: err.stack });
+  });
+
   // 5. Ready
   logger.info("Agent ready");
 }
