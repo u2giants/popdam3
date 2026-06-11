@@ -15,6 +15,7 @@ on:
       - "postcss.config.js"
       - "tsconfig*.json"
       - "Dockerfile"
+      - "Dockerfile.ci"
       - "nginx.conf"
       - ".github/workflows/publish-frontend.yml"
 
