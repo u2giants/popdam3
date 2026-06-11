@@ -42,12 +42,42 @@ type RebuildState = {
 };
 
 function formatError(e: unknown): string {
-  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
+  if (e && typeof e === "object") {
+    const err = e as { message?: unknown; code?: unknown; details?: unknown; hint?: unknown };
+    const parts = [
+      err.message ? String(err.message) : null,
+      err.code ? `code=${String(err.code)}` : null,
+      err.details ? `details=${String(err.details)}` : null,
+      err.hint ? `hint=${String(err.hint)}` : null,
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(" | ");
+  }
   return String(e);
 }
 
 function isStatementTimeout(msg: string): boolean {
   return msg.includes("57014") || msg.toLowerCase().includes("statement timeout") || msg.toLowerCase().includes("lock timeout");
+}
+
+function formatBatchError(context: {
+  rpc: string;
+  stage: RebuildState["stage"] | "reconcile_stats";
+  substage?: string;
+  cursor?: string | number | null;
+  batchSize?: number;
+  elapsedMs?: number;
+  rawError: string;
+}): string {
+  const fields = [
+    `rpc=${context.rpc}`,
+    `stage=${context.stage}`,
+    context.substage ? `substage=${context.substage}` : null,
+    context.cursor !== undefined ? `cursor=${context.cursor ?? "null"}` : null,
+    context.batchSize !== undefined ? `batch_size=${context.batchSize}` : null,
+    context.elapsedMs !== undefined ? `elapsed_ms=${context.elapsedMs}` : null,
+  ].filter(Boolean);
+
+  return `Database RPC batch failed (${fields.join(", ")})\n${context.rawError}`;
 }
 
 async function saveState(state: RebuildState): Promise<void> {
@@ -148,10 +178,20 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     let result: { cleared_count?: number; last_id?: string | null; has_more?: boolean } | null = null;
 
     while (batchSize >= clearMinBatch) {
-      const { data: rpcResult, error: rpcErr } = await client.rpc("clear_style_group_batch", {
-        p_last_id: state.last_asset_id ?? null,
-        p_batch_size: batchSize,
-      });
+      const started = Date.now();
+      let rpcResult: unknown;
+      let rpcErr: unknown;
+      try {
+        const res = await client.rpc("clear_style_group_batch", {
+          p_last_id: state.last_asset_id ?? null,
+          p_batch_size: batchSize,
+        });
+        rpcResult = res.data;
+        rpcErr = res.error;
+      } catch (e) {
+        rpcErr = e;
+      }
+      const elapsedMs = Date.now() - started;
 
       if (!rpcErr) {
         result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
@@ -159,12 +199,35 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
       }
 
       const msg = formatError(rpcErr);
+      const detailedError = formatBatchError({
+        rpc: "clear_style_group_batch",
+        stage: "clear_assets",
+        cursor: state.last_asset_id ?? null,
+        batchSize,
+        elapsedMs,
+        rawError: msg,
+      });
       if (!isStatementTimeout(msg) || batchSize === clearMinBatch) {
-        return { ok: false, done: false, error: msg, stage: "clear_assets" };
+        logger.error("rebuild-style-groups: RPC batch failed", {
+          rpc: "clear_style_group_batch",
+          stage: "clear_assets",
+          cursor: state.last_asset_id ?? null,
+          batchSize,
+          elapsedMs,
+          error: msg,
+        });
+        return { ok: false, done: false, error: detailedError, stage: "clear_assets" };
       }
 
       const nextBatch = Math.max(clearMinBatch, Math.floor(batchSize / 2));
-      logger.warn("rebuild: clear_assets timeout, reducing batch", { batchSize, nextBatch });
+      logger.warn("rebuild: clear_assets timeout, reducing batch", {
+        rpc: "clear_style_group_batch",
+        cursor: state.last_asset_id ?? null,
+        batchSize,
+        nextBatch,
+        elapsedMs,
+        error: msg,
+      });
       if (nextBatch === batchSize) break;
       batchSize = nextBatch;
     }
@@ -233,13 +296,44 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
 
   // ── Stage 3: assign assets → groups via DB RPC ────────────────────
   if (state.stage === "rebuild_assets") {
-    const { data: rpcResult, error: rpcErr } = await client.rpc("rebuild_style_groups_batch", {
-      p_last_asset_id: state.last_rebuild_asset_id ?? null,
-      p_batch_size: rebuildBatch,
-    });
+    const started = Date.now();
+    let rpcResult: unknown;
+    let rpcErr: unknown;
+    try {
+      const res = await client.rpc("rebuild_style_groups_batch", {
+        p_last_asset_id: state.last_rebuild_asset_id ?? null,
+        p_batch_size: rebuildBatch,
+      });
+      rpcResult = res.data;
+      rpcErr = res.error;
+    } catch (e) {
+      rpcErr = e;
+    }
+    const elapsedMs = Date.now() - started;
 
     if (rpcErr) {
-      return { ok: false, done: false, error: rpcErr.message, stage: "rebuild_assets" };
+      const msg = formatError(rpcErr);
+      logger.error("rebuild-style-groups: RPC batch failed", {
+        rpc: "rebuild_style_groups_batch",
+        stage: "rebuild_assets",
+        cursor: state.last_rebuild_asset_id ?? null,
+        batchSize: rebuildBatch,
+        elapsedMs,
+        error: msg,
+      });
+      return {
+        ok: false,
+        done: false,
+        error: formatBatchError({
+          rpc: "rebuild_style_groups_batch",
+          stage: "rebuild_assets",
+          cursor: state.last_rebuild_asset_id ?? null,
+          batchSize: rebuildBatch,
+          elapsedMs,
+          rawError: msg,
+        }),
+        stage: "rebuild_assets",
+      };
     }
 
     const row = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
@@ -272,12 +366,47 @@ export async function handleRebuildStyleGroups(opState: OpState): Promise<BatchR
     const cursor = state.last_stats_group_id ?? null;
     const batchSize = sub === "primaries" ? PRIMARIES_BATCH : COUNTS_BATCH;
 
-    const { data, error: rpcErr } = await client.rpc("reconcile_style_group_stats_batch", {
-      p_cursor: cursor,
-      p_batch_size: batchSize,
-      p_sub: sub,
-    });
-    if (rpcErr) return { ok: false, done: false, error: rpcErr.message, stage: "finalize_stats" };
+    const started = Date.now();
+    let data: unknown;
+    let rpcErr: unknown;
+    try {
+      const res = await client.rpc("reconcile_style_group_stats_batch", {
+        p_cursor: cursor,
+        p_batch_size: batchSize,
+        p_sub: sub,
+      });
+      data = res.data;
+      rpcErr = res.error;
+    } catch (e) {
+      rpcErr = e;
+    }
+    const elapsedMs = Date.now() - started;
+    if (rpcErr) {
+      const msg = formatError(rpcErr);
+      logger.error("rebuild-style-groups: RPC batch failed", {
+        rpc: "reconcile_style_group_stats_batch",
+        stage: "finalize_stats",
+        substage: sub,
+        cursor,
+        batchSize,
+        elapsedMs,
+        error: msg,
+      });
+      return {
+        ok: false,
+        done: false,
+        error: formatBatchError({
+          rpc: "reconcile_style_group_stats_batch",
+          stage: "finalize_stats",
+          substage: sub,
+          cursor,
+          batchSize,
+          elapsedMs,
+          rawError: msg,
+        }),
+        stage: "finalize_stats",
+      };
+    }
 
     const row = Array.isArray(data) ? data[0] : data;
     if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch", stage: "finalize_stats" };
@@ -345,12 +474,46 @@ export async function handleReconcileStyleGroupStats(opState: OpState): Promise<
 
   const batchSize = sub === "primaries" ? PRIMARIES_BATCH : COUNTS_BATCH;
 
-  const { data, error: rpcErr } = await client.rpc("reconcile_style_group_stats_batch", {
-    p_cursor: cursor,
-    p_batch_size: batchSize,
-    p_sub: sub,
-  });
-  if (rpcErr) return { ok: false, done: false, error: rpcErr.message };
+  const started = Date.now();
+  let data: unknown;
+  let rpcErr: unknown;
+  try {
+    const res = await client.rpc("reconcile_style_group_stats_batch", {
+      p_cursor: cursor,
+      p_batch_size: batchSize,
+      p_sub: sub,
+    });
+    data = res.data;
+    rpcErr = res.error;
+  } catch (e) {
+    rpcErr = e;
+  }
+  const elapsedMs = Date.now() - started;
+  if (rpcErr) {
+    const msg = formatError(rpcErr);
+    logger.error("reconcile-style-group-stats: RPC batch failed", {
+      rpc: "reconcile_style_group_stats_batch",
+      stage: "reconcile_stats",
+      substage: sub,
+      cursor,
+      batchSize,
+      elapsedMs,
+      error: msg,
+    });
+    return {
+      ok: false,
+      done: false,
+      error: formatBatchError({
+        rpc: "reconcile_style_group_stats_batch",
+        stage: "reconcile_stats",
+        substage: sub,
+        cursor,
+        batchSize,
+        elapsedMs,
+        rawError: msg,
+      }),
+    };
+  }
 
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) return { ok: false, done: false, error: "No result from reconcile_style_group_stats_batch" };
