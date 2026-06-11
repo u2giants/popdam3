@@ -114,15 +114,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Code signing: CSC_LINK = base64 of the "Developer ID Application" .p12,
-          # CSC_KEY_PASSWORD = its export password. When unset, electron-builder finds
-          # no identity and produces an UNSIGNED dmg (prior behaviour). When set, it
-          # signs; scripts/notarize.cjs then notarizes (needs the APPLE_* secrets too).
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --mac --publish never
+          # CSC_KEY_PASSWORD = its export password. Empty CSC_* env vars make
+          # electron-builder try to read the project directory as a cert, so only
+          # export them when the cert secret is present.
+          CSC_LINK_SECRET: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD_SECRET: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD_SECRET: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CSC_LINK_SECRET" ]; then
+            export CSC_LINK="$CSC_LINK_SECRET"
+            export CSC_KEY_PASSWORD="$CSC_KEY_PASSWORD_SECRET"
+            export APPLE_ID="$APPLE_ID_SECRET"
+            export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD_SECRET"
+            export APPLE_TEAM_ID="$APPLE_TEAM_ID_SECRET"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            unset CSC_LINK
+            unset CSC_KEY_PASSWORD
+            unset APPLE_ID
+            unset APPLE_APP_SPECIFIC_PASSWORD
+            unset APPLE_TEAM_ID
+            echo "CSC_LINK not configured; building unsigned macOS DMGs."
+          fi
+          npx electron-builder --mac --publish never
 
       - name: List release artifacts
         run: find release -type f | head -20
