@@ -424,11 +424,13 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 ---
 
-## 46. `deactivate_stale_sg_files` Has No Low-Count Floor — Empty Crawl Mass-Deactivates
+## 46. PopSG Stale Cleanup Is Guarded for Zero-File Crawls, But Not Low Counts
 
-**Why**: At crawl completion, `deactivate_stale_sg_files(root_label, run_id)` flips `is_active = false` for **every** file under that root whose `crawl_run_id != current run`. That is correct for normal deletes/renames, but it is *unconditional* — a partial or empty crawl (e.g. NAS mount glitch, agent error) marks the entire library inactive. This happened on 2026-06-10 and required `20260610180000_restore_popsg_active_files_after_empty_crawl` to recover. The resolver and UI filter `is_active`, so a bad crawl silently hides real files (and breaks files-used resolution) until the next good crawl.
+**Why**: At crawl completion, `deactivate_stale_sg_files(root_label, run_id)` flips `is_active = false` for **every** file under that root whose `crawl_run_id != current run`. That is correct for normal deletes/renames, but a bad crawl can hide real files because the resolver and UI filter `is_active`. On 2026-06-10, an empty/inaccessible crawl was suspected while investigating PopSG's "No style guides yet" state.
 
-**Do not assume "53k inactive files" means deletions** — much of it is churn + this failure mode. A "files_found dropped sharply → skip mass-deactivation + alert" guard is proposed but **not built** (see `HANDOFF.md`). Until then, after any suspected bad crawl, verify `style_guide_files` active count vs the previous `style_guide_crawl_runs.files_found`.
+**Current guard**: `supabase/functions/agent-api/index.ts` now treats a final `files_found = 0` style-guide crawl as failed and skips stale cleanup. It also excludes `inaccessible_roots` from stale cleanup. This prevents a fully empty/unmounted root from mass-deactivating the active library.
+
+**Remaining watchout**: there is still no percentage/drop floor for suspiciously low but nonzero crawls. Do not assume a large inactive count means true deletions; compare `style_guide_crawl_runs.files_found` and active counts against the prior successful crawl before trusting stale cleanup.
 
 ---
 

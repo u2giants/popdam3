@@ -91,16 +91,16 @@ Windows Agent is on **v0.16.0** (bumped 2026-06-10 when the full-library PDF bac
 ### 5.6 Frontend deploy GHCR package access
 
 Status:
-Blocked on GitHub Packages configuration.
+Partial. Production was restored manually on the VPS, but the automated GitHub Actions → GHCR publish path remains blocked on GitHub Packages configuration.
 
 Done:
-`publish-frontend.yml` now supports `workflow_dispatch`, logs in with `GITHUB_TOKEN` first, retries with `GHCR_PAT` if push fails, and emits an explicit `write_package` remediation error. `Dockerfile.ci` now includes OCI source labels. Docs updated in `AGENTS.md`, `docs/configuration.md`, and `docs/deployment.md`.
+`publish-frontend.yml` now supports `workflow_dispatch`, logs in with `GITHUB_TOKEN` first, retries with `GHCR_PAT` if push fails, and emits an explicit `write_package` remediation error. `Dockerfile.ci` now includes OCI source labels and `chmod -R a+rX /usr/share/nginx/html` so nginx can read locally built `dist/` files. During the 2026-06-10 PopSG incident, the shell was confirmed to be on the production VPS (`hetz`, `178.156.180.212`), the fixed frontend image was built locally, and the Coolify-managed service was recreated via `/data/coolify/applications/qxj8a0j3tpa9lq4q5rs6pezy/docker-compose.yaml`. Verified after the manual deploy: container healthy and `https://sg.designflow.app/library` returned `HTTP 200` with the new bundle.
 
 Next action:
 Grant repository `u2giants/popdam3` **Write** under the `ghcr.io/u2giants/popdam-frontend` package's Settings → Manage Actions access, or replace `GHCR_PAT` with a valid classic PAT with `write:packages` owned by a package admin. Then manually run `Publish Frontend Image` via `workflow_dispatch`.
 
 Risks / watchouts:
-Production remains on the last successfully published frontend image until GHCR accepts a new `popdam-frontend:latest` push and the Coolify deploy step runs. Verified failures: `GITHUB_TOKEN` push returns `permission_denied: write_package`; existing `GHCR_PAT` retry logs `denied`, so it is absent, invalid, or lacks package rights. Do not assume a passing Vite build means production deployed; compare the live header SHA to the latest successful `Publish Frontend Image` run.
+Production is currently running a locally built image, not an image successfully pushed by the GitHub workflow. Verified failures: `GITHUB_TOKEN` push returns `permission_denied: write_package`; existing `GHCR_PAT` retry logs `denied`, so it is absent, invalid, or lacks package rights. Do not assume a passing Vite build means production deployed; compare the live header SHA / HTML asset timestamp to the latest successful `Publish Frontend Image` run. If another urgent deploy is needed before GHCR is fixed and the session is on the VPS, use the break-glass path in `docs/deployment.md`, then immediately keep the repo/Coolify state documented.
 
 ### 5.7 Style Guide Sources resolution + style-guide archival readiness
 

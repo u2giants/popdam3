@@ -30,7 +30,27 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 
 **CI path filters:** `publish-frontend.yml` does not trigger on changes to `docs/**` or top-level `.md` files. `deploy-supabase.yml` does not trigger on frontend source changes.
 
-**Stale frontend diagnostic:** if the live app still shows an old commit, compare it to the latest successful `Publish Frontend Image` run. Coolify only moves after GHCR `:latest` is pushed and the Coolify deploy API step succeeds; a workflow failure before those steps leaves production on the previous successful image. If `docker push` fails with `permission_denied: write_package`, grant `u2giants/popdam3` Write access under the `popdam-frontend` package's "Manage Actions access" settings, or set `GHCR_PAT` to a classic PAT with `write:packages` owned by a package admin.
+### Frontend GHCR Package Access
+
+What changed:
+`publish-frontend.yml` logs in to GHCR with `GITHUB_TOKEN`, pushes `popdam-frontend:latest` and `:<sha>`, and retries with `GHCR_PAT` if the first push fails. It also supports `workflow_dispatch` for manual redeploys.
+
+Why:
+On 2026-06-10, production stayed on commit `8c0508d` because later frontend workflows passed build but failed before publishing a newer GHCR `:latest` image. Verified failures were `permission_denied: write_package` for `GITHUB_TOKEN` and `denied` for the existing `GHCR_PAT` retry.
+
+Future sessions should:
+If the live header shows an old commit, compare it to the latest successful `Publish Frontend Image` run. If `docker push` fails with `permission_denied: write_package`, grant `u2giants/popdam3` Write access under the `popdam-frontend` package's Settings → Manage Actions access, or set `GHCR_PAT` to a classic PAT with `write:packages` owned by a package admin, then rerun the workflow manually.
+
+### Frontend VPS Break-Glass Deploy
+
+What changed:
+During the 2026-06-10 PopSG incident, the session shell was already running on the production VPS (`hetz`, public IP `178.156.180.212`). GHCR publish was blocked, so the fixed frontend image was built locally and the Coolify-managed service was recreated from `/data/coolify/applications/qxj8a0j3tpa9lq4q5rs6pezy/docker-compose.yaml` with `docker compose up -d --no-deps --force-recreate`.
+
+Why:
+This kept Coolify's compose project, labels, network, restart policy, and container name ownership intact while bypassing the broken GHCR push. The first local image served `403` because `dist/` files copied into nginx as unreadable (`index.html` mode `600`, asset directories `700`); `Dockerfile.ci` now runs `chmod -R a+rX /usr/share/nginx/html` to make future images nginx-readable.
+
+Future sessions should:
+Prefer the normal GitHub Actions → GHCR → Coolify path. If GHCR is down or package permissions block an urgent deploy and the shell is already on the VPS, build the frontend image locally, verify it is tagged `ghcr.io/u2giants/popdam-frontend:latest`, then recreate only the Coolify service from `/data/coolify/applications/qxj8a0j3tpa9lq4q5rs6pezy/docker-compose.yaml`. After recreation, verify `docker ps` reports the container healthy and `curl -I https://sg.designflow.app/library` returns `200`. Do not use this as the routine path; fix GHCR package access afterward.
 
 ---
 

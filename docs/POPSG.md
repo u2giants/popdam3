@@ -158,7 +158,8 @@ A `pg_cron` job (`nightly-sg-crawl`) fires at **02:00 UTC every day** (= 9pm EST
 - The cron expression is UTC-fixed (see Known Quirks #38 for why `cron.timezone` can't be changed)
 - Manual trigger still works: Settings → File Health → Style Guide Crawl → "Trigger Crawl"
 - The crawl marks stale files `is_active = false` at completion via **`deactivate_stale_sg_files(root_label, run_id)`** — it sets `is_active = false` for every file under that root whose `crawl_run_id != current run` (i.e. not seen by the latest crawl: deleted / moved / renamed / not scanned).
-  - **Watchout (no floor):** this function deactivates *unconditionally* — a partial or empty crawl flips **every** file for that root to inactive. This caused a real incident (an empty crawl mass-deactivated the library; recovered by migration `20260610180000_restore_popsg_active_files_after_empty_crawl`). There is **no** "suspiciously-low file count" guard yet — see `HANDOFF.md`.
+  - **Empty-crawl guard:** since 2026-06-10, `agent-api/complete-style-guide-crawl` treats a final `files_found = 0` crawl as failed and skips stale cleanup. It also excludes `inaccessible_roots` from stale cleanup. This guard was added after an empty/inaccessible crawl could make PopSG appear empty.
+  - **Still verify low-but-nonzero drops:** there is no percentage/drop floor yet. If a crawl returns a suspiciously low but nonzero count, compare `style_guide_crawl_runs.files_found` with the prior successful run before trusting mass deactivation.
 
 ---
 
