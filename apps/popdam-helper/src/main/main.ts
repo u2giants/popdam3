@@ -115,9 +115,7 @@ app.whenReady().then(async () => {
 });
 
 // ── macOS: don't quit when all windows close ──────────────────────────────────
-app.on("window-all-closed", (e) => {
-  e.preventDefault();
-});
+app.on("window-all-closed", () => {});
 
 // ── Clean shutdown ────────────────────────────────────────────────────────────
 app.on("before-quit", () => {

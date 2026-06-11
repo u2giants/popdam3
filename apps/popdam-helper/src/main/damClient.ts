@@ -30,7 +30,7 @@ export async function discoverSupabaseConfig(damUrl: string): Promise<{ supabase
   const base = damUrl.replace(/\/$/, "");
   const res = await fetch(`${base}/dam-config.json`);
   if (!res.ok) throw new Error(`Could not fetch dam-config.json (${res.status})`);
-  const json = await res.json();
+  const json = await res.json() as { supabase_url?: unknown; supabase_anon_key?: unknown };
   if (!json.supabase_url) throw new Error("dam-config.json missing supabase_url");
   return {
     supabaseUrl: json.supabase_url as string,
@@ -50,7 +50,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`POST ${path} failed (${res.status}): ${text}`);
   }
-  return res.json();
+  return await res.json() as T;
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -64,7 +64,7 @@ async function get<T>(path: string): Promise<T> {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`GET ${path} failed (${res.status}): ${text}`);
   }
-  return res.json();
+  return await res.json() as T;
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
@@ -188,7 +188,7 @@ export async function heartbeat(params: {
   hydration_bytes_done?: number;
   hydration_bytes_total?: number;
 }): Promise<{ ok: boolean }> {
-  return post("/checkouts/heartbeat", params).catch((e) => {
+  return post<{ ok: boolean }>("/checkouts/heartbeat", params).catch((e) => {
     log.warn("Heartbeat failed:", e.message);
     return { ok: false };
   });

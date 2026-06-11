@@ -49,6 +49,14 @@ async function isCheckinVerificationEnabled(
   return v === true || v === "true" || (typeof v === "object" && v !== null && (v as { enabled?: boolean }).enabled === true);
 }
 
+function rootMappingsFromScanRoots(scanRoots: unknown): Array<{ root_id: string; display_name: string; server_path: string }> {
+  const roots = Array.isArray(scanRoots) ? scanRoots.filter((r): r is string => typeof r === "string" && r.trim().length > 0) : [];
+  return roots.map((r) => {
+    const name = r.replace(/\/+$/, "").split("/").pop() || r;
+    return { root_id: name, display_name: name, server_path: r };
+  });
+}
+
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
 async function getUserId(req: Request): Promise<string | null> {
@@ -138,11 +146,7 @@ async function handleGetConfig(_req: Request): Promise<Response> {
     cfg[row.key] = row.value;
   }
 
-  const scanRoots: string[] = Array.isArray(cfg["SCAN_ROOTS"]) ? (cfg["SCAN_ROOTS"] as string[]) : [];
-  const rootMappings = scanRoots.map((r) => {
-    const name = r.replace(/\/+$/, "").split("/").pop() || r;
-    return { root_id: name, display_name: name, server_path: r };
-  });
+  const rootMappings = rootMappingsFromScanRoots(cfg["SCAN_ROOTS"]);
 
   // HELPER_SEAFILE_LIBRARIES is stored as a JSON string (array of mappings).
   let seafileLibraries: unknown[] = [];
@@ -318,13 +322,14 @@ async function handleStartCheckout(req: Request): Promise<Response> {
     .update({ consumed_at: new Date().toISOString(), checkout_id: checkout.id })
     .eq("id", token);
 
-  // Load root mapping from admin_config so helper knows where to look
+  // Load root mappings from the same source as /config so Synology fallback and
+  // preferred-Synology checkouts do not depend on a stale HELPER_ROOT_MAPPINGS key.
   const { data: cfgRow } = await db
     .from("admin_config")
     .select("value")
-    .eq("key", "HELPER_ROOT_MAPPINGS")
+    .eq("key", "SCAN_ROOTS")
     .maybeSingle();
-  const rootMappings = cfgRow?.value ? JSON.parse(cfgRow.value) : [];
+  const rootMappings = rootMappingsFromScanRoots(cfgRow?.value);
 
   return json({
     ok: true,
@@ -473,10 +478,11 @@ async function handleCompleteCheckin(req: Request): Promise<Response> {
     source_version: source_version ?? null,
   }).eq("id", checkout_id);
 
-  // Update asset quick_hash and file_size if provided
-  if (final_hash || final_size) {
+  // Update asset quick_hash and file_size if provided.  assets.quick_hash stores
+  // the project quick-hash, not the forensic full SHA-256 kept in checkin_hash.
+  if (final_quick_hash || final_size) {
     const assetUpdate: Record<string, unknown> = { updated_at: now };
-    if (final_hash) assetUpdate.quick_hash = final_hash;
+    if (final_quick_hash) assetUpdate.quick_hash = final_quick_hash;
     if (final_size) assetUpdate.file_size = final_size;
     await db.from("assets").update(assetUpdate).eq("id", checkout.asset_id);
   }

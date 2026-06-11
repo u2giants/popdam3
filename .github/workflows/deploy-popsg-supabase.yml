@@ -1,10 +1,7 @@
 name: Deploy PopSG Supabase (Edge Functions)
 
-# Manual trigger only — no push trigger.
-# Requires one new secret (the other two already exist in the repo):
-#   POPSG_SUPABASE_PROJECT_ID     — eeueczxhezfhyrhdmidg  (NEW)
-#   SUPABASE_ACCESS_TOKEN         — already set (same Supabase account covers both projects)
-# No DB password needed — this workflow only deploys edge functions, no migrations.
+# Disabled intentionally. PopSG now runs from the main PopDAM Supabase project;
+# supabase-popsg/ is retained only as historical dead code.
 
 on:
   workflow_dispatch:
@@ -35,7 +32,9 @@ jobs:
       - name: Link to PopSG Supabase project
         # Run from supabase-popsg/ — supabase CLI finds supabase/config.toml and supabase/functions/ here
         working-directory: supabase-popsg
-        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        run: |
+          echo "::error title=Dead workflow::PopSG now uses the main PopDAM Supabase project. Do not deploy supabase-popsg/."
+          exit 1
 
       - name: Deploy PopSG edge functions
         if: inputs.deploy_functions

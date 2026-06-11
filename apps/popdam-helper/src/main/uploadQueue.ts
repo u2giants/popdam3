@@ -155,7 +155,10 @@ async function processJob(job: StoredJob): Promise<void> {
       remoteDir,
       tempName,
       job.filename,
-      (progress) => progressCallback?.(checkoutId, progress.percent),
+      // The Synology client reports 100% when the temp upload finishes, before
+      // rename and cloud finalization. Keep the UI in uploading state until this
+      // queue confirms complete/verifying below.
+      (progress) => progressCallback?.(checkoutId, Math.min(progress.percent, 99)),
     );
 
     // Re-drive: re-upload of a stuck 'verifying' check-in. The file is already on

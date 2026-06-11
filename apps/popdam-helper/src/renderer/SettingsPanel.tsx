@@ -311,7 +311,7 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
             <div className="meta" style={{ color: "var(--color-error, #c00)", marginBottom: 4 }}>
               {rootsFetchError}
             </div>
-            <button style={{ padding: "2px 10px", fontSize: 12 }} onClick={fetchRoots}>
+            <button style={{ padding: "2px 10px", fontSize: 12 }} onClick={() => fetchRoots()}>
               Retry
             </button>
           </div>

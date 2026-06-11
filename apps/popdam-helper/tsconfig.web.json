@@ -10,6 +10,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "out/renderer",
+    "baseUrl": ".",
     "paths": {
       "@shared/*": ["src/shared/*"],
       "@renderer/*": ["src/renderer/*"]

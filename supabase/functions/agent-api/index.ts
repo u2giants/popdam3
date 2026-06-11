@@ -4038,6 +4038,7 @@ corsServe(async (req: Request) => {
       case "complete-compat-audit-preview":
         return await handleCompleteCompatAuditPreview(body);
       case "load-ai-ignore-list": {
+        const db = serviceClient();
         const { data, error } = await db
           .from("scanner_ai_ignores")
           .select("relative_path, reason, snoozed_until")
@@ -4046,6 +4047,7 @@ corsServe(async (req: Request) => {
         return json({ ok: true, ignores: data ?? [] });
       }
       case "mark-ai-ignored": {
+        const db = serviceClient();
         const relativePath = body.relative_path as string | undefined;
         const reason = body.reason as string | undefined;
         if (!relativePath || !reason) return err("relative_path and reason required", 400);

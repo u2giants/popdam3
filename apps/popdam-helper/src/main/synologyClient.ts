@@ -8,8 +8,8 @@
  * Base URL: https://<nas>:<port>/webapi/
  */
 
-import { createReadStream, statSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { basename, dirname } from "path";
+import { statSync, writeFileSync, mkdirSync, openAsBlob } from "fs";
+import { dirname } from "path";
 import { log } from "./logger";
 import { loadToken, storeToken, deleteToken } from "./credentials";
 
@@ -40,12 +40,13 @@ export async function login(config: SynologyConfig): Promise<string> {
     `&session=FileStation&format=sid`;
 
   const res = await fetch(url);
-  const json = await res.json();
+  const json = await res.json() as { success?: boolean; error?: { code?: unknown }; data?: { sid?: string } };
   if (!json.success) {
     throw new Error(`Synology login failed: error code ${json.error?.code}`);
   }
 
-  const sid: string = json.data.sid;
+  const sid = json.data?.sid;
+  if (!sid) throw new Error("Synology login failed: missing sid");
   await storeToken(SID_KEY, sid);
   return sid;
 }
@@ -122,10 +123,7 @@ async function uploadChunked(
   formData.append("overwrite", "true");
   formData.append("_sid", sid);
 
-  // Read file into buffer (for files up to ~500MB this is fine;
-  // for very large files a streaming approach would be needed)
-  const fileBuffer = readFileSync(localPath);
-  const blob = new Blob([fileBuffer]);
+  const blob = await openAsBlob(localPath);
   formData.append("file", blob, destFilename);
 
   onProgress?.({ bytesUploaded: 0, totalBytes, percent: 0 });
@@ -136,7 +134,7 @@ async function uploadChunked(
     headers: { Cookie: `id=${sid}` },
   });
 
-  const json = await res.json();
+  const json = await res.json() as { success?: boolean; error?: { code?: number } };
   if (!json.success) {
     // Session may have expired — clear cached SID and let caller retry
     if (json.error?.code === 119 || json.error?.code === 105) {
@@ -170,7 +168,7 @@ async function renameFile(
     body,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
-  const json = await res.json();
+  const json = await res.json() as { success?: boolean; error?: { code?: unknown } };
   if (!json.success) {
     throw new Error(`Synology rename failed: error code ${json.error?.code}`);
   }

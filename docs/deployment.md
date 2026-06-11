@@ -21,12 +21,12 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 |------|------|---------|-------------|
 | CI | `ci.yml` | Push or PR to `main` | Lint, test, and build the frontend with Bun. No deployment. |
 | Publish Frontend Image | `publish-frontend.yml` | Push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, or the workflow file; also `workflow_dispatch` | `npm ci` → `vite build` → GHCR login via `GITHUB_TOKEN` → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → retry with `GHCR_PAT` if needed → POST Coolify deploy API |
-| Deploy Supabase (Edge Functions + Migrations) | `deploy-supabase.yml` | Push to `main` touching `supabase/functions/**`, `supabase/migrations/**`, or the workflow file; also `workflow_dispatch` | `supabase db push` (if migrations changed) → deploy all edge functions except `_shared` → generate TypeScript types → commit types back to `main` with `[skip ci]` |
+| Deploy Supabase (Edge Functions + Migrations) | `deploy-supabase.yml` | Push to `main` touching `supabase/functions/**`, `supabase/migrations/**`, or the workflow file; also `workflow_dispatch` | `supabase db push` (if migrations changed) → deploy all edge functions except `_shared` and fail the job if any deploy fails → generate TypeScript types → commit types back to `main` with `[skip ci]` |
 | Edge Functions Format | `edge-functions-format.yml` | Push or PR to `main` touching `supabase/functions/**/*.ts`; also `workflow_dispatch` | Runs `deno fmt` on `supabase/functions/` and commits any formatting changes back |
 | Publish Bridge Agent | `publish-bridge-agent.yml` | Push to `main` touching `apps/bridge-agent/**` or `packages/path-filters/**`; also tags matching `bridge-v*` | Builds and pushes Docker image `ghcr.io/u2giants/popdam-bridge` to GHCR with tags `:latest`, `:stable`, `:v{version}`, `:<sha>`; upserts `BRIDGE_LATEST_BUILD` in `admin_config` via Supabase PostgREST |
 | Publish Windows Agent | `publish-windows-agent.yml` | Push to `main` touching `apps/windows-agent/**` or `packages/path-filters/**` | Builds TypeScript, bundles Node.js runtime, creates NSIS installer and zip artifact, creates versioned GitHub Release and updates `windows-agent-latest` release, POSTs `notify-build` to `agent-api` |
 | Publish PopDAM Helper | `publish-popdam-helper.yml` | Push to `main` touching `apps/popdam-helper/**`; also `workflow_dispatch` | Builds Electron app for Windows (x64 NSIS installer) and macOS (arm64 + x64 DMG) in parallel, publishes all artifacts to GitHub Release `popdam-helper-latest` |
-| Deploy PopSG Supabase (Edge Functions) | `deploy-popsg-supabase.yml` | `workflow_dispatch` only | Deploys edge functions from `supabase-popsg/` to the old PopSG Supabase project. **This workflow targets dead code and should not be used.** |
+| Deploy PopSG Supabase (Edge Functions) | `deploy-popsg-supabase.yml` | `workflow_dispatch` only | Intentionally fails with an explanation. `supabase-popsg/` is dead code; PopSG runs from the main PopDAM Supabase project. |
 
 **CI path filters:** `publish-frontend.yml` does not trigger on changes to `docs/**` or top-level `.md` files. `deploy-supabase.yml` does not trigger on frontend source changes.
 
@@ -111,7 +111,7 @@ Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the ru
 
 **Migrations:** When `supabase/migrations/**` files change in a push, the workflow runs `supabase db push`. This applies any local migration files not yet recorded in the DB's migration history, in timestamp order. The workflow does NOT use `--include-all`. The CI job checks `git diff HEAD~1 HEAD` to detect whether migration files changed before running `db push`.
 
-**Edge functions:** When `supabase/functions/**` files change, the workflow deploys all subdirectories under `supabase/functions/` except `_shared`, using `supabase functions deploy <name> --no-verify-jwt`. A failure on one function is logged and the loop continues.
+**Edge functions:** When `supabase/functions/**` files change, the workflow deploys all subdirectories under `supabase/functions/` except `_shared`, using `supabase functions deploy <name> --no-verify-jwt`. The loop records failures and exits non-zero after attempting all deploys, so a broken function no longer produces a green workflow.
 
 **TypeScript type generation:** After deploying, the workflow runs `supabase gen types typescript --project-id $SUPABASE_PROJECT_ID` and writes the output to `src/integrations/supabase/types.ts`. If the file changed, it commits it back to `main` with message `chore: auto-generate Supabase types [skip ci]`.
 

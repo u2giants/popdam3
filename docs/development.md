@@ -5,6 +5,7 @@
 - **Node.js 20** (the CI runner and Dockerfile use `node:20`)
 - **npm** (bundled with Node)
 - **Supabase CLI** — for migration and edge function work (`brew install supabase/tap/supabase` or see [supabase.com/docs/guides/cli](https://supabase.com/docs/guides/cli))
+- **Deno** — required for edge function format/type checks. In the current Codex environment it is installed at `/root/.deno/bin/deno`; add `/root/.deno/bin` to `PATH` or call that binary directly.
 - **Docker** — only needed if building images locally; not required for `npm run dev`
 
 ## Frontend (React web app)
@@ -89,6 +90,12 @@ Format check (run by CI on every push touching functions):
 deno fmt --check supabase/functions/
 ```
 
+Type check all deployed edge function entrypoints:
+```bash
+/root/.deno/bin/deno check --config supabase/functions/deno.json \
+  supabase/functions/*/index.ts
+```
+
 Shared code lives in `supabase/functions/_shared/`. Both `admin-api` and `agent-api` are monolithic routers (all routes in one function) — see quirk #5 in [KNOWN_QUIRKS.md](KNOWN_QUIRKS.md).
 
 ## Individual Apps
@@ -106,20 +113,24 @@ npm run build        # compile to dist/
 cd apps/worker
 npm install
 npm run dev          # starts the worker process
+npm run build
 ```
 
 ```bash
 cd apps/popdam-helper
 npm install
 npm run dev          # electron-vite dev (opens Electron window)
+npm run typecheck
 npm run build        # electron-vite build
-npm run dist         # electron-builder package (requires signing certs on macOS)
+npm run dist:mac     # macOS package (signing/notarization requires GitHub secrets in CI)
+npm run dist:win     # Windows NSIS package
 ```
 
 ```bash
 cd apps/windows-agent
 npm install
 npm run dev          # tsx watch
+npm run build
 ```
 
 ## Git Workflow

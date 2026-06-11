@@ -8,10 +8,10 @@ The frontend has **no runtime env vars**. All configuration is baked into the bu
 
 ```typescript
 const POPDAM_SUPABASE_URL = "https://ryltkzzernhwnojzouyb.supabase.co";
-const POPDAM_ANON_KEY = "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK";
+const POPDAM_ANON_KEY = "sb_publishable_...";
 ```
 
-Both PopDAM and PopSG modes use the same Supabase project. Mode controls UI and routing only. See quirk #1 in [KNOWN_QUIRKS.md](KNOWN_QUIRKS.md) for why the keys are hardcoded rather than in env vars.
+Both PopDAM and PopSG modes use the same Supabase project. Mode controls UI and routing only. The anon key is publishable client config, not a service credential; see quirk #1 in [KNOWN_QUIRKS.md](KNOWN_QUIRKS.md) for why it is hardcoded rather than in env vars.
 
 ### Build-time env vars (optional, CI-only)
 
@@ -28,45 +28,50 @@ These are optional; omitting them leaves the version display blank in the header
 
 ### Frontend (publish-frontend.yml)
 
-| Secret | Value | Purpose |
-|--------|-------|---------|
+| Secret | Type / source | Purpose |
+|--------|---------------|---------|
 | `GHCR_PAT` | Optional classic PAT (`write:packages`) owned by a package admin | Fallback for pushing Docker image to GHCR if package Actions access is not granted |
 | `GHCR_USERNAME` | Optional GitHub username for `GHCR_PAT` owner | Required only if `GHCR_PAT` belongs to an account other than `u2giants` |
 | `COOLIFY_TOKEN` | Coolify API token (deploy permission) | Trigger Coolify deployment |
-| `COOLIFY_APP_UUID` | `qxj8a0j3tpa9lq4q5rs6pezy` | Coolify app identifier |
-| `COOLIFY_URL` | `https://coolify.designflow.app` | Coolify API base URL |
+| `COOLIFY_APP_UUID` | Coolify app UUID | Coolify app identifier |
+| `COOLIFY_URL` | Coolify API base URL | Coolify API base URL |
 
 Frontend GHCR pushes try the workflow's implicit `GITHUB_TOKEN` first (`packages: write`), then retry with `GHCR_PAT` if the push fails and the secret is configured. For `GITHUB_TOKEN` to push the existing `ghcr.io/u2giants/popdam-frontend` package, the package settings must grant repository `u2giants/popdam3` **Write** under "Manage Actions access." Without that package permission or a valid `GHCR_PAT`, `docker push` fails with `permission_denied: write_package`; on 2026-06-10 this left production stuck on commit `8c0508d` because no newer `:latest` image reached GHCR.
 
 ### Supabase deploy (deploy-supabase.yml)
 
-| Secret | Value | Purpose |
-|--------|-------|---------|
-| `SUPABASE_ACCESS_TOKEN` | Personal access token | Authenticate `supabase db push` |
-| `EXTERNAL_SUPABASE_PROJECT_ID` | `ryltkzzernhwnojzouyb` | Target Supabase project |
-| `EXTERNAL_SUPABASE_DB_PASSWORD` | DB password | Database connection for migrations |
+| Secret | Type / source | Purpose |
+|--------|---------------|---------|
+| `SUPABASE_ACCESS_TOKEN` | Supabase personal access token | Authenticate `supabase db push` |
+| `EXTERNAL_SUPABASE_PROJECT_ID` | Supabase project ID | Target Supabase project |
+| `EXTERNAL_SUPABASE_DB_PASSWORD` | Database password | Database connection for migrations |
 
 ### Bridge Agent (publish-bridge-agent.yml)
 
-| Secret | Value | Purpose |
-|--------|-------|---------|
+| Secret | Type / source | Purpose |
+|--------|---------------|---------|
 | `GHCR_PAT` | GitHub PAT (`write:packages`) | Push Docker image to GHCR |
 | `SUPABASE_URL` | Supabase project URL | Notify cloud of new version |
 | `EXTERNAL_SUPABASE_SERVICE_ROLE_KEY` | Service role key | Update `BRIDGE_LATEST_BUILD` in admin_config |
 
 ### Helper (publish-popdam-helper.yml)
 
-| Secret | Value | Purpose |
-|--------|-------|---------|
+| Secret | Type / source | Purpose |
+|--------|---------------|---------|
 | `GH_TOKEN` | GitHub PAT | Create/update GitHub Release |
-| `CSC_IDENTITY_AUTO_DISCOVERY` | `false` | Suppresses code signing until certs are provisioned |
+| `CSC_IDENTITY_AUTO_DISCOVERY` | Literal `false` when signing is disabled | Suppresses implicit keychain discovery until certs are provisioned |
+| `CSC_LINK` | Base64 Developer ID `.p12` or secure file URL | macOS Developer ID signing certificate |
+| `CSC_KEY_PASSWORD` | `.p12` export password | Unlocks `CSC_LINK` |
+| `APPLE_ID` | Apple ID email | Notarization account |
+| `APPLE_APP_SPECIFIC_PASSWORD` | Apple app-specific password | Notarization authentication |
+| `APPLE_TEAM_ID` | Apple Developer Team ID | Notarization team |
 
-Code signing certs are **not yet configured**. See [HANDOFF.md](../HANDOFF.md) for what's needed.
+macOS signing/notarization is wired but secrets are **not yet configured**. With signing secrets absent, the workflow ships an unsigned DMG and skips notarization. Windows signing is not wired; SmartScreen still warns until a separate OV/EV cert path is added. See [HANDOFF.md](../HANDOFF.md).
 
 ### Windows Agent (publish-windows-agent.yml)
 
-| Secret | Value | Purpose |
-|--------|-------|---------|
+| Secret | Type / source | Purpose |
+|--------|---------------|---------|
 | `GITHUB_TOKEN` | Auto-provided | Create GitHub Releases |
 | `SUPABASE_URL` | Supabase project URL | Notify cloud of new version |
 | `DEPLOY_WEBHOOK_KEY` | Deploy key | Authenticate `notify-build` call to agent-api |

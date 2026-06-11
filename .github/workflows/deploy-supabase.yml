@@ -78,6 +78,7 @@ jobs:
           (github.event_name == 'push' && steps.function_changes.outputs.changed == 'true') ||
           (github.event_name == 'workflow_dispatch' && inputs.deploy_functions)
         run: |
+          failed=0
           # Deploy each function listed in config.toml
           for dir in supabase/functions/*/; do
             func_name=$(basename "$dir")
@@ -87,9 +88,14 @@ jobs:
             fi
             echo "Deploying function: $func_name"
             supabase functions deploy "$func_name" --no-verify-jwt || {
-              echo "⚠️  Failed to deploy $func_name, continuing..."
+              echo "❌ Failed to deploy $func_name"
+              failed=1
             }
           done
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more edge functions failed to deploy."
+            exit 1
+          fi
           echo "✅ All functions deployed"
 
       # ── Type Generation ─────────────────────────────────────

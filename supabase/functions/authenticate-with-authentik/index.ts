@@ -87,7 +87,6 @@ corsServe(async (req) => {
   const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email,
-    options: { shouldCreateUser: false },
   });
   if (linkErr || !linkData?.properties?.hashed_token) {
     return err(`Failed to generate session: ${linkErr?.message ?? "no token"}`, 500);

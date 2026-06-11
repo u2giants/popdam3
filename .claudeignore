@@ -2,28 +2,14 @@
 dist/
 build/
 out/
-apps/bridge-agent/dist/
-apps/bridge-agent/out/
-apps/windows-agent/dist/
-apps/windows-agent/out/
-apps/worker/dist/
-apps/worker/out/
-apps/popdam-helper/dist/
+apps/*/dist/
+apps/*/out/
 apps/popdam-helper/out/
 
 # Dependencies
 node_modules/
-apps/bridge-agent/node_modules/
-apps/windows-agent/node_modules/
-apps/worker/node_modules/
-apps/popdam-helper/node_modules/
+apps/*/node_modules/
 packages/path-filters/node_modules/
-
-# Dead code — do not edit or deploy from these
-supabase-popsg/
-
-# Lovable platform memory (auto-generated, not project code)
-.lovable/
 
 # Cache and coverage
 .cache/
@@ -33,22 +19,24 @@ coverage/
 # TypeScript build info
 *.tsbuildinfo
 
-# Lock files (informational; rarely useful for AI context)
+# Lock files are usually too noisy for AI context; read them only when dependency diffs matter
 package-lock.json
 bun.lock
 bun.lockb
-apps/bridge-agent/package-lock.json
-apps/windows-agent/package-lock.json
-apps/worker/package-lock.json
-apps/popdam-helper/package-lock.json
+apps/*/package-lock.json
 packages/path-filters/package-lock.json
 
-# Harness bookkeeping
+# Dead code; PopSG runs from the main Supabase project
+supabase-popsg/
+
+# Lovable platform memory
+.lovable/
+
+# Harness / local deployment bookkeeping
 worksp_symlink.md
-# Untracked symlink into the Coolify deploy dir — not part of the build
 server
 
-# Auto-generated Supabase types (regenerated on every deploy)
+# Auto-generated Supabase types
 src/integrations/supabase/types.ts
 
 # Electron build temp

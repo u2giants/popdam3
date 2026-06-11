@@ -52,11 +52,11 @@ export async function handleGetAiSentinelStatus() {
     );
 
     // Flatten the join: pull thumbnail_url out of the nested assets object
-    const rawPending = ((pendingRes.data ?? []) as Array<{
+    const rawPending = ((pendingRes.data ?? []) as unknown as Array<{
       asset_id: string;
       filename: string;
       relative_path: string;
-      assets: { thumbnail_url: string | null } | null;
+      assets: { thumbnail_url: string | null; is_deleted?: boolean | null } | Array<{ thumbnail_url: string | null; is_deleted?: boolean | null }> | null;
     }>).filter((r) => !alreadyCleaned.has(r.asset_id));
 
     // For each pending sentinel, find the best sibling tech-pack thumbnail
@@ -86,12 +86,13 @@ export async function handleGetAiSentinelStatus() {
 
     const pendingFiles = rawPending.map((r) => {
       const dir = r.relative_path.replace(/\/[^/]*$/, "");
+      const asset = Array.isArray(r.assets) ? r.assets[0] : r.assets;
       const replacement = replacementMap.get(dir) ?? null;
       return {
         asset_id: r.asset_id,
         filename: r.filename,
         relative_path: r.relative_path,
-        thumbnail_url: r.assets?.thumbnail_url ?? null,
+        thumbnail_url: asset?.thumbnail_url ?? null,
         replacement_thumbnail_url: replacement?.thumbnail_url ?? null,
         replacement_filename: replacement?.filename ?? null,
       };

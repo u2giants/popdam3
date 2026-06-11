@@ -84,12 +84,17 @@ export function corsServe(handler: (req: Request) => Promise<Response>): void {
 
     const response = await handler(req);
 
-    // Don't modify responses to rejected origins
-    if (!allowedOrigin) return response;
-
-    // Rewrite CORS headers on every real response
     const headers = new Headers(response.headers);
+
+    // json()/err() keep wildcard CORS for older non-corsServe functions.  Once a
+    // function opts into corsServe, this wrapper owns CORS and must remove those
+    // fallback headers for rejected browser origins.
+    headers.delete("Access-Control-Allow-Origin");
+    headers.delete("Access-Control-Allow-Headers");
+    headers.delete("Access-Control-Expose-Headers");
+    headers.delete("Vary");
     for (const [k, v] of Object.entries(hdrs)) headers.set(k, v);
+
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
