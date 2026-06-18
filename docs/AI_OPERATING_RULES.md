@@ -25,7 +25,7 @@ The only normal deployment path is:
 1. change files in this repo
 2. commit to `main`
 3. GitHub Actions verifies the change
-4. GitHub Actions builds the production Docker image and pushes it to GHCR
+4. GitHub Actions builds the production Docker image and pushes it to GHCR, using a package-write `GHCR_PAT` only when GitHub's user-scoped package permissions reject `GITHUB_TOKEN` writes
 5. GitHub Actions explicitly triggers the Coolify deploy API
 6. Coolify pulls the published image and replaces the production container
 

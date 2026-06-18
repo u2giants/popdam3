@@ -6,7 +6,7 @@ Every production change follows this path:
 
 1. Developer commits and pushes to `main` on both `origin` (harness proxy) and `github` (direct GitHub remote).
 2. GitHub Actions evaluates path filters and runs the relevant workflow(s).
-3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>` using the workflow `GITHUB_TOKEN`, then calls the Coolify deploy API.
+3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>` using `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN`, then calls the Coolify deploy API.
 4. Coolify receives the webhook, pulls `:latest` from GHCR, and replaces the running container. No SSH is involved.
 5. For Supabase changes: `deploy-supabase.yml` runs `supabase db push` (migrations) and/or deploys all edge functions, then auto-generates and commits `src/integrations/supabase/types.ts`.
 6. For Railway worker changes: Railway detects the push to `main` and triggers its own rebuild automatically — no GitHub Actions step required. GitHub's green `popdam / production` deployment badge is Railway worker status, not proof that the frontend has deployed.
@@ -20,7 +20,7 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 | Name | File | Trigger | What it does |
 |------|------|---------|-------------|
 | CI | `ci.yml` | Push or PR to `main` | Lint, test, and build the frontend with Bun. No deployment. |
-| Publish Frontend Image | `publish-frontend.yml` | Push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, or the workflow file; also `workflow_dispatch` | `npm ci` → `vite build` → GHCR login via `GITHUB_TOKEN` → `docker/build-push-action` with `Dockerfile.ci` → push to GHCR (`:latest`, `:sha-<sha>`, `:<sha>`) → POST Coolify deploy API |
+| Publish Frontend Image | `publish-frontend.yml` | Push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, or the workflow file; also `workflow_dispatch` | `npm ci` → `vite build` → GHCR login via `GHCR_PAT` or `GITHUB_TOKEN` → `docker/build-push-action` with `Dockerfile.ci` → push to GHCR (`:latest`, `:sha-<sha>`, `:<sha>`) → POST Coolify deploy API |
 | Deploy Supabase (Edge Functions + Migrations) | `deploy-supabase.yml` | Push to `main` touching `supabase/functions/**`, `supabase/migrations/**`, or the workflow file; also `workflow_dispatch` | `supabase db push` (if migrations changed) → deploy all edge functions except `_shared` and fail the job if any deploy fails → generate TypeScript types → commit types back to `main` with `[skip ci]` |
 | Edge Functions Format | `edge-functions-format.yml` | Push or PR to `main` touching `supabase/functions/**/*.ts`; also `workflow_dispatch` | Runs `deno fmt` on `supabase/functions/` and commits any formatting changes back |
 | Publish Bridge Agent | `publish-bridge-agent.yml` | Push to `main` touching `apps/bridge-agent/**` or `packages/path-filters/**`; also tags matching `bridge-v*` | Builds and pushes Docker image `ghcr.io/u2giants/popdam-bridge` to GHCR with tags `:latest`, `:stable`, `:v{version}`, `:<sha>`; upserts `BRIDGE_LATEST_BUILD` in `admin_config` via Supabase PostgREST |
@@ -33,13 +33,13 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 ### Frontend GHCR Package Access
 
 What changed:
-`publish-frontend.yml` logs in to GHCR with `GITHUB_TOKEN`, uses Docker's official login/build-push actions, and pushes `popdam-frontend:latest`, `:sha-<sha>`, and `:<sha>`. It also supports `workflow_dispatch` for manual redeploys.
+`publish-frontend.yml` logs in to GHCR with `GHCR_PAT` when present, otherwise `GITHUB_TOKEN`, uses Docker's official login/build-push actions, and pushes `popdam-frontend:latest`, `:sha-<sha>`, and `:<sha>`. It also supports `workflow_dispatch` for manual redeploys.
 
 Why:
-On 2026-06-10, production stayed on commit `8c0508d` because later frontend workflows passed build but failed before publishing a newer GHCR `:latest` image. Verified failures were `permission_denied: write_package` for `GITHUB_TOKEN` and `denied` for the existing `GHCR_PAT` retry.
+On 2026-06-10, production stayed on commit `8c0508d` because later frontend workflows passed build but failed before publishing a newer GHCR `:latest` image. Verified failures were `permission_denied: write_package` for `GITHUB_TOKEN` and `denied` for the existing `GHCR_PAT` retry; the fixed workflow uses a valid package-write `GHCR_PAT` fallback for the user-scoped package.
 
 Future sessions should:
-If the live header shows an old commit, compare it to the latest successful `Publish Frontend Image` run, not only the GitHub Deployments sidebar. A green `popdam / production` deployment can be Railway worker status. If frontend image push fails with `permission_denied: write_package`, verify that the `ghcr.io/u2giants/popdam-frontend` package exists or can be created by the workflow `GITHUB_TOKEN`, and that repository `u2giants/popdam3` has package write access.
+If the live header shows an old commit, compare it to the latest successful `Publish Frontend Image` run, not only the GitHub Deployments sidebar. A green `popdam / production` deployment can be Railway worker status. If frontend image push fails with `permission_denied: write_package`, verify that the `ghcr.io/u2giants/popdam-frontend` package exists, that repository `u2giants/popdam3` has package Actions access, or that repo secret `GHCR_PAT` is a valid package-write token.
 
 ### Frontend VPS Break-Glass Deploy
 

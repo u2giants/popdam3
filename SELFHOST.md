@@ -69,7 +69,7 @@ Triggers on push to `main` touching: `src/**`, `public/**`, `index.html`, `packa
 4. **Docker build** using `Dockerfile.ci` (runtime-only nginx; Node build runs in the Actions runner):
    - base: `nginx:1.27-alpine`
    - tags: `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>`
-5. **Push** tags to GHCR (authenticated via the workflow `GITHUB_TOKEN`)
+5. **Push** tags to GHCR (authenticated via `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN`)
 6. **Trigger Coolify** — `GET /api/v1/deploy?uuid=qxj8a0j3tpa9lq4q5rs6pezy&force=false` with `Authorization: Bearer $COOLIFY_TOKEN`
 
 ### Required GitHub Secrets
@@ -79,6 +79,7 @@ Triggers on push to `main` touching: `src/**`, `public/**`, `index.html`, `packa
 | `COOLIFY_TOKEN` | Coolify API token (deploy permission) — ID 30 in the Coolify DB |
 | `COOLIFY_APP_UUID` | `qxj8a0j3tpa9lq4q5rs6pezy` — passed to the deploy endpoint |
 | `COOLIFY_URL` | `https://coolify.designflow.app` — Coolify API base URL |
+| `GHCR_PAT` | Optional package-write token for `ghcr.io/u2giants/popdam-frontend` when GitHub's package Actions access blocks `GITHUB_TOKEN` |
 
 `VPS_SSH_KEY` was removed on 2026-05-15; it is no longer used or stored.
 
