@@ -1385,6 +1385,142 @@ export type Database = {
           },
         ]
       }
+      prod_order_headers_current: {
+        Row: {
+          created_at: string
+          customer_code: string | null
+          customer_name: string | null
+          due_date: string | null
+          erp_updated_at: string | null
+          external_id: string
+          id: string
+          order_date: string | null
+          order_status: string | null
+          prod_order_number: string
+          quantity: number | null
+          raw_payload: Json
+          style_number: string
+          sync_run_id: string | null
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_code?: string | null
+          customer_name?: string | null
+          due_date?: string | null
+          erp_updated_at?: string | null
+          external_id: string
+          id?: string
+          order_date?: string | null
+          order_status?: string | null
+          prod_order_number: string
+          quantity?: number | null
+          raw_payload?: Json
+          style_number: string
+          sync_run_id?: string | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_code?: string | null
+          customer_name?: string | null
+          due_date?: string | null
+          erp_updated_at?: string | null
+          external_id?: string
+          id?: string
+          order_date?: string | null
+          order_status?: string | null
+          prod_order_number?: string
+          quantity?: number | null
+          raw_payload?: Json
+          style_number?: string
+          sync_run_id?: string | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prod_order_headers_current_sync_run_id_fkey"
+            columns: ["sync_run_id"]
+            isOneToOne: false
+            referencedRelation: "prod_order_sync_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prod_order_headers_raw: {
+        Row: {
+          external_id: string
+          fetched_at: string
+          id: string
+          raw_payload: Json
+          sync_run_id: string | null
+        }
+        Insert: {
+          external_id: string
+          fetched_at?: string
+          id?: string
+          raw_payload: Json
+          sync_run_id?: string | null
+        }
+        Update: {
+          external_id?: string
+          fetched_at?: string
+          id?: string
+          raw_payload?: Json
+          sync_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prod_order_headers_raw_sync_run_id_fkey"
+            columns: ["sync_run_id"]
+            isOneToOne: false
+            referencedRelation: "prod_order_sync_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prod_order_sync_runs: {
+        Row: {
+          created_by: string
+          ended_at: string | null
+          error_samples: Json
+          id: string
+          run_metadata: Json
+          started_at: string
+          status: string
+          total_errors: number
+          total_fetched: number
+          total_upserted: number
+        }
+        Insert: {
+          created_by?: string
+          ended_at?: string | null
+          error_samples?: Json
+          id?: string
+          run_metadata?: Json
+          started_at?: string
+          status?: string
+          total_errors?: number
+          total_fetched?: number
+          total_upserted?: number
+        }
+        Update: {
+          created_by?: string
+          ended_at?: string | null
+          error_samples?: Json
+          id?: string
+          run_metadata?: Json
+          started_at?: string
+          status?: string
+          total_errors?: number
+          total_fetched?: number
+          total_upserted?: number
+        }
+        Relationships: []
+      }
       product_categories: {
         Row: {
           created_at: string
@@ -2262,6 +2398,22 @@ export type Database = {
           newest_sg_file_date: string | null
           property_folder: string | null
           total_files: number | null
+        }
+        Relationships: []
+      }
+      style_guide_file_groups: {
+        Row: {
+          directory_path: string | null
+          file_count: number | null
+          group_key: string | null
+          latest_modified_at: string | null
+          licensor_name: string | null
+          property_folder: string | null
+          root_label: string | null
+          sample_thumbnail_url: string | null
+          style_guide_folder: string | null
+          style_guide_name: string | null
+          total_size_bytes: number | null
         }
         Relationships: []
       }
