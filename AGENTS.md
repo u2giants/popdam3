@@ -477,7 +477,8 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 **Triggers:** push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, `.github/workflows/publish-frontend.yml`; also `workflow_dispatch` for manual redeploys.
 **Steps:** `verify` job (`npm ci` + `npm run lint`) → `build-and-push` (`needs: verify`): npm ci → vite build → GHCR login with `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN` (`packages: write`) → Docker `build-push-action` with `Dockerfile.ci` → push to GHCR (`:latest`, `:sha-<short-sha>`, `:<short-sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container. The deploy is gated on `verify` via a native `needs` dependency (a lint failure blocks publish + deploy). `ci.yml` (bun lint/test/build) is the broad repo CI and runs in parallel; it is **not** the deploy gate.
 **GHCR package access:** `ghcr.io/u2giants/popdam-frontend` is a user-scoped package. The workflow prefers a repo secret `GHCR_PAT` with package write access because GitHub can reject `GITHUB_TOKEN` writes unless the package's **Manage Actions access** setting grants `u2giants/popdam3` write access. If both are missing, `docker/build-push-action` fails before Coolify is triggered.
-**Stale-site check:** if the live header shows an old commit, check the latest `Publish Frontend Image` run first. If it failed before "Push image to GHCR" or "Deploy via Coolify", Coolify will keep running the previous successful image (for example, `8c0508d` stayed live because later runs failed before a newer GHCR `:latest` image was published).
+**Coolify pull access:** Coolify's helper container pulls private GHCR images using the Docker credential file mounted from the VPS (`/root/.docker/config.json`). A green GitHub workflow does not prove live deployment if Coolify cannot pull from GHCR. In that case Coolify records a failed deployment with registry `unauthorized`; restore the VPS GHCR login without putting token values in docs.
+**Stale-site check:** if the live header shows an old commit, check the latest `Publish Frontend Image` run first. If it failed before "Push image to GHCR" or "Deploy via Coolify", Coolify will keep running the previous successful image (for example, `8c0508d` stayed live because later runs failed before a newer GHCR `:latest` image was published). If the workflow is green but the site is old, inspect Coolify deployment logs and `docker ps` on the VPS; do not assume the GitHub deployment sidebar means the frontend is current.
 **Rollback:** In Coolify UI, select an older deployment and redeploy. The `:<sha>` tag is the immutable rollback target.
 
 ### Supabase (DB migrations + edge functions)
@@ -515,18 +516,32 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 ## Pending work
 
-Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the pilot, signing, PopSG render/backfill, GHCR package access, and style-guide archival readiness items are done or intentionally abandoned.
+Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the pilot, signing, PopSG render/backfill, and style-guide archival readiness items are done or intentionally abandoned.
 
 | Status | Item | Next action |
 |--------|------|-------------|
 | 🟡 open | **Seafile/SeaDrive Helper — Brazil pilot** | First slice (v1.4.1) + receipt verification (bridge agent v1.16.x) shipped and **active** (`CHECKIN_VERIFICATION_ENABLED = true`, 2026-06-09); build-drift detection in the admin panel shipped. Next: install Helper + SeaDrive on one Brazil Mac and validate checkout/check-in round-trip — watch the first real check-in go `verifying → complete`. See `HANDOFF.md`, `docs/SEAFILE_INTEGRATION.md`. |
 | 🟡 open | **Helper code signing** | Repo wired (macOS `CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`; notarize hook). Blocked on adding the Developer ID `.p12` + Apple secrets to GitHub. Windows needs a separate OV/EV cert. See `HANDOFF.md`. |
 | 🟡 open | **PopSG render pass** | Windows Agent on **v0.16.0**; render backlog not fully processed (operational — run Retry All + queue EPS). See `HANDOFF.md`. |
-| 🟡 open | **Frontend deploy GHCR package access** | Automated GHCR push can still fail until `u2giants/popdam3` has package Write access or `GHCR_PAT` is replaced with a valid package-admin PAT. See `HANDOFF.md` and `docs/deployment.md`. |
+| 🟢 done 2026-06-18 | **Frontend deploy GHCR package access** | `publish-frontend.yml` now uses `GHCR_PAT` when present, the repo secret is set, and GHCR publish succeeded for image tags `latest`, `sha-5482fb7`, and `5482fb7`. Coolify pull access also depends on the VPS Docker login at `/root/.docker/config.json`; see the 2026-06-18 critical incident and `docs/deployment.md`. |
 | 🟡 open | **Style Guide Sources archival readiness** | Let the licensing-PDF backfill finish, add crawl-regression guard before archiving, then build an explicit archived state for old style guides. See `HANDOFF.md` and `docs/POPSG.md`. |
 | 🟢 done external | **Seafile server direct-MS SSO** | Fixed 2026-06-08 in the separate `u2giants/seafile` repo. Keep this note only as context for the Brazil pilot. |
 
 ## Critical incidents
+
+### Resolved 2026-06-18: Frontend CI was green enough to mislead, but production stayed old
+
+What happened: PopSG frontend code was pushed to `main`, but the live site stayed on the old June 10 frontend image. The GitHub repository page showed a green `popdam / production` deployment, but that badge was Railway worker status, not frontend status. The frontend `Publish Frontend Image` workflow was failing at GHCR with `permission_denied: write_package`, so no new `ghcr.io/u2giants/popdam-frontend:latest` image reached Coolify. After GHCR publishing was fixed, Coolify accepted the deploy API call but failed to pull the private image because the VPS Docker credential file no longer had a valid GHCR login. After restoring the VPS GHCR login, Coolify deployed the new container, but both domains briefly returned 502 because `coolify-proxy` had a stale bind-mounted Docker socket and Traefik could not see the new Docker service until the proxy container was restarted.
+
+Impact: `sg.designflow.app` and `dam.designflow.app` served stale frontend assets until the full chain was fixed. During the final rollout, both domains briefly returned 502 even though the app container itself was healthy.
+
+Root cause: Three separate assumptions were wrong: (1) a green GitHub deployment badge was treated as frontend proof even though it was Railway; (2) successful GitHub Actions/Coolify API trigger was treated as deployment proof before checking Coolify's actual deployment record; (3) Traefik's Docker provider was assumed healthy despite a stale `/var/run/docker.sock` mount inside `coolify-proxy`.
+
+Recovery: Added a valid package-write `GHCR_PAT` repo secret and updated `publish-frontend.yml` to use it for GHCR login when present; confirmed GHCR tags `latest`, `sha-5482fb7`, and `5482fb7`; restored the VPS GHCR Docker login used by Coolify's helper; reran the frontend workflow; confirmed Coolify deployment `bmkalsjd7d8feykdvacqkdld` finished; restarted `coolify-proxy` to refresh its Docker socket; verified both production domains returned HTTP 200 with `Last-Modified: Thu, 18 Jun 2026 22:35:55 GMT` and the running container labels included `org.opencontainers.image.revision=5482fb734c7a969406c4f00a21a454f58bb1f890`.
+
+Rule added to prevent recurrence: For frontend deploys, success requires all four checks: (1) `Publish Frontend Image` is green; (2) GHCR has a fresh `latest` tag and `sha-<short-sha>` tag; (3) Coolify deployment status is `finished`, not merely "queued" by the API; (4) both `https://dam.designflow.app/library` and `https://sg.designflow.app/library` return HTTP 200 with a fresh `Last-Modified`/asset hash. If the public domains return 502 while the app container is healthy, check `docker logs coolify-proxy` for Docker provider errors and verify `/var/run/docker.sock` inside `coolify-proxy` matches the live host socket; restart only `coolify-proxy` if the socket mount is stale.
+
+---
 
 ### Resolved 2026-06-10: Bridge agent crash loop (PDF_BACKFILL + missing `ok: true`)
 

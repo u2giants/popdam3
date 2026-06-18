@@ -46,6 +46,7 @@ Production deployment for `dam.designflow.app` (PopDAM) and `sg.designflow.app` 
 
 - **Coolify owns the container.** App UUID `qxj8a0j3tpa9lq4q5rs6pezy`. Coolify pulls `:latest` from GHCR and manages the container lifecycle. Do not run `docker run` manually for this container.
 - **GitHub Actions triggers Coolify, not the server.** After pushing the image, CI posts to Coolify's deploy API. Coolify then pulls the image and replaces the container.
+- **Private GHCR pulls require a VPS Docker login.** Coolify's helper mounts `/root/.docker/config.json` when pulling `ghcr.io/u2giants/popdam-frontend:latest`. If Coolify logs registry `unauthorized`, refresh the `ghcr.io` login on the VPS without recording token values in docs.
 - **Traefik reads from `/data/coolify/proxy/dynamic/` on the host.** This directory is bind-mounted into `coolify-proxy` as `/traefik/dynamic/`. Files placed here are watched and loaded live (no restart needed).
 - **`dam.designflow.app` is routed via Docker labels** set by Coolify on the managed container. The Traefik service name `https-0-qxj8a0j3tpa9lq4q5rs6pezy` is derived from the app UUID and remains stable across redeploys even though the container name changes.
 - **`sg.designflow.app` is routed via a file provider** at `/data/coolify/proxy/dynamic/popdam-sg.yml`. Coolify's Docker label mechanism only applies the first FQDN per app; a separate file provider handles the second hostname using a `@docker` cross-provider service reference.
@@ -265,6 +266,31 @@ The file provider references the Docker service but it's unavailable. Either:
 - Transient (container replacing) — wait 30s
 - The Coolify-managed container stopped: `docker ps --filter "name=qxj8a0j3tpa9lq4q5rs6pezy"`
 - Traefik error: `docker logs coolify-proxy --tail 30 2>&1 | grep qxj8a0j`
+
+### HTTP 502 on both production domains after a deploy
+
+First verify the app container itself:
+
+```bash
+docker ps --filter "name=qxj8a0j3tpa9lq4q5rs6pezy"
+docker exec <container> wget -qO- --server-response http://127.0.0.1/library 2>&1 | head -40
+```
+
+If the container is healthy and serves HTML locally, check Traefik's Docker provider:
+
+```bash
+docker logs --since 5m coolify-proxy 2>&1 | grep -E "docker|provider|service|502|error"
+ls -l /var/run/docker.sock
+docker exec coolify-proxy ls -l /var/run/docker.sock
+```
+
+If logs show `Cannot connect to the Docker daemon` or the socket inside `coolify-proxy` is stale compared with the host socket, restart only the proxy:
+
+```bash
+docker restart coolify-proxy
+```
+
+Then verify both domains with `curl -I`. This is proxy recovery, not a deployment path.
 
 ### HSTS / `.app` domain
 

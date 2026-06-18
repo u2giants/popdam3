@@ -30,13 +30,15 @@ These are optional; omitting them leaves the version display blank in the header
 
 | Secret | Type / source | Purpose |
 |--------|---------------|---------|
-| `GHCR_PAT` | Optional classic PAT (`write:packages`) owned by a package admin | Fallback for pushing Docker image to GHCR if package Actions access is not granted |
-| `GHCR_USERNAME` | Optional GitHub username for `GHCR_PAT` owner | Required only if `GHCR_PAT` belongs to an account other than `u2giants` |
+| `GHCR_PAT` | Classic PAT (`write:packages`) owned by a package admin | Preferred frontend GHCR publish credential when present; required while package Actions access blocks `GITHUB_TOKEN` writes |
+| `GHCR_USERNAME` | Optional GitHub username for `GHCR_PAT` owner | Currently unused by `publish-frontend.yml`; keep only if a future workflow uses a non-`github.actor` username |
 | `COOLIFY_TOKEN` | Coolify API token (deploy permission) | Trigger Coolify deployment |
 | `COOLIFY_APP_UUID` | Coolify app UUID | Coolify app identifier |
 | `COOLIFY_URL` | Coolify API base URL | Coolify API base URL |
 
-Frontend GHCR pushes try the workflow's implicit `GITHUB_TOKEN` first (`packages: write`), then retry with `GHCR_PAT` if the push fails and the secret is configured. For `GITHUB_TOKEN` to push the existing `ghcr.io/u2giants/popdam-frontend` package, the package settings must grant repository `u2giants/popdam3` **Write** under "Manage Actions access." Without that package permission or a valid `GHCR_PAT`, `docker push` fails with `permission_denied: write_package`; on 2026-06-10 this left production stuck on commit `8c0508d` because no newer `:latest` image reached GHCR.
+Frontend GHCR pushes authenticate with `GHCR_PAT` when the secret exists; otherwise they fall back to the workflow's implicit `GITHUB_TOKEN` (`packages: write`). For `GITHUB_TOKEN` to push the existing `ghcr.io/u2giants/popdam-frontend` package, the package settings must grant repository `u2giants/popdam3` **Write** under "Manage Actions access." Without that package permission or a valid `GHCR_PAT`, `docker push` fails with `permission_denied: write_package`; in June 2026 this left production stuck on an old frontend because no newer `:latest` image reached GHCR.
+
+Coolify also needs pull access from the VPS. The deployment helper reads the host Docker credential file (`/root/.docker/config.json`) when pulling the private frontend image. If GitHub Actions publishes successfully but Coolify logs registry `unauthorized`, refresh the VPS Docker login for `ghcr.io`; never document or commit the token value.
 
 ### Supabase deploy (deploy-supabase.yml)
 

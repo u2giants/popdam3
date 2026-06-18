@@ -41,6 +41,21 @@ On 2026-06-10, production stayed on commit `8c0508d` because later frontend work
 Future sessions should:
 If the live header shows an old commit, compare it to the latest successful `Publish Frontend Image` run, not only the GitHub Deployments sidebar. A green `popdam / production` deployment can be Railway worker status. If frontend image push fails with `permission_denied: write_package`, verify that the `ghcr.io/u2giants/popdam-frontend` package exists, that repository `u2giants/popdam3` has package Actions access, or that repo secret `GHCR_PAT` is a valid package-write token.
 
+### Frontend Deploy Verification Checklist
+
+A frontend deployment is not proven live until all four checks pass:
+
+1. The `Publish Frontend Image` GitHub Actions run is green.
+2. GHCR has fresh `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>` tags for the target commit.
+3. Coolify's deployment record is `finished`; a successful API response only means the deployment was queued.
+4. Both `https://dam.designflow.app/library` and `https://sg.designflow.app/library` return HTTP 200 with a fresh `Last-Modified` header or new asset hash.
+
+Common failure split:
+
+- `permission_denied: write_package` in GitHub Actions: the workflow cannot push the user-scoped GHCR package. Check `GHCR_PAT` and package Actions access.
+- `unauthorized` in Coolify deployment logs during `docker compose pull`: Coolify on the VPS cannot pull the private GHCR image. Refresh the VPS Docker login for `ghcr.io` without documenting token values.
+- Public 502 while the app container is healthy: Traefik may not see Docker services. Check `docker logs coolify-proxy` for Docker provider errors. If `/var/run/docker.sock` inside `coolify-proxy` is stale compared with the host socket, restart only `coolify-proxy` to remount the live socket.
+
 ### Frontend VPS Break-Glass Deploy
 
 What changed:
@@ -101,6 +116,8 @@ Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the ru
 **Runtime environment variables** live in Coolify — not in GitHub and not baked into the image. The frontend container is a pure static file server and has no runtime env vars. Runtime configuration for agents (DO Spaces keys, OpenRouter keys, etc.) is stored in the `admin_config` Supabase table and delivered to agents via heartbeat responses. The Railway worker's env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`) are set in the Railway dashboard.
 
 **What Coolify owns:** container lifecycle, restart policy, health checks, domain bindings. Domain `dam.designflow.app` is routed via Docker labels that Coolify applies. Domain `sg.designflow.app` is routed via a Traefik file provider at `/data/coolify/proxy/dynamic/popdam-sg.yml` on the VPS host (bind-mounted into `coolify-proxy`), using a `@docker` cross-provider service reference to the same `popdam-frontend` container.
+
+**Private GHCR pull credential:** Coolify's deployment helper uses the VPS Docker credential file (`/root/.docker/config.json`) to pull `ghcr.io/u2giants/popdam-frontend:latest`. Do not store the token value in docs or commit it to the repo. If Coolify logs `error from registry: unauthorized`, refresh the VPS Docker login for `ghcr.io`, then rerun the GitHub Actions workflow so the deploy still follows the normal CI → GHCR → Coolify path.
 
 ---
 
