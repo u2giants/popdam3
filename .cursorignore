@@ -4,6 +4,7 @@ build/
 out/
 apps/*/dist/
 apps/*/out/
+packages/path-filters/dist/
 apps/popdam-helper/out/
 
 # Dependencies
