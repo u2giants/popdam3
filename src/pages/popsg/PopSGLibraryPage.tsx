@@ -27,9 +27,11 @@ import {
   FileText,
   CalendarDays,
   HardDrive,
+  Layers,
   LayoutList,
   ArrowRight,
   AlertCircle,
+  Files,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCrawlProgress } from "@/hooks/useCrawlProgress";
@@ -52,6 +54,20 @@ interface StyleGuideFile {
   thumbnail_error: string | null;
 }
 
+interface StyleGuideGroup {
+  group_key: string;
+  root_label: string | null;
+  directory_path: string;
+  licensor_name: string | null;
+  property_folder: string | null;
+  style_guide_folder: string | null;
+  style_guide_name: string;
+  file_count: number;
+  latest_modified_at: string | null;
+  total_size_bytes: number | null;
+  sample_thumbnail_url: string | null;
+}
+
 interface TreeNode {
   licensor: string;
   properties: string[];
@@ -62,6 +78,15 @@ type PageSize = typeof PAGE_SIZE_OPTIONS[number];
 
 const FILE_TYPE_OPTIONS = ["pdf", "ai", "psd", "jpg", "jpeg", "png", "tif", "tiff", "indd", "eps"] as const;
 type ThumbStatus = "any" | "has" | "missing";
+type PopSGDisplayMode = "guides" | "files";
+type PopSGSortField = "modified_at" | "name" | "size";
+type SortDirection = "asc" | "desc";
+
+const SORT_OPTIONS: { value: PopSGSortField; label: string }[] = [
+  { value: "modified_at", label: "Date" },
+  { value: "name", label: "Name" },
+  { value: "size", label: "Size" },
+];
 
 function formatBytes(n: number | null): string {
   if (!n) return "—";
@@ -278,6 +303,81 @@ function FileDetailSheet({
   );
 }
 
+function GuideDetailSheet({
+  group,
+  onClose,
+  onOpenFile,
+}: {
+  group: StyleGuideGroup | null;
+  onClose: () => void;
+  onOpenFile: (file: StyleGuideFile) => void;
+}) {
+  const { data: files = [], isLoading } = useQuery({
+    queryKey: ["popsg", "guide-files", group?.group_key],
+    enabled: !!group,
+    queryFn: async () => {
+      if (!group) return [];
+      const { data, error } = await supabase
+        .from("style_guide_files")
+        .select(
+          "id,filename,relative_path,directory_path,file_extension,licensor_name,property_folder,thumbnail_url,thumbnail_error,size_bytes,modified_at",
+        )
+        .eq("is_active", true)
+        .eq("root_label", group.root_label)
+        .eq("directory_path", group.directory_path)
+        .order("modified_at", { ascending: false, nullsFirst: false })
+        .order("filename", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as StyleGuideFile[];
+    },
+  });
+
+  return (
+    <Sheet open={!!group} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="w-full max-w-xl overflow-y-auto">
+        {group && (
+          <>
+            <SheetHeader className="mb-4">
+              <SheetTitle className="truncate text-sm font-semibold">{group.style_guide_name}</SheetTitle>
+            </SheetHeader>
+
+            <div className="mb-4 space-y-2 rounded-md border border-border bg-muted/20 p-3 text-xs">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Folder className="h-3.5 w-3.5" />
+                <span className="break-all">{group.directory_path}</span>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                <span>{group.file_count.toLocaleString()} file{group.file_count === 1 ? "" : "s"}</span>
+                <span>{formatBytes(group.total_size_bytes)}</span>
+                <span>{formatDate(group.latest_modified_at)}</span>
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
+                Loading files…
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {files.map((file) => (
+                  <FileCard
+                    key={file.id}
+                    file={file}
+                    onClick={() => {
+                      onClose();
+                      onOpenFile(file);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ── Empty state ──────────────────────────────────────────────────────
 
 function EmptyState({ hasFilters }: { hasFilters: boolean }) {
@@ -415,6 +515,51 @@ function FileCard({ file, onClick }: { file: StyleGuideFile; onClick: () => void
   );
 }
 
+function GuideCard({ group, onClick }: { group: StyleGuideGroup; onClick: () => void }) {
+  const location = [group.licensor_name, group.property_folder].filter(Boolean).join(" / ");
+
+  return (
+    <button
+      onClick={onClick}
+      className="group w-full text-left overflow-hidden rounded-lg border border-border bg-card transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="relative aspect-square bg-muted/30">
+        {group.sample_thumbnail_url ? (
+          <img
+            src={group.sample_thumbnail_url}
+            alt={group.style_guide_name}
+            loading="lazy"
+            className="h-full w-full object-contain"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground">
+            <FolderOpen className="h-7 w-7" />
+            <span className="text-[10px]">style guide</span>
+          </div>
+        )}
+        <Badge
+          variant="secondary"
+          className="absolute right-1.5 top-1.5 px-1.5 py-0 text-[10px]"
+        >
+          {group.file_count} file{group.file_count === 1 ? "" : "s"}
+        </Badge>
+      </div>
+      <div className="space-y-0.5 p-2">
+        <div className="truncate text-xs font-medium text-foreground" title={group.style_guide_name}>
+          {group.style_guide_name}
+        </div>
+        <div className="truncate text-[10px] text-muted-foreground" title={group.directory_path}>
+          {location || group.directory_path}
+        </div>
+        <div className="flex justify-between text-[10px] text-muted-foreground">
+          <span>{formatBytes(group.total_size_bytes)}</span>
+          <span>{formatDate(group.latest_modified_at)}</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────
 
 export default function PopSGLibraryPage() {
@@ -423,9 +568,13 @@ export default function PopSGLibraryPage() {
   const [nameSearch, setNameSearch] = useState<string>("");
   const [fileTypes, setFileTypes] = useState<string[]>([]);
   const [thumbStatus, setThumbStatus] = useState<ThumbStatus>("any");
+  const [displayMode, setDisplayMode] = useState<PopSGDisplayMode>("guides");
+  const [sortField, setSortField] = useState<PopSGSortField>("modified_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSize>(60);
   const [selectedFile, setSelectedFile] = useState<StyleGuideFile | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<StyleGuideGroup | null>(null);
 
   const crawlProgress = useCrawlProgress();
   const { crawlTriggered, handleTriggerCrawl } = useCrawlLifecycle(crawlProgress, "trigger-style-guide-crawl");
@@ -462,8 +611,45 @@ export default function PopSGLibraryPage() {
     [licensor, property, nameSearch, fileTypes, thumbStatus],
   );
 
-  const { data: results, isLoading, refetch, isFetching, error: resultsError } = useQuery({
-    queryKey: ["popsg", "files", filters, page, pageSize],
+  const { data: groupResults, isLoading: groupsLoading, refetch: refetchGroups, isFetching: groupsFetching, error: groupsError } = useQuery({
+    queryKey: ["popsg", "groups", filters, sortField, sortDirection, page, pageSize],
+    enabled: displayMode === "guides",
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from("style_guide_file_groups")
+        .select(
+          "group_key,root_label,directory_path,licensor_name,property_folder,style_guide_folder,style_guide_name,file_count,latest_modified_at,total_size_bytes,sample_thumbnail_url",
+          { count: "exact" },
+        );
+
+      if (filters.licensor !== "all") q = q.eq("licensor_name", filters.licensor);
+      if (filters.property !== "all") q = q.eq("property_folder", filters.property);
+      if (filters.nameSearch) {
+        const escaped = filters.nameSearch.replace(/[%_]/g, "\\$&");
+        q = q.or(`style_guide_name.ilike.%${escaped}%,directory_path.ilike.%${escaped}%`);
+      }
+      if (filters.thumbStatus === "has") q = q.not("sample_thumbnail_url", "is", null);
+      if (filters.thumbStatus === "missing") q = q.is("sample_thumbnail_url", null);
+
+      if (sortField === "modified_at") {
+        q = q.order("latest_modified_at", { ascending: sortDirection === "asc", nullsFirst: false });
+      } else if (sortField === "size") {
+        q = q.order("total_size_bytes", { ascending: sortDirection === "asc", nullsFirst: false });
+      } else {
+        q = q.order("style_guide_name", { ascending: sortDirection === "asc", nullsFirst: false });
+      }
+      q = q.order("directory_path", { ascending: true });
+      q = q.range(page * pageSize, page * pageSize + pageSize - 1);
+
+      const { data, error, count } = await q;
+      if (error) throw error;
+      return { rows: (data ?? []) as StyleGuideGroup[], total: count ?? 0 };
+    },
+  });
+
+  const { data: fileResults, isLoading: filesLoading, refetch: refetchFiles, isFetching: filesFetching, error: filesError } = useQuery({
+    queryKey: ["popsg", "files", filters, sortField, sortDirection, page, pageSize],
+    enabled: displayMode === "files",
     queryFn: async () => {
       let q = supabase
         .from("style_guide_files")
@@ -480,11 +666,16 @@ export default function PopSGLibraryPage() {
       if (filters.thumbStatus === "has") q = q.not("thumbnail_url", "is", null);
       if (filters.thumbStatus === "missing") q = q.is("thumbnail_url", null);
 
-      q = q
-        .order("licensor_name", { ascending: true, nullsFirst: false })
+      if (sortField === "modified_at") {
+        q = q.order("modified_at", { ascending: sortDirection === "asc", nullsFirst: false });
+      } else if (sortField === "size") {
+        q = q.order("size_bytes", { ascending: sortDirection === "asc", nullsFirst: false });
+      } else {
+        q = q.order("filename", { ascending: sortDirection === "asc" });
+      }
+      q = q.order("licensor_name", { ascending: true, nullsFirst: false })
         .order("property_folder", { ascending: true, nullsFirst: false })
-        .order("filename", { ascending: true });
-      q = q.range(page * pageSize, page * pageSize + pageSize - 1);
+        .range(page * pageSize, page * pageSize + pageSize - 1);
 
       const { data, error, count } = await q;
       if (error) throw error;
@@ -492,8 +683,9 @@ export default function PopSGLibraryPage() {
     },
   });
 
-  const rows = results?.rows ?? [];
-  const total = results?.total ?? 0;
+  const groups = groupResults?.rows ?? [];
+  const rows = fileResults?.rows ?? [];
+  const total = displayMode === "guides" ? groupResults?.total ?? 0 : fileResults?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const hasFilters =
     licensor !== "all" ||
@@ -502,7 +694,10 @@ export default function PopSGLibraryPage() {
     fileTypes.length > 0 ||
     thumbStatus !== "any";
   const hasAnyData = tree.length > 0;
-  const queryError = resultsError || treeError;
+  const queryError = (displayMode === "guides" ? groupsError : filesError) || treeError;
+  const isLoading = displayMode === "guides" ? groupsLoading : filesLoading;
+  const isFetching = displayMode === "guides" ? groupsFetching : filesFetching;
+  const refetch = displayMode === "guides" ? refetchGroups : refetchFiles;
 
   const toggleFileType = (ext: string) => {
     setFileTypes((prev) => prev.includes(ext) ? prev.filter((t) => t !== ext) : [...prev, ext]);
@@ -515,6 +710,12 @@ export default function PopSGLibraryPage() {
     setNameSearch("");
     setFileTypes([]);
     setThumbStatus("any");
+    setPage(0);
+  };
+
+  const handleDisplayModeChange = (mode: PopSGDisplayMode) => {
+    setDisplayMode(mode);
+    if (mode === "guides") setFileTypes([]);
     setPage(0);
   };
 
@@ -549,27 +750,28 @@ export default function PopSGLibraryPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {/* File type */}
-            <div className="border-b border-border px-3 py-3">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                File type
-              </p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {FILE_TYPE_OPTIONS.map((ext) => (
-                  <label
-                    key={ext}
-                    className="flex items-center gap-1.5 cursor-pointer text-xs hover:text-foreground"
-                  >
-                    <Checkbox
-                      checked={fileTypes.includes(ext)}
-                      onCheckedChange={() => toggleFileType(ext)}
-                      className="h-3.5 w-3.5"
-                    />
-                    <span className="uppercase">{ext}</span>
-                  </label>
-                ))}
+            {displayMode === "files" && (
+              <div className="border-b border-border px-3 py-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  File type
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {FILE_TYPE_OPTIONS.map((ext) => (
+                    <label
+                      key={ext}
+                      className="flex items-center gap-1.5 cursor-pointer text-xs hover:text-foreground"
+                    >
+                      <Checkbox
+                        checked={fileTypes.includes(ext)}
+                        onCheckedChange={() => toggleFileType(ext)}
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className="uppercase">{ext}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Thumbnail status */}
             <div className="border-b border-border px-3 py-3">
@@ -605,7 +807,9 @@ export default function PopSGLibraryPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Folders
                 </p>
-                <span className="text-[10px] text-muted-foreground">{total.toLocaleString()} files</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {total.toLocaleString()} {displayMode === "guides" ? "guides" : "files"}
+                </span>
               </div>
               <FolderTree
                 tree={tree}
@@ -659,16 +863,60 @@ export default function PopSGLibraryPage() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            <div className="flex rounded-md border border-border">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("h-8 rounded-r-none gap-1.5 px-2.5 text-xs", displayMode === "guides" && "bg-accent")}
+                onClick={() => handleDisplayModeChange("guides")}
+              >
+                <Layers className="h-3.5 w-3.5" />
+                Style Guides
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("h-8 rounded-l-none border-l border-border gap-1.5 px-2.5 text-xs", displayMode === "files" && "bg-accent")}
+                onClick={() => handleDisplayModeChange("files")}
+              >
+                <Files className="h-3.5 w-3.5" />
+                Files
+              </Button>
+            </div>
+
             {/* Filename search */}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="h-8 w-48 pl-8 text-xs"
-                placeholder="Search filename…"
+                placeholder={displayMode === "guides" ? "Search guides…" : "Search filename…"}
                 value={nameSearch}
                 onChange={(e) => { setNameSearch(e.target.value); setPage(0); }}
               />
             </div>
+
+            <Select value={sortField} onValueChange={(v) => { setSortField(v as PopSGSortField); setPage(0); }}>
+              <SelectTrigger className="h-8 w-24 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setSortDirection((v) => v === "asc" ? "desc" : "asc"); setPage(0); }}
+              className="h-8 w-10 px-0 font-mono text-xs"
+              title={sortDirection === "asc" ? "Ascending" : "Descending"}
+            >
+              {sortDirection === "asc" ? "↑" : "↓"}
+            </Button>
 
             {/* Page size */}
             <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
@@ -720,19 +968,24 @@ export default function PopSGLibraryPage() {
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
               Loading…
             </div>
-          ) : rows.length === 0 ? (
+          ) : (displayMode === "guides" ? groups.length === 0 : rows.length === 0) ? (
             <EmptyState hasFilters={hasFilters || hasAnyData} />
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                {rows.map((f) => (
-                  <FileCard key={f.id} file={f} onClick={() => setSelectedFile(f)} />
-                ))}
+                {displayMode === "guides"
+                  ? groups.map((group) => (
+                    <GuideCard key={group.group_key} group={group} onClick={() => setSelectedGroup(group)} />
+                  ))
+                  : rows.map((f) => (
+                    <FileCard key={f.id} file={f} onClick={() => setSelectedFile(f)} />
+                  ))}
               </div>
 
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>
-                  {rows.length} of {total.toLocaleString()} file{total === 1 ? "" : "s"}
+                  {(displayMode === "guides" ? groups.length : rows.length)} of {total.toLocaleString()}{" "}
+                  {displayMode === "guides" ? `style guide${total === 1 ? "" : "s"}` : `file${total === 1 ? "" : "s"}`}
                 </span>
                 <div className="flex items-center gap-2">
                   <Select
@@ -779,6 +1032,11 @@ export default function PopSGLibraryPage() {
       </div>
 
       {/* ── Detail panel ── */}
+      <GuideDetailSheet
+        group={selectedGroup}
+        onClose={() => setSelectedGroup(null)}
+        onOpenFile={(file) => setSelectedFile(file)}
+      />
       <FileDetailSheet file={selectedFile} onClose={() => setSelectedFile(null)} />
     </div>
   );
