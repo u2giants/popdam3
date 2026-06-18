@@ -24,11 +24,12 @@ The only normal deployment path is:
 
 1. change files in this repo
 2. commit to `main`
-3. GitHub Actions builds the Docker image and pushes to GHCR
-4. GitHub Actions SSHes to the VPS and runs `docker pull` + `docker run` directly
-5. GitHub Actions injects the Traefik file-provider config into the `coolify-proxy` container via `docker cp`
+3. GitHub Actions verifies the change
+4. GitHub Actions builds the production Docker image and pushes it to GHCR
+5. GitHub Actions explicitly triggers the Coolify deploy API
+6. Coolify pulls the published image and replaces the production container
 
-The VPS runs Coolify (which provides the Docker network and Traefik proxy), but the `popdam-frontend` container is managed directly by CI — not through Coolify's application lifecycle. Do not propose alternate routine deployment methods.
+The VPS runs Coolify, and Coolify owns the `popdam-frontend` application lifecycle, health checks, restart policy, domain bindings, and runtime deployment settings. Do not propose alternate routine deployment methods.
 
 See [SELFHOST.md](../SELFHOST.md) for the full pipeline and operational runbook.
 
@@ -43,13 +44,14 @@ AI may help with:
 - editing documentation
 - recommending GitHub Secrets usage for CI/CD
 - recommending Coolify runtime environment variable changes
-- triggering deployment through the approved GitHub -> Coolify path
+- triggering deployment through the approved GitHub Actions -> GHCR -> Coolify path
 
 ## Forbidden AI actions
 
 AI must not:
 
-- use SSH *manually* to deploy or hotfix the production server (automated SSH via GitHub Actions is the approved path)
+- use SSH to deploy or hotfix the production server as a routine path
+- add GitHub Actions steps that SSH into production and run Docker commands
 - hand-edit files directly on the production server outside of CI
 - assume the server contains the source of truth
 - create undocumented hotfixes on the live machine
@@ -62,12 +64,13 @@ AI must not:
 - GitHub Secrets are for CI/CD and build-time secrets
 - Coolify stores production runtime environment variables
 - Do not move all runtime secrets into GitHub if the running app is managed by Coolify
+- Do not keep or reintroduce routine production SSH deploy credentials in GitHub Actions
 
 ## Compose rule
 
-- The repo copy of `docker-compose.yml` is authoritative
-- If a service exists, it should be declared in the repo
-- Do not assume server-side Compose changes are valid unless they are committed
+- Coolify's application settings and generated compose are the source of truth for frontend runtime deployment.
+- Repo Dockerfiles and workflows are the source of truth for the built image and deploy orchestration.
+- Do not hand-edit server-side compose as a normal deployment mechanism.
 
 ## Change discipline
 

@@ -195,7 +195,7 @@ Files outside project-owned areas that were intentionally modified:
 | Production domains | `dam.designflow.app`, `sg.designflow.app` | Coolify + Traefik | Same frontend container; hostname chooses mode |
 | DigitalOcean Spaces bucket | `popdam` (CDN: `cdn.designflow.app`) | `admin_config.DO_SPACES_*` | Renaming requires migrating stored URLs |
 | Railway worker service | `apps/worker/` project in Railway | Railway dashboard | Auto-deploys from every push to `main` |
-| GHCR frontend image | `ghcr.io/u2giants/popdam-frontend` | `.github/workflows/publish-frontend.yml` | Requires package Actions write access or `GHCR_PAT` fallback |
+| GHCR frontend image | `ghcr.io/u2giants/popdam-frontend` | `.github/workflows/publish-frontend.yml` | Published by the frontend workflow as `:latest`, `:sha-<short-sha>`, and `:<short-sha>` |
 | GHCR bridge agent image | `ghcr.io/u2giants/popdam-bridge` (`:stable`) | `.github/workflows/publish-bridge-agent.yml` | `:stable` is used by NAS compose + self-update |
 | pg_cron job | `nightly-sg-crawl` | migration files | PopSG crawl |
 | pg_cron job | `nightly-reconcile-sg-asset-counts` | migration files | Repairs cached style-group counts |
@@ -222,6 +222,7 @@ Files outside project-owned areas that were intentionally modified:
 | PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `ryltkzzernhwnojzouyb` | `supabase/migrations/**`, applied by `.github/workflows/deploy-supabase.yml` |
 
 **Railway deploy note:** Railway watches `main` and rebuilds on every push. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
+**GitHub deployment badge gotcha:** the green `popdam / production` deployment shown in GitHub's repository sidebar is emitted by Railway (`railway-app[bot]`). It means the Railway worker deployed that commit; it does **not** prove the frontend at `dam.designflow.app` / `sg.designflow.app` updated. For frontend freshness, check the `Publish Frontend Image` workflow and the live build SHA/header.
 
 **Coolify ownership:** Coolify owns runtime environment variables, domain bindings, health checks, restart policy, and container lifecycle for `popdam-frontend`. Changes to runtime configuration (env vars, feature flags) go through Coolify directly — not via GitHub or SSH. Source code, Dockerfiles, and workflow changes must go through GitHub as normal.
 
@@ -474,8 +475,8 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 **Workflow:** `.github/workflows/publish-frontend.yml`
 **Triggers:** push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, `.github/workflows/publish-frontend.yml`; also `workflow_dispatch` for manual redeploys.
-**Steps:** `verify` job (`npm ci` + `npm run lint`) → `build-and-push` (`needs: verify`): npm ci → vite build → GHCR login with the workflow `GITHUB_TOKEN` (`packages: write`) → `docker build -f Dockerfile.ci` → push to GHCR (`:latest` + `:<sha>`) → if push fails and `GHCR_PAT` is configured, retry push with that PAT → POST Coolify API → Coolify pulls `:latest` and replaces container. The deploy is gated on `verify` via a native `needs` dependency (a lint failure blocks publish + deploy). `ci.yml` (bun lint/test/build) is the broad repo CI and runs in parallel; it is **not** the deploy gate.
-**GHCR package access:** the existing `ghcr.io/u2giants/popdam-frontend` package must grant `u2giants/popdam3` **Write** under package Settings → Manage Actions access, or `GHCR_PAT` must be a classic PAT with `write:packages` owned by a package admin. If neither is true, the workflow can log in but `docker push` fails with `permission_denied: write_package`.
+**Steps:** `verify` job (`npm ci` + `npm run lint`) → `build-and-push` (`needs: verify`): npm ci → vite build → GHCR login with the workflow `GITHUB_TOKEN` (`packages: write`) → Docker `build-push-action` with `Dockerfile.ci` → push to GHCR (`:latest`, `:sha-<short-sha>`, `:<short-sha>`) → POST Coolify API → Coolify pulls `:latest` and replaces container. The deploy is gated on `verify` via a native `needs` dependency (a lint failure blocks publish + deploy). `ci.yml` (bun lint/test/build) is the broad repo CI and runs in parallel; it is **not** the deploy gate.
+**GHCR package access:** the `ghcr.io/u2giants/popdam-frontend` package must exist or be creatable by the workflow `GITHUB_TOKEN`, and repository `u2giants/popdam3` must have package write access. If not, `docker/build-push-action` fails before Coolify is triggered.
 **Stale-site check:** if the live header shows an old commit, check the latest `Publish Frontend Image` run first. If it failed before "Push image to GHCR" or "Deploy via Coolify", Coolify will keep running the previous successful image (for example, `8c0508d` stayed live because later runs failed before a newer GHCR `:latest` image was published).
 **Rollback:** In Coolify UI, select an older deployment and redeploy. The `:<sha>` tag is the immutable rollback target.
 

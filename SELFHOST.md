@@ -68,15 +68,14 @@ Triggers on push to `main` touching: `src/**`, `public/**`, `index.html`, `packa
 3. **`npm run build`** — Vite produces `dist/`
 4. **Docker build** using `Dockerfile.ci` (runtime-only nginx; Node build runs in the Actions runner):
    - base: `nginx:1.27-alpine`
-   - tags: `ghcr.io/u2giants/popdam-frontend:latest` and `:<short-sha>`
-5. **Push** both tags to GHCR (authenticated via `GHCR_PAT` secret)
+   - tags: `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>`
+5. **Push** tags to GHCR (authenticated via the workflow `GITHUB_TOKEN`)
 6. **Trigger Coolify** — `GET /api/v1/deploy?uuid=qxj8a0j3tpa9lq4q5rs6pezy&force=false` with `Authorization: Bearer $COOLIFY_TOKEN`
 
 ### Required GitHub Secrets
 
 | Secret | Purpose |
 |--------|---------|
-| `GHCR_PAT` | GitHub PAT with `write:packages` scope — authenticates the GHCR push |
 | `COOLIFY_TOKEN` | Coolify API token (deploy permission) — ID 30 in the Coolify DB |
 | `COOLIFY_APP_UUID` | `qxj8a0j3tpa9lq4q5rs6pezy` — passed to the deploy endpoint |
 | `COOLIFY_URL` | `https://coolify.designflow.app` — Coolify API base URL |
@@ -132,6 +131,7 @@ The `@docker` suffix references the service registered by Coolify's Docker provi
 | Image | Tag | Purpose |
 |-------|-----|---------|
 | `ghcr.io/u2giants/popdam-frontend` | `latest` | Current prod — Coolify pulls this on every deploy |
+| `ghcr.io/u2giants/popdam-frontend` | `sha-<short-sha>` | Preferred immutable rollback/audit target |
 | `ghcr.io/u2giants/popdam-frontend` | `<short-sha>` | Pinned rollback target |
 
 **`Dockerfile` vs `Dockerfile.ci`:**
@@ -144,6 +144,7 @@ The `@docker` suffix references the service registered by Coolify's Docker provi
 
 > **SSH access to the production server is for emergency and diagnostic use only.**
 > Normal deployment uses GitHub Actions → GHCR → Coolify API (no SSH required).
+> GitHub's green `popdam / production` deployment badge can be Railway worker status. For frontend freshness, verify the `Publish Frontend Image` workflow and live build SHA/header.
 > SSH commands in this section are for debugging incidents, inspecting logs, and emergency break-glass repairs.
 > They must not become a routine deployment path. Any action taken via SSH must be reflected in the repo or Coolify immediately afterward so the server does not become a hidden source of truth.
 

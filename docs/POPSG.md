@@ -27,11 +27,23 @@ Key tables in the shared Supabase project:
 |---|---|
 | `style_guide_files` | One row per file discovered on NAS. `is_active=true` = present in latest crawl. |
 | `style_guide_folders` | View returning DISTINCT `licensor_name, property_folder` pairs for the sidebar tree. |
+| `style_guide_file_groups` | View returning one row per active PopSG style-guide folder for grouped browsing, counts, latest modified date, total size, and representative thumbnail. |
 | `style_guide_crawl_runs` | One row per crawl run (started, completed, file count). |
 | `agent_registrations` | Bridge agents that have paired. Keyed by `agent_key_hash`. |
 | `agent_pairings` | One-time pairing codes (15-min TTL). |
 | `admin_config` | Key/value config store. PopSG keys: `scan_roots`, `STYLE_GUIDE_CRAWL_REQUEST`, `SCAN_PROGRESS`, `POLLING_CONFIG`. |
 | `app_access` | Per-user app entitlement. Values: `popdam`, `styleguides`. |
+
+## PopSG Library Browsing
+
+The PopSG library defaults to **Style Guides** view, not individual files. This groups active `style_guide_files` rows by scan root + `directory_path` through the `style_guide_file_groups` view.
+
+- Default sort: latest modified date descending (`latest_modified_at DESC` in Style Guides view; `modified_at DESC` in Files view).
+- Sort options: Date, Name, Size.
+- Display modes: **Style Guides** (default) and **Files**.
+- Style Guide cards show `style_guide_name`, licensor/property location, file count, total size, latest modified date, and the newest available thumbnail in the folder.
+- Opening a Style Guide shows the files in that folder, ordered by newest modified date first.
+- File-type filters apply only in Files view; guide-level filtering uses folder/search, preview status, and sort controls.
 
 ### `style_guide_files` columns
 
