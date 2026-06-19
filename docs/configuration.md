@@ -97,6 +97,7 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 | `STYLE_GUIDE_CRAWL_REQUEST` | Pending PopSG crawl trigger |
 | `ERP_LAST_SYNC_DATE` | Watermark for incremental ERP sync |
 | `ERP_CATEGORY_CUTOFF_DATE` | Items before this date have mg_category nulled (legacy) |
+| `PROD_ORDER_API_*` | PLM production PO sync non-secret config: optional token header-name overrides and optional `PROD_ORDER_API_ENDPOINT`. Store token values and Google service account JSON as Supabase Edge Function secrets, not in `admin_config`. `PROD_ORDER_API_TOKEN_2` is currently the PLM `X-User-Authorization` app token; browser-copied values expire and are not a durable integration path. |
 | `BRIDGE_LATEST_BUILD` | Latest published bridge agent build: `{ version, sha, published_at, ... }`. The `sha` (git commit) is the immutable identity the admin UI compares the agent's reported `build_sha` against to detect drift — see the "Agent `version` can lie" quirk in `AGENTS.md`. |
 | `AI_TASK_MODELS` | Per-task AI model overrides (vision_tagging, text_classification, pdf_extraction) |
 | `BLANK_THUMB_CLEANUP_REQUEST` | Pending blank thumbnail cleanup trigger |

@@ -134,3 +134,54 @@ When deploying changes to `mg-codes.ts` or `erp-sync`:
 2. In ERP Enrichment admin UI → run **Full Sync**
 3. Verify "Unresolved MG Codes" stat is 0 or expected count
 4. Check amber rows in browser — these need ERP correction upstream
+
+---
+
+## 8. Production PO Sync
+
+Production PO headers come from the PLM API and are stored separately from ERP item master data:
+
+- API endpoint default: `https://popcre-tracking-prod-677598988032.us-central1.run.app/getProdOrderHeader`
+- Admin route: `admin-api` action `trigger-prod-order-sync`
+- Tables: `prod_order_sync_runs`, `prod_order_headers_raw`, `prod_order_headers_current`
+- Association: `prod_order_headers_current.style_number = style_groups.sku`
+- UI: Settings → Processing → ERP Sync → Production POs, plus each style group's detail panel
+
+### Data shape
+
+The PLM response is header-shaped, but style/SKU rows live under each header's `details[]` array. Verified from the PLM/Postman screenshot and backend smoke tests:
+
+- Header production PO number fields: `Prod Reference #`, `Prod Order No`
+- Detail style/SKU fields: `details[].Item #`, `details[].matchedItemNumber`
+- Detail quantity fields: `details[].prod_order_qty`, `details[].masterQuantity`
+- Header quantity/date/customer fields include `Prod Qty`, `neededDate`, `Due Date`, `PO Date`, `Customer Code`, `Customer Desc`
+
+The sync flattens each header into one `prod_order_headers_current` row per detail item so one production PO can be associated with multiple PopDAM styles.
+
+Credential/config:
+
+- Preferred Supabase Edge Function secrets:
+  - `PROD_ORDER_GOOGLE_SERVICE_ACCOUNT_JSON` — Google service account JSON used to mint the Cloud Run identity token at sync time
+  - `PROD_ORDER_API_TOKEN_2` — the app/browser token sent as `X-User-Authorization`
+- Optional Supabase Edge Function secrets:
+  - `PROD_ORDER_CLOUD_RUN_AUDIENCE` — Cloud Run identity-token audience override; defaults to the PLM endpoint origin
+  - `PROD_ORDER_API_TOKEN_1` — pre-minted Cloud Run identity token, useful for quick testing only because `gcloud auth print-identity-token` tokens expire
+  - `PROD_ORDER_API_AUTH_HEADERS` JSON object to override both token/header defaults exactly
+- Optional `admin_config.PROD_ORDER_API_TOKEN_1_HEADER` (default `Authorization`, sent as `Bearer <identity token>`)
+- Optional `admin_config.PROD_ORDER_API_TOKEN_2_HEADER` (default `X-User-Authorization`)
+- Optional `admin_config.PROD_ORDER_API_ENDPOINT` URL override
+
+The sync preserves every normalized header/detail pair in `prod_order_headers_raw`, then normalizes production PO number, style number, status, customer, quantity, and dates into `prod_order_headers_current`.
+
+### Auth status and watchouts
+
+Cloud Run auth was verified on 2026-06-18:
+
+- `gcloud auth print-identity-token --impersonate-service-account=designflow-bff-invoker@lithe-breaker-323913.iam.gserviceaccount.com --audiences=<prod-or-sandbox-origin>` succeeds after the user/account was granted service-account token creator access.
+- Calling prod/sandbox with only the Cloud Run `Authorization: Bearer <identity-token>` reaches the Express app and returns `403 Invalid Token`, proving Cloud Run auth is no longer the blocker.
+
+The blocker is the PLM app-layer token:
+
+- `PROD_ORDER_API_TOKEN_2` is sent as `X-User-Authorization`.
+- Browser-copied JWTs are short-lived. One provided token expired on 2026-06-16; after expiry the PLM API returned `403 Invalid Token`.
+- Do not build an operational workflow around manually copying this browser token. The durable fix must come from the PLM/BFF side: service account allow-listing, a client-credentials/token-refresh endpoint, or a long-lived read-only API token for production-order reads.

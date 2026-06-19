@@ -223,7 +223,29 @@ AI classification results for ERP items missing `mg_category`.
 - `status text` (pending/auto_applied/approved/rejected/unclassifiable)
 - `reviewed_by uuid`, `reviewed_at timestamptz`, `input_context jsonb`
 
-### 2.15 Hygiene & Style Guide Tables
+### 2.15 Production PO Tables
+
+Production PO headers are synced from the PLM API and associated to PopDAM styles by SKU/style number. The PLM API returns SKU/item data under `details[]`; PopDAM flattens each header/detail pair into one current row.
+
+#### `prod_order_sync_runs`
+Metadata per PLM production-order sync execution.
+- `id uuid PK`, `status text`, `started_at`, `ended_at`
+- `total_fetched int`, `total_upserted int`, `total_errors int`, `error_samples jsonb`
+- `run_metadata jsonb`, `created_by text`
+
+#### `prod_order_headers_raw`
+Immutable snapshot of every normalized PLM production-order header/detail pair.
+- `id uuid PK`, `external_id text`, `raw_payload jsonb`, `sync_run_id uuid FK`, `fetched_at timestamptz`
+
+#### `prod_order_headers_current`
+Latest normalized production PO header/detail row.
+- `id uuid PK`, `external_id text UNIQUE NOT NULL`
+- `prod_order_number text NOT NULL` — from header fields such as `Prod Reference #` / `Prod Order No`
+- `style_number text NOT NULL` — joins to `style_groups.sku`; from detail fields such as `Item #` / `matchedItemNumber`
+- Optional display fields: `order_status`, `customer_code`, `customer_name`, `quantity`, `due_date`, `order_date`, `erp_updated_at`
+- `raw_payload jsonb`, `synced_at`, `sync_run_id uuid FK`
+
+### 2.16 Hygiene & Style Guide Tables
 
 #### `hygiene_findings`
 File naming/structure issues found during Windows Agent scans.

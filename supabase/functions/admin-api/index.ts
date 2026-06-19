@@ -63,6 +63,12 @@ import {
   handleTriggerErpSync,
 } from "../_shared/admin-handlers/erp-browse-handlers.ts";
 
+import {
+  handleProdOrderStats,
+  handleProdOrderSyncRuns,
+  handleTriggerProdOrderSync,
+} from "../_shared/admin-handlers/prod-order-handlers.ts";
+
 import { handleGenerateInstallBundle } from "../_shared/admin-handlers/install-bundle-handler.ts";
 import { handleGetDirBrowseResult, handleRequestDirBrowse } from "../_shared/admin-handlers/dir-browse-handlers.ts";
 
@@ -157,6 +163,7 @@ async function authenticateAdmin(
   const authResult = await authenticateUser(req);
   if (authResult instanceof Response) return authResult;
   const { userId } = authResult;
+  if (userId === "system") return { userId };
 
   // Check admin role using service client (bypasses RLS)
   const db = serviceClient();
@@ -899,7 +906,7 @@ async function handleGetOpenrouterVisionModels() {
 async function handleTriggerPdfBackfill() {
   const db = serviceClient();
 
-  // Accurate remaining count over BOTH .pdf and .ai (matches claim_pdf_backfill_batch).
+  // Accurate remaining count over licensing-sheet / tech-pack PDFs (matches claim_pdf_backfill_batch).
   // count_pdf_backfill_remaining() is the same NOT-EXISTS predicate the agent claims against,
   // so the progress bar total stays consistent with the work actually done.
   const { data: remainingCount } = await db.rpc("count_pdf_backfill_remaining");
@@ -1529,6 +1536,12 @@ corsServe(async (req: Request) => {
         return await handleErpItemsBrowse(body);
       case "erp-items-dismiss":
         return await handleErpItemsDismiss(body);
+      case "trigger-prod-order-sync":
+        return await handleTriggerProdOrderSync(body);
+      case "prod-order-sync-runs":
+        return await handleProdOrderSyncRuns();
+      case "prod-order-stats":
+        return await handleProdOrderStats();
 
       // ── Install bundle (from install-bundle-handler.ts) ──
       case "generate-install-bundle":

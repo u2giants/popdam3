@@ -23,6 +23,16 @@ function isValidUuid(v: unknown): v is string {
   return typeof v === "string" && UUID_RE.test(v);
 }
 
+function isStyleGuideSourcePdf(asset: { file_type: string | null; filename: string | null }): boolean {
+  const filename = (asset.filename ?? "").toLowerCase();
+  return asset.file_type === "pdf" && (
+    filename.includes("licensing sheet") || filename.includes("licensing_sheet") ||
+    filename.includes("license sheet") || filename.includes("license_sheet") ||
+    filename.includes("tech pack") || filename.includes("tech_pack") ||
+    filename.includes("techpack")
+  );
+}
+
 /** Convert raw AI/DB error strings into human-readable messages. */
 function humanizeError(raw: string): string {
   // Alibaba Cloud / Qwen content inspection failures
@@ -447,13 +457,19 @@ ${usingPriorityOnly
         }
       }
 
-      // Upsert files_used entries to sku_files_used (licensed products only)
-      if (Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0 && asset.sku) {
+      // Upsert files_used entries to sku_files_used (licensed products only).
+      // Style Guide Sources may ONLY come from a licensing-sheet / tech-pack PDF.
+      // The DB parser and edge ai-tag path enforce the same rule; keep the
+      // persistent worker aligned because Railway runs the batch tagger.
+      if (
+        isStyleGuideSourcePdf(asset) && asset.sku &&
+        Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0
+      ) {
         const rows = (tagData.files_used as string[])
           .filter((f) => typeof f === "string" && f.trim().length > 0)
-          .map((f) => ({ sku: asset.sku as string, file_name: f.trim() }));
+          .map((f) => ({ sku: asset.sku as string, file_name: f.trim(), source: "ai_tag" }));
         if (rows.length > 0) {
-          await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name" });
+          await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
         }
       }
 

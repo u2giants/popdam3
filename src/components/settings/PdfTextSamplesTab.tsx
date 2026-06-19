@@ -1138,7 +1138,7 @@ function PdfBackfillCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Reads every PDF and .ai file in the library and extracts embedded text. This is what populates the <strong className="text-foreground font-medium">Files Used</strong> list in each group's detail panel (parsed from tech pack "Files Used" sections) and gives the AI tagger the full tech pack text when re-tagging. Run this whenever new PDFs have been scanned but their tech pack content isn't showing up yet. Runs on the Windows render agent and can be paused and resumed.
+          Reads licensing-sheet and tech-pack PDFs, extracts embedded text, and populates the <strong className="text-foreground font-medium">Files Used</strong> list in each group's detail panel from matching sections. Run this when new licensing PDFs have been scanned but their source files are not showing yet. Runs on the Windows render agent and can be paused and resumed.
         </p>
         {bf && (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
