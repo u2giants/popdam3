@@ -169,6 +169,8 @@ Move detection:
 - preserve tags/metadata
 - write to `asset_path_history`
 
+> ⚠️ **Known failure mode of this design (see `docs/KNOWN_QUIRKS.md` #51, characterized 2026-06-19):** `quick_hash` is a *sampled* hash, so distinct files can collide — most often template-derived design files with identical header/footer/size (e.g. many SKUs' `sewn-in label.ai`), and all 0-byte files. Because move detection matches on `quick_hash` alone (no filename or full-content check) **and** dedups on it, a cluster of colliding files (a) "flip-flaps" the one shared asset row between their paths every scan (4.7M+ `asset_path_history` rows, 15k+ assets affected) and (b) **hides the other N−1 files from the Library entirely**. Before relying on or modifying move detection, add a filename/old-path guard and treat `quick_hash` as non-unique. Do not treat `quick_hash` as a content-unique key.
+
 ---
 
 ## 10) Pagination + Performance

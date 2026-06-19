@@ -57,7 +57,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Change DB schema, migrations, models, external IDs, data flow | `AGENTS.md`, `CLAUDE.md` (migration timestamp discipline — **read before any migration**), `docs/SCHEMA.md`, `docs/STYLE_GROUPS.md` if groups are touched | deployment docs unless rollout changes |
 | Work on stage / customer / program (path-derived attributes) or the Stage/Customer/Program filters | `AGENTS.md`, `docs/PATH_ATTRIBUTES.md` (and `docs/PATH_UTILS.md` for canonical path format) | unrelated UI/ERP docs |
 | Work on bulk operations / the Railway worker | `AGENTS.md`, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` | unrelated UI docs |
-| Work on ERP sync / MG codes / category classification | `AGENTS.md`, `docs/ERP_ENRICHMENT_PLAN.md` | deployment docs |
+| Work on ERP sync / MG codes / category classification / production PO sync | `AGENTS.md`, `docs/ERP_ENRICHMENT_PLAN.md` | deployment docs |
 | Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
 | Work on PopSG (style-guide mode) | `AGENTS.md`, `docs/POPSG.md` | PopDAM-only ERP/style-group docs |
 | Work on auth / SSO / login | `AGENTS.md`, `docs/AUTHENTICATION.md` | unrelated docs |
@@ -174,6 +174,7 @@ Files outside project-owned areas that were intentionally modified:
 | Fix style group rebuild | `apps/worker/src/handlers/style-groups.ts`, DB functions in `supabase/migrations/` | `supabase/functions/bulk-job-runner/` |
 | Fix style group asset_count drift | `supabase/migrations/` (new migration), `supabase/functions/_shared/` | — |
 | Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts`, `src/lib/mg-lookup.ts` | — |
+| Fix production PO sync | `supabase/functions/_shared/admin-handlers/prod-order-handlers.ts`, `supabase/migrations/`, `src/components/settings/ErpEnrichmentTab.tsx`, `src/components/library/StyleGroupDetailPanel.tsx` | Do not rely on copied browser JWTs as durable auth |
 | Fix bridge agent scan | `apps/bridge-agent/src/scanner.ts`, `apps/bridge-agent/src/handlers/` | — |
 | Fix thumbnail generation | `apps/bridge-agent/src/thumbnailer.ts` | — |
 | Add PopSG page | `src/pages/popsg/`, `src/App.tsx` (route guard) | `src/components/library/` (PopDAM-only) |
@@ -309,6 +310,13 @@ Use this exact shape for every new quirk:
 **Actually:** Before 2025-05-10, the MG01 field from the ERP API used single-letter codes with unstable meanings. After that date the letters reliably map to categories. The worker (`apps/worker/src/handlers/erp.ts`) only uses `mg_category` to set `product_category` when `erp_updated_at >= 2025-05-10`. Items before that date fall through to the AI prediction path. About 5,500 style groups with pre-cutoff ERP data have null `product_category` and need AI classification.
 **Do not change because:** Items before the cutoff would get wrong categories applied automatically.
 
+### PLM production PO sync has two auth layers, and browser JWTs are not durable
+
+**Looks like:** `getProdOrderHeader` only needs the Cloud Run `Authorization` identity token and an `X-User-Authorization` value copied from the PLM web app.
+**Actually:** Cloud Run auth and PLM app auth are separate. Cloud Run is handled server-side with `PROD_ORDER_GOOGLE_SERVICE_ACCOUNT_JSON` / service-account impersonation. The PLM app token (`X-User-Authorization`, stored as `PROD_ORDER_API_TOKEN_2`) is a short-lived browser JWT; one verified token expired on 2026-06-16 and later requests returned `403 Invalid Token`.
+**Data shape gotcha:** the SKU is nested in `details[]` as `Item #` / `matchedItemNumber`; the production PO number is on the header as `Prod Reference #` / `Prod Order No`.
+**Do not change because:** A copied browser token will keep expiring and breaking background sync. The durable fix is for the PLM/BFF developer to provide service-to-service auth: either trust the Cloud Run invoker service account, expose a client-credentials/token-refresh flow, or issue a long-lived read-only API token.
+
 ### Bridge agent defers thumbnails to Windows Render Agent for certain files
 
 **Looks like:** Some `.ai` files get `thumbnail_error = "deferred_to_windows_agent"` even though the bridge agent could attempt to render them.
@@ -425,6 +433,18 @@ Use this exact shape for every new quirk:
 **Actually:** They answer different questions. `stage` is **positional** — the folder directly under `____New Structure` (one of the 5 lifecycle buckets: In Development, Concept Approved Designs, Product Ideas, Freelancer art, Discontinued), set by a DB trigger. `workflow_status` is a **deepest-first scan** against `admin_config.WORKFLOW_FOLDER_MAP`, set by edge-function ingest code, and its values include adoption/approval states (`customer_adopted`, `licensor_approved`). For the same file, `stage="In Development"` while `workflow_status="customer_adopted"`. `customer`/`program` ride alongside `stage`, derived only in the In Development → Customer Adopted branch.
 **Why:** `workflow_status` predates `____New Structure` and is ambiguous there (it conflates lifecycle with approval and deliberately drops the Concept-Approved signal). `stage` gives a clean lifecycle bucket for the new tree.
 **Do not change because:** Filters, search (`Ross Wall 2026` → its files/groups), and `get_filter_counts`/`get_path_facets` all depend on these columns; the triggers keep them in sync on folder moves. Full rules: `docs/PATH_ATTRIBUTES.md`.
+
+### `quick_hash` is NOT content-unique — it causes asset "flip-flapping" and hides files (open issue, 2026-06-19)
+
+**Looks like:** `asset_path_history` has ~4.7M rows and assets constantly report as "moved"; looks like NAS churn.
+**Actually:** `quick_hash` = SHA-256(first 64KB + last 64KB + size), a *sampled* hash. Template-derived design files (e.g. many SKUs' `sewn-in label.ai`, identical header/footer/size) and all 0-byte files **collide**. Move detection (`agent-api` `process-asset`) matches on `quick_hash` alone with no filename/old-path check **and dedups on it**, so each collision cluster (a) flip-flaps one shared asset row between paths every scan and (b) **hides the other N−1 real files from the Library entirely**. 15k+ assets affected.
+**Do not change because:** Before touching ingest/move-detection or pruning `asset_path_history`, add a filename/old-path guard and treat `quick_hash` as non-unique — else you keep regenerating the churn and the hidden files stay hidden. Full analysis + fix options: `docs/KNOWN_QUIRKS.md` #51.
+
+### Library list/facet queries must beat the 8s `authenticated` timeout (2026-06-19)
+
+**Looks like:** `get_filter_counts` / `assets` count queries 500 intermittently on cold load; "works in SQL."
+**Actually:** Direct SQL runs as `postgres` (no statement_timeout). The browser runs as `authenticated` (`statement_timeout=8s`, Supavisor-enforced — `SET LOCAL` can't raise it, see `docs/KNOWN_QUIRKS.md` #33). `get_filter_counts` was 14s (5 table scans); fixed to ~260ms via one materialized scan + the `idx_assets_facet_counts` covering index (index-only). `asset_path_history` reads needed `idx_asset_path_history_asset_id_detected_at` (30s→16ms).
+**Do not change because:** Always size `assets`-aggregation RPCs against the 8s `authenticated` ceiling cold, never against `postgres` timings. Keep `get_filter_counts` reading only columns in `idx_assets_facet_counts`. Detail: `docs/KNOWN_QUIRKS.md` #49–#52.
 
 ## Credentials and environment
 

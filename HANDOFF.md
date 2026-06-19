@@ -1,6 +1,6 @@
 # Handoff
 
-_Last updated: 2026-06-11. Delete this file once the pilot, code signing, PopSG render/backfill work, GHCR package access, and style-guide archival readiness work are done._
+_Last updated: 2026-06-18. Delete this file once the pilot, code signing, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, and production PO sync auth handoff are done._
 
 Read `AGENTS.md` first. This file is self-contained — a developer with **zero prior context** should be able to continue from here. Background detail lives in `docs/SEAFILE_INTEGRATION.md` and `docs/POPDAM_HELPER.md`.
 
@@ -123,13 +123,54 @@ Risks / watchouts:
 - 730 resolved legacy rows are **kept**; `DELETE FROM sku_files_used WHERE source='legacy_ungated'` only after reviewing per-row `match_best_score` (most are real, OCR-typo'd).
 - `\\edgesynology2\styleguides` failing to mount is **not** a missing crawl root — user confirmed `/mnt/nas/styleguides` is the complete library.
 
+### 5.8 Production PO sync from PLM
+
+Status:
+Partial. Backend schema/function work was deployed manually during the session, but durable PLM app-layer auth is blocked.
+
+Done:
+- Migration `20260615183000_add_prod_order_headers.sql` was pushed to prod with Supabase CLI. It adds `prod_order_sync_runs`, `prod_order_headers_raw`, and `prod_order_headers_current`.
+- `admin-api` was deployed manually after adding production PO routes: `trigger-prod-order-sync`, `prod-order-sync-runs`, and `prod-order-stats`.
+- UI code exists locally for Settings → Processing → ERP Sync → Production POs and style group detail-panel PO display, but the normal frontend deployment path has not been run from this session.
+- Supabase Edge Function secrets exist for `PROD_ORDER_GOOGLE_SERVICE_ACCOUNT_JSON`, `PROD_ORDER_API_TOKEN_2`, and `PROD_ORDER_CLOUD_RUN_AUDIENCE`. No secret values are documented here.
+- Google/Cloud Run auth was verified on 2026-06-18. `gcloud auth print-identity-token --impersonate-service-account=designflow-bff-invoker@lithe-breaker-323913.iam.gserviceaccount.com --audiences=<origin>` works for prod and sandbox after Token Creator access was granted.
+- The PLM data shape was verified from user screenshot and smoke tests: header PO fields are `Prod Reference #` / `Prod Order No`; SKU is nested in `details[]` as `Item #` / `matchedItemNumber`. Code now flattens header/detail rows.
+- Temporary smoke-test edge functions used during verification were deleted, their temporary secret was unset, and zero-upsert diagnostic sync runs were deleted.
+
+Next action:
+Get a durable PLM app-layer authentication mechanism. Browser-copied `X-User-Authorization` JWTs expire; one supplied token expired on 2026-06-16 and the PLM API returned `403 Invalid Token` on 2026-06-18. Ask the PLM/BFF developer for one of: service-account allow-listing so `X-User-Authorization` is not required for this server-to-server route, a client-credentials/token-refresh endpoint, or a long-lived read-only API token for production-order reads.
+
+Risks / watchouts:
+- Do not treat `PROD_ORDER_API_TOKEN_2` as solved if it contains a browser JWT; it will expire and background sync will fail.
+- Prod and sandbox require matching Cloud Run audiences and app tokens. The session restored `PROD_ORDER_CLOUD_RUN_AUDIENCE` to the prod origin and removed the temporary `admin_config.PROD_ORDER_API_ENDPOINT` sandbox override.
+- `admin-api` service-role server-to-server auth was fixed to allow `userId === "system"` through `authenticateAdmin`; keep this if server-side admin actions are invoked by other edge functions.
+- Because `admin-api` and the migration were manually deployed from the session, commit and push the source changes promptly so GitHub/Supabase deployment state matches production.
+
+### 5.9 `quick_hash` collision → asset flip-flapping, history bloat, and hidden files
+
+Status:
+Open — characterized 2026-06-19, **not fixed** (read-side mitigations deployed; ingest fix is the real work).
+
+Done (this session, read-side only):
+- Added `idx_asset_path_history_asset_id_detected_at` (migration `20260619131239`) so the detail panel's path-history read stopped 500ing (30.5s → 16ms) despite the 4.7M-row table.
+- Root-caused the bloat: `quick_hash` = SHA-256(first 64KB + last 64KB + size) collides for template-derived design files (identical header/footer/size, different middle) and 0-byte files; `agent-api` `process-asset` move detection matches on `quick_hash` alone and dedups on it. Full analysis: `docs/KNOWN_QUIRKS.md` #51, caveat in `docs/PROJECT_BIBLE.md` §9.
+
+Next action:
+Fix move detection in `supabase/functions/agent-api/index.ts` (`process-asset`, ~line 952): require the incoming **filename** to match the hash-candidate (a real move keeps its name) and/or confirm the old `relative_path` is gone in the same scan, before treating it as a move. Then backfill so the hidden N−1 colliding files get their own asset rows, and prune the self-reversing `asset_path_history` churn.
+
+Risks / watchouts:
+- This is an **ingest-correctness** change — distinct files are currently collapsed to one asset row, so the Library is **missing files** (e.g. 14 of 15 SKU label variants). Do not prune history without fixing the generator first.
+- `quick_hash_version` already exists; if you strengthen the hash, bump it and plan a re-hash/re-ingest. 0-byte files will always collide — key those by path, never hash.
+- Re-measure scope: `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;` (was 15,151).
+
 ---
 
 ## 6. Exact next action
-The single most unblocked, in-repo next step is **5.3 (add the Apple signing secrets and run the Helper workflow)** — it depends on nothing else. The pilot (5.2) is also unblocked — SSO (5.1) is fixed and receipt verification (bridge agent v1.16.1) is deployed.
+The most urgent repo hygiene next step is to commit/push the production PO sync changes because migration `20260615183000` and `admin-api` were already deployed manually. The single most unblocked non-PO step remains **5.3 (add the Apple signing secrets and run the Helper workflow)**.
 
 ## 7. Known risks / unknowns
 - Seafile is a **partial mirror** of the NAS; unsynced files rely on the Synology/Tailscale fallback — verify fallback works during the pilot.
 - Three Seafile **infra secrets** were exposed in an earlier chat (MySQL root + seafile-user passwords, JWT private key) and **should be rotated** — owner action; no values are in this repo.
 - The Developer ID cert needs the Apple **Account Holder** role; an Admin/Member can't create it.
 - USA SMB-mount path (5.4) is unconfirmed.
+- Production PO sync cannot run reliably until PLM provides durable server-to-server app-layer auth; copied browser JWTs are known-expiring.

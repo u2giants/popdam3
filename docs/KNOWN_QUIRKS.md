@@ -447,3 +447,65 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 **Why**: The function ran `regexp_replace(p, '[^a-z0-9]', '')` **before** `lower()`, so uppercase letters (not in `a-z`) were *stripped entirely* rather than lowercased: `2994221_BG101` → `2994221101` (the `BG` vanished). Any case difference between a files-used entry and the real style-guide filename therefore broke exact resolution silently. Fixed in `20260610100545` (lowercase first). Resolution is now also fuzzy (trigram, threshold 0.6) and continuous (nightly cron). 
 
 **Do not reintroduce an unindexed per-row exact `normalize_for_sg_match(filename)` scan** in batch resolvers — it times out on the 214k-row library (that is why `resolve_sku_files_used_fuzzy` is trigram-only; migration `20260610100856`).
+
+---
+
+## 49. `get_filter_counts` Must Stay Index-Only — It Used to 500 the Library on Load (Fixed 2026-06-19)
+
+**What it looks like**: The Library returns `500` from `rpc/get_filter_counts` (and, by knock-on contention, from the plain `assets` list/count queries) on a cold page load. Everything works once the DB is warm, so it looks intermittent.
+
+**Why it happened**: The original `get_filter_counts(jsonb)` ran **five separate full scans** of the 114k-row `assets` table — one per facet (fileType, status, workflowStatus, stage, isLicensed). Cold, that was ~14.2s; the `authenticated` role has `statement_timeout = 8s` (verify: `select rolconfig from pg_roles where rolname='authenticated'`), so PostgREST returns 500. Direct SQL as `postgres` "worked" only because that role has no statement timeout — **do not use a direct-SQL timing to judge whether an API call will pass; always compare against the 8s authenticated ceiling.** Per `docs/KNOWN_QUIRKS.md` #33, `SET LOCAL statement_timeout` cannot raise this — the Supavisor proxy enforces it on the wire.
+
+**How it was fixed** (migrations `20260619130501`, then `20260619131907`):
+1. Collapsed the five scans into **one** `MATERIALIZED` CTE over the visible + common-filtered set, then derived all five facet aggregations from that in-memory result. Each facet still excludes its own filter (so selecting one value keeps the other facets' counts visible) by applying the *other* toggle predicates over the CTE.
+2. Added a **partial covering index** `idx_assets_facet_counts ON assets (is_deleted) INCLUDE (file_type, status, workflow_status, stage, is_licensed, modified_at, file_created_at, thumbnail_url, style_group_id) WHERE is_deleted = false`. The base scan and the `useTotalAssetCount` / `useUngroupedCount` exact counts now run **index-only** (read the ~20MB index, not the 271MB heap). `get_filter_counts` dropped to **~260ms**; the counts to ~70ms.
+3. An interim version (`20260619130501`) instead forced a seq scan via `set_config('enable_indexscan','off',true)`. That was superseded by the covering index in `20260619131907`, which removes the hint so the planner can choose the index-only scan. The seq-scan hint is gone on purpose — **do not re-add it**; it would prevent the covering index from being used.
+
+**Future sessions should**:
+- Keep `get_filter_counts` reading only columns present in `idx_assets_facet_counts`. If you add a facet, add its column to the index `INCLUDE` list or you reintroduce a 271MB heap scan and the cold 500.
+- After large ingests, the index-only scan's `Heap Fetches` climbs until `VACUUM` runs; a one-off `VACUUM (ANALYZE) assets` clears it. autovacuum normally handles this.
+- Judge any `assets`-aggregation RPC against the **8s `authenticated`** ceiling, cold, not against `postgres` timings.
+
+---
+
+## 50. `asset_path_history` Needs Its `asset_id` Index — Detail Panel Used to 500 (Fixed 2026-06-19)
+
+**What it looks like**: Opening an **asset** detail panel 500s on `asset_path_history?...&asset_id=eq.<id>&order=detected_at.desc&limit=10`.
+
+**Why**: `asset_path_history` had only a PK on `id`. The table has grown to **~4.7M rows** (see #51 for why), so `WHERE asset_id=? ORDER BY detected_at DESC LIMIT 10` did a **full parallel seq scan + top-N sort** (~30.5s) and blew the 8s `authenticated` timeout. Fixed by migration `20260619131239`: `CREATE INDEX idx_asset_path_history_asset_id_detected_at ON asset_path_history (asset_id, detected_at DESC)`. **30,534ms → 16ms.**
+
+**Future sessions should**: Treat `asset_path_history` as a large, fast-growing table. Never query it by `asset_id` (or scan it) without this composite index. The real cure for its size is fixing #51 — until then the index keeps reads bounded.
+
+---
+
+## 51. `quick_hash` Collisions Make Distinct Files "Flip-Flap" Between Folders Every Scan (Open Issue, characterized 2026-06-19)
+
+**What it looks like**: `asset_path_history` has ~4.7M rows and grows every scan. **15,151 assets have 100+ path-history rows**; the worst single asset had **18,216 "moves" across 72 distinct paths** and was still moving during this session. The sync pill shows constant "moved" activity. Looks like files are physically bouncing around the NAS; **they are not**.
+
+**Root cause (two halves — investigated for this issue):**
+- **The hash collides.** `quick_hash` is `SHA-256(first 64KB + last 64KB + file_size)` (`apps/bridge-agent/src/hasher.ts`, spec in `PROJECT_BIBLE.md §9`). It is intentionally a *sampled* hash, not full content. It produces the **same value for genuinely different files** whenever they share the sampled regions: (a) **0-byte files** (all hash identically — 2 in the DB but many on the NAS), and dominantly (b) **template-derived design files** that have identical headers + footers + identical `file_size` but differ only in the unsampled middle. Confirmed example: one 1.24MB asset's history cycles through **15 different SKUs' `sewn-in label.ai` files** (`EGP66DYWP01 sewn-in label.ai`, `HGB73DYWP01 sewn-in label.ai`, …) — all Illustrator label templates of identical size. **15,099 of the 15,151 heavy flip-floppers are >128KB files** (middle unsampled); only 2 are 0-byte.
+- **Move detection trusts the hash alone.** `agent-api` `process-asset` (`supabase/functions/agent-api/index.ts` ~line 952) does: *"find one existing non-deleted asset with the same `quick_hash` but a different `relative_path` → treat the incoming file as that asset **moved**"*. It does **not** compare filename, re-verify with a full hash, or check that the old path no longer exists. So when N physical files share a `quick_hash`, the single deduped asset row is reassigned to whichever colliding file each scan happens to process, writing a spurious `asset_path_history` row each time. Next scan it sees a sibling and "moves" it back — an infinite flip-flap.
+
+**Two consequences (both real):**
+1. **Bloat + churn**: `asset_path_history` grows unbounded; every scan issues thousands of pointless `assets` UPDATEs and re-runs `assignToStyleGroup`, churning style-group membership.
+2. **Silent data loss / hidden files**: because move-detection *dedups* on `quick_hash`, a cluster of N distinct colliding files is represented by **one** asset row. The other N−1 real files (e.g. 14 of the 15 SKU label files) were never inserted as separate assets and **do not appear in the Library at all**. This is the more dangerous half.
+
+**Why it was only characterized, not fixed, this session**: the fix changes ingest *correctness* and must be deliberate. It was out of scope for a UI redesign + load-error pass. Options for a future session, in rough order of safety:
+- **Disambiguate move detection**: require the incoming filename to match the candidate's filename (a true move keeps the name), and/or only treat it as a move when the old `relative_path` is confirmed gone in the same scan. Cheapest, biggest win — kills the flip-flap and stops collapsing distinct files.
+- **Strengthen the hash** when `file_size` is large: sample more regions or add a middle chunk, and bump `quick_hash_version` (the column already exists). Note 0-byte files will always collide — handle them by path, never by hash.
+- **Backfill / re-ingest** so the hidden N−1 files get their own asset rows after the matching logic is fixed.
+- **Prune** `asset_path_history` of self-reversing churn once the cause is fixed.
+
+**Future sessions should**: Do **not** treat `quick_hash` as a content-unique key. Do **not** "fix" the path-history bloat by only pruning rows — that leaves the generator running. If you touch ingest/move-detection, fix the matching logic (filename guard) first. Re-measure scope with: `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;`.
+
+---
+
+## 52. `asset_checkouts` Cannot Embed `profiles` via PostgREST (Fixed 2026-06-19)
+
+**What it looks like**: The checkout bar / asset detail panel 400s on `asset_checkouts?select=id,status,checked_out_at,profiles(full_name,email)...`.
+
+**Why**: `asset_checkouts.user_id` references `auth.users`, **not** `public.profiles`, and `profiles` links to the user via its own `user_id` column (there is no FK path `asset_checkouts → profiles`). PostgREST therefore cannot resolve the `profiles(...)` embed and returns 400 ("could not find a relationship"). It had nothing to do with the `checked_out_at` column (which does exist).
+
+**How it was fixed**: `src/hooks/useAssetCheckout.ts` now selects `user_id` and looks up the owner's profile in a **second query** (`profiles` where `user_id = checkout.user_id`), attaching it as `profiles` so `CheckoutBar` is unchanged. No schema change.
+
+**Future sessions should**: Don't add `profiles(...)` embeds to any table whose `user_id` points at `auth.users`. Either do the two-step lookup (as here) or add an explicit FK to `profiles` if you want PostgREST embedding. Verify FK paths with `information_schema.table_constraints` before writing embedded selects.
