@@ -142,13 +142,15 @@ function normalizeProdOrderRows(raw: unknown, index: number): NormalizedProdOrde
       "external_id",
       "prodOrderDetailId",
       "prodOrderLineId",
-    ]) ?? `${firstString(header, [
-    "id",
-    "external_id",
-    "prodOrderHeaderId",
-    "prodOrderId",
-    "productionOrderId",
-    ]) ?? `${prodOrderNumber}`}:${styleNumber}:${detailIndex + 1}`;
+    ]) ?? `${
+      firstString(header, [
+        "id",
+        "external_id",
+        "prodOrderHeaderId",
+        "prodOrderId",
+        "productionOrderId",
+      ]) ?? `${prodOrderNumber}`
+    }:${styleNumber}:${detailIndex + 1}`;
 
     normalized.push({
       external_id: externalId,
@@ -157,8 +159,8 @@ function normalizeProdOrderRows(raw: unknown, index: number): NormalizedProdOrde
       order_status: firstString(header, ["status", "orderStatus", "prodOrderStatus", "productionOrderStatus", "Order Was Completed"]),
       customer_code: firstString(header, ["Customer Code", "customerCode", "customer_code", "custCode"]),
       customer_name: firstString(header, ["Customer Desc", "customerName", "customer_name", "customer"]),
-      quantity: firstNumber(detail, ["prod_order_qty", "masterQuantity", "quantity", "qty", "orderQty", "orderedQuantity"])
-        ?? firstNumber(header, ["Prod Qty", "quantity", "qty", "orderQty", "orderedQuantity", "prodOrderQty"]),
+      quantity: firstNumber(detail, ["prod_order_qty", "masterQuantity", "quantity", "qty", "orderQty", "orderedQuantity"]) ??
+        firstNumber(header, ["Prod Qty", "quantity", "qty", "orderQty", "orderedQuantity", "prodOrderQty"]),
       due_date: parseDateOnly(firstString(header, ["neededDate", "Due Date", "dueDate", "due_date", "Ship Date", "shipDate", "plannedDueDate"])),
       order_date: parseDateOnly(firstString(header, ["PO Date", "orderDate", "order_date", "createdDate", "created_at"])),
       erp_updated_at: parseTimestamp(firstString(header, ["updatedAt", "updated_at", "lastModified", "modifiedDate"])),
@@ -230,8 +232,8 @@ async function mintCloudRunIdentityToken(endpoint: string): Promise<string | nul
     throw new Error("PROD_ORDER_GOOGLE_SERVICE_ACCOUNT_JSON must include client_email and private_key");
   }
 
-  const audience = Deno.env.get("PROD_ORDER_CLOUD_RUN_AUDIENCE")?.trim()
-    || new URL(endpoint).origin;
+  const audience = Deno.env.get("PROD_ORDER_CLOUD_RUN_AUDIENCE")?.trim() ||
+    new URL(endpoint).origin;
   const now = Math.floor(Date.now() / 1000);
   const header = base64UrlEncode(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const payload = base64UrlEncode(JSON.stringify({
@@ -292,11 +294,11 @@ async function buildHeaders(config: Record<string, unknown>, endpoint: string): 
     return explicitHeaders as Record<string, string>;
   }
 
-  const token1 = Deno.env.get("PROD_ORDER_API_TOKEN_1")?.trim()
-    || await mintCloudRunIdentityToken(endpoint)
-    || (typeof config.PROD_ORDER_API_TOKEN_1 === "string" ? config.PROD_ORDER_API_TOKEN_1.trim() : "");
-  const token2 = Deno.env.get("PROD_ORDER_API_TOKEN_2")?.trim()
-    || (typeof config.PROD_ORDER_API_TOKEN_2 === "string" ? config.PROD_ORDER_API_TOKEN_2.trim() : "");
+  const token1 = Deno.env.get("PROD_ORDER_API_TOKEN_1")?.trim() ||
+    await mintCloudRunIdentityToken(endpoint) ||
+    (typeof config.PROD_ORDER_API_TOKEN_1 === "string" ? config.PROD_ORDER_API_TOKEN_1.trim() : "");
+  const token2 = Deno.env.get("PROD_ORDER_API_TOKEN_2")?.trim() ||
+    (typeof config.PROD_ORDER_API_TOKEN_2 === "string" ? config.PROD_ORDER_API_TOKEN_2.trim() : "");
   const header1 = typeof config.PROD_ORDER_API_TOKEN_1_HEADER === "string" ? config.PROD_ORDER_API_TOKEN_1_HEADER.trim() : "Authorization";
   const header2 = typeof config.PROD_ORDER_API_TOKEN_2_HEADER === "string" ? config.PROD_ORDER_API_TOKEN_2_HEADER.trim() : "X-User-Authorization";
   const headers: Record<string, string> = {};
@@ -342,12 +344,8 @@ async function getProdOrderStyleNumbers(db: DbClient): Promise<string[]> {
 
 export async function handleTriggerProdOrderSync(body: Record<string, unknown> = {}) {
   const db = serviceClient();
-  const pageSize = typeof body.page_size === "number"
-    ? Math.max(1, Math.min(500, Math.floor(body.page_size)))
-    : DEFAULT_PAGE_SIZE;
-  const maxPages = typeof body.max_pages === "number"
-    ? Math.max(1, Math.min(MAX_PAGES, Math.floor(body.max_pages)))
-    : MAX_PAGES;
+  const pageSize = typeof body.page_size === "number" ? Math.max(1, Math.min(500, Math.floor(body.page_size))) : DEFAULT_PAGE_SIZE;
+  const maxPages = typeof body.max_pages === "number" ? Math.max(1, Math.min(MAX_PAGES, Math.floor(body.max_pages))) : MAX_PAGES;
 
   const { data: runningRuns } = await db.from("prod_order_sync_runs")
     .select("id").eq("status", "running").limit(1);
@@ -367,7 +365,10 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
   const endpoint = unwrapConfigString(config.PROD_ORDER_API_ENDPOINT) ?? DEFAULT_ENDPOINT;
   const headers = await buildHeaders(config, endpoint);
   if (Object.keys(headers as Record<string, string>).length === 0) {
-    return err("Missing production PO API credentials. Set PROD_ORDER_GOOGLE_SERVICE_ACCOUNT_JSON and PROD_ORDER_API_TOKEN_2, or set PROD_ORDER_API_AUTH_HEADERS as a Supabase Edge Function secret.", 400);
+    return err(
+      "Missing production PO API credentials. Set PROD_ORDER_GOOGLE_SERVICE_ACCOUNT_JSON and PROD_ORDER_API_TOKEN_2, or set PROD_ORDER_API_AUTH_HEADERS as a Supabase Edge Function secret.",
+      400,
+    );
   }
 
   const { data: run, error: runErr } = await db.from("prod_order_sync_runs")
@@ -434,11 +435,14 @@ export async function handleTriggerProdOrderSync(body: Record<string, unknown> =
         if (rawErr) throw new Error(rawErr.message);
 
         const { data: upserted, error: upsertErr } = await db.from("prod_order_headers_current")
-          .upsert(deduped.map((row) => ({
-            ...row,
-            sync_run_id: run.id,
-            synced_at: new Date().toISOString(),
-          })), { onConflict: "external_id" })
+          .upsert(
+            deduped.map((row) => ({
+              ...row,
+              sync_run_id: run.id,
+              synced_at: new Date().toISOString(),
+            })),
+            { onConflict: "external_id" },
+          )
           .select("id");
 
         if (upsertErr) throw new Error(upsertErr.message);

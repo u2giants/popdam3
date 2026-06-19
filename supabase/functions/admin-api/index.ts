@@ -63,11 +63,7 @@ import {
   handleTriggerErpSync,
 } from "../_shared/admin-handlers/erp-browse-handlers.ts";
 
-import {
-  handleProdOrderStats,
-  handleProdOrderSyncRuns,
-  handleTriggerProdOrderSync,
-} from "../_shared/admin-handlers/prod-order-handlers.ts";
+import { handleProdOrderStats, handleProdOrderSyncRuns, handleTriggerProdOrderSync } from "../_shared/admin-handlers/prod-order-handlers.ts";
 
 import { handleGenerateInstallBundle } from "../_shared/admin-handlers/install-bundle-handler.ts";
 import { handleGetDirBrowseResult, handleRequestDirBrowse } from "../_shared/admin-handlers/dir-browse-handlers.ts";
