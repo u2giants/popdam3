@@ -105,6 +105,7 @@ Request:
 - `quick_hash` + `quick_hash_version`
 - `thumbnail_url` (optional)
 - `thumbnail_error` (optional)
+- `skip_move_detection` (optional boolean) — bridge sets this when the same `(quick_hash, filename)` has already been seen in the current scan-wide preflight/ingest phase, so duplicate copies insert/update by path instead of stealing a sibling row.
 
 Response:
 - `action` — `created` | `updated` | `moved` | `noop`
@@ -118,6 +119,18 @@ Purpose: batch version of ingest (up to 100 files per call)
 Request: array of ingest payloads (same shape as single ingest)
 
 Response: array of per-file results with `action`, `asset_id`, `ok`
+
+### POST /agent/check-changed
+
+Purpose: batch change detection before local hashing/thumbnail work.
+
+Request:
+- `files[]` with `relative_path`, `modified_at`, `file_size`
+
+Response:
+- `changed` — relative paths that are new or have different filesystem metadata
+- `needs_thumbnail` — unchanged paths whose thumbnail error should be retried
+- `existing_content_identities` — unchanged existing rows as `{ relative_path, filename, quick_hash }`; bridge agents use this to seed scan-wide duplicate detection before ingesting changed/new paths.
 
 ### POST /agent/scan-progress
 

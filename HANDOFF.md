@@ -149,16 +149,18 @@ Risks / watchouts:
 ### 5.9 `quick_hash` collision → asset flip-flapping, history bloat, and hidden files
 
 Status:
-Partial — move-detection guard **deployed 2026-06-19** (stops new flip-flapping + new hidden files); hash hardening + historical cleanup remain.
+Partial — move-detection guards landed 2026-06-19; historical cleanup remains after deploy verification.
 
 Done:
-- ✅ **Move-detection guard** (`agent-api` `process-asset`): a move now requires `quick_hash` **AND filename** to match AND a **unique** candidate, and is **skipped for 0-byte files**. Different-filename hash collisions now insert as their own asset instead of stealing/flip-flapping the shared row. Fixes the entire observed problem (heavy flip-floppers all had different filenames). Forward-only.
+- ✅ **Move-detection guard** (`agent-api` `process-asset`): a move now requires `quick_hash` **AND filename** to match AND a **unique** candidate, is **skipped for 0-byte files**, and is skipped whenever the incoming path already has a row. Different-filename hash collisions now insert as their own asset instead of stealing/flip-flapping the shared row. Forward-only.
+- ✅ **Same-filename duplicate-copy guard** (bridge agent v1.16.2 + `agent-api`): the bridge collects scan candidates before ingest, `check-changed` returns unchanged existing `(quick_hash, filename)` identities across the scan, and changed/new files send `skip_move_detection=true` when that identity was already seen. This stops byte-identical same-name copies from moving one shared row between folders.
 - ✅ `idx_asset_path_history_asset_id_detected_at` (migration `20260619131239`) — detail-panel path-history read 30.5s → 16ms despite the 4.7M-row table.
 - Root cause + full analysis: `docs/KNOWN_QUIRKS.md` #51; caveat in `docs/PROJECT_BIBLE.md` §9.
 
 Next action (two independent tracks):
-1. **Heavier-sample hash** (closes the residual: two *different* files sharing both a sampled hash and a filename). `apps/bridge-agent/src/hasher.ts` — add middle-chunk samples, bump `quick_hash_version`. **Must be a coordinated release**: the Helper (`apps/popdam-helper/src/main/hash.ts`) computes the same hash and it is the check-in `expected_hash`; needs synchronized bridge+Helper deploy, a full re-scan to migrate stored hashes, and in-flight-checkout handling. Do NOT bundle casually.
-2. **Historical cleanup** (needs approval): backfill so already-hidden N−1 files get their own asset rows; prune the self-reversing `asset_path_history` churn (~4.7M rows). Safe now that the guard is live.
+1. **Deploy/verify bridge v1.16.2 + agent-api**: watch moved counts and same-filename path-history growth after a full scan.
+2. **Heavier-sample hash** (optional, closes only the residual: two *different* files sharing both a sampled hash and a filename). `apps/bridge-agent/src/hasher.ts` — add middle-chunk samples, bump `quick_hash_version`. **Must be a coordinated release**: the Helper (`apps/popdam-helper/src/main/hash.ts`) computes the same hash and it is the check-in `expected_hash`; needs synchronized bridge+Helper deploy, a full re-scan to migrate stored hashes, and in-flight-checkout handling. Do NOT bundle casually.
+3. **Historical cleanup** (needs approval after generator is verified stopped): backfill so already-hidden N−1 files get their own asset rows; prune the self-reversing `asset_path_history` churn.
 
 Risks / watchouts:
 - The guard is forward-only: the ~4.7M existing history rows and already-hidden files persist until track 2 runs.

@@ -49,6 +49,7 @@ let isAuditingCompatThumbnails = false;
 let isPreviewingCompatThumbnails = false;
 let isAiSentinelScanning = false;
 let isBlankThumbCleanupRunning = false;
+let scanContentIdentitySeen: Set<string> = new Set();
 
 // ── Version info (injected via Docker build args or package.json) ──
 const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
@@ -770,6 +771,7 @@ async function runScan(providedSessionId?: string) {
   }
 
   logger.info("Scan starting", { sessionId, roots: effectiveRoots, resumeFromDir: resumeFromDir || "none" });
+  scanContentIdentitySeen = new Set();
 
   // Load permanent .ai ignore list before scanning so processFile can do O(1) lookups.
   aiIgnoreSet = await api.loadAiIgnoreList();
@@ -787,11 +789,12 @@ async function runScan(providedSessionId?: string) {
 
     await safeScanProgress(sessionId, "running", counters, undefined, skippedDirs);
 
-    // Collect files and process in batches
-    let batch: FileCandidate[] = [];
+    // Collect files first so duplicate-copy detection can see the whole scan
+    // before any hash-based move detection runs.
+    const scanCandidates: FileCandidate[] = [];
     let currentTopLevelDir: string | null = null;
 
-    // Reset skipped directories for this scan (module-level so processBatch can access)
+    // Reset skipped directories for this scan (module-level so ingest progress can access)
     skippedDirs = [];
 
     // Throttled progress reporter for directory walking
@@ -860,17 +863,7 @@ async function runScan(providedSessionId?: string) {
         return;
       }
 
-      batch.push(file);
-
-      if (batch.length >= getEffectiveBatchSize()) {
-        await processBatch(batch, sessionId);
-        batch = [];
-      }
-    }
-
-    // Process remaining
-    if (batch.length > 0 && !abortRequested) {
-      await processBatch(batch, sessionId);
+      scanCandidates.push(file);
     }
 
     // Check abort after scan loop completes
@@ -888,26 +881,35 @@ async function runScan(providedSessionId?: string) {
       return;
     }
 
+    // The directory walk is complete. From this point on, a crash should restart
+    // from the beginning rather than resume past files that may not have been
+    // ingested yet.
+    const checkpointCleared = await clearScanCheckpointWithRetry("before ingest phase");
+    if (!checkpointCleared) {
+      counters.errors++;
+      await safeScanProgress(sessionId, "failed", counters, "Failed to clear scan checkpoint before ingest", skippedDirs);
+      return;
+    }
+
+    await processScanCandidates(scanCandidates, sessionId);
+
+    if (abortRequested) {
+      logger.info("Scan aborted by cloud request (post-ingest)");
+      await safeScanProgress(sessionId, "failed", counters, "Aborted by user", skippedDirs);
+      return;
+    }
+
     // Determine final status: completed_with_errors if some files failed but scan overall succeeded
     const finalStatus = counters.errors > 0 ? "completed_with_errors" : "completed";
     logger.info("Scan completed", { counters, resumed: !!resumeFromDir, skippedDirs: skippedDirs.length, finalStatus });
     await safeScanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
-    // Clear checkpoint on successful completion — retry once to prevent stale resume on the next scan
-    try {
-      await api.clearCheckpoint();
-    } catch (e) {
-      logger.warn("Failed to clear checkpoint (retrying once)", { error: (e as Error).message });
-      await api.clearCheckpoint().catch((e2) =>
-        logger.error("Failed to clear checkpoint after retry — next scan may skip directories", {
-          error: (e2 as Error).message,
-        })
-      );
-    }
+    await clearScanCheckpointWithRetry("after successful scan");
   } catch (e) {
     lastError = (e as Error).message;
     logger.error("Scan failed with exception", { error: lastError });
     await safeScanProgress(sessionId, "failed", counters, undefined, skippedDirs);
-    // Don't clear checkpoint on failure — allows resume on restart
+    // If failure happens during the directory walk, keep the checkpoint so a
+    // restart can resume. The ingest phase clears it before processing starts.
   } finally {
     isScanning = false;
     lastScanCompletedAt = Date.now();
@@ -915,9 +917,24 @@ async function runScan(providedSessionId?: string) {
 
 }
 
-async function processBatch(batch: FileCandidate[], sessionId: string) {
+async function clearScanCheckpointWithRetry(context: string): Promise<boolean> {
+  try {
+    await api.clearCheckpoint();
+    return true;
+  } catch (e) {
+    logger.warn(`Failed to clear checkpoint ${context} (retrying once)`, { error: (e as Error).message });
+    return api.clearCheckpoint().then(() => true).catch((e2) => {
+      logger.error(`Failed to clear checkpoint ${context} after retry`, {
+        error: (e2 as Error).message,
+      });
+      return false;
+    });
+  }
+}
+
+async function processScanCandidates(candidates: FileCandidate[], sessionId: string) {
   // ── Change detection: ask cloud which files actually need processing ──
-  const checkPayload = batch.map((f) => ({
+  const checkPayload = candidates.map((f) => ({
     relative_path: f.relativePath,
     modified_at: f.modifiedAt.toISOString(),
     file_size: f.fileSize,
@@ -926,43 +943,48 @@ async function processBatch(batch: FileCandidate[], sessionId: string) {
   let changedSet: Set<string>;
   let needsThumbnailSet: Set<string>;
   try {
-    // Chunk check-changed calls into groups of 20 to avoid URL length limits
-    const CHECK_CHUNK_SIZE = 20;
+    // Server caps check-changed at 500 files per request.
+    const CHECK_CHUNK_SIZE = 500;
     const allChanged: string[] = [];
     const allNeedsThumbnail: string[] = [];
+    const existingIdentities: api.CheckChangedResult["existing_content_identities"] = [];
     for (let ci = 0; ci < checkPayload.length; ci += CHECK_CHUNK_SIZE) {
       const chunk = checkPayload.slice(ci, ci + CHECK_CHUNK_SIZE);
       const result = await api.checkChanged(chunk);
       allChanged.push(...result.changed);
       allNeedsThumbnail.push(...result.needs_thumbnail);
+      existingIdentities.push(...result.existing_content_identities);
+    }
+    for (const identity of existingIdentities) {
+      scanContentIdentitySeen.add(`${identity.quick_hash}\0${identity.filename}`);
     }
     changedSet = new Set(allChanged);
     needsThumbnailSet = new Set(allNeedsThumbnail);
   } catch (e) {
     // If check-changed fails, fall back to processing everything
-    logger.warn("check-changed failed, processing entire batch", { error: (e as Error).message });
-    changedSet = new Set(batch.map((f) => f.relativePath));
+    logger.warn("check-changed failed, processing entire scan", { error: (e as Error).message });
+    changedSet = new Set(candidates.map((f) => f.relativePath));
     needsThumbnailSet = new Set();
   }
 
-  const unchanged = batch.length - changedSet.size - needsThumbnailSet.size;
+  const unchanged = candidates.length - changedSet.size - needsThumbnailSet.size;
   if (unchanged > 0) {
     // Note: files_checked was already incremented in the scanner when each file was yielded.
     // Do NOT add unchanged here — that would double-count those files in the counter.
-    logger.debug(`Skipping ${unchanged}/${batch.length} unchanged files in batch`);
+    logger.debug(`Skipping ${unchanged}/${candidates.length} unchanged files in scan`);
   }
 
   // Files needing thumbnail retry: generate thumbnail + ingest (but they're otherwise unchanged)
-  const thumbRetryFiles = batch.filter((f) => needsThumbnailSet.has(f.relativePath));
+  const thumbRetryFiles = candidates.filter((f) => needsThumbnailSet.has(f.relativePath));
   if (thumbRetryFiles.length > 0) {
     logger.info(`Retrying thumbnails for ${thumbRetryFiles.length} previously failed files`);
   }
 
-  const filesToProcess = batch.filter((f) => changedSet.has(f.relativePath));
+  const filesToProcess = candidates.filter((f) => changedSet.has(f.relativePath));
   const allToProcess = [...filesToProcess, ...thumbRetryFiles];
   if (allToProcess.length === 0) {
     // Report progress even if nothing to process — fire-and-forget, never kill the scan
-    api.scanProgress(sessionId, "running", counters, batch[batch.length - 1]?.relativePath, skippedDirs).catch(() => {});
+    api.scanProgress(sessionId, "running", counters, candidates[candidates.length - 1]?.relativePath, skippedDirs).catch(() => {});
     return;
   }
 
@@ -1030,6 +1052,15 @@ async function processFile(file: FileCandidate) {
   try {
     // 1. Quick hash
     const { quick_hash, quick_hash_version } = await computeQuickHash(file.absolutePath);
+    const contentIdentityKey = `${quick_hash}\0${file.filename}`;
+    const skipMoveDetection = scanContentIdentitySeen.has(contentIdentityKey);
+    scanContentIdentitySeen.add(contentIdentityKey);
+    if (skipMoveDetection) {
+      logger.info("Duplicate content identity seen in this scan; disabling hash move detection for this path", {
+        file: file.relativePath,
+        filename: file.filename,
+      });
+    }
 
     // 2. Thumbnail strategy — uses new policy if set, else legacy mode
     let thumb: { thumbnailUrl?: string; thumbnailError?: string; width?: number; height?: number; pdfPage2Url?: string } = {};
@@ -1077,6 +1108,7 @@ async function processFile(file: FileCandidate) {
       width: thumb.width,
       height: thumb.height,
       pdf_page2_url: thumb.pdfPage2Url,
+      skip_move_detection: skipMoveDetection,
     });
 
     // Update counters based on API response

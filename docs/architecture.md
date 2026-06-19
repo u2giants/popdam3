@@ -63,9 +63,9 @@ Located in `apps/popdam-helper/`. An Electron desktop application (built with el
 
 1. Admin triggers a scan from the web UI (Settings → Agents) or the bridge agent receives a `SCAN_REQUEST` from `admin_config`.
 2. `admin-api` writes the command; the bridge agent picks it up on the next heartbeat or via Supabase Realtime.
-3. Bridge agent walks the NAS filesystem, hashing files (first/last 64 KB + size). Files already in Supabase with matching hash and path → noop; matching hash but different path → move (preserves tags, writes `asset_path_history`).
+3. Bridge agent walks the NAS filesystem, collects the scan candidates, and calls `check-changed` across the scan before ingesting files. Unchanged rows seed a per-scan `(quick_hash, filename)` identity set; new/changed files are hashed (first/last 64 KB + size). If the same identity is seen more than once in a scan, later copies bypass hash move detection and settle as path-specific asset rows.
 4. For new/changed files, the bridge agent generates a thumbnail (MuPDF for PDF, Sharp for images, queues to Windows Agent for `.ai`), uploads it to DigitalOcean Spaces bucket `popdam` (CDN: `cdn.designflow.app`), and records the `thumbnail_url`.
-5. Bridge agent calls `POST /agent/batch-ingest` on `agent-api` with up to 100 files per batch. `agent-api` upserts rows into `assets`, setting `relative_path` (canonical POSIX, no leading slash), `quick_hash`, `modified_at` (filesystem mtime, never server time), `thumbnail_url`, and derived metadata.
+5. Bridge agent calls `POST /agent/batch-ingest` on `agent-api` with up to 100 files per batch. `agent-api` upserts rows into `assets`, setting `relative_path` (canonical POSIX, no leading slash), `quick_hash`, `modified_at` (filesystem mtime, never server time), `thumbnail_url`, and derived metadata. Hash move detection is used only when the incoming path has no existing row, the candidate is unique by `(quick_hash, filename)`, and the bridge did not mark the file as a duplicate seen in the current scan.
 6. The `trg_compute_primary_sort_tier` trigger assigns a cover tier on every insert/update. The `trg_sync_primary_on_thumbnail` trigger (fires on INSERT and UPDATE) updates `style_groups.primary_asset_id` when a thumbnail is set.
 7. Bridge agent calls `POST /agent/scan-progress` throughout and reports completion.
 

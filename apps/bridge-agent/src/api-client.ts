@@ -204,6 +204,7 @@ export interface IngestPayload {
   width?: number;
   height?: number;
   pdf_page2_url?: string;
+  skip_move_detection?: boolean;
 }
 
 export interface IngestResult {
@@ -269,6 +270,11 @@ export interface CheckChangedFile {
 export interface CheckChangedResult {
   changed: string[];
   needs_thumbnail: string[];
+  existing_content_identities: Array<{
+    relative_path: string;
+    filename: string;
+    quick_hash: string;
+  }>;
 }
 
 export async function checkChanged(files: CheckChangedFile[]): Promise<CheckChangedResult> {
@@ -276,6 +282,7 @@ export async function checkChanged(files: CheckChangedFile[]): Promise<CheckChan
   return {
     changed: (data.changed as string[]) || [],
     needs_thumbnail: (data.needs_thumbnail as string[]) || [],
+    existing_content_identities: (data.existing_content_identities as CheckChangedResult["existing_content_identities"]) || [],
   };
 }
 

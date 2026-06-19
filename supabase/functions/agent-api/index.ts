@@ -904,6 +904,7 @@ async function handleIngest(
   const fileCreatedAt = optionalString(body, "file_created_at");
   const quickHash = requireString(body, "quick_hash");
   const quickHashVersion = optionalNumber(body, "quick_hash_version") ?? 1;
+  const skipMoveDetection = body.skip_move_detection === true;
   const thumbnailUrl = optionalString(body, "thumbnail_url");
   const thumbnailError = optionalString(body, "thumbnail_error");
   const width = optionalNumber(body, "width") ?? 0;
@@ -949,6 +950,12 @@ async function handleIngest(
     skuFields.property_name = parsed.property_name;
   }
 
+  const { data: existingByPath } = await db
+    .from("assets")
+    .select("id")
+    .eq("relative_path", relativePath)
+    .maybeSingle();
+
   // ── 1) Move detection: same file relocated ──
   //
   // quick_hash is a SAMPLED hash (first 64KB + last 64KB + size), so DISTINCT
@@ -964,10 +971,12 @@ async function handleIngest(
   //     and must fall through to be inserted as its own asset, not "moved";
   //   - only act when the candidate is UNIQUE (≥2 same-hash+name rows is
   //     ambiguous → don't ping-pong between them).
-  // Residual (needs the heavier-sample hash, separate change): two DIFFERENT
-  // files that share BOTH a sampled hash AND a filename are still collapsed.
+  // Bridge agents that see the same (quick_hash, filename) more than once in a
+  // scan pass set skip_move_detection for later copies. That is the only place
+  // with live filesystem context, and it lets genuine duplicate copies settle
+  // into one asset row per path instead of flip-flapping one row forever.
   let existingByHash: { id: string; relative_path: string } | null = null;
-  if (fileSize > 0) {
+  if (fileSize > 0 && !skipMoveDetection && !existingByPath) {
     const { data: hashCandidates } = await db
       .from("assets")
       .select("id, relative_path")
@@ -1043,12 +1052,6 @@ async function handleIngest(
   }
 
   // ── 2) Update existing by path ──
-
-  const { data: existingByPath } = await db
-    .from("assets")
-    .select("id")
-    .eq("relative_path", relativePath)
-    .maybeSingle();
 
   if (existingByPath) {
     // Thumbnail update logic:
@@ -1818,7 +1821,7 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   // Fetch existing assets by relative_path in one query (include thumbnail info for retry logic)
   const { data: existingAssets, error } = await db
     .from("assets")
-    .select("relative_path, modified_at, file_size, thumbnail_url, thumbnail_error")
+    .select("relative_path, filename, modified_at, file_size, quick_hash, thumbnail_url, thumbnail_error")
     .in("relative_path", relativePaths)
     .eq("is_deleted", false);
 
@@ -1827,14 +1830,18 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   // Build lookup map
   const existingMap = new Map<string, {
     modified_at: string;
+    filename: string | null;
     file_size: number | null;
+    quick_hash: string | null;
     thumbnail_url: string | null;
     thumbnail_error: string | null;
   }>();
   for (const asset of existingAssets || []) {
     existingMap.set(asset.relative_path, {
       modified_at: asset.modified_at,
+      filename: asset.filename,
       file_size: asset.file_size,
+      quick_hash: asset.quick_hash,
       thumbnail_url: asset.thumbnail_url,
       thumbnail_error: asset.thumbnail_error,
     });
@@ -1844,6 +1851,9 @@ async function handleCheckChanged(body: Record<string, unknown>) {
   const changed: string[] = [];
   // Files that are unchanged but have retryable thumbnail failures
   const needsThumbnail: string[] = [];
+  // Existing unchanged rows seed the bridge agent's per-scan content identity
+  // set, so duplicate copies later in traversal can bypass hash move detection.
+  const existingContentIdentities: Array<{ relative_path: string; filename: string; quick_hash: string }> = [];
   // Files that are unchanged and require Windows render retry
   const needsRender: string[] = [];
   const PERMANENT_THUMB_ERRORS = ["no_preview_or_render_failed"];
@@ -1864,7 +1874,18 @@ async function handleCheckChanged(body: Record<string, unknown>) {
 
     if (incomingMod !== existingMod || incomingSize !== (existing.file_size ?? 0)) {
       changed.push(rp);
-    } else if (
+      continue;
+    }
+
+    if (existing.quick_hash && existing.filename) {
+      existingContentIdentities.push({
+        relative_path: rp,
+        filename: existing.filename,
+        quick_hash: existing.quick_hash,
+      });
+    }
+
+    if (
       !existing.thumbnail_url &&
       existing.thumbnail_error &&
       !PERMANENT_THUMB_ERRORS.includes(existing.thumbnail_error)
@@ -1900,7 +1921,7 @@ async function handleCheckChanged(body: Record<string, unknown>) {
     }
   }
 
-  return json({ ok: true, changed, needs_thumbnail: needsThumbnail });
+  return json({ ok: true, changed, needs_thumbnail: needsThumbnail, existing_content_identities: existingContentIdentities });
 }
 
 // ── Route: save-checkpoint ───────────────────────────────────────────
