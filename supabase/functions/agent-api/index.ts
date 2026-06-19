@@ -949,16 +949,37 @@ async function handleIngest(
     skuFields.property_name = parsed.property_name;
   }
 
-  // ── 1) Move detection: same quick_hash, different path ──
-
-  const { data: existingByHash } = await db
-    .from("assets")
-    .select("id, relative_path")
-    .eq("quick_hash", quickHash)
-    .eq("is_deleted", false)
-    .neq("relative_path", relativePath)
-    .limit(1)
-    .maybeSingle();
+  // ── 1) Move detection: same file relocated ──
+  //
+  // quick_hash is a SAMPLED hash (first 64KB + last 64KB + size), so DISTINCT
+  // files collide: template-derived designs (identical header/footer/size, e.g.
+  // many SKUs' "sewn-in label.ai") and all 0-byte files. The old logic matched
+  // on quick_hash ALONE and deduped on it, which (a) flip-flapped one shared
+  // asset row between the colliding files' paths every scan and (b) HID the
+  // other N-1 files from the Library entirely (full analysis: docs/KNOWN_QUIRKS
+  // #51). Guard rails:
+  //   - skip move detection for 0-byte files (constant hash);
+  //   - require the FILENAME to match too — a genuine move/folder-reorg keeps
+  //     the name, so a same-hash file with a DIFFERENT name is a different file
+  //     and must fall through to be inserted as its own asset, not "moved";
+  //   - only act when the candidate is UNIQUE (≥2 same-hash+name rows is
+  //     ambiguous → don't ping-pong between them).
+  // Residual (needs the heavier-sample hash, separate change): two DIFFERENT
+  // files that share BOTH a sampled hash AND a filename are still collapsed.
+  let existingByHash: { id: string; relative_path: string } | null = null;
+  if (fileSize > 0) {
+    const { data: hashCandidates } = await db
+      .from("assets")
+      .select("id, relative_path")
+      .eq("quick_hash", quickHash)
+      .eq("filename", filename)
+      .eq("is_deleted", false)
+      .neq("relative_path", relativePath)
+      .limit(2);
+    if (hashCandidates && hashCandidates.length === 1) {
+      existingByHash = hashCandidates[0];
+    }
+  }
 
   if (existingByHash) {
     const oldPath = existingByHash.relative_path;
@@ -2846,6 +2867,16 @@ async function handleCompleteStyleGuideCrawl(body: Record<string, unknown>) {
         },
         updated_at: new Date().toISOString(),
       });
+
+      // Refresh the PopSG aggregation matviews now that is_active is finalized
+      // for this crawl — they back the guides grid + folder tree so the Library
+      // stops re-aggregating all active rows per request. Best-effort: a briefly
+      // stale matview is preferable to failing crawl completion.
+      // See migration popsg_aggregation_matviews.
+      const { error: refreshErr } = await db.rpc("refresh_style_guide_matviews");
+      if (refreshErr) {
+        console.error("[complete-style-guide-crawl] Matview refresh failed:", refreshErr.message);
+      }
     }
     console.log(
       `[complete-style-guide-crawl] Run ${runId} done=${done}, files=${finalFileCount}, error=${effectiveCrawlError || "none"}`,
