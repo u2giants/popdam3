@@ -149,19 +149,21 @@ Risks / watchouts:
 ### 5.9 `quick_hash` collision → asset flip-flapping, history bloat, and hidden files
 
 Status:
-Open — characterized 2026-06-19, **not fixed** (read-side mitigations deployed; ingest fix is the real work).
+Partial — move-detection guard **deployed 2026-06-19** (stops new flip-flapping + new hidden files); hash hardening + historical cleanup remain.
 
-Done (this session, read-side only):
-- Added `idx_asset_path_history_asset_id_detected_at` (migration `20260619131239`) so the detail panel's path-history read stopped 500ing (30.5s → 16ms) despite the 4.7M-row table.
-- Root-caused the bloat: `quick_hash` = SHA-256(first 64KB + last 64KB + size) collides for template-derived design files (identical header/footer/size, different middle) and 0-byte files; `agent-api` `process-asset` move detection matches on `quick_hash` alone and dedups on it. Full analysis: `docs/KNOWN_QUIRKS.md` #51, caveat in `docs/PROJECT_BIBLE.md` §9.
+Done:
+- ✅ **Move-detection guard** (`agent-api` `process-asset`): a move now requires `quick_hash` **AND filename** to match AND a **unique** candidate, and is **skipped for 0-byte files**. Different-filename hash collisions now insert as their own asset instead of stealing/flip-flapping the shared row. Fixes the entire observed problem (heavy flip-floppers all had different filenames). Forward-only.
+- ✅ `idx_asset_path_history_asset_id_detected_at` (migration `20260619131239`) — detail-panel path-history read 30.5s → 16ms despite the 4.7M-row table.
+- Root cause + full analysis: `docs/KNOWN_QUIRKS.md` #51; caveat in `docs/PROJECT_BIBLE.md` §9.
 
-Next action:
-Fix move detection in `supabase/functions/agent-api/index.ts` (`process-asset`, ~line 952): require the incoming **filename** to match the hash-candidate (a real move keeps its name) and/or confirm the old `relative_path` is gone in the same scan, before treating it as a move. Then backfill so the hidden N−1 colliding files get their own asset rows, and prune the self-reversing `asset_path_history` churn.
+Next action (two independent tracks):
+1. **Heavier-sample hash** (closes the residual: two *different* files sharing both a sampled hash and a filename). `apps/bridge-agent/src/hasher.ts` — add middle-chunk samples, bump `quick_hash_version`. **Must be a coordinated release**: the Helper (`apps/popdam-helper/src/main/hash.ts`) computes the same hash and it is the check-in `expected_hash`; needs synchronized bridge+Helper deploy, a full re-scan to migrate stored hashes, and in-flight-checkout handling. Do NOT bundle casually.
+2. **Historical cleanup** (needs approval): backfill so already-hidden N−1 files get their own asset rows; prune the self-reversing `asset_path_history` churn (~4.7M rows). Safe now that the guard is live.
 
 Risks / watchouts:
-- This is an **ingest-correctness** change — distinct files are currently collapsed to one asset row, so the Library is **missing files** (e.g. 14 of 15 SKU label variants). Do not prune history without fixing the generator first.
-- `quick_hash_version` already exists; if you strengthen the hash, bump it and plan a re-hash/re-ingest. 0-byte files will always collide — key those by path, never hash.
-- Re-measure scope: `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;` (was 15,151).
+- The guard is forward-only: the ~4.7M existing history rows and already-hidden files persist until track 2 runs.
+- `quick_hash` is shared by scan + check-in verification + the Helper — never change the algorithm on one side alone (the Helper's `hash.ts` carries an explicit lockstep warning).
+- Re-measure scope: `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;` (was 15,151; should stop growing now, then drop after cleanup).
 
 ---
 

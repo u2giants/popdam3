@@ -490,13 +490,12 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 1. **Bloat + churn**: `asset_path_history` grows unbounded; every scan issues thousands of pointless `assets` UPDATEs and re-runs `assignToStyleGroup`, churning style-group membership.
 2. **Silent data loss / hidden files**: because move-detection *dedups* on `quick_hash`, a cluster of N distinct colliding files is represented by **one** asset row. The other N−1 real files (e.g. 14 of the 15 SKU label files) were never inserted as separate assets and **do not appear in the Library at all**. This is the more dangerous half.
 
-**Why it was only characterized, not fixed, this session**: the fix changes ingest *correctness* and must be deliberate. It was out of scope for a UI redesign + load-error pass. Options for a future session, in rough order of safety:
-- **Disambiguate move detection**: require the incoming filename to match the candidate's filename (a true move keeps the name), and/or only treat it as a move when the old `relative_path` is confirmed gone in the same scan. Cheapest, biggest win — kills the flip-flap and stops collapsing distinct files.
-- **Strengthen the hash** when `file_size` is large: sample more regions or add a middle chunk, and bump `quick_hash_version` (the column already exists). Note 0-byte files will always collide — handle them by path, never by hash.
-- **Backfill / re-ingest** so the hidden N−1 files get their own asset rows after the matching logic is fixed.
-- **Prune** `asset_path_history` of self-reversing churn once the cause is fixed.
+**Fix status (updated 2026-06-19):**
+- ✅ **DONE — move-detection guard** (`agent-api` `process-asset`): a move now requires the candidate to match on `quick_hash` **AND filename** AND be the **unique** such row, and move detection is **skipped for 0-byte files**. A same-hash file with a *different* filename now falls through to be inserted as its own asset instead of "moving" the shared row. This stops the flip-flap and the hidden-files data loss for the entire observed problem (the heavy flip-floppers all had *different* filenames — 72 names on the worst one, 15 SKU labels on the example). Forward-only: it stops *new* spurious moves; it does not retro-fix already-collapsed rows.
+- ⏳ **DEFERRED — heavier-sample hash** (`apps/bridge-agent/src/hasher.ts`): the residual gap is two *different* files that share BOTH a sampled `quick_hash` AND a filename (e.g. two `logo.ai` of identical size). Only a stronger hash distinguishes those. **This is NOT a casual change**: `quick_hash` is computed identically by the bridge AND the desktop Helper (`apps/popdam-helper/src/main/hash.ts`) and is the `expected_hash` for check-in integrity verification (`checkin-verifier.ts`). Changing it requires a **synchronized bridge + Helper release**, a `quick_hash_version` bump, a **full re-scan** to migrate stored hashes, and handling in-flight checkouts (expected_hash computed under the old version). Do it as its own coordinated release, not bundled.
+- ⏳ **TODO — cleanup** (needs approval): backfill so the already-hidden N−1 files get their own asset rows; prune the self-reversing `asset_path_history` churn (now ~4.7M rows). Do these only *after* the guard is live (it is) so they don't immediately re-bloat.
 
-**Future sessions should**: Do **not** treat `quick_hash` as a content-unique key. Do **not** "fix" the path-history bloat by only pruning rows — that leaves the generator running. If you touch ingest/move-detection, fix the matching logic (filename guard) first. Re-measure scope with: `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;`.
+**Future sessions should**: Do **not** treat `quick_hash` as a content-unique key. Do **not** "fix" the path-history bloat by only pruning rows — confirm the guard is deployed first (it is, as of 2026-06-19), then prune. Re-measure scope with: `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;` (was 15,151).
 
 ---
 
@@ -509,3 +508,18 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 **How it was fixed**: `src/hooks/useAssetCheckout.ts` now selects `user_id` and looks up the owner's profile in a **second query** (`profiles` where `user_id = checkout.user_id`), attaching it as `profiles` so `CheckoutBar` is unchanged. No schema change.
 
 **Future sessions should**: Don't add `profiles(...)` embeds to any table whose `user_id` points at `auth.users`. Either do the two-step lookup (as here) or add an explicit FK to `profiles` if you want PostgREST embedding. Verify FK paths with `information_schema.table_constraints` before writing embedded selects.
+
+---
+
+## 53. PopSG Guides/Folders Are Materialized Views — Refresh-Driven, and Matviews Bypass RLS (2026-06-19)
+
+**What changed**: `style_guide_file_groups` and `style_guide_folders` were plain views that re-aggregated all ~214k active `style_guide_files` rows on **every** PopSG page load (guides grid + folder tree; ~250–425ms warm, ~2–3s cold, fired concurrently). They are now **materialized views** (migration `popsg_aggregation_matviews`). Guides query ~425ms → ~28ms. Also added partial index `idx_style_guide_files_active_modified` for the files-mode list (~489ms → ~35ms).
+
+**How they stay fresh**: `refresh_style_guide_matviews()` (SECURITY DEFINER) is called (a) by `agent-api` at the end of each crawl (`complete-style-guide-crawl`, after stale cleanup finalizes `is_active`) and (b) by a pg_cron job **every 15 min** (`refresh-style-guide-matviews`). The cron exists because `style_guide_files.thumbnail_url` changes *between* crawls as the render queue fills in thumbnails — without it, a group's representative `sample_thumbnail_url` would lag until the next nightly crawl. The groups matview refreshes `CONCURRENTLY` (no read lock; needs the unique index `sgfg_group_key_uidx`); the 361-row folders matview uses a plain refresh.
+
+**The trap that bit this change — matviews bypass RLS + Supabase default privileges grant `anon`.** The old views used `security_invoker`, so `style_guide_files` RLS (no `anon` policy) blocked `anon`. **Materialized views do NOT honor RLS** — and Supabase's `ALTER DEFAULT PRIVILEGES` auto-granted `anon` SELECT on the new matviews, exposing the licensed-art catalog (licensor/property/style-guide names) to the **public anon key**. Caught and fixed by migration `restrict_style_guide_matviews_to_authenticated` (`REVOKE ALL ... FROM anon, PUBLIC`).
+
+**Future sessions should**:
+- After creating ANY matview/table that should not be public, **explicitly `REVOKE ... FROM anon, PUBLIC`** and verify with `has_table_privilege('anon', '<rel>', 'SELECT')` — default privileges silently grant `anon`. Never rely on RLS to protect a materialized view; it does not apply.
+- Remember the PopSG matviews are **eventually consistent** (≤15 min + per-crawl), not live. If you add a code path that mutates `style_guide_files` outside a crawl and needs to show immediately, call `refresh_style_guide_matviews()` or query the base table.
+- A new column on the matview must be added to the view definition AND any matview index that needs it; bump via a new migration (matviews can't be `CREATE OR REPLACE`d — drop+recreate).
