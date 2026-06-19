@@ -18,12 +18,12 @@ export function useAppearance() {
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    try { localStorage.setItem("pd-theme", theme); } catch {}
+    try { localStorage.setItem("pd-theme", theme); } catch { /* localStorage may be unavailable */ }
   }, [theme]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-accent", accent);
-    try { localStorage.setItem("pd-accent", accent); } catch {}
+    try { localStorage.setItem("pd-accent", accent); } catch { /* localStorage may be unavailable */ }
   }, [accent]);
 
   return { theme, setTheme, accent, setAccent };
