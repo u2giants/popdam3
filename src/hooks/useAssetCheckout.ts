@@ -10,13 +10,27 @@ export function useAssetCheckout(assetId: string | null | undefined) {
     queryKey: ["asset-checkout", assetId],
     enabled: !!assetId,
     queryFn: async () => {
+      // NOTE: asset_checkouts.user_id references auth.users, not public.profiles,
+      // so PostgREST cannot embed profiles(...) directly (it 400s). Fetch the
+      // checkout first, then resolve the owner's profile by user_id separately.
       const { data } = await supabase
         .from("asset_checkouts")
-        .select("id, status, checked_out_at, profiles(full_name, email)")
+        .select("id, status, checked_out_at, user_id")
         .eq("asset_id", assetId!)
         .in("status", ["active", "checkin_queued", "uploading", "verifying"])
         .maybeSingle();
-      return data ?? null;
+      if (!data) return null;
+
+      let profiles: { full_name: string | null; email: string | null } | null = null;
+      if (data.user_id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, email")
+          .eq("user_id", data.user_id)
+          .maybeSingle();
+        profiles = profile ?? null;
+      }
+      return { ...data, profiles };
     },
     refetchInterval: 15000,
   });

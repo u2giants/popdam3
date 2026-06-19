@@ -133,7 +133,14 @@ export function useAssets(
 
       query = applyFilters(query, filters);
       query = applyVisibility(query, minDate);
-      query = query.order(sortField, { ascending: sortDirection === "asc" });
+      // Index.tsx runs this query in both modes, so sortField may carry a
+      // groups-only value ("sku"/"asset_count") that is not an assets column.
+      // Map those onto valid assets columns to avoid a failed query.
+      const assetSortField =
+        sortField === "sku" ? "filename"
+        : sortField === "asset_count" ? "file_size"
+        : sortField;
+      query = query.order(assetSortField, { ascending: sortDirection === "asc" });
       query = query.range(from, to);
 
       const { data, error, count } = await query;

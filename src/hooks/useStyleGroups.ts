@@ -130,8 +130,12 @@ export function useStyleGroups(
       // Filters
       query = applyStyleGroupFilters(query, filters);
 
-      // Sort
-      const sgSortField = sortField === "modified_at" ? "latest_file_date" : sortField === "filename" ? "sku" : "latest_file_date";
+      // Sort — map the library sort fields onto real style_groups columns.
+      const sgSortField =
+        sortField === "file_created_at" ? "created_at"
+        : sortField === "sku" || sortField === "filename" ? "sku"
+        : sortField === "asset_count" || sortField === "file_size" ? "asset_count"
+        : "latest_file_date"; // modified_at + fallback
       query = query.order(sgSortField, { ascending: sortDirection === "asc" });
       query = query.range(from, to);
 
