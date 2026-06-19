@@ -2892,6 +2892,7 @@ export type Database = {
         Args: { p_group_ids: string[] }
         Returns: number
       }
+      refresh_style_guide_matviews: { Args: never; Returns: undefined }
       regroup_mega_group_assets: {
         Args: never
         Returns: {
