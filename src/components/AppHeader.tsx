@@ -1,10 +1,11 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAgentStatus, type AgentRecord } from "@/hooks/useAgentStatus";
+import { useAppearance, type Theme, type Accent } from "@/hooks/useAppearance";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +28,22 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Library, Settings, Download, LogOut, Wand2, RefreshCw, Menu, Eye, EyeOff, FolderOpen } from "lucide-react";
+import {
+  Library,
+  Settings,
+  Download,
+  LogOut,
+  Wand2,
+  RefreshCw,
+  Menu,
+  Eye,
+  EyeOff,
+  FolderOpen,
+  Layers,
+  Sun,
+  Moon,
+  Bell,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import { useState } from "react";
@@ -49,11 +65,12 @@ const popsgNavItems = [
 
 const navItems = IS_POPSG ? popsgNavItems : popdamNavItems;
 
-const dotColor: Record<string, string> = {
-  online: "bg-success",
-  offline: "bg-destructive",
-  none: "bg-muted-foreground/40",
-};
+const ACCENT_OPTIONS: { value: Accent; label: string; color: string }[] = [
+  { value: "indigo", label: "Indigo", color: "#6366f1" },
+  { value: "teal",   label: "Teal",   color: "#14b8a6" },
+  { value: "amber",  label: "Amber",  color: "#f59e0b" },
+  { value: "rose",   label: "Rose",   color: "#f43f5e" },
+];
 
 function timeAgo(iso: string | null): string {
   if (!iso) return "never";
@@ -70,7 +87,12 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
     <div className="rounded-md border border-border bg-muted/30 p-2.5 space-y-1.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className={cn("h-2 w-2 rounded-full shrink-0", agent.isOnline ? "bg-success" : "bg-destructive")} />
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full shrink-0",
+              agent.isOnline ? "bg-success" : "bg-destructive"
+            )}
+          />
           <span className="font-medium text-foreground text-xs">{agent.agent_name}</span>
         </div>
         <span className="text-[10px] text-muted-foreground capitalize">{agent.agent_type}</span>
@@ -79,8 +101,6 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
       <div className="text-[10px] text-muted-foreground">
         Heartbeat: {timeAgo(agent.last_heartbeat)}
       </div>
-
-      {/* Scan status is now driven by useScanProgress in Index.tsx, not agent metadata */}
 
       {c && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] pt-1 border-t border-border">
@@ -94,7 +114,7 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Ingested</span>
-            <span className="font-mono text-foreground font-semibold text-success">{c.ingested_new.toLocaleString()}</span>
+            <span className="font-mono font-semibold text-success">{c.ingested_new.toLocaleString()}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Moved</span>
@@ -106,7 +126,14 @@ function AgentDetail({ agent }: { agent: AgentRecord }) {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Errors</span>
-            <span className={cn("font-mono", c.errors > 0 ? "text-destructive font-semibold" : "text-foreground")}>{c.errors.toLocaleString()}</span>
+            <span
+              className={cn(
+                "font-mono",
+                c.errors > 0 ? "text-destructive font-semibold" : "text-foreground"
+              )}
+            >
+              {c.errors.toLocaleString()}
+            </span>
           </div>
           {(c.roots_invalid > 0 || c.roots_unreadable > 0) && (
             <>
@@ -152,19 +179,224 @@ function initialsOf(name: string, email: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// ---------- Sync pill ----------
+
+function SyncPill({ agent }: { agent: ReturnType<typeof useAgentStatus> }) {
+  const isOffline = agent.bridgeStatus === "offline" || agent.bridgeStatus === "none";
+  const isScanning = !isOffline && agent.agents.some((a) => a.isOnline && a.agent_type === "bridge");
+
+  // Determine label + dot style
+  let dotClass = "";
+  let label = "";
+  let timeLabel = "";
+
+  if (isOffline) {
+    dotClass = "bg-destructive";
+    label = "Offline";
+  } else if (isScanning) {
+    dotClass = "bg-amber-400 animate-pulse";
+    label = "Syncing…";
+  } else {
+    dotClass = "bg-green-500";
+    label = "Synced";
+    // Use latest heartbeat as proxy for last sync time
+    const latest = agent.agents
+      .filter((a) => a.last_heartbeat)
+      .map((a) => a.last_heartbeat as string)
+      .sort()
+      .at(-1) ?? null;
+    timeLabel = timeAgo(latest);
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors hover:opacity-80"
+          style={{
+            background: "var(--pd-surface)",
+            border: "1px solid var(--pd-border)",
+            color: "var(--pd-fg-muted, var(--muted-foreground))",
+          }}
+        >
+          <span className={cn("h-2 w-2 rounded-full shrink-0", dotClass)} />
+          <span>{label}</span>
+          {timeLabel && (
+            <span className="opacity-60">{timeLabel}</span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-3">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-foreground">Agent Status</p>
+          <span className="text-[10px] text-muted-foreground">
+            {agent.onlineCount}/{agent.agentCount} online
+          </span>
+        </div>
+        {agent.agents.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No agents registered.</p>
+        ) : (
+          <div className="space-y-2">
+            {agent.agents.map((a) => (
+              <AgentDetail key={a.id} agent={a} />
+            ))}
+          </div>
+        )}
+        <div className="mt-3 pt-2 border-t border-border flex items-center justify-between">
+          <Link
+            to="/setup"
+            className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Diagnostics
+          </Link>
+          <button
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => {
+              /* sync-now placeholder — wired in Index.tsx via scan lifecycle */
+            }}
+          >
+            <RefreshCw className="h-3 w-3" />
+            Sync now
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ---------- Appearance button ----------
+
+function AppearanceButton({
+  theme,
+  setTheme,
+  accent,
+  setAccent,
+}: {
+  theme: Theme;
+  setTheme: (t: Theme) => void;
+  accent: Accent;
+  setAccent: (a: Accent) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="Appearance"
+        >
+          {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-52 p-3 space-y-3">
+        {/* Theme toggle */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+            Theme
+          </p>
+          <div className="flex rounded-md border border-border overflow-hidden text-xs">
+            {(["light", "dark"] as Theme[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTheme(t)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-1.5 transition-colors capitalize",
+                  theme === t
+                    ? "font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                style={
+                  theme === t
+                    ? {
+                        background: "var(--pd-accent-soft)",
+                        color: "var(--pd-accent-soft-fg, var(--pd-accent))",
+                      }
+                    : {}
+                }
+              >
+                {t === "light" ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Accent swatches */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+            Accent
+          </p>
+          <div className="flex gap-2">
+            {ACCENT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                title={opt.label}
+                onClick={() => setAccent(opt.value)}
+                className={cn(
+                  "h-6 w-6 rounded-full border-2 transition-transform hover:scale-110",
+                  accent === opt.value ? "border-foreground" : "border-transparent"
+                )}
+                style={{ background: opt.color }}
+              />
+            ))}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ---------- Desktop nav ----------
+
+function DesktopNav() {
+  const location = useLocation();
+
+  function isNavActive(to: string): boolean {
+    if (to === "/" || to === "/library") return location.pathname === to || location.pathname === "/";
+    return location.pathname.startsWith(to);
+  }
+
+  return (
+    <nav className="hidden md:flex items-center gap-0.5 ml-2">
+      {navItems.map((item) => {
+        const active = isNavActive(item.to);
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors"
+            style={
+              active
+                ? {
+                    background: "var(--pd-accent-soft, var(--accent))",
+                    color: "var(--pd-accent-soft-fg, var(--accent-foreground))",
+                    fontWeight: 600,
+                  }
+                : {
+                    color: "var(--pd-fg-muted, var(--muted-foreground))",
+                  }
+            }
+          >
+            <item.icon className="h-4 w-4" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+// ---------- Main component ----------
+
 export default function AppHeader() {
   const { signOut } = useAuth();
   const { name, email, avatarUrl } = useUserProfile();
   const { isRealAdmin } = useIsAdmin();
   const { impersonatedRole, startImpersonating, stopImpersonating } = useImpersonation();
   const agent = useAgentStatus();
+  const { theme, setTheme, accent, setAccent } = useAppearance();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const bridgeLabel = agent.bridgeStatus === "online"
-    ? "Synology"
-    : agent.bridgeStatus === "offline"
-    ? "Offline"
-    : "No agent";
+  const initials = initialsOf(name, email);
 
   return (
     <>
@@ -182,9 +414,16 @@ export default function AppHeader() {
         </div>
       )}
 
-      <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-surface-overlay px-4">
-        {/* Left: Logo + Nav */}
-        <div className="flex items-center gap-4 md:gap-6">
+      <header
+        className="sticky top-0 z-50 flex h-14 items-center justify-between px-4"
+        style={{
+          background: "var(--pd-hdr-bg, var(--background))",
+          backdropFilter: "blur(14px)",
+          borderBottom: "1px solid var(--pd-border, var(--border))",
+        }}
+      >
+        {/* ---- Left: brand + nav ---- */}
+        <div className="flex items-center gap-4">
           {/* Mobile hamburger */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
@@ -198,7 +437,7 @@ export default function AppHeader() {
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    end={item.to === "/"}
+                    end={item.to === "/" || item.to === "/library"}
                     className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
                     activeClassName="bg-accent text-foreground"
                     onClick={() => setMobileOpen(false)}
@@ -211,83 +450,102 @@ export default function AppHeader() {
             </SheetContent>
           </Sheet>
 
-          <Link to="/library" className="flex items-center gap-2">
-            <span className="text-lg font-bold tracking-tight text-primary">{CURRENT_APP.name}</span>
+          {/* Brand lockup */}
+          <Link to={IS_POPSG ? "/library" : "/"} className="flex items-center gap-2 shrink-0">
+            {/* Brand mark */}
+            <span
+              className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] shrink-0"
+              style={{
+                background:
+                  "linear-gradient(140deg, var(--pd-accent, #6366f1), var(--pd-accent-hov, #4f46e5))",
+              }}
+            >
+              <Layers className="h-3.5 w-3.5 text-white" />
+            </span>
+            {/* Wordmark */}
+            <span className="text-[15px] font-semibold tracking-tight text-foreground leading-none select-none">
+              {CURRENT_APP.name.startsWith("Pop") ? (
+                <>
+                  Pop
+                  <span style={{ color: "var(--pd-accent, #6366f1)", fontWeight: 700 }}>
+                    {CURRENT_APP.name.slice(3)}
+                  </span>
+                </>
+              ) : (
+                CURRENT_APP.name
+              )}
+            </span>
           </Link>
 
-          <nav className="hidden items-center gap-1 md:flex">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === "/"}
-                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                activeClassName="bg-accent text-foreground"
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+          {/* Desktop nav — hidden below 720px (Tailwind sm = 640px; we use md = 768px) */}
+          <DesktopNav />
         </div>
 
-        {/* Right: Agent status + User menu */}
-        <div className="flex items-center gap-3">
+        {/* ---- Right: status + tools + user ---- */}
+        <div className="flex items-center" style={{ gap: "8px" }}>
           {/* Build stamp */}
-          <span className="hidden lg:inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground select-all" title="Build info">
+          <span
+            className="hidden lg:inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground select-all"
+            title="Build info"
+          >
             {__APP_COMMIT__} · {formatDateTime(__APP_DATE__)}
           </span>
 
-          {/* Bridge agent status */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent"
-                title={agent.bridgeStatus === "online" ? "Synology connected" : agent.bridgeStatus === "offline" ? "Synology offline" : "No bridge agent"}
-              >
-                <span className={cn("h-2.5 w-2.5 rounded-full", dotColor[agent.bridgeStatus])} />
-                <span className="hidden sm:inline">{bridgeLabel}</span>
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72 p-3">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold text-foreground">Agent Status</p>
-                <span className="text-[10px] text-muted-foreground">
-                  {agent.onlineCount}/{agent.agentCount} online
-                </span>
-              </div>
-              {agent.agents.length === 0 && (
-                <p className="text-xs text-muted-foreground">No agents registered.</p>
-              )}
-              <div className="space-y-2">
-                {agent.agents.map((a) => (
-                  <AgentDetail key={a.id} agent={a} />
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
+          {/* Sync status pill */}
+          <SyncPill agent={agent} />
+
+          {/* Appearance button */}
+          <AppearanceButton
+            theme={theme}
+            setTheme={setTheme}
+            accent={accent}
+            setAccent={setAccent}
+          />
+
+          {/* Notifications bell */}
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Notifications"
+          >
+            <Bell className="h-4 w-4" />
+          </button>
 
           {/* User dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2 text-sm text-muted-foreground">
-                <Avatar className="h-6 w-6">
-                  {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
-                  <AvatarFallback className="bg-primary/15 text-[10px] font-medium text-primary">
-                    {initialsOf(name, email)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="hidden max-w-[140px] truncate sm:inline">
-                  {name}
-                </span>
-              </Button>
+              <button
+                className="flex h-[30px] w-[30px] items-center justify-center rounded-full text-[11px] font-semibold shrink-0 transition-opacity hover:opacity-80"
+                style={{
+                  background: "var(--pd-accent-soft, var(--accent))",
+                  color: "var(--pd-accent-soft-fg, var(--accent-foreground))",
+                }}
+                title={name || email}
+              >
+                {avatarUrl ? (
+                  <Avatar className="h-[30px] w-[30px]">
+                    <AvatarImage src={avatarUrl} alt={name} />
+                    <AvatarFallback
+                      style={{
+                        background: "var(--pd-accent-soft, var(--accent))",
+                        color: "var(--pd-accent-soft-fg, var(--accent-foreground))",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  initials
+                )}
+              </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="flex items-center gap-2 px-2 py-1.5">
                 <Avatar className="h-8 w-8">
                   {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
                   <AvatarFallback className="bg-primary/15 text-xs font-medium text-primary">
-                    {initialsOf(name, email)}
+                    {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
@@ -319,7 +577,10 @@ export default function AppHeader() {
               )}
 
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem
+                onClick={signOut}
+                className="text-destructive focus:text-destructive"
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign out
               </DropdownMenuItem>

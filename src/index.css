@@ -1,4 +1,92 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ── PopDAM design tokens (light/dark + accent) ─────────────── */
+:root {
+  --pd-radius: 10px;
+  --pd-radius-sm: 7px;
+  --pd-radius-lg: 14px;
+  --pd-shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --pd-shadow-md: 0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.05);
+  --pd-shadow-lg: 0 8px 24px rgba(0,0,0,.12), 0 4px 8px rgba(0,0,0,.06);
+  --acc-h: 264; --acc-c: .17;
+}
+:root[data-accent="indigo"] { --acc-h: 264; --acc-c: .17; }
+:root[data-accent="teal"]   { --acc-h: 192; --acc-c: .12; }
+:root[data-accent="amber"]  { --acc-h: 64;  --acc-c: .15; }
+:root[data-accent="rose"]   { --acc-h: 12;  --acc-c: .17; }
+
+:root[data-theme="light"] {
+  --pd-bg: oklch(0.984 0.004 255);
+  --pd-surface: oklch(1 0 0);
+  --pd-surface-2: oklch(0.975 0.004 255);
+  --pd-surface-3: oklch(0.955 0.005 255);
+  --pd-border: oklch(0.912 0.005 255);
+  --pd-border-2: oklch(0.86 0.006 255);
+  --pd-fg: oklch(0.265 0.02 265);
+  --pd-fg-muted: oklch(0.52 0.016 265);
+  --pd-fg-subtle: oklch(0.64 0.013 265);
+  --pd-accent: oklch(0.55 var(--acc-c) var(--acc-h));
+  --pd-accent-hov: oklch(0.49 var(--acc-c) var(--acc-h));
+  --pd-accent-fg: oklch(0.99 0.005 var(--acc-h));
+  --pd-accent-soft: oklch(0.955 0.035 var(--acc-h));
+  --pd-accent-soft-fg: oklch(0.45 var(--acc-c) var(--acc-h));
+  --pd-accent-ring: oklch(0.55 var(--acc-c) var(--acc-h) / .35);
+  --pd-licensed: oklch(0.62 0.15 28);
+  --pd-licensed-soft: oklch(0.95 0.03 32);
+  --pd-success: oklch(0.6 0.13 150);
+  --pd-success-soft: oklch(0.94 0.05 150);
+  --pd-warning: oklch(0.74 0.14 70);
+  --pd-warning-soft: oklch(0.95 0.05 75);
+  --pd-info: oklch(0.58 0.13 244);
+  --pd-info-soft: oklch(0.95 0.035 244);
+  --pd-hdr-bg: color-mix(in oklab, oklch(1 0 0) 82%, transparent);
+}
+:root[data-theme="dark"] {
+  --pd-bg: oklch(0.185 0.012 262);
+  --pd-surface: oklch(0.225 0.014 262);
+  --pd-surface-2: oklch(0.21 0.013 262);
+  --pd-surface-3: oklch(0.255 0.015 262);
+  --pd-border: oklch(0.305 0.013 262);
+  --pd-border-2: oklch(0.37 0.014 262);
+  --pd-fg: oklch(0.945 0.005 262);
+  --pd-fg-muted: oklch(0.69 0.012 262);
+  --pd-fg-subtle: oklch(0.56 0.012 262);
+  --pd-accent: oklch(0.72 calc(var(--acc-c) * 0.92) var(--acc-h));
+  --pd-accent-hov: oklch(0.78 calc(var(--acc-c) * 0.92) var(--acc-h));
+  --pd-accent-fg: oklch(0.18 0.03 var(--acc-h));
+  --pd-accent-soft: oklch(0.3 0.06 var(--acc-h));
+  --pd-accent-soft-fg: oklch(0.84 0.1 var(--acc-h));
+  --pd-accent-ring: oklch(0.72 var(--acc-c) var(--acc-h) / .4);
+  --pd-licensed: oklch(0.78 0.13 38);
+  --pd-licensed-soft: oklch(0.36 0.08 35);
+  --pd-success: oklch(0.74 0.14 152);
+  --pd-success-soft: oklch(0.34 0.07 152);
+  --pd-warning: oklch(0.8 0.13 72);
+  --pd-warning-soft: oklch(0.36 0.07 72);
+  --pd-info: oklch(0.72 0.12 244);
+  --pd-info-soft: oklch(0.33 0.07 244);
+  --pd-hdr-bg: color-mix(in oklab, oklch(0.225 0.014 262) 82%, transparent);
+}
+
+/* Workflow status tag classes */
+.pd-wf-tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+.pd-wf-in_progress { background: var(--pd-info-soft); color: var(--pd-info); }
+.pd-wf-in_review   { background: var(--pd-warning-soft); color: var(--pd-warning); }
+.pd-wf-approved    { background: var(--pd-success-soft); color: var(--pd-success); }
+.pd-wf-on_hold     { background: var(--pd-surface-3); color: var(--pd-fg-muted); }
+.pd-wf-archived    { background: var(--pd-surface-3); color: var(--pd-fg-muted); }
+
+/* File type badge colors */
+.pd-ftype-psd { background: oklch(0.42 0.18 260); color: #fff; }
+.pd-ftype-ai  { background: oklch(0.62 0.18 42); color: #fff; }
+.pd-ftype-png { background: oklch(0.5 0.15 155); color: #fff; }
+.pd-ftype-pdf { background: oklch(0.55 0.2 20); color: #fff; }
+.pd-ftype-jpg { background: oklch(0.5 0.13 210); color: #fff; }
+.pd-ftype-tif { background: oklch(0.5 0.16 295); color: #fff; }
+.pd-ftype-default { background: oklch(0.55 0.08 250); color: #fff; }
+
+@keyframes pd-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes pd-spin { to{transform:rotate(360deg)} }
 
 @tailwind base;
 @tailwind components;
@@ -62,6 +150,71 @@
     --sidebar-accent-foreground: 220 13% 91%;
     --sidebar-border: 220 14% 18%;
     --sidebar-ring: 38 92% 55%;
+  }
+
+  /* Light theme — bridges the Tailwind HSL tokens to the new --pd-* light
+     palette so the entire app shell (body, shadcn primitives, sidebars)
+     responds to the appearance toggle, not just the redesigned components. */
+  :root[data-theme="light"] {
+    --background: 220 33% 99%;
+    --foreground: 222 20% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 20% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 20% 20%;
+
+    --primary: 245 58% 51%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 16% 95%;
+    --secondary-foreground: 222 20% 25%;
+
+    --muted: 220 16% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 220 16% 95%;
+    --accent-foreground: 222 20% 25%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 16% 88%;
+    --input: 220 16% 88%;
+    --ring: 245 58% 51%;
+
+    --surface-elevated: 0 0% 100%;
+    --surface-overlay: 0 0% 100%;
+
+    --tag-bg: 220 16% 92%;
+    --tag-foreground: 222 15% 35%;
+
+    --success: 150 50% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 40 90% 48%;
+    --warning-foreground: 0 0% 100%;
+    --info: 244 58% 55%;
+    --info-foreground: 0 0% 100%;
+
+    --sidebar-background: 220 30% 98%;
+    --sidebar-foreground: 222 18% 30%;
+    --sidebar-primary: 245 58% 51%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 16% 94%;
+    --sidebar-accent-foreground: 222 20% 25%;
+    --sidebar-border: 220 16% 90%;
+    --sidebar-ring: 245 58% 51%;
+  }
+}
+
+@layer base {
+  /* Smooth theme transition on the shell, per design spec (~0.4s) */
+  body {
+    transition: background-color 0.4s ease, color 0.4s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body { transition: none; }
   }
 }
 

@@ -1,19 +1,6 @@
-import { useState } from "react";
 import type { Asset } from "@/types/assets";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ImageOff, Copy, Check } from "lucide-react";
+import { ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { formatFilename } from "@/lib/format-filename";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 interface AssetListViewProps {
   assets: Asset[];
@@ -22,26 +9,69 @@ interface AssetListViewProps {
   isLoading: boolean;
 }
 
-function CopyIconButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+// Colors keyed by file_type enum value
+const FILE_TYPE_META: Record<string, { label: string; bg: string; color: string }> = {
+  psd: { label: "PSD", bg: "#7c3aed", color: "#fff" },
+  ai:  { label: "AI",  bg: "#ea580c", color: "#fff" },
+  png: { label: "PNG", bg: "#0d9488", color: "#fff" },
+  pdf: { label: "PDF", bg: "#dc2626", color: "#fff" },
+  jpg: { label: "JPG", bg: "#2563eb", color: "#fff" },
+  tif: { label: "TIF", bg: "#7c3aed", color: "#fff" }, // violet (same hue as PSD)
+};
+
+function FileTypeBadge({ fileType }: { fileType: string }) {
+  const meta = FILE_TYPE_META[fileType?.toLowerCase()] ?? {
+    label: (fileType ?? "?").toUpperCase(),
+    bg: "#64748b",
+    color: "#fff",
   };
   return (
-    <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={copy}>
-      {copied ? <Check className="h-3 w-3 text-[hsl(var(--success))]" /> : <Copy className="h-3 w-3" />}
-    </Button>
+    <div
+      style={{
+        width: 36,
+        height: 28,
+        borderRadius: 6,
+        background: meta.bg,
+        color: meta.color,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        flexShrink: 0,
+        fontFamily: "var(--font-mono, monospace)",
+      }}
+    >
+      {meta.label}
+    </div>
   );
 }
 
-function formatSize(bytes: number | null): string {
+function formatSize(bytes: number | null | undefined): string {
   if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
+function isSuperseded(asset: Asset): boolean {
+  return asset.workflow_status === "discontinued";
 }
 
 export default function AssetListView({ assets, selectedIds, onSelect, isLoading }: AssetListViewProps) {
@@ -65,78 +95,104 @@ export default function AssetListView({ assets, selectedIds, onSelect, isLoading
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-[56px]" />
-          <TableHead>Filename</TableHead>
-          <TableHead>SKU</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead>Workflow</TableHead>
-          <TableHead>Size</TableHead>
-          <TableHead>Modified</TableHead>
-          <TableHead>Licensed</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+    <div className="w-full">
+      {/* Header */}
+      <div
+        className="grid items-center border-b border-border px-3 py-1.5"
+        style={{ gridTemplateColumns: "40px 1.8fr 1.2fr .7fr .7fr" }}
+      >
+        <div />
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Filename</div>
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Style group</div>
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Size</div>
+        <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide text-right">Modified</div>
+      </div>
+
+      {/* Rows */}
+      <div>
         {assets.map((asset) => {
           const selected = selectedIds.has(asset.id);
+          const superseded = isSuperseded(asset);
+          const skuLine = asset.sku ?? null;
+          const subtitleParts = [asset.property_name, asset.licensor_name].filter(Boolean);
+          const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" · ") : null;
+
           return (
-            <TableRow
+            <div
               key={asset.id}
               onClick={(e) => onSelect(asset.id, e)}
-              className={cn("cursor-pointer", selected && "bg-primary/10")}
+              className={cn(
+                "grid items-center px-3 cursor-pointer border-b border-border/50 transition-colors",
+                "hover:bg-muted/40",
+                selected && "bg-primary/10 hover:bg-primary/15"
+              )}
+              style={{ gridTemplateColumns: "40px 1.8fr 1.2fr .7fr .7fr", minHeight: 48 }}
             >
-              <TableCell className="p-2">
-                <div className="h-10 w-10 rounded overflow-hidden bg-muted/30 flex-shrink-0">
-                  {asset.thumbnail_url ? (
-                    <img
-                      src={asset.thumbnail_url}
-                      alt={asset.filename}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <ImageOff className="h-4 w-4 text-muted-foreground/30" />
-                    </div>
-                  )}
+              {/* Type badge */}
+              <div className="flex items-center">
+                <FileTypeBadge fileType={asset.file_type} />
+              </div>
+
+              {/* Filename */}
+              <div className="min-w-0 pr-3">
+                <div
+                  className="truncate font-mono text-[12.5px] font-semibold leading-tight"
+                  title={asset.filename}
+                >
+                  {asset.filename}
                 </div>
-              </TableCell>
-              <TableCell>
-                <div className="group flex items-center" title={asset.filename}>
-                  <span className="font-semibold text-sm">{formatFilename(asset.filename, 32)}</span>
-                  <CopyIconButton value={asset.filename} />
+                <div
+                  className="text-[11px] leading-tight mt-0.5"
+                  style={{ color: "var(--pd-fg-subtle)" }}
+                >
+                  {superseded ? "superseded" : "current version"}
                 </div>
-              </TableCell>
-              <TableCell>
-                <span className="text-sm font-mono text-muted-foreground">{asset.sku ?? "—"}</span>
-              </TableCell>
-              <TableCell>
-                <Badge variant="secondary" className="text-[10px] uppercase">{asset.file_type}</Badge>
-              </TableCell>
-              <TableCell>
-                {asset.workflow_status && asset.workflow_status !== "other" && (
-                  <span className="rounded bg-tag px-1.5 py-0.5 text-[10px] text-tag-foreground capitalize whitespace-nowrap">
-                    {asset.workflow_status.replace(/_/g, " ")}
-                  </span>
+              </div>
+
+              {/* Style group */}
+              <div className="min-w-0 pr-3">
+                {skuLine && (
+                  <div
+                    className="truncate font-mono text-[11.5px] font-medium leading-tight"
+                    title={skuLine}
+                  >
+                    {skuLine}
+                  </div>
                 )}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground tabular-nums">
+                {subtitle && (
+                  <div
+                    className="truncate text-[11px] leading-tight mt-0.5"
+                    style={{ color: "var(--pd-fg-muted)" }}
+                    title={subtitle}
+                  >
+                    {subtitle}
+                  </div>
+                )}
+                {!skuLine && !subtitle && (
+                  <span className="text-[11.5px] font-mono" style={{ color: "var(--pd-fg-muted)" }}>—</span>
+                )}
+              </div>
+
+              {/* Size */}
+              <div
+                className="font-mono text-[12px] tabular-nums"
+                style={{ color: "var(--pd-fg-muted)" }}
+              >
                 {formatSize(asset.file_size)}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                {format(new Date(asset.modified_at), "MMM d, yyyy")}
-              </TableCell>
-              <TableCell>
-                <Badge variant={asset.is_licensed ? "default" : "secondary"} className="text-[10px] px-1.5 py-0">
-                  {asset.is_licensed ? "Licensed" : "Generic"}
-                </Badge>
-              </TableCell>
-            </TableRow>
+              </div>
+
+              {/* Modified */}
+              <div
+                className="text-[12px] tabular-nums text-right"
+                style={{ color: "var(--pd-fg-muted)" }}
+                title={new Date(asset.modified_at).toLocaleString()}
+              >
+                {relativeTime(asset.modified_at)}
+              </div>
+            </div>
           );
         })}
-      </TableBody>
-    </Table>
+      </div>
+    </div>
   );
 }

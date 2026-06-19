@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
 import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets } from "@/hooks/useAssets";
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
-import type { Asset } from "@/types/assets";
+import type { Asset, CardStyle } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
 import ScanMonitorBanner from "@/components/library/ScanMonitorBanner";
 import FilterSidebar from "@/components/library/FilterSidebar";
@@ -29,6 +29,7 @@ export default function LibraryPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [libraryMode, setLibraryMode] = useState<LibraryMode>("groups");
+  const [cardStyle, setCardStyle] = useState<CardStyle>("gallery");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(200);
@@ -158,6 +159,10 @@ export default function LibraryPage() {
         lastScanSummary={lastScanSummary}
         scanBlocked={agentStatus.scanBlocked}
         scanBlockedReason={agentStatus.scanBlockedReason}
+        cardStyle={cardStyle}
+        onCardStyleChange={setCardStyle}
+        groupCount={isGroupsMode ? ((totalGroupCount ?? 0) + (ungroupedCount ?? 0)) : 0}
+        fileCount={isGroupsMode ? (totalGroupCount ? groups.reduce((s, g) => s + (g.asset_count || 0), 0) : 0) : (assetData?.totalCount ?? 0)}
       />
 
       <ScanMonitorBanner scanProgress={scanProgress} onStopScan={handleStopScan} />
@@ -201,6 +206,7 @@ export default function LibraryPage() {
                 onSelect={handleSelect}
                 isLoading={isLoading}
                 rebuildHint={groups.length === 0 && ((totalGroupCount ?? 0) > 0 || (ungroupedCount ?? 0) > 0)}
+                cardStyle={cardStyle}
               />
             ) : (
               <StyleGroupListView
@@ -258,6 +264,10 @@ export default function LibraryPage() {
             <AssetDetailPanel
               asset={detailAsset}
               onClose={() => setDetailAssetId(null)}
+              onOpenGroup={(groupId) => {
+                handleLibraryModeChange("groups");
+                setDetailGroupId(groupId);
+              }}
             />
           </div>
         )}

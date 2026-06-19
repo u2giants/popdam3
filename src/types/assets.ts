@@ -2,10 +2,11 @@ import type { Tables } from "@/integrations/supabase/types";
 
 export type Asset = Tables<"assets">;
 
-export type SortField = "modified_at" | "file_created_at" | "filename" | "file_size";
+export type SortField = "modified_at" | "file_created_at" | "filename" | "file_size" | "sku" | "asset_count";
 export type SortDirection = "asc" | "desc";
 export type ViewMode = "grid" | "list";
 export type LibraryMode = "groups" | "assets";
+export type CardStyle = "gallery" | "editorial" | "compact";
 
 export type FileStatusFilter = "has_preview" | "no_preview_renderable" | "no_pdf_compat" | "no_preview_unsupported";
 

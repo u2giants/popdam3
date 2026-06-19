@@ -10,8 +10,6 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -25,6 +23,7 @@ import {
   X, ImageOff, Copy, Check, Star, Loader2,
   ChevronLeft, ChevronRight, Sparkles, Clock,
   HardDrive, Tag, FileText, FolderSearch, FolderOpen, Download,
+  ClipboardList, Share2,
 } from "lucide-react";
 import {
   ContextMenu,
@@ -53,7 +52,12 @@ function CopyInlineButton({ value, label }: { value: string; label?: string }) {
     setTimeout(() => setCopied(false), 1500);
   };
   const btn = (
-    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={copy}>
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+      onClick={copy}
+    >
       {copied ? <Check className="h-3 w-3 text-[hsl(var(--success))]" /> : <Copy className="h-3 w-3" />}
     </Button>
   );
@@ -66,41 +70,18 @@ function CopyInlineButton({ value, label }: { value: string; label?: string }) {
   );
 }
 
-function CopyPathRow({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-  return (
-    <div className="group flex items-start gap-2">
-      <div className="flex-1 min-w-0">
-        <span className="text-[10px] uppercase text-muted-foreground tracking-wider">{label}</span>
-        <p className="text-xs font-mono break-all text-foreground/80 mt-0.5">{value}</p>
-      </div>
-      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={copy}>
-        {copied ? <Check className="h-3 w-3 text-[hsl(var(--success))]" /> : <Copy className="h-3 w-3" />}
-      </Button>
-    </div>
-  );
-}
-
-function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
-  if (!value || value === "—") return null;
-  return (
-    <div className="flex items-baseline gap-3">
-      <span className="text-xs text-muted-foreground shrink-0 w-20">{label}</span>
-      <span className="text-xs text-foreground overflow-x-auto whitespace-nowrap scrollbar-thin">{value ?? "—"}</span>
-    </div>
-  );
-}
-
 function formatSize(bytes: number | null): string {
   if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDateValue(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return format(d, "MMM d, yyyy");
 }
 
 /** Full-screen lightbox for viewing images */
@@ -113,9 +94,46 @@ function Lightbox({ url, alt, onClose }: { url: string; alt: string; onClose: ()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
-      <img src={url} alt={alt} className="max-w-[90vw] max-h-[90vh] object-contain" onClick={(e) => e.stopPropagation()} />
+      <img
+        src={url}
+        alt={alt}
+        className="max-w-[90vw] max-h-[90vh] object-contain"
+        onClick={(e) => e.stopPropagation()}
+      />
     </div>
   );
+}
+
+/* ── Section label ────────────────────────────────────────── */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-[700] uppercase tracking-widest text-[var(--pd-fg-subtle,hsl(var(--muted-foreground)/0.6))] mb-2">
+      {children}
+    </p>
+  );
+}
+
+/* ── Details DL row ───────────────────────────────────────── */
+function DlRow({ label, children }: { label: string; children: React.ReactNode }) {
+  if (!children || children === "—") return null;
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-[3px]">
+      <dt className="text-[12.5px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] shrink-0">{label}</dt>
+      <dd className="text-[13px] text-[var(--pd-fg,hsl(var(--foreground)))] text-right min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{children}</dd>
+    </div>
+  );
+}
+
+/* ── File type tile colors ─────────────────────────────────── */
+function fileTypeTileClass(fileType: string): string {
+  const t = (fileType ?? "").toLowerCase();
+  if (t === "ai") return "bg-[#FF7900] text-white";
+  if (t === "psd") return "bg-[#31A8FF] text-white";
+  if (t === "pdf") return "bg-[#E13D34] text-white";
+  if (t === "eps") return "bg-[#9B59B6] text-white";
+  if (t === "png" || t === "jpg" || t === "jpeg" || t === "webp") return "bg-[#27AE60] text-white";
+  if (t === "svg") return "bg-[#F39C12] text-white";
+  return "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]";
 }
 
 /* ── Find Alternative Images component ────────────────────── */
@@ -140,7 +158,6 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCountRef = useRef(0);
 
-  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
@@ -169,7 +186,6 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         setError("Scan timed out — the Bridge Agent may be offline. Try again later.");
         return;
       }
-
       try {
         const result = await call("get-sibling-scan-result", { request_id: reqId });
         if (result?.status === "completed") {
@@ -194,16 +210,13 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
     }, 5000);
   };
 
-  // Auto-load existing results on mount
   useEffect(() => {
     if (initialLoaded || !group.folder_path) return;
     setInitialLoaded(true);
-
     (async () => {
       try {
         const result = await call("get-sibling-scan-by-folder", { folder_path: group.folder_path });
         if (!result?.found) return;
-
         if (result.status === "completed") {
           const images = (result.images ?? []) as SiblingImage[];
           setSiblings(images);
@@ -287,7 +300,6 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
       } else {
         toast("Images ingested");
       }
-      // Remove ingested images from the list
       setSiblings(prev => prev?.filter(s => !selected.has(s.relative_path)) ?? null);
       setSelected(new Set());
       onIngested?.();
@@ -299,12 +311,12 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
   };
 
   return (
-    <section className="space-y-2.5">
-      <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        <FolderSearch className="h-3.5 w-3.5" /> Alternative Images
-      </h4>
-      <p className="text-[10px] text-muted-foreground leading-relaxed">
-        If this group lacks a proper product image, scan the NAS folder for sibling JPG, PNG, or eligible PDF files that could be used instead.
+    <section className="space-y-2.5 pt-4">
+      <SectionLabel>
+        <span className="flex items-center gap-1.5"><FolderSearch className="h-3 w-3" /> Alternative Images</span>
+      </SectionLabel>
+      <p className="text-[11px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] leading-relaxed">
+        Scan the NAS folder for sibling JPG, PNG, or eligible PDF files that could serve as product images.
       </p>
       <Button
         variant="outline"
@@ -312,27 +324,22 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
         className="gap-1.5 text-xs h-7"
         onClick={handleFind}
         disabled={loading || polling}
-        title={loading ? "Scanning folder…" : polling ? "Waiting for agent response…" : undefined}
       >
         {loading || polling ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderSearch className="h-3 w-3" />}
         {loading ? "Scanning…" : polling ? "Waiting for results…" : siblings ? "Re-scan Folder" : "Find Sibling Files"}
       </Button>
 
-      {error && (
-        <p className="text-[10px] text-destructive">{error}</p>
-      )}
+      {error && <p className="text-[11px] text-destructive">{error}</p>}
 
       {siblings && siblings.length > 0 && (
-        <div className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
+        <div className="space-y-2 rounded-lg border border-[var(--pd-border,hsl(var(--border)))] p-2 bg-[var(--pd-surface-2,hsl(var(--muted)/0.3))]">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] text-muted-foreground font-medium">
-              Found {siblings.length} image{siblings.length !== 1 ? "s" : ""}:
+            <p className="text-[11px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] font-medium">
+              Found {siblings.length} image{siblings.length !== 1 ? "s" : ""}
             </p>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={toggleAll}>
-                {selected.size === siblings.length ? "Deselect All" : "Select All"}
-              </Button>
-            </div>
+            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={toggleAll}>
+              {selected.size === siblings.length ? "Deselect All" : "Select All"}
+            </Button>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {siblings.map((img) => {
@@ -348,12 +355,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
                 >
                   {img.thumbnail_url ? (
                     <div className="aspect-square w-full bg-muted/30 overflow-hidden relative">
-                      <img
-                        src={img.thumbnail_url}
-                        alt={img.filename}
-                        className="h-full w-full object-contain"
-                        loading="lazy"
-                      />
+                      <img src={img.thumbnail_url} alt={img.filename} className="h-full w-full object-contain" loading="lazy" />
                       {isSelected && (
                         <div className="absolute top-1 right-1 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
                           <Check className="h-3 w-3 text-primary-foreground" />
@@ -371,9 +373,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
                     </div>
                   )}
                   <div className="p-1.5 space-y-0.5">
-                    <p className="font-mono text-[10px] truncate" title={img.relative_path}>
-                      {img.filename}
-                    </p>
+                    <p className="font-mono text-[10px] truncate" title={img.relative_path}>{img.filename}</p>
                     <p className="text-[9px] text-muted-foreground">
                       {img.file_size ? `${(img.file_size / 1024).toFixed(0)} KB` : ""}
                     </p>
@@ -383,13 +383,7 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
             })}
           </div>
           {selected.size > 0 && (
-            <Button
-              size="sm"
-              className="w-full gap-1.5 text-xs h-7"
-              onClick={handleIngest}
-              disabled={ingesting}
-              title={ingesting ? "Adding images to group, please wait…" : undefined}
-            >
+            <Button size="sm" className="w-full gap-1.5 text-xs h-7" onClick={handleIngest} disabled={ingesting}>
               {ingesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
               Add {selected.size} Image{selected.size !== 1 ? "s" : ""} to Group
             </Button>
@@ -399,20 +393,30 @@ function FindAlternativeImages({ group, onIngested }: { group: StyleGroup; onIng
 
       {polling && (
         <div className="rounded-md border border-[hsl(var(--warning)/0.3)] bg-[hsl(var(--warning)/0.05)] p-2.5 space-y-1">
-          <p className="text-[10px] text-[hsl(var(--warning))] font-medium flex items-center gap-1">
+          <p className="text-[11px] text-[hsl(var(--warning))] font-medium flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" /> Waiting for Bridge Agent…
           </p>
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            The Bridge Agent is scanning folder <span className="font-mono">{group.folder_path}</span> for sibling JPG, PNG, and eligible PDF files. This typically takes 10–30 seconds.
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Scanning <span className="font-mono">{group.folder_path}</span> — typically 10–30 s.
           </p>
         </div>
       )}
 
       {siblings && siblings.length === 0 && !polling && (
-        <p className="text-[10px] text-muted-foreground/60">No sibling files found in this folder.</p>
+        <p className="text-[11px] text-muted-foreground/60">No sibling files found in this folder.</p>
       )}
     </section>
   );
+}
+
+/* ── Tab type ─────────────────────────────────────────────── */
+type Tab = "overview" | "files" | "activity";
+
+/* ── Hue-based gradient for placeholder hero ─────────────── */
+function skuToHue(sku: string): number {
+  let h = 0;
+  for (let i = 0; i < sku.length; i++) h = (h * 31 + sku.charCodeAt(i)) & 0xffffff;
+  return h % 360;
 }
 
 /* ── Main component ───────────────────────────────────────── */
@@ -421,11 +425,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const queryClient = useQueryClient();
   const { call: adminApi } = useAdminApi();
   const [localPrimaryId, setLocalPrimaryId] = useState<string | null>(group.primary_asset_id);
-
-  // Keep localPrimaryId in sync when the group prop changes (e.g. after rebuild/refetch)
-  useEffect(() => {
-    setLocalPrimaryId(group.primary_asset_id);
-  }, [group.primary_asset_id]);
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -433,9 +433,13 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const [aiTagging, setAiTagging] = useState(false);
   const [syncingTags, setSyncingTags] = useState(false);
 
+  // Keep localPrimaryId in sync when the group prop changes
+  useEffect(() => {
+    setLocalPrimaryId(group.primary_asset_id);
+  }, [group.primary_asset_id]);
+
   const ERP_MG_CUTOFF = "2025-05-14";
 
-  // Fetch ERP item data for this group's SKU (legacy check + description)
   const { data: erpItemData } = useQuery({
     queryKey: ["erp-item-data", group.sku],
     queryFn: async () => {
@@ -453,7 +457,6 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
   const isLegacyGroup = erpItemData?.erp_updated_at ? erpItemData.erp_updated_at < ERP_MG_CUTOFF : false;
   const erpDescription = erpItemData?.item_description ?? null;
 
-  // Fetch all assets in this group
   const { data: groupAssets, isLoading: assetsLoading } = useQuery({
     queryKey: ["style-group-assets", group.id],
     queryFn: async () => {
@@ -468,7 +471,6 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     },
   });
 
-  // NAS config for path display
   const { data: nasConfig } = useQuery({
     queryKey: ["nas-config"],
     queryFn: async () => {
@@ -487,7 +489,6 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     staleTime: 5 * 60 * 1000,
   });
 
-  // Style guide source files for licensed groups
   const { data: styleGuideSources } = useQuery({
     queryKey: ["sku-files-used", group.sku],
     enabled: !!group.sku && group.is_licensed,
@@ -497,7 +498,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
         .select("id, file_name, style_guide_file_id, style_guide_files(filename, licensor_name, property_folder)")
         .eq("sku", group.sku)
         .order("file_name");
-      return (data ?? []) as Array<{
+      return (data ?? []) as unknown as Array<{
         id: string;
         file_name: string;
         style_guide_file_id: string | null;
@@ -507,31 +508,50 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     staleTime: 2 * 60 * 1000,
   });
 
+  const { data: productionOrders } = useQuery({
+    queryKey: ["style-prod-orders", group.sku],
+    enabled: !!group.sku,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("prod_order_headers_current")
+        .select("id, prod_order_number, order_status, customer_name, quantity, due_date, order_date, erp_updated_at")
+        .eq("style_number", group.sku)
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .order("prod_order_number", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        prod_order_number: string;
+        order_status: string | null;
+        customer_name: string | null;
+        quantity: number | null;
+        due_date: string | null;
+        order_date: string | null;
+        erp_updated_at: string | null;
+      }>;
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+
   // Thumbnailed assets for the carousel
   const thumbStrip = (groupAssets ?? []).filter((a) => !!a.thumbnail_url);
 
-  // Keep carouselIndex in bounds
   useEffect(() => {
     if (thumbStrip.length > 0 && carouselIndex >= thumbStrip.length) {
       setCarouselIndex(thumbStrip.length - 1);
     }
   }, [thumbStrip.length, carouselIndex]);
 
-  // When selectedAssetId changes, sync carouselIndex
   useEffect(() => {
     if (!selectedAssetId) return;
     const idx = thumbStrip.findIndex((a) => a.id === selectedAssetId);
     if (idx >= 0) setCarouselIndex(idx);
   }, [selectedAssetId, thumbStrip]);
 
-  // Current asset from carousel
   const currentThumbAsset = thumbStrip[carouselIndex] ?? null;
   const displayThumbnail = currentThumbAsset?.thumbnail_url ?? group.thumbnail_url;
-
-  // The asset to show detail for — prefer carousel asset, fallback to first asset
   const detailAsset = currentThumbAsset ?? groupAssets?.[0] ?? null;
 
-  // Path display
   const paths = nasConfig && detailAsset
     ? getPathDisplayModes(detailAsset.relative_path, nasConfig, getUserSyncRoot())
     : null;
@@ -574,7 +594,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     },
   });
 
-  // AI Tag — routes through the Railway worker via persistent operation
+  // AI Tag
   const handleAiTag = async () => {
     if (!detailAsset) return;
     setAiTagging(true);
@@ -594,7 +614,6 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
       });
       if (error) throw error;
 
-      // Poll for completion (worker picks it up within ~5s)
       const maxWaitMs = 90_000;
       const pollMs = 2_000;
       const start = Date.now();
@@ -608,10 +627,12 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
         const ops = configRow?.value as Record<string, any> | undefined;
         const op = ops?.[opKey];
         if (!op || op.status === "completed") {
-          try { await supabase.rpc("update_bulk_operation", {
-            p_op_key: opKey,
-            p_op_state: { status: "idle" },
-          }); } catch { /* best-effort cleanup */ }
+          try {
+            await supabase.rpc("update_bulk_operation", {
+              p_op_key: opKey,
+              p_op_state: { status: "idle" },
+            });
+          } catch { /* best-effort cleanup */ }
           queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
           toast("AI tagging complete");
           return;
@@ -641,7 +662,6 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     updateAsset.mutate({ tags: detailAsset.tags.filter((t) => t !== tag) });
   };
 
-  // Sync group tags
   const handleSyncGroupTags = async () => {
     setSyncingTags(true);
     try {
@@ -657,7 +677,6 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     }
   };
 
-  // Reset tag input when asset changes
   useEffect(() => {
     setTagInput("");
   }, [detailAsset?.id]);
@@ -695,426 +714,648 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
     toast.success(`Copied ${label}`);
   }
 
+  async function handleDownloadAll() {
+    if (!groupAssets || groupAssets.length === 0) return;
+    toast("Starting downloads…");
+    for (const asset of groupAssets) {
+      await handleAssetCheckout(asset.id);
+    }
+  }
+
+  // Hero placeholder gradient hue
+  const hue = skuToHue(group.sku);
+  const heroInitials = group.sku.slice(0, 2).toUpperCase();
+
+  // Category + stage label for hero
+  const heroCategoryLabel = [group.product_category, group.stage].filter(Boolean).join(" · ");
+
+  // WfTag label from detailAsset
+  const wfStatus = detailAsset?.workflow_status;
+
+  // Build "Category · Stage" for title block
+  const titleSubline = [group.product_category, group.stage].filter(Boolean).join(" · ");
+
   return (
     <TooltipProvider>
-      <div className="flex h-full w-[440px] flex-col overflow-hidden border-l border-border bg-surface-overlay animate-in slide-in-from-right duration-200">
-        {/* Header */}
-        <div className="flex-shrink-0 flex items-center gap-2 px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold truncate min-w-0 flex-1">{group.sku}</h3>
-          <CheckoutBar assetId={detailAsset?.id} />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                onClick={handleAiTag}
-                disabled={aiTagging || !detailAsset?.thumbnail_url}
+      {/* Panel container */}
+      <div
+        className="flex flex-col overflow-hidden border-l border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]"
+        style={{
+          width: 408,
+          height: "100%",
+          // Slide-in animation via CSS custom property + inline style for compat
+        }}
+      >
+        <style>{`
+          @media (prefers-reduced-motion: no-preference) {
+            .sgdp-panel {
+              animation: sgdp-slide-in 0.26s cubic-bezier(.22,.61,.36,1) both;
+            }
+            @keyframes sgdp-slide-in {
+              from { transform: translateX(100%); }
+              to   { transform: translateX(0); }
+            }
+          }
+        `}</style>
+        <div className="sgdp-panel flex flex-col h-full overflow-hidden">
+
+          {/* ── Hero (16:10) ──────────────────────────────────── */}
+          <div
+            className="relative flex-shrink-0 overflow-hidden cursor-pointer"
+            style={{ aspectRatio: "16/10" }}
+            onClick={() => { if (displayThumbnail) setLightboxUrl(displayThumbnail); }}
+          >
+            {displayThumbnail ? (
+              <img src={displayThumbnail} alt={group.sku} className="h-full w-full object-contain bg-[var(--pd-surface-2,hsl(var(--muted)/0.5))]" />
+            ) : (
+              <div
+                className="h-full w-full flex items-center justify-center text-white/60 text-3xl font-black select-none"
+                style={{
+                  background: `linear-gradient(135deg, hsl(${hue},55%,38%) 0%, hsl(${(hue + 40) % 360},45%,26%) 100%)`,
+                }}
               >
-                {aiTagging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {aiTagging ? "Re-tagging…" : !detailAsset?.thumbnail_url ? "No thumbnail — cannot re-tag" : "Re-tag with AI"}
-            </TooltipContent>
-          </Tooltip>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Scrollable content area - use relative/absolute for proper height */}
-        <div className="relative flex-1">
-          <div className="absolute inset-0 overflow-y-auto">
-            <div className="p-4 space-y-5">
-            {/* ── Main preview image with carousel arrows ── */}
-            <div
-              className="relative aspect-[4/3] w-full rounded-lg bg-muted/30 overflow-hidden cursor-pointer"
-              onClick={() => { if (displayThumbnail) setLightboxUrl(displayThumbnail); }}
-            >
-              {displayThumbnail ? (
-                <img src={displayThumbnail} alt={group.sku} className="h-full w-full object-contain" />
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <ImageOff className="h-12 w-12 text-muted-foreground/20" />
-                </div>
-              )}
-
-              {thumbStrip.length > 1 && (
-                <>
-                  <button
-                    className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedAssetId(null);
-                      setCarouselIndex((i) => (i === 0 ? thumbStrip.length - 1 : i - 1));
-                    }}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <button
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70 transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedAssetId(null);
-                      setCarouselIndex((i) => (i === thumbStrip.length - 1 ? 0 : i + 1));
-                    }}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white">
-                    {carouselIndex + 1} / {thumbStrip.length}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Thumbnail strip */}
-            {thumbStrip.length > 1 && (
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {thumbStrip.map((a, idx) => (
-                  <button
-                    key={a.id}
-                    className={cn(
-                      "h-10 w-10 shrink-0 rounded overflow-hidden border-2 transition-colors",
-                      carouselIndex === idx
-                        ? "border-primary"
-                        : "border-transparent hover:border-muted-foreground/30",
-                    )}
-                    onClick={() => { setSelectedAssetId(null); setCarouselIndex(idx); }}
-                  >
-                    <img src={a.thumbnail_url!} alt={a.filename} className="h-full w-full object-cover" />
-                  </button>
-                ))}
+                {heroInitials}
               </div>
             )}
 
-            <Separator />
+            {/* Licensed / Generic badge — top-left */}
+            <div className="absolute top-2 left-2">
+              {group.is_licensed ? (
+                <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold bg-black/50 backdrop-blur-sm text-yellow-300 border border-yellow-400/30">
+                  Licensed
+                </span>
+              ) : (
+                <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold bg-black/40 backdrop-blur-sm text-white/75 border border-white/15">
+                  Generic
+                </span>
+              )}
+            </div>
 
-            {/* ── FILE INFO ── */}
-            {detailAsset && (
-              <>
-                <section className="space-y-2">
-                  <h4 className="group flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <CopyInlineButton value={detailAsset.filename} label="filename" />
-                    <span title={detailAsset.filename}>{formatFilename(detailAsset.filename, 30)}</span>
-                  </h4>
-                  {erpDescription && (
-                    <p className="text-xs text-foreground/70 leading-relaxed -mt-0.5">{erpDescription}</p>
-                  )}
-                  <div className="space-y-1.5">
-                    <MetaRow label="Type" value={<Badge variant="secondary" className="text-[10px] uppercase">{detailAsset.file_type}</Badge>} />
-                    <MetaRow label="Size" value={formatSize(detailAsset.file_size)} />
-                    <MetaRow label="Dimensions" value={detailAsset.width && detailAsset.height ? `${detailAsset.width} × ${detailAsset.height}` : null} />
-                    <MetaRow label="Artboards" value={detailAsset.artboards ?? 1} />
-                    <MetaRow
-                      label="Workflow"
-                      value={
-                        <Select
-                          value={detailAsset.workflow_status ?? "other"}
-                          onValueChange={(v) => updateAsset.mutate({ workflow_status: v })}
-                        >
-                          <SelectTrigger className="h-6 w-auto text-xs border-0 bg-transparent p-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Constants.public.Enums.workflow_status.map((ws) => (
-                              <SelectItem key={ws} value={ws} className="capitalize text-xs">
-                                {ws.replace(/_/g, " ")}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      }
-                    />
-                    <MetaRow label="Licensed" value={detailAsset.is_licensed ? "Yes" : "No"} />
-                    <MetaRow label="Licensor" value={detailAsset.licensor_name} />
-                    <MetaRow label="Property" value={detailAsset.property_name} />
-                  </div>
-                </section>
+            {/* Close button — top-right */}
+            <button
+              className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/45 backdrop-blur-sm border border-white/15 flex items-center justify-center text-white hover:bg-black/65 transition-colors"
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              aria-label="Close"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
 
-                <Separator />
-              </>
+            {/* Category label — bottom-left */}
+            {heroCategoryLabel && (
+              <div className="absolute bottom-2 left-2">
+                <span className="rounded-md px-2 py-0.5 text-[10px] font-medium bg-black/45 backdrop-blur-sm text-white/90 border border-white/10">
+                  {heroCategoryLabel}
+                </span>
+              </div>
             )}
 
-            {/* ── GROUP INFO ── */}
-            <section className="space-y-2">
-              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Group Info</h4>
-              <div className="space-y-1.5">
-                <MetaRow label="SKU" value={group.sku} />
-                <MetaRow label="Files" value={`${group.asset_count}`} />
-                {group.stage && <MetaRow label="Stage" value={group.stage} />}
-                {group.customer && <MetaRow label="Customer" value={group.customer} />}
-                {group.program && <MetaRow label="Program" value={group.program} />}
-                <MetaRow label="Division" value={group.division_name} />
-                <MetaRow label="Category" value={group.product_category} />
-                {!isLegacyGroup && (
-                  <>
-                    <MetaRow label="MG01" value={group.mg01_name ? `${group.mg01_code} — ${group.mg01_name}` : group.mg01_code} />
-                    <MetaRow label="MG02" value={group.mg02_name ? `${group.mg02_code} — ${group.mg02_name}` : group.mg02_code} />
-                    <MetaRow label="MG03" value={group.mg03_name ? `${group.mg03_code} — ${group.mg03_name}` : group.mg03_code} />
-                  </>
-                )}
-                <MetaRow label="Size" value={group.size_name ? `${group.size_code} — ${group.size_name}` : group.size_code} />
-                {(group as any).designer_name && <MetaRow label="Designer" value={(group as any).designer_name} />}
-                {(group as any).technical_designer_name && <MetaRow label="Tech Designer" value={(group as any).technical_designer_name} />}
-                {(group as any).freelancer_name && <MetaRow label="Freelancer" value={(group as any).freelancer_name} />}
+            {/* Carousel arrows — only if multiple thumbnails */}
+            {thumbStrip.length > 1 && (
+              <>
+                <button
+                  className="absolute left-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedAssetId(null);
+                    setCarouselIndex((i) => (i === 0 ? thumbStrip.length - 1 : i - 1));
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedAssetId(null);
+                    setCarouselIndex((i) => (i === thumbStrip.length - 1 ? 0 : i + 1));
+                  }}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <div className="absolute bottom-2 right-2 rounded-full bg-black/50 backdrop-blur-sm px-2 py-0.5 text-[10px] text-white">
+                  {carouselIndex + 1}/{thumbStrip.length}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Thumbnail strip */}
+          {thumbStrip.length > 1 && (
+            <div className="flex gap-1 overflow-x-auto px-3 py-1.5 bg-[var(--pd-surface-2,hsl(var(--muted)/0.3))] border-b border-[var(--pd-border,hsl(var(--border)))]">
+              {thumbStrip.map((a, idx) => (
+                <button
+                  key={a.id}
+                  className={cn(
+                    "h-9 w-9 shrink-0 rounded overflow-hidden border-2 transition-colors",
+                    carouselIndex === idx ? "border-primary" : "border-transparent hover:border-muted-foreground/30"
+                  )}
+                  onClick={() => { setSelectedAssetId(null); setCarouselIndex(idx); }}
+                >
+                  <img src={a.thumbnail_url!} alt={a.filename} className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Title block ───────────────────────────────────── */}
+          <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-[var(--pd-border,hsl(var(--border)))]">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1 space-y-0.5">
+                {/* Mono SKU */}
+                <p className="font-mono text-[13px] font-[600] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] tracking-tight">
+                  {group.sku}
+                </p>
+                {/* Property name / ERP description */}
+                <p className="text-[19px] font-[800] text-[var(--pd-fg,hsl(var(--foreground)))] leading-tight truncate">
+                  {erpDescription ?? group.sku}
+                </p>
+                {/* WfTag + Category · Stage */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {wfStatus && wfStatus !== "other" && (
+                    <span className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[11px] font-medium capitalize text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]">
+                      {wfStatus.replace(/_/g, " ")}
+                    </span>
+                  )}
+                  {titleSubline && (
+                    <span className="text-[12.5px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]">
+                      {titleSubline}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* AI tag + checkout bar */}
+              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                <CheckoutBar assetId={detailAsset?.id} />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={handleAiTag}
+                      disabled={aiTagging || !detailAsset?.thumbnail_url}
+                    >
+                      {aiTagging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {aiTagging ? "Re-tagging…" : !detailAsset?.thumbnail_url ? "No thumbnail — cannot re-tag" : "Re-tag with AI"}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Sticky tabs ───────────────────────────────────── */}
+          <div className="flex-shrink-0 sticky top-0 z-10 border-b border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]/80 backdrop-blur-md">
+            <div className="flex">
+              {(["overview", "files", "activity"] as Tab[]).map((tab) => {
+                const label =
+                  tab === "overview" ? "Overview" :
+                  tab === "files" ? `Files${groupAssets ? ` · ${groupAssets.length}` : ""}` :
+                  "Activity";
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={cn(
+                      "px-4 py-2.5 text-[13px] transition-colors relative whitespace-nowrap",
+                      isActive
+                        ? "font-[600] text-[var(--pd-fg,hsl(var(--foreground)))]"
+                        : "font-[400] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] hover:text-[var(--pd-fg,hsl(var(--foreground)))]"
+                    )}
+                  >
+                    {label}
+                    {isActive && (
+                      <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--pd-accent,hsl(var(--primary)))] rounded-full" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Scrollable tab content ───────────────────────── */}
+          <div className="flex-1 overflow-y-auto">
+
+            {/* ===== OVERVIEW TAB ===== */}
+            {activeTab === "overview" && (
+              <div className="p-4 space-y-5">
+
+                {/* DETAILS */}
+                <div>
+                  <SectionLabel>Details</SectionLabel>
+                  <dl className="space-y-0.5">
+                    <DlRow label="SKU">{group.sku}</DlRow>
+                    <DlRow label="Licensor">{detailAsset?.licensor_name ?? (group.is_licensed ? "—" : null)}</DlRow>
+                    <DlRow label="Property">{detailAsset?.property_name ?? null}</DlRow>
+                    <DlRow label="Customer">{group.customer}</DlRow>
+                    <DlRow label="Program">{group.program}</DlRow>
+                    <DlRow label="Division">{group.division_name}</DlRow>
+                    <DlRow label="Category">{group.product_category}</DlRow>
+                    <DlRow label="Stage">{group.stage}</DlRow>
+                    {!isLegacyGroup && (
+                      <>
+                        <DlRow label="MG01">{group.mg01_name ? `${group.mg01_code} — ${group.mg01_name}` : group.mg01_code}</DlRow>
+                        <DlRow label="MG02">{group.mg02_name ? `${group.mg02_code} — ${group.mg02_name}` : group.mg02_code}</DlRow>
+                        <DlRow label="MG03">{group.mg03_name ? `${group.mg03_code} — ${group.mg03_name}` : group.mg03_code}</DlRow>
+                      </>
+                    )}
+                    <DlRow label="Size">{group.size_name ? `${group.size_code} — ${group.size_name}` : group.size_code}</DlRow>
+                    {(group as any).designer_name && <DlRow label="Designer">{(group as any).designer_name}</DlRow>}
+                    {(group as any).technical_designer_name && <DlRow label="Tech Designer">{(group as any).technical_designer_name}</DlRow>}
+                    {(group as any).freelancer_name && <DlRow label="Freelancer">{(group as any).freelancer_name}</DlRow>}
+                    {detailAsset && (
+                      <>
+                        <DlRow label="Modified">{formatDateValue(detailAsset.modified_at)}</DlRow>
+                        <DlRow label="Created">{formatDateValue(detailAsset.file_created_at)}</DlRow>
+                      </>
+                    )}
+                  </dl>
+                </div>
+
+                {/* Designer conflict warning */}
                 {(group as any).designer_conflict && (
-                  <div className="rounded-md border border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.08)] px-2 py-1.5 mt-1">
-                    <p className="text-[10px] text-[hsl(var(--warning))] font-medium">⚠ Designer Conflict</p>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">
+                  <div className="rounded-md border border-[hsl(var(--warning)/0.5)] bg-[hsl(var(--warning)/0.08)] px-3 py-2">
+                    <p className="text-[11px] text-[hsl(var(--warning))] font-semibold">Designer Conflict</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
                       Files in this group have different designer names. Review individual files to resolve.
                     </p>
                   </div>
                 )}
-              </div>
-            </section>
 
-            {/* ── STYLE GUIDE SOURCES ── */}
-            {group.is_licensed && (
-              <>
-                <Separator />
-                <section className="space-y-2">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5" /> Style Guide Sources
-                  </h4>
-                  {!styleGuideSources || styleGuideSources.length === 0 ? (
-                    <p className="text-xs text-muted-foreground/50">No style guide files recorded for this SKU</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {styleGuideSources.map((row) => (
-                        <div key={row.id} className="text-xs">
-                          {row.style_guide_file_id && row.style_guide_files ? (
-                            <div>
-                              <p className="text-foreground font-medium break-all">{row.style_guide_files.filename}</p>
-                              {(row.style_guide_files.licensor_name || row.style_guide_files.property_folder) && (
-                                <p className="text-muted-foreground/70 mt-0.5">
-                                  {[row.style_guide_files.licensor_name, row.style_guide_files.property_folder].filter(Boolean).join(" / ")}
-                                </p>
-                              )}
+                {/* Workflow status editable */}
+                {detailAsset && (
+                  <div>
+                    <SectionLabel>Workflow</SectionLabel>
+                    <Select
+                      value={detailAsset.workflow_status ?? "other"}
+                      onValueChange={(v) => updateAsset.mutate({ workflow_status: v })}
+                    >
+                      <SelectTrigger className="h-8 text-[13px] w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Constants.public.Enums.workflow_status.map((ws) => (
+                          <SelectItem key={ws} value={ws} className="capitalize text-xs">
+                            {ws.replace(/_/g, " ")}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* LOCATION */}
+                {detailAsset && (
+                  <div>
+                    <SectionLabel>Location</SectionLabel>
+                    <div className="rounded-lg border border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface-2,hsl(var(--muted)/0.3))] p-2.5">
+                      <p
+                        className="font-mono text-[11.5px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]"
+                        style={{ wordBreak: "break-all" }}
+                      >
+                        {detailAsset.relative_path}
+                      </p>
+                    </div>
+                    <div className="mt-2 flex flex-col gap-1.5">
+                      {nasConfig && (
+                        <Button variant="outline" size="sm" className="gap-1.5 text-xs h-7 w-full" asChild>
+                          <a
+                            href={getOpenFolderUri(detailAsset.relative_path, nasConfig) ?? "#"}
+                            onClick={(e) => {
+                              if (!getOpenFolderUri(detailAsset.relative_path, nasConfig)) {
+                                e.preventDefault();
+                                toast.error("Cannot open folder", { description: "Set your Synology Drive root in Settings → Path Tester if using remote mode." });
+                              }
+                            }}
+                          >
+                            <FolderOpen className="h-3 w-3" />
+                            Open Containing Folder
+                          </a>
+                        </Button>
+                      )}
+                      {paths && (
+                        <div className="space-y-1.5 mt-1">
+                          <div className="group flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] uppercase text-muted-foreground tracking-wider">UNC (hostname)</p>
+                              <p className="text-[11.5px] font-mono break-all text-foreground/80 mt-0.5">{paths.uncHost}</p>
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground/60 font-mono break-all">{row.file_name}</span>
-                              <Badge variant="outline" className="text-[10px] h-4 shrink-0 text-muted-foreground/60">unresolved</Badge>
+                            <Button
+                              variant="ghost" size="icon"
+                              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-3"
+                              onClick={() => handleCopyPath(paths.uncHost, "UNC path")}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="group flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] uppercase text-muted-foreground tracking-wider">UNC (IP)</p>
+                              <p className="text-[11.5px] font-mono break-all text-foreground/80 mt-0.5">{paths.uncIp}</p>
+                            </div>
+                            <Button
+                              variant="ghost" size="icon"
+                              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-3"
+                              onClick={() => handleCopyPath(paths.uncIp, "UNC IP path")}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          {paths.remote && (
+                            <div className="group flex items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] uppercase text-muted-foreground tracking-wider">Synology Drive</p>
+                                <p className="text-[11.5px] font-mono break-all text-foreground/80 mt-0.5">{paths.remote}</p>
+                              </div>
+                              <Button
+                                variant="ghost" size="icon"
+                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-3"
+                                onClick={() => handleCopyPath(paths.remote!, "Synology Drive path")}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
                             </div>
                           )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAGS */}
+                {detailAsset && (
+                  <div>
+                    <SectionLabel><span className="flex items-center gap-1.5"><Tag className="h-3 w-3" /> Tags</span></SectionLabel>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {detailAsset.tags.length === 0 && (
+                        <span className="text-[12px] text-muted-foreground/50">No tags</span>
+                      )}
+                      {detailAsset.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary" className="text-xs bg-tag text-tag-foreground gap-1">
+                          {tag}
+                          <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                    <form onSubmit={(e) => { e.preventDefault(); addTag(); }} className="flex gap-1.5">
+                      <Input
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        placeholder="Add tag…"
+                        className="h-7 text-xs bg-background"
+                      />
+                      <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
+                    </form>
+                    {(groupAssets?.length ?? 0) > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs w-full mt-2"
+                        onClick={handleSyncGroupTags}
+                        disabled={syncingTags}
+                      >
+                        {syncingTags ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Tag className="h-3 w-3 mr-1" />}
+                        Sync Tags to All Group Members
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* AI ANALYSIS */}
+                {detailAsset && (
+                  <div>
+                    <SectionLabel>
+                      <span
+                        className="flex items-center gap-1.5"
+                        title={(detailAsset as any).ai_model ? `Model: ${(detailAsset as any).ai_model}${(detailAsset as any).ai_tagged_at ? ` · Tagged ${format(new Date((detailAsset as any).ai_tagged_at), "MMM d, yyyy HH:mm")}` : ""}` : undefined}
+                      >
+                        <Sparkles className="h-3 w-3" /> AI Analysis
+                        {(detailAsset as any).ai_model && (
+                          <span className="normal-case font-normal tracking-normal text-[10px] truncate max-w-[120px]" title={(detailAsset as any).ai_model}>
+                            {(detailAsset as any).ai_model.split("/").pop()}
+                          </span>
+                        )}
+                      </span>
+                    </SectionLabel>
+                    {detailAsset.ai_description ? (
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-[10px] uppercase text-muted-foreground tracking-wider mb-0.5">Description</p>
+                          <p className="text-[12px] text-foreground/80 leading-relaxed">{detailAsset.ai_description}</p>
+                        </div>
+                        {detailAsset.scene_description && (
+                          <div>
+                            <p className="text-[10px] uppercase text-muted-foreground tracking-wider mb-0.5">Scene</p>
+                            <p className="text-[12px] text-foreground/80 leading-relaxed">{detailAsset.scene_description}</p>
+                          </div>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1"
+                          onClick={handleAiTag}
+                          disabled={aiTagging || !detailAsset.thumbnail_url}
+                        >
+                          {aiTagging ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                          {aiTagging ? "Re-tagging…" : "Re-tag"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-border p-3 text-center space-y-2">
+                        <p className="text-[12px] text-muted-foreground">No AI analysis yet</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={handleAiTag}
+                          disabled={aiTagging || !detailAsset.thumbnail_url}
+                        >
+                          {aiTagging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                          {aiTagging ? "Generating…" : "Generate AI Description"}
+                        </Button>
+                        {!detailAsset.thumbnail_url && (
+                          <p className="text-[10px] text-muted-foreground/60">Requires a thumbnail first</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* FILE DATES */}
+                {detailAsset && (
+                  <div>
+                    <SectionLabel><span className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> File Dates</span></SectionLabel>
+                    <dl className="space-y-0.5">
+                      <DlRow label="Modified">{format(new Date(detailAsset.modified_at), "MMM d, yyyy HH:mm")}</DlRow>
+                      <DlRow label="Created">{detailAsset.file_created_at ? format(new Date(detailAsset.file_created_at), "MMM d, yyyy HH:mm") : null}</DlRow>
+                    </dl>
+                    <div className="mt-2 pt-2 border-t border-[var(--pd-border,hsl(var(--border)/0.5))]">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-1">DAM Internal</p>
+                      <dl className="space-y-0.5">
+                        <DlRow label="Ingested">{detailAsset.ingested_at ? format(new Date(detailAsset.ingested_at), "MMM d, yyyy HH:mm") : null}</DlRow>
+                        <DlRow label="Last Scanned">{detailAsset.last_seen_at ? format(new Date(detailAsset.last_seen_at), "MMM d, yyyy HH:mm") : null}</DlRow>
+                        <DlRow label="AI Tagged">{(detailAsset as any).ai_tagged_at ? format(new Date((detailAsset as any).ai_tagged_at), "MMM d, yyyy HH:mm") : "Not tagged"}</DlRow>
+                      </dl>
+                    </div>
+                  </div>
+                )}
+
+                {/* PRODUCTION POs */}
+                <div>
+                  <SectionLabel>
+                    <span className="flex items-center gap-1.5"><ClipboardList className="h-3 w-3" /> Production POs</span>
+                  </SectionLabel>
+                  {!productionOrders || productionOrders.length === 0 ? (
+                    <p className="text-[12px] text-muted-foreground/50">No production POs recorded for this SKU</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {productionOrders.map((order) => (
+                        <div
+                          key={order.id}
+                          className="rounded-lg border border-[var(--pd-border,hsl(var(--border)))] px-3 py-2 text-[13px]"
+                        >
+                          <div className="group flex items-center gap-2">
+                            <span className="font-mono font-semibold text-foreground">{order.prod_order_number}</span>
+                            <CopyInlineButton value={order.prod_order_number} label="production PO" />
+                            {order.order_status && (
+                              <Badge variant="outline" className="ml-auto h-4 text-[10px]">
+                                {order.order_status}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-muted-foreground/75">
+                            {order.customer_name && <span>{order.customer_name}</span>}
+                            {order.quantity !== null && <span>Qty {Number(order.quantity).toLocaleString()}</span>}
+                            {formatDateValue(order.due_date) && <span>Due {formatDateValue(order.due_date)}</span>}
+                            {formatDateValue(order.order_date) && <span>Ordered {formatDateValue(order.order_date)}</span>}
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
-                </section>
-              </>
-            )}
-
-            {/* ── PATHS ── */}
-            {detailAsset && (
-              <>
-                <Separator />
-                <section className="space-y-2.5">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <HardDrive className="h-3.5 w-3.5" /> Paths
-                  </h4>
-                  {nasConfig && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-xs h-7 w-full"
-                      asChild
-                    >
-                      <a
-                        href={getOpenFolderUri(detailAsset.relative_path, nasConfig) ?? "#"}
-                        onClick={(e) => {
-                          if (!getOpenFolderUri(detailAsset.relative_path, nasConfig)) {
-                            e.preventDefault();
-                            toast.error("Cannot open folder", { description: "Set your Synology Drive root in Settings → Path Tester if using remote mode." });
-                          }
-                        }}
-                      >
-                        <FolderOpen className="h-3 w-3" />
-                        Open Containing Folder
-                      </a>
-                    </Button>
-                  )}
-                  <CopyPathRow label="Relative" value={detailAsset.relative_path} />
-                  {paths && (
-                    <>
-                      <CopyPathRow label="Office UNC (hostname)" value={paths.uncHost} />
-                      <CopyPathRow label="Office UNC (IP)" value={paths.uncIp} />
-                      {paths.remote && <CopyPathRow label="Remote (Synology Drive)" value={paths.remote} />}
-                    </>
-                  )}
-                </section>
-              </>
-            )}
-
-            {/* ── TAGS ── */}
-            {detailAsset && (
-              <>
-                <Separator />
-                <section className="space-y-2.5">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <Tag className="h-3.5 w-3.5" /> Tags
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {detailAsset.tags.length === 0 && (
-                      <span className="text-xs text-muted-foreground/50">No tags</span>
-                    )}
-                    {detailAsset.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="text-xs bg-tag text-tag-foreground gap-1">
-                        {tag}
-                        <button onClick={() => removeTag(tag)} className="ml-0.5 hover:text-destructive">
-                          <X className="h-2.5 w-2.5" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                  <form onSubmit={(e) => { e.preventDefault(); addTag(); }} className="flex gap-1.5">
-                    <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Add tag…" className="h-7 text-xs bg-background" />
-                    <Button type="submit" size="sm" className="h-7 text-xs px-2">Add</Button>
-                  </form>
-                  {(groupAssets?.length ?? 0) > 1 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs w-full"
-                      onClick={handleSyncGroupTags}
-                      disabled={syncingTags}
-                      title={syncingTags ? "Syncing tags to all group members, please wait…" : undefined}
-                    >
-                      {syncingTags ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Tag className="h-3 w-3 mr-1" />}
-                      Sync Tags to All Group Members
-                    </Button>
-                  )}
-                </section>
-              </>
-            )}
-
-            {/* ── AI ANALYSIS ── */}
-            {detailAsset && (
-              <>
-                <Separator />
-                <section className="space-y-2.5">
-                  <h4
-                    className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground"
-                    title={(detailAsset as any).ai_model ? `Model: ${(detailAsset as any).ai_model}${(detailAsset as any).ai_tagged_at ? ` · Tagged ${format(new Date((detailAsset as any).ai_tagged_at), "MMM d, yyyy HH:mm")}` : ""}` : undefined}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" /> AI Analysis
-                    {(detailAsset as any).ai_model && <span className="normal-case font-normal tracking-normal text-[10px] truncate max-w-[120px]" title={(detailAsset as any).ai_model}>{(detailAsset as any).ai_model.split("/").pop()}</span>}
-                  </h4>
-                  {detailAsset.ai_description ? (
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-[10px] uppercase text-muted-foreground tracking-wider">Description</span>
-                        <p className="text-xs text-foreground/80 leading-relaxed mt-0.5">{detailAsset.ai_description}</p>
-                      </div>
-                      {detailAsset.scene_description && (
-                        <div>
-                          <span className="text-[10px] uppercase text-muted-foreground tracking-wider">Scene</span>
-                          <p className="text-xs text-foreground/80 leading-relaxed mt-0.5">{detailAsset.scene_description}</p>
-                        </div>
-                      )}
-                      <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1" onClick={handleAiTag} disabled={aiTagging || !detailAsset.thumbnail_url} title={aiTagging ? "AI tagging in progress…" : !detailAsset.thumbnail_url ? "Requires a thumbnail to run AI analysis" : undefined}>
-                        {aiTagging ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                        {aiTagging ? "Re-tagging…" : "Re-tag"}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-border p-3 text-center space-y-2">
-                      <p className="text-xs text-muted-foreground">No AI analysis yet</p>
-                      <Button variant="outline" size="sm" className="gap-1.5" onClick={handleAiTag} disabled={aiTagging || !detailAsset.thumbnail_url} title={aiTagging ? "Generating AI description…" : !detailAsset.thumbnail_url ? "Requires a thumbnail to run AI analysis" : undefined}>
-                        {aiTagging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                        {aiTagging ? "Generating…" : "Generate AI Description"}
-                      </Button>
-                      {!detailAsset.thumbnail_url && (
-                        <p className="text-[10px] text-muted-foreground/60">Requires a thumbnail first</p>
-                      )}
-                    </div>
-                  )}
-                </section>
-              </>
-            )}
-
-            {/* ── FILE DATES ── */}
-            {detailAsset && (
-              <>
-                <Separator />
-                <section className="space-y-2">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <Clock className="h-3.5 w-3.5" /> File Dates
-                  </h4>
-                  <div className="space-y-1.5">
-                    <MetaRow label="File Modified" value={format(new Date(detailAsset.modified_at), "MMM d, yyyy HH:mm")} />
-                    <MetaRow label="File Created" value={detailAsset.file_created_at ? format(new Date(detailAsset.file_created_at), "MMM d, yyyy HH:mm") : null} />
-                  </div>
-                   <div className="mt-2 pt-2 border-t border-border/50 space-y-1.5">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60">DAM Internal</p>
-                    <MetaRow label="Ingested" value={detailAsset.ingested_at ? format(new Date(detailAsset.ingested_at), "MMM d, yyyy HH:mm") : null} />
-                    <MetaRow label="Last Scanned" value={detailAsset.last_seen_at ? format(new Date(detailAsset.last_seen_at), "MMM d, yyyy HH:mm") : null} />
-                    <MetaRow label="AI Tagged" value={(detailAsset as any).ai_tagged_at ? format(new Date((detailAsset as any).ai_tagged_at), "MMM d, yyyy HH:mm") : "Not tagged"} />
-                  </div>
-                </section>
-              </>
-            )}
-
-            <Separator />
-
-            {/* ── FILES IN GROUP ── */}
-            <section className="space-y-2">
-              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Files ({groupAssets?.length ?? "…"})
-              </h4>
-
-              {assetsLoading ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading files…
                 </div>
-              ) : (
-                <div className="space-y-1">
-                  {(groupAssets ?? []).map((asset) => {
+
+                {/* STYLE GUIDE SOURCES */}
+                {group.is_licensed && (
+                  <div>
+                    <SectionLabel>
+                      <span className="flex items-center gap-1.5"><FileText className="h-3 w-3" /> Style Guide Sources</span>
+                    </SectionLabel>
+                    {!styleGuideSources || styleGuideSources.length === 0 ? (
+                      <p className="text-[12px] text-muted-foreground/50">No style guide files recorded for this SKU</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {styleGuideSources.map((row) => (
+                          <div key={row.id} className="text-[12px]">
+                            {row.style_guide_file_id && row.style_guide_files ? (
+                              <div>
+                                <p className="text-foreground font-medium break-all">{row.style_guide_files.filename}</p>
+                                {(row.style_guide_files.licensor_name || row.style_guide_files.property_folder) && (
+                                  <p className="text-muted-foreground/70 mt-0.5">
+                                    {[row.style_guide_files.licensor_name, row.style_guide_files.property_folder].filter(Boolean).join(" / ")}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-muted-foreground/60 font-mono break-all">{row.file_name}</span>
+                                <Badge variant="outline" className="text-[10px] h-4 shrink-0 text-muted-foreground/60">unresolved</Badge>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* FOLDER PATH */}
+                <div>
+                  <SectionLabel><span className="flex items-center gap-1.5"><HardDrive className="h-3 w-3" /> Folder</span></SectionLabel>
+                  <div className="rounded-lg border border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface-2,hsl(var(--muted)/0.3))] p-2.5">
+                    <p
+                      className="font-mono text-[11.5px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]"
+                      style={{ wordBreak: "break-all" }}
+                    >
+                      {group.folder_path}
+                    </p>
+                  </div>
+                </div>
+
+                {/* ALTERNATIVE IMAGES */}
+                <FindAlternativeImages
+                  group={group}
+                  onIngested={() => {
+                    queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
+                    queryClient.invalidateQueries({ queryKey: ["style-groups"], refetchType: "none" });
+                  }}
+                />
+              </div>
+            )}
+
+            {/* ===== FILES TAB ===== */}
+            {activeTab === "files" && (
+              <div className="p-4 space-y-1">
+                {assetsLoading ? (
+                  <div className="flex items-center gap-2 text-[12px] text-muted-foreground py-6 justify-center">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading files…
+                  </div>
+                ) : (
+                  (groupAssets ?? []).map((asset) => {
                     const isCover = asset.id === localPrimaryId;
                     const hasThumb = !!asset.thumbnail_url;
                     const thumbIdx = thumbStrip.findIndex((a) => a.id === asset.id);
                     const isViewing = thumbIdx >= 0 && thumbIdx === carouselIndex;
                     const uncPath = nasConfig ? getPathDisplayModes(asset.relative_path, nasConfig, null).uncHost : null;
+                    const isSuperseded = (asset as any).is_superseded ?? false;
+
                     return (
                       <ContextMenu key={asset.id}>
                         <ContextMenuTrigger asChild>
                           <div
                             className={cn(
-                              "group flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer transition-colors",
+                              "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer transition-colors border",
                               isViewing
-                                ? "bg-primary/10 border-l-2 border-primary"
-                                : "hover:bg-muted/50",
+                                ? "bg-[var(--pd-accent,hsl(var(--primary)/0.08))] border-[var(--pd-accent,hsl(var(--primary)/0.3))]"
+                                : "border-transparent hover:bg-[hsl(var(--muted)/0.5)] hover:border-[var(--pd-border,hsl(var(--border)))]"
                             )}
                             onClick={() => {
                               setSelectedAssetId(asset.id);
                               if (thumbIdx >= 0) setCarouselIndex(thumbIdx);
                             }}
                           >
-                            {/* Small thumbnail */}
-                            <div className="h-10 w-10 shrink-0 rounded bg-muted/30 overflow-hidden">
-                              {asset.thumbnail_url ? (
-                                <img src={asset.thumbnail_url} alt={asset.filename} className="h-full w-full object-cover" />
-                              ) : (
-                                <div className="flex h-full items-center justify-center">
-                                  <ImageOff className="h-4 w-4 text-muted-foreground/30" />
-                                </div>
+                            {/* File type tile */}
+                            <div
+                              className={cn(
+                                "h-9 w-9 shrink-0 rounded-md flex items-center justify-center text-[10px] font-bold uppercase",
+                                fileTypeTileClass(asset.file_type)
                               )}
+                            >
+                              {asset.file_type}
                             </div>
 
                             {/* Info */}
                             <div className="flex-1 min-w-0 space-y-0.5">
-                              <p className="text-xs font-medium" title={asset.filename}>{formatFilename(asset.filename, 24)}</p>
-                              <div className="flex items-center gap-1">
-                                <Badge variant="secondary" className="text-[9px] uppercase px-1 py-0">{asset.file_type}</Badge>
-                                {asset.workflow_status && asset.workflow_status !== "other" && (
-                                  <span className="rounded bg-tag px-1 py-0 text-[9px] text-tag-foreground capitalize">
-                                    {asset.workflow_status.replace(/_/g, " ")}
-                                  </span>
+                              <p className="font-mono text-[13px] font-[600] truncate" title={asset.filename}>
+                                {formatFilename(asset.filename, 26)}
+                              </p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[11px] text-muted-foreground">{formatSize(asset.file_size)}</span>
+                                {hasThumb ? (
+                                  <span className="text-[10px] text-green-600 dark:text-green-400">preview ready</span>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground/50">no preview</span>
+                                )}
+                                {isSuperseded && (
+                                  <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground/60">superseded</Badge>
                                 )}
                                 {isCover && (
-                                  <Badge variant="default" className="text-[9px] px-1 py-0 gap-0.5">
+                                  <Badge variant="default" className="text-[9px] h-4 px-1 gap-0.5">
                                     <Star className="h-2.5 w-2.5 fill-current" /> Cover
                                   </Badge>
                                 )}
@@ -1123,8 +1364,6 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
                             {/* Actions */}
                             <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <CopyInlineButton value={asset.filename} label="filename" />
-                              <CopyInlineButton value={asset.relative_path} label="relative path" />
                               {!isCover && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -1143,6 +1382,19 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                                   </TooltipContent>
                                 </Tooltip>
                               )}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={() => handleAssetCheckout(asset.id)}
+                                  >
+                                    <Download className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="text-xs">Download</TooltipContent>
+                              </Tooltip>
                             </div>
                           </div>
                         </ContextMenuTrigger>
@@ -1172,28 +1424,130 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
                         </ContextMenuContent>
                       </ContextMenu>
                     );
-                  })}
-                </div>
-              )}
-            </section>
+                  })
+                )}
+              </div>
+            )}
 
-            <Separator />
+            {/* ===== ACTIVITY TAB ===== */}
+            {activeTab === "activity" && (
+              <div className="p-4">
+                {/* Vertical timeline */}
+                <ol className="relative border-l border-[var(--pd-border,hsl(var(--border)))] ml-3 space-y-5">
 
-            {/* ── FIND ALTERNATIVE IMAGES ── */}
-            <FindAlternativeImages group={group} onIngested={() => {
-              queryClient.invalidateQueries({ queryKey: ["style-group-assets", group.id] });
-              // Refetch style-groups in background without resetting cache (avoids panel closing)
-              queryClient.invalidateQueries({ queryKey: ["style-groups"], refetchType: "none" });
-            }} />
+                  {/* Creation event */}
+                  <li className="ml-4">
+                    <div className="absolute -left-[9px] mt-0.5 h-4 w-4 rounded-full border-2 border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))] flex items-center justify-center">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--pd-accent,hsl(var(--primary)))]" />
+                    </div>
+                    <p className="text-[12px] font-semibold text-[var(--pd-fg,hsl(var(--foreground)))]">Group created</p>
+                    {detailAsset?.ingested_at && (
+                      <p className="text-[11px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]">
+                        {format(new Date(detailAsset.ingested_at), "MMM d, yyyy 'at' HH:mm")}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]">
+                      {group.asset_count} file{group.asset_count !== 1 ? "s" : ""} ingested
+                    </p>
+                  </li>
 
-            <Separator />
+                  {/* Last scanned */}
+                  {detailAsset?.last_seen_at && (
+                    <li className="ml-4">
+                      <div className="absolute -left-[9px] mt-0.5 h-4 w-4 rounded-full border-2 border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))] flex items-center justify-center">
+                        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+                      </div>
+                      <p className="text-[12px] font-semibold text-[var(--pd-fg,hsl(var(--foreground)))]">Auto-sync</p>
+                      <p className="text-[11px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]">
+                        Last seen {format(new Date(detailAsset.last_seen_at), "MMM d, yyyy 'at' HH:mm")}
+                      </p>
+                    </li>
+                  )}
 
-            {/* Folder path */}
-            <section className="space-y-1">
-              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Folder</h4>
-              <p className="text-[10px] font-mono text-muted-foreground break-all">{group.folder_path}</p>
-            </section>
+                  {/* Stage moves — shown if stage is set */}
+                  {group.stage && (
+                    <li className="ml-4">
+                      <div className="absolute -left-[9px] mt-0.5 h-4 w-4 rounded-full border-2 border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))] flex items-center justify-center">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                      </div>
+                      <p className="text-[12px] font-semibold text-[var(--pd-fg,hsl(var(--foreground)))]">Stage: {group.stage}</p>
+                      <p className="text-[11px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]">
+                        Current workflow stage
+                      </p>
+                    </li>
+                  )}
+
+                  {/* AI tagged */}
+                  {(detailAsset as any)?.ai_tagged_at && (
+                    <li className="ml-4">
+                      <div className="absolute -left-[9px] mt-0.5 h-4 w-4 rounded-full border-2 border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))] flex items-center justify-center">
+                        <span className="h-1.5 w-1.5 rounded-full bg-purple-400" />
+                      </div>
+                      <p className="text-[12px] font-semibold text-[var(--pd-fg,hsl(var(--foreground)))]">AI tagged</p>
+                      <p className="text-[11px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]">
+                        {format(new Date((detailAsset as any).ai_tagged_at), "MMM d, yyyy 'at' HH:mm")}
+                        {(detailAsset as any).ai_model ? ` · ${(detailAsset as any).ai_model.split("/").pop()}` : ""}
+                      </p>
+                    </li>
+                  )}
+
+                  {/* File modified */}
+                  {detailAsset?.modified_at && (
+                    <li className="ml-4">
+                      <div className="absolute -left-[9px] mt-0.5 h-4 w-4 rounded-full border-2 border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))] flex items-center justify-center">
+                        <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+                      </div>
+                      <p className="text-[12px] font-semibold text-[var(--pd-fg,hsl(var(--foreground)))]">File modified</p>
+                      <p className="text-[11px] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))]">
+                        {format(new Date(detailAsset.modified_at), "MMM d, yyyy 'at' HH:mm")}
+                      </p>
+                    </li>
+                  )}
+                </ol>
+              </div>
+            )}
           </div>
+
+          {/* ── Sticky footer ─────────────────────────────────── */}
+          <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2.5 border-t border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]">
+            <Button
+              className="flex-1 gap-1.5 text-[13px] h-8 bg-[var(--pd-accent,hsl(var(--primary)))] text-[var(--pd-accent-fg,hsl(var(--primary-foreground)))] hover:opacity-90"
+              onClick={handleDownloadAll}
+              disabled={!groupAssets || groupAssets.length === 0}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download all
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(window.location.href);
+                    toast("Link copied");
+                  }}
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Share</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!detailAsset || !nasConfig}
+                  onClick={() => { if (detailAsset) handleOpenAssetFolder(detailAsset); }}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Open folder</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>

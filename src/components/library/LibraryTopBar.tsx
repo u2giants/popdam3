@@ -1,19 +1,21 @@
-import { Search, LayoutGrid, List, SlidersHorizontal, RefreshCw, Square, RotateCcw, Layers, File, X } from "lucide-react";
-import { Link } from "react-router-dom";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useRef, useState } from "react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { ViewMode, SortField, SortDirection, LibraryMode } from "@/types/assets";
+  Search,
+  LayoutGrid,
+  List,
+  SlidersHorizontal,
+  RefreshCw,
+  Layers,
+  File,
+  X,
+  ChevronDown,
+  ArrowUp,
+  ArrowDown,
+  Check,
+} from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { CardStyle, ViewMode, SortField, SortDirection, LibraryMode } from "@/types/assets";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
 
 interface LibraryTopBarProps {
   search: string;
@@ -44,21 +46,43 @@ interface LibraryTopBarProps {
   lastScanSummary?: string;
   scanBlocked: boolean;
   scanBlockedReason: string | null;
+  cardStyle: CardStyle;
+  onCardStyleChange: (v: CardStyle) => void;
+  groupCount: number;
+  fileCount: number;
 }
 
-function truncatePath(p: string | undefined): string {
-  if (!p) return "Scanning…";
-  const parts = p.split("/").filter(Boolean);
-  if (parts.length <= 2) return parts.join("/");
-  return "…/" + parts.slice(-2).join("/");
-}
-
-const sortOptions: { value: SortField; label: string }[] = [
-  { value: "modified_at", label: "Modified" },
-  { value: "file_created_at", label: "Created" },
-  { value: "filename", label: "Filename" },
-  { value: "file_size", label: "Size" },
+const GROUP_SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: "modified_at", label: "Last modified" },
+  { value: "file_created_at", label: "Date created" },
+  { value: "sku", label: "SKU (A–Z)" },
+  { value: "asset_count", label: "File count" },
 ];
+
+const FILE_SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: "modified_at", label: "Last modified" },
+  { value: "file_created_at", label: "Date added" },
+  { value: "filename", label: "Name (A–Z)" },
+  { value: "file_size", label: "File size" },
+];
+
+const CARD_STYLE_OPTIONS: { value: CardStyle; label: string }[] = [
+  { value: "gallery", label: "Gallery" },
+  { value: "editorial", label: "Editorial" },
+  { value: "compact", label: "Compact" },
+];
+
+function useOutsideClick(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        handler();
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [ref, handler]);
+}
 
 export default function LibraryTopBar({
   search,
@@ -74,150 +98,488 @@ export default function LibraryTopBar({
   filtersOpen,
   onToggleFilters,
   activeFilterCount,
-  totalCount,
-  totalAssets,
   scanRunning,
   scanStale,
   scanQueued,
   scanPending,
   onSync,
-  onStopScan,
-  onRefresh,
-  scanCurrentPath,
-  lastScanStatus,
-  lastScanTime,
-  lastScanSummary,
   scanBlocked,
   scanBlockedReason,
+  cardStyle,
+  onCardStyleChange,
+  groupCount,
+  fileCount,
 }: LibraryTopBarProps) {
   const syncDisabled = scanPending || scanRunning || scanQueued || scanBlocked;
-  const syncTitle = scanBlocked ? scanBlockedReason || "Scan blocked" 
-    : scanStale ? "Scan appears stuck — use Reset Scan State in Settings" 
-    : scanRunning ? "Scanning…" 
-    : scanQueued ? "Queued, waiting for agent…" 
-    : scanPending ? "Waiting for agent…" 
+  const syncTitle = scanBlocked
+    ? scanBlockedReason || "Scan blocked"
+    : scanStale
+    ? "Scan appears stuck — use Reset Scan State in Settings"
+    : scanRunning
+    ? "Scanning…"
+    : scanQueued
+    ? "Queued, waiting for agent…"
+    : scanPending
+    ? "Waiting for agent…"
     : "Trigger scan";
 
+  const sortOptions = libraryMode === "groups" ? GROUP_SORT_OPTIONS : FILE_SORT_OPTIONS;
+  const currentSortLabel = sortOptions.find((o) => o.value === sortField)?.label ?? sortOptions[0].label;
+
+  const [sortOpen, setSortOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useOutsideClick(sortRef, () => setSortOpen(false));
+  useOutsideClick(cardRef, () => setCardOpen(false));
+
+  // When switching modes, reset sort to modified_at if current sort is invalid
+  useEffect(() => {
+    const valid = sortOptions.some((o) => o.value === sortField);
+    if (!valid) {
+      onSortFieldChange("modified_at");
+    }
+  }, [libraryMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const showCardStyleDropdown = libraryMode === "groups" && viewMode === "grid";
+  const currentCardLabel = CARD_STYLE_OPTIONS.find((o) => o.value === cardStyle)?.label ?? "Gallery";
+
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-overlay px-4 py-3">
-      {/* Filters toggle — far left so it sits above the sidebar */}
-      <Button
-        variant={filtersOpen ? "secondary" : "ghost"}
-        size="sm"
-        className="h-9 gap-1.5"
+    <div
+      style={{
+        borderBottom: "1px solid var(--pd-border)",
+        background: "var(--pd-surface)",
+        padding: "12px 18px",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: "8px",
+      }}
+    >
+      {/* 1. Filters button */}
+      <button
+        type="button"
         onClick={onToggleFilters}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          height: "34px",
+          padding: "0 10px",
+          borderRadius: "6px",
+          border: "1px solid var(--pd-border)",
+          background: filtersOpen ? "var(--pd-accent-soft)" : "transparent",
+          color: filtersOpen ? "var(--pd-accent)" : "var(--pd-fg)",
+          fontSize: "13px",
+          fontWeight: 500,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
       >
-        <SlidersHorizontal className="h-4 w-4" />
+        <SlidersHorizontal style={{ width: 15, height: 15 }} />
         Filters
         {activeFilterCount > 0 && (
-          <Badge variant="default" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "18px",
+              minWidth: "18px",
+              padding: "0 5px",
+              borderRadius: "9px",
+              background: "var(--pd-accent)",
+              color: "#fff",
+              fontSize: "10px",
+              fontWeight: 600,
+              lineHeight: 1,
+            }}
+          >
             {activeFilterCount}
-          </Badge>
+          </span>
         )}
-      </Button>
+      </button>
 
-      {/* Library mode toggle — Groups / Assets */}
-      <div className="flex rounded-md border border-border">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn("h-9 rounded-r-none gap-1.5 text-xs px-2.5", libraryMode === "groups" && "bg-accent")}
+      {/* 2. Mode segmented control */}
+      <div
+        style={{
+          display: "inline-flex",
+          borderRadius: "6px",
+          border: "1px solid var(--pd-border)",
+          overflow: "hidden",
+        }}
+      >
+        <button
+          type="button"
           onClick={() => onLibraryModeChange("groups")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            height: "34px",
+            padding: "0 10px",
+            border: "none",
+            borderRight: "1px solid var(--pd-border)",
+            background: libraryMode === "groups" ? "var(--pd-accent-soft)" : "transparent",
+            color: libraryMode === "groups" ? "var(--pd-accent)" : "var(--pd-fg-muted)",
+            fontSize: "13px",
+            fontWeight: 500,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
         >
-          <Layers className="h-3.5 w-3.5" />
-          Groups
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn("h-9 rounded-l-none border-l border-border gap-1.5 text-xs px-2.5", libraryMode === "assets" && "bg-accent")}
+          <Layers style={{ width: 14, height: 14 }} />
+          Style groups
+        </button>
+        <button
+          type="button"
           onClick={() => onLibraryModeChange("assets")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            height: "34px",
+            padding: "0 10px",
+            border: "none",
+            background: libraryMode === "assets" ? "var(--pd-accent-soft)" : "transparent",
+            color: libraryMode === "assets" ? "var(--pd-accent)" : "var(--pd-fg-muted)",
+            fontSize: "13px",
+            fontWeight: 500,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
         >
-          <File className="h-3.5 w-3.5" />
-          Assets
-        </Button>
+          <File style={{ width: 14, height: 14 }} />
+          All files
+        </button>
       </div>
 
-      <div className="relative flex-1 min-w-[200px] max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search filenames…"
+      {/* 3. Search input */}
+      <div
+        style={{
+          position: "relative",
+          flex: "1 1 220px",
+          minWidth: "150px",
+          maxWidth: "340px",
+        }}
+      >
+        <Search
+          style={{
+            position: "absolute",
+            left: "9px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: 15,
+            height: 15,
+            color: "var(--pd-fg-muted)",
+            pointerEvents: "none",
+          }}
+        />
+        <input
+          type="text"
+          placeholder="Search…"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 pr-8 h-9 bg-background"
+          style={{
+            width: "100%",
+            height: "34px",
+            paddingLeft: "32px",
+            paddingRight: search ? "30px" : "10px",
+            borderRadius: "6px",
+            border: "1px solid var(--pd-border)",
+            background: "transparent",
+            color: "var(--pd-fg)",
+            fontSize: "13px",
+            outline: "none",
+            boxSizing: "border-box",
+          }}
         />
         {search && (
           <button
             type="button"
             onClick={() => onSearchChange("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            style={{
+              position: "absolute",
+              right: "8px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              color: "var(--pd-fg-muted)",
+              display: "inline-flex",
+              alignItems: "center",
+            }}
           >
-            <X className="h-4 w-4" />
+            <X style={{ width: 14, height: 14 }} />
           </button>
         )}
       </div>
 
-      {/* View toggle */}
-      <div className="flex rounded-md border border-border">
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("h-9 w-9 rounded-r-none", viewMode === "grid" && "bg-accent")}
-          onClick={() => onViewModeChange("grid")}
+      {/* 4. Result count */}
+      <span
+        style={{
+          fontSize: "13px",
+          color: "var(--pd-fg-muted)",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+          marginLeft: "auto",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {libraryMode === "groups" ? (
+          <>
+            <strong style={{ color: "var(--pd-fg)", fontWeight: 600 }}>
+              {groupCount.toLocaleString()}
+            </strong>
+            {" groups · "}
+            <strong style={{ color: "var(--pd-fg)", fontWeight: 600 }}>
+              {fileCount.toLocaleString()}
+            </strong>
+            {" files"}
+          </>
+        ) : (
+          <>
+            <strong style={{ color: "var(--pd-fg)", fontWeight: 600 }}>
+              {fileCount.toLocaleString()}
+            </strong>
+            {" files"}
+          </>
+        )}
+      </span>
+
+      {/* 5. Divider */}
+      <div
+        style={{
+          width: "1px",
+          height: "22px",
+          background: "var(--pd-border)",
+          flexShrink: 0,
+        }}
+      />
+
+      {/* 6. Card-layout dropdown (groups + grid only) */}
+      {showCardStyleDropdown && (
+        <div ref={cardRef} style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => setCardOpen((v) => !v)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              height: "34px",
+              padding: "0 10px",
+              borderRadius: "6px",
+              border: "1px solid var(--pd-border)",
+              background: "transparent",
+              color: "var(--pd-fg)",
+              fontSize: "13px",
+              fontWeight: 500,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <LayoutGrid style={{ width: 14, height: 14 }} />
+            {currentCardLabel}
+            <ChevronDown style={{ width: 13, height: 13, color: "var(--pd-fg-muted)", marginLeft: 2 }} />
+          </button>
+          {cardOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                zIndex: 50,
+                minWidth: "140px",
+                borderRadius: "8px",
+                border: "1px solid var(--pd-border)",
+                background: "var(--pd-surface)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                padding: "4px",
+              }}
+            >
+              {CARD_STYLE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onCardStyleChange(opt.value);
+                    setCardOpen(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    width: "100%",
+                    padding: "7px 10px",
+                    borderRadius: "5px",
+                    border: "none",
+                    background: cardStyle === opt.value ? "var(--pd-accent-soft)" : "transparent",
+                    color: cardStyle === opt.value ? "var(--pd-accent)" : "var(--pd-fg)",
+                    fontSize: "13px",
+                    fontWeight: cardStyle === opt.value ? 500 : 400,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  {cardStyle === opt.value ? (
+                    <Check style={{ width: 13, height: 13, flexShrink: 0 }} />
+                  ) : (
+                    <span style={{ width: 13, height: 13, flexShrink: 0 }} />
+                  )}
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 7. Sort dropdown + direction button (joined) */}
+      <div
+        ref={sortRef}
+        style={{
+          display: "inline-flex",
+          borderRadius: "6px",
+          border: "1px solid var(--pd-border)",
+          overflow: "visible",
+          position: "relative",
+          flexShrink: 0,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setSortOpen((v) => !v)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            height: "34px",
+            padding: "0 10px",
+            borderRadius: "6px 0 0 6px",
+            border: "none",
+            borderRight: "1px solid var(--pd-border)",
+            background: "transparent",
+            color: "var(--pd-fg)",
+            fontSize: "13px",
+            fontWeight: 500,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
         >
-          <LayoutGrid className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("h-9 w-9 rounded-l-none border-l border-border", viewMode === "list" && "bg-accent")}
-          onClick={() => onViewModeChange("list")}
+          {currentSortLabel}
+          <ChevronDown style={{ width: 13, height: 13, color: "var(--pd-fg-muted)" }} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onSortDirectionChange(sortDirection === "asc" ? "desc" : "asc")}
+          title={sortDirection === "asc" ? "Ascending" : "Descending"}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "34px",
+            height: "34px",
+            borderRadius: "0 6px 6px 0",
+            border: "none",
+            background: "transparent",
+            color: "var(--pd-fg-muted)",
+            cursor: "pointer",
+            flexShrink: 0,
+          }}
         >
-          <List className="h-4 w-4" />
-        </Button>
+          {sortDirection === "asc" ? (
+            <ArrowUp style={{ width: 14, height: 14 }} />
+          ) : (
+            <ArrowDown style={{ width: 14, height: 14 }} />
+          )}
+        </button>
+
+        {/* Sort dropdown panel */}
+        {sortOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              right: 0,
+              zIndex: 50,
+              minWidth: "170px",
+              borderRadius: "8px",
+              border: "1px solid var(--pd-border)",
+              background: "var(--pd-surface)",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              padding: "4px",
+            }}
+          >
+            {sortOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onSortFieldChange(opt.value);
+                  setSortOpen(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  width: "100%",
+                  padding: "7px 10px",
+                  borderRadius: "5px",
+                  border: "none",
+                  background: sortField === opt.value ? "var(--pd-accent-soft)" : "transparent",
+                  color: sortField === opt.value ? "var(--pd-accent)" : "var(--pd-fg)",
+                  fontSize: "13px",
+                  fontWeight: sortField === opt.value ? 500 : 400,
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                {sortField === opt.value ? (
+                  <Check style={{ width: 13, height: 13, flexShrink: 0 }} />
+                ) : (
+                  <span style={{ width: 13, height: 13, flexShrink: 0 }} />
+                )}
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Sort */}
-      <Select value={sortField} onValueChange={(v) => onSortFieldChange(v as SortField)}>
-        <SelectTrigger className="w-[130px] h-9 bg-background">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {sortOptions.map((o) => (
-            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-9 w-9"
-        onClick={() => onSortDirectionChange(sortDirection === "asc" ? "desc" : "asc")}
-        title={sortDirection === "asc" ? "Ascending" : "Descending"}
-      >
-        <span className="text-xs font-mono">{sortDirection === "asc" ? "A↑" : "Z↓"}</span>
-      </Button>
-
-      {/* Refresh / Sync / Stop */}
-      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onRefresh} title="Refresh library">
-        <RotateCcw className="h-4 w-4" />
-      </Button>
+      {/* Sync icon button */}
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
             <span className={cn("inline-flex", syncDisabled && "cursor-not-allowed")}>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 gap-1.5 relative"
+              <button
+                type="button"
                 onClick={onSync}
                 disabled={syncDisabled}
-                style={syncDisabled ? { pointerEvents: "none" } : undefined}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "34px",
+                  height: "34px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--pd-border)",
+                  background: "transparent",
+                  color: syncDisabled ? "var(--pd-fg-muted)" : "var(--pd-fg)",
+                  cursor: syncDisabled ? "not-allowed" : "pointer",
+                  opacity: syncDisabled ? 0.5 : 1,
+                  flexShrink: 0,
+                  pointerEvents: syncDisabled ? "none" : "auto",
+                }}
               >
-                <RefreshCw className={cn("h-4 w-4", scanRunning && !scanStale && "animate-spin")} />
-                {scanStale ? "Scan stuck" : scanRunning ? truncatePath(scanCurrentPath) : scanQueued ? "Queued…" : "Sync"}
-              </Button>
+                <RefreshCw
+                  style={{ width: 14, height: 14 }}
+                  className={cn(scanRunning && !scanStale && "animate-spin")}
+                />
+              </button>
             </span>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-[280px]">
@@ -225,100 +587,55 @@ export default function LibraryTopBar({
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      {scanQueued && (
-        <Badge variant="outline" className="gap-1 text-[10px] border-[hsl(var(--warning))]/50 text-[hsl(var(--warning))] animate-pulse">
-          <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--warning))]" />
-          Waiting for agent
-        </Badge>
-      )}
-      {scanPending && !scanRunning && !scanQueued && (
-        <Badge variant="outline" className="gap-1 text-[10px] border-[hsl(var(--warning))]/50 text-[hsl(var(--warning))] animate-pulse">
-          <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--warning))]" />
-          Sync queued
-        </Badge>
-      )}
-      {scanRunning && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={onStopScan}>
-                <Square className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[220px] text-center">
-              Signals the agent to stop after the current directory. Already-discovered assets are kept.
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-      
-      {/* Persistent scan status when not actively scanning */}
-      {!scanRunning && !scanQueued && !scanPending && lastScanStatus && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {lastScanStatus !== "completed" ? (
-                <Link to="/settings/scan-diagnostics">
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "gap-1 text-[10px] cursor-pointer hover:bg-accent/50 transition-colors",
-                      lastScanStatus === "completed_with_errors" && "border-[hsl(var(--warning))]/50 text-[hsl(var(--warning))]",
-                      lastScanStatus === "failed" && "border-destructive/50 text-destructive"
-                    )}
-                  >
-                    <span className={cn(
-                      "h-1.5 w-1.5 rounded-full",
-                      lastScanStatus === "completed_with_errors" && "bg-[hsl(var(--warning))]",
-                      lastScanStatus === "failed" && "bg-destructive"
-                    )} />
-                    Last: {lastScanStatus === "completed_with_errors" ? "Done (with errors)" : "Failed"}
-                  </Badge>
-                </Link>
-              ) : (
-                <Badge 
-                  variant="outline" 
-                  className="gap-1 text-[10px] border-[hsl(var(--success))]/50 text-[hsl(var(--success))]"
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--success))]" />
-                  Last: Success
-                </Badge>
-              )}
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[300px]">
-              <div className="space-y-1">
-                <p className="font-medium">Last scan {lastScanStatus}</p>
-                {lastScanTime && (
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(lastScanTime)}
-                  </p>
-                )}
-                {lastScanSummary && (
-                  <p className="text-xs">{lastScanSummary}</p>
-                )}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
 
-      {/* Counts */}
-      <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-        {libraryMode === "groups" ? (
-          <>
-            <span className="font-semibold tabular-nums">{totalCount.toLocaleString()}</span>
-            {" "}SKUs
-            <span className="mx-1">·</span>
-            <span className="font-semibold tabular-nums">{totalAssets.toLocaleString()}</span>
-            {" "}files
-          </>
-        ) : (
-          <>
-            <span className="font-semibold tabular-nums">{totalCount.toLocaleString()}</span>
-            {" "}files
-          </>
-        )}
-      </span>
+      {/* 8. View segmented control */}
+      <div
+        style={{
+          display: "inline-flex",
+          borderRadius: "6px",
+          border: "1px solid var(--pd-border)",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => onViewModeChange("grid")}
+          title="Grid view"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "34px",
+            height: "34px",
+            border: "none",
+            borderRight: "1px solid var(--pd-border)",
+            background: viewMode === "grid" ? "var(--pd-accent-soft)" : "transparent",
+            color: viewMode === "grid" ? "var(--pd-accent)" : "var(--pd-fg-muted)",
+            cursor: "pointer",
+          }}
+        >
+          <LayoutGrid style={{ width: 15, height: 15 }} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onViewModeChange("list")}
+          title="List view"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "34px",
+            height: "34px",
+            border: "none",
+            background: viewMode === "list" ? "var(--pd-accent-soft)" : "transparent",
+            color: viewMode === "list" ? "var(--pd-accent)" : "var(--pd-fg-muted)",
+            cursor: "pointer",
+          }}
+        >
+          <List style={{ width: 15, height: 15 }} />
+        </button>
+      </div>
     </div>
   );
 }
