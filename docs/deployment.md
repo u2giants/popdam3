@@ -125,7 +125,7 @@ Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the ru
 
 **Workflow:** `deploy-supabase.yml`
 
-**Supabase project:** `ryltkzzernhwnojzouyb` (popdam-prod), supplied via GitHub secret `EXTERNAL_SUPABASE_PROJECT_ID`.
+**Supabase project:** `qsllyeztdwjgirsysgai` (popdam-prod, Virginia), supplied via GitHub secret `EXTERNAL_SUPABASE_PROJECT_ID`. The previous Ohio project was `ryltkzzernhwnojzouyb`.
 
 **Migrations:** When `supabase/migrations/**` files change in a push, the workflow runs `supabase db push`. This applies any local migration files not yet recorded in the DB's migration history, in timestamp order. The workflow does NOT use `--include-all`. The CI job checks `git diff HEAD~1 HEAD` to detect whether migration files changed before running `db push`.
 

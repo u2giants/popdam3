@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { POPDAM_SUPABASE_PROJECT_REF } from "@/lib/app-mode";
 import { toast } from "sonner";
 import { Copy, RotateCw, Link2 } from "lucide-react";
 
@@ -65,7 +66,7 @@ export default function PopSGAgentTab() {
               <li>
                 Add it as <code className="bg-muted px-1 rounded">CROSS_PROJECT_SECRET</code> in{" "}
                 <a
-                  href="https://supabase.com/dashboard/project/ryltkzzernhwnojzouyb/settings/functions"
+                  href={`https://supabase.com/dashboard/project/${POPDAM_SUPABASE_PROJECT_REF}/settings/functions`}
                   target="_blank"
                   rel="noreferrer"
                   className="underline hover:text-foreground"

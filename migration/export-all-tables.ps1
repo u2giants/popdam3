@@ -15,7 +15,7 @@
 # The script will create a subfolder called "export" with all CSV files.
 
 # ── CONFIGURATION ────────────────────────────────────────────────────────────
-$SupabaseUrl = "https://ryltkzzernhwnojzouyb.supabase.co"
+$SupabaseUrl = "https://qsllyeztdwjgirsysgai.supabase.co"
 $ServiceRoleKey = "PASTE_YOUR_SERVICE_ROLE_KEY_HERE"
 $PageSize = 50000
 $OutputDir = ".\export"

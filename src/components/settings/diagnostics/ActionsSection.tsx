@@ -10,6 +10,7 @@ import {
   RefreshCw, Loader2, FileSearch, Sparkles, Stethoscope, Wrench, Download, Trash2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { CURRENT_APP } from "@/lib/app-mode";
 import type { RequestOpFn } from "./types";
 import { OP_NAMES } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
@@ -51,13 +52,13 @@ export function ActionsSection({ onRefresh, requestOp }: { onRefresh: () => void
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not authenticated");
 
-      const url = "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/export-thumbnail-manifest";
+      const url = `${CURRENT_APP.supabaseUrl}/functions/v1/export-thumbnail-manifest`;
 
       const res = await fetch(url, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
-          apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
+          apikey: CURRENT_APP.supabaseAnonKey,
         },
       });
 

@@ -30,7 +30,7 @@ npx tsc --noEmit
 npm test
 ```
 
-The dev server binds to `::` (all interfaces) on port 8080. No `.env.local` file is required — Supabase credentials are hardcoded in `src/lib/app-mode.ts` and connect to the production Supabase project (`ryltkzzernhwnojzouyb`). See quirk #1 in [KNOWN_QUIRKS.md](KNOWN_QUIRKS.md).
+The dev server binds to `::` (all interfaces) on port 8080. No `.env.local` file is required — Supabase credentials are hardcoded in `src/lib/app-mode.ts` and connect to the production Supabase project (`qsllyeztdwjgirsysgai`). See quirk #1 in [KNOWN_QUIRKS.md](KNOWN_QUIRKS.md).
 
 ### Preview PopSG mode
 

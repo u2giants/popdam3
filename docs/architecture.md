@@ -2,7 +2,7 @@
 
 ## Overview
 
-PopDAM3 is a hybrid cloud/on-premises Digital Asset Manager for licensed consumer-product art. A React/Vite frontend (served via nginx on a Coolify-managed VPS) connects to a Supabase PostgreSQL database and twelve Deno edge functions (project ID `ryltkzzernhwnojzouyb`). A Node.js bridge agent running in Docker on a Synology NAS scans the filesystem, generates thumbnails, and pushes them to DigitalOcean Spaces; a separate Windows render agent handles Illustrator files. A persistent Railway cloud worker runs AI tagging, ERP enrichment, and style group rebuilds by polling a job queue stored in the `admin_config` table. The same Docker image serves both PopDAM (`dam.designflow.app`) and PopSG (`sg.designflow.app`); the active mode is determined at runtime by hostname.
+PopDAM3 is a hybrid cloud/on-premises Digital Asset Manager for licensed consumer-product art. A React/Vite frontend (served via nginx on a Coolify-managed VPS) connects to a Supabase PostgreSQL database and twelve Deno edge functions (project ID `qsllyeztdwjgirsysgai`). A Node.js bridge agent running in Docker on a Synology NAS scans the filesystem, generates thumbnails, and pushes them to DigitalOcean Spaces; a separate Windows render agent handles Illustrator files. A persistent Railway cloud worker runs AI tagging, ERP enrichment, and style group rebuilds by polling a job queue stored in the `admin_config` table. The same Docker image serves both PopDAM (`dam.designflow.app`) and PopSG (`sg.designflow.app`); the active mode is determined at runtime by hostname.
 
 ---
 
@@ -12,7 +12,7 @@ PopDAM3 is a hybrid cloud/on-premises Digital Asset Manager for licensed consume
 
 Located in `src/`. Built with Vite 5, React 18, Tailwind CSS, Shadcn/UI, and TanStack Query 5. Served from an `nginx:1.27-alpine` container (GHCR image `ghcr.io/u2giants/popdam-frontend`) managed by Coolify (app UUID `qxj8a0j3tpa9lq4q5rs6pezy`) on VPS `178.156.180.212`. Traefik terminates TLS and routes both production hostnames to the same container.
 
-**Dual-mode design:** `src/lib/app-mode.ts` runs mode detection once at module load. Priority order: (1) `?mode=popsg` or `?mode=popdam` query param, persisted to `sessionStorage`; (2) existing `sessionStorage` value; (3) hostname (`sg.*` or `popsg.*` prefix → PopSG; everything else → PopDAM). Exports `APP_MODE`, `IS_POPSG`, `IS_POPDAM`, and `CURRENT_APP`. The Supabase URL and anon key (`ryltkzzernhwnojzouyb`) are hardcoded in this file — the Lovable platform overwrites `.env` on every deploy, so environment variables cannot be used. PopSG-specific pages live in `src/pages/popsg/`; the router in `src/App.tsx` guards them with `IS_POPSG`. PopDAM-only tables (`assets`, `style_groups`, `erp_items_current`) are never queried in PopSG mode.
+**Dual-mode design:** `src/lib/app-mode.ts` runs mode detection once at module load. Priority order: (1) `?mode=popsg` or `?mode=popdam` query param, persisted to `sessionStorage`; (2) existing `sessionStorage` value; (3) hostname (`sg.*` or `popsg.*` prefix → PopSG; everything else → PopDAM). Exports `APP_MODE`, `IS_POPSG`, `IS_POPDAM`, and `CURRENT_APP`. The Supabase URL and anon key (`qsllyeztdwjgirsysgai`) are hardcoded in this file — the Lovable platform overwrites `.env` on every deploy, so environment variables cannot be used. PopSG-specific pages live in `src/pages/popsg/`; the router in `src/App.tsx` guards them with `IS_POPSG`. PopDAM-only tables (`assets`, `style_groups`, `erp_items_current`) are never queried in PopSG mode.
 
 **Key areas:**
 - `src/components/library/` — asset grid, detail panel, filter sidebar (PopDAM only)
@@ -21,7 +21,7 @@ Located in `src/`. Built with Vite 5, React 18, Tailwind CSS, Shadcn/UI, and Tan
 
 ### Supabase (DB + Edge Functions)
 
-**Project ID:** `ryltkzzernhwnojzouyb` (host: `ryltkzzernhwnojzouyb.supabase.co`)
+**Project ID:** `qsllyeztdwjgirsysgai` (host: `qsllyeztdwjgirsysgai.supabase.co`)
 
 PostgreSQL with extensions `pg_cron`, `pg_net`, `pg_trgm`, `pgcrypto`, `pgsodium`/Vault. Schema changes are managed via timestamped migration files in `supabase/migrations/` applied through `supabase db push` in CI (`deploy-supabase.yml`). Migration filename timestamps must exactly match the timestamp Supabase records when `apply_migration` MCP is called.
 
@@ -65,7 +65,7 @@ Located in `apps/popdam-helper/`. An Electron desktop application (built with el
 2. `admin-api` writes the command; the bridge agent picks it up on the next heartbeat or via Supabase Realtime.
 3. Bridge agent walks the NAS filesystem, collects the scan candidates, and calls `check-changed` across the scan before ingesting files. Unchanged rows seed a per-scan `(quick_hash, filename)` identity set; new/changed files are hashed (first/last 64 KB + size). If the same identity is seen more than once in a scan, later copies bypass hash move detection and settle as path-specific asset rows.
 4. For new/changed files, the bridge agent generates a thumbnail (MuPDF for PDF, Sharp for images, queues to Windows Agent for `.ai`), uploads it to DigitalOcean Spaces bucket `popdam` (CDN: `cdn.designflow.app`), and records the `thumbnail_url`.
-5. Bridge agent calls `POST /agent/batch-ingest` on `agent-api` with up to 100 files per batch. `agent-api` upserts rows into `assets`, setting `relative_path` (canonical POSIX, no leading slash), `quick_hash`, `modified_at` (filesystem mtime, never server time), `thumbnail_url`, and derived metadata. Hash move detection is used only when the incoming path has no existing row, the candidate is unique by `(quick_hash, filename)`, and the bridge did not mark the file as a duplicate seen in the current scan.
+5. Bridge agent calls `POST /agent/ingest` on `agent-api` for each processed file, bounded by the agent's thumbnail/ingest concurrency. `agent-api` upserts rows into `assets`, setting `relative_path` (canonical POSIX, no leading slash), `quick_hash`, `modified_at` (filesystem mtime, never server time), `thumbnail_url`, and derived metadata. Hash move detection is used only when the incoming path has no existing row, the candidate is unique by `(quick_hash, filename)`, and the bridge did not mark the file as a duplicate seen in the current scan.
 6. The `trg_compute_primary_sort_tier` trigger assigns a cover tier on every insert/update. The `trg_sync_primary_on_thumbnail` trigger (fires on INSERT and UPDATE) updates `style_groups.primary_asset_id` when a thumbnail is set.
 7. Bridge agent calls `POST /agent/scan-progress` throughout and reports completion.
 
@@ -134,7 +134,7 @@ Located in `apps/popdam-helper/`. An Electron desktop application (built with el
 | Function | Purpose |
 |----------|---------|
 | `admin-api` | Admin control plane (~1,300 lines). Routes for scan management, render queue, agent management, ERP enrichment, tag propagation, PDF backfill, diagnostics, TIFF pipeline, sibling scan, user/invitation management. Auth: user JWT + admin role, or service role key as Bearer. |
-| `agent-api` | Bridge and Windows agent communication (~2,800 lines). Routes: `register`, `heartbeat`, `ingest`, `batch-ingest`, `scan-progress`, `queue-render`, `claim-render`, `complete-render`, `bootstrap`, `report-path-test`, `report-dir-browse`, bulk PDF text insert, style guide crawl. Auth: `x-agent-key` header. |
+| `agent-api` | Bridge and Windows agent communication (~4,100 lines). Routes include `heartbeat`, `ingest`, `check-changed`, `scan-progress`, checkpoint routes, render queue routes, TIFF/hygiene/sibling-scan routes, PDF backfill/text-sample routes, style-guide crawl, and check-in verification. Auth: `x-agent-key` header. |
 | `helper-api` | Checkout/checkin workflow for the Electron desktop helper. Auth: user JWT. |
 | `erp-sync` | Fetches from the DesignFlow ERP API and upserts into `erp_items_current` / `erp_items_raw`. |
 | `ai-tag` | Legacy AI tagging; currently used mainly for PDF text extraction via Google Gemini direct. |
@@ -151,7 +151,7 @@ Located in `apps/popdam-helper/`. An Electron desktop application (built with el
 
 ## Dual-Mode Design
 
-Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by the same Docker container and the same Supabase project (`ryltkzzernhwnojzouyb`). Traefik routes both hostnames to the `popdam-frontend` container (Coolify UUID `qxj8a0j3tpa9lq4q5rs6pezy`). The `sg.designflow.app` routing is configured via a Traefik file provider at `/data/coolify/proxy/dynamic/popdam-sg.yml` on the VPS host, referencing the Traefik service name `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker`.
+Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by the same Docker container and the same Supabase project (`qsllyeztdwjgirsysgai`). Traefik routes both hostnames to the `popdam-frontend` container (Coolify UUID `qxj8a0j3tpa9lq4q5rs6pezy`). The `sg.designflow.app` routing is configured via a Traefik file provider at `/data/coolify/proxy/dynamic/popdam-sg.yml` on the VPS host, referencing the Traefik service name `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker`.
 
 At runtime, `src/lib/app-mode.ts` detects the active mode from the hostname and sets `IS_POPSG` / `IS_POPDAM`. Mode differences are entirely in the UI layer:
 
@@ -178,7 +178,7 @@ The `supabase-popsg/` directory in the repo root is dead code from an earlier ar
 
 | Service | Role |
 |---------|------|
-| **Supabase** (`ryltkzzernhwnojzouyb`) | PostgreSQL database, Auth, Realtime, Edge Functions runtime (Deno). Single project for both PopDAM and PopSG. |
+| **Supabase** (`qsllyeztdwjgirsysgai`) | PostgreSQL database, Auth, Realtime, Edge Functions runtime (Deno). Single project for both PopDAM and PopSG. |
 | **DigitalOcean Spaces** | S3-compatible object storage. Bucket `popdam`, region `nyc3`. CDN at `cdn.designflow.app`. Stores all asset thumbnails. Path format: `thumbnails/{asset_id}.jpg`. |
 | **OpenRouter / Anthropic** | AI inference. OpenRouter (`OPENROUTER_API_KEY`) is the preferred provider; `ANTHROPIC_API_KEY` and `GOOGLE_AI_API_KEY` are fallbacks. Used by the Railway worker for ERP category classification and AI asset tagging. The bridge agent's PDF text extraction uses a vision model via OpenRouter as a last-resort fallback after MuPDF + OCR. |
 | **Coolify** | Container orchestration on VPS `178.156.180.212`. Owns the `popdam-frontend` container lifecycle, runtime env vars, domain bindings, health checks, and restart policy. CI triggers deploys via the Coolify REST API (`POST /api/v1/deploy?uuid=qxj8a0j3tpa9lq4q5rs6pezy`). |

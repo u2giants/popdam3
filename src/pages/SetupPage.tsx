@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CURRENT_APP } from "@/lib/app-mode";
 import { toast } from "sonner";
 
 function CopyBlock({ label, content }: { label: string; content: string }) {
@@ -112,7 +113,7 @@ export default function SetupPage() {
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
 
   // Pre-fill supabase URL from env
-  const supabaseUrl = "https://ryltkzzernhwnojzouyb.supabase.co";
+  const supabaseUrl = CURRENT_APP.supabaseUrl;
 
   const { data: configData } = useQuery({
     queryKey: ["admin-config"],

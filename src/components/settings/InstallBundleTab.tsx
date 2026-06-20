@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CURRENT_APP } from "@/lib/app-mode";
 import { toast } from "sonner";
 import {
   Download, Server, Plus, Trash2, Package,
@@ -22,14 +23,14 @@ async function downloadBundle(payload: Record<string, unknown>) {
   if (!session?.access_token) throw new Error("Not authenticated");
 
   // We need raw binary, so use fetch directly instead of supabase.functions.invoke
-  const url = "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/admin-api";
+  const url = `${CURRENT_APP.supabaseUrl}/functions/v1/admin-api`;
 
   const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${session.access_token}`,
       "Content-Type": "application/json",
-      apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
+      apikey: CURRENT_APP.supabaseAnonKey,
     },
     body: JSON.stringify({ action: "generate-install-bundle", ...payload }),
   });

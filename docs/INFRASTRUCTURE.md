@@ -8,7 +8,7 @@ This document covers the cloud infrastructure underlying PopDAM: the Supabase pr
 
 PopDAM runs on a single Supabase project. All database tables, edge functions, RLS policies, database functions, and triggers live here.
 
-**Project URL:** `https://ryltkzzernhwnojzouyb.supabase.co`
+**Project URL:** `https://qsllyeztdwjgirsysgai.supabase.co`
 
 **Database:** PostgreSQL (managed by Supabase). Extensions in use:
 - `pg_cron` — scheduled SQL jobs (in `extensions` schema)

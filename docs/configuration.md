@@ -7,7 +7,7 @@ The frontend has **no runtime env vars**. All configuration is baked into the bu
 ### Hardcoded Supabase config (`src/lib/app-mode.ts`)
 
 ```typescript
-const POPDAM_SUPABASE_URL = "https://ryltkzzernhwnojzouyb.supabase.co";
+const POPDAM_SUPABASE_URL = "https://qsllyeztdwjgirsysgai.supabase.co";
 const POPDAM_ANON_KEY = "sb_publishable_...";
 ```
 

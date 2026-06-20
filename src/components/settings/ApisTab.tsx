@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { CURRENT_APP } from "@/lib/app-mode";
 import { toast } from "sonner";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -117,13 +118,13 @@ function TaxonomySourceEditor() {
     mutationFn: async (code: string) => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
-      const url = "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/sync-external";
+      const url = `${CURRENT_APP.supabaseUrl}/functions/v1/sync-external`;
       const resp = await fetch(url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
+          apikey: CURRENT_APP.supabaseAnonKey,
         },
         body: JSON.stringify({ action: "sync-one", licensor_code: code }),
       });
@@ -309,13 +310,13 @@ function TaxonomyApiSection() {
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
-      const url = "https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/sync-external";
+      const url = `${CURRENT_APP.supabaseUrl}/functions/v1/sync-external`;
       const resp = await fetch(url, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          apikey: "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK",
+          apikey: CURRENT_APP.supabaseAnonKey,
         },
         body: JSON.stringify({ action: "sync-all" }),
       });

@@ -40,8 +40,9 @@ function detectMode(): AppMode {
   return "popdam";
 }
 
-const POPDAM_SUPABASE_URL = "https://ryltkzzernhwnojzouyb.supabase.co";
-const POPDAM_ANON_KEY = "sb_publishable_7pDNMn_LIJOkdYmhcI0n7g_IuKABuWK";
+export const POPDAM_SUPABASE_PROJECT_REF = "qsllyeztdwjgirsysgai";
+export const POPDAM_SUPABASE_URL = `https://${POPDAM_SUPABASE_PROJECT_REF}.supabase.co`;
+export const POPDAM_ANON_KEY = "sb_publishable_DzKBYH1jmWYDuA3ONUrPQQ_0EFEUSbE";
 
 export const APP_CONFIG = {
   popdam: {

@@ -1,1 +1,1 @@
-ALTER TABLE public.assets ADD COLUMN ai_model text DEFAULT NULL;
+ALTER TABLE public.assets ADD COLUMN IF NOT EXISTS ai_model text DEFAULT NULL;

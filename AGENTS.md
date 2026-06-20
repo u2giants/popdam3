@@ -175,7 +175,7 @@ Files outside project-owned areas that were intentionally modified:
 | Fix style group asset_count drift | `supabase/migrations/` (new migration), `supabase/functions/_shared/` | — |
 | Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts`, `src/lib/mg-lookup.ts` | — |
 | Fix production PO sync | `supabase/functions/_shared/admin-handlers/prod-order-handlers.ts`, `supabase/migrations/`, `src/components/settings/ErpEnrichmentTab.tsx`, `src/components/library/StyleGroupDetailPanel.tsx` | Do not rely on copied browser JWTs as durable auth |
-| Fix bridge agent scan | `apps/bridge-agent/src/scanner.ts`, `apps/bridge-agent/src/handlers/` | — |
+| Fix bridge agent scan / ingest / move detection | `apps/bridge-agent/src/index.ts`, `apps/bridge-agent/src/scanner.ts`, `apps/bridge-agent/src/api-client.ts`, `supabase/functions/agent-api/index.ts`, `docs/WORKER_LOGIC.md`, `docs/API_CONTRACTS.md` | Do not treat `quick_hash` as unique; do not edit generated Supabase types |
 | Fix thumbnail generation | `apps/bridge-agent/src/thumbnailer.ts` | — |
 | Add PopSG page | `src/pages/popsg/`, `src/App.tsx` (route guard) | `src/components/library/` (PopDAM-only) |
 | Change Traefik routing | `/data/coolify/proxy/dynamic/` on VPS, or Coolify app config | `nginx.conf` (unless fixing health check) |
@@ -190,7 +190,7 @@ Files outside project-owned areas that were intentionally modified:
 
 | Entity / system | Identifier | Where defined | Notes |
 |-----------|-------|-----------|-------|
-| Supabase project ID (prod) | `ryltkzzernhwnojzouyb` | GitHub secret `EXTERNAL_SUPABASE_PROJECT_ID`, docs/config | Do not confuse with SynoMon `qnjimovrsaacneqkggsn` |
+| Supabase project ID (prod) | `qsllyeztdwjgirsysgai` | GitHub secret `EXTERNAL_SUPABASE_PROJECT_ID`, docs/config | Virginia project; old Ohio project was `ryltkzzernhwnojzouyb`. Do not confuse with SynoMon `qnjimovrsaacneqkggsn` |
 | Coolify app UUID | `qxj8a0j3tpa9lq4q5rs6pezy` | Coolify, GitHub secret `COOLIFY_APP_UUID` | Embedded in Traefik service name and CI secrets |
 | Coolify Traefik service name | `https-0-qxj8a0j3tpa9lq4q5rs6pezy@docker` | `/data/coolify/proxy/dynamic/popdam-sg.yml` | Referenced by the PopSG file-provider route |
 | Production domains | `dam.designflow.app`, `sg.designflow.app` | Coolify + Traefik | Same frontend container; hostname chooses mode |
@@ -203,6 +203,8 @@ Files outside project-owned areas that were intentionally modified:
 | pg_cron job | `purge-render-queue-old-rows` / `purge-sg-render-queue-old-rows` | migration files | Queue retention |
 | pg_cron job | `purge-asset-path-history-old-rows` | migration files | Path-history retention |
 | Key DB tables | `assets`, `style_groups`, `erp_items_current`, `style_guide_files`, `admin_config`, `product_category_predictions` | `docs/SCHEMA.md`, migrations | Core PopDAM/PopSG data model |
+| Asset content hint | `assets.quick_hash`, `assets.quick_hash_version` | Bridge Agent / Helper hashing code; `docs/PROJECT_BIBLE.md` §9 | Sampled hash only; never a content-unique key |
+| Path-history table | `asset_path_history` | `agent-api` move-detection branch; migration `20260619131239` adds `(asset_id, detected_at DESC)` index | Records accepted moves; high-churn rows were pruned after v1.16.2 verification |
 | Path-derived columns | `stage`, `customer`, `program` on `assets` and `style_groups` | `docs/PATH_ATTRIBUTES.md` | Not the same as `workflow_status` |
 | Path-attr DB functions | `infer_path_attrs(path)`, `get_path_facets(customer)`; trigger `trg_set_path_attrs` | migrations | Path facet derivation |
 | Path-attr anchor folder | `____New Structure` | NAS path convention | Four leading underscores |
@@ -219,8 +221,8 @@ Files outside project-owned areas that were intentionally modified:
 | `popdam-bridge` | Synology NAS scanner, thumbnailer, upload/check-in verifier | Synology Container Manager / docker compose | Host `edgesynology2`; compose reference `deploy/synology/docker-compose.yml` | `ghcr.io/u2giants/popdam-bridge:stable` from `.github/workflows/publish-bridge-agent.yml` |
 | Windows render agent | Illustrator/Windows render and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
 | POP DAM Helper | Designer desktop checkout/check-in helper | End-user desktop install | Release channel `popdam-helper-latest` | `apps/popdam-helper/`, packaged by `.github/workflows/publish-popdam-helper.yml` |
-| Supabase edge functions | Admin, agent, helper, auth, export, sync APIs | Supabase | Project `ryltkzzernhwnojzouyb` | `supabase/functions/**`, deployed by `.github/workflows/deploy-supabase.yml` |
-| PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `ryltkzzernhwnojzouyb` | `supabase/migrations/**`, applied by `.github/workflows/deploy-supabase.yml` |
+| Supabase edge functions | Admin, agent, helper, auth, export, sync APIs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/functions/**`, deployed by `.github/workflows/deploy-supabase.yml` |
+| PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/migrations/**`, applied by `.github/workflows/deploy-supabase.yml` |
 
 **Railway deploy note:** Railway watches `main` and rebuilds on every push. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
 **GitHub deployment badge gotcha:** the green `popdam / production` deployment shown in GitHub's repository sidebar is emitted by Railway (`railway-app[bot]`). It means the Railway worker deployed that commit; it does **not** prove the frontend at `dam.designflow.app` / `sg.designflow.app` updated. For frontend freshness, check the `Publish Frontend Image` workflow and the live build SHA/header.
@@ -277,7 +279,7 @@ Use this exact shape for every new quirk:
 ### Dual-mode (PopDAM / PopSG) via hostname detection
 
 **Looks like:** Two separate Supabase projects, two separate deployments.
-**Actually:** One Docker image, one Coolify app, one Supabase project (`ryltkzzernhwnojzouyb`). `src/lib/app-mode.ts` reads `window.location.host` and returns `"popdam"` or `"popsg"`. `IS_POPSG` guards routes, UI panels, and page components throughout `App.tsx` and the components tree.
+**Actually:** One Docker image, one Coolify app, one Supabase project (`qsllyeztdwjgirsysgai`). `src/lib/app-mode.ts` reads `window.location.host` and returns `"popdam"` or `"popsg"`. `IS_POPSG` guards routes, UI panels, and page components throughout `App.tsx` and the components tree.
 **Do not change because:** Splitting the mode into two builds or two containers would double the deployment surface for no functional gain.
 **Local testing:** Add `?mode=popsg` to any localhost URL — stored in `sessionStorage` for the tab.
 
@@ -434,11 +436,12 @@ Use this exact shape for every new quirk:
 **Why:** `workflow_status` predates `____New Structure` and is ambiguous there (it conflates lifecycle with approval and deliberately drops the Concept-Approved signal). `stage` gives a clean lifecycle bucket for the new tree.
 **Do not change because:** Filters, search (`Ross Wall 2026` → its files/groups), and `get_filter_counts`/`get_path_facets` all depend on these columns; the triggers keep them in sync on folder moves. Full rules: `docs/PATH_ATTRIBUTES.md`.
 
-### `quick_hash` is NOT content-unique — it causes asset "flip-flapping" and hides files (open issue, 2026-06-19)
+### `quick_hash` is NOT content-unique — move detection is guarded (fixed forward 2026-06-20)
 
-**Looks like:** `asset_path_history` has ~4.7M rows and assets constantly report as "moved"; looks like NAS churn.
-**Actually:** `quick_hash` = SHA-256(first 64KB + last 64KB + size), a *sampled* hash. Template-derived design files (e.g. many SKUs' `sewn-in label.ai`, identical header/footer/size) and all 0-byte files **collide**. Move detection (`agent-api` `process-asset`) matches on `quick_hash` alone with no filename/old-path check **and dedups on it**, so each collision cluster (a) flip-flaps one shared asset row between paths every scan and (b) **hides the other N−1 real files from the Library entirely**. 15k+ assets affected.
-**Do not change because:** Before touching ingest/move-detection or pruning `asset_path_history`, add a filename/old-path guard and treat `quick_hash` as non-unique — else you keep regenerating the churn and the hidden files stay hidden. Full analysis + fix options: `docs/KNOWN_QUIRKS.md` #51.
+**Looks like:** `quick_hash` should identify a file's contents, so matching it is enough to detect a move.
+**Actually:** `quick_hash` = SHA-256(first 64KB + last 64KB + size), a *sampled* hash. Template-derived design files and all 0-byte files can collide, while byte-identical duplicate copies intentionally share a hash. Since bridge agent v1.16.2 and the matching `agent-api`, move detection is allowed only when the incoming path has no existing row, file size is nonzero, the candidate is unique by `(quick_hash, filename)`, and the bridge has not marked the file with `skip_move_detection`.
+**Why:** The old hash-only logic flip-flapped one asset row between duplicate/colliding paths, hid the other real files from the Library, and grew `asset_path_history` to millions of rows. After v1.16.2 was deployed, a repair scan and verification scan completed; the verification scan saw `122,380` files, `81` moves, and `0` errors. Then `9,299,506` high-churn `asset_path_history` rows were pruned and `VACUUM (ANALYZE)` succeeded.
+**Do not change because:** Reverting to hash-only move detection will regenerate path-history bloat and hide duplicate/colliding files again. Preserve the bridge's scan-wide `(quick_hash, filename)` seen set, the `check-changed.existing_content_identities` response, `skip_move_detection`, and the server-side uniqueness/0-byte/path guards. Full detail: `docs/KNOWN_QUIRKS.md` #51.
 
 ### Library list/facet queries must beat the 8s `authenticated` timeout (2026-06-19)
 

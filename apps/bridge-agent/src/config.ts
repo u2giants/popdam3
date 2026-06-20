@@ -45,8 +45,15 @@ function optionalInt(key: string, fallback: number): number {
   return isNaN(n) ? fallback : n;
 }
 
+const LEGACY_OHIO_SUPABASE_URL = "https://ryltkzzernhwnojzouyb.supabase.co";
+const VIRGINIA_SUPABASE_URL = "https://qsllyeztdwjgirsysgai.supabase.co";
+
+function migrateSupabaseUrl(url: string): string {
+  return url === LEGACY_OHIO_SUPABASE_URL ? VIRGINIA_SUPABASE_URL : url;
+}
+
 // Server URL: prefer POPDAM_SERVER_URL, fall back to SUPABASE_URL
-const serverUrl = optional("POPDAM_SERVER_URL", optional("SUPABASE_URL", ""));
+const serverUrl = migrateSupabaseUrl(optional("POPDAM_SERVER_URL", optional("SUPABASE_URL", "")));
 if (!serverUrl) {
   throw new Error("Missing required: POPDAM_SERVER_URL or SUPABASE_URL");
 }

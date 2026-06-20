@@ -115,8 +115,8 @@ CREATE TRIGGER trg_set_path_attrs
 CREATE INDEX IF NOT EXISTS idx_assets_stage    ON public.assets (stage);
 CREATE INDEX IF NOT EXISTS idx_assets_customer ON public.assets (customer);
 CREATE INDEX IF NOT EXISTS idx_assets_program  ON public.assets (program);
-CREATE INDEX IF NOT EXISTS idx_assets_program_trgm  ON public.assets USING gin (program gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_assets_customer_trgm ON public.assets USING gin (customer gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_assets_program_trgm  ON public.assets USING gin (program extensions.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_assets_customer_trgm ON public.assets USING gin (customer extensions.gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS idx_sg_stage    ON public.style_groups (stage);
 CREATE INDEX IF NOT EXISTS idx_sg_customer ON public.style_groups (customer);

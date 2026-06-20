@@ -52,7 +52,7 @@ Project IDs:
 
 | Project | ID | Use |
 |---------|----|-----|
-| PopDAM prod | `ryltkzzernhwnojzouyb` | All PopDAM/PopSG schema and edge functions |
+| PopDAM prod | `qsllyeztdwjgirsysgai` | All PopDAM/PopSG schema and edge functions |
 | SynoMon | `qnjimovrsaacneqkggsn` | Separate project; never use for this repo |
 
 ---

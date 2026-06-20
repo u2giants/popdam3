@@ -316,4 +316,4 @@ docker exec $(docker ps -q --filter "name=qxj8a0j3tpa9lq4q5rs6pezy") \
 - **Do not** delete `/data/coolify/proxy/dynamic/popdam-sg.yml` — `sg.designflow.app` will stop routing.
 - **Do not** add runtime env vars to the container — Supabase credentials are baked into the bundle at build time.
 - **Do not** rebuild the image on the VPS — always go through CI.
-- **Do not** mix Supabase projects: popdam-prod is `ryltkzzernhwnojzouyb`; SynoMon is `qnjimovrsaacneqkggsn`.
+- **Do not** mix Supabase projects: popdam-prod is `qsllyeztdwjgirsysgai`; old Ohio popdam-prod was `ryltkzzernhwnojzouyb`; SynoMon is `qnjimovrsaacneqkggsn`.

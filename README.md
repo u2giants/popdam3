@@ -16,7 +16,7 @@ npm run dev
 ```
 
 No `.env.local` needed — the Supabase URL and anon key are hardcoded in `src/lib/app-mode.ts`
-and connect to the production project (`ryltkzzernhwnojzouyb`) by default. See quirk #1 in
+and connect to the production project (`qsllyeztdwjgirsysgai`) by default. See quirk #1 in
 [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md) for why.
 
 To preview PopSG mode locally: add `?mode=popsg` to the URL.
