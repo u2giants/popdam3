@@ -12,10 +12,37 @@ import {
   ArrowUp,
   ArrowDown,
   Check,
+  Square,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CardStyle, ViewMode, SortField, SortDirection, LibraryMode } from "@/types/assets";
+import type { ScanProgress } from "@/hooks/useScanProgress";
 import { cn } from "@/lib/utils";
+
+function useElapsed(active: boolean): string {
+  const startRef = useRef<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (active) { if (startRef.current === null) startRef.current = Date.now(); }
+    else { startRef.current = null; }
+  }, [active]);
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  if (!active || startRef.current === null) return "0:00";
+  const elapsed = Math.max(0, now - startRef.current);
+  const totalSec = Math.floor(elapsed / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min >= 60) {
+    const hr = Math.floor(min / 60);
+    const rm = min % 60;
+    return `${hr}:${String(rm).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
+  return `${min}:${String(sec).padStart(2, "0")}`;
+}
 
 interface LibraryTopBarProps {
   search: string;
@@ -50,6 +77,8 @@ interface LibraryTopBarProps {
   onCardStyleChange: (v: CardStyle) => void;
   groupCount: number;
   fileCount: number;
+  scanProgress?: ScanProgress | null;
+  ungroupedCount?: number | null;
 }
 
 const GROUP_SORT_OPTIONS: { value: SortField; label: string }[] = [
@@ -103,13 +132,19 @@ export default function LibraryTopBar({
   scanQueued,
   scanPending,
   onSync,
+  onStopScan,
   scanBlocked,
   scanBlockedReason,
   cardStyle,
   onCardStyleChange,
   groupCount,
   fileCount,
+  scanProgress,
+  ungroupedCount,
 }: LibraryTopBarProps) {
+  const isScanRunning = scanProgress?.status === "running";
+  const isScanStale = scanProgress?.status === "stale";
+  const elapsed = useElapsed(isScanRunning || isScanStale);
   const syncDisabled = scanPending || scanRunning || scanQueued || scanBlocked;
   const syncTitle = scanBlocked
     ? scanBlockedReason || "Scan blocked"
@@ -339,6 +374,9 @@ export default function LibraryTopBar({
               {fileCount.toLocaleString()}
             </strong>
             {" files"}
+            {ungroupedCount != null && ungroupedCount > 0 && (
+              <> · <span style={{ color: "var(--pd-fg-muted)", fontSize: "12px" }}>{ungroupedCount.toLocaleString()} ungrouped</span></>
+            )}
           </>
         ) : (
           <>
@@ -587,6 +625,92 @@ export default function LibraryTopBar({
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
+
+      {/* Compact scan status pill */}
+      {(isScanRunning || isScanStale) && (
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  height: "34px",
+                  padding: "0 8px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--pd-border)",
+                  background: isScanStale ? "var(--pd-warning-soft, rgba(234,179,8,0.1))" : "transparent",
+                  fontSize: "12px",
+                  color: "var(--pd-fg-muted)",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  cursor: "default",
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    background: isScanStale ? "hsl(var(--warning))" : "hsl(var(--success))",
+                    animation: isScanStale ? "none" : "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite",
+                  }}
+                />
+                <span style={{ fontWeight: 500, color: "var(--pd-fg)" }}>
+                  {isScanStale ? "Stuck" : "Scanning"}
+                </span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>{elapsed}</span>
+                {scanProgress?.counters && (
+                  <span>· {(scanProgress.counters.candidates_found ?? 0).toLocaleString()} found</span>
+                )}
+                <button
+                  type="button"
+                  onClick={onStopScan}
+                  title="Stop scan"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginLeft: "2px",
+                    padding: "2px",
+                    borderRadius: "4px",
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
+                    color: "hsl(var(--destructive))",
+                  }}
+                >
+                  <Square style={{ width: 11, height: 11, fill: "currentColor" }} />
+                </button>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[300px]">
+              {scanProgress?.counters ? (
+                <div style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <div>{(scanProgress.counters.files_total_encountered ?? scanProgress.counters.files_checked ?? 0).toLocaleString()} seen</div>
+                  <div>{(scanProgress.counters.candidates_found ?? 0).toLocaleString()} found</div>
+                  <div>{(scanProgress.counters.ingested_new ?? 0).toLocaleString()} new</div>
+                  <div>{(scanProgress.counters.updated_existing ?? 0).toLocaleString()} updated</div>
+                  <div>{(scanProgress.counters.moved_detected ?? 0).toLocaleString()} moved</div>
+                  {(scanProgress.counters.skipped_before_min_date ?? 0) > 0 && (
+                    <div>{(scanProgress.counters.skipped_before_min_date ?? 0).toLocaleString()} too old</div>
+                  )}
+                  {(scanProgress.counters.errors ?? 0) > 0 && (
+                    <div style={{ color: "hsl(var(--destructive))" }}>{scanProgress.counters.errors.toLocaleString()} errors</div>
+                  )}
+                  {scanProgress.current_path && (
+                    <div style={{ color: "var(--pd-fg-muted)", marginTop: "4px", fontFamily: "monospace", fontSize: "11px" }}>
+                      …/{scanProgress.current_path.split("/").slice(-2).join("/")}
+                    </div>
+                  )}
+                </div>
+              ) : isScanStale ? "No progress for 3+ min — agent may be hung" : "Scanning in progress"}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
 
       {/* 8. View segmented control */}
       <div

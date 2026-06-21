@@ -5,7 +5,6 @@ import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePat
 import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
 import type { Asset, CardStyle } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
-import ScanMonitorBanner from "@/components/library/ScanMonitorBanner";
 import FilterSidebar from "@/components/library/FilterSidebar";
 import StyleGroupGrid from "@/components/library/StyleGroupGrid";
 import StyleGroupListView from "@/components/library/StyleGroupListView";
@@ -19,7 +18,6 @@ import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { useScanProgress } from "@/hooks/useScanProgress";
 import { useScanLifecycle } from "@/hooks/useScanLifecycle";
 import { useSelectionManager } from "@/hooks/useSelectionManager";
-import { Badge } from "@/components/ui/badge";
 import { useRef } from "react";
 
 export default function LibraryPage() {
@@ -163,23 +161,15 @@ export default function LibraryPage() {
         onCardStyleChange={setCardStyle}
         groupCount={isGroupsMode ? ((totalGroupCount ?? 0) + (ungroupedCount ?? 0)) : 0}
         fileCount={isGroupsMode ? (totalGroupCount ? groups.reduce((s, g) => s + (g.asset_count || 0), 0) : 0) : (assetData?.totalCount ?? 0)}
+        scanProgress={scanProgress}
+        ungroupedCount={isGroupsMode ? ungroupedCount : null}
       />
-
-      <ScanMonitorBanner scanProgress={scanProgress} onStopScan={handleStopScan} />
 
       {isGroupsMode && selectedIds.size > 0 && (
         <BulkActionBar
           selectedGroups={selectedGroups}
           onClearSelection={() => setSelectedIds(new Set())}
         />
-      )}
-
-      {/* Ungrouped count indicator — groups mode only */}
-      {isGroupsMode && ungroupedCount != null && ungroupedCount > 0 && (
-        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-muted/30 text-xs text-muted-foreground">
-          <Badge variant="secondary" className="text-[10px]">{ungroupedCount} ungrouped</Badge>
-          <span>assets not in any style group</span>
-        </div>
       )}
 
       <div className="relative flex flex-1 overflow-hidden">
