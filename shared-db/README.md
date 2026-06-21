@@ -14,6 +14,7 @@ This repo holds schema mapping, relationship design, migration gaps, Supabase mi
 
 ## Current Documents
 
+- [Cross-app coordination playbook](AGENTS.md) - **read first.** The operating contract for every AI session: which repos use `main` vs branch+PR, the four rules that stop the four apps from breaking each other through the shared database, and the merge protocol the AI runs.
 - [Unified Supabase schema map](docs/unified-supabase-schema-map.md) - canonical entity/table ownership map across DAM, CRM, PM, and PLM.
 - [Shared database vision](docs/shared-database-vision.md) - the grander intention: one shared Supabase database for DAM, CRM, PM/PIM, and PLM.
 - [Unified Supabase relationships](docs/unified-supabase-relationships.md) - crossover relationships, join strategy, realtime boundaries, and browser-facing API contracts.
