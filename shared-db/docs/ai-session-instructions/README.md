@@ -11,6 +11,7 @@ Then use the app-specific guide:
 
 - [CRM / `popcrm-web`](popcrm-web-supabase-migration.md)
 - [PM/PIM / `poppim-web`](poppim-web-supabase-migration.md)
+  - Full execution plan (phased, standalone): [poppim-web-supabase-migration-plan.md](poppim-web-supabase-migration-plan.md)
 
 The shared preview branch is:
 

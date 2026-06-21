@@ -2,6 +2,10 @@
 
 Read this before rewriting `u2giants/poppim-web` from Directus to Supabase.
 
+For the full phased execution plan (audit, parity queries, read/write migration
+order, RLS hardening, data load, rollback), see the standalone companion:
+[poppim-web-supabase-migration-plan.md](poppim-web-supabase-migration-plan.md).
+
 Also read:
 
 - `docs/ai-session-instructions/shared-supabase-branch-workflow.md`
