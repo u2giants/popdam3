@@ -1,6 +1,6 @@
 # Handoff
 
-_Last updated: 2026-06-18. Delete this file once the pilot, code signing, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, and production PO sync auth handoff are done._
+_Last updated: 2026-06-21. Delete this file once the pilot, code signing, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, and production PO sync auth handoff are done. (The quick_hash/move-detection and bridge build-identity work in §5.9 is **done and deployed** — kept only for the optional history-row cleanup.)_
 
 Read `AGENTS.md` first. This file is self-contained — a developer with **zero prior context** should be able to continue from here. Background detail lives in `docs/SEAFILE_INTEGRATION.md` and `docs/POPDAM_HELPER.md`.
 
@@ -10,7 +10,7 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 
 - **Apps & URLs:** PopDAM web = `https://dam.designflow.app`; PopSG = `https://sg.designflow.app` (same Docker image, mode by hostname). Seafile server = `https://seafile.designflow.app` (a **separate** system, repo `u2giants/seafile` — do not edit it from here).
 - **Admin access:** you need a PopDAM admin account (Microsoft SSO or email/password). Admin UI is Settings (gear). Authentik SSO still exists in the backend but the "Sign in with company account" button is hidden in `src/pages/LoginPage.tsx` as of 2026-06-08. For the Seafile side you need the Seafile admin account.
-- **Database / config:** prod Supabase project `qsllyeztdwjgirsysgai` (Virginia; old Ohio project was `ryltkzzernhwnojzouyb`). `admin_config` is a key/value table read by edge functions and agents. Changes to it are plain SQL `UPDATE/INSERT` (Supabase dashboard → SQL editor, or the Supabase MCP). DB **schema** changes go through committed migrations in `supabase/migrations/` — see `CLAUDE.md` for the timestamp discipline.
+- **Database / config:** prod Supabase project is **`qsllyeztdwjgirsysgai` (Virginia, "popdam")**. ⚠️ **Tooling trap:** the old Ohio project `ryltkzzernhwnojzouyb` ("popdam-prod.old") is **decommissioned** but still ACTIVE, and the default `mcp__supabase__*` MCP / `get_project_url` point at it — querying it returns real-looking data **frozen at the 2026-06-20 cutover**. For live data use `mcp__claude_ai_Supabase__execute_sql` with `project_id: "qsllyeztdwjgirsysgai"`. Agents self-migrate via `migrateSupabaseUrl()` in `apps/{bridge,windows}-agent/src/config.ts`. `admin_config` is a key/value table read by edge functions and agents; changes are plain SQL `UPDATE/INSERT`. DB **schema** changes go through committed migrations in `supabase/migrations/` — see `CLAUDE.md` for the timestamp discipline.
 - **Git:** trunk-based, commit straight to `main`, push to both `origin` and `github` (see `CLAUDE.md`).
 - **The Helper** (desktop app) is distributed via GitHub Release tag `popdam-helper-latest` and linked from `dam.designflow.app/downloads`.
 
@@ -144,35 +144,36 @@ Risks / watchouts:
 - Do not treat `PROD_ORDER_API_TOKEN_2` as solved if it contains a browser JWT; it will expire and background sync will fail.
 - Prod and sandbox require matching Cloud Run audiences and app tokens. The session restored `PROD_ORDER_CLOUD_RUN_AUDIENCE` to the prod origin and removed the temporary `admin_config.PROD_ORDER_API_ENDPOINT` sandbox override.
 - `admin-api` service-role server-to-server auth was fixed to allow `userId === "system"` through `authenticateAdmin`; keep this if server-side admin actions are invoked by other edge functions.
-- Because `admin-api` and the migration were manually deployed from the session, commit and push the source changes promptly so GitHub/Supabase deployment state matches production.
+- ✅ The source IS now in git (migration `20260615183000_add_prod_order_headers.sql` and the `trigger-prod-order-sync` routes in `admin-api` are committed on `main`), so GitHub/Supabase state matches production. The only blocker is the PLM app-layer auth above.
 
-### 5.9 `quick_hash` collision → asset flip-flapping, history bloat, and hidden files
+### 5.9 `quick_hash` collision → asset flip-flapping (FIXED + verified) + optional history-row cleanup
 
 Status:
-Partial — move-detection guards landed 2026-06-19; historical cleanup remains after deploy verification.
+**Move-detection fix DONE and deployed; verified working on the live Virginia DB.** Only an *optional* historical-row cleanup remains. The bridge build-identity bug found while verifying this is also DONE (see below).
 
-Done:
-- ✅ **Move-detection guard** (`agent-api` `process-asset`): a move now requires `quick_hash` **AND filename** to match AND a **unique** candidate, is **skipped for 0-byte files**, and is skipped whenever the incoming path already has a row. Different-filename hash collisions now insert as their own asset instead of stealing/flip-flapping the shared row. Forward-only.
-- ✅ **Same-filename duplicate-copy guard** (bridge agent v1.16.2 + `agent-api`): the bridge collects scan candidates before ingest, `check-changed` returns unchanged existing `(quick_hash, filename)` identities across the scan, and changed/new files send `skip_move_detection=true` when that identity was already seen. This stops byte-identical same-name copies from moving one shared row between folders.
-- ✅ `idx_asset_path_history_asset_id_detected_at` (migration `20260619131239`) — detail-panel path-history read 30.5s → 16ms despite the 4.7M-row table.
+Done & verified:
+- ✅ **Move-detection guard** (`agent-api` `process-asset`): a move now requires `quick_hash` **AND filename** to match AND a **unique** candidate, is **skipped for 0-byte files**, and is skipped whenever the incoming path already has a row. Different-filename hash collisions insert as their own asset instead of flip-flapping the shared row. Forward-only.
+- ✅ **Same-filename duplicate-copy guard** (bridge **v1.16.3** + `agent-api`, commit `0fc3fc1`): the bridge collects all scan candidates before ingest, `check-changed` returns unchanged existing `(quick_hash, filename)` identities across the scan, and changed/new files send `skip_move_detection=true` when that identity was already seen. Stops byte-identical same-name copies from moving one shared row between folders.
+- ✅ **Bridge build-identity fix** (bridge **v1.16.4**, commit `fa26b14`): unrelated to move-detection but found while verifying it. The self-updater's `recreateViaDockerRun` cloned the old container's env forward, freezing the reported `build_sha`/`image_tag` and producing a **false** "Build mismatch" badge. Fixed by baking identity into an immutable `/app/build-info.json` (`readBuildInfo()` in `index.ts`); `recreateViaDockerRun` left untouched. See `docs/KNOWN_QUIRKS.md` #26 + the 2026-06-21 critical incident in `AGENTS.md`. **Do not revert `readBuildInfo()` to `process.env.POPDAM_BUILD_SHA`.**
+- ✅ `idx_asset_path_history_asset_id_detected_at` (migration `20260619131239`).
+- **Verification (live Virginia `qsllyeztdwjgirsysgai`, 2026-06-21):** same-filename `asset_path_history` growth is now ~**2 rows / 6h** (was hundreds/hour pre-fix); **0** assets have ≥100 history rows. The fix works.
 - Root cause + full analysis: `docs/KNOWN_QUIRKS.md` #51; caveat in `docs/PROJECT_BIBLE.md` §9.
 
-Next action (two independent tracks):
-1. **Deploy/verify bridge v1.16.2 + agent-api**: watch moved counts and same-filename path-history growth after a full scan.
+Remaining (optional, low priority — growth has already stopped):
+1. **Historical-row cleanup — mostly already done; likely nothing left to do.** The **big prune already ran** after v1.16.2 verification: `9,299,506` high-churn rows were deleted + `VACUUM (ANALYZE)` (see the move-detection quirk in `AGENTS.md` and `docs/KNOWN_QUIRKS.md` #51). Live Virginia now holds **81,013 rows** total (**77,321** same-filename), **0** assets with ≥100 history rows — i.e. the residual is spread thin and no longer growing (~2 rows/6h). Treat further pruning as discretionary housekeeping only; the residual same-filename rows may be legitimate historical moves. ⚠️ **Re-measure on the live Virginia project first** (the old "4.7M rows / 15,151 assets" figures were Ohio-era and wrong). Any bulk DELETE must go through the service role and be batched — RLS makes large deletes blow the 8s timeout (`docs/KNOWN_QUIRKS.md` #27); VACUUM after.
 2. **Heavier-sample hash** (optional, closes only the residual: two *different* files sharing both a sampled hash and a filename). `apps/bridge-agent/src/hasher.ts` — add middle-chunk samples, bump `quick_hash_version`. **Must be a coordinated release**: the Helper (`apps/popdam-helper/src/main/hash.ts`) computes the same hash and it is the check-in `expected_hash`; needs synchronized bridge+Helper deploy, a full re-scan to migrate stored hashes, and in-flight-checkout handling. Do NOT bundle casually.
-3. **Historical cleanup** (needs approval after generator is verified stopped): backfill so already-hidden N−1 files get their own asset rows; prune the self-reversing `asset_path_history` churn.
 
 Risks / watchouts:
-- The guard is forward-only: the ~4.7M existing history rows and already-hidden files persist until track 2 runs.
 - `quick_hash` is shared by scan + check-in verification + the Helper — never change the algorithm on one side alone (the Helper's `hash.ts` carries an explicit lockstep warning).
-- Re-measure scope: `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;` (was 15,151; should stop growing now, then drop after cleanup).
+- Re-measure scope on the **live Virginia** project (not Ohio `.old` — see §0 trap): `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;` (0 as of 2026-06-21).
 
 ---
 
 ## 6. Exact next action
-The most urgent repo hygiene next step is to commit/push the production PO sync changes because migration `20260615183000` and `admin-api` were already deployed manually. The single most unblocked non-PO step remains **5.3 (add the Apple signing secrets and run the Helper workflow)**.
+Repo state is clean and all of this session's code is committed/deployed (move-detection v1.16.3, build-identity v1.16.4, PO-sync source). The most unblocked next step remains **5.3 (add the Apple signing secrets and run the Helper workflow)** — no Mac required. The PO-sync thread (5.8) is blocked on the PLM team providing durable server-to-server auth. The §5.9 history-row prune is optional housekeeping with no urgency (growth has stopped); do it only if asked, and re-measure on the live Virginia project first (§0 trap).
 
 ## 7. Known risks / unknowns
+- ⚠️ **Wrong-database trap:** the default `mcp__supabase__*` tooling points at the **decommissioned Ohio** project (`ryltkzzernhwnojzouyb`, "popdam-prod.old"), which is still ACTIVE but frozen at the 2026-06-20 cutover. Live prod is **Virginia `qsllyeztdwjgirsysgai`** — query it via `mcp__claude_ai_Supabase__execute_sql` with `project_id`. Burned ~1h of a session on 2026-06-21 (see §0 and the AGENTS.md 2026-06-21 incident).
 - Seafile is a **partial mirror** of the NAS; unsynced files rely on the Synology/Tailscale fallback — verify fallback works during the pilot.
 - Three Seafile **infra secrets** were exposed in an earlier chat (MySQL root + seafile-user passwords, JWT private key) and **should be rotated** — owner action; no values are in this repo.
 - The Developer ID cert needs the Apple **Account Holder** role; an Admin/Member can't create it.
