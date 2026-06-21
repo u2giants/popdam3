@@ -15,6 +15,7 @@ This repo holds schema mapping, relationship design, migration gaps, Supabase mi
 ## Current Documents
 
 - [Unified Supabase schema map](docs/unified-supabase-schema-map.md) - canonical entity/table ownership map across DAM, CRM, PM, and PLM.
+- [Shared database vision](docs/shared-database-vision.md) - the grander intention: one shared Supabase database for DAM, CRM, PM/PIM, and PLM.
 - [Unified Supabase relationships](docs/unified-supabase-relationships.md) - crossover relationships, join strategy, realtime boundaries, and browser-facing API contracts.
 - [Unified Supabase migration gaps](docs/unified-supabase-migration-gaps.md) - duplicates, conflicts, risky tables, missing links, and migration-order risks.
 - [Supabase migration preparation](docs/supabase-migration-prep.md) - rehearsal plan for moving the current Directus-owned Postgres data into Supabase.

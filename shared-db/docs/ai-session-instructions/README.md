@@ -4,6 +4,7 @@ Use these instructions when separate AI sessions are rewriting app frontends fro
 
 Start with:
 
+- [Shared database vision](../shared-database-vision.md)
 - [Shared Supabase branch workflow](shared-supabase-branch-workflow.md)
 
 Then use the app-specific guide:

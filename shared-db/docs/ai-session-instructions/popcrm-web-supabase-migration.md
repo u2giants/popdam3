@@ -20,6 +20,8 @@ Production Supabase URL: https://qsllyeztdwjgirsysgai.supabase.co
 
 Do not connect the rewritten CRM frontend to production until the preview branch flow passes.
 
+The target is one shared enterprise database for DAM, CRM, PM/PIM, and PLM, not a CRM-specific Supabase backend.
+
 ## Database Source Of Truth
 
 All CRM database changes go in:
