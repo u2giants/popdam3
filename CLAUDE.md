@@ -2,6 +2,9 @@
 
 Read `AGENTS.md` first. It is the canonical guide for project summary, repo structure, task navigation, deployment, credentials, incidents, quirks, and pending work. This file is only for Claude Code-specific workflow reminders.
 
+## Shared database / cross-app
+Before any shared Supabase database, schema, migration, or cross-app change, read and follow `shared-db/AGENTS.md` (the cross-app coordination playbook). App code here is `main`-only (no branches); `shared-db` changes use branch+PR and the AI owns the merge.
+
 ---
 
 ## Session Start
