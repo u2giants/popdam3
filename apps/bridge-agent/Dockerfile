@@ -90,7 +90,15 @@ COPY --from=builder /app/package.json ./package.json
 # Verify path-filters survived into runtime stage
 RUN node -e "require('@popdam/path-filters');console.log('RUNTIME CHECK: @popdam/path-filters OK');"
 
-# Inject version info as environment variables
+# Bake build identity into an IMMUTABLE file (authoritative source at runtime).
+# The self-updater's recreateViaDockerRun clones the previous container's env as `-e`
+# overrides, which would freeze POPDAM_BUILD_SHA at the first image's value. A file in
+# the image layer cannot be overridden by env-cloning, so the agent always reports the
+# sha of the image it is actually running (see docs/KNOWN_QUIRKS.md #26 and index.ts
+# readBuildInfo()). The ENV vars below are retained only as a legacy/dev fallback.
+RUN printf '{"build_sha":"%s","image_tag":"%s"}\n' "${POPDAM_BUILD_SHA}" "${POPDAM_IMAGE_TAG}" > /app/build-info.json
+
+# Inject version info as environment variables (fallback only — see build-info.json)
 ENV POPDAM_IMAGE_TAG=${POPDAM_IMAGE_TAG}
 ENV POPDAM_BUILD_SHA=${POPDAM_BUILD_SHA}
 

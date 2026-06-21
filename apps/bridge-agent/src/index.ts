@@ -51,9 +51,34 @@ let isAiSentinelScanning = false;
 let isBlankThumbCleanupRunning = false;
 let scanContentIdentitySeen: Set<string> = new Set();
 
-// ── Version info (injected via Docker build args or package.json) ──
-const imageTag = process.env.POPDAM_IMAGE_TAG || "unknown";
-const buildSha = process.env.POPDAM_BUILD_SHA || "unknown";
+// ── Version info ──
+// Build identity (git sha + image tag) is read from an IMMUTABLE file baked into the
+// image at build time — deliberately NOT from env vars. The self-updater's
+// recreateViaDockerRun clones the PREVIOUS container's env as explicit `-e` flags,
+// which override the new image's baked POPDAM_BUILD_SHA/POPDAM_IMAGE_TAG and would
+// otherwise freeze the reported build identity at the first-ever image's values
+// (see docs/KNOWN_QUIRKS.md #26). A file in the image layer cannot be overridden by
+// env-cloning, so the agent always reports the sha of the image it is actually
+// running, and the sha-based drift detector stays trustworthy. Env vars are kept
+// only as a fallback for pre-1.16.4 images / local dev.
+function readBuildInfo(): { build_sha: string; image_tag: string } {
+  for (const loc of [new URL("../build-info.json", import.meta.url), "./build-info.json"]) {
+    try {
+      const info = JSON.parse(readFileSync(loc, "utf-8"));
+      if (info && (info.build_sha || info.image_tag)) {
+        return {
+          build_sha: info.build_sha || process.env.POPDAM_BUILD_SHA || "unknown",
+          image_tag: info.image_tag || process.env.POPDAM_IMAGE_TAG || "unknown",
+        };
+      }
+    } catch { /* try next location, then fall back to env */ }
+  }
+  return {
+    build_sha: process.env.POPDAM_BUILD_SHA || "unknown",
+    image_tag: process.env.POPDAM_IMAGE_TAG || "unknown",
+  };
+}
+const { build_sha: buildSha, image_tag: imageTag } = readBuildInfo();
 let packageVersion = "unknown";
 try {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8"));

@@ -270,6 +270,8 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 **`POPDAM_CONTAINER_NAME` env var is critical**: Without this anchor, each update cycle inherits the mutated name from the previous cycle (e.g. `popdam-bridge-old-123-old-456`). The `deploy/synology/docker-compose.yml` sets `POPDAM_CONTAINER_NAME: popdam-bridge` explicitly.
 
+**Build identity must NOT come from env vars (fixed 1.16.4)**: `recreateViaDockerRun` clones the *previous* container's entire `.Config.Env` as explicit `-e` flags onto the new container (to preserve `SUPABASE_URL`, `AGENT_KEY`, etc. on installs with no compose file). Explicit `-e` overrides the new image's baked `ENV`, so `POPDAM_BUILD_SHA`/`POPDAM_IMAGE_TAG` get **frozen at the first-ever image's values** and re-inherited every update — e.g. the agent reports `build_sha=8340ef9 / v1.16.0` while genuinely running `a35414d / 1.16.3`. This makes the admin "Build mismatch" badge (which compares reported `build_sha` to `BRIDGE_LATEST_BUILD.sha`) a **false positive**. Fix: build identity is now baked into an **immutable file** `/app/build-info.json` (Dockerfile) and read by `readBuildInfo()` in `index.ts` — a file in the image layer cannot be overridden by env-cloning, so the reported sha always matches the running image. Env vars remain only as a pre-1.16.4 / dev fallback. **Do not "simplify" this back to `process.env.POPDAM_BUILD_SHA`.** To verify an image's true build at any time: `docker inspect <img> --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'`.
+
 ---
 
 ## 27. Bulk DELETE on Large Tables Must Use Service Role
