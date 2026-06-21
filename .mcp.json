@@ -2,7 +2,7 @@
   "mcpServers": {
     "supabase": {
       "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref", "ryltkzzernhwnojzouyb"]
+      "args": ["-y", "@supabase/mcp-server-supabase@latest", "--project-ref", "qsllyeztdwjgirsysgai"]
     },
     "devops-mcp": {
       "type": "http",
