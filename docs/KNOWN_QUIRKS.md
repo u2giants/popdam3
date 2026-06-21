@@ -58,11 +58,11 @@ This document explains intentional code decisions that may appear like bugs or b
 
 ---
 
-## 6. `agent-api` Is Even Larger (2,781 Lines)
+## 6. `agent-api` Is Even Larger (~4,100 Lines)
 
 **File**: `supabase/functions/agent-api/index.ts`
 
-**Why**: Same rationale as admin-api but even more so — agent auth (SHA-256 key hashing + lookup) is non-trivial and must be consistent. The ingest/batch-ingest routes contain substantial metadata derivation logic that benefits from sharing in-memory caches (config lookups, licensor/property matching).
+**Why**: Same rationale as admin-api but even more so — agent auth (SHA-256 key hashing + lookup) is non-trivial and must be consistent. The ingest, scan, render, hygiene, style-guide, PDF backfill, and check-in verification routes share substantial metadata derivation/config lookup logic that benefits from in-memory caches.
 
 ---
 
@@ -132,7 +132,7 @@ This document explains intentional code decisions that may appear like bugs or b
 
 **What it looks like**: Config pointing to wrong project.
 
-**Why**: The `project_id` in config.toml matches the **external** production project (`ryltkzzernhwnojzouyb`), not the Lovable-managed one. This is correct — the GitHub Actions deploy workflow uses this to target the right project.
+**Why**: The `project_id` in config.toml matches the **external** production project (`qsllyeztdwjgirsysgai`), not the Lovable-managed one. This is correct — the GitHub Actions deploy workflow uses this to target the right project.
 
 ---
 
@@ -244,7 +244,7 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 **What it looks like**: A separate `supabase-popsg/` directory with its own functions and workflow.
 
-**Why it's dead**: PopSG was originally deployed on a separate Supabase project (`eeueczxhezfhyrhdmidg`). It was later consolidated into the PopDAM project (`ryltkzzernhwnojzouyb`). The directory was never cleaned up.
+**Why it's dead**: PopSG was originally deployed on a separate Supabase project (`eeueczxhezfhyrhdmidg`). It was later consolidated into the PopDAM project (`qsllyeztdwjgirsysgai`; previously `ryltkzzernhwnojzouyb` before the Virginia move). The directory was never cleaned up.
 
 **What breaks if you deploy from it**: The `deploy-popsg-supabase.yml` workflow targets the old abandoned project — deploying would update a project that no client connects to.
 
@@ -472,31 +472,32 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 **What it looks like**: Opening an **asset** detail panel 500s on `asset_path_history?...&asset_id=eq.<id>&order=detected_at.desc&limit=10`.
 
-**Why**: `asset_path_history` had only a PK on `id`. The table has grown to **~4.7M rows** (see #51 for why), so `WHERE asset_id=? ORDER BY detected_at DESC LIMIT 10` did a **full parallel seq scan + top-N sort** (~30.5s) and blew the 8s `authenticated` timeout. Fixed by migration `20260619131239`: `CREATE INDEX idx_asset_path_history_asset_id_detected_at ON asset_path_history (asset_id, detected_at DESC)`. **30,534ms → 16ms.**
+**Why**: `asset_path_history` had only a PK on `id`. Before the duplicate-copy cleanup in #51, the table had grown to millions of rows, so `WHERE asset_id=? ORDER BY detected_at DESC LIMIT 10` did a **full parallel seq scan + top-N sort** (~30.5s) and blew the 8s `authenticated` timeout. Fixed by migration `20260619131239`: `CREATE INDEX idx_asset_path_history_asset_id_detected_at ON asset_path_history (asset_id, detected_at DESC)`. **30,534ms → 16ms.**
 
-**Future sessions should**: Treat `asset_path_history` as a large, fast-growing table. Never query it by `asset_id` (or scan it) without this composite index. The real cure for its size is fixing #51 — until then the index keeps reads bounded.
+**Future sessions should**: Keep the composite index. The 2026-06-20 prune removed the known high-churn rows, but `asset_path_history` can grow again if move detection regresses or if a real large folder reorganization happens.
 
 ---
 
-## 51. `quick_hash` Collisions and Duplicate Copies Can Make Assets "Flip-Flap" Between Folders (Fixed Forward 2026-06-19)
+## 51. `quick_hash` Collisions and Duplicate Copies Can Make Assets "Flip-Flap" Between Folders (Fixed Forward + Cleaned 2026-06-20)
 
-**What it looks like**: `asset_path_history` has ~4.7M rows and grows every scan. **15,151 assets have 100+ path-history rows**; the worst single asset had **18,216 "moves" across 72 distinct paths** and was still moving during this session. The sync pill shows constant "moved" activity. Looks like files are physically bouncing around the NAS; **they are not**.
+**What it looked like**: `asset_path_history` had millions of rows and grew every scan. In the original investigation, **15,151 assets had 100+ path-history rows**; the worst single asset had **18,216 "moves" across 72 distinct paths** and was still moving during that session. The sync pill showed constant "moved" activity. It looked like files were physically bouncing around the NAS; **they were not**.
 
 **Root cause (two halves — investigated for this issue):**
 - **The hash collides.** `quick_hash` is `SHA-256(first 64KB + last 64KB + file_size)` (`apps/bridge-agent/src/hasher.ts`, spec in `PROJECT_BIBLE.md §9`). It is intentionally a *sampled* hash, not full content. It produces the **same value for genuinely different files** whenever they share the sampled regions: (a) **0-byte files** (all hash identically — 2 in the DB but many on the NAS), and dominantly (b) **template-derived design files** that have identical headers + footers + identical `file_size` but differ only in the unsampled middle. Confirmed example: one 1.24MB asset's history cycles through **15 different SKUs' `sewn-in label.ai` files** (`EGP66DYWP01 sewn-in label.ai`, `HGB73DYWP01 sewn-in label.ai`, …) — all Illustrator label templates of identical size. **15,099 of the 15,151 heavy flip-floppers are >128KB files** (middle unsampled); only 2 are 0-byte.
-- **Move detection trusts the hash alone.** `agent-api` `process-asset` (`supabase/functions/agent-api/index.ts` ~line 952) does: *"find one existing non-deleted asset with the same `quick_hash` but a different `relative_path` → treat the incoming file as that asset **moved**"*. It does **not** compare filename, re-verify with a full hash, or check that the old path no longer exists. So when N physical files share a `quick_hash`, the single deduped asset row is reassigned to whichever colliding file each scan happens to process, writing a spurious `asset_path_history` row each time. Next scan it sees a sibling and "moves" it back — an infinite flip-flap.
+- **Old move detection trusted the hash alone.** Before the 2026-06-20 guard, `agent-api` `process-asset` did: *"find one existing non-deleted asset with the same `quick_hash` but a different `relative_path` → treat the incoming file as that asset **moved**"*. It did **not** compare filename, re-verify with a full hash, or check that the old path no longer existed. So when N physical files shared a `quick_hash`, the single deduped asset row was reassigned to whichever colliding file each scan happened to process, writing a spurious `asset_path_history` row each time. Next scan it saw a sibling and "moved" it back — an infinite flip-flap.
 
 **Two consequences (both real):**
 1. **Bloat + churn**: `asset_path_history` grows unbounded; every scan issues thousands of pointless `assets` UPDATEs and re-runs `assignToStyleGroup`, churning style-group membership.
 2. **Silent data loss / hidden files**: because move-detection *dedups* on `quick_hash`, a cluster of N distinct colliding files is represented by **one** asset row. The other N−1 real files (e.g. 14 of the 15 SKU label files) were never inserted as separate assets and **do not appear in the Library at all**. This is the more dangerous half.
 
-**Fix status (updated 2026-06-19):**
+**Fix status (updated 2026-06-20):**
 - ✅ **DONE — move-detection guard** (`agent-api` `process-asset`): a move now requires the candidate to match on `quick_hash` **AND filename** AND be the **unique** such row, move detection is **skipped for 0-byte files**, and the incoming path must not already have an asset row. A same-hash file with a *different* filename now falls through to be inserted as its own asset instead of "moving" the shared row.
 - ✅ **DONE — same-filename duplicate-copy guard** (bridge agent v1.16.2 + `agent-api`): the bridge collects scan candidates first, `check-changed` returns unchanged existing `(quick_hash, filename)` identities across the scan, the bridge tracks identities before ingesting changed/new files, and later files with the same identity send `skip_move_detection=true`. That lets byte-identical copied files such as repeated `tech pack.pdf` or `prop65sticker_MDF.ai` settle into one asset row per live path instead of flip-flapping one row forever.
+- ✅ **DONE — deploy + verify**: commit `0fc3fc1` deployed `agent-api` and bridge agent v1.16.2. A repair scan completed with `122,380` files checked, `12,673` new rows, `9,092` repaired moves, `87,207` updates, and `0` errors. A second verification scan completed with `122,380` files checked, `114` new rows, only `81` moves, `108,782` updates, and `0` errors. The low second-scan move count is the evidence that the flip-flap generator stopped.
+- ✅ **DONE — path-history prune**: after verification, `15,155` high-churn assets with `>= 100` history rows were targeted and `9,299,506` rows were deleted from `asset_path_history` in 50k-row batches. The scratch table was dropped and `VACUUM (ANALYZE) public.asset_path_history` succeeded. Post-analyze estimate was about `82,349` rows remaining.
 - ⏳ **DEFERRED — heavier-sample hash** (`apps/bridge-agent/src/hasher.ts`): the residual gap is two *different* files that share BOTH a sampled `quick_hash` AND a filename (e.g. two `logo.ai` of identical size). Only a stronger hash distinguishes those. **This is NOT a casual change**: `quick_hash` is computed identically by the bridge AND the desktop Helper (`apps/popdam-helper/src/main/hash.ts`) and is the `expected_hash` for check-in integrity verification (`checkin-verifier.ts`). Changing it requires a **synchronized bridge + Helper release**, a `quick_hash_version` bump, a **full re-scan** to migrate stored hashes, and handling in-flight checkouts (expected_hash computed under the old version). Do it as its own coordinated release, not bundled.
-- ⏳ **TODO — cleanup** (needs approval): backfill so the already-hidden N−1 files get their own asset rows; prune the self-reversing `asset_path_history` churn (now ~4.7M rows). Do these only *after* the guard is live (it is) so they don't immediately re-bloat.
 
-**Future sessions should**: Do **not** treat `quick_hash` as a content-unique key. Do **not** "fix" the path-history bloat by only pruning rows — confirm the guard is deployed first (it is, as of 2026-06-19), then prune. Re-measure scope with: `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;` (was 15,151).
+**Future sessions should**: Do **not** treat `quick_hash` as a content-unique key. Do **not** reintroduce hash-only dedupe or hash-only move detection. Preserve the bridge's two-phase scan, `check-changed.existing_content_identities`, per-scan `(quick_hash, filename)` seen set, `skip_move_detection`, and server-side uniqueness/0-byte/path guards. If history grows again, first verify the guard is still live with a clean second full scan before pruning rows.
 
 ---
 

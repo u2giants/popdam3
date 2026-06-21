@@ -4,12 +4,12 @@
 
 PopSG is the licensor-facing side of the Designflow platform. Where PopDAM is a licensed-product DAM (SKUs, ERP, render pipeline), PopSG is a read-only style guide library: licensors browse PDF/AI style guides organised by licensor → property → folder.
 
-**One Docker image, two tenants, one Supabase project.** Both `dam.designflow.app` and `sg.designflow.app` run from the same container and connect to the same Supabase project (`ryltkzzernhwnojzouyb`). Mode detection in `src/lib/app-mode.ts` reads `window.location.host` and switches routes and UI — it does **not** switch Supabase clients.
+**One Docker image, two tenants, one Supabase project.** Both `dam.designflow.app` and `sg.designflow.app` run from the same container and connect to the same Supabase project (`qsllyeztdwjgirsysgai`). Mode detection in `src/lib/app-mode.ts` reads `window.location.host` and switches routes and UI — it does **not** switch Supabase clients.
 
 | | PopDAM | PopSG |
 |---|---|---|
 | Host | `dam.designflow.app` | `sg.designflow.app` |
-| Supabase project | `ryltkzzernhwnojzouyb` | `ryltkzzernhwnojzouyb` (same) |
+| Supabase project | `qsllyeztdwjgirsysgai` | `qsllyeztdwjgirsysgai` (same) |
 | Edge functions | `supabase/functions/` | `supabase/functions/` (same) |
 | Deploy workflow | `deploy-supabase.yml` (push-triggered) | `deploy-supabase.yml` (same) |
 | Main table | `assets` | `style_guide_files` |
@@ -105,7 +105,7 @@ The bridge agent reads `TENANTS` env var or individual `TENANT_n_*` vars. Point 
 
 ```yaml
 TENANT_1_NAME: bridge-nas
-TENANT_1_API_URL: https://ryltkzzernhwnojzouyb.supabase.co/functions/v1/agent-api
+TENANT_1_API_URL: https://qsllyeztdwjgirsysgai.supabase.co/functions/v1/agent-api
 TENANT_1_PAIRING_CODE: "ABCD-EFGH-IJKL-MNOP"   # from Settings page
 TENANT_1_AGENT_KEY: ""                            # filled by agent after pairing
 NAS_MOUNT: /nas

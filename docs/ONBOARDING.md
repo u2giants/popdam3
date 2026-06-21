@@ -185,7 +185,7 @@ popdam3/
 
 PopDAM is built on **Lovable** (a visual app builder). Lovable auto-provisions its own Supabase project and auto-generates `.env`, `src/integrations/supabase/client.ts`, and `src/integrations/supabase/types.ts`.
 
-However, PopDAM's production database is on a **separate, external Supabase project** (`ryltkzzernhwnojzouyb.supabase.co`) that was set up independently. The Lovable-managed project (`vklanxwmaeqjbwtmnygj`) exists but is essentially unused for data.
+However, PopDAM's production database is on a **separate, external Supabase project** (`qsllyeztdwjgirsysgai.supabase.co`) that was set up independently. The Lovable-managed project (`vklanxwmaeqjbwtmnygj`) exists but is essentially unused for data.
 
 ### How we handle it
 
@@ -271,7 +271,7 @@ There are **two separate edge functions** for different auth models. They must n
 - **Auth**: `x-agent-key` header → SHA-256 hashed → looked up in `agent_registrations`
 - **`verify_jwt = false`** in config.toml (agents don't have user JWTs)
 - **Callers**: Bridge Agent, Windows Agent
-- **Key routes**: `register`, `heartbeat`, `ingest`, `batch-ingest`, `update`, `move`, `complete-job`, `pair`, `progress`, `report-hygiene`
+- **Key routes**: `heartbeat`, `ingest`, `check-changed`, `scan-progress`, `save-checkpoint`, `get-checkpoint`, `clear-checkpoint`, `queue-render`, `claim-render`, `complete-render`, `claim-style-guide-crawl`, `complete-style-guide-crawl`, `claim-checkin-verifications`, `report-checkin-verification`
 - The heartbeat response doubles as a **config sync channel** — agents receive scan roots, feature flags, and command signals via heartbeat responses
 - Config keys are **filtered by agent type**: bridge agents receive AI API keys and scan config; Windows agents receive NAS credentials and render settings. Neither agent type receives the other's secrets.
 
@@ -369,19 +369,29 @@ Recursive directory walk:
   - For each candidate (.psd, .ai, .pdf, .jpg, .png):
     1. stat() → get mtime, birthtime, file size
     2. Check SCAN_MIN_DATE — skip if too old
-    3. computeQuickHash() → first 64KB + last 64KB + size
-    4. Call agent-api /ingest or /batch-ingest:
-       - If quick_hash matches existing asset at same path → skip (unchanged)
-       - If quick_hash matches at different path → move detected
-       - If no match → new asset
-    5. generateThumbnail() → Sharp/Ghostscript/ImageMagick fallbacks
-    6. uploadThumbnail() → DigitalOcean Spaces
-    7. Report thumbnail_url back to agent-api
+    3. collect candidate metadata in memory
+       ↓
+Change preflight:
+  - Call agent-api /check-changed in chunks of 500
+  - Skip unchanged rows unless thumbnail retry is needed
+  - Seed a scan-wide seen set with unchanged existing (quick_hash, filename) identities
+       ↓
+Ingest phase for changed/new/retry files:
+  1. computeQuickHash() → first 64KB + last 64KB + size
+  2. If (quick_hash, filename) was already seen in this scan, send skip_move_detection=true
+  3. generateThumbnail() → Sharp/Ghostscript/ImageMagick/MuPDF fallbacks or defer to Windows
+  4. uploadThumbnail() → DigitalOcean Spaces
+  5. Call agent-api /ingest:
+     - Existing row at same relative_path → update/noop by path
+     - No row at path + unique same (quick_hash, filename) + nonzero size + no skip flag → move detected
+     - Ambiguous duplicate/collision or skip flag → create/update path-specific asset row
        ↓
 Agent reports progress counters throughout (heartbeat + progress endpoint)
        ↓
 Scan complete → final counters reported
 ```
+
+The two-phase shape is intentional. `quick_hash` is a sampled hash, not a content-unique key; duplicate copies and some different template-derived files can share it. The bridge has live filesystem context for the full scan, so it is responsible for marking repeated `(quick_hash, filename)` identities with `skip_move_detection`. The cloud API then treats hash matching as a guarded move hint, not as a dedupe key. See `docs/KNOWN_QUIRKS.md` #51.
 
 ### Key scan counters
 `files_checked`, `candidates_found`, `ingested_new`, `moved_detected`, `updated_existing`, `errors`, `roots_invalid`, `roots_unreadable`, `dirs_skipped_permission`

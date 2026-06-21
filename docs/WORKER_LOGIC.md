@@ -97,12 +97,21 @@ Memory Hard Limit: A user-set cap (e.g., 1GB) must be respected; if a file excee
 - Default batch size: **100 files**
 - Configurable env: `INGEST_BATCH_SIZE` (default 100)
 
-### 3.2 Checkpoint Rule
-- The worker MUST NOT advance its “last scanned” checkpoint unless the Cloud API acknowledges ingest success.
-- If ingest fails mid-batch, the worker must retry and/or stop, but never “skip ahead.”
-- Checkpointing is allowed:
-  - after each successfully acknowledged batch, OR
-  - after every N files (N default 100) as long as each file was successfully acknowledged.
+### 3.2 Scan Phases
+The Bridge Agent scan is intentionally split into two phases:
+
+1. **Discovery phase** — validate roots, walk the filesystem, stat candidate files, and collect candidate metadata in memory.
+2. **Ingest phase** — call `check-changed`, hash/process only changed/new/retry files, generate/upload thumbnails, and call `ingest`.
+
+This is required because duplicate-copy move detection needs scan-wide context. The bridge seeds a per-scan `(quick_hash, filename)` seen set from `check-changed.existing_content_identities`; if a later changed/new file has the same identity, it sends `skip_move_detection=true` so the cloud creates/updates the path-specific row instead of stealing a sibling asset row.
+
+### 3.3 Checkpoint Rule
+- Checkpoints are for **discovery-phase resume only**.
+- A checkpoint may record the last completed top-level directory while walking the filesystem.
+- A new scan MUST NOT resume from a checkpoint saved by a different `session_id`; discard it and start fresh.
+- Before ingest starts, the bridge MUST clear the checkpoint. If clearing fails after retry, the scan MUST fail instead of ingesting after a checkpoint that could cause the next run to skip already-discovered-but-not-ingested paths.
+- Once ingest begins, a crash/restart should restart discovery from the beginning, then `check-changed` will skip unchanged rows safely.
+- If ingest fails mid-run, stop or retry; never mark the scan successful with skipped changed files.
 
 ---
 
@@ -123,6 +132,22 @@ At startup:
 If a scan completes with `files_checked = 0`, treat it as a failure unless:
 - roots were validated OK AND
 - the directories truly contain zero files.
+
+### 4.4 `quick_hash` Is a Move Hint, Not a Unique Content Key
+`quick_hash` is `SHA-256(first 64KB + last 64KB + file size)`. It is intentionally cheap and sampled. It can collide for different template-derived files and is identical for byte-identical duplicate copies.
+
+Bridge Agent requirements:
+- Call `check-changed` across the collected scan candidates before ingesting files.
+- Seed a scan-wide `(quick_hash, filename)` seen set from `existing_content_identities`.
+- Compute `quick_hash` only for files that need processing.
+- If the same `(quick_hash, filename)` has already been seen in the current scan, send `skip_move_detection=true` in the ingest payload.
+
+Cloud/API requirements:
+- Never dedupe or move by `quick_hash` alone.
+- Move detection requires: nonzero file size, no existing row at the incoming path, no bridge skip flag, and exactly one non-deleted candidate with the same `(quick_hash, filename)` at a different path.
+- Ambiguous same-hash/same-name candidates must fall through to create/update by path, not flip a shared asset row.
+
+This guard was added in bridge v1.16.2 and the matching `agent-api` after duplicate copies caused asset rows to "flip-flap" between paths and bloated `asset_path_history`. See `docs/KNOWN_QUIRKS.md` #51.
 
 ---
 

@@ -2,7 +2,7 @@
 
 Both the **Bridge Agent** (Synology Docker) and the **Windows Render Agent** can serve **multiple Supabase backends from a single install** via the `TENANTS` environment variable.
 
-> **Note:** PopDAM and PopSG currently share the same Supabase project (`ryltkzzernhwnojzouyb`) — they are two UI modes of one deployment, not separate backends. Multi-tenant with different `server_url`s applies only if you are running truly separate Supabase instances (e.g., separate deployments for different client organizations). The single-tenant mode (`TENANTS` not set) is what the standard PopDAM/PopSG install uses.
+> **Note:** PopDAM and PopSG currently share the same Supabase project (`qsllyeztdwjgirsysgai`) — they are two UI modes of one deployment, not separate backends. Multi-tenant with different `server_url`s applies only if you are running truly separate Supabase instances (e.g., separate deployments for different client organizations). The single-tenant mode (`TENANTS` not set) is what the standard PopDAM/PopSG install uses.
 
 ## How it works
 
@@ -24,7 +24,7 @@ Per-tenant pairing/config files are written to:
 [
   {
     "name": "popdam",
-    "server_url": "https://ryltkzzernhwnojzouyb.supabase.co",
+    "server_url": "https://qsllyeztdwjgirsysgai.supabase.co",
     "pairing_code": "ABC-123-XYZ",
     "agent_name": "bridge-popdam",
     "scan_roots": ["/nas"],
@@ -65,7 +65,7 @@ Same shape, except `scan_roots` is replaced with `nas`:
 [
   {
     "name": "popdam",
-    "server_url": "https://ryltkzzernhwnojzouyb.supabase.co",
+    "server_url": "https://qsllyeztdwjgirsysgai.supabase.co",
     "pairing_code": "ABC-123-XYZ",
     "agent_name": "windows-popdam",
     "nas": { "host": "diskstation", "share": "volume1", "mount_path": "Z:" },

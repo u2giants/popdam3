@@ -93,7 +93,7 @@ Notes:
 
 ### POST /agent/ingest
 
-Purpose: idempotent ingest/update/move detection for a single file
+Purpose: idempotent ingest/update/guarded move detection for a single file
 
 Request:
 - `relative_path`
@@ -107,22 +107,24 @@ Request:
 - `thumbnail_error` (optional)
 - `skip_move_detection` (optional boolean) — bridge sets this when the same `(quick_hash, filename)` has already been seen in the current scan-wide preflight/ingest phase, so duplicate copies insert/update by path instead of stealing a sibling row.
 
+Move-detection contract:
+- `quick_hash` is a sampled hash and is not content-unique.
+- The server may treat a file as moved only when all of these are true:
+  - `file_size > 0`
+  - `skip_move_detection` is not true
+  - there is no existing non-deleted row at the incoming `relative_path`
+  - exactly one non-deleted existing row matches the same `(quick_hash, filename)` at a different path
+- If two or more same `(quick_hash, filename)` candidates exist, the move is ambiguous and must be skipped.
+- Same-hash but different-filename files are different assets, not moves.
+
 Response:
 - `action` — `created` | `updated` | `moved` | `noop`
 - `asset_id`
 - `ok`
 
-### POST /agent/batch-ingest
-
-Purpose: batch version of ingest (up to 100 files per call)
-
-Request: array of ingest payloads (same shape as single ingest)
-
-Response: array of per-file results with `action`, `asset_id`, `ok`
-
 ### POST /agent/check-changed
 
-Purpose: batch change detection before local hashing/thumbnail work.
+Purpose: batch change detection before local hashing/thumbnail work, and scan-wide duplicate-copy seeding.
 
 Request:
 - `files[]` with `relative_path`, `modified_at`, `file_size`
@@ -132,13 +134,18 @@ Response:
 - `needs_thumbnail` — unchanged paths whose thumbnail error should be retried
 - `existing_content_identities` — unchanged existing rows as `{ relative_path, filename, quick_hash }`; bridge agents use this to seed scan-wide duplicate detection before ingesting changed/new paths.
 
+Important:
+- The server caps each request at 500 files; bridge agents chunk full-scan preflight calls.
+- Bridge agents must preserve `existing_content_identities` across chunks for the whole scan, not per chunk.
+- If `check-changed` fails, the bridge may process all candidates, but duplicate-copy detection is weaker because unchanged existing identities are unavailable.
+
 ### POST /agent/scan-progress
 
 Purpose: progress reporting for UI display
 
 Request:
 - `session_id`
-- `status` — `running` | `completed` | `failed`
+- `status` — `running` | `completed` | `completed_with_errors` | `failed`
 - `counters` + `current_path` (optional)
 
 Response: `{ ok: true }`
