@@ -16,7 +16,7 @@ The first principle is boring on purpose: treat the Directus database as the sou
 
 - Take a fresh production dump before every rehearsal restore.
 - Preserve all `external_id` / `external_source` fields; they are the dedupe spine for ClickUp, Twenty/CRM, workflow backfills, and PLM syncs.
-- Keep Entra as the identity/role hub unless deliberately redesigned. Directus role membership currently mirrors to Entra; Supabase needs a replacement for the app-side role claim.
+- Keep Entra as the **identity provider** (Microsoft SSO login). Note: the old Directus→Entra **role-group mirror** (`directus-entra-sync`, "Model B") was **retired 2026-06-21** — nothing ever consumed the six `POP PIM ·` groups. Supabase still needs its own app-side role/claim mechanism; do **not** resurrect the Entra group mirror as that mechanism.
 - Keep DigitalOcean Spaces as canonical file storage during the first migration unless there is a separate storage-migration test. Moving DB and object storage at the same time increases risk.
 - Rebuild Directus Flows, host timers, and Directus extension behavior before cutover.
 - Do not use Directus API exports as the main migration path. Use Postgres dumps/restores so SQL-managed additions such as PLM tables and constraints are included.
@@ -102,7 +102,7 @@ Directus objects that do not automatically become Supabase behavior:
 
 Host-side jobs to account for:
 
-- `directus-entra-sync.timer`: role mirror to Entra.
+- ~~`directus-entra-sync.timer`: role mirror to Entra.~~ **Retired 2026-06-21** — removed, not migrating (nothing consumed the Entra groups).
 - `plm-sync.timer`: Designflow PLM master-data sync.
 - CRM timers under `pm-system/systemd/`.
 
