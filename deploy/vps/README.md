@@ -15,9 +15,26 @@ then fail to route and return **502**, while existing/file-provider routes keep 
 proxy's view is stale, and **only restarting `coolify-proxy` fixes it**. This has
 recurred (2026-06-18, 2026-06-22 — see AGENTS.md → Critical incidents).
 
-**Why a watchdog (not a config change):** Coolify owns the `coolify-proxy` container
-definition, so changing its mounts/healthcheck would be overwritten on the next proxy
-redeploy/upgrade. The watchdog is external and non-invasive.
+**Root cause & PRIMARY fix (do this):** Both recurrences (2026-06-18, 2026-06-21) were
+triggered by **`unattended-upgrades` auto-upgrading `docker-ce`/`containerd`**, which
+restarts the daemon and recreates the socket. The elegant fix is to stop the daemon from
+being auto-restarted by holding those packages:
+
+```bash
+sudo apt-mark hold docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras docker-model-plugin
+```
+
+Trade-off: Docker no longer auto-updates — update it manually in a controlled window
+(`sudo apt-mark unhold ...; sudo apt update && sudo apt install --only-upgrade docker-ce ...;
+sudo apt-mark hold ...`) and **`docker restart coolify-proxy` afterwards** (or let the
+watchdog catch it). Verify holds: `apt-mark showhold | grep -E 'docker|containerd'`.
+
+**Why ALSO a watchdog (defense in depth):** the hold prevents the *automatic* trigger,
+but a manual docker upgrade, a crash, or an OOM can still restart the daemon. Coolify owns
+the `coolify-proxy` container definition, so a mount/healthcheck change there would be
+overwritten on the next proxy redeploy. The watchdog is external, non-invasive, and
+clobber-proof — it self-heals the rare remaining cases.
 
 **What it does:** `coolify-proxy-socket-watchdog.sh` runs every 3 min via a systemd
 timer. It restarts `coolify-proxy` **only** when the docker-socket error is *sustained*
