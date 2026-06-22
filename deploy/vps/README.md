@@ -15,26 +15,38 @@ then fail to route and return **502**, while existing/file-provider routes keep 
 proxy's view is stale, and **only restarting `coolify-proxy` fixes it**. This has
 recurred (2026-06-18, 2026-06-22 — see AGENTS.md → Critical incidents).
 
-**Root cause & PRIMARY fix (do this):** Both recurrences (2026-06-18, 2026-06-21) were
-triggered by **`unattended-upgrades` auto-upgrading `docker-ce`/`containerd`**, which
-restarts the daemon and recreates the socket. The elegant fix is to stop the daemon from
-being auto-restarted by holding those packages:
+**Root cause:** Both recurrences (2026-06-18, 2026-06-21) were triggered by docker/containerd
+auto-upgrades restarting the daemon, which recreates `/var/run/docker.sock` (new inode).
+With **`live-restore: true`** (Coolify's default), containers — including `coolify-proxy` —
+keep running through the daemon restart, so the proxy never gets a fresh socket mount and
+its Traefik docker provider goes blind → new/changed containers 502.
+
+**PRIMARY fix (event-driven, lets docker update freely):** `coolify-proxy-reconnect.service`
+— a systemd unit bound to `docker.service` that restarts **only** `coolify-proxy` after the
+daemon (re)starts, so Traefik re-reads the current socket. Verified 2026-06-22: a
+`systemctl restart docker` recovers full routing in ~30s automatically (apps stay up via
+live-restore; only the public proxy blips). Docker stays **unheld** and auto-updates
+normally. Install:
 
 ```bash
-sudo apt-mark hold docker-ce docker-ce-cli containerd.io \
-  docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras docker-model-plugin
+sudo install -m 0755 deploy/vps/restart-coolify-proxy-after-docker.sh /usr/local/bin/
+sudo tee /etc/systemd/system/coolify-proxy-reconnect.service >/dev/null <<'EOF'
+[Unit]
+Description=Restart coolify-proxy after docker (re)starts so Traefik re-reads the docker socket
+After=docker.service
+BindsTo=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/restart-coolify-proxy-after-docker.sh
+[Install]
+WantedBy=docker.service
+EOF
+sudo systemctl daemon-reload && sudo systemctl enable coolify-proxy-reconnect.service
 ```
 
-Trade-off: Docker no longer auto-updates — update it manually in a controlled window
-(`sudo apt-mark unhold ...; sudo apt update && sudo apt install --only-upgrade docker-ce ...;
-sudo apt-mark hold ...`) and **`docker restart coolify-proxy` afterwards** (or let the
-watchdog catch it). Verify holds: `apt-mark showhold | grep -E 'docker|containerd'`.
-
-**Why ALSO a watchdog (defense in depth):** the hold prevents the *automatic* trigger,
-but a manual docker upgrade, a crash, or an OOM can still restart the daemon. Coolify owns
-the `coolify-proxy` container definition, so a mount/healthcheck change there would be
-overwritten on the next proxy redeploy. The watchdog is external, non-invasive, and
-clobber-proof — it self-heals the rare remaining cases.
+**BACKSTOP — the watchdog (below):** covers the rare case the reconnect unit doesn't fire
+(e.g. a daemon crash that systemd handles oddly). It's external, non-invasive, and
+clobber-proof. Keep it as belt-and-suspenders; it should rarely act now.
 
 **What it does:** `coolify-proxy-socket-watchdog.sh` runs every 3 min via a systemd
 timer. It restarts `coolify-proxy` **only** when the docker-socket error is *sustained*
