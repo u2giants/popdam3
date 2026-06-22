@@ -4,7 +4,12 @@ Host-level scripts for the VPS that runs the Coolify stack (frontend, MCP server
 other apps). These are **not** deployed by CI — they're installed manually on the host
 and versioned here so they survive a rebuild.
 
-## coolify-proxy socket self-heal watchdog
+## coolify-proxy socket self-heal (reconnect unit + watchdog backstop)
+
+> 📖 **Full detail — read this for the complete root-cause analysis, the annotated
+> systemd unit, alternatives considered, verification, and troubleshooting:**
+> [`coolify-proxy-socket-fix.md`](./coolify-proxy-socket-fix.md). The sections below are
+> the quick install reference.
 
 **Problem it fixes:** `coolify-proxy` (Traefik) bind-mounts `/var/run/docker.sock`.
 When the Docker daemon restarts, the socket inode changes and the proxy's mount goes
