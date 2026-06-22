@@ -552,6 +552,20 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 
 ## Critical incidents
 
+### Resolved 2026-06-22: coolify-proxy lost its Docker socket again → nas-mcp 502 (now self-healing)
+
+What happened: While rotating the MCP bearer tokens, redeploying the `nas-mcp` Coolify **Application** created a new container that returned `502` publicly — even though the container was healthy and `coolify-proxy` could reach it directly (`wget` inside the proxy → `405`). Traefik's logs showed sustained `Cannot connect to the Docker daemon at unix:///var/run/docker.sock` (docker provider down). `devops-mcp` survived because it's a **Service** routed via Traefik's **file** provider; `nas-mcp` is an **Application** routed via the **docker** provider, which was blind.
+
+Impact: `nas-mcp.designflow.app` was 502 for ~15 min; other domains stayed up. (No data impact.)
+
+Root cause: Same class as 2026-06-18 — after a Docker daemon event, `coolify-proxy`'s bind-mounted `/var/run/docker.sock` goes stale (old inode), so Traefik's docker provider can't see container events and keeps routing to the old (gone) container. The host socket is fine; only the proxy's view is stale.
+
+Recovery: `docker restart coolify-proxy` (re-establishes the socket mount; Traefik re-reads all labels). All sites recovered within seconds.
+
+Rule added to prevent recurrence: Installed a **self-healing watchdog** — `deploy/vps/coolify-proxy-socket-watchdog.sh` runs every 3 min via systemd timer, restarts `coolify-proxy` only on *sustained* socket failure, rate-limited to 1/15 min, logs to `/var/log/coolify-proxy-watchdog.log`. Versioned + install steps in `deploy/vps/README.md`. Symptom to recognize: a **new/changed** container 502s while existing sites stay up → check `docker logs coolify-proxy | grep "Cannot connect to the Docker daemon"`; the watchdog should auto-fix within ~3 min, or `docker restart coolify-proxy` manually.
+
+---
+
 ### Resolved 2026-06-21: Bridge "Build mismatch" false alarm — self-update froze `build_sha` (and a wrong-project investigation detour)
 
 What happened: After the bridge self-updated, the admin panel showed a red **"Build mismatch — reports v1.16.3 but running sha:8340ef9, not published sha:a35414d."** The bridge was in fact running the correct published image (verified: the running container's image OCI label `org.opencontainers.image.revision` matched `:stable`), but it self-reported a stale `build_sha`/`image_tag`. Separately, the first hour of investigation was misdirected because the default `mcp__supabase__*` tooling points at the **decommissioned Ohio project `ryltkzzernhwnojzouyb` ("popdam-prod.old")**, whose `agent_registrations` froze at the cutover — looking real but 16h stale. The live data is in **Virginia `qsllyeztdwjgirsysgai`**.
