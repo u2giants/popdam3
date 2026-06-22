@@ -61,6 +61,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
 | Work on PopSG (style-guide mode) | `AGENTS.md`, `docs/POPSG.md` | PopDAM-only ERP/style-group docs |
 | Work on auth / SSO / login | `AGENTS.md`, `docs/AUTHENTICATION.md` | unrelated docs |
+| Touch MCP servers / `.mcp.json` / MCP tokens / 1Password secrets | `AGENTS.md`, `docs/MCP_SERVERS.md`; VPS proxy ops → `deploy/vps/` | unrelated app docs |
 | Investigate bugs / incidents | `AGENTS.md` → Incidents + Intentional Quirks, `docs/KNOWN_QUIRKS.md`, `HANDOFF.md` if present | unrelated folder docs |
 | Continue unfinished work | `AGENTS.md`, `HANDOFF.md`, the docs named inside `HANDOFF.md` | docs unrelated to the handoff scope |
 | Work in a subfolder with its own README | `AGENTS.md`, that folder-level `README.md`, then only broader docs it links to | other folder-level READMEs and unrelated deep docs |
@@ -68,6 +69,10 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Documentation-only cleanup | `AGENTS.md`, `README.md`, the affected docs under `docs/` | source files except as needed to verify accuracy |
 
 > **Doc-set note:** `docs/` uses one canonical file per topic. The core four are lowercase: `docs/architecture.md`, `docs/deployment.md`, `docs/configuration.md`, `docs/development.md` (the older UPPERCASE `ARCHITECTURE.md`/`DEPLOYMENT.md` duplicates were merged into these and removed on 2026-06-10). `future_improvements.md` (root, untracked, local) holds storage-transport research notes, not operating docs. (`lucid.md` is **not** in this repo — it lives in `u2giants/seafile`.)
+
+**Shared infrastructure standards:** `u2giants/albert-standards` is the cross-project operating knowledgebase. When a PopDAM change alters non-code infrastructure or operating decisions that apply beyond this repo — VPS/Coolify/Traefik/GHCR/DNS/Railway behavior, Synology NAS operating assumptions, bridge-agent host facts, or incident runbooks — update the relevant standards docs too:
+- `https://github.com/u2giants/albert-standards/tree/main/infrastructure` for VPS/Coolify/Traefik/GHCR/Railway/DNS/server operations.
+- `https://github.com/u2giants/albert-standards/tree/main/synology` for NAS hardware, networking, health, and PopDAM bridge-agent host assumptions.
 
 ---
 
@@ -384,6 +389,12 @@ Use this exact shape for every new quirk:
 
 **Looks like:** Duplication or confusion.
 **Actually:** `admin_config.OPENROUTER_API_KEY` feeds bridge/windows agents via heartbeat response. Railway env `OPENROUTER_API_KEY` feeds the Railway worker directly. Setting one does not set the other.
+
+### `.mcp.json` carries no secrets — MCP tokens come from 1Password (do NOT re-hardcode)
+
+**Looks like:** `devops-mcp`/`synology-monitor` in the root `.mcp.json` have `Bearer ${DEVOPS_MCP_TOKEN}` / `${NAS_MCP_TOKEN}` placeholders that "should" hold the actual token.
+**Actually:** The tokens are injected from 1Password (`vibe_coding/designflow-mcp`) — on the VPS via a `~/.bashrc` `op read` block, elsewhere via `op run`. The old hardcoded tokens were exposed in git history and had to be rotated (2026-06-22).
+**Do not change because:** pasting real tokens back into `.mcp.json` commits them to git and re-exposes them. Full model + rotation steps: `docs/MCP_SERVERS.md`.
 
 ### `src/integrations/supabase/client.ts` is a one-line re-export
 

@@ -167,6 +167,22 @@ Risks / watchouts:
 - `quick_hash` is shared by scan + check-in verification + the Helper — never change the algorithm on one side alone (the Helper's `hash.ts` carries an explicit lockstep warning).
 - Re-measure scope on the **live Virginia** project (not Ohio `.old` — see §0 trap): `select count(*) from (select asset_id from asset_path_history group by asset_id having count(*) >= 100) z;` (0 as of 2026-06-21).
 
+### 5.10 MCP token rotation + secrets → 1Password (server-side DONE; Windows clients pending)
+
+Status: **partial** — server-side complete & verified; Windows machines need the updated scripts re-run.
+
+Done (2026-06-22):
+- Rotated the exposed `devops-mcp` + `synology-monitor` bearer tokens (old values were in git history). New tokens in 1Password `vibe_coding/designflow-mcp`; Coolify env updated (`TOKEN_ROOCODE`, `MCP_BEARER_TOKEN`) + redeployed; old tokens now rejected, new accepted (verified). `.mcp.json` → `${…}` placeholders; VPS Claude Code auto-resolves them via a `~/.bashrc` `op read` block. `synology-monitor` switched to `type:http` at `/mcp` (image upgraded off SSE). Full model: `docs/MCP_SERVERS.md`.
+- VPS proxy/docker-socket failure fixed for real (event-driven reconnect unit; docker unheld). `deploy/vps/coolify-proxy-socket-fix.md`.
+- Other infra secrets centralized into `vibe_coding` with notes (github-pat, ai-provider-api-keys, devops-mcp-client-tokens, nas-monitor-secrets, contextforge/cloudflare/coolify/directus).
+
+Next action:
+- **User must re-run the two updated PowerShell setup scripts on each Windows machine** (sent 2026-06-22). The old ones hardcode three now-dead secrets (devops bearer, nas bearer, AND the deleted 1Password SA token → the Windows `1password` MCP is broken too until re-run).
+
+Risks / watchouts:
+- The new 1Password **service account is scoped to `vibe_coding` only**; its token lives in `/root/.bashrc` + `/home/ai/.bashrc` on the VPS and in the Windows scripts. If it's ever recreated, update all three places.
+- Do **not** paste real tokens back into `.mcp.json` (commits them to git).
+
 ---
 
 ## 6. Exact next action
