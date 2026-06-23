@@ -1,0 +1,10 @@
+-- Production migration-history marker for pre-shared-db PopDAM migration.
+--
+-- Version: 20260515092513
+-- Name: fix_bulk_insert_pdf_text_samples_delete_where
+--
+-- This migration was already applied to the production Supabase project before
+-- the shared-db repository became the canonical migration workspace. The SQL
+-- body intentionally remains empty here. The purpose of this file is to let
+-- Supabase CLI compare the local migration ledger with the production ledger
+-- without trying to replay legacy PopDAM migrations from this repository.

@@ -1,0 +1,10 @@
+-- Production migration-history marker for pre-shared-db PopDAM migration.
+--
+-- Version: 20260222180146
+-- Name: 040e7dc8_e6e7_4883_a3fa_26853219c85d
+--
+-- This migration was already applied to the production Supabase project before
+-- the shared-db repository became the canonical migration workspace. The SQL
+-- body intentionally remains empty here. The purpose of this file is to let
+-- Supabase CLI compare the local migration ledger with the production ledger
+-- without trying to replay legacy PopDAM migrations from this repository.

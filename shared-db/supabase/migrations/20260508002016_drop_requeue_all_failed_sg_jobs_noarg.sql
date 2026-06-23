@@ -1,0 +1,10 @@
+-- Production migration-history marker for pre-shared-db PopDAM migration.
+--
+-- Version: 20260508002016
+-- Name: drop_requeue_all_failed_sg_jobs_noarg
+--
+-- This migration was already applied to the production Supabase project before
+-- the shared-db repository became the canonical migration workspace. The SQL
+-- body intentionally remains empty here. The purpose of this file is to let
+-- Supabase CLI compare the local migration ledger with the production ledger
+-- without trying to replay legacy PopDAM migrations from this repository.

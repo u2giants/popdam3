@@ -14,7 +14,7 @@ Also read:
 Rewrite CRM to use the shared Supabase project through the preview branch first:
 
 ```text
-Preview Supabase URL: https://tcscehehgeiijilylezv.supabase.co
+Preview Supabase URL: https://xjcyeuvzkhtzsheknaiu.supabase.co
 Production Supabase URL: https://qsllyeztdwjgirsysgai.supabase.co
 ```
 
@@ -115,7 +115,7 @@ The current baseline RLS is a scaffold. If the frontend requires broader access,
 From `/worksp/shared-db`:
 
 ```bash
-supabase link --project-ref tcscehehgeiijilylezv
+supabase link --project-ref xjcyeuvzkhtzsheknaiu
 scripts/check-sql.sh
 supabase db push --dry-run
 supabase db push
@@ -124,7 +124,7 @@ supabase db push
 Then configure `popcrm-web` to use:
 
 ```text
-Supabase URL: https://tcscehehgeiijilylezv.supabase.co
+Supabase URL: https://xjcyeuvzkhtzsheknaiu.supabase.co
 Supabase anon key: get from the preview branch dashboard or approved secret store
 ```
 

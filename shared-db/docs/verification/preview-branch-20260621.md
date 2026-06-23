@@ -8,7 +8,7 @@ Date: 2026-06-21
 |---|---|
 | Parent project | `qsllyeztdwjgirsysgai` (`popdam`) |
 | Preview branch name | `shared-db-schema-rehearsal` |
-| Preview project ref | `tcscehehgeiijilylezv` |
+| Preview project ref | `xjcyeuvzkhtzsheknaiu` |
 | Branch id | `f91b8653-19dc-4f69-b797-298f4ff71081` |
 | With data | `true` |
 | Persistent | `true` |
@@ -19,10 +19,10 @@ Date: 2026-06-21
 The local `shared-db` repo was linked to the preview project ref, not the production project ref, before applying migrations.
 
 ```text
-20260621000100_foundation.sql
-20260621000200_app_core.sql
-20260621000300_domain_tables.sql
-20260621000400_api_rls_realtime.sql
+20260621150714_foundation.sql
+20260621150815_app_core.sql
+20260621151024_domain_tables.sql
+20260621151155_api_rls_realtime.sql
 ```
 
 `supabase migration list` showed all four migrations present locally and remotely on the preview branch.
@@ -51,6 +51,6 @@ Key objects verified in the branch dump:
 
 ## Production Impact
 
-The production/default project ref `qsllyeztdwjgirsysgai` was used only as the parent for branch creation. The schema migrations were applied to preview project ref `tcscehehgeiijilylezv`.
+The production/default project ref `qsllyeztdwjgirsysgai` was used only as the parent for branch creation. The schema migrations were applied to preview project ref `xjcyeuvzkhtzsheknaiu`.
 
 No production migration was run.

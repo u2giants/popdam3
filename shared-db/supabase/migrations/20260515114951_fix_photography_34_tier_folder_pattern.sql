@@ -1,0 +1,10 @@
+-- Production migration-history marker for pre-shared-db PopDAM migration.
+--
+-- Version: 20260515114951
+-- Name: fix_photography_34_tier_folder_pattern
+--
+-- This migration was already applied to the production Supabase project before
+-- the shared-db repository became the canonical migration workspace. The SQL
+-- body intentionally remains empty here. The purpose of this file is to let
+-- Supabase CLI compare the local migration ledger with the production ledger
+-- without trying to replay legacy PopDAM migrations from this repository.

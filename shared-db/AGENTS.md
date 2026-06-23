@@ -50,7 +50,7 @@ four rules below are non-negotiable for any database change.
    land that one first, or coordinate with the owner. Two simultaneous schema
    edits are the number-one cause of a broken shared database.
 2. **Preview database first. Production never receives untested schema.** Apply
-   every migration to the preview branch (`tcscehehgeiijilylezv`), prove it
+   every migration to the preview branch (`xjcyeuvzkhtzsheknaiu`), prove it
    works, *then* promote to production (`qsllyeztdwjgirsysgai`).
 3. **Additive by default (expand, then contract).** Adding a column or table
    cannot break another app. **Renaming or dropping** one that another app reads
@@ -100,7 +100,7 @@ to the owner in plain English and let them choose order.
 ## 7. Project references
 
 ```text
-Preview project ref:  tcscehehgeiijilylezv   (Supabase branch "shared-db-schema-rehearsal")
+Preview project ref:  xjcyeuvzkhtzsheknaiu   (Supabase branch "shared-db-schema-rehearsal")
 Production project ref: qsllyeztdwjgirsysgai
 ```
 

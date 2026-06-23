@@ -33,8 +33,8 @@ Preview branch for CRM/PM rewrite work:
 
 ```text
 Branch name: shared-db-schema-rehearsal
-Preview project ref: tcscehehgeiijilylezv
-URL: https://tcscehehgeiijilylezv.supabase.co
+Preview project ref: xjcyeuvzkhtzsheknaiu
+URL: https://xjcyeuvzkhtzsheknaiu.supabase.co
 Created with data: true
 Persistent: true
 Purpose: shared integration target for schema/app rewrite testing.
@@ -45,10 +45,10 @@ Purpose: shared integration target for schema/app rewrite testing.
 The preview branch already has the baseline shared schema migrations applied:
 
 ```text
-20260621000100_foundation.sql
-20260621000200_app_core.sql
-20260621000300_domain_tables.sql
-20260621000400_api_rls_realtime.sql
+20260621150714_foundation.sql
+20260621150815_app_core.sql
+20260621151024_domain_tables.sql
+20260621151155_api_rls_realtime.sql
 ```
 
 Baseline result:
@@ -66,7 +66,7 @@ Baseline result:
 2. Link the Supabase CLI to the preview branch, not production:
 
    ```bash
-   supabase link --project-ref tcscehehgeiijilylezv
+   supabase link --project-ref xjcyeuvzkhtzsheknaiu
    ```
 
 3. Create new migration files in `supabase/migrations`.
@@ -157,7 +157,7 @@ Do not copy objects manually from the preview branch in the Supabase dashboard.
 
 The promotion path is migration-file based:
 
-1. Confirm the app rewrite works against preview project `tcscehehgeiijilylezv`.
+1. Confirm the app rewrite works against preview project `xjcyeuvzkhtzsheknaiu`.
 2. Commit and push the migration files to `u2giants/shared-db`.
 3. Review schema diff, RLS exposure, and frontend behavior.
 4. Link a clean checkout of `shared-db` to production:
@@ -203,5 +203,5 @@ Each app migration session must leave:
 
 - Migration files committed in `shared-db`.
 - A short doc under `docs/app-migration-notes/` describing frontend env vars, tested screens, table/view/RPC usage, and remaining gaps.
-- Confirmation that the app was tested against `https://tcscehehgeiijilylezv.supabase.co`.
+- Confirmation that the app was tested against `https://xjcyeuvzkhtzsheknaiu.supabase.co`.
 - A production promotion checklist naming exactly which migrations should be applied.

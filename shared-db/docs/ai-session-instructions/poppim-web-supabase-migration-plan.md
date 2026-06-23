@@ -26,8 +26,8 @@ Purpose: live PopDAM project and future shared enterprise database
 ### Preview Branch For PM/CRM Rewrite Work
 
 ```text
-Project ref: tcscehehgeiijilylezv
-URL: https://tcscehehgeiijilylezv.supabase.co
+Project ref: xjcyeuvzkhtzsheknaiu
+URL: https://xjcyeuvzkhtzsheknaiu.supabase.co
 Branch name: shared-db-schema-rehearsal
 Parent project ref: qsllyeztdwjgirsysgai
 Persistent: yes
@@ -128,17 +128,17 @@ Core design rule:
 The shared-db repo already contains baseline migrations:
 
 ```text
-20260621000100_foundation.sql
-20260621000200_app_core.sql
-20260621000300_domain_tables.sql
-20260621000400_api_rls_realtime.sql
+20260621150714_foundation.sql
+20260621150815_app_core.sql
+20260621151024_domain_tables.sql
+20260621151155_api_rls_realtime.sql
 ```
 
 Per the shared-db verification docs, those migrations have been applied to the
 preview branch only:
 
 ```text
-Preview project ref: tcscehehgeiijilylezv
+Preview project ref: xjcyeuvzkhtzsheknaiu
 ```
 
 They have **not** been applied to production/default project
@@ -346,7 +346,7 @@ rg -n "directus|@directus/sdk|readItems|aggregate|readComments|readUsers" src
 ```bash
 cd /worksp/shared-db
 git status --short
-supabase link --project-ref tcscehehgeiijilylezv
+supabase link --project-ref xjcyeuvzkhtzsheknaiu
 scripts/check-sql.sh
 supabase db push --dry-run
 ```
@@ -363,7 +363,7 @@ Do not link to production until production promotion is explicitly approved.
 Exit criteria:
 
 - `poppim-web` is clean or known dirty changes are understood.
-- `shared-db` is linked to `tcscehehgeiijilylezv`.
+- `shared-db` is linked to `xjcyeuvzkhtzsheknaiu`.
 - SQL checks pass.
 - Dry-run against preview succeeds.
 
@@ -573,7 +573,7 @@ For preview local testing, `.env.local` may contain:
 
 ```text
 VITE_BACKEND=supabase
-VITE_SUPABASE_URL=https://tcscehehgeiijilylezv.supabase.co
+VITE_SUPABASE_URL=https://xjcyeuvzkhtzsheknaiu.supabase.co
 VITE_SUPABASE_ANON_KEY=<preview anon key>
 ```
 
@@ -601,7 +601,7 @@ Generate types from the preview branch:
 
 ```bash
 cd /worksp/shared-db
-supabase gen types typescript --project-id tcscehehgeiijilylezv --schema app,core,pim,crm,dam,plm,ingest,api > /worksp/poppim-web/src/lib/database.types.ts
+supabase gen types typescript --project-id xjcyeuvzkhtzsheknaiu --schema app,core,pim,crm,dam,plm,ingest,api > /worksp/poppim-web/src/lib/database.types.ts
 ```
 
 If CLI syntax differs, check current Supabase CLI help:
@@ -1108,7 +1108,7 @@ Configure PM preview/local build:
 
 ```text
 VITE_BACKEND=supabase
-VITE_SUPABASE_URL=https://tcscehehgeiijilylezv.supabase.co
+VITE_SUPABASE_URL=https://xjcyeuvzkhtzsheknaiu.supabase.co
 VITE_SUPABASE_ANON_KEY=<preview anon key>
 ```
 
@@ -1409,7 +1409,7 @@ Do this first. Do not start with a full migration.
 
    ```text
    VITE_BACKEND=supabase
-   VITE_SUPABASE_URL=https://tcscehehgeiijilylezv.supabase.co
+   VITE_SUPABASE_URL=https://xjcyeuvzkhtzsheknaiu.supabase.co
    ```
 
 9. Run:

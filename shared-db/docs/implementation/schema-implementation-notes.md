@@ -2,17 +2,29 @@
 
 Date: 2026-06-21
 
-These migrations implement the first migration-ready version of the unified Supabase schema described in the mapping docs. They are intentionally DDL-only and have not been applied to the live Supabase project.
+These migrations implement the first migration-ready version of the unified Supabase schema described in the mapping docs. They are intentionally DDL-only; the production project also contains older PopDAM migration-history marker files so Supabase CLI can reconcile this repo with the existing production ledger.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `supabase/migrations/20260621000100_foundation.sql` | Extensions, logical schemas, shared enums, timestamp trigger helper, and schema comments. |
-| `supabase/migrations/20260621000200_app_core.sql` | Shared app/profile/role tables, canonical `core` business objects, source-reference spines, SKU refs, and auth helper functions. |
-| `supabase/migrations/20260621000300_domain_tables.sql` | DAM, CRM, PIM/PM, PLM, ingest, and cross-domain bridge tables. |
-| `supabase/migrations/20260621000400_api_rls_realtime.sql` | Browser-facing `api` views, RLS scaffolding, grants, and selected realtime publication tables. |
+| `supabase/migrations/20260621150714_foundation.sql` | Extensions, logical schemas, shared enums, timestamp trigger helper, and schema comments. |
+| `supabase/migrations/20260621150815_app_core.sql` | Shared app/profile/role tables, canonical `core` business objects, source-reference spines, SKU refs, and auth helper functions. |
+| `supabase/migrations/20260621151024_domain_tables.sql` | DAM, CRM, PIM/PM, PLM, ingest, and cross-domain bridge tables. |
+| `supabase/migrations/20260621151155_api_rls_realtime.sql` | Browser-facing `api` views, RLS scaffolding, grants, and selected realtime publication tables. |
 | `supabase/migrations/20260622043000_crm_contact_segments.sql` | CRM Contacts segmented API: preserves `api.crm_contact_list`, adds `api.crm_contact_segment_list`, adds `api.crm_contact_segment_counts`, and indexes the primary contact-company relationship lookup. |
+
+## Production Migration History
+
+The production Supabase project started as a PopDAM project and already had a
+long migration history before `shared-db` became the canonical coordination repo.
+Supabase CLI requires every remote migration version to exist locally before it
+will run `supabase db push --dry-run`.
+
+For that reason, this repo includes no-op marker files for pre-shared-db PopDAM
+migrations. They intentionally contain comments only. Do not add schema logic to
+those marker files, and do not use `supabase migration repair` to hide them from
+the production ledger.
 
 ## What This Implements
 

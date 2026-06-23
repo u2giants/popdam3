@@ -27,12 +27,18 @@ This repo holds schema mapping, relationship design, migration gaps, Supabase mi
 
 The first-pass DDL package lives in [`supabase/migrations`](supabase/migrations):
 
-- `20260621000100_foundation.sql`
-- `20260621000200_app_core.sql`
-- `20260621000300_domain_tables.sql`
-- `20260621000400_api_rls_realtime.sql`
+- `20260621150714_foundation.sql`
+- `20260621150815_app_core.sql`
+- `20260621151024_domain_tables.sql`
+- `20260621151155_api_rls_realtime.sql`
 
 These migrations are for disposable rehearsal targets first. Do not apply them to the live project until source dumps, dedupe rules, RLS tests, and cutover order are approved.
+
+Production also has older PopDAM migrations in its Supabase migration ledger from
+before this repo became the shared database source of truth. Those already-applied
+legacy versions are represented in `supabase/migrations/` as no-op marker files
+so `supabase db push --dry-run` can compare the local ledger with production
+without trying to replay PopDAM history from this repo.
 
 ## Preview Branch
 
@@ -41,7 +47,7 @@ The migration package has been applied to a persistent Supabase preview branch f
 ```text
 Parent project: qsllyeztdwjgirsysgai
 Branch name: shared-db-schema-rehearsal
-Preview project ref: tcscehehgeiijilylezv
+Preview project ref: xjcyeuvzkhtzsheknaiu
 ```
 
 Verification notes are in [docs/verification/preview-branch-20260621.md](docs/verification/preview-branch-20260621.md).
@@ -56,4 +62,4 @@ Supabase project:
 https://qsllyeztdwjgirsysgai.supabase.co
 ```
 
-The shared schema migrations have been applied to the preview branch only. They have not been applied to the production/default project.
+The shared schema migrations and CRM contact segment API have been applied to the production/default project.

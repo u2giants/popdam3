@@ -5,21 +5,21 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 migration_dir="$root_dir/supabase/migrations"
 
 required_files=(
-  "20260621000100_foundation.sql"
-  "20260621000200_app_core.sql"
-  "20260621000300_domain_tables.sql"
-  "20260621000400_api_rls_realtime.sql"
+  "20260621150714_foundation.sql"
+  "20260621150815_app_core.sql"
+  "20260621151024_domain_tables.sql"
+  "20260621151155_api_rls_realtime.sql"
 )
 
 for file in "${required_files[@]}"; do
   test -f "$migration_dir/$file"
 done
 
-rg --quiet "create schema if not exists app" "$migration_dir/20260621000100_foundation.sql"
-rg --quiet "create table core.company" "$migration_dir/20260621000200_app_core.sql"
-rg --quiet "create table pim.product" "$migration_dir/20260621000300_domain_tables.sql"
-rg --quiet "create or replace view api.pm_product_board" "$migration_dir/20260621000400_api_rls_realtime.sql"
-rg --quiet "enable row level security" "$migration_dir/20260621000400_api_rls_realtime.sql"
+rg --quiet "create schema if not exists app" "$migration_dir/20260621150714_foundation.sql"
+rg --quiet "create table core.company" "$migration_dir/20260621150815_app_core.sql"
+rg --quiet "create table pim.product" "$migration_dir/20260621151024_domain_tables.sql"
+rg --quiet "create or replace view api.pm_product_board" "$migration_dir/20260621151155_api_rls_realtime.sql"
+rg --quiet "enable row level security" "$migration_dir/20260621151155_api_rls_realtime.sql"
 
 if [[ -n "${DATABASE_URL:-}" ]]; then
   command -v psql >/dev/null

@@ -9,11 +9,11 @@ branch is the one remaining step (see Known Gaps).
 
 | File | Purpose |
 |---|---|
-| `20260621110000_crm_parity_fields.sql` | Adds the explicit columns the CRM UI/worker use onto `core.company`, `core.contact_company`, and `crm.*` (customer_status, chain_type, routing_aliases/so_patterns, opportunity program/season/division/incoterms/AI fields, email routing fields, meeting/note/task/approval fields, etc.). Additive + nullable. |
-| `20260621110100_crm_integrity_triggers.sql` | Department-belongs-to-company enforcement (parity with Directus `enforce-crm-department-scope.sql`) on opportunity/email/meeting/note/task and `core.contact_company`. |
-| `20260621110200_crm_api_views.sql` | `security_invoker` browser views, one per screen (see table below). No raw email bodies / transcripts / ingest payloads. |
-| `20260621110300_crm_api_rpcs.sql` | `current_user_profile()` identity contract; guarded `crm_update_account` / `crm_update_contact` (core writes) and `crm_set_opportunity_stage`. |
-| `20260621110400_crm_rls_realtime.sql` | `profile_select_staff` policy (assignee/owner display); realtime for meeting_note/department/approval; **exposes `api, crm, pim, core` schemas to PostgREST**. |
+| `20260621151239_crm_parity_fields.sql` | Adds the explicit columns the CRM UI/worker use onto `core.company`, `core.contact_company`, and `crm.*` (customer_status, chain_type, routing_aliases/so_patterns, opportunity program/season/division/incoterms/AI fields, email routing fields, meeting/note/task/approval fields, etc.). Additive + nullable. |
+| `20260621151254_crm_integrity_triggers.sql` | Department-belongs-to-company enforcement (parity with Directus `enforce-crm-department-scope.sql`) on opportunity/email/meeting/note/task and `core.contact_company`. |
+| `20260621151327_crm_api_views.sql` | `security_invoker` browser views, one per screen (see table below). No raw email bodies / transcripts / ingest payloads. |
+| `20260621151359_crm_api_rpcs.sql` | `current_user_profile()` identity contract; guarded `crm_update_account` / `crm_update_contact` (core writes) and `crm_set_opportunity_stage`. |
+| `20260621151419_crm_rls_realtime.sql` | `profile_select_staff` policy (assignee/owner display); realtime for meeting_note/department/approval; **exposes `api, crm, pim, core` schemas to PostgREST**. |
 | `20260622043000_crm_contact_segments.sql` | Preserves `api.crm_contact_list`, adds explicit CRM access gating, and adds `api.crm_contact_segment_list` / `api.crm_contact_segment_counts` so the Contacts page can load Customer, Department, and Triage slices without eager-loading All contacts. |
 
 Validated by applying the full chain (4 baseline + these 5) to a throwaway
@@ -113,34 +113,35 @@ branch has no CRM data yet, so smoke tests need either a data load or seed rows.
 
 ## Preview test results
 
-Not run: the preview branch DB (`tcscehehgeiijilylezv`) is IPv6-only and was
+Not run: the preview branch DB (`xjcyeuvzkhtzsheknaiu`) is IPv6-only and was
 unreachable from the migration environment (`ECONNREFUSED`) via both the Supabase
 CLI and the management API, and no preview DB password was available. SQL was
 instead validated on a local Postgres 15 (see above).
 
-## Production promotion checklist (exact migrations)
+## Production migration status
 
-Apply in this order, preview first then production, via `supabase db push`:
+These migrations are present in the production Supabase migration ledger:
 
 ```text
-20260621000100_foundation.sql              (baseline — if not already on target)
-20260621000200_app_core.sql                (baseline)
-20260621000300_domain_tables.sql           (baseline)
-20260621000400_api_rls_realtime.sql        (baseline)
-20260621110000_crm_parity_fields.sql       (this PR)
-20260621110100_crm_integrity_triggers.sql  (this PR)
-20260621110200_crm_api_views.sql           (this PR)
-20260621110300_crm_api_rpcs.sql            (this PR)
-20260621110400_crm_rls_realtime.sql        (this PR)
+20260621150714_foundation.sql              (baseline)
+20260621150815_app_core.sql                (baseline)
+20260621151024_domain_tables.sql           (baseline)
+20260621151155_api_rls_realtime.sql        (baseline)
+20260621151239_crm_parity_fields.sql
+20260621151254_crm_integrity_triggers.sql
+20260621151327_crm_api_views.sql
+20260621151359_crm_api_rpcs.sql
+20260621151419_crm_rls_realtime.sql
 20260622043000_crm_contact_segments.sql    (Contacts segmented API)
 ```
 
-Production (`qsllyeztdwjgirsysgai`) does **not** yet have the baseline migrations,
-so a first push there will include them — confirm that is intended or split the rollout.
+The production project also has older PopDAM migration versions. This repo keeps
+no-op marker files for those legacy versions so Supabase CLI can run future
+`supabase db push --dry-run` checks normally.
 
 ## Known gaps
 
-- **Apply to preview** (`supabase link --project-ref tcscehehgeiijilylezv && supabase db push`) from a network that can reach the branch DB, then **regenerate `database.types.ts`** from preview and set preview env vars.
+- **Regenerate `database.types.ts`** from production or the active preview branch after schema changes and update app repos that rely on generated types.
 - **Phase 5 identity**: configure the Azure provider in Supabase Auth and seed `app.profile` / `app.user_role` / `app.app_access` for CRM users — without a provisioned profile a signed-in user has no CRM access and lists come back empty.
 - **Data import + reconciliation** (Phase 7) and **role-based RLS tests** (Phase 6) still to run against preview.
 - `crm.note.opportunity_id` is `on delete cascade` (baseline) and `crm.note` has no `factory`; meeting attendees have no shared table (stored in `meeting_note.metadata`).
