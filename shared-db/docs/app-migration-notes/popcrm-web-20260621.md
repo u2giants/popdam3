@@ -14,6 +14,7 @@ branch is the one remaining step (see Known Gaps).
 | `20260621110200_crm_api_views.sql` | `security_invoker` browser views, one per screen (see table below). No raw email bodies / transcripts / ingest payloads. |
 | `20260621110300_crm_api_rpcs.sql` | `current_user_profile()` identity contract; guarded `crm_update_account` / `crm_update_contact` (core writes) and `crm_set_opportunity_stage`. |
 | `20260621110400_crm_rls_realtime.sql` | `profile_select_staff` policy (assignee/owner display); realtime for meeting_note/department/approval; **exposes `api, crm, pim, core` schemas to PostgREST**. |
+| `20260622043000_crm_contact_segments.sql` | Preserves `api.crm_contact_list`, adds explicit CRM access gating, and adds `api.crm_contact_segment_list` / `api.crm_contact_segment_counts` so the Contacts page can load Customer, Department, and Triage slices without eager-loading All contacts. |
 
 Validated by applying the full chain (4 baseline + these 5) to a throwaway
 Postgres 15 with Supabase auth stubs: all apply cleanly; integrity trigger,
@@ -26,7 +27,7 @@ views, and RPC guards verified functionally.
 | Overview | `api.crm_account_overview`, derived from the lists below | — |
 | Accounts (triage) | `api.crm_account_list` (all companies) | `api.crm_update_account` RPC |
 | Accounts pickers (customers) | `api.crm_account_list` filtered `customer_status in (ACTIVE_CUSTOMER, POTENTIAL_CUSTOMER)` | — |
-| Contacts | `api.crm_contact_list` | `api.crm_update_contact` RPC |
+| Contacts | `api.crm_contact_segment_list`, `api.crm_contact_segment_counts`; `api.crm_contact_list` remains the generic contact contract | `api.crm_update_contact` RPC |
 | Departments | `api.crm_department_list` | `crm.department` (direct) |
 | Pipeline / Programs | `api.crm_opportunity_list` | `crm.opportunity` (direct), `api.crm_set_opportunity_stage` |
 | Email Routing | `api.crm_email_routing_queue` | `crm.email_message` (direct), `crm.ignore_rule` |
@@ -40,6 +41,36 @@ views, and RPC guards verified functionally.
 The "curated customers vs full ingested registry" split (Directus
 `retailer`/`buyer` vs `ingested_domains`/`ingested_contact`) is collapsed to one
 `core.company`/`core.contact`, filtered by `customer_status` in the frontend.
+
+## Contacts segmented API contract
+
+The CRM Contacts page should not load all contacts merely to classify rows into
+tabs. The database owns that classification through
+`api.crm_contact_segment_list.crm_segment`:
+
+| Segment | Definition |
+|---|---|
+| `customer` | The contact's primary account has `customer_status in (ACTIVE_CUSTOMER, POTENTIAL_CUSTOMER)` and the primary relationship has no `crm_department_id`. |
+| `department` | The contact's primary account has `customer_status in (ACTIVE_CUSTOMER, POTENTIAL_CUSTOMER)` and the primary relationship has a `crm_department_id`. |
+| `triage` | Every other contact: no customer account, an untriaged account, or a reviewed non-customer account. |
+| `all` | Count-only row in `api.crm_contact_segment_counts`; clients can load all rows from `api.crm_contact_segment_list` only after the user opens the All tab. |
+
+`api.crm_contact_segment_list` keeps the same business columns as
+`api.crm_contact_list` and appends only `crm_segment`, so frontend adapters can
+continue using the same contact mapper. Counts come from
+`api.crm_contact_segment_counts` so tab badges do not require a full contact load.
+
+Access is intentionally explicit: both views are `security_invoker = false` and
+contain the `app.has_app_access('crm')` gate through `api.crm_contact_list`. This
+matches the browser-safe production contract and prevents profile/app-access gaps
+from being mistaken for missing data. Realtime consumers must refetch the relevant
+view after a short debounce; base-table realtime payloads do not include joined
+company/department display fields.
+
+Do not add server-side ordering by derived fields such as contact `name` to these
+views or frontend queries. The previous Supabase cutover incident timed out on a
+paged browser load when derived-field ordering/filtering was pushed through
+PostgREST. Fetch the segment slice and sort/filter within the browser table.
 
 ## RLS changes
 
@@ -101,6 +132,7 @@ Apply in this order, preview first then production, via `supabase db push`:
 20260621110200_crm_api_views.sql           (this PR)
 20260621110300_crm_api_rpcs.sql            (this PR)
 20260621110400_crm_rls_realtime.sql        (this PR)
+20260622043000_crm_contact_segments.sql    (Contacts segmented API)
 ```
 
 Production (`qsllyeztdwjgirsysgai`) does **not** yet have the baseline migrations,
@@ -114,3 +146,40 @@ so a first push there will include them — confirm that is intended or split th
 - `crm.note.opportunity_id` is `on delete cascade` (baseline) and `crm.note` has no `factory`; meeting attendees have no shared table (stored in `meeting_note.metadata`).
 - RPC `coalesce` semantics mean passing `null` does not clear a contact field (edge case).
 - No CRM screen or worker command still depends on Directus; the Directus worker/backend remain only as read-only rollback.
+
+## Verification checklist for contact segments
+
+Run these on preview before production promotion:
+
+1. Confirm the views exist and PostgREST has reloaded:
+
+```sql
+select table_schema, table_name
+from information_schema.views
+where table_schema = 'api'
+  and table_name in (
+    'crm_contact_list',
+    'crm_contact_segment_list',
+    'crm_contact_segment_counts'
+  )
+order by table_name;
+```
+
+2. Confirm segment counts reconcile:
+
+```sql
+select sum(contact_count) filter (where crm_segment <> 'all') as segmented_total,
+       max(contact_count) filter (where crm_segment = 'all') as all_total
+from api.crm_contact_segment_counts;
+```
+
+3. Confirm the segmented view preserves the base contact count:
+
+```sql
+select
+  (select count(*) from api.crm_contact_list) as base_count,
+  (select count(*) from api.crm_contact_segment_list) as segmented_count;
+```
+
+4. Test with an authenticated CRM user, not service role, because
+   `app.profile.auth_user_id` and `app.app_access` are part of the contract.

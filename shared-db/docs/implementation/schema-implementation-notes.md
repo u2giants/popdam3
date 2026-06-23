@@ -12,6 +12,7 @@ These migrations implement the first migration-ready version of the unified Supa
 | `supabase/migrations/20260621000200_app_core.sql` | Shared app/profile/role tables, canonical `core` business objects, source-reference spines, SKU refs, and auth helper functions. |
 | `supabase/migrations/20260621000300_domain_tables.sql` | DAM, CRM, PIM/PM, PLM, ingest, and cross-domain bridge tables. |
 | `supabase/migrations/20260621000400_api_rls_realtime.sql` | Browser-facing `api` views, RLS scaffolding, grants, and selected realtime publication tables. |
+| `supabase/migrations/20260622043000_crm_contact_segments.sql` | CRM Contacts segmented API: preserves `api.crm_contact_list`, adds `api.crm_contact_segment_list`, adds `api.crm_contact_segment_counts`, and indexes the primary contact-company relationship lookup. |
 
 ## What This Implements
 
@@ -32,6 +33,8 @@ These migrations implement the first migration-ready version of the unified Supa
   - `crm.opportunity_product`
   - `pim.customer_order.production_order_id`
 - Stable first-pass `api` views for frontend contracts.
+- CRM-specific contact segment contracts so popcrm-web can fetch customer,
+  department, and triage contacts separately while lazy-loading All.
 - RLS enabled across app/domain tables, with conservative policies.
 - Realtime publication candidates for user-facing movement, not worker/admin queues.
 

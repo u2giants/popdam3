@@ -53,7 +53,7 @@ Status values:
 |---|---|---|---|---|
 | People and auth | PopDAM `profiles`, `user_roles`, `invitations`, `app_access`; PM/CRM `directus_users`; PLM `users`, `Roles`, `RolePermissions`, `UIElements`, `auth_token`, `quote_auth_token` | `app.profile`, `app.role`, `app.user_role`, `app.app_access` | shared | Supabase Auth should own identity. PLM and Directus users need cross-reference tables, not copied auth systems. |
 | Companies and customers | PM/CRM `retailer`, `ingested_domains`; PLM `customers`, `externalCustomer`; DAM `style_groups.customer`, `assets.customer`, `prod_order_headers_current.customer_*` | `core.company`, `core.company_source_ref` | shared | One canonical company/customer model. Preserve PLM customer ids, Directus ids, and DAM path customer strings as source refs. |
-| Contacts and buyers | PM/CRM `buyer`, `ingested_contact`; CRM department primary buyers; PLM users/vendors where acting as contacts | `core.contact`, `core.contact_company` | shared | Buyer/contact should be unified. Keep role/scope/title fields as CRM attributes. |
+| Contacts and buyers | PM/CRM `buyer`, `ingested_contact`; CRM department primary buyers; PLM users/vendors where acting as contacts | `core.contact`, `core.contact_company` | shared | Buyer/contact should be unified. Keep role/scope/title fields as CRM attributes. CRM browser reads use `api.crm_contact_list`; segmented Contacts tabs use `api.crm_contact_segment_list` / `api.crm_contact_segment_counts` so the CRM can load customer, department, and triage contacts independently. |
 | Departments/accounts | CRM `crm_department`; PM project/buyer context; PLM customer divisions where relevant | `crm.department` plus FK to `core.company` | app-owned with shared FK | CRM owns operational departments. PM may read department context through `api` views later. |
 | Licensors, properties, characters | DAM `licensors`, `properties`, `characters`; PM `licensor`, `property`; PLM `licenseList`, `properties_and_characters`, `property_character_associations`, `item_character_associations` | `core.licensor`, `core.property`, `core.character`, `core.character_ref` | shared | This is one of the biggest duplicate areas. DAM's existing taxonomy should be matched to PLM/PM by external ids/codes/name aliases. |
 | Product taxonomy | DAM `product_categories`, `product_types`, `product_subtypes`, `product_category_predictions`; PM `product_type`; PLM `ProductCategory`, `itemType`, `merchGroup`, `merchGroupHeaders`, MG fields | `core.product_category`, `core.product_type`, `core.product_subtype`, `core.merch_group` | shared | Keep PLM MG hierarchy and DAM category predictions. Predictions remain audit/support data. |
@@ -120,6 +120,21 @@ Target placement:
 - CRM-owned: `crm_department`, `crm_opportunity`, `crm_email_message`, `crm_meeting_note`, `crm_ignore_rule`, `crm_ai_model_config`, `crm_note`, `crm_task`, `crm_licensor_approval_thread`.
 - PM crossover: `project` remains `pim.project`; CRM opportunities can link to it.
 
+### CRM Contact Segmentation API
+
+The CRM Contacts page uses server-computed segments so it does not have to fetch
+every `core.contact` row merely to decide which tab a row belongs in:
+
+| API contract | Purpose | Notes |
+|---|---|---|
+| `api.crm_contact_list` | Generic CRM-safe contact list | Original popcrm-web column contract. Access-gated with `app.has_app_access('crm')`. Avoid server-side ordering on derived display fields such as `name`; browser consumers page this view without a derived-field sort. |
+| `api.crm_contact_segment_list` | Same columns as `api.crm_contact_list` plus `crm_segment` | `crm_segment = customer` for Active/Potential customer accounts without a department, `department` for Active/Potential customer accounts with a department, and `triage` for everything else. |
+| `api.crm_contact_segment_counts` | Badge/summary counts for `customer`, `department`, `triage`, and `all` | Lets clients show tab counts while keeping the expensive All table lazy-loaded. |
+
+This is a shared database contract. If another app needs different contact
+classification, add a separate documented API view instead of changing these CRM
+segment meanings in place.
+
 ## Current PM Inventory
 
 Generated from `poppim-web/src/lib/types.ts` and feature API usage.
@@ -180,4 +195,3 @@ Selected `main` does not include sample models. If PLM sample tracking is requir
 4. Migrate CRM and PM into namespaced tables/views that reference shared `core` rows.
 5. Link PopDAM `assets/style_groups` to `core` and `pim/plm` entities without moving object storage.
 6. Build `api.*` views/RPCs for browser-facing contracts after raw tables are stable.
-
