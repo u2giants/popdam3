@@ -89,6 +89,7 @@ popdam3/
 | [docs/development.md](docs/development.md) | Local dev setup, running, testing |
 | [docs/configuration.md](docs/configuration.md) | Environment variables, GitHub secrets, admin config |
 | [docs/KNOWN_QUIRKS.md](docs/KNOWN_QUIRKS.md) | Intentional oddities — read before changing anything |
+| [docs/1password.md](docs/1password.md) | 1Password access — read secrets via the 1Password MCP server or `op` CLI |
 
 ## Critical rules
 
