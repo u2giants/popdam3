@@ -76,6 +76,48 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 
 ---
 
+## Shared-backend startup/shutdown hygiene
+
+Why this exists:
+`popdam3`, `poppim-web`, and `popcrm-web` all depend on the same Supabase backend.
+An unfinished migration or dirty canonical `u2giants/shared-db` checkout can block
+unrelated app commits or, worse, ship a database change without the right preview
+checks. Future AI sessions must keep shared-db work isolated and leave the
+workspace clean enough for the next vibe-coding session.
+
+Startup checklist:
+
+1. Run `git status --short` in this repo before editing.
+2. If the task may touch shared Supabase schema, RLS, API views/RPCs, generated
+   database types, or cross-app data contracts, also run `git status --short` in
+   `/worksp/shared-db` before editing.
+3. Treat `shared-db/` inside this repo as a read-only mirror. Do not create or
+   edit migrations there; use canonical `/worksp/shared-db`.
+4. PopDAM-owned migrations under this repo's `supabase/migrations/` still follow
+   this repo's migration discipline. Cross-app/shared-schema migrations belong in
+   canonical `/worksp/shared-db`.
+5. If `/worksp/shared-db` has untracked migrations or unrelated dirty files, stop
+   and report them before creating new database work. Do not mix another
+   session's shared-db changes into this app's commit.
+6. Before creating a shared-db migration, create/switch to a dedicated
+   `/worksp/shared-db` branch named for the database change. App repos commit to
+   `main`; shared-db uses branch + PR.
+
+Shutdown checklist:
+
+1. Run `git status --short` in this repo and, if touched or inspected for backend
+   work, in `/worksp/shared-db`.
+2. No untracked shared-db migration may remain. Every shared-db migration must be
+   committed on its own branch, stashed with a clear name, or removed if
+   abandoned.
+3. If shared-db work is incomplete, leave durable handoff text that names the
+   branch/stash, migration file, preview/prod apply status, and the next exact
+   action.
+4. Final reports must separate app commits from shared-db status so the owner can
+   keep vibe-coding without becoming the git janitor.
+
+---
+
 ## Multi-model AI usage in code (where models are configured)
 
 This codebase uses multiple AI models in multiple places. Before changing any model reference, check ALL of:
