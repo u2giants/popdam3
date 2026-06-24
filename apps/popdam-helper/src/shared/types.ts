@@ -125,6 +125,7 @@ export type IpcChannel =
   | "discard"
   | "open-dam"
   | "get-auth-state"
+  | "sign-in-microsoft"
   | "logout"
   | "get-storage-health"
   | "test-seafile-mapping"

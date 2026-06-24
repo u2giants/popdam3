@@ -15,10 +15,9 @@ import { readdirSync, statSync } from "fs";
 import { join } from "path";
 import { getConfig } from "./config";
 import { getSeafileHealth } from "./seafileAdapter";
+import { completeMicrosoftOAuthCallback } from "./oauth";
 import { log } from "./logger";
-import { HELPER_VERSION } from "@shared/constants";
-
-export const LOCAL_SERVER_PORT = 47380;
+import { HELPER_VERSION, LOCAL_SERVER_PORT } from "@shared/constants";
 
 const ALLOWED_ORIGINS = [
   /^https?:\/\/localhost(:\d+)?$/,
@@ -45,6 +44,22 @@ function send(res: ServerResponse, status: number, body: unknown, origin?: strin
       : {}),
   });
   res.end(json);
+}
+
+function sendHtml(res: ServerResponse, status: number, body: string): void {
+  res.writeHead(status, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body),
+  });
+  res.end(body);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 // ── /browse ───────────────────────────────────────────────────────────────────
@@ -107,7 +122,7 @@ function browseLocal(requestPath: string): { path: string; entries: DirEntry[] }
 // ── Server ────────────────────────────────────────────────────────────────────
 
 export function startLocalServer(): void {
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const origin = req.headers.origin;
     const url = new URL(req.url ?? "/", `http://localhost:${LOCAL_SERVER_PORT}`);
 
@@ -138,6 +153,22 @@ export function startLocalServer(): void {
     }
 
     try {
+      if (url.pathname === "/auth/callback") {
+        const result = await completeMicrosoftOAuthCallback(url);
+        const title = result.ok ? "Sign-in complete" : "Sign-in failed";
+        const escapedTitle = escapeHtml(title);
+        const escapedMessage = escapeHtml(result.message);
+        sendHtml(res, result.ok ? 200 : 400, `<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>${escapedTitle}</title></head>
+  <body style="font-family: system-ui, sans-serif; padding: 32px;">
+    <h1>${escapedTitle}</h1>
+    <p>${escapedMessage}</p>
+  </body>
+</html>`);
+        return;
+      }
+
       if (url.pathname === "/status") {
         const config = getConfig();
         const seafile = getSeafileHealth(config);

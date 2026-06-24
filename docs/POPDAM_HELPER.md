@@ -31,7 +31,7 @@ waitForFileStable() — polls size+mtime until stable
 createSnapshot() — copies file to Snapshots/checkoutId/
 /checkouts/prepare-checkin  →  validate hash, get upload path
   │
-  ├── Synology direct upload: uploadFile() → rename (atomic)
+  ├── Synology/local SMB: temp copy → rename (atomic)
   │       /checkouts/complete-checkin → asset_checkouts: status: complete
   │       Asset unlocked immediately
   │
@@ -145,17 +145,19 @@ The Helper uses two independent credential sets:
 
 Used to call the `helper-api` edge function (checkout tracking, heartbeat, device registration). The user signs in with the same email + password they use on the PopDAM web app.
 
-**Sign-in flow:**
-- On first launch (or after sign-out), the Helper's tray panel and Settings panel each show an email + password form.
-- Submitting calls `ipc:sign-in`, which POSTs to `${supabaseUrl}/auth/v1/token?grant_type=password` with the `apikey` header set to the Supabase anon key.
-- On success, the access + refresh tokens are stored in the OS keychain via `safeStorage`. The session is refreshed automatically via `damClient.ts`.
+**Sign-in flows:**
+- On first launch (or after sign-out), the Helper's tray panel and Settings panel show **Continue with Microsoft** plus an email + password fallback.
+- Microsoft sign-in opens the user's system browser, redirects back to the Helper's localhost server at `http://127.0.0.1:47380/auth/callback`, exchanges the Supabase PKCE auth code for a session, and stores the access + refresh tokens in the OS keychain via `safeStorage`.
+- Email/password sign-in calls `ipc:sign-in`, which POSTs to `${supabaseUrl}/auth/v1/token?grant_type=password` with the `apikey` header set to the Supabase anon key.
 - The Supabase anon key is **not hardcoded**. It is auto-discovered at sign-in time by fetching `${damUrl}/dam-config.json` (field: `supabase_anon_key`) and saved to `userData/config.json` as `supabaseAnonKey`.
 
-**Google SSO users** (users who sign into the PopDAM web app via Google OAuth) have no Supabase password by default. They must first visit PopDAM web Settings → "Helper App Password" to set one. This calls `supabase.auth.updateUser({ password })`, which attaches email+password auth to the existing Google-linked account — same UUID, same email, Google SSO continues to work on the web. No new account is created.
+**OAuth users** can use Microsoft directly in the Helper. The "Helper App Password" path remains a fallback for users who cannot use Microsoft OAuth in the desktop app. It calls `supabase.auth.updateUser({ password })`, which attaches email+password auth to the existing OAuth-linked account — same UUID, same email, OAuth continues to work on the web. No new account is created.
 
 ### 2. Synology credentials
 
-Used to upload checked-in files back to the NAS via WebDAV. Entered once in Settings under "Synology Credentials". Stored separately from the Supabase session.
+Used as the fallback path for checked-in files when direct SMB/local copy fails. Entered once in Settings under "Synology Credentials". Stored separately from the Supabase session.
+
+For USA/Synology mode, the Helper first writes checked-in snapshots directly through the configured local NAS folder mapping (`preferredProvider = "synology"`). Each mapping should point at that PopDAM root's actual mounted folder. For example, if the PopDAM path is `Decor/Character Licensed/foo.ai`, the `Decor` mapping should point at the local `Decor` folder, and the Helper writes `Character Licensed/foo.ai` underneath it. On Windows this can be a UNC path such as `\\edgesynology1\share\Decor`; on macOS the same SMB share must be mounted and exposed as a local path such as `/Volumes/Decor`. The write is temp-copy-then-rename so the final asset path is replaced only after the snapshot copy completes. If that local write fails, the upload queue falls back to Synology File Station using the stored Synology credentials.
 
 ## Credential storage
 

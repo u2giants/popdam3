@@ -6,6 +6,7 @@
 import { join, dirname, normalize, isAbsolute, sep } from "path";
 import {
   copyFileSync, mkdirSync, existsSync, statSync, openSync, closeSync, writeFileSync,
+  renameSync, unlinkSync,
 } from "fs";
 import { app } from "electron";
 import { sha256File } from "./hash";
@@ -32,8 +33,16 @@ export function resolveAssetPath(
   const mapping = rootMappings.find((m) => m.root_id === rootId);
   if (!mapping) throw new Error(`No local mapping for root_id "${rootId}"`);
 
-  const safeRelative = sanitizeRelativePath(relativePath);
+  const safeRelative = sanitizeRelativePath(stripRootSegment(rootId, relativePath));
   return join(mapping.local_path, safeRelative);
+}
+
+function stripRootSegment(rootId: string, relativePath: string): string {
+  const parts = relativePath.replace(/\\/g, "/").replace(/^\/+/, "").split("/");
+  if (parts[0]?.toLowerCase() === rootId.toLowerCase()) {
+    return parts.slice(1).join("/");
+  }
+  return relativePath;
 }
 
 /**
@@ -99,6 +108,29 @@ export async function copyToWorkspace(
   const size = statSync(destPath).size;
 
   return { workspacePath: destPath, hash, size };
+}
+
+export function copySnapshotToManagedPath(
+  snapshotPath: string,
+  relativePath: string,
+  rootMappings: RootMapping[],
+  tempSuffix: string,
+): string {
+  const rootId = relativePath.split("/")[0] ?? relativePath.split("\\")[0];
+  const finalPath = resolveAssetPath(rootId, relativePath, rootMappings);
+  const finalDir = dirname(finalPath);
+  const tempPath = join(finalDir, `${finalPath.split(/[\\/]/).pop() ?? "upload"}${tempSuffix}`);
+
+  mkdirSync(finalDir, { recursive: true });
+  log.info(`Copying ${snapshotPath} → ${tempPath}`);
+  copyFileSync(snapshotPath, tempPath);
+  try {
+    renameSync(tempPath, finalPath);
+  } catch (e) {
+    try { unlinkSync(tempPath); } catch { /* best effort cleanup */ }
+    throw e;
+  }
+  return finalPath;
 }
 
 // ── Checkout metadata sidecar ─────────────────────────────────────────────────

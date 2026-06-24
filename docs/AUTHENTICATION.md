@@ -15,7 +15,10 @@ Users sign in with their Microsoft / Azure AD account via Supabase's built-in Az
 | File | Purpose |
 |------|---------|
 | `src/pages/LoginPage.tsx` | Renders the "Continue with Microsoft" button |
+| `apps/popdam-helper/src/main/oauth.ts` | Desktop Helper Microsoft OAuth via browser + localhost PKCE callback |
 | `supabase/migrations/20260608100936_allow_azure_company_sso_signup.sql` | Trigger change — bypasses invitation check for Azure users |
+
+For the desktop Helper, Supabase Auth must allow `http://127.0.0.1:47380/auth/callback` as a redirect URL. The Helper opens the system browser, receives the `code` on its local HTTP server, exchanges it for a Supabase session, and then uses the same helper-api JWT flow as email/password sign-in.
 
 ---
 

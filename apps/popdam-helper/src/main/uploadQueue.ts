@@ -12,6 +12,8 @@ import { loadToken } from "./credentials";
 import { uploadFile } from "./synologyClient";
 import { completeCheckin, redriveComplete } from "./damClient";
 import { sha256File, quickHashFile } from "./hash";
+import { getConfig } from "./config";
+import { copySnapshotToManagedPath } from "./fileOps";
 import { statSync } from "fs";
 import { UPLOAD_MAX_RETRIES, UPLOAD_RETRY_DELAY_MS } from "@shared/constants";
 import type { UploadJob } from "@shared/types";
@@ -131,35 +133,29 @@ async function processJob(job: StoredJob): Promise<void> {
       throw new Error(`Snapshot file missing: ${snapshotPath}`);
     }
 
-    const synologyUser = loadToken("synology_username");
-    const synologyPass = loadToken("synology_password");
-    if (!synologyUser || !synologyPass) {
-      throw new Error("Synology credentials not configured. Please open Settings.");
+    let synologyUser = loadToken("synology_username");
+    let uploadMethod = job.uploadMethod;
+
+    try {
+      if (job.uploadMethod === "smb_local") {
+        const config = getConfig();
+        copySnapshotToManagedPath(
+          snapshotPath,
+          job.relativePath,
+          config.rootMappings,
+          job.tempSuffix,
+        );
+        progressCallback?.(checkoutId, 99);
+      } else {
+        await uploadViaFileStation(job, snapshotPath, checkoutId);
+      }
+    } catch (e) {
+      if (job.uploadMethod !== "smb_local") throw e;
+      log.warn(`SMB/local write failed for checkout ${checkoutId}; falling back to Synology File Station:`, (e as Error).message);
+      await uploadViaFileStation(job, snapshotPath, checkoutId);
+      uploadMethod = "synology_file_station";
+      synologyUser = loadToken("synology_username");
     }
-
-    const synologyConfig = {
-      url: job.synologyUrl ?? "",
-      port: job.synologyPort,
-      username: synologyUser,
-      password: synologyPass,
-    };
-
-    const remoteDir = dirname(job.relativePath).replace(/^[^/\\]+[/\\]/, "");
-    const shareName = job.relativePath.split("/")[0] ?? job.relativePath.split("\\")[0];
-    const tempName = job.filename + job.tempSuffix;
-
-    await uploadFile(
-      synologyConfig,
-      snapshotPath,
-      shareName,
-      remoteDir,
-      tempName,
-      job.filename,
-      // The Synology client reports 100% when the temp upload finishes, before
-      // rename and cloud finalization. Keep the UI in uploading state until this
-      // queue confirms complete/verifying below.
-      (progress) => progressCallback?.(checkoutId, Math.min(progress.percent, 99)),
-    );
 
     // Re-drive: re-upload of a stuck 'verifying' check-in. The file is already on
     // the server's side; we just re-pushed the same snapshot. Report to
@@ -183,7 +179,7 @@ async function processJob(job: StoredJob): Promise<void> {
       final_hash: finalHash,
       final_quick_hash: finalQuickHash,
       final_size: finalSize,
-      upload_method: "synology_file_station",
+      upload_method: uploadMethod,
       synology_upload_user: synologyUser,
       source_provider: job.sourceProvider,
       source_version: job.seafileObjId ?? null,
@@ -211,6 +207,42 @@ async function processJob(job: StoredJob): Promise<void> {
       await sleep(UPLOAD_RETRY_DELAY_MS * retryCount);
     }
   }
+}
+
+async function uploadViaFileStation(
+  job: StoredJob,
+  snapshotPath: string,
+  checkoutId: string,
+): Promise<void> {
+  const synologyUser = loadToken("synology_username");
+  const synologyPass = loadToken("synology_password");
+  if (!synologyUser || !synologyPass) {
+    throw new Error("Synology credentials not configured. Please open Settings.");
+  }
+
+  const synologyConfig = {
+    url: job.synologyUrl ?? "",
+    port: job.synologyPort,
+    username: synologyUser,
+    password: synologyPass,
+  };
+
+  const remoteDir = dirname(job.relativePath).replace(/^[^/\\]+[/\\]/, "");
+  const shareName = job.relativePath.split("/")[0] ?? job.relativePath.split("\\")[0];
+  const tempName = job.filename + job.tempSuffix;
+
+  await uploadFile(
+    synologyConfig,
+    snapshotPath,
+    shareName,
+    remoteDir,
+    tempName,
+    job.filename,
+    // The Synology client reports 100% when the temp upload finishes, before
+    // rename and cloud finalization. Keep the UI in uploading state until this
+    // queue confirms complete/verifying below.
+    (progress) => progressCallback?.(checkoutId, Math.min(progress.percent, 99)),
+  );
 }
 
 function updateJob(checkoutId: string, updates: Partial<StoredJob>): void {

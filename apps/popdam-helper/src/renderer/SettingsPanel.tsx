@@ -219,6 +219,21 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
             <div className="meta" style={{ marginBottom: 8 }}>
               Not signed in — sign in with your PopDAM account.
             </div>
+            <button
+              className="primary"
+              type="button"
+              style={{ width: "100%", marginBottom: 8 }}
+              disabled={signInBusy}
+              onClick={async () => {
+                setSignInBusy(true);
+                setSignInError(null);
+                const res = await window.popdam.signInMicrosoft();
+                setSignInBusy(false);
+                if (!res.ok) setSignInError(res.error ?? "Microsoft sign-in failed");
+              }}
+            >
+              {signInBusy ? "Waiting for Microsoft…" : "Continue with Microsoft"}
+            </button>
             <form onSubmit={async (e) => {
               e.preventDefault();
               setSignInBusy(true);

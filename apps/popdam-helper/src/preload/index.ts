@@ -38,6 +38,8 @@ const api = {
     ipcRenderer.invoke("get-auth-state"),
   signIn: (email: string, password: string): Promise<IpcResponse> =>
     ipcRenderer.invoke("sign-in", { email, password }),
+  signInMicrosoft: (): Promise<IpcResponse> =>
+    ipcRenderer.invoke("sign-in-microsoft"),
   logout: (): Promise<IpcResponse> =>
     ipcRenderer.invoke("logout"),
 

@@ -290,7 +290,7 @@ export async function checkin(checkoutId: string): Promise<void> {
   enqueue({
     checkoutId,
     snapshotPath: snap.snapshotPath,
-    uploadMethod: "synology_file_station",
+    uploadMethod: config.preferredProvider === "synology" ? "smb_local" : "synology_file_station",
     synologyUrl: instructions.upload_instructions.synology_url,
     synologyPort: instructions.upload_instructions.synology_port,
     relativePath: instructions.upload_instructions.relative_path,
@@ -458,10 +458,11 @@ async function triggerRedrive(rec: CheckoutRecord): Promise<void> {
   redriving.add(rec.id);
   try {
     const { upload_instructions: ui } = await apiRedrive(rec.id);
+    const config = getConfig();
     enqueue({
       checkoutId: rec.id,
       snapshotPath: rec.snapshotPath,
-      uploadMethod: "synology_file_station",
+      uploadMethod: config.preferredProvider === "synology" ? "smb_local" : "synology_file_station",
       synologyUrl: ui.synology_url,
       synologyPort: ui.synology_port,
       relativePath: ui.relative_path,

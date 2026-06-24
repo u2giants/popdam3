@@ -17,9 +17,31 @@ import { getPendingJobs } from "./uploadQueue";
 import { fetchConfig, discoverSupabaseConfig } from "./damClient";
 import { validateRoot } from "./rootValidator";
 import { getSeafileHealth, testSeafileMapping } from "./seafileAdapter";
+import { startMicrosoftOAuth } from "./oauth";
 import { shell } from "electron";
 import { log } from "./logger";
 import type { LocalConfig } from "@shared/types";
+
+async function registerDeviceAfterSignIn(): Promise<void> {
+  const config = getConfig();
+  const { registerDevice } = await import("./damClient");
+  const { loadActiveCheckouts } = await import("./checkoutManager");
+  const { sendToRenderer } = await import("./tray");
+  try {
+    const reg = await registerDevice({
+      device_name: config.deviceName,
+      device_os: config.deviceOs,
+      helper_version: (await import("@shared/constants")).HELPER_VERSION,
+      device_id: config.deviceId,
+    });
+    if (reg.ok && reg.device_id !== config.deviceId) saveConfig({ deviceId: reg.device_id });
+  } catch (e) {
+    log.warn("Device registration failed after sign-in:", e);
+  }
+  await loadActiveCheckouts().catch(() => {});
+  sendToRenderer("auth-changed");
+  sendToRenderer("checkouts-changed");
+}
 
 export function registerIpcHandlers(): void {
   // ── Config ──────────────────────────────────────────────────────────────────
@@ -127,24 +149,17 @@ export function registerIpcHandlers(): void {
       const refreshToken = json.refresh_token as string;
       storeSession(accessToken, refreshToken);
 
-      const config = getConfig();
-      const { registerDevice } = await import("./damClient");
-      const { loadActiveCheckouts } = await import("./checkoutManager");
-      const { sendToRenderer } = await import("./tray");
-      try {
-        const reg = await registerDevice({
-          device_name: config.deviceName,
-          device_os: config.deviceOs,
-          helper_version: (await import("@shared/constants")).HELPER_VERSION,
-          device_id: config.deviceId,
-        });
-        if (reg.ok && reg.device_id !== config.deviceId) saveConfig({ deviceId: reg.device_id });
-      } catch (e) {
-        log.warn("Device registration failed after sign-in:", e);
-      }
-      await loadActiveCheckouts().catch(() => {});
-      sendToRenderer("auth-changed");
-      sendToRenderer("checkouts-changed");
+      await registerDeviceAfterSignIn();
+      return { ok: true };
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+
+  ipcMain.handle("sign-in-microsoft", async () => {
+    try {
+      await startMicrosoftOAuth();
+      await registerDeviceAfterSignIn();
       return { ok: true };
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };

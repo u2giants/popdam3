@@ -36,6 +36,7 @@ export const UPLOAD_CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB
 
 // Heartbeat
 export const HEARTBEAT_INTERVAL_MS = 30 * 1000;
+export const LOCAL_SERVER_PORT = 47380;
 
 // Marker file name that lives at the root of every managed root
 export const ROOT_MARKER_FILENAME = "pop-root.json";
