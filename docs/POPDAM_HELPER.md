@@ -143,7 +143,7 @@ The Helper uses two independent credential sets:
 
 ### 1. Supabase session (PopDAM account)
 
-Used to call the `helper-api` edge function (checkout tracking, heartbeat, device registration). The user signs in with the same email + password they use on the PopDAM web app.
+Used to call the `helper-api` edge function (checkout tracking, heartbeat, device registration). The user signs in with Microsoft OAuth or the email/password fallback.
 
 **Sign-in flows:**
 - On first launch (or after sign-out), the Helper's tray panel and Settings panel show **Continue with Microsoft** plus an email + password fallback.
@@ -185,9 +185,9 @@ npm run typecheck      # tsc --noEmit on both tsconfigs
 
 ---
 
-## Auto-update (not yet implemented)
+## Auto-update
 
-The `publish` block in `electron-builder.yml` points to the GitHub release, which is the prerequisite for `electron-updater`. Auto-update is blocked on code signing:
+The `publish` block in `electron-builder.yml` points to the GitHub release and `main.ts` calls `autoUpdater.checkForUpdatesAndNotify()` after app startup. The updater path is present, but clean/trusted install and update UX is still limited by code signing:
 
 | Platform | Requirement | Cost |
 |----------|-------------|------|
@@ -195,4 +195,4 @@ The `publish` block in `electron-builder.yml` points to the GitHub release, whic
 | Windows (OV cert) | Auto-update works; SmartScreen warns on every install | ~$60–$150/yr (e.g. Certum) |
 | Windows (EV cert) | No SmartScreen warning, silent updates | ~$300–$500/yr |
 
-Until a cert is purchased, users update by downloading and reinstalling manually from GitHub Releases. To implement once signed: add `electron-updater` to `dependencies`, call `autoUpdater.checkForUpdatesAndNotify()` in `main.ts` after app ready, and set `CSC_LINK` / `CSC_KEY_PASSWORD` secrets in GitHub Actions.
+Until certificates are configured, users may still see Gatekeeper/SmartScreen warnings and should be prepared to download/reinstall manually from GitHub Releases if auto-update is blocked by OS trust policy. If signing is revived later, set `CSC_LINK` / `CSC_KEY_PASSWORD` and the Apple notarization secrets in GitHub Actions.
