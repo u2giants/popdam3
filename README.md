@@ -80,6 +80,7 @@ popdam3/
 | [docs/STYLE_GROUPS.md](docs/STYLE_GROUPS.md) | Style group system — rebuild, reconcile, cover assets |
 | [docs/BULK_JOBS.md](docs/BULK_JOBS.md) | Bulk/background job system and cross-lane conflict map |
 | [docs/ERP_ENRICHMENT_PLAN.md](docs/ERP_ENRICHMENT_PLAN.md) | ERP sync, MG codes, AI category classification |
+| [docs/MASTER_DATA.md](docs/MASTER_DATA.md) | Temporary Master Data style tracker app, Google Sheet import, matching workflow, PLM canonical API notes |
 | [docs/POPSG.md](docs/POPSG.md) | PopSG mode — schema, crawl flow, render pipeline |
 | [docs/POPDAM_HELPER.md](docs/POPDAM_HELPER.md) | Desktop Helper (checkout/check-in) architecture |
 | [docs/SEAFILE_INTEGRATION.md](docs/SEAFILE_INTEGRATION.md) | Seafile/SeaDrive transport for WFH designers |

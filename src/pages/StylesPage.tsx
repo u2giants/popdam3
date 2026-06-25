@@ -1,0 +1,663 @@
+import { useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CellValueChangedEvent, ColDef } from "ag-grid-community";
+import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
+import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
+import { AgGridReact } from "ag-grid-react";
+import { Check, ChevronDown, Columns3, Database, Plus, RefreshCw, Search, Table2 } from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { useAppearance } from "@/hooks/useAppearance";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { cn } from "@/lib/utils";
+
+LicenseManager.setLicenseKey("");
+ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
+
+type FieldKey = "sku" | "customer" | "licensor" | "factory";
+type RowData = Record<string, unknown>;
+
+type StyleRow = {
+  id: string;
+  source_sheet: string;
+  source_row_number: number | null;
+  tracker_type: "licensed" | "generic";
+  sku: string | null;
+  group_id: string | null;
+  description: string | null;
+  customer: string | null;
+  designer: string | null;
+  commissioned: string | null;
+  upc: string | null;
+  customer_sku: string | null;
+  licensor: string | null;
+  license_status: string | null;
+  royalty: string | null;
+  concept_status: string | null;
+  pre_production_status: string | null;
+  production_status: string | null;
+  default_vendor: string | null;
+  discontinued: boolean | null;
+  notes: string | null;
+  row_data: RowData;
+  match_status?: "matched" | "partial" | "needs_review" | "unmatched" | null;
+  match_notes?: RowData | null;
+  erp_item_id?: string | null;
+  style_group_id?: string | null;
+  company_id?: string | null;
+  public_licensor_id?: string | null;
+  core_licensor_id?: string | null;
+  factory_id?: string | null;
+  plm_item_id?: string | null;
+};
+
+type SheetColumn = {
+  letter: string;
+  header: string;
+  width?: number;
+  pinned?: "left";
+  hide?: boolean;
+  typedField?: keyof StyleRow;
+  legacyKey?: string;
+  linkKind?: FieldKey;
+};
+
+type ReviewItem = {
+  key: string;
+  fieldKey: FieldKey;
+  label: string;
+  rawValue: string;
+  count: number;
+};
+
+type LinkCandidate = {
+  target_schema: string;
+  target_table: string;
+  target_id: string;
+  target_label: string;
+  score: number;
+};
+
+const DEFAULT_ROW_LIMIT = 2500;
+
+const licensedColumns: SheetColumn[] = [
+  { letter: "A", header: "Print Fair Row#", width: 118, hide: true, legacyKey: "print_fair_row" },
+  { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
+  { letter: "C", header: "Group ID", width: 118, typedField: "group_id", legacyKey: "group_id" },
+  { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
+  { letter: "E", header: "Originally Designed For", width: 190, typedField: "customer", legacyKey: "originally_designed_for", linkKind: "customer" },
+  { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer" },
+  { letter: "G", header: "New BA# commissioned", width: 170, typedField: "commissioned", legacyKey: "commissioned" },
+  { letter: "H", header: "RFQ #", width: 125 },
+  { letter: "I", header: "Legacy BA#", width: 130, hide: true, legacyKey: "legacy_ba" },
+  { letter: "J", header: "BA#", width: 115, legacyKey: "ba" },
+  { letter: "K", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
+  { letter: "L", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
+  { letter: "M", header: "Licensor", width: 130, typedField: "licensor", legacyKey: "licensor", linkKind: "licensor" },
+  { letter: "N", header: "License Status", width: 155, typedField: "license_status", legacyKey: "license_status" },
+  { letter: "O", header: "Concept Sent", width: 145, typedField: "concept_status", legacyKey: "concept_sent" },
+  { letter: "P", header: "Concept Resubmit", width: 165, legacyKey: "concept_resubmit" },
+  { letter: "Q", header: "Concept Resubmitted", width: 175, legacyKey: "concept_resubmitted" },
+  { letter: "R", header: "Concept Approval", width: 165, legacyKey: "concept_approval" },
+  { letter: "S", header: "Concept Approved with Comments", width: 225, legacyKey: "concept_approved_with_comments" },
+  { letter: "T", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
+  { letter: "U", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor" },
+  { letter: "V", header: "RFQ Code", width: 130, legacyKey: "rfq_code" },
+  { letter: "W", header: "Sample Photos Received", width: 200, legacyKey: "sample_photos_received" },
+  { letter: "X", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
+  { letter: "Y", header: "Pre Production Resubmit", width: 205, legacyKey: "pre_production_resubmit" },
+  { letter: "Z", header: "Pre Production Resubmitted", width: 225, legacyKey: "pre_production_resubmitted" },
+  { letter: "AA", header: "Pre Production approved w/comment", width: 255, legacyKey: "pre_production_approved_comment" },
+  { letter: "AB", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval" },
+  { letter: "AC", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval" },
+  { letter: "AD", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
+  { letter: "AE", header: "Ordered Cont Sample", width: 190, legacyKey: "ordered_cont_sample" },
+  { letter: "AF", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
+  { letter: "AG", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
+  { letter: "AH", header: "Professional Photos", width: 180, legacyKey: "professional_photos" },
+  { letter: "AI", header: "Test report", width: 150, legacyKey: "test_report" },
+  { letter: "AJ", header: "Catalog Image", width: 150, legacyKey: "catalog_image" },
+  { letter: "AK", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
+  { letter: "AL", header: "Customer Exclusive", width: 180, legacyKey: "customer_exclusive" },
+  { letter: "AM", header: "Annual Samples to Need Order", width: 220, legacyKey: "annual_samples_need_order" },
+  { letter: "AN", header: "Annual Samples Ordered", width: 205, legacyKey: "annual_samples_ordered" },
+  { letter: "AO", header: "Contractual Samples RE-Order", width: 235, legacyKey: "contractual_samples_reorder" },
+  { letter: "AQ", header: "TP Assigned", width: 135, legacyKey: "tp_assigned" },
+  { letter: "AU", header: "Note:", width: 300, typedField: "notes", legacyKey: "note" },
+];
+
+const genericColumns: SheetColumn[] = [
+  { letter: "A", header: "A", width: 130 },
+  { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
+  { letter: "C", header: "GroupID", width: 118, typedField: "group_id", legacyKey: "group_id" },
+  { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
+  { letter: "E", header: "Special Customer", width: 170, typedField: "customer", legacyKey: "special_customer", linkKind: "customer" },
+  { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer" },
+  { letter: "G", header: "commissioned", width: 140, typedField: "commissioned", legacyKey: "commissioned" },
+  { letter: "H", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
+  { letter: "I", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
+  { letter: "J", header: "Licensor", width: 130, typedField: "licensor", legacyKey: "licensor", linkKind: "licensor" },
+  { letter: "M", header: "Royalty", width: 115, typedField: "royalty", legacyKey: "royalty" },
+  { letter: "N", header: "Concept Sent", width: 145, typedField: "concept_status", legacyKey: "concept_sent" },
+  { letter: "O", header: "Concept Resubmit", width: 165, legacyKey: "concept_resubmit" },
+  { letter: "P", header: "Concept Resubmitted", width: 175, legacyKey: "concept_resubmitted" },
+  { letter: "Q", header: "Concept Approval", width: 165, legacyKey: "concept_approval" },
+  { letter: "R", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
+  { letter: "S", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor" },
+  { letter: "T", header: "RFQ Code", width: 150, legacyKey: "rfq_code" },
+  { letter: "U", header: "Sample Received", width: 170, legacyKey: "sample_received" },
+  { letter: "V", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
+  { letter: "W", header: "Pre Production Approval", width: 210, legacyKey: "pre_production_approval" },
+  { letter: "X", header: "Production Approval", width: 190, typedField: "production_status", legacyKey: "production_approval" },
+  { letter: "Y", header: "Default Vendor(Sales)", width: 195, typedField: "default_vendor", legacyKey: "default_vendor_sales", linkKind: "factory" },
+  { letter: "Z", header: "Ordered David sample", width: 190, legacyKey: "ordered_david_sample" },
+  { letter: "AA", header: "Ordered Proff Photos", width: 185, legacyKey: "ordered_proff_photos" },
+  { letter: "AB", header: "Ordered Test Report", width: 180, legacyKey: "ordered_test_report" },
+  { letter: "AC", header: "Professional Photos", width: 180, legacyKey: "professional_photos" },
+  { letter: "AD", header: "Test report", width: 150, legacyKey: "test_report" },
+  { letter: "AE", header: "Catalog Image", width: 150, legacyKey: "catalog_image" },
+  { letter: "AF", header: "Discontinued", width: 145, typedField: "discontinued", legacyKey: "discontinued" },
+];
+
+const configs = [
+  { name: "License.Style", label: "Licensed", trackerType: "licensed", columns: licensedColumns },
+  { name: "Generic.Style", label: "Generic", trackerType: "generic", columns: genericColumns },
+] as const;
+
+const lightGridTheme = themeQuartz.withPart(iconSetMaterial).withParams({
+  accentColor: "#2563eb",
+  backgroundColor: "#ffffff",
+  borderColor: "#d9e2ef",
+  browserColorScheme: "light",
+  chromeBackgroundColor: "#f8fafc",
+  foregroundColor: "#0f172a",
+  headerBackgroundColor: "#eef2f7",
+  headerTextColor: "#334155",
+  oddRowBackgroundColor: "#fbfdff",
+  rowHoverColor: "#eef6ff",
+  spacing: 6,
+  fontSize: 13,
+  headerFontSize: 12,
+});
+
+const darkGridTheme = themeQuartz.withPart(iconSetMaterial).withParams({
+  accentColor: "#38bdf8",
+  backgroundColor: "#0b1120",
+  borderColor: "#263247",
+  browserColorScheme: "dark",
+  chromeBackgroundColor: "#111827",
+  foregroundColor: "#e5e7eb",
+  headerBackgroundColor: "#111827",
+  headerTextColor: "#cbd5e1",
+  oddRowBackgroundColor: "#0f172a",
+  rowHoverColor: "#172033",
+  spacing: 6,
+  fontSize: 13,
+  headerFontSize: 12,
+});
+
+function valueFor(row: StyleRow | undefined, column: SheetColumn) {
+  if (!row) return "";
+  const typed = column.typedField ? row[column.typedField] : null;
+  return typed ?? row.row_data?.[column.letter] ?? (column.legacyKey ? row.row_data?.[column.legacyKey] : "") ?? "";
+}
+
+function normalized(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function fieldValue(row: StyleRow, field: FieldKey) {
+  if (field === "sku") return row.sku;
+  if (field === "customer") return row.customer;
+  if (field === "licensor") return row.licensor;
+  return row.default_vendor;
+}
+
+function fieldLabel(field: FieldKey) {
+  if (field === "sku") return "Style # / SKU";
+  if (field === "customer") return "Customer";
+  if (field === "licensor") return "Licensor";
+  return "Vendor";
+}
+
+function hasFieldMatch(row: StyleRow, field: FieldKey) {
+  if (field === "sku") return Boolean(row.erp_item_id || row.style_group_id || row.plm_item_id);
+  if (field === "customer") return Boolean(row.company_id);
+  if (field === "licensor") return Boolean(row.public_licensor_id || row.core_licensor_id);
+  return Boolean(row.factory_id);
+}
+
+function manualResolutionField(row: StyleRow) {
+  const manual = row.match_notes?.manual_resolution;
+  if (!manual || typeof manual !== "object" || Array.isArray(manual)) return null;
+  const field = (manual as Record<string, unknown>).field_key;
+  return typeof field === "string" ? field : null;
+}
+
+function fuzzyCandidate(row: StyleRow | undefined, field: FieldKey) {
+  const fuzzy = row?.match_notes?.fuzzy;
+  if (!fuzzy || typeof fuzzy !== "object" || Array.isArray(fuzzy)) return null;
+  return (fuzzy as Record<string, unknown>)[field] ?? null;
+}
+
+function statusFor(row: StyleRow | undefined, column: SheetColumn) {
+  if (!row || !column.linkKind) return null;
+  if (fuzzyCandidate(row, column.linkKind)) return "needs_review";
+  if (hasFieldMatch(row, column.linkKind)) return "matched";
+  return "unmatched";
+}
+
+function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown) {
+  const nextValue = value === "" ? null : column.typedField === "discontinued" ? ["true", "yes", "1"].includes(String(value).toLowerCase()) : String(value);
+  const rowData = { ...(row.row_data ?? {}), [column.letter]: nextValue };
+  if (column.legacyKey) rowData[column.legacyKey] = nextValue;
+  const payload: Partial<StyleRow> & { row_data: RowData } = { row_data: rowData };
+  if (column.typedField) (payload[column.typedField] as unknown) = nextValue;
+  return payload;
+}
+
+async function fetchRows(sourceSheet: string, showAll: boolean) {
+  const rows: StyleRow[] = [];
+  const maxRows = showAll ? Number.POSITIVE_INFINITY : DEFAULT_ROW_LIMIT;
+  for (let from = 0; rows.length < maxRows; from += 1000) {
+    const to = Math.min(from + 999, maxRows - 1);
+    const { data, error } = await (supabase as any)
+      .from("style_tracker_rows_with_bridge")
+      .select("*")
+      .eq("source_sheet", sourceSheet)
+      .order("source_row_number", { ascending: false })
+      .range(from, to);
+    if (error) throw error;
+    rows.push(...((data ?? []) as StyleRow[]));
+    if (!data || data.length < 1000) break;
+  }
+  return rows;
+}
+
+async function fetchCount(sourceSheet: string) {
+  const { count, error } = await (supabase as any)
+    .from("style_tracker_rows_with_bridge")
+    .select("id", { count: "exact", head: true })
+    .eq("source_sheet", sourceSheet);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+async function searchCandidates(item: ReviewItem | null) {
+  if (!item) return [] as LinkCandidate[];
+  const fuzzy = await (supabase as any).rpc("search_style_tracker_link_candidates", {
+    p_field_key: item.fieldKey,
+    p_query: item.rawValue,
+    p_limit: 8,
+    p_match_mode: "fuzzy",
+  });
+  if (fuzzy.error) throw fuzzy.error;
+  if (fuzzy.data?.length) return fuzzy.data as LinkCandidate[];
+  if (item.fieldKey === "sku") return [];
+  const all = await (supabase as any).rpc("search_style_tracker_link_candidates", {
+    p_field_key: item.fieldKey,
+    p_query: item.rawValue,
+    p_limit: 500,
+    p_match_mode: "all",
+  });
+  if (all.error) throw all.error;
+  return (all.data ?? []) as LinkCandidate[];
+}
+
+export default function StylesPage() {
+  const queryClient = useQueryClient();
+  const { theme } = useAppearance();
+  const { isAdmin } = useIsAdmin();
+  const gridRef = useRef<AgGridReact<StyleRow>>(null);
+  const [activeSheet, setActiveSheet] = useState<(typeof configs)[number]["name"]>("License.Style");
+  const [quickFilter, setQuickFilter] = useState("");
+  const [showAllRows, setShowAllRows] = useState(false);
+  const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
+  const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
+
+  const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
+  const rowsQuery = useQuery({ queryKey: ["style-rows", active.name, showAllRows], queryFn: () => fetchRows(active.name, showAllRows) });
+  const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
+  const rows = rowsQuery.data ?? [];
+
+  const reviewItems = useMemo(() => {
+    const items = new Map<string, ReviewItem>();
+    for (const row of rows) {
+      for (const field of ["sku", "customer", "licensor", "factory"] as FieldKey[]) {
+        if (manualResolutionField(row) === field) continue;
+        const rawValue = fieldValue(row, field);
+        if (!rawValue) continue;
+        if (hasFieldMatch(row, field) && !fuzzyCandidate(row, field)) continue;
+        const key = `${field}:${normalized(rawValue)}`;
+        if (resolvedReviewKeys.has(key)) continue;
+        const existing = items.get(key);
+        if (existing) existing.count += 1;
+        else items.set(key, { key, fieldKey: field, label: fieldLabel(field), rawValue, count: 1 });
+      }
+    }
+    return [...items.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [rows, resolvedReviewKeys]);
+
+  const selectedReviewItem = reviewItems.find((item) => item.key === selectedReviewKey) ?? reviewItems[0] ?? null;
+  const candidateQuery = useQuery({
+    queryKey: ["style-candidates", selectedReviewItem?.key],
+    queryFn: () => searchCandidates(selectedReviewItem),
+    enabled: isAdmin && Boolean(selectedReviewItem),
+  });
+
+  const removeResolvedReviewItem = (item: ReviewItem) => {
+    setResolvedReviewKeys((current) => new Set(current).add(item.key));
+    setSelectedReviewKey(null);
+  };
+
+  const updateCell = useMutation({
+    mutationFn: async ({ row, column, value }: { row: StyleRow; column: SheetColumn; value: unknown }) => {
+      const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
+      if (error) throw error;
+      const refreshed = await (supabase as any).rpc("refresh_style_tracker_item_bridge");
+      if (refreshed.error) throw refreshed.error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["style-rows"] }),
+    onError: (error) => toast.error("Could not save style row", { description: error.message }),
+  });
+
+  const addRow = useMutation({
+    mutationFn: async (count: number) => {
+      const { error } = await (supabase as any).rpc("add_style_tracker_rows", {
+        p_source_sheet: active.name,
+        p_tracker_type: active.trackerType,
+        p_count: count,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, count) => {
+      toast.success(count === 1 ? "Row added" : `${count} rows added`);
+      queryClient.invalidateQueries({ queryKey: ["style-rows"] });
+      queryClient.invalidateQueries({ queryKey: ["style-row-count"] });
+    },
+    onError: (error) => toast.error("Could not add row", { description: error.message }),
+  });
+
+  const resolveCanonical = useMutation({
+    mutationFn: async ({ item, candidate }: { item: ReviewItem; candidate: LinkCandidate }) => {
+      const { error } = await (supabase as any).rpc("upsert_style_tracker_value_resolution", {
+        p_field_key: item.fieldKey,
+        p_raw_value: item.rawValue,
+        p_resolution_type: "canonical",
+        p_target_schema: candidate.target_schema,
+        p_target_table: candidate.target_table,
+        p_target_id: candidate.target_id,
+        p_target_label: candidate.target_label,
+      });
+      if (error) throw error;
+      return item;
+    },
+    onSuccess: (item) => {
+      removeResolvedReviewItem(item);
+      toast.success("Master Data link saved");
+      queryClient.invalidateQueries({ queryKey: ["style-rows"] });
+      queryClient.invalidateQueries({ queryKey: ["style-candidates"] });
+    },
+    onError: (error) => toast.error("Could not save link", { description: error.message }),
+  });
+
+  const resolveLocal = useMutation({
+    mutationFn: async (item: ReviewItem) => {
+      const { error } = await (supabase as any).rpc("upsert_style_tracker_value_resolution", {
+        p_field_key: item.fieldKey,
+        p_raw_value: item.rawValue,
+        p_resolution_type: "master_data",
+        p_local_value: item.rawValue,
+      });
+      if (error) throw error;
+      return item;
+    },
+    onSuccess: (item) => {
+      removeResolvedReviewItem(item);
+      toast.success("Master Data-only value saved");
+      queryClient.invalidateQueries({ queryKey: ["style-rows"] });
+      queryClient.invalidateQueries({ queryKey: ["style-candidates"] });
+    },
+    onError: (error) => toast.error("Could not save Master Data value", { description: error.message }),
+  });
+
+  const columnDefs = useMemo<ColDef<StyleRow>[]>(
+    () => [
+      {
+        field: "source_row_number",
+        headerName: "#",
+        width: 72,
+        pinned: "left",
+        editable: false,
+        filter: "agNumberColumnFilter",
+        suppressFillHandle: true,
+        cellClass: "font-mono text-muted-foreground",
+      },
+      {
+        colId: "match",
+        headerName: "Match",
+        width: 112,
+        pinned: "left",
+        editable: false,
+        filter: true,
+        suppressFillHandle: true,
+        valueGetter: (params) => params.data?.match_status ?? "unmatched",
+        cellRenderer: (params: { data?: StyleRow }) => (
+          <span
+            className={cn(
+              "inline-flex max-w-full items-center rounded px-1.5 py-0.5 text-[10px] font-medium",
+              params.data?.match_status === "matched" && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+              params.data?.match_status === "partial" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+              params.data?.match_status === "needs_review" && "bg-destructive/15 text-destructive",
+              (!params.data?.match_status || params.data.match_status === "unmatched") && "bg-muted text-muted-foreground",
+            )}
+          >
+            {params.data?.match_status === "matched" ? "Linked" : params.data?.match_status === "partial" ? "Partial" : params.data?.match_status === "needs_review" ? "Review" : "Unlinked"}
+          </span>
+        ),
+      },
+      ...active.columns.map((column): ColDef<StyleRow> => ({
+        colId: column.letter,
+        headerName: column.header,
+        headerTooltip: `${column.letter}: ${column.header}`,
+        width: column.width ?? 140,
+        pinned: column.pinned,
+        hide: column.hide,
+        editable: true,
+        filter: true,
+        sortable: true,
+        resizable: true,
+        valueGetter: (params) => valueFor(params.data, column),
+        cellRenderer: column.linkKind
+          ? (params: { data?: StyleRow }) => {
+              const status = statusFor(params.data, column);
+              return (
+                <div className="flex h-full min-w-0 items-center gap-1.5">
+                  <span className="min-w-0 truncate">{String(valueFor(params.data, column) ?? "")}</span>
+                  {status && (
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 shrink-0 rounded-full",
+                        status === "matched" && "bg-emerald-500",
+                        status === "needs_review" && "bg-destructive",
+                        status === "unmatched" && "bg-muted-foreground/35",
+                      )}
+                    />
+                  )}
+                </div>
+              );
+            }
+          : undefined,
+        valueSetter: (params) => {
+          if (!params.data) return false;
+          const payload = buildUpdate(params.data, column, params.newValue);
+          params.data.row_data = payload.row_data;
+          if (column.typedField) (params.data[column.typedField] as unknown) = payload[column.typedField];
+          return true;
+        },
+      })),
+    ],
+    [active],
+  );
+
+  const totalRows = countQuery.data ?? rows.length;
+  const hiddenRows = Math.max(totalRows - rows.length, 0);
+
+  return (
+    <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">
+      <div className="border-b border-border bg-background px-4 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted">
+              <Table2 className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold leading-tight text-foreground">Master Data</h1>
+              <p className="text-xs text-muted-foreground">
+                {rows.length.toLocaleString()} loaded rows · {totalRows.toLocaleString()} total rows
+                {hiddenRows > 0 && !showAllRows ? ` · ${hiddenRows.toLocaleString()} older rows hidden` : ""}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-72">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input value={quickFilter} onChange={(event) => setQuickFilter(event.target.value)} className="h-9 pl-8" placeholder="Search master data" />
+            </div>
+            <Button variant="outline" size="sm" onClick={() => rowsQuery.refetch()} disabled={rowsQuery.isFetching}>
+              <RefreshCw className={cn("h-4 w-4", rowsQuery.isFetching && "animate-spin")} />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowAllRows((value) => !value)} disabled={rowsQuery.isFetching}>
+              {showAllRows ? "Latest 2,500" : "Show All"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => gridRef.current?.api.openToolPanel("columns")}>
+              <Columns3 className="h-4 w-4" />
+              Columns
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" disabled={addRow.isPending}>
+                  <Plus className="h-4 w-4" />
+                  Row
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                {[1, 5, 10, 25].map((count) => (
+                  <DropdownMenuItem key={count} onClick={() => addRow.mutate(count)}>
+                    +{count}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1">
+          {configs.map((sheet) => (
+            <button
+              key={sheet.name}
+              type="button"
+              onClick={() => {
+                setActiveSheet(sheet.name);
+                setSelectedReviewKey(null);
+              }}
+              className={cn(
+                "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                activeSheet === sheet.name ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {sheet.label}
+            </button>
+          ))}
+        </div>
+        {isAdmin && (
+          <div className="mt-3 max-h-52 overflow-hidden border-t border-border pt-3">
+            <div className="grid gap-3 xl:grid-cols-[minmax(220px,340px)_1fr] xl:items-start">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Database className="h-4 w-4 text-primary" />
+                  <h2 className="text-sm font-semibold text-foreground">Master Data matching</h2>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{reviewItems.length.toLocaleString()} values</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{selectedReviewItem ? "Approve a shared-table match or dismiss it into Master Data to remove it from this list." : "No unmatched Master Data values in this load."}</p>
+              </div>
+              {selectedReviewItem && (
+                <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(220px,340px)_1fr_auto]">
+                  <select value={selectedReviewItem.key} onChange={(event) => setSelectedReviewKey(event.target.value)} className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs text-foreground">
+                    {reviewItems.map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.label}: {item.rawValue} ({item.count})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="max-h-32 min-w-0 overflow-y-auto rounded-md border border-border bg-muted/20 p-1.5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {(candidateQuery.data ?? []).map((candidate) => (
+                        <Button
+                          key={`${candidate.target_schema}.${candidate.target_table}.${candidate.target_id}`}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 max-w-72 justify-start text-xs"
+                          disabled={resolveCanonical.isPending || resolveLocal.isPending}
+                          onClick={() => resolveCanonical.mutate({ item: selectedReviewItem, candidate })}
+                          title={`Approve ${candidate.target_label} and remove ${selectedReviewItem.rawValue} from the review list`}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span className="truncate">Approve: {candidate.target_label}</span>
+                        </Button>
+                      ))}
+                      {candidateQuery.isFetching && <span className="text-xs text-muted-foreground">Searching...</span>}
+                      {!candidateQuery.isFetching && (candidateQuery.data ?? []).length === 0 && <span className="text-xs text-muted-foreground">No candidate values found</span>}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 whitespace-nowrap text-xs"
+                    disabled={resolveCanonical.isPending || resolveLocal.isPending}
+                    onClick={() => resolveLocal.mutate(selectedReviewItem)}
+                    title={`Keep ${selectedReviewItem.rawValue} only in Master Data and remove it from the review list`}
+                  >
+                    Dismiss: Keep In Master Data
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 p-3">
+        <div className="h-full overflow-hidden rounded-md border border-border bg-card">
+          <AgGridReact
+            ref={gridRef}
+            theme={theme === "dark" ? darkGridTheme : lightGridTheme}
+            rowData={rows}
+            columnDefs={columnDefs}
+            defaultColDef={{ minWidth: 90, suppressHeaderMenuButton: false, wrapHeaderText: true, autoHeaderHeight: true }}
+            loading={rowsQuery.isLoading}
+            quickFilterText={quickFilter}
+            getRowId={(params) => params.data.id}
+            onCellValueChanged={(event: CellValueChangedEvent<StyleRow>) => {
+              if (!event.data || event.oldValue === event.newValue) return;
+              const column = active.columns.find((item) => item.letter === event.colDef.colId);
+              if (column) updateCell.mutate({ row: event.data, column, value: event.newValue });
+            }}
+            rowSelection={{ mode: "multiRow" }}
+            cellSelection={{ handle: { mode: "fill", direction: "xy" } }}
+            sideBar={{ toolPanels: [{ id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" }], hiddenByDefault: true }}
+            pagination
+            paginationPageSize={100}
+            paginationPageSizeSelector={[50, 100, 250, 500]}
+            stopEditingWhenCellsLoseFocus
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

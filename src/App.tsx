@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import PopSGLibraryPage from "./pages/popsg/PopSGLibraryPage";
 import PopSGSettingsPage from "./pages/popsg/PopSGSettingsPage";
 import FileBrowserPage from "./pages/FileBrowserPage";
+import StylesPage from "./pages/StylesPage";
 import { IS_POPSG } from "@/lib/app-mode";
 
 const queryClient = new QueryClient({
@@ -54,6 +55,7 @@ const App = () => (
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/library" element={IS_POPSG ? <PopSGLibraryPage /> : <Index />} />
                 <Route path="/files" element={<FileBrowserPage />} />
+                <Route path="/styles" element={<StylesPage />} />
                 <Route path="/settings" element={IS_POPSG ? <PopSGSettingsPage /> : <SettingsPage />} />
                 {!IS_POPSG && (
                   <>

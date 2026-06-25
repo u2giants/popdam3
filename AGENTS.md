@@ -58,6 +58,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Work on stage / customer / program (path-derived attributes) or the Stage/Customer/Program filters | `AGENTS.md`, `docs/PATH_ATTRIBUTES.md` (and `docs/PATH_UTILS.md` for canonical path format) | unrelated UI/ERP docs |
 | Work on bulk operations / the Railway worker | `AGENTS.md`, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` | unrelated UI docs |
 | Work on ERP sync / MG codes / category classification / production PO sync | `AGENTS.md`, `docs/ERP_ENRICHMENT_PLAN.md` | deployment docs |
+| Work on Master Data / style tracker / Google Sheet replica | `AGENTS.md`, `docs/MASTER_DATA.md`; shared backend changes also need `shared-db/docs/app-migration-notes/master-data-style-tracker-20260624.md` | PopSG/ERP docs unless the task touches them |
 | Work on the desktop Helper / checkout-checkin / Seafile / SeaDrive | `AGENTS.md`, `docs/POPDAM_HELPER.md`, `docs/SEAFILE_INTEGRATION.md` | PopSG / ERP docs |
 | Work on PopSG (style-guide mode) | `AGENTS.md`, `docs/POPSG.md` | PopDAM-only ERP/style-group docs |
 | Work on auth / SSO / login | `AGENTS.md`, `docs/AUTHENTICATION.md` | unrelated docs |
@@ -387,6 +388,13 @@ Use this exact shape for every new quirk:
 **Actually:** Only PDFs whose filename contains `licensing sheet`/`license sheet`/`tech pack`/`techpack` write `sku_files_used` (gate `is_style_guide_source_pdf()`, migration `20260610070731`). Resolution against the 214k-row `style_guide_files` is trigram-fuzzy (`resolve_sku_files_used_fuzzy`, nightly cron `resolve-sku-files-used-nightly` 04:00 UTC) and **quarantine-model — never auto-deletes/unlinks**. Full detail: `docs/POPSG.md` → "Style Guide Sources"; quirks #46–#48.
 **Do not change because:** Do NOT bulk-delete unresolved `sku_files_used` rows that look like filenames — PopSG is not a comprehensive ground truth (a stale crawl can mark real files inactive; see quirk #46), so "no match" ≠ "garbage." Only categorical non-filenames (style-guide titles, a SKU used as its own filename) are safe to delete. Files-used live in PopSG `style_guide_files`, **not** PopDAM `assets` — don't reconcile against `assets`.
 
+### Master Data style tracker is temporary; PLM APIs are canonical for customers/licensors/properties
+
+**Looks like:** `master.designflow.app/styles` can fuzzy-match customers against shared `core.company` and treat those as canonical.
+**Actually:** the Master Data style tracker is a temporary Google Sheet replica. The user clarified on 2026-06-24 that canonical licensors/properties/customers come from read-only PLM APIs, whose credential is stored in 1Password item `DesignFlow PLM Canonical Master Data API`. `core.company` includes imported Directus/Twenty/CRM-ish rows and may contain secondary/noisy candidates such as `Rossy`.
+**Why:** PLM is the source of truth for this business data, but PLM is not yet fully transferred into the shared Supabase project. The tracker needs a bridge now without polluting or over-trusting shared tables.
+**Do not change because:** do not write new values into shared canonical tables from the tracker, and do not assume `core.company` candidates are correct unless reconciled to PLM. Use `docs/MASTER_DATA.md` for the app/data-flow details.
+
 ### Sibling file scans need a 10-minute lease/expiry
 
 **Looks like:** `claimed` sibling scan requests should be treated exactly like `pending` requests until the Bridge Agent completes them.
@@ -708,6 +716,7 @@ Frontend deploy migrated from SSH-based (`docker run` on VPS) to Coolify API tri
 | `docs/BULK_JOBS.md` | All bulk operations, lane system, conflict map |
 | `docs/SCHEMA.md` | Database schema reference |
 | `docs/ERP_ENRICHMENT_PLAN.md` | ERP sync, MG codes, AI category classification |
+| `docs/MASTER_DATA.md` | Temporary Master Data style tracker app, Google Sheet import, matching workflow, PLM canonical API notes |
 | `docs/AUTHENTICATION.md` | Microsoft/Azure SSO, Google OAuth, email/password, legacy Authentik |
 | `docs/KNOWN_QUIRKS.md` | Intentional oddities — read before changing anything |
 | `docs/WORKER_LOGIC.md` | Bridge agent behavior contracts |
