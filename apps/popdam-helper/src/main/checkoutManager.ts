@@ -200,7 +200,12 @@ async function resolveCopyAndOpen(
 
   if (preferred === "seafile") {
     const health = getSeafileHealth(config);
-    if (health.available) {
+    // Gate on the mount root existing — NOT on health.available, which is
+    // all-or-nothing (it requires EVERY configured library to be mounted, so a
+    // Character Licensed checkout would wrongly fail just because Generic Decor
+    // isn't synced). resolveSeafileTarget + ensureHydrated below already verify
+    // the SPECIFIC library and file this asset needs, and fall back if missing.
+    if (health.root) {
       try {
         const target = resolveSeafileTarget(asset.relative_path, config);
         // Confirm the file is fully local (or trigger + wait for hydration)
@@ -223,7 +228,7 @@ async function resolveCopyAndOpen(
           (health.detail ? `\n\n${health.detail}` : ""),
       );
     } else {
-      seafileIssue = health.detail ?? "SeaDrive unavailable";
+      seafileIssue = health.detail ?? "SeaDrive mount root not found";
       log.warn(`Seafile unavailable (${seafileIssue}); falling back to Synology.`);
     }
   }
