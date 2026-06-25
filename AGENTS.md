@@ -595,6 +595,8 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 **Distribution:** GitHub Release (`popdam-helper-latest` tag)
 **Code signing:** **permanently abandoned — installers stay unsigned forever** (user decision, 2026-06-25; the Apple Account-Holder cert + separate Windows OV/EV cert hurdle is too high). The macOS job reads `CSC_LINK`/`CSC_KEY_PASSWORD` (Developer ID `.p12`) + `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` (notarization via `scripts/notarize.cjs`), but the secrets are intentionally left unset, so it ships an **unsigned** dmg (Gatekeeper right-click→Open) and skips notarization; Windows is unsigned (SmartScreen "More info → Run anyway"). These first-launch warnings are the accepted permanent UX — **not** pending work. Wiring is dormant only so a future maintainer could revive it. See `HANDOFF.md` §5.3.
 **Seafile/SeaDrive:** the Helper supervises (does not embed) the SeaDrive virtual-drive client for WFH designers; see `docs/SEAFILE_INTEGRATION.md`.
+**CI caching rule (learned the hard way):** the Windows job caches **only** `~\AppData\Local\electron\Cache` (the immutable Electron binary). **Never** add `~\AppData\Local\electron-builder\Cache` back — that dir is the NSIS toolchain that stamps the (un)installer, and caching it once shipped a corrupted uninstaller that failed 100% with "NSIS Error: Error launching installer" on uninstall (`docs/KNOWN_QUIRKS.md` #54, fixed 2026-06-25 commit `d7a1133`). Re-download the toolchain fresh every run.
+**Microsoft OAuth:** the "Continue with Microsoft" flow must **not** pass its own `state` to `/auth/v1/authorize` — Supabase GoTrue forwards a caller `state` to the provider verbatim and then can't match it on callback, failing with `bad_oauth_state` and dumping the user on the project Site URL (`crm.designflow.app`). GoTrue manages state itself; PKCE binds the flow. Fixed in `apps/popdam-helper/src/main/oauth.ts`, Helper v1.4.2 (2026-06-25).
 
 ---
 
@@ -611,6 +613,20 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 | 🟢 done external | **Seafile server direct-MS SSO** | Fixed 2026-06-08 in the separate `u2giants/seafile` repo. Keep this note only as context for the Brazil pilot. |
 
 ## Critical incidents
+
+### Resolved 2026-06-25: PopDAM Helper (Windows) uninstall failed with "NSIS Error: Error launching installer" — CI cached the NSIS toolchain
+
+What happened: A pilot user could not uninstall the Windows Helper — it failed **100% of the time** with `NSIS Error — Error launching installer`, both via Settings → Apps → Uninstall and by running the uninstaller directly; quitting the tray app first did not help. Install worked; only uninstall was broken.
+
+Impact: No data impact. The broken uninstaller was on every Windows build produced after the bad cache entry was created; the corrected installer overwrites in place and writes a fresh, working uninstaller (no manual deletion needed to recover).
+
+Root cause: An electron-builder NSIS uninstaller copies itself to `%TEMP%` and relaunches that copy to delete its own folder; "Error launching installer" means that relaunch failed. The Windows CI job cached **`~\AppData\Local\electron-builder\Cache`** — the NSIS *toolchain* (uninstaller stub + plugins + winCodeSign) that stamps the (un)installer — keyed only on `package-lock.json`. A corrupted toolchain entry therefore persisted across every build and shipped the same broken uninstaller. (The other possible cause of this error — Windows blocking the *unsigned* temp copy via SmartScreen/Smart App Control/AV — was **not** the cause here; that one is only fixable by code signing, which is permanently abandoned.)
+
+Recovery / fix (commit `d7a1133`): Stop caching the electron-builder toolchain dir; cache **only** the immutable Electron binary (`~\AppData\Local\electron\Cache`) and re-download the integrity-checked NSIS toolchain fresh each run. Cache key prefix changed `electron-win-` → `electron-bin-win-` so the old suspect cache is never restored. Verified: rebuilt Helper uninstalls cleanly. Same push also shipped the Helper v1.4.2 Microsoft-OAuth `bad_oauth_state` fix.
+
+Rule to prevent recurrence: **Never cache a build toolchain dir** (`~\AppData\Local\electron-builder\Cache` / `~/Library/Caches/electron-builder` / `~/.cache/electron-builder`) in CI — only cache immutable dependency downloads. Full writeup: `docs/KNOWN_QUIRKS.md` #54.
+
+---
 
 ### Resolved 2026-06-22: coolify-proxy lost its Docker socket again → nas-mcp 502 (now self-healing)
 
