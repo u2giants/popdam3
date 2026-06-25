@@ -27,17 +27,25 @@ jobs:
         with:
           node-version: "20"
 
-      # Cache the Electron binary so it isn't re-downloaded on every run.
-      # A missing or partially downloaded Electron distribution is the most
-      # common cause of "ffmpeg.dll was not found" on Windows.
-      - name: Cache Electron
+      # Cache ONLY the immutable Electron binary download so it isn't
+      # re-downloaded on every run (avoids "ffmpeg.dll was not found").
+      #
+      # Do NOT cache ~\AppData\Local\electron-builder\Cache. That directory
+      # holds the NSIS toolchain (uninstaller stub + plugins + winCodeSign)
+      # used to STAMP the installer/uninstaller. Because the cache key only
+      # changes with package-lock.json, a single corrupted toolchain entry
+      # persists across every subsequent build and silently produces a broken
+      # uninstaller — the user hits "NSIS Error: Error launching installer" on
+      # uninstall. Re-downloading the toolchain each run is cheap and the
+      # download is integrity-checked, so it must not be cached.
+      # (Key prefix changed to electron-bin-win- so the old combined cache,
+      # which still contains the suspect toolchain, is never restored.)
+      - name: Cache Electron binary
         uses: actions/cache@v4
         with:
-          path: |
-            ~\AppData\Local\electron\Cache
-            ~\AppData\Local\electron-builder\Cache
-          key: electron-win-${{ hashFiles('apps/popdam-helper/package-lock.json') }}
-          restore-keys: electron-win-
+          path: ~\AppData\Local\electron\Cache
+          key: electron-bin-win-${{ hashFiles('apps/popdam-helper/package-lock.json') }}
+          restore-keys: electron-bin-win-
 
       - name: Install dependencies
         run: npm install
