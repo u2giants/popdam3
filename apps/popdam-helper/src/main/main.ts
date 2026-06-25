@@ -8,14 +8,14 @@
  *  4. Start heartbeat timer
  */
 
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { autoUpdater } from "electron-updater";
 import { createTray, updateTrayIcon, showWindow, showNotification } from "./tray";
 import { registerIpcHandlers } from "./ipc";
 import { registerProtocol } from "./protocol";
 import { initQueue, setProgressCallback, setVerifyingCallback, setFailedCallback, processQueue } from "./uploadQueue";
-import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, markUploadFailed, reconcileVerifyingCheckouts } from "./checkoutManager";
+import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, markUploadFailed, reconcileVerifyingCheckouts, getActiveCheckouts } from "./checkoutManager";
 import { heartbeat } from "./damClient";
 import { loadConfig, getConfig } from "./config";
 import { log } from "./logger";
@@ -80,12 +80,23 @@ app.whenReady().then(async () => {
     sendToRenderer("checkouts-changed");
     updateTrayIcon();
   });
-  // Permanent upload failure → surface on the checkout + desktop notification.
+  // Permanent upload failure → this means the user's work did NOT reach the
+  // server. Make it impossible to miss: persist it on the checkout, fire a
+  // desktop notification, open the popup so the error card is visible, AND pop a
+  // modal dialog. A single toast can be missed; "your file isn't saved" must not.
   setFailedCallback((checkoutId, message) => {
     markUploadFailed(checkoutId, message);
     sendToRenderer("checkouts-changed");
     updateTrayIcon();
-    showNotification("Check in failed", message);
+    showNotification("Check-in failed — file NOT saved to the server", message);
+    showWindow();
+    dialog.showMessageBox({
+      type: "error",
+      title: "Check-in failed — file NOT saved to the server",
+      message: "Your edited file could not be uploaded to the server.",
+      detail: `${message}\n\nYour edits are still safe in your workspace. Open POP DAM Helper and click "Check In" again to retry.`,
+      buttons: ["OK"],
+    });
   });
 
   // Resume any queued uploads from before restart
@@ -124,7 +135,40 @@ app.whenReady().then(async () => {
 // ── macOS: don't quit when all windows close ──────────────────────────────────
 app.on("window-all-closed", () => {});
 
-// ── Clean shutdown ────────────────────────────────────────────────────────────
-app.on("before-quit", () => {
-  log.info("POP DAM Helper shutting down");
+// ── Quit guard ────────────────────────────────────────────────────────────────
+// Don't let the user quit (and walk away) while files are checked out and not
+// yet confirmed on the server. Their edits live only in the local workspace
+// until a check-in finishes uploading — quitting silently here is exactly how
+// someone loses hours of work without knowing. Warn, and require confirmation.
+let quitConfirmed = false;
+app.on("before-quit", (event) => {
+  const outstanding = getActiveCheckouts().filter(
+    (c) => !["complete", "discarded"].includes(c.status),
+  );
+  if (outstanding.length === 0 || quitConfirmed) {
+    log.info("POP DAM Helper shutting down");
+    return;
+  }
+
+  event.preventDefault();
+  const unsaved = outstanding.filter((c) =>
+    ["uploading", "verifying", "checkin_queued", "error"].includes(c.status),
+  );
+  const detail = unsaved.length
+    ? `${unsaved.length} file(s) are NOT yet confirmed on the server. If you quit now they will not finish uploading until you reopen the Helper and check in again.`
+    : `${outstanding.length} file(s) are checked out. Your edits are safe in your workspace, but they are NOT on the server until you check them in.`;
+
+  const choice = dialog.showMessageBoxSync({
+    type: "warning",
+    buttons: ["Stay open", "Quit anyway"],
+    defaultId: 0,
+    cancelId: 0,
+    title: "Files not yet saved to the server",
+    message: "POP DAM Helper has checked-out files that aren't on the server yet.",
+    detail,
+  });
+  if (choice === 1) {
+    quitConfirmed = true;
+    app.quit();
+  }
 });
