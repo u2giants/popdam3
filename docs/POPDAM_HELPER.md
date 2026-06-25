@@ -148,6 +148,7 @@ Used to call the `helper-api` edge function (checkout tracking, heartbeat, devic
 **Sign-in flows:**
 - On first launch (or after sign-out), the Helper's tray panel and Settings panel show **Continue with Microsoft** plus an email + password fallback.
 - Microsoft sign-in opens the user's system browser, redirects back to the Helper's localhost server at `http://127.0.0.1:47380/auth/callback`, exchanges the Supabase PKCE auth code for a session, and stores the access + refresh tokens in the OS keychain via `safeStorage`.
+  - ⚠️ **Do not pass a custom `state` to `/auth/v1/authorize`** (`apps/popdam-helper/src/main/oauth.ts`). Supabase GoTrue generates and stores its **own** OAuth state (keyed to a `flow_state` row) and validates it on the provider callback. If the Helper sets its own `state`, GoTrue forwards that string to Microsoft verbatim, then can't find it in its flow store on the callback and fails with **`bad_oauth_state`** ("OAuth state parameter is invalid") — landing the user on the project **Site URL** (`crm.designflow.app`, shared across the apps on this Supabase project) instead of the localhost callback. PKCE (the `code_verifier`) is what binds this flow; no caller `state` is needed. This was the v1.4.1 Microsoft-login bug, fixed in **v1.4.2** (2026-06-25).
 - Email/password sign-in calls `ipc:sign-in`, which POSTs to `${supabaseUrl}/auth/v1/token?grant_type=password` with the `apikey` header set to the Supabase anon key.
 - The Supabase anon key is **not hardcoded**. It is auto-discovered at sign-in time by fetching `${damUrl}/dam-config.json` (field: `supabase_anon_key`) and saved to `userData/config.json` as `supabaseAnonKey`.
 
@@ -187,7 +188,9 @@ npm run typecheck      # tsc --noEmit on both tsconfigs
 
 ## Auto-update
 
-The `publish` block in `electron-builder.yml` points to the GitHub release and `main.ts` calls `autoUpdater.checkForUpdatesAndNotify()` after app startup. The updater path is present, but clean/trusted install and update UX is still limited by code signing:
+The `publish` block in `electron-builder.yml` points to the GitHub release and `main.ts` calls `autoUpdater.checkForUpdatesAndNotify()` after app startup. The updater path uses **`electron-updater`, which only supports the NSIS (Windows) / DMG (macOS) targets** — do **not** switch the Windows target to MSI to solve install/uninstall issues, it would break auto-update.
+
+**Code signing is permanently abandoned — installers stay unsigned forever** (user decision, 2026-06-25). The Apple Developer **Account Holder** cert hurdle (plus a separate Windows OV/EV cert) is too high to justify, so the first-launch Gatekeeper ("right-click → Open") / SmartScreen ("More info → Run anyway") warnings are the **accepted permanent UX**, not pending work. The CI signing wiring (`CSC_LINK`/`CSC_KEY_PASSWORD` + `APPLE_*`) is left dormant only so a future maintainer could revive it. For reference if it ever is (not planned):
 
 | Platform | Requirement | Cost |
 |----------|-------------|------|
@@ -195,4 +198,8 @@ The `publish` block in `electron-builder.yml` points to the GitHub release and `
 | Windows (OV cert) | Auto-update works; SmartScreen warns on every install | ~$60–$150/yr (e.g. Certum) |
 | Windows (EV cert) | No SmartScreen warning, silent updates | ~$300–$500/yr |
 
-Until certificates are configured, users may still see Gatekeeper/SmartScreen warnings and should be prepared to download/reinstall manually from GitHub Releases if auto-update is blocked by OS trust policy. If signing is revived later, set `CSC_LINK` / `CSC_KEY_PASSWORD` and the Apple notarization secrets in GitHub Actions.
+Because installs are unsigned, users may see OS trust warnings and should be prepared to download/reinstall manually from GitHub Releases if auto-update is ever blocked by OS trust policy. See `HANDOFF.md` §5.3.
+
+### Windows uninstall — "NSIS Error: Error launching installer" (Fixed 2026-06-25)
+
+The NSIS uninstaller copies itself to `%TEMP%` and relaunches that copy to delete its own folder; "Error launching installer" means that relaunch failed. A CI bug caused this 100% of the time: the Windows job cached `~\AppData\Local\electron-builder\Cache` — the NSIS **toolchain** that stamps the (un)installer — so a corrupted cache entry shipped a broken uninstaller on every build. Fixed by caching only the immutable Electron binary download, never the toolchain (commit `d7a1133`). **Never cache the electron-builder toolchain dir in CI.** Full writeup + the second possible cause of this error (Windows blocking the unsigned temp copy, which only signing fixes — not relevant here): `docs/KNOWN_QUIRKS.md` #54. To recover an affected machine, just reinstall over the top — the corrected installer writes a fresh, working uninstaller; no manual file deletion needed.
