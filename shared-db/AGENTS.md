@@ -112,3 +112,32 @@ Never commit anon keys, service-role keys, database passwords, or `.env` files.
 - Shared branch workflow: [`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](docs/ai-session-instructions/shared-supabase-branch-workflow.md)
 - Schema ownership map: [`docs/unified-supabase-schema-map.md`](docs/unified-supabase-schema-map.md)
 - Migration risks: [`docs/unified-supabase-migration-gaps.md`](docs/unified-supabase-migration-gaps.md)
+- CRM production cutover (migrations promoted, Azure OAuth, auto-provision, data import): [`docs/app-migration-notes/popcrm-web-production-cutover-20260621.md`](docs/app-migration-notes/popcrm-web-production-cutover-20260621.md)
+
+## 9. Hosted-Supabase gotchas (do not relearn these the hard way)
+
+These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones.
+
+- **PostgREST schema exposure is control-plane config, NOT SQL.** The
+  `alter role authenticator set pgrst.db_schemas = ...` + `notify pgrst,'reload config'`
+  statements in `20260621151419_crm_rls_realtime.sql` do **not** take effect on
+  hosted Supabase — the platform overrides them. To expose non-default schemas
+  (`api, crm, pim, core`) you must call the Management API:
+  `PATCH https://api.supabase.com/v1/projects/{ref}/postgrest`
+  with `{"db_schema":"public,graphql_public,api,crm,pim,core"}`. It is a per-project
+  setting; **re-confirm it after any project restore/clone**, and set it on the
+  preview branch too. If supabase-js suddenly 404s on `api.*`/`crm.*`, check this first.
+- **`service_role` has no rights on non-`public` schemas by default.** Server-side
+  scripts/workers using the service-role key get "permission denied for schema core/crm"
+  until granted. The grants live in `20260621164759_service_role_grants.sql`
+  (usage + ALL on tables/sequences for `app, core, crm, pim, plm, ingest, api`,
+  plus default privileges). Re-run/verify after adding new schemas.
+- **`unique nulls not distinct (external_source, external_id)`** on `crm.*` and
+  `core.*` tables means you cannot bulk-insert many rows with both columns NULL —
+  the second NULL/NULL row collides. Importers must set a real
+  `external_source` (e.g. `'directus'`) and a unique `external_id` per row.
+- **Cross-schema FKs (e.g. `crm.department.company_id → core.company`) are real and
+  enforced**, but PostgREST embed syntax (`select=...,company:company_id(...)`)
+  may report "no relationship found" because the schema cache does not auto-detect
+  cross-schema FKs. The constraint is still there — verify with `pg_constraint`,
+  not with a failed embed.

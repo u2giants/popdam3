@@ -1,5 +1,13 @@
 # popcrm-web Supabase Migration — Session Handoff (2026-06-21)
 
+> **Superseded for current status.** This note captures the *preview-complete*
+> point in time. The schema was later promoted to **production**, Microsoft SSO
+> was configured, and Directus CRM data was imported — see
+> [`popcrm-web-production-cutover-20260621.md`](popcrm-web-production-cutover-20260621.md).
+> The "Data migration / Not performed", "Preview test results / Not run", and
+> "Known gaps → Phase 5 identity / Data import" sections below are **stale**;
+> treat the cutover note as the source of truth for what is live.
+
 CRM (`u2giants/popcrm-web`) migrated from the Directus backend to the shared
 Supabase project, **preview-complete**: schema + frontend + worker are done and
 validated locally; nothing touches production. The live `db push` to the preview
