@@ -13,6 +13,13 @@ These migrations implement the first migration-ready version of the unified Supa
 | `supabase/migrations/20260621151024_domain_tables.sql` | DAM, CRM, PIM/PM, PLM, ingest, and cross-domain bridge tables. |
 | `supabase/migrations/20260621151155_api_rls_realtime.sql` | Browser-facing `api` views, RLS scaffolding, grants, and selected realtime publication tables. |
 | `supabase/migrations/20260622043000_crm_contact_segments.sql` | CRM Contacts segmented API: preserves `api.crm_contact_list`, adds `api.crm_contact_segment_list`, adds `api.crm_contact_segment_counts`, and indexes the primary contact-company relationship lookup. |
+| `supabase/migrations/20260624173000_plm_master_data_import.sql` | PLM master-data API import support: source-shaped `plm.*_import` tables, `plm.import_master_data(jsonb, jsonb)`, service-role execution grant, and admin-only RLS for import tables. |
+
+Related tooling:
+
+| File | Purpose |
+|---|---|
+| `tools/sync-plm-master-data.mjs` | Fetches the read-only Designflow PLM master-data API, reports response shape/counts, and can apply the payload to the linked Supabase project through `plm.import_master_data`. |
 
 ## Production Migration History
 
@@ -47,12 +54,24 @@ the production ledger.
 - Stable first-pass `api` views for frontend contracts.
 - CRM-specific contact segment contracts so popcrm-web can fetch customer,
   department, and triage contacts separately while lazy-loading All.
+- PLM API master-data import support for canonical customers, licensors, and
+  properties:
+  - customers land in `core.company`
+  - licensors land in `core.licensor`
+  - properties land in `core.property`
+  - PLM source refs land in `core.company_source_ref` and
+    `core.taxonomy_source_ref`
+  - source-shaped PLM rows land in `plm.customer_import`,
+    `plm.licensor_import`, and `plm.property_import`
+  - sanitized raw API snapshots land in `ingest.raw_record`
 - RLS enabled across app/domain tables, with conservative policies.
 - Realtime publication candidates for user-facing movement, not worker/admin queues.
 
 ## What This Does Not Do Yet
 
-- It does not migrate data.
+- It does not migrate most historical app data. The exception is the PLM
+  canonical master-data API import for customers, licensors, and properties,
+  which was preview-validated and promoted to production on 2026-06-25.
 - It does not physically move existing PopDAM public tables.
 - It does not import Directus system metadata.
 - It does not migrate files from DigitalOcean Spaces or Directus storage.

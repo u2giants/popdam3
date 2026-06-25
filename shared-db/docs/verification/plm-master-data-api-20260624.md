@@ -93,3 +93,52 @@ Validated against preview branch `xjcyeuvzkhtzsheknaiu` on 2026-06-24:
   - PLM property source refs: 468
   - PLM raw records: 560
   - raw records still containing `customers_passw`: 0
+
+## Production Promotion
+
+Promoted to production project `qsllyeztdwjgirsysgai` on 2026-06-25 after the
+preview validation above and explicit owner request to populate production.
+
+What changed:
+
+- Applied the no-op preview ledger marker migrations and
+  `20260624173000_plm_master_data_import.sql` to production with
+  `supabase db push --include-all --yes`.
+- Populated production from the live PLM API with
+  `node tools/sync-plm-master-data.mjs --apply --linked`.
+
+Why:
+
+- PLM is the canonical source for customers, licensors, and properties.
+- The production site needs these canonical lists available in shared Supabase
+  now, while retaining source-shaped PLM import rows for a future full PLM
+  database/backend cutover.
+
+Verified production results:
+
+- Pre-apply `supabase db push --dry-run --include-all` showed only the expected
+  no-op marker migrations and `20260624173000_plm_master_data_import.sql`.
+- Production import reported 55 customers, 37 licensors, 468 properties, and
+  560 raw records upserted.
+- Post-import production counts were:
+  - `plm.customer_import`: 55
+  - `plm.licensor_import`: 37
+  - `plm.property_import`: 468
+  - PLM customer source refs: 55
+  - PLM licensor source refs: 37
+  - PLM property source refs: 468
+  - PLM raw records: 560
+  - raw records still containing `customers_passw`: 0
+- Final production `supabase db push --dry-run` reported:
+  `Remote database is up to date.`
+
+Future sessions should:
+
+- Use `tools/sync-plm-master-data.mjs --apply --linked` from a Supabase-linked
+  target project to refresh this API-sourced master data.
+- Use `DESIGNFLOW_API_KEY` or the 1Password item
+  `DesignFlow PLM Canonical Master Data API`; never put the API key in repo
+  files or browser/client code.
+- Keep `source_system = 'designflow_plm'`, `source_table = 'customers'`, and
+  `source_table = 'merchGroup'` stable so the later full PLM import can match on
+  these source refs instead of creating new canonical IDs.

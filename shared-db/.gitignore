@@ -1,2 +1,7 @@
 supabase/.temp/
 docs/verification/*.sql
+
+# Local AI/session scratch files. Durable session knowledge belongs in AGENTS.md
+# or docs/, not in tool-local settings or root-level draft plans.
+.claude/
+dflow_migration_plan.md
