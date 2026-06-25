@@ -15,11 +15,12 @@
  * when no token/server URL is configured, which is an accepted state.
  */
 
-import { existsSync, statSync, openSync, closeSync, readSync } from "fs";
+import { existsSync, statSync, openSync, closeSync, readSync, readdirSync } from "fs";
 import { join, normalize, isAbsolute, sep } from "path";
 import { homedir } from "os";
 import { execFileSync } from "child_process";
 import { loadToken } from "./credentials";
+import { saveConfig } from "./config";
 import { log } from "./logger";
 import type {
   LocalConfig,
@@ -28,24 +29,129 @@ import type {
   HydrationStatus,
 } from "@shared/types";
 
-// ── Mount-root detection ────────────────────────────────────────────────────
+// ── Mount-root detection & library discovery ────────────────────────────────
+//
+// SeaDrive does NOT put a library in one fixed place. The mount location varies
+// by OS and by the account name picked at sign-in (Windows: C:\seadrive\<acct>\,
+// macOS: ~/SeaDrive\<acct>\), and within a mount a library can sit under any of
+// several category folders depending on how it's shared with that user:
+//   My Libraries\<lib>            (libraries you own)
+//   Shared with all\<lib>
+//   Shared with me\<lib>
+//   Shared with groups\<group>\<lib>
+// Non-technical users won't know or configure this, so the Helper discovers the
+// library folder by searching every plausible base + category, then caches the
+// hit. Search is bounded (depth + node caps) so a virtual drive can't hang us.
+
+function safeIsDir(p: string): boolean {
+  try {
+    return existsSync(p) && statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Immediate subdirectory names of `p` (dirs only, no dotfiles). Never throws. */
+function subDirs(p: string): string[] {
+  try {
+    return readdirSync(p, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+      .map((d) => d.name);
+  } catch {
+    return [];
+  }
+}
+
+/** SeaDrive category folders a library may live under, relative to a base mount. */
+const SEADRIVE_CATEGORY_DIRS = ["My Libraries", "Shared with all", "Shared with me"];
 
 /**
- * Resolve the SeaDrive mount root. Order:
- *  1. Explicit config.seaDriveRoot (user override / previously detected).
- *  2. Platform default (~/SeaDrive on macOS, %USERPROFILE%\SeaDrive on Windows).
- * Returns the path only if it exists on disk; otherwise null.
+ * Every plausible SeaDrive base mount to search beneath. Includes the explicit
+ * config root, the per-account subfolders of the platform default mount, and (on
+ * Windows) C:\seadrive\<acct>. Order matters: explicit/config first.
  */
-export function detectSeaDriveRoot(config: LocalConfig): string | null {
-  const candidates: string[] = [];
-  if (config.seaDriveRoot) candidates.push(config.seaDriveRoot);
-  candidates.push(join(homedir(), "SeaDrive"));
+export function seaDriveBaseRoots(config: LocalConfig): string[] {
+  const out: string[] = [];
+  const add = (p?: string | null) => {
+    if (p && safeIsDir(p) && !out.includes(p)) out.push(p);
+  };
 
-  for (const c of candidates) {
-    try {
-      if (existsSync(c) && statSync(c).isDirectory()) return c;
-    } catch {
-      /* ignore */
+  add(config.seaDriveRoot);
+
+  // Platform default mount parents + their per-account subfolders.
+  const parents =
+    process.platform === "win32"
+      ? ["C:\\seadrive", join(homedir(), "seadrive"), join(homedir(), "SeaDrive")]
+      : [join(homedir(), "SeaDrive"), join(homedir(), "seadrive")];
+
+  for (const parent of parents) {
+    add(parent);
+    for (const acct of subDirs(parent)) add(join(parent, acct));
+  }
+  return out;
+}
+
+/** Backwards-compatible single representative mount root (first base), or null. */
+export function detectSeaDriveRoot(config: LocalConfig): string | null {
+  return seaDriveBaseRoots(config)[0] ?? null;
+}
+
+/** Bounded breadth-first search for a directory named `target` under `base`. */
+function bfsFindDir(base: string, target: string, maxDepth: number, maxNodes: number): string | null {
+  const queue: Array<{ dir: string; depth: number }> = [{ dir: base, depth: 0 }];
+  let visited = 0;
+  while (queue.length) {
+    const { dir, depth } = queue.shift()!;
+    if (visited++ > maxNodes) break;
+    for (const name of subDirs(dir)) {
+      const child = join(dir, name);
+      if (name === target) return child;
+      if (depth + 1 < maxDepth) queue.push({ dir: child, depth: depth + 1 });
+    }
+  }
+  return null;
+}
+
+/** Search one base mount for a library folder named `target`. */
+function searchUnderBase(base: string, target: string): string | null {
+  // Fast deterministic candidates (direct + known category folders).
+  const direct = [join(base, target), ...SEADRIVE_CATEGORY_DIRS.map((c) => join(base, c, target))];
+  for (const c of direct) if (safeIsDir(c)) return c;
+
+  // "Shared with groups/<group>/<lib>" — one extra (group-name) level.
+  const groups = join(base, "Shared with groups");
+  if (safeIsDir(groups)) {
+    for (const g of subDirs(groups)) {
+      const c = join(groups, g, target);
+      if (safeIsDir(c)) return c;
+    }
+  }
+
+  // Bounded fallback scan for anything we didn't anticipate.
+  return bfsFindDir(base, target, 3, 400);
+}
+
+/**
+ * Locate the absolute path of a SeaDrive library folder by its name. Checks the
+ * per-library cache (re-validated), then searches every base/category. On a
+ * fresh discovery, caches the hit in config so the next checkout is instant.
+ * Returns null if the library isn't mounted anywhere we can see.
+ */
+export function findLibraryDir(seaDriveFolder: string, config: LocalConfig): string | null {
+  const cached = config.seafileLibraryPaths?.[seaDriveFolder];
+  if (cached && safeIsDir(cached)) return cached;
+
+  for (const base of seaDriveBaseRoots(config)) {
+    const found = searchUnderBase(base, seaDriveFolder);
+    if (found) {
+      try {
+        saveConfig({
+          seafileLibraryPaths: { ...(config.seafileLibraryPaths ?? {}), [seaDriveFolder]: found },
+        });
+      } catch (e) {
+        log.warn("Could not cache discovered library path:", (e as Error).message);
+      }
+      return found;
     }
   }
   return null;
@@ -164,21 +270,29 @@ export function resolveSeafileTarget(
   relativePath: string,
   config: LocalConfig,
 ): SeafileTarget {
-  const root = detectSeaDriveRoot(config);
-  if (!root) throw new Error("SeaDrive mount root not found.");
+  if (seaDriveBaseRoots(config).length === 0) {
+    throw new Error("SeaDrive mount not found — is the SeaDrive client installed and signed in?");
+  }
 
   const mapping = findMappingForPath(relativePath, config);
   if (!mapping) {
     throw new Error(`No Seafile library covers "${relativePath}".`);
   }
 
+  // Auto-discover where THIS library is mounted (My Libraries / Shared with … ).
+  const libDir = findLibraryDir(mapping.seaDriveFolder, config);
+  if (!libDir) {
+    throw new Error(
+      `The "${mapping.displayName}" library isn't visible in SeaDrive yet. ` +
+        `Open SeaDrive and make sure that library is synced/enabled, then try again.`,
+    );
+  }
+
   const rel = normalizeRel(relativePath);
   const prefix = normalizeRel(mapping.pathPrefix);
   const remainder = rel === prefix ? "" : rel.slice(prefix.length + 1);
   const pathInLib = remainder ? sanitizeRelativePath(remainder) : "";
-  const localPath = pathInLib
-    ? join(root, mapping.seaDriveFolder, pathInLib)
-    : join(root, mapping.seaDriveFolder);
+  const localPath = pathInLib ? join(libDir, pathInLib) : libDir;
   return { mapping, localPath, pathInLib };
 }
 
@@ -187,19 +301,12 @@ export function resolveSeafilePath(relativePath: string, config: LocalConfig): s
   return resolveSeafileTarget(relativePath, config).localPath;
 }
 
-/** Library folders that are actually present (mounted) under the SeaDrive root. */
+/** Configured library folders the Helper can actually locate in SeaDrive. */
 export function getMountedLibraries(config: LocalConfig): string[] {
-  const root = detectSeaDriveRoot(config);
-  if (!root) return [];
+  if (seaDriveBaseRoots(config).length === 0) return [];
   return (config.seafileLibraries ?? [])
     .map((m) => m.seaDriveFolder)
-    .filter((folder) => {
-      try {
-        return existsSync(join(root, folder));
-      } catch {
-        return false;
-      }
-    });
+    .filter((folder) => findLibraryDir(folder, config) !== null);
 }
 
 // ── Health ──────────────────────────────────────────────────────────────────

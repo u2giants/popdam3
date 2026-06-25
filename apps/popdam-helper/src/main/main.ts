@@ -11,11 +11,11 @@
 import { app, BrowserWindow } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { autoUpdater } from "electron-updater";
-import { createTray, updateTrayIcon, showWindow } from "./tray";
+import { createTray, updateTrayIcon, showWindow, showNotification } from "./tray";
 import { registerIpcHandlers } from "./ipc";
 import { registerProtocol } from "./protocol";
-import { initQueue, setProgressCallback, setVerifyingCallback, processQueue } from "./uploadQueue";
-import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, reconcileVerifyingCheckouts } from "./checkoutManager";
+import { initQueue, setProgressCallback, setVerifyingCallback, setFailedCallback, processQueue } from "./uploadQueue";
+import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, markUploadFailed, reconcileVerifyingCheckouts } from "./checkoutManager";
 import { heartbeat } from "./damClient";
 import { loadConfig, getConfig } from "./config";
 import { log } from "./logger";
@@ -79,6 +79,13 @@ app.whenReady().then(async () => {
     markVerifying(checkoutId);
     sendToRenderer("checkouts-changed");
     updateTrayIcon();
+  });
+  // Permanent upload failure → surface on the checkout + desktop notification.
+  setFailedCallback((checkoutId, message) => {
+    markUploadFailed(checkoutId, message);
+    sendToRenderer("checkouts-changed");
+    updateTrayIcon();
+    showNotification("Check in failed", message);
   });
 
   // Resume any queued uploads from before restart

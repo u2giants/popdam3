@@ -3,12 +3,27 @@
  * Creates the icon and manages the popup window.
  */
 
-import { app, Tray, BrowserWindow, nativeImage, screen, Menu, shell } from "electron";
+import { app, Tray, BrowserWindow, nativeImage, screen, Menu, shell, Notification } from "electron";
 import { join } from "path";
 import { is } from "@electron-toolkit/utils";
 import { getActiveCheckouts } from "./checkoutManager";
 import { getConfig } from "./config";
 import { log } from "./logger";
+
+/**
+ * Show a desktop notification. The single place errors become visible when the
+ * tray popup isn't open — used for deep-link action failures and background
+ * upload (check-in) failures so nothing fails silently.
+ */
+export function showNotification(title: string, body: string): void {
+  try {
+    if (Notification.isSupported()) {
+      new Notification({ title, body }).show();
+    }
+  } catch (e) {
+    log.warn("Could not show notification:", (e as Error).message);
+  }
+}
 
 let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;

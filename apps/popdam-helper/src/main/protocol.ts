@@ -9,10 +9,10 @@
  * All actions are dispatched to the checkout manager after the URL is parsed.
  */
 
-import { app, Notification } from "electron";
+import { app } from "electron";
 import { log } from "./logger";
 import { checkout, checkin, discard, revealFile, openFile } from "./checkoutManager";
-import { showWindow, sendToRenderer } from "./tray";
+import { showWindow, sendToRenderer, showNotification } from "./tray";
 
 /**
  * Surface a deep-link action failure to the user. A failed checkout/check-in
@@ -28,13 +28,7 @@ function notifyActionError(action: string, message: string): void {
     discard: "Discard failed",
   };
   const title = titles[action] ?? "POP DAM Helper";
-  try {
-    if (Notification.isSupported()) {
-      new Notification({ title, body: message }).show();
-    }
-  } catch (e) {
-    log.warn("Could not show error notification:", (e as Error).message);
-  }
+  showNotification(title, message);
   sendToRenderer("action-error", { action, message });
 }
 

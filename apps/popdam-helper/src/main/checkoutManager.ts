@@ -417,6 +417,19 @@ export function markVerifying(checkoutId: string): void {
 }
 
 /**
+ * An upload exhausted all retries. Surface it on the checkout so the user sees
+ * an actionable error instead of a checkout stuck in "uploading" forever. The
+ * lock stays held (the file never landed), so the user can retry check-in.
+ */
+export function markUploadFailed(checkoutId: string, message: string): void {
+  const record = active.get(checkoutId);
+  if (!record) return;
+  record.status = "error";
+  record.errorMessage = message;
+  notify();
+}
+
+/**
  * Reconcile locally-'verifying' checkouts against the server. The bridge agent
  * flips them to 'complete' once it confirms receipt (they drop out of the open
  * list), or the server flags verify_failed_at if the file never arrives intact

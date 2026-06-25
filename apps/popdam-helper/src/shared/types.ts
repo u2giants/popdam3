@@ -109,6 +109,12 @@ export interface LocalConfig {
   preferredProvider?: StorageProvider;     // default "seafile" for Brazil/WFH; USA/office users can switch to "synology"
   seaDriveRoot?: string;                   // absolute SeaDrive mount point, e.g. /Users/maria/SeaDrive
   seafileLibraries?: SeafileLibraryMapping[];
+  // Cache of where each library was actually found under SeaDrive, keyed by the
+  // library's seaDriveFolder name. SeaDrive mounts a library under different
+  // category folders per user ("My Libraries", "Shared with groups/<g>", "Shared
+  // with all", …), so the Helper auto-discovers the location and remembers it
+  // here to skip re-scanning. Re-validated on use; re-discovered if it moved.
+  seafileLibraryPaths?: Record<string, string>;
   seafileServerUrl?: string;               // Seafile server base URL (for obj_id REST lookups; optional)
   synologyFallbackAllowed?: boolean;       // mirror of server config; whether Synology fallback is permitted
 }

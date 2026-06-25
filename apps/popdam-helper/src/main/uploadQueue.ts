@@ -27,6 +27,7 @@ let queuePath: string;
 let running = false;
 let progressCallback: ((checkoutId: string, percent: number) => void) | null = null;
 let verifyingCallback: ((checkoutId: string) => void) | null = null;
+let failedCallback: ((checkoutId: string, message: string) => void) | null = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,15 @@ export function setProgressCallback(cb: (checkoutId: string, percent: number) =>
  */
 export function setVerifyingCallback(cb: (checkoutId: string) => void): void {
   verifyingCallback = cb;
+}
+
+/**
+ * Called when an upload has exhausted all retries and permanently failed. Lets
+ * the UI surface the check-in failure (otherwise the checkout sits in
+ * "uploading" forever with no signal to the user).
+ */
+export function setFailedCallback(cb: (checkoutId: string, message: string) => void): void {
+  failedCallback = cb;
 }
 
 // ── Persistence helpers ───────────────────────────────────────────────────────
@@ -202,6 +212,10 @@ async function processJob(job: StoredJob): Promise<void> {
     const retryCount = job.retryCount + 1;
     if (retryCount >= UPLOAD_MAX_RETRIES) {
       updateJob(checkoutId, { status: "failed", retryCount });
+      failedCallback?.(
+        checkoutId,
+        `Check-in upload failed after ${UPLOAD_MAX_RETRIES} attempts: ${msg}. Your edited file is safe in your workspace — try checking in again.`,
+      );
     } else {
       updateJob(checkoutId, { status: "pending", retryCount });
       await sleep(UPLOAD_RETRY_DELAY_MS * retryCount);
