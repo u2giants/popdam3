@@ -593,14 +593,14 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 
 **Workflow:** `.github/workflows/publish-popdam-helper.yml` (parallel Windows + macOS jobs)
 **Distribution:** GitHub Release (`popdam-helper-latest` tag)
-**Code signing:** wired but unset. The macOS job reads `CSC_LINK`/`CSC_KEY_PASSWORD` (Developer ID `.p12`) + `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` (notarization via `scripts/notarize.cjs`); with secrets unset it ships an **unsigned** dmg (Gatekeeper right-click→Open) and skips notarization. Windows is unsigned (SmartScreen warns). See `HANDOFF.md`.
+**Code signing:** **permanently abandoned — installers stay unsigned forever** (user decision, 2026-06-25; the Apple Account-Holder cert + separate Windows OV/EV cert hurdle is too high). The macOS job reads `CSC_LINK`/`CSC_KEY_PASSWORD` (Developer ID `.p12`) + `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID` (notarization via `scripts/notarize.cjs`), but the secrets are intentionally left unset, so it ships an **unsigned** dmg (Gatekeeper right-click→Open) and skips notarization; Windows is unsigned (SmartScreen "More info → Run anyway"). These first-launch warnings are the accepted permanent UX — **not** pending work. Wiring is dormant only so a future maintainer could revive it. See `HANDOFF.md` §5.3.
 **Seafile/SeaDrive:** the Helper supervises (does not embed) the SeaDrive virtual-drive client for WFH designers; see `docs/SEAFILE_INTEGRATION.md`.
 
 ---
 
 ## Pending work
 
-Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the pilot, signing, PopSG render/backfill, and style-guide archival readiness items are done or intentionally abandoned.
+Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the pilot, PopSG render/backfill, and style-guide archival readiness items are done or intentionally abandoned. (Helper code signing is **permanently abandoned**, not a pending row — see above and `HANDOFF.md` §5.3.)
 
 | Status | Item | Next action |
 |--------|------|-------------|

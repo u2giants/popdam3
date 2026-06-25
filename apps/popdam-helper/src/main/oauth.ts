@@ -19,7 +19,6 @@ const OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
 
 let pending:
   | {
-      state: string;
       codeVerifier: string;
       resolve: () => void;
       reject: (error: Error) => void;
@@ -57,24 +56,27 @@ export async function startMicrosoftOAuth(): Promise<void> {
   if (pending) throw new Error("A Microsoft sign-in is already in progress.");
 
   const { supabaseUrl } = await ensureSupabaseConfig();
-  const state = base64Url(randomBytes(24));
   const verifier = newCodeVerifier();
   const challenge = codeChallenge(verifier);
 
+  // Do NOT set our own `state` here. Supabase GoTrue generates and stores its
+  // own OAuth state (keyed to a flow_state row) and validates it on the
+  // /auth/v1/callback. If we pass a `state`, GoTrue forwards it to the provider
+  // verbatim, then fails to find it in its flow store on callback and returns
+  // `bad_oauth_state`. PKCE (the code_verifier below) is what binds this flow.
   const url = new URL(`${supabaseUrl.replace(/\/$/, "")}/auth/v1/authorize`);
   url.searchParams.set("provider", "azure");
   url.searchParams.set("redirect_to", OAUTH_CALLBACK_URL);
   url.searchParams.set("scopes", "openid profile email User.Read");
   url.searchParams.set("code_challenge", challenge);
   url.searchParams.set("code_challenge_method", "s256");
-  url.searchParams.set("state", state);
 
   const done = new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => {
       pending = null;
       reject(new Error("Microsoft sign-in timed out. Please try again."));
     }, OAUTH_TIMEOUT_MS);
-    pending = { state, codeVerifier: verifier, resolve, reject, timeout };
+    pending = { codeVerifier: verifier, resolve, reject, timeout };
   });
 
   await shell.openExternal(url.toString());
@@ -87,14 +89,12 @@ export async function completeMicrosoftOAuthCallback(url: URL): Promise<{ ok: bo
   }
 
   const current = pending;
-  const error = url.searchParams.get("error") ?? url.searchParams.get("error_description");
+  const error = url.searchParams.get("error_description") ?? url.searchParams.get("error");
   const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
 
   try {
     if (error) throw new Error(error);
     if (!code) throw new Error("Microsoft sign-in did not return an auth code.");
-    if (state !== current.state) throw new Error("Microsoft sign-in state did not match.");
 
     const { supabaseUrl, supabaseAnonKey } = await ensureSupabaseConfig();
     const res = await fetch(`${supabaseUrl.replace(/\/$/, "")}/auth/v1/token?grant_type=pkce`, {

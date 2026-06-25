@@ -1,6 +1,6 @@
 # Handoff
 
-_Last updated: 2026-06-24. Delete this file once the pilot, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, and production PO sync auth handoff are done. Helper code signing is intentionally deferred, not an active blocker. (The quick_hash/move-detection and bridge build-identity work in §5.9 is **done and deployed** — kept only for the optional history-row cleanup.)_
+_Last updated: 2026-06-25. Delete this file once the pilot, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, and production PO sync auth handoff are done. Helper code signing is **permanently abandoned** — installers stay unsigned forever (§5.3), not a blocker. (The quick_hash/move-detection and bridge build-identity work in §5.9 is **done and deployed** — kept only for the optional history-row cleanup.)_
 
 Read `AGENTS.md` first. This file is self-contained — a developer with **zero prior context** should be able to continue from here. Background detail lives in `docs/SEAFILE_INTEGRATION.md` and `docs/POPDAM_HELPER.md`.
 
@@ -20,7 +20,7 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 
 **Thread A — Seafile/SeaDrive for WFH designers.** Eight designers in Brazil need fast access to a 28 TB NAS library that lives in the NYC office. The chosen transport is **Seafile + the SeaDrive virtual-drive client** (files appear on-demand, not fully synced). The **POP DAM Helper** desktop app *supervises* SeaDrive — at checkout it resolves the file in `~/SeaDrive`, waits for it to hydrate, copies it into a private workspace, opens it, and checks it back in. PopDAM/Supabase stays the checkout/audit plane. Full design: `docs/SEAFILE_INTEGRATION.md`.
 
-**Thread B — Helper code signing.** The Helper installers are unsigned, so macOS Gatekeeper / Windows SmartScreen warn on first launch. Signing/notarization remains wired in CI, but it is intentionally **not** an active blocker because the certificate/identity-provider hurdle is larger than expected.
+**Thread B — Helper code signing (ABANDONED).** The Helper installers are unsigned and **will stay unsigned permanently** — macOS Gatekeeper / Windows SmartScreen warn on first launch, and that is the accepted permanent UX. The certificate/identity-provider hurdle is too high to justify. Signing/notarization wiring remains in CI but is dormant by choice; see §5.3. This is **not** pending work.
 
 **The checkout flow (so "test a checkout" is meaningful):** in PopDAM web, open an asset → **Check Out & Open** → that mints a `popdam://` URL → the running Helper handles it, resolves the source (Seafile or Synology per config), copies it to its workspace, and opens it. Check-in is from the Helper tray. Architecture: `docs/POPDAM_HELPER.md`.
 
@@ -56,7 +56,7 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 - **SeaDrive (virtual drive), never the Seafile *sync* client** — 28 TB can't fully download to a laptop. The Helper only detects SeaDrive; sync-client detection paths were removed.
 - **Helper supervises SeaDrive, does not embed/fork it.** Designers install the official SeaDrive separately; the Helper detects + drives it.
 - **SeaDrive installer is self-hosted + auto-mirrored** so we control the version and always offer the latest.
-- **macOS signing is wired but deferred** — if it is revisited later, CI runs on `macos-latest`; no Mac is needed locally to produce a Developer ID `.p12` (OpenSSL works on Windows/Linux). Do not make signing a prerequisite for the Brazil pilot.
+- **macOS signing is wired but permanently abandoned** — installers stay unsigned forever (§5.3). The CI wiring runs on `macos-latest` and no Mac is needed locally to produce a Developer ID `.p12` (OpenSSL works on Windows/Linux), but nobody intends to do it. Do not make signing a prerequisite for anything.
 
 ---
 
@@ -78,10 +78,10 @@ Microsoft OAuth is live on `seafile.designflow.app`. The fix required two change
 ### 5.2 Brazil/Seafile pilot (after 5.1)
 Supabase Auth now allows the Helper redirect URL `http://127.0.0.1:47380/auth/callback` on live project `qsllyeztdwjgirsysgai` (verified 2026-06-24 via Supabase Management API). On one Brazil Mac: (1) install official **SeaDrive** (`dam.designflow.app/downloads` → SeaDrive card, or seafile.com) and sign in with the designer's Microsoft account; (2) confirm the `Character Licensed` + `Generic Decor` libraries appear under `~/SeaDrive` and sync; (3) install the **Helper** (`dam.designflow.app/downloads`), sign in with **Continue with Microsoft**, and in Helper **Settings → Seafile/SeaDrive** confirm "Preferred source for checkout" is **Seafile** and confirm the mount root; (4) in PopDAM web, **Check Out & Open** a Decor asset and confirm the Helper resolves it from `~/SeaDrive`, hydrates, and opens it; check it back in. Provider auto-selection by region is **not built** (5.4); the default is Seafile, and office/USA users manually switch to Synology. Success = checkout/check-in round-trips a real file via Seafile, with the Synology/Tailscale fallback covering any not-yet-synced file.
 
-### 5.3 Helper code signing (deferred, wiring remains)
-Status: **deferred / not required for pilot**. The user decided on 2026-06-24 that signed trusted installers are probably not going to happen soon and should not block Helper testing.
+### 5.3 Helper code signing (ABANDONED — installers stay unsigned permanently)
+Status: **will not be done.** As confirmed by the user on 2026-06-25, the Helper installers (macOS + Windows) **will always remain unsigned** — the certificate/identity hurdle (Apple Developer **Account Holder** role for the Developer ID cert; a separate OV/EV cert for Windows) is too high to justify. Do **not** treat this as pending work, and do not reopen it in handoffs. The unsigned first-launch warnings (macOS Gatekeeper right-click→Open; Windows SmartScreen "More info → Run anyway") are the accepted, permanent UX. The CI wiring below is left in place only so a future maintainer *could* revive it if the calculus ever changes — not because anyone intends to.
 
-If this is revived later:
+If this is ever revived (not planned):
 1. Create a **Developer ID Application** cert (this requires the Apple Developer **Account Holder** role). On Windows use **Git Bash** (ships OpenSSL): `openssl genrsa -out popdam_key.pem 2048` then `openssl req -new -key popdam_key.pem -out popdam.csr` (set Common Name = `POP Creations`). Upload `popdam.csr` at developer.apple.com → Certificates → **Developer ID Application** → download `developerID_application.cer`. Bundle: `openssl x509 -inform DER -in developerID_application.cer -out popdam_cert.pem` then `openssl pkcs12 -export -out popdam.p12 -inkey popdam_key.pem -in popdam_cert.pem -name "Developer ID Application"`; `base64 -w0 popdam.p12`.
 2. Add **GitHub repo secrets**: `CSC_LINK` (the base64 .p12), `CSC_KEY_PASSWORD` (.p12 export password), `APPLE_ID` (Apple ID email), `APPLE_APP_SPECIFIC_PASSWORD` (from appleid.apple.com → App-Specific Passwords), `APPLE_TEAM_ID` (10-char, developer.apple.com → Membership).
 3. Run **Actions → Publish PopDAM Helper → Run workflow**. The Mac job signs + notarizes via `scripts/notarize.cjs`. Windows SmartScreen needs a **separate** OV/EV cert (not started).
@@ -262,12 +262,12 @@ Risks / watchouts:
 ## 6. Exact next action
 For the currently active user thread, continue **5.11 Master Data style tracker**: inspect the PLM canonical APIs from the 1Password item, design a server-side/synced canonical lookup, and replace customer/licensor/property matching so `core.company` noise like `Rossy` is no longer offered as a canonical customer. After that, rebuild/redeploy the `popdam-master-preview` container and smoke-test `/styles#`.
 
-The most unblocked Helper next step is still **5.2 Brazil/Seafile pilot**: test a real checkout/check-in on one Brazil Mac using Microsoft OAuth. Code signing is deferred and should not block the pilot. The PO-sync thread (5.8) is blocked on the PLM team providing durable server-to-server auth. The §5.9 history-row prune is optional housekeeping with no urgency (growth has stopped); do it only if asked, and re-measure on the live Virginia project first (§0 trap).
+The most unblocked Helper next step is still **5.2 Brazil/Seafile pilot**: test a real checkout/check-in on one Brazil Mac using Microsoft OAuth. Code signing is permanently abandoned (§5.3) and does not block the pilot. The PO-sync thread (5.8) is blocked on the PLM team providing durable server-to-server auth. The §5.9 history-row prune is optional housekeeping with no urgency (growth has stopped); do it only if asked, and re-measure on the live Virginia project first (§0 trap).
 
 ## 7. Known risks / unknowns
 - ⚠️ **Wrong-database trap:** the default `mcp__supabase__*` tooling points at the **decommissioned Ohio** project (`ryltkzzernhwnojzouyb`, "popdam-prod.old"), which is still ACTIVE but frozen at the 2026-06-20 cutover. Live prod is **Virginia `qsllyeztdwjgirsysgai`** — query it via `mcp__claude_ai_Supabase__execute_sql` with `project_id`. Burned ~1h of a session on 2026-06-21 (see §0 and the AGENTS.md 2026-06-21 incident).
 - Seafile is a **partial mirror** of the NAS; unsynced files rely on the Synology/Tailscale fallback — verify fallback works during the pilot.
 - Three Seafile **infra secrets** were exposed in an earlier chat (MySQL root + seafile-user passwords, JWT private key) and **should be rotated** — owner action; no values are in this repo.
-- The Developer ID cert needs the Apple **Account Holder** role; an Admin/Member can't create it. Signing is intentionally deferred as of 2026-06-24.
+- The Developer ID cert needs the Apple **Account Holder** role; an Admin/Member can't create it. Because of this (and the separate Windows OV/EV cert), signing is **permanently abandoned** as of 2026-06-25 — installers stay unsigned forever (§5.3).
 - USA direct SMB write depends on correct per-machine Helper root mappings. Windows may use UNC paths; macOS must use the mounted `/Volumes/...` path.
 - Production PO sync cannot run reliably until PLM provides durable server-to-server app-layer auth; copied browser JWTs are known-expiring.
