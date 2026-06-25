@@ -9,10 +9,34 @@
  * All actions are dispatched to the checkout manager after the URL is parsed.
  */
 
-import { app } from "electron";
+import { app, Notification } from "electron";
 import { log } from "./logger";
 import { checkout, checkin, discard, revealFile, openFile } from "./checkoutManager";
-import { showWindow } from "./tray";
+import { showWindow, sendToRenderer } from "./tray";
+
+/**
+ * Surface a deep-link action failure to the user. A failed checkout/check-in
+ * leaves nothing in the tray list (the checkout was never added or was already
+ * released), so without this the window just says "no files checked out" and
+ * the user has no idea what went wrong. Show a desktop notification with the
+ * real reason and also push it to the renderer for the popup to display.
+ */
+function notifyActionError(action: string, message: string): void {
+  const titles: Record<string, string> = {
+    checkout: "Check out failed",
+    checkin: "Check in failed",
+    discard: "Discard failed",
+  };
+  const title = titles[action] ?? "POP DAM Helper";
+  try {
+    if (Notification.isSupported()) {
+      new Notification({ title, body: message }).show();
+    }
+  } catch (e) {
+    log.warn("Could not show error notification:", (e as Error).message);
+  }
+  sendToRenderer("action-error", { action, message });
+}
 
 export interface ParsedLink {
   action: "checkout" | "checkin" | "open" | "reveal" | "discard";
@@ -78,7 +102,7 @@ export async function handleDeepLink(url: string): Promise<void> {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     log.error(`Deep link action "${link.action}" failed:`, msg);
-    // The tray window will show the error via the checkout state
+    notifyActionError(link.action, msg);
   }
 }
 

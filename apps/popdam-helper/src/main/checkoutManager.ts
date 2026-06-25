@@ -110,6 +110,38 @@ export async function checkout(
 
   const { checkout_id, asset, root_mappings } = res;
 
+  // From here on the server has already created the checkout lock. If anything
+  // below throws (source not synced locally, no folder mapping, hydration
+  // timeout, copy error), we must release that lock — otherwise the asset is
+  // left orphaned "checked out" with nothing in the Helper, and the web UI is
+  // stuck on "Check In" forever. Release + rethrow so the caller can surface it.
+  try {
+    return await resolveCopyAndOpen(checkout_id, asset, root_mappings, config, res.open_after_checkout);
+  } catch (e) {
+    log.error(
+      `Checkout ${checkout_id} failed after the server lock was created — releasing the lock:`,
+      (e as Error).message,
+    );
+    await apiDiscard(checkout_id).catch((de) =>
+      log.warn(`Could not release orphaned lock ${checkout_id}:`, (de as Error).message),
+    );
+    throw e;
+  }
+}
+
+/**
+ * The half of a checkout that runs AFTER the server lock exists: resolve the
+ * source file (Seafile/SeaDrive or Synology), copy it into the private
+ * workspace, record it, and open it. Split out so `checkout()` can release the
+ * server lock if any of this throws (see the try/catch in `checkout`).
+ */
+async function resolveCopyAndOpen(
+  checkout_id: string,
+  asset: Awaited<ReturnType<typeof apiStartCheckout>>["asset"],
+  root_mappings: Awaited<ReturnType<typeof apiStartCheckout>>["root_mappings"],
+  config: ReturnType<typeof getConfig>,
+  openAfterCheckout: boolean,
+): Promise<{ checkoutId: string; workspacePath: string }> {
   // Merge server root_mappings with locally saved paths
   const localMappings = config.rootMappings;
   const mergedMappings: RootMapping[] = root_mappings.map((rm: any) => {
@@ -143,12 +175,21 @@ export async function checkout(
   const rootId = asset.relative_path.split("/")[0] ?? asset.relative_path.split("\\")[0];
   const preferred: StorageProvider = config.preferredProvider ?? "seafile";
 
+  // Why Seafile didn't serve this checkout (if preferred). Carried into the
+  // Synology-fallback error so the user sees the *real* reason ("SeaDrive client
+  // not detected", "Libraries not mounted: …", hydration timeout) instead of a
+  // misleading "set up your folder mappings" when SeaDrive simply isn't ready.
+  let seafileIssue: string | null = null;
+
   const resolveSynologyPath = (): string => {
     try {
       return resolveAssetPath(rootId, asset.relative_path, mergedMappings);
     } catch {
+      const base = seafileIssue
+        ? `Could not get this file from SeaDrive (${seafileIssue}), and no Synology folder mapping is configured as a fallback.`
+        : "No local path configured for this asset.";
       throw new Error(
-        `No local path configured for this asset. Please set up your folder mappings in Settings.`,
+        `${base}\n\nFix one of these in the Helper's Settings:\n• Install/sign in to SeaDrive and sync this library, or\n• map this NAS root to a local folder.`,
       );
     }
   };
@@ -172,8 +213,9 @@ export async function checkout(
         seafileObjId =
           (await getSeafileObjId(target.mapping.libraryId, target.pathInLib, config)) ?? undefined;
       } catch (e) {
+        seafileIssue = (e as Error).message;
         if (!config.synologyFallbackAllowed) throw e;
-        log.warn(`Seafile resolution failed, falling back to Synology: ${(e as Error).message}`);
+        log.warn(`Seafile resolution failed, falling back to Synology: ${seafileIssue}`);
       }
     } else if (!config.synologyFallbackAllowed) {
       throw new Error(
@@ -181,7 +223,8 @@ export async function checkout(
           (health.detail ? `\n\n${health.detail}` : ""),
       );
     } else {
-      log.warn(`Seafile unavailable (${health.detail ?? "unknown"}); falling back to Synology.`);
+      seafileIssue = health.detail ?? "SeaDrive unavailable";
+      log.warn(`Seafile unavailable (${seafileIssue}); falling back to Synology.`);
     }
   }
 
@@ -245,7 +288,7 @@ export async function checkout(
   watchFile(checkout_id, copied.workspacePath);
   notify();
 
-  if (res.open_after_checkout) {
+  if (openAfterCheckout) {
     await shell.openPath(copied.workspacePath);
   }
 
