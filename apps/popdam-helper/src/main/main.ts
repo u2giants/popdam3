@@ -17,6 +17,7 @@ import { registerProtocol } from "./protocol";
 import { initQueue, setProgressCallback, setVerifyingCallback, setFailedCallback, processQueue } from "./uploadQueue";
 import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, markUploadFailed, reconcileVerifyingCheckouts, getActiveCheckouts } from "./checkoutManager";
 import { heartbeat } from "./damClient";
+import { seaDriveBaseRoots, findLibraryDir } from "./seafileAdapter";
 import { loadConfig, getConfig } from "./config";
 import { log } from "./logger";
 import { startLocalServer } from "./localServer";
@@ -45,6 +46,55 @@ registerProtocol();
 // ── macOS: hide dock icon (we're a menu-bar app) ──────────────────────────────
 if (process.platform === "darwin") {
   app.dock?.hide();
+}
+
+// ── Stale-checkout reminders (#3) ─────────────────────────────────────────────
+const REMINDER_AGE_MS = 60 * 60 * 1000;         // remind once a file is 60 min old
+const REMINDER_CHECK_INTERVAL_MS = 10 * 60 * 1000; // re-check every 10 min
+const lastRemindedAt = new Map<string, number>();
+
+function remindStaleCheckouts(): void {
+  const now = Date.now();
+  for (const co of getActiveCheckouts()) {
+    // Only plain "active" (open & editable) checkouts — uploading/verifying/error
+    // already have their own loud surfacing.
+    if (co.status !== "active") continue;
+    const age = now - new Date(co.checkedOutAt).getTime();
+    if (age < REMINDER_AGE_MS) continue;
+    if (now - (lastRemindedAt.get(co.id) ?? 0) < REMINDER_AGE_MS) continue;
+    lastRemindedAt.set(co.id, now);
+    const hrs = Math.max(1, Math.floor(age / 3600000));
+    showNotification(
+      "Don't forget to check in",
+      `"${co.filename}" has been checked out for ${hrs}h and is NOT on the server yet. Open POP DAM Helper and click Check In when you're done.`,
+    );
+  }
+}
+
+// ── Proactive SeaDrive library warning (#4) ───────────────────────────────────
+function warnIfSeaDriveLibrariesMissing(): void {
+  const cfg = getConfig();
+  if (cfg.preferredProvider && cfg.preferredProvider !== "seafile") return;
+  const libs = cfg.seafileLibraries ?? [];
+  if (libs.length === 0) return;
+
+  if (seaDriveBaseRoots(cfg).length === 0) {
+    showNotification(
+      "SeaDrive not detected",
+      "POP DAM Helper can't find SeaDrive. Install it and sign in — otherwise checking out work-from-home files won't work.",
+    );
+    return;
+  }
+  // Only warn when NONE are found: a user may legitimately have access to just
+  // some libraries, so a per-library nag would be a false alarm. The Settings
+  // panel shows the per-library mounted/missing breakdown.
+  const missing = libs.filter((l) => findLibraryDir(l.seaDriveFolder, cfg) === null);
+  if (missing.length === libs.length) {
+    showNotification(
+      "PopDAM libraries not found in SeaDrive",
+      `None of your PopDAM libraries are visible in SeaDrive yet (${missing.map((m) => m.displayName).join(", ")}). Open SeaDrive and make sure they're synced/enabled.`,
+    );
+  }
 }
 
 // ── App ready ─────────────────────────────────────────────────────────────────
@@ -88,8 +138,14 @@ app.whenReady().then(async () => {
     markUploadFailed(checkoutId, message);
     sendToRenderer("checkouts-changed");
     updateTrayIcon();
-    showNotification("Check-in failed — file NOT saved to the server", message);
     showWindow();
+    // Missing Synology credentials → take the user straight to the field.
+    if (/credential/i.test(message)) {
+      showNotification("Check-in needs your Synology credentials", message);
+      sendToRenderer("open-settings", "credentials");
+      return;
+    }
+    showNotification("Check-in failed — file NOT saved to the server", message);
     dialog.showMessageBox({
       type: "error",
       title: "Check-in failed — file NOT saved to the server",
@@ -105,6 +161,15 @@ app.whenReady().then(async () => {
   // Load active checkouts from server
   await loadActiveCheckouts();
   updateTrayIcon();
+
+  // Proactive startup check: if the user is on the Seafile/WFH path but SeaDrive
+  // (or all of their PopDAM libraries) can't be found, tell them now — don't
+  // wait for a checkout to fail.
+  warnIfSeaDriveLibrariesMissing();
+
+  // Periodic reminder: a file checked out and edited but never checked in is the
+  // classic "worked for hours, never saved to the server" trap. Nudge hourly.
+  setInterval(remindStaleCheckouts, REMINDER_CHECK_INTERVAL_MS);
 
   // Notify renderer whenever checkout state changes
   onCheckoutsChanged(() => {

@@ -209,12 +209,18 @@ async function processJob(job: StoredJob): Promise<void> {
     const msg = e instanceof Error ? e.message : String(e);
     log.error(`Upload failed for checkout ${checkoutId}:`, msg);
 
-    const retryCount = job.retryCount + 1;
+    // Missing Synology credentials won't fix themselves on retry — fail fast so
+    // the user is prompted immediately (main wires this to open Settings) rather
+    // than waiting through 5 retry backoffs first.
+    const missingCreds = /credentials? not configured/i.test(msg);
+    const retryCount = missingCreds ? UPLOAD_MAX_RETRIES : job.retryCount + 1;
     if (retryCount >= UPLOAD_MAX_RETRIES) {
       updateJob(checkoutId, { status: "failed", retryCount });
       failedCallback?.(
         checkoutId,
-        `Check-in upload failed after ${UPLOAD_MAX_RETRIES} attempts: ${msg}. Your edited file is safe in your workspace — try checking in again.`,
+        missingCreds
+          ? "Your Synology credentials aren't set up yet, so this check-in can't upload. Add them in Settings, then check in again."
+          : `Check-in upload failed after ${UPLOAD_MAX_RETRIES} attempts: ${msg}. Your edited file is safe in your workspace — try checking in again.`,
       );
     } else {
       updateJob(checkoutId, { status: "pending", retryCount });

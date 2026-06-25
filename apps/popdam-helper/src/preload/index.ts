@@ -94,6 +94,13 @@ const api = {
     ipcRenderer.on("auth-changed", handler);
     return () => ipcRenderer.removeListener("auth-changed", handler);
   },
+  // Main asks the renderer to open Settings, optionally focused on a section
+  // (e.g. "credentials" after a check-in failed for missing Synology creds).
+  onOpenSettings: (cb: (section?: string) => void): (() => void) => {
+    const handler = (_e: unknown, section?: string) => cb(section);
+    ipcRenderer.on("open-settings", handler);
+    return () => ipcRenderer.removeListener("open-settings", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("popdam", api);

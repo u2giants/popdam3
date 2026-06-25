@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { LocalConfig, RootMapping, ValidationResult } from "../shared/types";
 
 interface ServerRoot {
@@ -9,9 +9,23 @@ interface ServerRoot {
 
 interface Props {
   onBack: () => void;
+  /** When set (e.g. "credentials"), scroll to and highlight that section. */
+  focusSection?: string;
 }
 
-export default function SettingsPanel({ onBack }: Props): React.ReactElement {
+export default function SettingsPanel({ onBack, focusSection }: Props): React.ReactElement {
+  const credentialsRef = useRef<HTMLDivElement | null>(null);
+  const [highlightCreds, setHighlightCreds] = useState(false);
+
+  useEffect(() => {
+    if (focusSection === "credentials" && credentialsRef.current) {
+      credentialsRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightCreds(true);
+      const t = setTimeout(() => setHighlightCreds(false), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [focusSection]);
+
   const [config, setConfig] = useState<LocalConfig | null>(null);
   const [synologyUser, setSynologyUser] = useState("");
   const [synologyPass, setSynologyPass] = useState("");
@@ -470,8 +484,11 @@ export default function SettingsPanel({ onBack }: Props): React.ReactElement {
           </div>
         </div>
 
-        <div className="section-label" style={{ marginBottom: 8 }}>Synology Credentials</div>
-        <div className="checkout-card">
+        <div className="section-label" style={{ marginBottom: 8 }} ref={credentialsRef}>Synology Credentials</div>
+        <div
+          className="checkout-card"
+          style={highlightCreds ? { outline: "2px solid #e8a13a", outlineOffset: 2, borderRadius: 6 } : undefined}
+        >
           <div className="meta" style={{ marginBottom: 8 }}>
             {hasCreds
               ? "Credentials saved. Enter new values to update."
