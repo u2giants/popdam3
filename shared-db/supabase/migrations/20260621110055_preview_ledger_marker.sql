@@ -1,0 +1,4 @@
+-- No-op marker for a migration version already present in the Supabase
+-- preview branch ledger before this repo's shared-db migration timestamps were
+-- stabilized. Kept locally so `supabase db push --dry-run` can compare the
+-- preview ledger without using `supabase migration repair` to hide history.
