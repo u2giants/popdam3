@@ -390,10 +390,10 @@ Use this exact shape for every new quirk:
 
 ### Master Data style tracker is temporary; PLM APIs are canonical for customers/licensors/properties
 
-**Looks like:** `master.designflow.app/styles` can fuzzy-match customers against shared `core.company` and treat those as canonical.
-**Actually:** the Master Data style tracker is a temporary Google Sheet replica. The user clarified on 2026-06-24 that canonical licensors/properties/customers come from read-only PLM APIs, whose credential is stored in 1Password item `DesignFlow PLM Canonical Master Data API`. `core.company` includes imported Directus/Twenty/CRM-ish rows and may contain secondary/noisy candidates such as `Rossy`.
+**Looks like:** `master.designflow.app/styles` can fuzzy-match customer-looking strings and treat those as canonical customers.
+**Actually:** the Master Data style tracker is a temporary Google Sheet replica. The user clarified on 2026-06-24 that canonical licensors/properties/customers come from read-only PLM APIs, whose credential is stored in 1Password item `DesignFlow PLM Canonical Master Data API`. Canonical customers now live in `core.customer`; confirmed PLM-backed customers have `is_potential = false` and a `designflow_plm` row in `core.company_source_ref`. Email/domain noise belongs in `crm.ingested_domain`, not in the canonical customer table.
 **Why:** PLM is the source of truth for this business data, but PLM is not yet fully transferred into the shared Supabase project. The tracker needs a bridge now without polluting or over-trusting shared tables.
-**Do not change because:** do not write new values into shared canonical tables from the tracker, and do not assume `core.company` candidates are correct unless reconciled to PLM. Use `docs/MASTER_DATA.md` for the app/data-flow details.
+**Do not change because:** do not write new values into shared canonical tables from the tracker, and do not assume customer candidates are correct unless reconciled to PLM. Use `docs/MASTER_DATA.md` for the app/data-flow details.
 
 ### Sibling file scans need a 10-minute lease/expiry
 
@@ -597,6 +597,7 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 **Seafile/SeaDrive:** the Helper supervises (does not embed) the SeaDrive virtual-drive client for WFH designers; see `docs/SEAFILE_INTEGRATION.md`.
 **CI caching rule (learned the hard way):** the Windows job caches **only** `~\AppData\Local\electron\Cache` (the immutable Electron binary). **Never** add `~\AppData\Local\electron-builder\Cache` back — that dir is the NSIS toolchain that stamps the (un)installer, and caching it once shipped a corrupted uninstaller that failed 100% with "NSIS Error: Error launching installer" on uninstall (`docs/KNOWN_QUIRKS.md` #54, fixed 2026-06-25 commit `d7a1133`). Re-download the toolchain fresh every run.
 **Microsoft OAuth:** the "Continue with Microsoft" flow must **not** pass its own `state` to `/auth/v1/authorize` — Supabase GoTrue forwards a caller `state` to the provider verbatim and then can't match it on callback, failing with `bad_oauth_state` and dumping the user on the project Site URL (`crm.designflow.app`). GoTrue manages state itself; PKCE binds the flow. Fixed in `apps/popdam-helper/src/main/oauth.ts`, Helper v1.4.2 (2026-06-25).
+**Checkout/check-in robustness (v1.4.3–1.4.8):** SeaDrive library location is **auto-discovered** (mounts vary per user/OS — `My Libraries`/`Shared with …`, bounded scan + cache); failures are never silent (failed checkout releases the orphaned lock + notifies; permanent upload failure pops a modal; missing Synology creds open Settings to the field); edits are tracked by an atomic-save-aware directory watcher driving an hourly reminder + a quit guard; a Photoshop UXP plugin (`resources/photoshop-plugin/`, Helper `POST /editor-event`) offers check-in on document close (Illustrator has no close event — intentionally unsupported). Full detail: `docs/POPDAM_HELPER.md`.
 
 ---
 

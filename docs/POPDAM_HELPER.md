@@ -90,8 +90,10 @@ The Helper starts an HTTP server bound to `127.0.0.1:47380` on launch. This lets
 
 | Method | Path | Response |
 |--------|------|----------|
-| `GET` | `/status` | `{ ok, version, roots[] }` |
+| `GET` | `/status` | `{ ok, version, roots[], storageProviders }` |
 | `GET` | `/browse?path=X` | `{ ok, path, entries: DirEntry[], listed_at }` |
+| `GET` | `/auth/callback` | HTML page; completes the Microsoft OAuth PKCE flow (see Authentication) |
+| `POST` | `/editor-event` | `{ ok }`; receives `{ event, path }` from the Photoshop plugin (see Photoshop integration) |
 
 **Path resolution for `/browse`:** `path=""` returns configured root mappings. `path="root_id/sub/dir"` resolves the first segment as a `root_id` against `config.rootMappings`, joins the remainder as a subpath. If the first segment is not a known root ID, the full path is treated as an absolute local path (power-user mode).
 
@@ -169,6 +171,55 @@ Both credential sets are encrypted via `safeStorage.encryptString()` (DPAPI on W
 ## Upload queue
 
 Failed uploads are persisted to `userData/upload-queue.json` and retried with exponential backoff (up to 5 attempts, `UPLOAD_MAX_RETRIES`). The queue is processed sequentially — one upload at a time. Progress is reported to the renderer via `setProgressCallback`. See Known Quirks #30.
+
+**Missing Synology credentials fail fast.** A `/credentials? not configured/i` error is not retried 5× — it's marked failed immediately and routed through the failure callback so the user is prompted at once (main opens Settings to the credentials field; see "No silent failures").
+
+---
+
+## SeaDrive library auto-discovery (`seafileAdapter.ts`)
+
+SeaDrive does **not** mount a library in one fixed place. The mount root varies by OS and by the account name chosen at sign-in (Windows: `C:\seadrive\<account>\`, macOS: `~/SeaDrive/<account>/`), and within a mount a library sits under whichever category folder it's shared through: `My Libraries\<lib>`, `Shared with all\<lib>`, `Shared with me\<lib>`, or `Shared with groups\<group>\<lib>`. Non-technical users won't configure exact paths, and the location differs per machine — so the Helper **discovers** it:
+
+- `seaDriveBaseRoots(config)` collects every plausible base mount (the configured `seaDriveRoot`, the platform default + its per-account subfolders, Windows `C:\seadrive\<account>`).
+- `findLibraryDir(seaDriveFolder, config)` searches each base: the direct folder, then the known category folders, then `Shared with groups/<group>/`, then a **bounded** breadth-first fallback (depth 3, 400-node cap so a virtual drive can't hang the scan).
+- The hit is cached per library in `config.seafileLibraryPaths` (keyed by the library's `seaDriveFolder` name) and re-validated on use, so later checkouts are instant.
+- `resolveSeafileTarget` resolves via the discovered library dir (not a hard-coded `<root>/<library>`); if a library genuinely can't be found it throws a clear "library isn't visible in SeaDrive yet" error.
+
+**Why checkout gates on `health.root`, not `health.available`:** `getSeafileHealth().available` is all-or-nothing (true only if *every* configured library is found). `checkoutManager` gates on the mount existing and lets `resolveSeafileTarget` verify the **specific** library the asset needs — otherwise a `Character Licensed` checkout would wrongly fail just because `Generic Decor` isn't synced. (See Known Quirks; the all-or-nothing gate was a bug, fixed 2026-06-25.)
+
+---
+
+## Edit tracking, reminders & quit guard
+
+The risk this addresses: a designer edits a checked-out file for hours and never realizes it isn't on the server (check-in is **explicit** — closing the editor does nothing on its own).
+
+- **Edit detection.** The file watcher (`checkoutManager.watchFile`) watches the checkout's workspace **directory** (depth 0, `atomic: true`), *not* the single file, so editors that save via atomic rename-replace (Illustrator/Photoshop write a temp file then rename over the original) register as a normal **edit** rather than being misread as "file deleted." A real `unlink` is re-confirmed after a 2.5 s delay before the checkout is flagged `error`.
+- A save sets `editedSinceCheckout` + `lastEditedAt` on the in-memory `CheckoutRecord`. On restart these are inferred from the workspace file's mtime vs the checkout time.
+- **Hourly reminder** (`main.ts` `remindStaleCheckouts`, checked every 10 min): fires a desktop notification only for `active` checkouts that are **edited but not checked in** and whose last edit is >60 min old (re-nags hourly). Untouched checkouts are never nagged — nothing to lose.
+- **Quit guard** (`before-quit`): if files are still checked out, quitting is intercepted with a confirm dialog; the wording escalates when any file is edited/uploading/verifying/error ("edits that are NOT on the server yet").
+- The tray popup shows an **"Edited — not checked in"** badge distinct from "Checked out".
+
+---
+
+## No silent failures
+
+Failure paths that could otherwise strand a user are surfaced; only self-healing best-effort operations stay quiet (logged). Centralized in `tray.showNotification`.
+
+- **Checkout failure** (`protocol.handleDeepLink`): releases the just-created server lock (so the asset isn't orphaned "checked out") **and** shows a notification with the real reason — never a silent "no files checked out".
+- **Permanent upload failure** (`uploadQueue` → `setFailedCallback`): marks the checkout `error`, opens the popup, fires a notification, **and** pops a modal dialog ("Check-in failed — file NOT saved to the server"). For missing Synology credentials it instead opens Settings to the credentials field (highlighted).
+- **Proactive startup check** (`warnIfSeaDriveLibrariesMissing`): on the Seafile/WFH path, if SeaDrive isn't found at all — or none of the configured libraries are visible — the user is notified at launch, not only when a checkout fails. (Only warns when *nothing* is found; a user may legitimately have access to just some libraries — Settings shows the per-library breakdown.)
+- **Intentionally quiet** (logged only): heartbeat, the optional Seafile `obj_id` lookup, startup checkout-list load, config-save errors. All failures are in the log regardless: `%APPDATA%\popdam-helper\logs\main.log` (Windows) / `~/Library/Logs/popdam-helper/main.log` (macOS).
+
+---
+
+## Photoshop integration (`resources/photoshop-plugin/`)
+
+Optional. Lets Photoshop tell the Helper when a checked-out file is **closed**, so the Helper can offer to check it in immediately. **Photoshop-only** — Illustrator exposes no document-close event to plugins, so it is intentionally not supported.
+
+- **Plugin** (UXP, `resources/photoshop-plugin/`, ships in the installer via `extraResources`): keeps a live map of open `documentID → file path` (refreshed on open/select/save), listens for the `close` event, and POSTs `{ event: "documentClosed", path }` to the Helper at `http://127.0.0.1:47380/editor-event`. Requires PS 23.0+ and declares `network` permission for `http://127.0.0.1:47380`.
+- **Helper side:** `localServer` accepts `POST /editor-event` → `setEditorEventCallback`. `main` looks up the active checkout by workspace path (`findCheckoutByWorkspacePath`); if it's `active` **and** edited, it pops a "Check it in now?" dialog and runs `checkin()` on confirm. A `ping` event (empty path) is a no-op used by the panel to show connection status.
+- **Install (pilot):** the plugin is **unsigned**, so it can't go through Creative Cloud — load it with Adobe's **UXP Developer Tool** pointed at the bundled `manifest.json`. Settings → "Reveal Photoshop plugin folder" opens the location; full steps in `resources/photoshop-plugin/README.md`. A fully silent auto-install isn't possible for an unsigned UXP plugin.
+- **Status:** Helper-side endpoint + wiring are verified by typecheck; the plugin's PS event behavior needs on-device testing (no Photoshop in CI). Introduced Helper v1.4.8.
 
 ---
 
