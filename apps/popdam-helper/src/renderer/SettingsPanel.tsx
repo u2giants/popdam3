@@ -44,6 +44,7 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
     installed: boolean;
     running: boolean;
     root: string | null;
+    discoveredLibraries: string[];
     librariesMounted: string[];
     librariesMissing: string[];
     detail?: string;
@@ -469,7 +470,13 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
                 <span>Running: {storageHealth.running ? "✓" : "✗"}</span>
                 <span>Mount root: {storageHealth.root ?? "not found"}</span>
                 <span>
-                  Libraries mounted:{" "}
+                  SeaDrive folders found:{" "}
+                  {storageHealth.discoveredLibraries.length
+                    ? storageHealth.discoveredLibraries.join(", ")
+                    : "none"}
+                </span>
+                <span>
+                  Configured checkout libraries mounted:{" "}
                   {storageHealth.librariesMounted.length
                     ? storageHealth.librariesMounted.join(", ")
                     : "none"}

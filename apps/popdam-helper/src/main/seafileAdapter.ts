@@ -16,7 +16,7 @@
  */
 
 import { existsSync, statSync, openSync, closeSync, readSync, readdirSync } from "fs";
-import { join, normalize, isAbsolute, sep } from "path";
+import { basename, join, normalize, isAbsolute, sep } from "path";
 import { homedir } from "os";
 import { execFileSync } from "child_process";
 import { loadToken } from "./credentials";
@@ -64,6 +64,7 @@ function subDirs(p: string): string[] {
 
 /** SeaDrive category folders a library may live under, relative to a base mount. */
 const SEADRIVE_CATEGORY_DIRS = ["My Libraries", "Shared with all", "Shared with me"];
+const SEADRIVE_ALL_CATEGORY_DIRS = [...SEADRIVE_CATEGORY_DIRS, "Shared with groups"];
 
 /**
  * Every plausible SeaDrive base mount to search beneath. Includes the explicit
@@ -131,6 +132,47 @@ function searchUnderBase(base: string, target: string): string | null {
 
   // Bounded fallback scan for anything we didn't anticipate.
   return bfsFindDir(base, target, 3, 400);
+}
+
+function addUnique(out: string[], name: string): void {
+  if (!out.some((existing) => existing.toLowerCase() === name.toLowerCase())) out.push(name);
+}
+
+/**
+ * Inventory visible SeaDrive library folders. This is broader than the PopDAM
+ * checkout mapping: it shows what the client can see, including libraries not
+ * yet configured in HELPER_SEAFILE_LIBRARIES.
+ */
+export function discoverSeaDriveLibraries(config: LocalConfig): string[] {
+  const found: string[] = [];
+  const categoryNames = new Set(SEADRIVE_ALL_CATEGORY_DIRS.map((d) => d.toLowerCase()));
+
+  for (const base of seaDriveBaseRoots(config)) {
+    const baseName = basename(base).toLowerCase();
+
+    // If the configured root is itself a category folder (for example
+    // C:\seadrive\<acct>\My Libraries), its direct children are libraries.
+    if (categoryNames.has(baseName)) {
+      for (const lib of subDirs(base)) addUnique(found, lib);
+    }
+
+    for (const category of SEADRIVE_ALL_CATEGORY_DIRS) {
+      const categoryDir = join(base, category);
+      if (!safeIsDir(categoryDir)) continue;
+
+      for (const child of subDirs(categoryDir)) {
+        const childPath = join(categoryDir, child);
+        addUnique(found, child);
+
+        // Some SeaDrive installs put libraries under Shared with groups/<group>/<lib>.
+        if (category === "Shared with groups") {
+          for (const nested of subDirs(childPath)) addUnique(found, nested);
+        }
+      }
+    }
+  }
+
+  return found.sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -319,6 +361,7 @@ export interface SeafileHealth extends StorageHealth {
   installed: boolean;
   running: boolean;
   root: string | null;
+  discoveredLibraries: string[];
   librariesConfigured: string[];
   librariesMounted: string[];
   librariesMissing: string[];
@@ -328,6 +371,7 @@ export function getSeafileHealth(config: LocalConfig): SeafileHealth {
   const installed = isSeaDriveInstalled();
   const running = isSeaDriveRunning();
   const root = detectSeaDriveRoot(config);
+  const discovered = discoverSeaDriveLibraries(config);
   const configured = (config.seafileLibraries ?? []).map((m) => m.seaDriveFolder);
   const mounted = getMountedLibraries(config);
   const missing = configured.filter((f) => !mounted.includes(f));
@@ -345,6 +389,7 @@ export function getSeafileHealth(config: LocalConfig): SeafileHealth {
     installed,
     running,
     root,
+    discoveredLibraries: discovered,
     librariesConfigured: configured,
     librariesMounted: mounted,
     librariesMissing: missing,

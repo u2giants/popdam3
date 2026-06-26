@@ -68,6 +68,7 @@ const api = {
     installed: boolean;
     running: boolean;
     root: string | null;
+    discoveredLibraries: string[];
     librariesConfigured: string[];
     librariesMounted: string[];
     librariesMissing: string[];
