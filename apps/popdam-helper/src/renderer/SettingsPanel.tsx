@@ -111,7 +111,13 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
     refreshStorageHealth();
   }, []);
 
-  async function refreshStorageHealth(): Promise<void> {
+  async function refreshStorageHealth(nextConfig = config): Promise<void> {
+    if (nextConfig) {
+      await window.popdam.saveConfig({
+        preferredProvider: nextConfig.preferredProvider,
+        seaDriveRoot: nextConfig.seaDriveRoot,
+      });
+    }
     const res = await window.popdam.getStorageHealth();
     if (res.ok && res.data) setStorageHealth(res.data);
   }
@@ -364,7 +370,10 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
           return (
             <div key={root.root_id} className="checkout-card" style={{ marginBottom: 8 }}>
               <div className="filename" style={{ marginBottom: 6 }}>
-                {root.display_name || root.root_id}
+                SMB Mount
+              </div>
+              <div className="meta" style={{ marginBottom: 6 }}>
+                Server root: {root.display_name || root.root_id}
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Local folder on this computer</label>
@@ -440,7 +449,12 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
                 style={{ whiteSpace: "nowrap" }}
                 onClick={async () => {
                   const res = await window.popdam.browseForFolder();
-                  if (res.ok && res.data) setConfig({ ...config, seaDriveRoot: res.data });
+                  if (res.ok && res.data) {
+                    const next = { ...config, seaDriveRoot: res.data };
+                    setConfig(next);
+                    await window.popdam.saveConfig({ seaDriveRoot: res.data });
+                    await refreshStorageHealth(next);
+                  }
                 }}
               >
                 Browse…
@@ -472,7 +486,7 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
             )}
             <button
               style={{ padding: "1px 8px", fontSize: 11, marginTop: 4 }}
-              onClick={refreshStorageHealth}
+              onClick={() => refreshStorageHealth()}
             >
               Refresh status
             </button>

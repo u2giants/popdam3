@@ -55,7 +55,7 @@ function safeIsDir(p: string): boolean {
 function subDirs(p: string): string[] {
   try {
     return readdirSync(p, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+      .filter((d) => !d.name.startsWith(".") && (d.isDirectory() || safeIsDir(join(p, d.name))))
       .map((d) => d.name);
   } catch {
     return [];
@@ -77,6 +77,7 @@ export function seaDriveBaseRoots(config: LocalConfig): string[] {
   };
 
   add(config.seaDriveRoot);
+  for (const acct of subDirs(config.seaDriveRoot ?? "")) add(join(config.seaDriveRoot ?? "", acct));
 
   // Platform default mount parents + their per-account subfolders.
   const parents =
@@ -100,12 +101,13 @@ export function detectSeaDriveRoot(config: LocalConfig): string | null {
 function bfsFindDir(base: string, target: string, maxDepth: number, maxNodes: number): string | null {
   const queue: Array<{ dir: string; depth: number }> = [{ dir: base, depth: 0 }];
   let visited = 0;
+  const targetLower = target.toLowerCase();
   while (queue.length) {
     const { dir, depth } = queue.shift()!;
     if (visited++ > maxNodes) break;
     for (const name of subDirs(dir)) {
       const child = join(dir, name);
-      if (name === target) return child;
+      if (name.toLowerCase() === targetLower) return child;
       if (depth + 1 < maxDepth) queue.push({ dir: child, depth: depth + 1 });
     }
   }
@@ -165,6 +167,7 @@ export function findLibraryDir(seaDriveFolder: string, config: LocalConfig): str
  * try to fully download a library to local disk. Do not add sync-client paths here.
  */
 export function isSeaDriveInstalled(): boolean {
+  if (detectSeaDriveRoot({} as LocalConfig) || isSeaDriveRunning()) return true;
   const paths =
     process.platform === "darwin"
       ? [
