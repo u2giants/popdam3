@@ -36,6 +36,9 @@
         "@radix-ui/react-tooltip": "^1.2.7",
         "@supabase/supabase-js": "^2.97.0",
         "@tanstack/react-query": "^5.83.0",
+        "ag-grid-community": "35.3.1",
+        "ag-grid-enterprise": "35.3.1",
+        "ag-grid-react": "35.3.1",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
@@ -498,6 +501,22 @@
     "acorn-jsx": ["acorn-jsx@5.3.2", "", { "peerDependencies": { "acorn": "^6.0.0 || ^7.0.0 || ^8.0.0" } }, "sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ=="],
 
     "acorn-walk": ["acorn-walk@8.3.5", "", { "dependencies": { "acorn": "^8.11.0" } }, "sha512-HEHNfbars9v4pgpW6SO1KSPkfoS0xVOM/9UzkJltjlsHZmJasxg8aXkuZa7SMf8vKGIBhpUsPluQSqhJFCqebw=="],
+
+    "ag-charts-community": ["ag-charts-community@13.3.1", "", { "dependencies": { "ag-charts-core": "13.3.1", "ag-charts-locale": "13.3.1", "ag-charts-types": "13.3.1" } }, "sha512-xRwyuP4xcMoyzaa27fccUhKqGyiWp/0h6vq0ZBuAtj2k0OC5UbV6IQUW6/0AgmLIQ4/K9QlRWFOe3sL/x5MHow=="],
+
+    "ag-charts-core": ["ag-charts-core@13.3.1", "", { "dependencies": { "ag-charts-types": "13.3.1" } }, "sha512-oDnK07/S6Z10EwIBxhC4tMDwdf2ck5MMcuSB/h+0/Q2XcL2l3S4jmlq3iKI7Kp9sh0H5JYDDc2sAdkUN87W8RA=="],
+
+    "ag-charts-enterprise": ["ag-charts-enterprise@13.3.1", "", { "dependencies": { "ag-charts-community": "13.3.1", "ag-charts-core": "13.3.1" } }, "sha512-Y/RYwg38rLflcMJpERIRvUW5zL02HUoRXBv3j4UdnOjiEb4mPQTXU7chTfYf3+vqtUsMjFGxyGh4nPM7shwM1g=="],
+
+    "ag-charts-locale": ["ag-charts-locale@13.3.1", "", {}, "sha512-jF7iXI3PBFq/LFgBKwt72CykDBWcl3HYgP7B/hSJGsFdK+yuUTPrP67dA/wghgC6sg+Qw2U2GeykhZkG0yH8ww=="],
+
+    "ag-charts-types": ["ag-charts-types@13.3.1", "", {}, "sha512-m37eUe4g//swvGh8PWMlYQH3gknjSsPeW4sQwBhM3/auGAHmN0wvxEWlrdAn98pBPg4HoKbtOy+yf7gPCYsnvQ=="],
+
+    "ag-grid-community": ["ag-grid-community@35.3.1", "", { "dependencies": { "ag-charts-types": "13.3.1" } }, "sha512-Wmkd/xYTCbAApcZZO74nBggZCnd/oX753NY3MJ4zYARVpfBHRWWhIBJ2sFTFKbDWwHZOWsx3YT9+kkyeuyLKlw=="],
+
+    "ag-grid-enterprise": ["ag-grid-enterprise@35.3.1", "", { "dependencies": { "ag-grid-community": "35.3.1" }, "optionalDependencies": { "ag-charts-community": "13.3.1", "ag-charts-enterprise": "13.3.1" } }, "sha512-AdxpzZVn4tOg/eAFm+KDfvQE2/KX1wNjVMMHZFzKr528V2OaQYx8LWv3Ly3jlWbF8Pxsfe7ViacH0gnsjrkbyQ=="],
+
+    "ag-grid-react": ["ag-grid-react@35.3.1", "", { "dependencies": { "ag-grid-community": "35.3.1", "prop-types": "^15.8.1" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-M3ljCQyGL+qzoyPN0BYrn4eAlgZr6Ailcjd8+a7OcneSiVsMNSJb/gTkIMUwmYivkPLIA8EEJ4hTxxKSaya6mQ=="],
 
     "agent-base": ["agent-base@6.0.2", "", { "dependencies": { "debug": "4" } }, "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ=="],
 
