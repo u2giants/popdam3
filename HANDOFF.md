@@ -214,6 +214,7 @@ Done:
 - Added/used temporary backend objects: `public.style_tracker_rows`, `public.style_tracker_rows_with_bridge`, `plm.style_tracker_item_bridge`, `plm.style_tracker_value_resolution`, `public.add_style_tracker_rows`, `public.refresh_style_tracker_item_bridge`, `public.search_style_tracker_link_candidates`, `public.upsert_style_tracker_value_resolution`, and `public.style_tracker_user_views`.
 - Matching UI now treats **Dismiss: Keep In Master Data** as **Master Data only** and removes approved/dismissed values from the review dropdown.
 - Created 1Password item `DesignFlow PLM Canonical Master Data API` in `vibe_coding`; it stores the read-only PLM API key and endpoint notes without documenting the secret value.
+- PLM-backed candidate matching is now live through `public.search_style_tracker_link_candidates(...)`: customer candidates come from `core.customer` joined through `core.company_source_ref` with `source_system='designflow_plm'`, and licensor/property candidates come through `core.taxonomy_source_ref`. The `core.company` → `core.customer` rename leftovers were repaired in shared-db PR #14 / migration `20260626170000_fix_core_customer_leftovers.sql`; preview and prod were both applied.
 - Documented details in `docs/MASTER_DATA.md`.
 
 Current source/runtime state:
@@ -223,21 +224,12 @@ Current source/runtime state:
 - AG Grid packages are pinned to exact `35.3.1` versions. Do not use caret ranges or mix `ag-grid-community`, `ag-grid-react`, and `ag-grid-enterprise` versions.
 - The live preview bundle after the last deploy in this session was `index-BpPmUcrb.js`; newer work should verify the live bundle rather than relying on this value.
 
-Next action:
-Replace customer/licensor/property candidate matching with PLM canonical data. Use the PLM read-only APIs from the 1Password item:
-- licensors/properties: `GET https://api.designflow.app/api/item_master/lib/getLicensorsWithProperties`
-- customers: `GET https://api.designflow.app/api/core/customers/getCustomers`
-- auth header: `x-api-key`
-
 Recommended continuation sequence:
-1. Retrieve the API key through 1Password item `DesignFlow PLM Canonical Master Data API` (do not paste it into source or docs).
-2. Inspect the PLM API response shapes with a server-side script or curl from a trusted shell.
-3. Create/sync a Supabase-side canonical cache for PLM customers/licensors/properties with explicit source provenance, or add a backend RPC that calls the PLM API server-side. Do **not** call the API directly from browser code.
-4. Change `public.search_style_tracker_link_candidates(...)` or a replacement RPC so Master Data matching uses PLM canonical data first. Customer matches should come from `core.customer` joined through PLM-backed `core.company_source_ref`.
-5. Re-run `public.refresh_style_tracker_item_bridge()` and test known cases:
+1. Re-run `public.refresh_style_tracker_item_bridge()` and test known cases:
    - `Customer: Ross` should prefer the PLM Ross customer and should not offer `Rossy` if PLM does not list it as a canonical customer.
    - customer values with trailing SKU text such as `Burlington - BG139DYLS01` should preserve the raw sheet value but match the canonical customer.
-6. Build and deploy the preview app, then smoke-test `https://master.designflow.app/styles#` in an unauthenticated browser (should redirect to `/login`, not white-screen or 404).
+2. Restore/finish per-user saved grid views if needed; the database table exists but the current page only exposes the AG Grid Columns panel.
+3. Move the temporary Master Data tables/RPCs into a cleaner PLM bridge namespace or replace them when PLM lands in the shared Supabase project.
 
 Operational commands used for preview deploy:
 ```bash
@@ -271,7 +263,7 @@ Risks / watchouts:
 ---
 
 ## 6. Exact next action
-For the currently active user thread, continue **5.11 Master Data style tracker**: inspect the PLM canonical APIs from the 1Password item, design a server-side/synced canonical lookup, and replace customer/licensor/property matching so non-PLM noise like `Rossy` is no longer offered as a canonical customer. After that, rebuild/redeploy the `popdam-master-preview` container and smoke-test `/styles#`.
+For the currently active user thread, continue **5.11 Master Data style tracker** only if the user asks for Master Data polish: saved grid views and eventual cleanup/replacement of the temporary style-tracker backend objects are still open. PLM-backed candidate matching itself is done and deployed.
 
 The most unblocked Helper next step is still **5.2 Brazil/Seafile pilot**: test a real checkout/check-in on one Brazil Mac using Microsoft OAuth. Code signing is permanently abandoned (§5.3) and does not block the pilot. The PO-sync thread (5.8) is blocked on the PLM team providing durable server-to-server auth. The §5.9 history-row prune is optional housekeeping with no urgency (growth has stopped); do it only if asked, and re-measure on the live Virginia project first (§0 trap).
 

@@ -120,9 +120,14 @@ Verified during the 2026-06-24 session:
 - Preview container `popdam-master-preview` reached healthy state after redeploy.
 - Playwright smoke checks showed no console errors on the unauthenticated route.
 
+Verified during the 2026-06-26 core.customer cutover repair:
+
+- `public.search_style_tracker_link_candidates('customer', 'Ross', 5, 'fuzzy')` on preview returned `target_schema = 'core'`, `target_table = 'customer'`, `target_label = 'Ross Stores'`.
+- The stale prod `plm.style_tracker_value_resolution` row was migrated from `target_table = 'company'` to `target_table = 'customer'`.
+- Prod Supabase type generation for `public,core,dam` succeeds and exposes `core.customer`.
+
 ## Follow-Ups
 
-- Replace customer/licensor/property matching with PLM canonical APIs or synced PLM lookup tables.
 - Keep candidate matching constrained to PLM-backed source refs through `public.search_style_tracker_link_candidates(...)`.
 - Restore/finish per-user saved grid views if the simplified page source is kept; the database table exists but the current recreated page only exposes the AG Grid columns panel.
 - Move the temporary Master Data tables/RPCs into a cleaner PLM bridge namespace or replace them when PLM lands in the shared Supabase project.
