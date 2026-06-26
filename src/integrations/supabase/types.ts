@@ -3381,6 +3381,129 @@ export type Database = {
           },
         ]
       }
+      style_tracker_rows: {
+        Row: {
+          commissioned: string | null
+          concept_status: string | null
+          created_at: string
+          customer: string | null
+          customer_sku: string | null
+          default_vendor: string | null
+          description: string | null
+          designer: string | null
+          discontinued: boolean | null
+          group_id: string | null
+          id: string
+          imported_at: string
+          license_status: string | null
+          licensor: string | null
+          notes: string | null
+          pre_production_status: string | null
+          production_status: string | null
+          row_data: Json
+          royalty: string | null
+          sku: string | null
+          source_row_number: number | null
+          source_sheet: string
+          source_workbook_id: string
+          tracker_type: string
+          upc: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          commissioned?: string | null
+          concept_status?: string | null
+          created_at?: string
+          customer?: string | null
+          customer_sku?: string | null
+          default_vendor?: string | null
+          description?: string | null
+          designer?: string | null
+          discontinued?: boolean | null
+          group_id?: string | null
+          id?: string
+          imported_at?: string
+          license_status?: string | null
+          licensor?: string | null
+          notes?: string | null
+          pre_production_status?: string | null
+          production_status?: string | null
+          row_data?: Json
+          royalty?: string | null
+          sku?: string | null
+          source_row_number?: number | null
+          source_sheet: string
+          source_workbook_id?: string
+          tracker_type: string
+          upc?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          commissioned?: string | null
+          concept_status?: string | null
+          created_at?: string
+          customer?: string | null
+          customer_sku?: string | null
+          default_vendor?: string | null
+          description?: string | null
+          designer?: string | null
+          discontinued?: boolean | null
+          group_id?: string | null
+          id?: string
+          imported_at?: string
+          license_status?: string | null
+          licensor?: string | null
+          notes?: string | null
+          pre_production_status?: string | null
+          production_status?: string | null
+          row_data?: Json
+          royalty?: string | null
+          sku?: string | null
+          source_row_number?: number | null
+          source_sheet?: string
+          source_workbook_id?: string
+          tracker_type?: string
+          upc?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      style_tracker_user_views: {
+        Row: {
+          column_state: Json
+          created_at: string
+          filter_model: Json
+          id: string
+          source_sheet: string
+          updated_at: string
+          user_id: string
+          view_name: string
+        }
+        Insert: {
+          column_state?: Json
+          created_at?: string
+          filter_model?: Json
+          id?: string
+          source_sheet: string
+          updated_at?: string
+          user_id: string
+          view_name?: string
+        }
+        Update: {
+          column_state?: Json
+          created_at?: string
+          filter_model?: Json
+          id?: string
+          source_sheet?: string
+          updated_at?: string
+          user_id?: string
+          view_name?: string
+        }
+        Relationships: []
+      }
       tiff_optimization_queue: {
         Row: {
           claimed_at: string | null
@@ -3510,8 +3633,100 @@ export type Database = {
         }
         Relationships: []
       }
+      style_tracker_rows_with_bridge: {
+        Row: {
+          bridge_id: string | null
+          canonical_customer_name: string | null
+          canonical_description: string | null
+          canonical_factory_name: string | null
+          canonical_licensor_name: string | null
+          commissioned: string | null
+          company_id: string | null
+          concept_status: string | null
+          core_licensor_id: string | null
+          created_at: string | null
+          customer: string | null
+          customer_sku: string | null
+          default_vendor: string | null
+          description: string | null
+          designer: string | null
+          discontinued: boolean | null
+          erp_item_id: string | null
+          erp_style_number: string | null
+          factory_id: string | null
+          group_id: string | null
+          id: string | null
+          imported_at: string | null
+          last_matched_at: string | null
+          license_status: string | null
+          licensor: string | null
+          match_confidence: string | null
+          match_notes: Json | null
+          match_status: string | null
+          notes: string | null
+          plm_item_id: string | null
+          pre_production_status: string | null
+          production_status: string | null
+          public_licensor_id: string | null
+          row_data: Json | null
+          royalty: string | null
+          sku: string | null
+          source_row_number: number | null
+          source_sheet: string | null
+          source_workbook_id: string | null
+          style_group_id: string | null
+          style_group_sku: string | null
+          tracker_type: string | null
+          upc: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      add_style_tracker_rows: {
+        Args: {
+          p_count?: number
+          p_source_sheet: string
+          p_tracker_type: string
+        }
+        Returns: {
+          commissioned: string | null
+          concept_status: string | null
+          created_at: string
+          customer: string | null
+          customer_sku: string | null
+          default_vendor: string | null
+          description: string | null
+          designer: string | null
+          discontinued: boolean | null
+          group_id: string | null
+          id: string
+          imported_at: string
+          license_status: string | null
+          licensor: string | null
+          notes: string | null
+          pre_production_status: string | null
+          production_status: string | null
+          row_data: Json
+          royalty: string | null
+          sku: string | null
+          source_row_number: number | null
+          source_sheet: string
+          source_workbook_id: string
+          tracker_type: string
+          upc: string | null
+          updated_at: string
+          updated_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "style_tracker_rows"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       backfill_pdf_files_used: { Args: never; Returns: number }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
@@ -3701,6 +3916,14 @@ export type Database = {
         Returns: number
       }
       refresh_style_guide_matviews: { Args: never; Returns: undefined }
+      refresh_style_tracker_item_bridge: {
+        Args: never
+        Returns: {
+          inserted_count: number
+          total_count: number
+          updated_count: number
+        }[]
+      }
       requeue_all_failed_sg_jobs: {
         Args: { p_limit?: number }
         Returns: number
@@ -3748,6 +3971,25 @@ export type Database = {
         Returns: Json
       }
       update_bulk_operations_batch: { Args: { p_updates: Json }; Returns: Json }
+      upsert_style_tracker_value_resolution: {
+        Args: {
+          p_field_key: string
+          p_local_value?: string
+          p_raw_value: string
+          p_resolution_type: string
+          p_target_id?: string
+          p_target_label?: string
+          p_target_schema?: string
+          p_target_table?: string
+        }
+        Returns: unknown
+        SetofOptions: {
+          from: "*"
+          to: "style_tracker_value_resolution"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_name: "popdam" | "styleguides"
