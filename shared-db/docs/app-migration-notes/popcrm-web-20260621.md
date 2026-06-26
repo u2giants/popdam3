@@ -107,11 +107,14 @@ Baseline already publishes `crm.opportunity/task/note/email_message`. Added
 
 ## Worker
 
-`/worksp/directus/pm-system/crm-worker-supabase.mjs` — full Supabase service-role
+Historical path: `/worksp/directus/pm-system/crm-worker-supabase.mjs` was the
+first Supabase service-role port. Current runtime path:
+`/worksp/popcrm-web/workers/crm-worker-supabase.mjs` — full Supabase service-role
 port (outlook-ingest, reroute, fireflies-server, contact-sync, summarize,
 apply-ignore-rules); endpoints `/health`, `/s/fireflies-webhook`,
 `/s/opportunity-chat` preserved (chat now verifies a Supabase JWT Bearer token).
-The original Directus `crm-worker.mjs` is kept for rollback. Worker runtime needs
+The original Directus `crm-worker.mjs` is legacy rollback/reference context only.
+Worker runtime needs
 `npm i @supabase/supabase-js` and `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
 
 ## Data migration / reconciliation

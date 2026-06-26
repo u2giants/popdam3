@@ -19,6 +19,9 @@ function readApiKey() {
   if (process.env.DESIGNFLOW_API_KEY) {
     return process.env.DESIGNFLOW_API_KEY;
   }
+  if (process.env.PLM_API_KEY) {
+    return process.env.PLM_API_KEY;
+  }
 
   const result = spawnSync("op", ["read", API_KEY_REF], {
     encoding: "utf8",

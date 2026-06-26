@@ -1,0 +1,11 @@
+[Unit]
+Description=Sync Designflow PLM master data into shared Supabase
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ai
+WorkingDirectory=/worksp/shared-db
+EnvironmentFile=/home/ai/.plm-sync.env
+ExecStart=/usr/bin/bash /worksp/shared-db/tools/run-plm-master-data-sync.sh

@@ -23,6 +23,21 @@ This repo holds schema mapping, relationship design, migration gaps, Supabase mi
 - [Schema implementation notes](docs/implementation/schema-implementation-notes.md) - what the migration package implements and what remains intentionally unresolved.
 - [AI session instructions](docs/ai-session-instructions/README.md) - handoff guides for CRM and PM rewrite sessions using the shared preview branch.
 
+## Host PLM Import
+
+The active Designflow PLM master-data sync is owned here, not in Directus:
+
+- Import tool: `tools/sync-plm-master-data.mjs`
+- Host wrapper: `tools/run-plm-master-data-sync.sh`
+- Unit templates: `systemd/plm-sync.service` and `systemd/plm-sync.timer`
+- Secrets: mode-600 `/home/ai/.plm-sync.env`
+
+The host service runs the import into the linked production Supabase project via
+`plm.import_master_data(...)`. It must not point at `/worksp/directus` or the old
+Directus Postgres container. The env file must provide `PLM_API_KEY` (or
+`DESIGNFLOW_API_KEY`) and `SUPABASE_DB_URL`; systemd must not depend on an
+interactive Supabase CLI login.
+
 ## Migration Package
 
 The first-pass DDL package lives in [`supabase/migrations`](supabase/migrations):

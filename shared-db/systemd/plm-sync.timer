@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Designflow PLM master-data sync daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=plm-sync.service
+
+[Install]
+WantedBy=timers.target

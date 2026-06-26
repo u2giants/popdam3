@@ -20,6 +20,8 @@ Related tooling:
 | File | Purpose |
 |---|---|
 | `tools/sync-plm-master-data.mjs` | Fetches the read-only Designflow PLM master-data API, reports response shape/counts, and can apply the payload to the linked Supabase project through `plm.import_master_data`. |
+| `tools/run-plm-master-data-sync.sh` | Host systemd wrapper for the active `plm-sync.service`; maps the external secret env file into the canonical import command using `SUPABASE_DB_URL`, not interactive Supabase CLI state. |
+| `systemd/plm-sync.*` | Host unit templates for the daily Supabase PLM master-data import. |
 
 ## Production Migration History
 
