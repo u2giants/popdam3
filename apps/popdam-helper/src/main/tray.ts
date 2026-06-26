@@ -27,6 +27,7 @@ export function showNotification(title: string, body: string): void {
 
 let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;
+const pendingRendererMessages: Array<{ channel: string; args: unknown[] }> = [];
 
 export function createTray(): void {
   // In packaged app, resources/ is at process.resourcesPath.
@@ -127,6 +128,13 @@ function createPopup(): void {
     popup.loadFile(join(__dirname, "../renderer/index.html"));
   }
 
+  popup.webContents.on("did-finish-load", () => {
+    const queued = pendingRendererMessages.splice(0);
+    for (const msg of queued) {
+      popup?.webContents.send(msg.channel, ...msg.args);
+    }
+  });
+
   popup.once("ready-to-show", () => {
     popup?.show();
     popup?.focus();
@@ -155,6 +163,10 @@ export function updateTrayIcon(): void {
 
 export function sendToRenderer(channel: string, ...args: unknown[]): void {
   if (popup && !popup.isDestroyed()) {
+    if (popup.webContents.isLoading()) {
+      pendingRendererMessages.push({ channel, args });
+      return;
+    }
     popup.webContents.send(channel, ...args);
   }
 }

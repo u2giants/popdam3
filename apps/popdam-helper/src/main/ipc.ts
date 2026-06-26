@@ -121,6 +121,11 @@ export function registerIpcHandlers(): void {
       const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf-8"));
       userId = (payload.sub as string) ?? null;
       email = (payload.email as string) ?? null;
+      const exp = typeof payload.exp === "number" ? payload.exp : null;
+      if (exp && exp * 1000 <= Date.now()) {
+        clearSession();
+        return { ok: true, data: { loggedIn: false, userId: null, email: null, accessToken: null } };
+      }
     } catch {
       // JWT decode failed — session still valid, just no email display
     }

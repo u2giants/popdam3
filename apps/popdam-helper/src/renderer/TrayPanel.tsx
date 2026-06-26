@@ -71,7 +71,16 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
     refresh();
     const unsubCheckouts = window.popdam.onCheckoutsChanged(refresh);
     const unsubAuth = window.popdam.onAuthChanged(refresh);
-    return () => { unsubCheckouts(); unsubAuth(); };
+    const unsubActionError = window.popdam.onActionError(({ action, message }) => {
+      const label = action === "checkout"
+        ? "Check out failed"
+        : action === "checkin"
+        ? "Check in failed"
+        : "Helper action failed";
+      setError(`${label}: ${message}`);
+      refresh();
+    });
+    return () => { unsubCheckouts(); unsubAuth(); unsubActionError(); };
   }, [refresh]);
 
   async function handleCheckin(id: string): Promise<void> {

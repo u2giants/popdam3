@@ -98,6 +98,11 @@ const api = {
     ipcRenderer.on("auth-changed", handler);
     return () => ipcRenderer.removeListener("auth-changed", handler);
   },
+  onActionError: (cb: (payload: { action: string; message: string }) => void): (() => void) => {
+    const handler = (_e: unknown, payload: { action: string; message: string }) => cb(payload);
+    ipcRenderer.on("action-error", handler);
+    return () => ipcRenderer.removeListener("action-error", handler);
+  },
   // Main asks the renderer to open Settings, optionally focused on a section
   // (e.g. "credentials" after a check-in failed for missing Synology creds).
   onOpenSettings: (cb: (section?: string) => void): (() => void) => {
