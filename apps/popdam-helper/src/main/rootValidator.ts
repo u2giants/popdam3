@@ -56,47 +56,98 @@ function readMarker(dir: string): MarkerFile | null {
 }
 
 /**
- * Search up to 4 levels up and 2 levels down for a marker file.
+ * Search up to 4 levels up and 5 levels down for a marker file.
  * Used to auto-correct if the user selected a subfolder or parent folder.
+ *
+ * SeaDrive often nests libraries under account/category/group folders such as:
+ *   C:\seadrive\<acct>\Shared with groups\<group>\<library>
+ * so two levels is not enough from the account root. Prefer a marker matching
+ * the expected root_id, but keep the first mismatched marker so we can return a
+ * useful wrong-root error when no matching marker exists nearby.
  */
-function findMarkerNearby(startPath: string): { path: string; marker: MarkerFile } | null {
+function findMarkerNearby(
+  startPath: string,
+  expectedRootId: string,
+): { path: string; marker: MarkerFile } | null {
+  let firstMismatch: { path: string; marker: MarkerFile } | null = null;
+  const consider = (path: string, marker: MarkerFile | null) => {
+    if (!marker) return null;
+    if (marker.root_id === expectedRootId) return { path, marker };
+    firstMismatch ??= { path, marker };
+    return null;
+  };
+
   // Check the path itself first
-  const direct = readMarker(startPath);
-  if (direct) return { path: startPath, marker: direct };
+  const direct = consider(startPath, readMarker(startPath));
+  if (direct) return direct;
 
   // Check up to 4 levels up
   let current = startPath;
   for (let i = 0; i < 4; i++) {
     const parent = dirname(current);
     if (parent === current) break; // reached fs root
-    const m = readMarker(parent);
-    if (m) return { path: parent, marker: m };
+    const found = consider(parent, readMarker(parent));
+    if (found) return found;
     current = parent;
   }
 
-  // Check 2 levels down (immediate children and their children)
-  function searchDown(dir: string, depth: number): { path: string; marker: MarkerFile } | null {
-    if (depth === 0) return null;
-    try {
-      const entries = readdirSync(dir);
-      for (const entry of entries) {
-        const child = join(dir, entry);
-        try {
-          if (statSync(child).isDirectory()) {
-            const m = readMarker(child);
-            if (m) return { path: child, marker: m };
-            const deeper = searchDown(child, depth - 1);
-            if (deeper) return deeper;
-          }
-        } catch { /* skip */ }
+  // Check up to 5 levels down, bounded so a virtual drive cannot hang Settings.
+  function searchDown(
+    dir: string,
+    maxDepth: number,
+    maxNodes: number,
+  ): { path: string; marker: MarkerFile } | null {
+    const queue: Array<{ dir: string; depth: number }> = [{ dir, depth: 0 }];
+    let visited = 0;
+    while (queue.length && visited < maxNodes) {
+      const currentDir = queue.shift()!;
+      visited++;
+      if (currentDir.depth >= maxDepth) continue;
+
+      let entries: string[];
+      try {
+        entries = readdirSync(currentDir.dir);
+      } catch {
+        continue;
       }
-    } catch { /* skip */ }
+
+      for (const entry of entries) {
+        const child = join(currentDir.dir, entry);
+        try {
+          if (!statSync(child).isDirectory()) continue;
+          const found = consider(child, readMarker(child));
+          if (found) return found;
+          queue.push({ dir: child, depth: currentDir.depth + 1 });
+        } catch {
+          /* skip */
+        }
+      }
+    }
     return null;
   }
-  const down = searchDown(startPath, 2);
+  const down = searchDown(startPath, 5, 1200);
   if (down) return down;
 
-  return null;
+  return firstMismatch;
+}
+
+function markerDepth(fromPath: string, markerPath: string): number {
+  const from = fromPath.split(/[\\/]+/).filter(Boolean).length;
+  const marker = markerPath.split(/[\\/]+/).filter(Boolean).length;
+  return from - marker;
+}
+
+function isLikelySeaDriveAccountRoot(chosenPath: string): boolean {
+  try {
+    const entries = readdirSync(chosenPath, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name.toLowerCase());
+    return entries.some((name) =>
+      ["my libraries", "shared with all", "shared with me", "shared with groups"].includes(name),
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function validateRoot(chosenPath: string, expectedRootId: string): ValidationResult {
@@ -124,9 +175,19 @@ export function validateRoot(chosenPath: string, expectedRootId: string): Valida
   }
 
   // No direct marker — search nearby
-  const nearby = findMarkerNearby(chosenPath);
+  const nearby = findMarkerNearby(chosenPath, expectedRootId);
 
   if (!nearby) {
+    if (isLikelySeaDriveAccountRoot(chosenPath)) {
+      return {
+        ok: false,
+        reason: "no_marker",
+        message:
+          `"${chosenPath}" looks like a SeaDrive account folder, not a NAS root folder. ` +
+          `Use it in Settings → Seafile / SeaDrive → SeaDrive mount folder. ` +
+          `Leave NAS folder mappings blank unless you also need Synology fallback.`,
+      };
+    }
     return {
       ok: false,
       reason: "no_marker",
@@ -134,9 +195,19 @@ export function validateRoot(chosenPath: string, expectedRootId: string): Valida
     };
   }
 
+  if (nearby.marker.root_id !== expectedRootId) {
+    return {
+      ok: false,
+      reason: "wrong_root_id",
+      expected: expectedRootId,
+      actual: nearby.marker.root_id,
+      message: `The nearest POP root marker is for "${nearby.marker.root_id}", but "${expectedRootId}" is expected.`,
+    };
+  }
+
   if (nearby.path !== chosenPath) {
     // Marker found in a parent or child — the user picked the wrong level
-    const depth = chosenPath.split(sep).length - nearby.path.split(sep).length;
+    const depth = markerDepth(chosenPath, nearby.path);
     if (depth > 0) {
       // User picked a subfolder
       return {

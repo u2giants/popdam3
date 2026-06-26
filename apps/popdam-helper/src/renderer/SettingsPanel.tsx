@@ -323,7 +323,13 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
           </div>
         </div>
 
-        <div className="section-label" style={{ marginBottom: 8 }}>Your NAS Folders</div>
+        <div className="section-label" style={{ marginBottom: 8 }}>Synology Fallback Folders</div>
+        {(config.preferredProvider ?? "seafile") === "seafile" && (
+          <div className="meta" style={{ marginBottom: 10 }}>
+            SeaDrive users can leave these blank. Use the SeaDrive mount folder below for
+            C:\seadrive account folders; these mappings are only for Synology fallback.
+          </div>
+        )}
 
         {!config.damUrl && (
           <div className="meta" style={{ marginBottom: 10 }}>
