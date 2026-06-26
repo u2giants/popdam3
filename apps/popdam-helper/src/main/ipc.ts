@@ -3,7 +3,8 @@
  * The renderer never calls Node APIs directly; it goes through these handlers.
  */
 
-import { ipcMain, dialog } from "electron";
+import { ipcMain, dialog, app } from "electron";
+import { join } from "path";
 import { getConfig, saveConfig } from "./config";
 import { clearSession, storeSession, storeToken, loadToken, loadSession } from "./credentials";
 import {
@@ -266,5 +267,16 @@ export function registerIpcHandlers(): void {
     } catch (e: unknown) {
       return { ok: false, error: String(e) };
     }
+  });
+
+  // Open the bundled Photoshop plugin folder so the user can sideload it via the
+  // Adobe UXP Developer Tool (point UDT at this folder's manifest.json).
+  ipcMain.handle("reveal-photoshop-plugin", () => {
+    const resourcesPath = app.isPackaged
+      ? process.resourcesPath
+      : join(__dirname, "../../resources");
+    const pluginDir = join(resourcesPath, "photoshop-plugin");
+    shell.openPath(pluginDir);
+    return { ok: true, data: pluginDir };
   });
 }

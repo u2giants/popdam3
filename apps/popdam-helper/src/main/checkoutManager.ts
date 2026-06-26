@@ -7,7 +7,7 @@
 import { shell } from "electron";
 import chokidar, { FSWatcher } from "chokidar";
 import { existsSync, statSync } from "fs";
-import { join, dirname, basename } from "path";
+import { join, dirname, basename, resolve } from "path";
 import {
   resolveAssetPath,
   copyToWorkspace,
@@ -83,6 +83,21 @@ export async function loadActiveCheckouts(): Promise<void> {
         uploadProgress: null,
         errorMessage: null,
       };
+      // On restart we lost in-memory edit state — infer it from the workspace
+      // file's mtime vs the checkout time so a file edited before a restart is
+      // still flagged as having un-checked-in work.
+      try {
+        if (existsSync(record.workspacePath)) {
+          const mt = statSync(record.workspacePath).mtime.getTime();
+          if (mt > new Date(record.checkedOutAt).getTime() + 1000) {
+            record.editedSinceCheckout = true;
+            record.lastEditedAt = new Date(mt).toISOString();
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
       active.set(co.id, record);
       watchFile(co.id, record.workspacePath);
     }
@@ -551,27 +566,67 @@ function watchFile(checkoutId: string, filePath: string): void {
   if (!existsSync(filePath)) return;
   stopWatcher(checkoutId);
 
-  const watcher = chokidar.watch(filePath, {
+  // Watch the containing directory (depth 0), not the single file. Editors like
+  // Illustrator/Photoshop often save via atomic rename-replace (write a temp
+  // file → rename it over the original), which on the original path looks like
+  // unlink+add. Watching the file directly would misread that as "file deleted";
+  // watching the directory + `atomic` sees it as a normal edit.
+  const dir = dirname(filePath);
+  const target = resolve(filePath);
+  const watcher = chokidar.watch(dir, {
     persistent: true,
     ignoreInitial: true,
+    depth: 0,
+    atomic: true,
     awaitWriteFinish: { stabilityThreshold: 2000, pollInterval: 300 },
   });
 
-  watcher.on("change", () => {
-    const record = active.get(checkoutId);
-    if (!record) return;
-    log.debug(`File changed: ${filePath}`);
-    notify();
-  });
+  const onWrite = (changedPath: string): void => {
+    if (resolve(changedPath) !== target) return;
+    markEdited(checkoutId, filePath);
+  };
+  watcher.on("add", onWrite);
+  watcher.on("change", onWrite);
 
-  watcher.on("unlink", () => {
-    const record = active.get(checkoutId);
-    if (!record) return;
-    record.errorMessage = "Workspace file was deleted.";
-    updateStatus(checkoutId, "error");
+  watcher.on("unlink", (changedPath) => {
+    if (resolve(changedPath) !== target) return;
+    // Could be an atomic save mid-flight (briefly removed, about to be recreated).
+    // Confirm it's really gone after a short delay before flagging an error.
+    setTimeout(() => {
+      const record = active.get(checkoutId);
+      if (!record || record.status !== "active") return;
+      if (!existsSync(filePath)) {
+        record.errorMessage = "Workspace file was deleted.";
+        updateStatus(checkoutId, "error");
+      }
+    }, 2500);
   });
 
   watchers.set(checkoutId, watcher);
+}
+
+/**
+ * Mark a checkout as edited since checkout (the workspace file was saved). Drives
+ * the "edited — not checked in" badge, the hourly reminder, and the quit guard,
+ * so work that exists only locally can't be silently lost.
+ */
+function markEdited(checkoutId: string, filePath: string): void {
+  const record = active.get(checkoutId);
+  if (!record || record.status !== "active") return; // ignore writes during upload
+  log.debug(`Workspace file edited: ${filePath}`);
+  const wasEdited = record.editedSinceCheckout;
+  record.editedSinceCheckout = true;
+  record.lastEditedAt = new Date().toISOString();
+  if (!wasEdited) notify(); // first edit flips the badge in the UI
+}
+
+/** Find an active checkout by its workspace file path (used by the editor hook). */
+export function findCheckoutByWorkspacePath(filePath: string): CheckoutRecord | null {
+  const target = resolve(filePath);
+  for (const rec of active.values()) {
+    if (resolve(rec.workspacePath) === target) return rec;
+  }
+  return null;
 }
 
 function stopWatcher(checkoutId: string): void {

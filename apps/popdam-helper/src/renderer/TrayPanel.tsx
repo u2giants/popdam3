@@ -193,8 +193,16 @@ export default function TrayPanel({ onOpenSettings }: Props): React.ReactElement
                 <div className="meta" title={co.relativePath}>
                   {co.relativePath.split(/[/\\]/).slice(0, -1).join(" / ")}
                 </div>
-                <span className={statusBadgeClass(co.status)}>
-                  {statusLabel(co.status)}
+                <span
+                  className={
+                    co.status === "active" && co.editedSinceCheckout
+                      ? "badge queued"
+                      : statusBadgeClass(co.status)
+                  }
+                >
+                  {co.status === "active" && co.editedSinceCheckout
+                    ? "Edited — not checked in"
+                    : statusLabel(co.status)}
                 </span>
                 <div className="meta" style={{ marginBottom: 6 }}>
                   Checked out {relativeTime(co.checkedOutAt)}

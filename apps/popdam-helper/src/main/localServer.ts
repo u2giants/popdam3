@@ -119,6 +119,40 @@ function browseLocal(requestPath: string): { path: string; entries: DirEntry[] }
   return { path: requestPath, entries };
 }
 
+// ── Editor integration (Photoshop plugin → Helper) ─────────────────────────────
+
+let editorEventCallback: ((event: string, filePath: string) => void) | null = null;
+
+/** Register the handler for editor events (e.g. Photoshop reporting a document close). */
+export function setEditorEventCallback(cb: (event: string, filePath: string) => void): void {
+  editorEventCallback = cb;
+}
+
+/** Read + parse a small JSON request body (capped to avoid abuse). */
+function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    let size = 0;
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > 64 * 1024) {
+        reject(new Error("Request body too large"));
+        req.destroy();
+        return;
+      }
+      data += c;
+    });
+    req.on("end", () => {
+      try {
+        resolve(data ? (JSON.parse(data) as Record<string, unknown>) : {});
+      } catch (e) {
+        reject(e as Error);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 // ── Server ────────────────────────────────────────────────────────────────────
 
 export function startLocalServer(): void {
@@ -131,7 +165,7 @@ export function startLocalServer(): void {
       if (isAllowedOrigin(origin)) {
         res.writeHead(204, {
           "Access-Control-Allow-Origin": origin ?? "*",
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
           "Access-Control-Max-Age": "86400",
         });
@@ -139,6 +173,25 @@ export function startLocalServer(): void {
         res.writeHead(403);
       }
       res.end();
+      return;
+    }
+
+    // Editor integration: the Photoshop plugin POSTs document events here (e.g.
+    // a close of an edited, checked-out file → the Helper offers to check it in).
+    if (req.method === "POST" && url.pathname === "/editor-event") {
+      if (!isAllowedOrigin(origin)) {
+        send(res, 403, { ok: false, error: "Forbidden origin" });
+        return;
+      }
+      try {
+        const body = await readJsonBody(req);
+        const event = typeof body.event === "string" ? body.event : "";
+        const filePath = typeof body.path === "string" ? body.path : "";
+        if (event && filePath) editorEventCallback?.(event, filePath);
+        send(res, 200, { ok: true }, origin);
+      } catch (e: unknown) {
+        send(res, 400, { ok: false, error: e instanceof Error ? e.message : String(e) }, origin);
+      }
       return;
     }
 

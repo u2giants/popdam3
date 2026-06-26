@@ -79,6 +79,10 @@ const api = {
   saveSeafileToken: (token: string): Promise<IpcResponse> =>
     ipcRenderer.invoke("save-seafile-token", token),
 
+  // Photoshop plugin
+  revealPhotoshopPlugin: (): Promise<IpcResponse<string>> =>
+    ipcRenderer.invoke("reveal-photoshop-plugin"),
+
   // Root path validation (runs in main process — has filesystem access)
   validateRoot: (path: string, rootId: string): Promise<IpcResponse<ValidationResult>> =>
     ipcRenderer.invoke("validate-root", { path, rootId }),

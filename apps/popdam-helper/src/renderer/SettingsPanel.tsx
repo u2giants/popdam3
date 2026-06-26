@@ -484,6 +484,18 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
           </div>
         </div>
 
+        <div className="section-label" style={{ marginBottom: 8 }}>Photoshop Integration</div>
+        <div className="checkout-card">
+          <div className="meta" style={{ marginBottom: 8 }}>
+            Optional: lets Photoshop tell the Helper when you close an edited
+            file, so it can offer to check it in. Load the bundled plugin with
+            Adobe&apos;s UXP Developer Tool (see the folder&apos;s README).
+          </div>
+          <button onClick={() => window.popdam.revealPhotoshopPlugin()}>
+            Reveal Photoshop plugin folder
+          </button>
+        </div>
+
         <div className="section-label" style={{ marginBottom: 8 }} ref={credentialsRef}>Synology Credentials</div>
         <div
           className="checkout-card"

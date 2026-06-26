@@ -69,6 +69,11 @@ export interface CheckoutRecord {
   // Upload progress (in-memory only)
   uploadProgress: number | null; // 0–100
   errorMessage: string | null;
+  // Edit tracking (in-memory) — set when the workspace file is saved/modified
+  // after checkout, so reminders/quit-guard can flag work that isn't on the
+  // server yet. Distinct from "checked out but untouched" (nothing to lose).
+  editedSinceCheckout?: boolean;
+  lastEditedAt?: string | null;
 }
 
 // ─── Root validation ──────────────────────────────────────────────────────────

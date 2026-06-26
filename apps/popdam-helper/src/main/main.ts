@@ -15,12 +15,12 @@ import { createTray, updateTrayIcon, showWindow, showNotification } from "./tray
 import { registerIpcHandlers } from "./ipc";
 import { registerProtocol } from "./protocol";
 import { initQueue, setProgressCallback, setVerifyingCallback, setFailedCallback, processQueue } from "./uploadQueue";
-import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, markUploadFailed, reconcileVerifyingCheckouts, getActiveCheckouts } from "./checkoutManager";
+import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, markUploadFailed, reconcileVerifyingCheckouts, getActiveCheckouts, findCheckoutByWorkspacePath, checkin } from "./checkoutManager";
 import { heartbeat } from "./damClient";
 import { seaDriveBaseRoots, findLibraryDir } from "./seafileAdapter";
 import { loadConfig, getConfig } from "./config";
 import { log } from "./logger";
-import { startLocalServer } from "./localServer";
+import { startLocalServer, setEditorEventCallback } from "./localServer";
 import { HEARTBEAT_INTERVAL_MS, HELPER_VERSION } from "@shared/constants";
 import { sendToRenderer } from "./tray";
 
@@ -56,17 +56,21 @@ const lastRemindedAt = new Map<string, number>();
 function remindStaleCheckouts(): void {
   const now = Date.now();
   for (const co of getActiveCheckouts()) {
-    // Only plain "active" (open & editable) checkouts — uploading/verifying/error
-    // already have their own loud surfacing.
-    if (co.status !== "active") continue;
-    const age = now - new Date(co.checkedOutAt).getTime();
-    if (age < REMINDER_AGE_MS) continue;
+    // Only plain "active" checkouts — uploading/verifying/error have their own
+    // loud surfacing. And only ones with actual local edits: a checked-out-but-
+    // untouched file has nothing to lose, so nagging about it would be noise.
+    if (co.status !== "active" || !co.editedSinceCheckout) continue;
+    const editedAt = co.lastEditedAt
+      ? new Date(co.lastEditedAt).getTime()
+      : new Date(co.checkedOutAt).getTime();
+    if (now - editedAt < REMINDER_AGE_MS) continue;
     if (now - (lastRemindedAt.get(co.id) ?? 0) < REMINDER_AGE_MS) continue;
     lastRemindedAt.set(co.id, now);
-    const hrs = Math.max(1, Math.floor(age / 3600000));
+    const mins = Math.round((now - editedAt) / 60000);
+    const since = mins >= 120 ? `${Math.floor(mins / 60)}h` : `${mins}m`;
     showNotification(
-      "Don't forget to check in",
-      `"${co.filename}" has been checked out for ${hrs}h and is NOT on the server yet. Open POP DAM Helper and click Check In when you're done.`,
+      "You have edits not saved to the server",
+      `"${co.filename}" was edited ${since} ago and hasn't been checked in. Open POP DAM Helper and click Check In so your work reaches the server.`,
     );
   }
 }
@@ -109,6 +113,32 @@ app.whenReady().then(async () => {
   registerIpcHandlers();
   createTray();
   startLocalServer();
+
+  // Photoshop plugin → Helper: when the user closes a checked-out file that has
+  // un-checked-in edits, offer to check it in right then.
+  setEditorEventCallback((event, filePath) => {
+    if (event !== "documentClosed") return;
+    const rec = findCheckoutByWorkspacePath(filePath);
+    if (!rec || rec.status !== "active" || !rec.editedSinceCheckout) return;
+    showWindow();
+    dialog
+      .showMessageBox({
+        type: "question",
+        buttons: ["Check In Now", "Later"],
+        defaultId: 0,
+        cancelId: 1,
+        title: "You closed an edited file",
+        message: `You just closed "${rec.filename}".`,
+        detail: "It has edits that aren't on the server yet. Check it in now?",
+      })
+      .then((r) => {
+        if (r.response === 0) {
+          checkin(rec.id).catch((e: unknown) =>
+            showNotification("Check in failed", e instanceof Error ? e.message : String(e)),
+          );
+        }
+      });
+  });
 
   // First run: open the popup automatically so the user knows the app is running
   // and can complete setup (root mappings, workspace folder).
@@ -216,12 +246,14 @@ app.on("before-quit", (event) => {
   }
 
   event.preventDefault();
-  const unsaved = outstanding.filter((c) =>
-    ["uploading", "verifying", "checkin_queued", "error"].includes(c.status),
+  const unsaved = outstanding.filter(
+    (c) =>
+      ["uploading", "verifying", "checkin_queued", "error"].includes(c.status) ||
+      (c.status === "active" && c.editedSinceCheckout),
   );
   const detail = unsaved.length
-    ? `${unsaved.length} file(s) are NOT yet confirmed on the server. If you quit now they will not finish uploading until you reopen the Helper and check in again.`
-    : `${outstanding.length} file(s) are checked out. Your edits are safe in your workspace, but they are NOT on the server until you check them in.`;
+    ? `${unsaved.length} file(s) have edits that are NOT on the server yet. If you quit now they won't be uploaded until you reopen the Helper and check in.`
+    : `${outstanding.length} file(s) are checked out (no local edits detected). They're not on the server until you check them in.`;
 
   const choice = dialog.showMessageBoxSync({
     type: "warning",

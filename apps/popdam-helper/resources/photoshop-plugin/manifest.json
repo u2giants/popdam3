@@ -1,0 +1,27 @@
+{
+  "manifestVersion": 5,
+  "id": "app.designflow.popdam.helper",
+  "name": "POP DAM Helper",
+  "version": "1.0.0",
+  "main": "index.html",
+  "host": {
+    "app": "PS",
+    "minVersion": "23.0.0"
+  },
+  "requiredPermissions": {
+    "network": {
+      "domains": ["http://127.0.0.1:47380"]
+    }
+  },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "popdam.panel",
+      "label": { "default": "POP DAM Helper" },
+      "minimumSize": { "width": 230, "height": 120 },
+      "maximumSize": { "width": 600, "height": 600 },
+      "preferredDockedSize": { "width": 240, "height": 160 },
+      "preferredFloatingSize": { "width": 240, "height": 160 }
+    }
+  ]
+}
