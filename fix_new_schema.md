@@ -45,7 +45,28 @@ Full rationale: `shared-db/docs/shared-database-vision.md`, and the guidance not
 
 ---
 
-## 2. Good news: almost no app code changes
+## 2. Preflight before changing anything
+
+The `shared-db/` folder inside this repo is a read-only mirror, but it may be
+newer than the canonical `/worksp/shared-db` checkout on a developer machine.
+Before acting on this plan, make sure the canonical shared-db repo is aligned and
+has no unrelated schema work in flight:
+
+```bash
+git -C /worksp/shared-db status --short
+git -C /worksp/shared-db branch --show-current
+git -C /worksp/shared-db log --oneline -5
+```
+
+If `/worksp/shared-db` has untracked migrations, dirty files, or is missing the
+`20260625153000`–`20260625153030` customer-rename migrations that are present in
+this repo's vendored `shared-db/` mirror, **stop and serialize the shared-db
+work first**. Do not create PopDAM follow-up edits against a half-synced or
+competing shared-db state.
+
+---
+
+## 3. Good news: almost no app code changes
 
 This app does **not** query `core.company` by name and does **not** hardcode the
 literal `'company'`. The Master Data page treats the RPC's `target_table` value
@@ -58,18 +79,18 @@ through without code edits. Confirmed call sites in
 - Line ~77–83 — `type LinkCandidate = { target_schema; target_table; … }` — a
   generic shape; no literal `'company'`.
 - Line ~392 — `p_target_table: candidate.target_table` — passes the value through
-  to the resolution RPC (see §3 — verify this).
+  to the resolution RPC (see §4 — verify this).
 - Line ~601 — `target_table` used only inside a React `key`. Harmless.
 - Line ~229 — `if (field === "customer") return Boolean(row.company_id);` — uses
   the **`company_id` column** (name unchanged) and the DAM **field key**
   `"customer"` (never `"company"`). No change.
 
-So: **no required edits in `StylesPage.tsx`.** Do the verification in §3, the
-types regen in §4, and the docs in §5.
+So: **no required edits in `StylesPage.tsx`.** Do the verification in §4, the
+types regen in §5, and the docs in §6.
 
 ---
 
-## 3. The one thing you MUST verify (resolution write-back + stale data)
+## 4. The one thing you MUST verify (resolution write-back + stale data)
 
 The StylesPage passes `candidate.target_table` (now `'customer'`) into a
 resolution RPC (around `StylesPage.tsx:392`, `p_target_table: …`). You must
@@ -94,9 +115,49 @@ shared-db owner:
 If neither a write-back function nor stored `'company'` rows exist, there is
 nothing to do here — but **verify**, don't assume.
 
+Suggested database preflight queries (run against preview first, then production
+when appropriate):
+
+```sql
+-- Find the exact write-back function definition and confirm whether it validates
+-- target_table or builds dynamic core.<target_table> references.
+select
+  n.nspname as schema_name,
+  p.proname as function_name,
+  pg_get_functiondef(p.oid) as definition
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where p.proname in (
+  'upsert_style_tracker_value_resolution',
+  'search_style_tracker_link_candidates'
+)
+order by 1, 2;
+
+-- Confirm where persisted resolutions live and whether any stale company rows
+-- exist. Adjust schema/table name if the function above shows a different store.
+select target_schema, target_table, count(*) as rows
+from plm.style_tracker_value_resolution
+group by 1, 2
+order by 1, 2;
+
+select count(*) as stale_company_resolution_rows
+from plm.style_tracker_value_resolution
+where target_schema = 'core'
+  and target_table = 'company';
+```
+
+If stale rows exist, fix them in a committed shared-db migration, for example:
+
+```sql
+update plm.style_tracker_value_resolution
+set target_table = 'customer'
+where target_schema = 'core'
+  and target_table = 'company';
+```
+
 ---
 
-## 4. Regenerate the Supabase types
+## 5. Regenerate the Supabase types
 
 `src/integrations/supabase/types.ts` is the generated types file. It currently
 does not reference a `company` table directly (this app doesn't query it), but
@@ -109,9 +170,13 @@ supabase gen types typescript --project-id qsllyeztdwjgirsysgai --schema public,
 > Target the **preview** branch (`--project-id xjcyeuvzkhtzsheknaiu`) if you need
 > to regenerate before production has been renamed. Then `npm run build`.
 
+Do not regenerate against production until production has the same renamed schema
+as preview. If production still has `core.company`, a prod-generated types file
+will erase the preview/customer shape and make the diff misleading.
+
 ---
 
-## 5. Docs in this repo to update (`core.company` → `core.customer`)
+## 6. Docs in this repo to update (`core.company` → `core.customer`)
 
 These files contain now-stale references and must be corrected so the next
 developer/AI isn't misled (the table no longer exists):
@@ -133,20 +198,25 @@ developer/AI isn't misled (the table no longer exists):
 
 ---
 
-## 6. Production cutover note
+## 7. Production cutover note
 
 This app reads via the RPC (name unchanged, dynamic `target_table`) and via
 `company_id` columns (names unchanged), so it does **not** break at runtime when
 production is renamed — unlike PM (`poppim-web`), which queries `core.company`
 directly and must deploy in lockstep with the prod promotion. Your changes here
-(types regen + docs + the §3 verification) can ship on your normal schedule. Just
-make sure the §3 resolution path is sorted **before** production is renamed, so
+(types regen + docs + the §4 verification) can ship on your normal schedule. Just
+make sure the §4 resolution path is sorted **before** production is renamed, so
 newly-saved `'customer'` resolutions resolve correctly and old `'company'` ones
 are migrated.
 
+Treat the hard rename as shared-db coordination work, not a PopDAM-only cleanup:
+the shared-db PR/prod promotion should be serialized with any other open
+shared-schema migrations, tested on preview, and promoted only after dependent
+apps are known to be compatible.
+
 ---
 
-## 7. How to verify
+## 8. How to verify
 
 ```bash
 npm install
@@ -159,14 +229,16 @@ npm run dev   # point env at preview xjcyeuvzkhtzsheknaiu to exercise the new sc
 
 ---
 
-## 8. Commit rules
+## 9. Commit rules
 
 App repos **commit straight to `main`** (no branches), build must pass, push, CI
 deploys. Don't touch `shared-db/` (auto-synced from `u2giants/shared-db`).
 
-## 9. Checklist
+## 10. Checklist
 
-- [ ] §3 — verify the resolution write-back accepts `'customer'`; migrate any
+- [ ] §2 — confirm canonical `/worksp/shared-db` is clean/aligned before doing
+      any shared-db work
+- [ ] §4 — verify the resolution write-back accepts `'customer'`; migrate any
       stored `target_table = 'company'` rows (coordinate with shared-db owner)
 - [ ] Regenerate `src/integrations/supabase/types.ts`; `npm run build` passes
 - [ ] Update docs: `MASTER_DATA.md`, `HANDOFF.md`, `AGENTS.md`, `use_plm_tables.md`

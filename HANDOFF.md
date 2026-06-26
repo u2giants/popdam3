@@ -222,7 +222,7 @@ Recommended continuation sequence:
 1. Retrieve the API key through 1Password item `DesignFlow PLM Canonical Master Data API` (do not paste it into source or docs).
 2. Inspect the PLM API response shapes with a server-side script or curl from a trusted shell.
 3. Create/sync a Supabase-side canonical cache for PLM customers/licensors/properties with explicit source provenance, or add a backend RPC that calls the PLM API server-side. Do **not** call the API directly from browser code.
-4. Change `public.search_style_tracker_link_candidates(...)` or a replacement RPC so Master Data matching uses PLM canonical data first. `core.company` should be secondary at most.
+4. Change `public.search_style_tracker_link_candidates(...)` or a replacement RPC so Master Data matching uses PLM canonical data first. Customer matches should come from `core.customer` joined through PLM-backed `core.company_source_ref`.
 5. Re-run `public.refresh_style_tracker_item_bridge()` and test known cases:
    - `Customer: Ross` should prefer the PLM Ross customer and should not offer `Rossy` if PLM does not list it as a canonical customer.
    - customer values with trailing SKU text such as `Burlington - BG139DYLS01` should preserve the raw sheet value but match the canonical customer.
@@ -250,7 +250,7 @@ select * from public.refresh_style_tracker_item_bridge();
 ```
 
 Risks / watchouts:
-- PLM, not `core.company`, is canonical for customers/licensors/properties. `core.company` currently includes Directus/Twenty/CRM-ish imports and can surface questionable candidates such as `Rossy`.
+- PLM, not arbitrary customer-looking strings, is canonical for customers/licensors/properties. Canonical customers now live in `core.customer`; confirmed PLM-backed customers have `is_potential = false` and a `designflow_plm` source ref. Email/domain noise belongs in `crm.ingested_domain`, not in the canonical customer table.
 - Do **not** put the PLM API key in browser code. Call it from server-side scripts/functions/workers, or sync/cache canonical values into Supabase with provenance.
 - The current source tree has been reconstructed during the session after transient local source loss; verify `src/pages/StylesPage.tsx` and `src/App.tsx` before future deploys.
 - The preview app is manually deployed as container `popdam-master-preview`, image `popdam-master-preview:local`, on the `coolify` Docker network. This is not the normal GHCR/Coolify frontend pipeline.
@@ -260,7 +260,7 @@ Risks / watchouts:
 ---
 
 ## 6. Exact next action
-For the currently active user thread, continue **5.11 Master Data style tracker**: inspect the PLM canonical APIs from the 1Password item, design a server-side/synced canonical lookup, and replace customer/licensor/property matching so `core.company` noise like `Rossy` is no longer offered as a canonical customer. After that, rebuild/redeploy the `popdam-master-preview` container and smoke-test `/styles#`.
+For the currently active user thread, continue **5.11 Master Data style tracker**: inspect the PLM canonical APIs from the 1Password item, design a server-side/synced canonical lookup, and replace customer/licensor/property matching so non-PLM noise like `Rossy` is no longer offered as a canonical customer. After that, rebuild/redeploy the `popdam-master-preview` container and smoke-test `/styles#`.
 
 The most unblocked Helper next step is still **5.2 Brazil/Seafile pilot**: test a real checkout/check-in on one Brazil Mac using Microsoft OAuth. Code signing is permanently abandoned (§5.3) and does not block the pilot. The PO-sync thread (5.8) is blocked on the PLM team providing durable server-to-server auth. The §5.9 history-row prune is optional housekeeping with no urgency (growth has stopped); do it only if asked, and re-measure on the live Virginia project first (§0 trap).
 

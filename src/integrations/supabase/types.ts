@@ -12,23 +12,1444 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
+  core: {
     Tables: {
-      [_ in never]: never
+      character: {
+        Row: {
+          code: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          name: string
+          property_id: string | null
+          status: "active" | "inactive" | "archived" | "deleted"
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name: string
+          property_id?: string | null
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name?: string
+          property_id?: string | null
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "character_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "property"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_source_ref: {
+        Row: {
+          company_id: string
+          confidence:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at: string
+          id: string
+          raw: Json
+          source_code: string | null
+          source_id: string
+          source_name: string | null
+          source_system: string
+          source_table: string
+        }
+        Insert: {
+          company_id: string
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          id?: string
+          raw?: Json
+          source_code?: string | null
+          source_id: string
+          source_name?: string | null
+          source_system: string
+          source_table: string
+        }
+        Update: {
+          company_id?: string
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          id?: string
+          raw?: Json
+          source_code?: string | null
+          source_id?: string
+          source_name?: string | null
+          source_system?: string
+          source_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_source_ref_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          full_name: string | null
+          id: string
+          last_name: string | null
+          metadata: Json
+          phone: string | null
+          status: "active" | "inactive" | "archived" | "deleted"
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          id?: string
+          last_name?: string | null
+          metadata?: Json
+          phone?: string | null
+          status?: "active" | "inactive" | "archived" | "deleted"
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          id?: string
+          last_name?: string | null
+          metadata?: Json
+          phone?: string | null
+          status?: "active" | "inactive" | "archived" | "deleted"
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      contact_company: {
+        Row: {
+          company_id: string
+          contact_id: string
+          contact_type: string | null
+          crm_department_id: string | null
+          ended_at: string | null
+          id: string
+          is_primary: boolean
+          metadata: Json
+          relationship_type: string
+          scope: string | null
+          started_at: string | null
+          title: string | null
+        }
+        Insert: {
+          company_id: string
+          contact_id: string
+          contact_type?: string | null
+          crm_department_id?: string | null
+          ended_at?: string | null
+          id?: string
+          is_primary?: boolean
+          metadata?: Json
+          relationship_type?: string
+          scope?: string | null
+          started_at?: string | null
+          title?: string | null
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string
+          contact_type?: string | null
+          crm_department_id?: string | null
+          ended_at?: string | null
+          id?: string
+          is_primary?: boolean
+          metadata?: Json
+          relationship_type?: string
+          scope?: string | null
+          started_at?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_company_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_company_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contact"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_source_ref: {
+        Row: {
+          confidence:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          contact_id: string
+          created_at: string
+          id: string
+          raw: Json
+          source_email: string | null
+          source_id: string
+          source_system: string
+          source_table: string
+        }
+        Insert: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          contact_id: string
+          created_at?: string
+          id?: string
+          raw?: Json
+          source_email?: string | null
+          source_id: string
+          source_system: string
+          source_table: string
+        }
+        Update: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          contact_id?: string
+          created_at?: string
+          id?: string
+          raw?: Json
+          source_email?: string | null
+          source_id?: string
+          source_system?: string
+          source_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_source_ref_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contact"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer: {
+        Row: {
+          account_owner_profile_id: string | null
+          address: Json
+          chain_type: string | null
+          company_type: string
+          created_at: string
+          customer_status: string | null
+          domain: string | null
+          id: string
+          is_potential: boolean
+          legal_name: string | null
+          metadata: Json
+          name: string
+          normalized_name: string | null
+          phone: string | null
+          primary_salesperson_profile_id: string | null
+          routing_aliases: string | null
+          so_patterns: string | null
+          status: "active" | "inactive" | "archived" | "deleted"
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          account_owner_profile_id?: string | null
+          address?: Json
+          chain_type?: string | null
+          company_type?: string
+          created_at?: string
+          customer_status?: string | null
+          domain?: string | null
+          id?: string
+          is_potential?: boolean
+          legal_name?: string | null
+          metadata?: Json
+          name: string
+          normalized_name?: string | null
+          phone?: string | null
+          primary_salesperson_profile_id?: string | null
+          routing_aliases?: string | null
+          so_patterns?: string | null
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          account_owner_profile_id?: string | null
+          address?: Json
+          chain_type?: string | null
+          company_type?: string
+          created_at?: string
+          customer_status?: string | null
+          domain?: string | null
+          id?: string
+          is_potential?: boolean
+          legal_name?: string | null
+          metadata?: Json
+          name?: string
+          normalized_name?: string | null
+          phone?: string | null
+          primary_salesperson_profile_id?: string | null
+          routing_aliases?: string | null
+          so_patterns?: string | null
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      factory: {
+        Row: {
+          code: string | null
+          company_id: string | null
+          country: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          name: string
+          status: "active" | "inactive" | "archived" | "deleted"
+          updated_at: string
+          vendor_group: string | null
+        }
+        Insert: {
+          code?: string | null
+          company_id?: string | null
+          country?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name: string
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+          vendor_group?: string | null
+        }
+        Update: {
+          code?: string | null
+          company_id?: string | null
+          country?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name?: string
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+          vendor_group?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factory_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      factory_source_ref: {
+        Row: {
+          confidence:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at: string
+          factory_id: string
+          id: string
+          raw: Json
+          source_code: string | null
+          source_id: string
+          source_system: string
+          source_table: string
+        }
+        Insert: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          factory_id: string
+          id?: string
+          raw?: Json
+          source_code?: string | null
+          source_id: string
+          source_system: string
+          source_table: string
+        }
+        Update: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          factory_id?: string
+          id?: string
+          raw?: Json
+          source_code?: string | null
+          source_id?: string
+          source_system?: string
+          source_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "factory_source_ref_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      licensor: {
+        Row: {
+          code: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          name: string
+          status: "active" | "inactive" | "archived" | "deleted"
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name: string
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name?: string
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      merch_group: {
+        Row: {
+          code: string | null
+          created_at: string
+          id: string
+          level: number
+          metadata: Json
+          name: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          level?: number
+          metadata?: Json
+          name: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          level?: number
+          metadata?: Json
+          name?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merch_group_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "merch_group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_category: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json
+          name: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_category_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "product_category"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_subtype: {
+        Row: {
+          code: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          name: string
+          product_type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name: string
+          product_type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name?: string
+          product_type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_subtype_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_type"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_type: {
+        Row: {
+          category_id: string | null
+          code: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          code?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          code?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_type_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_category"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property: {
+        Row: {
+          code: string | null
+          created_at: string
+          id: string
+          licensor_id: string | null
+          metadata: Json
+          name: string
+          status: "active" | "inactive" | "archived" | "deleted"
+          updated_at: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          licensor_id?: string | null
+          metadata?: Json
+          name: string
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          licensor_id?: string | null
+          metadata?: Json
+          name?: string
+          status?: "active" | "inactive" | "archived" | "deleted"
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sku_ref: {
+        Row: {
+          confidence:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at: string
+          entity_id: string
+          entity_schema: string
+          entity_table: string
+          id: string
+          normalized_sku: string | null
+          raw: Json
+          sku: string
+          source_id: string | null
+          source_system: string | null
+          source_table: string | null
+        }
+        Insert: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          entity_id: string
+          entity_schema: string
+          entity_table: string
+          id?: string
+          normalized_sku?: string | null
+          raw?: Json
+          sku: string
+          source_id?: string | null
+          source_system?: string | null
+          source_table?: string | null
+        }
+        Update: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          entity_id?: string
+          entity_schema?: string
+          entity_table?: string
+          id?: string
+          normalized_sku?: string | null
+          raw?: Json
+          sku?: string
+          source_id?: string | null
+          source_system?: string | null
+          source_table?: string | null
+        }
+        Relationships: []
+      }
+      taxonomy_source_ref: {
+        Row: {
+          confidence:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at: string
+          entity_id: string
+          entity_schema: string
+          entity_table: string
+          id: string
+          raw: Json
+          source_code: string | null
+          source_id: string
+          source_name: string | null
+          source_system: string
+          source_table: string
+        }
+        Insert: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          entity_id: string
+          entity_schema?: string
+          entity_table: string
+          id?: string
+          raw?: Json
+          source_code?: string | null
+          source_id: string
+          source_name?: string | null
+          source_system: string
+          source_table: string
+        }
+        Update: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          entity_id?: string
+          entity_schema?: string
+          entity_table?: string
+          id?: string
+          raw?: Json
+          source_code?: string | null
+          source_id?: string
+          source_name?: string | null
+          source_system?: string
+          source_table?: string
+        }
+        Relationships: []
+      }
+      vendor_contact: {
+        Row: {
+          contact_id: string | null
+          factory_id: string | null
+          id: string
+          is_primary: boolean
+          metadata: Json
+          role: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          factory_id?: string | null
+          id?: string
+          is_primary?: boolean
+          metadata?: Json
+          role?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          factory_id?: string | null
+          id?: string
+          is_primary?: boolean
+          metadata?: Json
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_contact_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contact"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_contact_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      graphql: {
+      match_customer: {
         Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
+          match_threshold?: number
+          p_domain?: string
+          p_name: string
+          review_threshold?: number
         }
-        Returns: Json
+        Returns: {
+          match_id: string
+          review_id: string
+          review_sim: number
+        }[]
       }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  dam: {
+    Tables: {
+      agent_registration: {
+        Row: {
+          agent_name: string
+          capabilities: Json
+          created_at: string
+          device_name: string | null
+          id: string
+          last_seen_at: string | null
+          metadata: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          agent_name: string
+          capabilities?: Json
+          created_at?: string
+          device_name?: string | null
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          agent_name?: string
+          capabilities?: Json
+          created_at?: string
+          device_name?: string | null
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      asset: {
+        Row: {
+          asset_type: string | null
+          company_id: string | null
+          created_at: string
+          file_object_id: string | null
+          file_type: string | null
+          filename: string | null
+          id: string
+          licensor_id: string | null
+          metadata: Json
+          product_subtype_id: string | null
+          property_id: string | null
+          relative_path: string | null
+          sku: string | null
+          source_id: string | null
+          source_system: string | null
+          style_group_id: string | null
+          thumbnail_url: string | null
+          title: string | null
+          updated_at: string
+          workflow_status: string | null
+        }
+        Insert: {
+          asset_type?: string | null
+          company_id?: string | null
+          created_at?: string
+          file_object_id?: string | null
+          file_type?: string | null
+          filename?: string | null
+          id?: string
+          licensor_id?: string | null
+          metadata?: Json
+          product_subtype_id?: string | null
+          property_id?: string | null
+          relative_path?: string | null
+          sku?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          style_group_id?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+          updated_at?: string
+          workflow_status?: string | null
+        }
+        Update: {
+          asset_type?: string | null
+          company_id?: string | null
+          created_at?: string
+          file_object_id?: string | null
+          file_type?: string | null
+          filename?: string | null
+          id?: string
+          licensor_id?: string | null
+          metadata?: Json
+          product_subtype_id?: string | null
+          property_id?: string | null
+          relative_path?: string | null
+          sku?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          style_group_id?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+          updated_at?: string
+          workflow_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_style_group_id_fkey"
+            columns: ["style_group_id"]
+            isOneToOne: false
+            referencedRelation: "style_group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_character: {
+        Row: {
+          asset_id: string
+          character_id: string
+          id: string
+        }
+        Insert: {
+          asset_id: string
+          character_id: string
+          id?: string
+        }
+        Update: {
+          asset_id?: string
+          character_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_character_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_checkout: {
+        Row: {
+          asset_id: string
+          checked_in_at: string | null
+          checked_out_at: string
+          checked_out_by_profile_id: string | null
+          helper_device_id: string | null
+          id: string
+          metadata: Json
+          status: string
+        }
+        Insert: {
+          asset_id: string
+          checked_in_at?: string | null
+          checked_out_at?: string
+          checked_out_by_profile_id?: string | null
+          helper_device_id?: string | null
+          id?: string
+          metadata?: Json
+          status?: string
+        }
+        Update: {
+          asset_id?: string
+          checked_in_at?: string | null
+          checked_out_at?: string
+          checked_out_by_profile_id?: string | null
+          helper_device_id?: string | null
+          id?: string
+          metadata?: Json
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_checkout_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dam_asset_checkout_helper_device_fk"
+            columns: ["helper_device_id"]
+            isOneToOne: false
+            referencedRelation: "helper_device"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_path_history: {
+        Row: {
+          asset_id: string
+          changed_at: string
+          id: string
+          metadata: Json
+          new_path: string
+          old_path: string | null
+          source_system: string | null
+        }
+        Insert: {
+          asset_id: string
+          changed_at?: string
+          id?: string
+          metadata?: Json
+          new_path: string
+          old_path?: string | null
+          source_system?: string | null
+        }
+        Update: {
+          asset_id?: string
+          changed_at?: string
+          id?: string
+          metadata?: Json
+          new_path?: string
+          old_path?: string | null
+          source_system?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_path_history_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_tag: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          source_system: string | null
+          tag: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          source_system?: string | null
+          tag: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          source_system?: string | null
+          tag?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_tag_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_item_snapshot: {
+        Row: {
+          id: string
+          imported_at: string
+          item_id: string | null
+          payload: Json
+          source_id: string | null
+          source_system: string
+          style_number: string | null
+          sync_run_id: string | null
+        }
+        Insert: {
+          id?: string
+          imported_at?: string
+          item_id?: string | null
+          payload: Json
+          source_id?: string | null
+          source_system?: string
+          style_number?: string | null
+          sync_run_id?: string | null
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          item_id?: string | null
+          payload?: Json
+          source_id?: string | null
+          source_system?: string
+          style_number?: string | null
+          sync_run_id?: string | null
+        }
+        Relationships: []
+      }
+      helper_device: {
+        Row: {
+          created_at: string
+          id: string
+          last_seen_at: string | null
+          metadata: Json
+          name: string
+          paired_profile_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json
+          name: string
+          paired_profile_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json
+          name?: string
+          paired_profile_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      processing_queue: {
+        Row: {
+          asset_id: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          payload: Json
+          priority: number
+          queue_name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          asset_id?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          payload?: Json
+          priority?: number
+          queue_name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          payload?: Json
+          priority?: number
+          queue_name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processing_queue_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      production_order_snapshot: {
+        Row: {
+          id: string
+          imported_at: string
+          payload: Json
+          production_order_line_id: string | null
+          production_order_number: string | null
+          source_id: string | null
+          source_system: string
+          style_number: string | null
+          sync_run_id: string | null
+        }
+        Insert: {
+          id?: string
+          imported_at?: string
+          payload: Json
+          production_order_line_id?: string | null
+          production_order_number?: string | null
+          source_id?: string | null
+          source_system?: string
+          style_number?: string | null
+          sync_run_id?: string | null
+        }
+        Update: {
+          id?: string
+          imported_at?: string
+          payload?: Json
+          production_order_line_id?: string | null
+          production_order_number?: string | null
+          source_id?: string | null
+          source_system?: string
+          style_number?: string | null
+          sync_run_id?: string | null
+        }
+        Relationships: []
+      }
+      sku_style_guide_source: {
+        Row: {
+          confidence:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at: string
+          evidence: string | null
+          id: string
+          sku_ref_id: string | null
+          style_guide_file_id: string
+        }
+        Insert: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          evidence?: string | null
+          id?: string
+          sku_ref_id?: string | null
+          style_guide_file_id: string
+        }
+        Update: {
+          confidence?:
+            | "verified"
+            | "probable"
+            | "possible"
+            | "unmatched"
+            | "rejected"
+          created_at?: string
+          evidence?: string | null
+          id?: string
+          sku_ref_id?: string | null
+          style_guide_file_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sku_style_guide_source_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_file"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_group: {
+        Row: {
+          asset_count: number
+          company_id: string | null
+          cover_asset_id: string | null
+          created_at: string
+          id: string
+          licensor_id: string | null
+          metadata: Json
+          product_id: string | null
+          product_type_id: string | null
+          property_id: string | null
+          sku: string | null
+          source_id: string | null
+          source_system: string | null
+          status: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          asset_count?: number
+          company_id?: string | null
+          cover_asset_id?: string | null
+          created_at?: string
+          id?: string
+          licensor_id?: string | null
+          metadata?: Json
+          product_id?: string | null
+          product_type_id?: string | null
+          property_id?: string | null
+          sku?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asset_count?: number
+          company_id?: string | null
+          cover_asset_id?: string | null
+          created_at?: string
+          id?: string
+          licensor_id?: string | null
+          metadata?: Json
+          product_id?: string | null
+          product_type_id?: string | null
+          property_id?: string | null
+          sku?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dam_style_group_cover_asset_fk"
+            columns: ["cover_asset_id"]
+            isOneToOne: false
+            referencedRelation: "asset"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_guide_file: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          file_object_id: string | null
+          folder: string | null
+          id: string
+          licensor_id: string | null
+          metadata: Json
+          property_id: string | null
+          relative_path: string | null
+          source_id: string | null
+          source_system: string | null
+          status: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          file_object_id?: string | null
+          folder?: string | null
+          id?: string
+          licensor_id?: string | null
+          metadata?: Json
+          property_id?: string | null
+          relative_path?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          file_object_id?: string | null
+          folder?: string | null
+          id?: string
+          licensor_id?: string | null
+          metadata?: Json
+          property_id?: string | null
+          relative_path?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
@@ -2303,6 +3724,21 @@ export type Database = {
           primaries_updated: number
         }[]
       }
+      search_style_tracker_link_candidates: {
+        Args: {
+          p_field_key: string
+          p_limit?: number
+          p_match_mode?: string
+          p_query: string
+        }
+        Returns: {
+          score: number
+          target_id: string
+          target_label: string
+          target_schema: string
+          target_table: string
+        }[]
+      }
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined
@@ -2478,7 +3914,10 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
+  core: {
+    Enums: {},
+  },
+  dam: {
     Enums: {},
   },
   public: {

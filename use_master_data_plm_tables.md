@@ -26,12 +26,12 @@ The PLM API key is read-only and belongs only in server/admin tooling. Never put
 
 Use these tables as the shared identity layer:
 
-- `core.company`: canonical customer/company identity. PLM customers import here.
+- `core.customer`: canonical customer identity. PLM-backed confirmed customers have `is_potential = false`.
 - `core.company_source_ref`: PLM customer lineage. For PLM customers, use `source_system = 'designflow_plm'` and `source_table = 'customers'`. `source_id` is the durable PLM `customers_id`; `source_code` is the PLM `customers_code`.
 - `core.licensor`: canonical licensor identity.
 - `core.property`: canonical property identity, linked to `core.licensor` by `licensor_id`.
 - `core.taxonomy_source_ref`: PLM lineage for licensors and properties. For PLM rows, use `source_system = 'designflow_plm'` and `source_table = 'merchGroup'`. `source_id` is the merch-group `id`; `source_code` is the relevant merch-group code.
-- `plm.customer_import`: PLM-shaped customer import row linked to `core.company.id`.
+- `plm.customer_import`: PLM-shaped customer import row linked to `core.customer.id`.
 - `plm.licensor_import`: PLM-shaped licensor import row linked to `core.licensor.id`.
 - `plm.property_import`: PLM-shaped property import row linked to `core.property.id` and `core.licensor.id`.
 - `ingest.sync_run`, `ingest.raw_record`: raw import audit trail for each sync. Do not query these from the browser.
@@ -50,7 +50,7 @@ select
   c.name,
   csr.source_id as plm_customer_id,
   csr.source_code as plm_customer_code
-from core.company c
+from core.customer c
 join core.company_source_ref csr on csr.company_id = c.id
 where csr.source_system = 'designflow_plm'
   and csr.source_table = 'customers';
@@ -89,7 +89,7 @@ If a Master Data screen needs to edit customers/licensors/properties against Sup
 The source refs are the bridge between today's API rows and tomorrow's PLM-on-Supabase tables. Keep them stable.
 
 - Match future PLM imports on `core.company_source_ref` or `core.taxonomy_source_ref` first.
-- Reuse existing `core.company`, `core.licensor`, and `core.property` IDs.
+- Reuse existing `core.customer`, `core.licensor`, and `core.property` IDs.
 - Backfill richer `plm.*` operational tables around those IDs.
 - If old API/table shapes are needed later, create compatibility views or service-layer mapping over `core` plus `plm` tables.
 - Do not create a second canonical identity set during cutover.

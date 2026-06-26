@@ -77,7 +77,10 @@ As of 2026-06-24, the user clarified that PLM APIs are canonical for:
 - properties
 - customers
 
-Do not treat `core.company` as canonical for Master Data customer matching without PLM reconciliation. `core.company` includes imported Directus/Twenty/CRM-ish data and can contain secondary/noisy rows such as `Rossy`.
+Do not treat arbitrary customer-looking strings as canonical Master Data customer
+matches without PLM reconciliation. Canonical customers now live in
+`core.customer`; confirmed PLM-backed customers have a `designflow_plm` source
+ref in `core.company_source_ref` and `is_potential = false`.
 
 1Password item:
 
@@ -91,18 +94,22 @@ Endpoints:
 - Customers: `GET https://api.designflow.app/api/core/customers/getCustomers`
 - Auth header: `x-api-key`
 
-Future implementation should call these from backend code only, then sync/cache PLM canonical values into Supabase tables or Master Data-specific lookup tables with source provenance.
+The active candidate-search contract is `public.search_style_tracker_link_candidates(...)`. It should return PLM-backed canonical rows for customer/licensor/property matching by joining `core.customer` through `core.company_source_ref` or joining `core.licensor` / `core.property` through `core.taxonomy_source_ref`, with `source_system = 'designflow_plm'`. Do not add browser-side PLM API calls or broad customer-name searches for this workflow.
 
 ## Known Data Provenance Finding
 
-`Rossy` came from `core.company`, not from the Google Sheet. Its source refs show:
+`Rossy` came from the old company-table design, not from the Google Sheet. Email
+noise now belongs in `crm.ingested_domain`, not in `core.customer`. Its old
+source refs showed:
 
 - `source_system`: `directus`
 - `source_table`: `ingested_domains`
 - `external_source`: `twenty`
 - `customer_status`: `OTHER`
 
-This is why customer matching should prefer PLM canonical customer data or, as a temporary mitigation, filter shared `core.company` candidates to active/potential customers only.
+This is why customer matching should prefer PLM canonical customer data. Confirmed
+customers are `core.customer` rows with `is_potential = false` and a PLM source
+ref; unreviewed email-domain noise should stay in `crm.ingested_domain`.
 
 ## Verification Notes
 
@@ -116,5 +123,6 @@ Verified during the 2026-06-24 session:
 ## Follow-Ups
 
 - Replace customer/licensor/property matching with PLM canonical APIs or synced PLM lookup tables.
+- Keep candidate matching constrained to PLM-backed source refs through `public.search_style_tracker_link_candidates(...)`.
 - Restore/finish per-user saved grid views if the simplified page source is kept; the database table exists but the current recreated page only exposes the AG Grid columns panel.
 - Move the temporary Master Data tables/RPCs into a cleaner PLM bridge namespace or replace them when PLM lands in the shared Supabase project.

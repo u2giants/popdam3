@@ -24,7 +24,7 @@ The PLM API key is read-only and belongs only in server/admin tooling. Never put
 
 Use these tables as the stable master-data identity layer:
 
-- `core.company`: canonical customer/company identity.
+- `core.customer`: canonical customer identity. PLM-backed confirmed customers have `is_potential = false`.
 - `core.company_source_ref`: PLM customer lineage. For PLM customers, use `source_system = 'designflow_plm'` and `source_table = 'customers'`.
 - `core.licensor`: canonical licensor identity.
 - `core.property`: canonical property identity. Properties keep their licensor relationship through `licensor_id`.
@@ -38,7 +38,7 @@ Production was populated on 2026-06-25 with 55 PLM customers, 37 licensors, 468 
 
 Use PLM-backed `core` rows when DAM needs customer, licensor, or property identity for assets, style groups, style guides, filters, matching, or metadata review.
 
-For customer matching, join `core.company` to `core.company_source_ref` and preserve DAM's original evidence separately. For example, if a customer came from a NAS path, asset path, style-group folder, or uploaded metadata string, keep that original string in the DAM-owned table and link the resolved customer to `core.company.id`.
+For customer matching, join `core.customer` to `core.company_source_ref` and preserve DAM's original evidence separately. For example, if a customer came from a NAS path, asset path, style-group folder, or uploaded metadata string, keep that original string in the DAM-owned table and link the resolved customer to `core.customer.id`. Existing DAM FK columns named `company_id` keep that name.
 
 For licensor/property matching, use `core.licensor` and `core.property`. Use `core.taxonomy_source_ref` when you need the durable PLM merch-group ID/code.
 
@@ -50,7 +50,7 @@ select
   c.name,
   csr.source_id as plm_customer_id,
   csr.source_code as plm_customer_code
-from core.company c
+from core.customer c
 join core.company_source_ref csr on csr.company_id = c.id
 where csr.source_system = 'designflow_plm'
   and csr.source_table = 'customers';
@@ -91,7 +91,7 @@ If browser access needs a simpler/RLS-safe contract, add an `api.dam_*` view or 
 
 ## If DAM Needs More Fields
 
-If DAM needs an app-specific annotation, add a DAM-owned extension table keyed to the canonical row, for example a table that references `core.company.id`, `core.licensor.id`, or `core.property.id`. Do not add DAM workflow fields to `plm.*_import`; those tables are source-shaped snapshots.
+If DAM needs an app-specific annotation, add a DAM-owned extension table keyed to the canonical row, for example a table that references `core.customer.id`, `core.licensor.id`, or `core.property.id`. Do not add DAM workflow fields to `plm.*_import`; those tables are source-shaped snapshots.
 
 If DAM needs a new shared API contract, make a timestamped migration in `u2giants/shared-db`, apply it to preview first, verify it with the DAM screen, then promote to production through the shared-db workflow.
 
