@@ -105,6 +105,8 @@ The Bridge Agent scan is intentionally split into two phases:
 
 This is required because duplicate-copy move detection needs scan-wide context. The bridge seeds a per-scan `(quick_hash, filename)` seen set from `check-changed.existing_content_identities`; if a later changed/new file has the same identity, it sends `skip_move_detection=true` so the cloud creates/updates the path-specific row instead of stealing a sibling asset row.
 
+Because discovery materializes the full candidate list, memory use scales with candidate count. The bridge logs `Scan memory checkpoint` records at scan start, discovery completion, `check-changed` preflight, and ingest completion. Monitor `max_rss_mb` from real-world scans before changing this flow; if peak RSS approaches the lowest shipped memory cap, prefer either storing only minimal candidate fields or a two-pass streaming scan that trades memory for a second metadata walk.
+
 ### 3.3 Checkpoint Rule
 - Checkpoints are for **discovery-phase resume only**.
 - A checkpoint may record the last completed top-level directory while walking the filesystem.

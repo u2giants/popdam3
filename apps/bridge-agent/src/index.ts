@@ -51,6 +51,27 @@ let isAiSentinelScanning = false;
 let isBlankThumbCleanupRunning = false;
 let scanContentIdentitySeen: Set<string> = new Set();
 
+function bytesToMb(bytes: number): number {
+  return Math.round((bytes / 1024 / 1024) * 10) / 10;
+}
+
+function kbToMb(kb: number): number {
+  return Math.round((kb / 1024) * 10) / 10;
+}
+
+function logScanMemory(stage: string, meta: Record<string, unknown> = {}) {
+  const usage = process.memoryUsage();
+  const resource = process.resourceUsage();
+  logger.info("Scan memory checkpoint", {
+    stage,
+    rss_mb: bytesToMb(usage.rss),
+    heap_used_mb: bytesToMb(usage.heapUsed),
+    external_mb: bytesToMb(usage.external),
+    max_rss_mb: kbToMb(resource.maxRSS),
+    ...meta,
+  });
+}
+
 // ── Version info ──
 // Build identity (git sha + image tag) is read from an IMMUTABLE file baked into the
 // image at build time — deliberately NOT from env vars. The self-updater's
@@ -820,6 +841,7 @@ async function runScan(providedSessionId?: string) {
 
   logger.info("Scan starting", { sessionId, roots: effectiveRoots, resumeFromDir: resumeFromDir || "none" });
   scanContentIdentitySeen = new Set();
+  logScanMemory("scan_start", { sessionId });
 
   try {
     // Load permanent .ai ignore list before scanning so processFile can do O(1) lookups.
@@ -916,6 +938,12 @@ async function runScan(providedSessionId?: string) {
       scanCandidates.push(file);
     }
 
+    logScanMemory("discovery_complete", {
+      sessionId,
+      candidates: scanCandidates.length,
+      files_checked: counters.files_checked,
+    });
+
     // Check abort after scan loop completes
     if (abortRequested) {
       logger.info("Scan aborted by cloud request (post-loop)");
@@ -944,6 +972,12 @@ async function runScan(providedSessionId?: string) {
     }
 
     await processScanCandidates(scanCandidates, sessionId);
+    logScanMemory("ingest_complete", {
+      sessionId,
+      candidates: scanCandidates.length,
+      files_checked: counters.files_checked,
+      errors: counters.errors,
+    });
 
     if (abortRequested) {
       logger.info("Scan aborted by cloud request (post-ingest)");
@@ -991,6 +1025,11 @@ async function processScanCandidates(candidates: FileCandidate[], sessionId: str
     modified_at: f.modifiedAt.toISOString(),
     file_size: f.fileSize,
   }));
+  logScanMemory("preflight_payload_ready", {
+    sessionId,
+    candidates: candidates.length,
+    check_payload: checkPayload.length,
+  });
 
   let changedSet: Set<string>;
   let needsThumbnailSet: Set<string>;
@@ -1018,6 +1057,13 @@ async function processScanCandidates(candidates: FileCandidate[], sessionId: str
     changedSet = new Set(candidates.map((f) => f.relativePath));
     needsThumbnailSet = new Set();
   }
+  logScanMemory("preflight_complete", {
+    sessionId,
+    candidates: candidates.length,
+    changed: changedSet.size,
+    needs_thumbnail: needsThumbnailSet.size,
+    seen_content_identities: scanContentIdentitySeen.size,
+  });
 
   const unchanged = candidates.length - changedSet.size - needsThumbnailSet.size;
   if (unchanged > 0) {
