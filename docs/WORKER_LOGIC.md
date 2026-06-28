@@ -124,6 +124,7 @@ At startup:
   - log a loud error
   - increment `roots_invalid` / `roots_unreadable`
   - refuse to scan (exit non-zero or mark scan failed)
+  - report a specific failure message through `scan-progress.error` / `SCAN_REQUEST.error`; a terminal failed scan with no diagnostic text is not an acceptable final state.
 
 ### 4.2 Symlink Prevention
 - The scanner MUST NOT follow symbolic links.
@@ -132,6 +133,8 @@ At startup:
 If a scan completes with `files_checked = 0`, treat it as a failure unless:
 - roots were validated OK AND
 - the directories truly contain zero files.
+
+When reporting this failure, include the likely configuration causes in the error text: `SCAN_ROOTS`, `SCAN_ALLOWED_SUBFOLDERS`, and `SCAN_MIN_DATE`.
 
 ### 4.4 `quick_hash` Is a Move Hint, Not a Unique Content Key
 `quick_hash` is `SHA-256(first 64KB + last 64KB + file size)`. It is intentionally cheap and sampled. It can collide for different template-derived files and is identical for byte-identical duplicate copies.

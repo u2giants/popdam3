@@ -147,6 +147,12 @@ Request:
 - `session_id`
 - `status` — `running` | `completed` | `completed_with_errors` | `failed`
 - `counters` + `current_path` (optional)
+- `error` — required for `status = "failed"` from current bridge agents. Older agents may omit it; `agent-api` must synthesize a useful counter-based fallback before writing `SCAN_PROGRESS` / `SCAN_REQUEST`.
+
+Important:
+- Failed scan records must be actionable. Do not write a terminal `failed` state that only says "unknown" or omits the cause.
+- Root validation failures should include invalid/unreadable counts and, where the agent knows them, configured roots.
+- Zero-file failures should point at likely scan filters/configuration (`SCAN_ROOTS`, `SCAN_ALLOWED_SUBFOLDERS`, `SCAN_MIN_DATE`).
 
 Response: `{ ok: true }`
 
