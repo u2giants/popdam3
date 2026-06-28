@@ -1302,9 +1302,7 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
     current_path: currentPath,
     updated_at: new Date().toISOString(),
   };
-  const scanError = status === "failed"
-    ? (reportedError || synthesizeScanFailure(counters, currentPath ?? undefined))
-    : undefined;
+  const scanError = status === "failed" ? (reportedError || synthesizeScanFailure(counters, currentPath ?? undefined)) : undefined;
   if (scanError) progressValue.error = scanError;
   // Include skipped_dirs if present in this update
   if (skippedDirs && skippedDirs.length > 0) {
