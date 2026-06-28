@@ -10,6 +10,7 @@ export interface ScanProgress {
   session_id?: string;
   counters?: ScanCounters;
   current_path?: string;
+  error?: string;
   updated_at?: string;
   skipped_dirs?: string[];
 }
@@ -72,6 +73,7 @@ function parseScanProgress(
       session_id: progressSessionId,
       counters: sp.counters as ScanCounters | undefined,
       current_path: sp.current_path as string | undefined,
+      error: sp.error as string | undefined,
       updated_at: updatedAt,
       skipped_dirs: Array.isArray(sp.skipped_dirs) ? sp.skipped_dirs as string[] : undefined,
     };

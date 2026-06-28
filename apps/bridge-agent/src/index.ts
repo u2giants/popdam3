@@ -741,6 +741,29 @@ async function safeScanProgress(
   }
 }
 
+function summarizeScanFailure(currentCounters: api.Counters, details?: { roots?: string[]; error?: unknown }): string {
+  const explicit = details?.error instanceof Error ? details.error.message : String(details?.error ?? "").trim();
+  if (explicit) return explicit;
+
+  if (currentCounters.roots_invalid > 0 || currentCounters.roots_unreadable > 0) {
+    const roots = details?.roots?.length ? ` Configured roots: ${details.roots.join(", ")}` : "";
+    return [
+      `Scan root validation failed (${currentCounters.roots_invalid} invalid, ${currentCounters.roots_unreadable} unreadable).`,
+      roots.trim(),
+    ].filter(Boolean).join(" ");
+  }
+
+  if (currentCounters.files_checked === 0) {
+    return "Scan checked 0 files. Verify SCAN_ROOTS, SCAN_ALLOWED_SUBFOLDERS, and SCAN_MIN_DATE; the configured roots may be empty or filtered out.";
+  }
+
+  if (currentCounters.errors > 0) {
+    return `Scan failed after ${currentCounters.files_checked} files checked with ${currentCounters.errors} error(s). Check bridge-agent logs around this scan session for the first stack trace.`;
+  }
+
+  return "Scan failed before the agent recorded a detailed cause. Check bridge-agent logs for this session; this fallback should only appear for older agents or process termination.";
+}
+
 async function runScan(providedSessionId?: string) {
   if (isScanning) {
     logger.warn("Scan already in progress, skipping");
@@ -798,16 +821,18 @@ async function runScan(providedSessionId?: string) {
   logger.info("Scan starting", { sessionId, roots: effectiveRoots, resumeFromDir: resumeFromDir || "none" });
   scanContentIdentitySeen = new Set();
 
-  // Load permanent .ai ignore list before scanning so processFile can do O(1) lookups.
-  aiIgnoreSet = await api.loadAiIgnoreList();
-  logger.info("AI ignore list loaded", { count: aiIgnoreSet.size });
-
   try {
+    // Load permanent .ai ignore list before scanning so processFile can do O(1) lookups.
+    aiIgnoreSet = await api.loadAiIgnoreList();
+    logger.info("AI ignore list loaded", { count: aiIgnoreSet.size });
+
     // §4.1: Validate roots first
     const rootsValid = await validateScanRoots(counters, effectiveRoots, cloudMountRoot || undefined);
     if (!rootsValid) {
-      logger.error("Scan aborted: invalid scan roots", { counters });
-      await safeScanProgress(sessionId, "failed", counters);
+      const failure = summarizeScanFailure(counters, { roots: effectiveRoots });
+      lastError = failure;
+      logger.error("Scan aborted: invalid scan roots", { counters, failure });
+      await safeScanProgress(sessionId, "failed", counters, failure, skippedDirs);
       await api.clearCheckpoint().catch(() => {});
       return;
     }
@@ -900,9 +925,11 @@ async function runScan(providedSessionId?: string) {
 
     // §4.3: "0 files checked" is an error (only if not resuming — resumed scans may legitimately have fewer files)
     if (counters.files_checked === 0 && !resumeFromDir) {
-      logger.error("Scan completed with 0 files checked — treating as error");
       counters.errors++;
-      await safeScanProgress(sessionId, "failed", counters, undefined, skippedDirs);
+      const failure = summarizeScanFailure(counters);
+      lastError = failure;
+      logger.error("Scan completed with 0 files checked — treating as error", { failure });
+      await safeScanProgress(sessionId, "failed", counters, failure, skippedDirs);
       return;
     }
 
@@ -930,9 +957,9 @@ async function runScan(providedSessionId?: string) {
     await safeScanProgress(sessionId, finalStatus, counters, undefined, skippedDirs);
     await clearScanCheckpointWithRetry("after successful scan");
   } catch (e) {
-    lastError = (e as Error).message;
+    lastError = summarizeScanFailure(counters, { error: e });
     logger.error("Scan failed with exception", { error: lastError });
-    await safeScanProgress(sessionId, "failed", counters, undefined, skippedDirs);
+    await safeScanProgress(sessionId, "failed", counters, lastError, skippedDirs);
     // If failure happens during the directory walk, keep the checkpoint so a
     // restart can resume. The ingest phase clears it before processing starts.
   } finally {

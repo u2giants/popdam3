@@ -1268,6 +1268,7 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
   const status = requireString(body, "status");
   const counters = body.counters as Record<string, unknown> | undefined;
   const currentPath = optionalString(body, "current_path");
+  const reportedError = optionalString(body, "error");
   const skippedDirs = Array.isArray(body.skipped_dirs) ? body.skipped_dirs as string[] : undefined;
 
   const db = serviceClient();
@@ -1301,6 +1302,10 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
     current_path: currentPath,
     updated_at: new Date().toISOString(),
   };
+  const scanError = status === "failed"
+    ? (reportedError || synthesizeScanFailure(counters, currentPath ?? undefined))
+    : undefined;
+  if (scanError) progressValue.error = scanError;
   // Include skipped_dirs if present in this update
   if (skippedDirs && skippedDirs.length > 0) {
     progressValue.skipped_dirs = skippedDirs;
@@ -1345,6 +1350,7 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
               ...reqVal,
               status,
               completed_at: new Date().toISOString(),
+              ...(scanError ? { error: scanError } : {}),
             },
             updated_at: new Date().toISOString(),
           })
@@ -1378,6 +1384,35 @@ async function handleScanProgress(body: Record<string, unknown>, agentId: string
   }
 
   return json({ ok: true });
+}
+
+function synthesizeScanFailure(counters: Record<string, unknown> | undefined, currentPath?: string): string {
+  const count = (key: string) => {
+    const value = counters?.[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  };
+
+  const rootsInvalid = count("roots_invalid");
+  const rootsUnreadable = count("roots_unreadable");
+  if (rootsInvalid > 0 || rootsUnreadable > 0) {
+    return `Scan root validation failed (${rootsInvalid} invalid, ${rootsUnreadable} unreadable).`;
+  }
+
+  const filesChecked = count("files_checked");
+  if (filesChecked === 0) {
+    return "Scan checked 0 files. Verify SCAN_ROOTS, SCAN_ALLOWED_SUBFOLDERS, and SCAN_MIN_DATE.";
+  }
+
+  const errors = count("errors");
+  if (errors > 0) {
+    return `Scan failed after ${filesChecked} files checked with ${errors} error(s).`;
+  }
+
+  if (currentPath) {
+    return `Scan failed while processing: ${currentPath}`;
+  }
+
+  return "Scan failed before the agent reported a detailed cause. This usually means the bridge-agent process stopped abruptly or an older agent build omitted the error field.";
 }
 
 // ── Route: ingestion-progress ───────────────────────────────────────

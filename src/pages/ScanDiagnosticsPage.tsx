@@ -18,9 +18,9 @@ import { timeAgo } from "@/components/settings/diagnostics/types";
 function explainScanError(error: string | undefined): { headline: string; detail: string; suggestion: string } {
   if (!error) {
     return {
-      headline: "Scan failed with no error message",
-      detail: "The Bridge Agent reported a failure but did not include an error message.",
-      suggestion: "Restart the Bridge Agent and try scanning again. If the problem persists, check that the agent container has enough memory and that Docker isn't restarting it due to OOM.",
+      headline: "Scan failed before details were recorded",
+      detail: "The scan reached a failed state, but this record was written before detailed scan errors were enforced.",
+      suggestion: "Update/restart the Bridge Agent so future failures include a recorded cause, then retry the scan. If the same session fails again, check the bridge-agent container logs for the matching session ID.",
     };
   }
 

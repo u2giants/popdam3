@@ -229,6 +229,7 @@ export async function scanProgress(
     status,
     counters,
     current_path: currentPath,
+    ...(status === "failed" && currentPath ? { error: currentPath } : {}),
     ...(skippedDirs && skippedDirs.length > 0 ? { skipped_dirs: skippedDirs } : {}),
   });
 }
