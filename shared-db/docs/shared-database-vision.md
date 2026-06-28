@@ -109,6 +109,24 @@ Key rules:
   `OTHER` / `UNASSIGNED`) is CRM's *subjective* triage opinion and is a different
   axis from the factual `is_potential` (owned by ERP).
 
+Customer-logo contract:
+
+- Logo inventory belongs to **customers**, not ingested domains. Do not derive or
+  assign customer logos from `crm.ingested_domain`; those rows are email evidence
+  only until a human promotes one into `core.customer`.
+- `plm.customer_import.logo_url` carries the PLM/ERP `customers_logo` value when
+  the source provides one. That stored URL is the intended source for full-width
+  customer logos.
+- Domain-derived logo services such as logo.dev are only a convenience fallback
+  for compact token marks keyed on `core.customer.domain`. They are not a
+  substitute for the stored full-width logo, because resizing the same provider
+  image can show the same mark in both slots.
+- Browser apps that need full logos should read a stable customer-named API
+  field, e.g. `api.crm_customer_list.logo_url`, sourced from
+  `plm.customer_import.logo_url`.
+  Until that API field exists and is populated, CRM can show token marks but
+  should not pretend to have stored full-width logos.
+
 ### Lifecycle: domain → potential → active (one identity, never re-pointed)
 
 ```txt
