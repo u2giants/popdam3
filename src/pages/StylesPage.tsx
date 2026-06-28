@@ -82,6 +82,11 @@ type LinkCandidate = {
   score: number;
 };
 
+type PickerOption = {
+  id: string;
+  name: string;
+};
+
 const DEFAULT_ROW_LIMIT = 2500;
 
 const licensedColumns: SheetColumn[] = [
@@ -308,6 +313,56 @@ async function searchCandidates(item: ReviewItem | null) {
   return (all.data ?? []) as LinkCandidate[];
 }
 
+async function fetchCustomerOptions() {
+  const apiQuery = await (supabase as any)
+    .schema("api")
+    .from("customer_list")
+    .select("id, name")
+    .order("name", { ascending: true });
+
+  if (!apiQuery.error) return compactPickerOptions(apiQuery.data);
+
+  const coreQuery = await (supabase as any)
+    .schema("core")
+    .from("customer")
+    .select("id, name")
+    .order("name", { ascending: true });
+
+  if (coreQuery.error) throw apiQuery.error;
+  return compactPickerOptions(coreQuery.data);
+}
+
+async function fetchLicensorOptions() {
+  const coreQuery = await (supabase as any)
+    .schema("core")
+    .from("licensor")
+    .select("id, name")
+    .order("name", { ascending: true });
+
+  if (!coreQuery.error) return compactPickerOptions(coreQuery.data);
+
+  const publicQuery = await (supabase as any)
+    .from("licensors")
+    .select("id, name")
+    .order("name", { ascending: true });
+
+  if (publicQuery.error) throw coreQuery.error;
+  return compactPickerOptions(publicQuery.data);
+}
+
+function compactPickerOptions(rows: unknown) {
+  const seen = new Set<string>();
+  return ((rows as PickerOption[] | null) ?? [])
+    .map((row) => row.name?.trim())
+    .filter((name): name is string => Boolean(name))
+    .filter((name) => {
+      const key = normalized(name);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 export default function StylesPage() {
   const queryClient = useQueryClient();
   const { theme } = useAppearance();
@@ -322,6 +377,8 @@ export default function StylesPage() {
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
   const rowsQuery = useQuery({ queryKey: ["style-rows", active.name, showAllRows], queryFn: () => fetchRows(active.name, showAllRows) });
   const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
+  const customerOptionsQuery = useQuery({ queryKey: ["style-tracker-customer-options"], queryFn: fetchCustomerOptions });
+  const licensorOptionsQuery = useQuery({ queryKey: ["style-tracker-licensor-options"], queryFn: fetchLicensorOptions });
   const rows = rowsQuery.data ?? [];
 
   const reviewItems = useMemo(() => {
@@ -468,6 +525,17 @@ export default function StylesPage() {
         pinned: column.pinned,
         hide: column.hide,
         editable: true,
+        cellEditor: column.typedField === "customer" || column.typedField === "licensor" ? "agRichSelectCellEditor" : undefined,
+        cellEditorParams:
+          column.typedField === "customer" || column.typedField === "licensor"
+            ? {
+                values: column.typedField === "customer" ? customerOptionsQuery.data ?? [] : licensorOptionsQuery.data ?? [],
+                allowTyping: true,
+                filterList: true,
+                highlightMatch: true,
+                searchType: "matchAny",
+              }
+            : undefined,
         filter: true,
         sortable: true,
         resizable: true,
@@ -501,7 +569,7 @@ export default function StylesPage() {
         },
       })),
     ],
-    [active],
+    [active, customerOptionsQuery.data, licensorOptionsQuery.data],
   );
 
   const totalRows = countQuery.data ?? rows.length;
