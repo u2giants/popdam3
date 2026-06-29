@@ -314,22 +314,13 @@ async function searchCandidates(item: ReviewItem | null) {
 }
 
 async function fetchCustomerOptions() {
-  const apiQuery = await (supabase as any)
-    .schema("api")
-    .from("customer_list")
-    .select("id, name")
-    .order("name", { ascending: true });
-
-  if (!apiQuery.error) return compactPickerOptions(apiQuery.data);
-
-  const coreQuery = await (supabase as any)
-    .schema("core")
-    .from("customer")
-    .select("id, name")
-    .order("name", { ascending: true });
-
-  if (coreQuery.error) throw apiQuery.error;
-  return compactPickerOptions(coreQuery.data);
+  const { data, error } = await (supabase as any).rpc("get_path_facets");
+  if (error) throw error;
+  const customers = ((data?.customers ?? []) as { name?: string | null }[]).map((customer) => ({
+    id: customer.name ?? "",
+    name: customer.name ?? "",
+  }));
+  return compactPickerOptions(customers);
 }
 
 async function fetchLicensorOptions() {

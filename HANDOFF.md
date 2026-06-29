@@ -253,7 +253,7 @@ select * from public.refresh_style_tracker_item_bridge();
 ```
 
 Risks / watchouts:
-- PLM, not arbitrary customer-looking strings, is canonical for customers/licensors/properties. Canonical customers now live in `core.customer`; confirmed PLM-backed customers have `is_potential = false` and a `designflow_plm` source ref. Email/domain noise belongs in `crm.ingested_domain`, not in the canonical customer table.
+- PLM, not arbitrary customer-looking strings, is canonical for customers/licensors/properties. Canonical customers now live in `core.customer`; confirmed PLM-backed customers have `is_potential = false` and a `designflow_plm` source ref. Email/domain noise belongs only in `crm.ingested_domain` and must never create, promote into, source-ref, FK to, or otherwise associate with customers.
 - Do **not** put the PLM API key in browser code. Call it from server-side scripts/functions/workers, or sync/cache canonical values into Supabase with provenance.
 - The current source tree has been reconstructed during the session after transient local source loss; verify `src/pages/StylesPage.tsx` and `src/App.tsx` before future deploys.
 - The preview app is manually deployed as container `popdam-master-preview`, image `popdam-master-preview:local`, on the `coolify` Docker network. This is not the normal GHCR/Coolify frontend pipeline.

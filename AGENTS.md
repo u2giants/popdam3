@@ -391,9 +391,9 @@ Use this exact shape for every new quirk:
 ### Master Data style tracker is temporary; PLM APIs are canonical for customers/licensors/properties
 
 **Looks like:** `master.designflow.app/styles` can fuzzy-match customer-looking strings and treat those as canonical customers.
-**Actually:** the Master Data style tracker is a temporary Google Sheet replica. The user clarified on 2026-06-24 that canonical licensors/properties/customers come from read-only PLM APIs, whose credential is stored in 1Password item `DesignFlow PLM Canonical Master Data API`. Canonical customers now live in `core.customer`; confirmed PLM-backed customers have `is_potential = false` and a `designflow_plm` row in `core.company_source_ref`. Email/domain noise belongs in `crm.ingested_domain`, not in the canonical customer table.
+**Actually:** the Master Data style tracker is a temporary Google Sheet replica. The user clarified on 2026-06-24 that canonical licensors/properties/customers come from read-only PLM APIs, whose credential is stored in 1Password item `DesignFlow PLM Canonical Master Data API`. Canonical customers now live in `core.customer`; confirmed PLM-backed customers have `is_potential = false` and a `designflow_plm` row in `core.company_source_ref`. Email/domain noise belongs only in `crm.ingested_domain` and must never create, promote into, source-ref, FK to, or otherwise associate with customers.
 **Why:** PLM is the source of truth for this business data, but PLM is not yet fully transferred into the shared Supabase project. The tracker needs a bridge now without polluting or over-trusting shared tables.
-**Do not change because:** do not write new values into shared canonical tables from the tracker, and do not assume customer candidates are correct unless reconciled to PLM. Use `docs/MASTER_DATA.md` for the app/data-flow details.
+**Do not change because:** do not write new values into shared canonical tables from the tracker, do not use `api.customer_list`, and do not assume customer candidates are correct unless reconciled to PLM. Use `docs/MASTER_DATA.md` for the app/data-flow details.
 
 ### Sibling file scans need a 10-minute lease/expiry
 

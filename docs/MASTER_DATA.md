@@ -98,18 +98,15 @@ The active candidate-search contract is `public.search_style_tracker_link_candid
 
 ## Known Data Provenance Finding
 
-`Rossy` came from the old company-table design, not from the Google Sheet. Email
-noise now belongs in `crm.ingested_domain`, not in `core.customer`. Its old
-source refs showed:
+`Rossy` came from the old company-table design, not from the Google Sheet. It
+was one of the email-domain noise rows that had been incorrectly associated with
+the customer table. That association has been removed; email-domain noise belongs
+only in `crm.ingested_domain`, never in customer source refs.
 
-- `source_system`: `directus`
-- `source_table`: `ingested_domains`
-- `external_source`: `twenty`
-- `customer_status`: `OTHER`
-
-This is why customer matching should prefer PLM canonical customer data. Confirmed
-customers are `core.customer` rows with `is_potential = false` and a PLM source
-ref; unreviewed email-domain noise should stay in `crm.ingested_domain`.
+This is why customer matching must use PLM canonical customer data only.
+Confirmed customers are `core.customer` rows with `is_potential = false` and a
+PLM source ref. Email-domain noise stays in `crm.ingested_domain` and must never
+create, promote into, source-ref, FK to, or otherwise associate with customers.
 
 ## Verification Notes
 
