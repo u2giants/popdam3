@@ -24,6 +24,7 @@ PR: `https://github.com/u2giants/shared-db/pull/19`
 Migration:
 
 - `supabase/migrations/20260628165000_crm_customer_contracts.sql`
+- `supabase/migrations/20260629031500_crm_timeout_fixes.sql`
 
 Production status:
 
@@ -41,6 +42,8 @@ Adds:
 - `api.crm_customer_list`
 - `api.crm_customer_overview`
 - `api.crm_update_customer(p_customer_id uuid, ...)`
+- `api.crm_email_routing_recent(p_limit integer default 500)`
+- `api.crm_email_routing_segment_counts()`
 
 Keeps, for compatibility:
 
@@ -50,6 +53,33 @@ Keeps, for compatibility:
 
 The migration is additive. It should not break existing deployed clients because
 the old names stay alive.
+
+## Timeout-Safe CRM Contracts
+
+Browser pages must not page the entire joined `api.crm_email_routing_queue` view
+to compute counts or load the Email Routing table. Production has enough email
+rows that broad joined view reads can hit PostgREST statement timeouts and make
+the UI show stale or empty data.
+
+Use these contracts instead:
+
+| Need | Contract |
+|---|---|
+| Recent Email Routing table rows | `api.crm_email_routing_recent(p_limit)` |
+| Full Email Routing segment badges/counts | `api.crm_email_routing_segment_counts()` |
+| Search a few matching historical email rows | `api.crm_email_routing_queue` with a small explicit `limit` |
+
+`api.crm_email_routing_recent` deliberately caps `p_limit` to 1,000 rows and
+orders/limits `crm.email_message` before joining customer, department, and
+opportunity labels. This is the supported browser feed for Email Routing.
+
+`api.crm_email_routing_segment_counts` returns full-dataset counts without
+forcing the browser to page all historical emails.
+
+The timeout migration also grants `authenticated` `SELECT` on `app.profile`.
+RLS policies still control visible profile rows; the grant is needed because
+`api.crm_task_list` is a `security_invoker` view that left-joins assignee
+profiles.
 
 ## Owner Approval Needed
 
@@ -72,6 +102,8 @@ Use these names:
 | CRM customer list with CRM-owned fields | `api.crm_customer_list` |
 | CRM customer overview/stats | `api.crm_customer_overview` |
 | CRM guarded customer update | `api.crm_update_customer` |
+| CRM recent email routing feed | `api.crm_email_routing_recent` |
+| CRM email routing tab counts | `api.crm_email_routing_segment_counts` |
 | Shared plain customer picker/basic read | `api.customer_list` |
 
 Do not add new callers of:
@@ -141,6 +173,23 @@ Verify authenticated REST access to `api.crm_customer_list`.
 
 Verify `api.crm_update_customer` on a safe test row, restoring the original value
 in the same session.
+
+Verify the timeout-safe email contracts under an authenticated CRM user's JWT
+claims:
+
+```sql
+select count(*), max(received_at) from api.crm_email_routing_recent(500);
+select * from api.crm_email_routing_segment_counts();
+select count(*) from api.crm_task_list;
+```
+
+Expected production behavior after `20260629031500_crm_timeout_fixes.sql`:
+
+- `api.crm_email_routing_recent(500)` returns the newest 500 browser-safe rows
+  quickly, including current emails.
+- `api.crm_email_routing_segment_counts()` returns full segment counts quickly.
+- `api.crm_task_list` no longer fails for browser users with
+  `permission denied for table profile`.
 
 ## Final Removal Checklist
 
