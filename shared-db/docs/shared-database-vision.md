@@ -3,7 +3,7 @@
 This repo exists to move POP from several overlapping app backends into one shared Supabase database that powers four enterprise applications:
 
 - DAM: digital asset management, style groups, style guides, render/processing work, and asset-to-product links.
-- CRM: companies, contacts, departments, opportunities, communication workflow, approvals, notes, and tasks.
+- CRM: customers, contacts, departments, opportunities, communication workflow, approvals, notes, and tasks.
 - PM/PIM: projects, products, designs, design collections, licensing workflow, samples, revisions, orders, assignments, and saved views.
 - PLM: operational item master, production orders, factories/vendors, licensing status, RFQ/ERP references, and production-facing workflow data.
 
@@ -13,8 +13,8 @@ The intention is not four separate databases that sync occasionally. The intenti
 
 The four apps overlap heavily:
 
-- CRM accounts are PM customers and PLM customers.
-- CRM contacts are PM buyers and account stakeholders.
+- CRM customers are PM customers and PLM customers.
+- CRM contacts are PM buyers and customer stakeholders.
 - PM products become DAM style groups/assets and PLM items.
 - DAM assets should appear inside PM product/design workflows without file duplication.
 - PM orders and PLM production orders need to describe the same operational reality.
@@ -124,8 +124,8 @@ Customer-logo contract:
 - Browser apps that need full logos should read a stable customer-named API
   field, e.g. `api.crm_customer_list.logo_url`, sourced from
   `plm.customer_import.logo_url`.
-  Until that API field exists and is populated, CRM can show token marks but
-  should not pretend to have stored full-width logos.
+  CRM-specific customer screens should use `api.crm_customer_list`, not legacy
+  account-named compatibility views.
 
 ### Lifecycle: domain → potential → active (one identity, never re-pointed)
 
@@ -185,10 +185,10 @@ the same source-ref linkage carries over unchanged.
 > Naming note: this was a **hard rename** — there is no object named
 > `core.company` anymore, not even a compatibility view. The table rename carries
 > its FKs, indexes, RLS, grants, and rowtype automatically; views that referenced
-> it follow by object id; only the two PL/pgSQL functions that named it
-> (`api.crm_update_account`, `plm.import_master_data`) were recreated against
-> `core.customer`. Apps keep working because they read through `api.*` views and
-> RPCs (names unchanged), not `core.company` directly. The satellite table
+> it follow by object id; only PL/pgSQL functions that named it directly had to
+> be recreated against `core.customer`. CRM now exposes customer-named
+> `api.crm_customer_*` contracts; legacy `api.crm_account_*` names are
+> compatibility objects only. The satellite table
 > `core.company_source_ref` and the `company_id` FK columns keep their names for
 > now to limit churn; only the hub table was renamed.
 

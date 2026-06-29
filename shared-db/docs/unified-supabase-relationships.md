@@ -95,7 +95,7 @@ Long-term, PopDAM should not maintain a separate production-order current table 
 | Relationship | Current signal | Target |
 |---|---|---|
 | Opportunity to project | CRM `crm_opportunity.project`; PM `project.id` | `crm.opportunity.project_id -> pim.project.id` |
-| Account pipeline to project/product | CRM `retailer/contact/department`; PM `project.retailer/buyer`, `product.retailer/buyer` | Shared `core.company/contact`, with CRM departments as optional account segmentation |
+| Customer pipeline to project/product | CRM `retailer/contact/department`; PM `project.retailer/buyer`, `product.retailer/buyer` | Shared `core.customer/contact`, with CRM departments as optional customer segmentation |
 | Licensor approval | CRM `crm_licensor_approval_thread.property_name`; PM product submissions/revisions | Link to `core.property`, `pim.product_submission`, and `pim.revision_request` when a specific product/submission exists |
 | Tasks and notes | CRM `crm_task`, `crm_note`; PM collaboration collections | Keep domain-owned tables, but share `app.comment`/`app.activity` pattern if a note/task needs polymorphic links |
 
@@ -141,8 +141,7 @@ Expose frontend contracts through `api` views/RPCs after raw tables are in place
 |---|---|
 | `api.pm_product_board` | `pim.product`, `pim.stage`, `core.company/contact`, `core.licensor/property`, optional `dam.style_group` |
 | `api.pm_product_assets` | `pim.product`, `pim.design`, `dam.asset`, `dam.style_group` |
-| `api.crm_account_overview` | `core.company`, `core.contact`, `crm.department`, `crm.opportunity`, `pim.project`, `plm.production_order` |
+| `api.crm_customer_overview` | `core.customer`, `core.contact`, `crm.department`, `crm.opportunity`, `pim.project`, `plm.production_order` |
 | `api.dam_asset_library` | `dam.assets`, `dam.style_groups`, `core.taxonomy`, RLS-safe metadata |
 | `api.plm_item_status` | `plm.item`, `plm.production_order`, `plm.licensing_status`, `core.taxonomy` |
 | `api.global_search` | `core.company/contact`, `pim.product/project/design`, `crm.opportunity`, `dam.asset/style_group`, `plm.item/order` |
-

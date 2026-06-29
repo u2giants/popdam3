@@ -8,6 +8,13 @@
 > "Known gaps → Phase 5 identity / Data import" sections below are **stale**;
 > treat the cutover note as the source of truth for what is live.
 
+> **Customer contract rename note (2026-06-28).** This historical handoff uses
+> the original `crm_account_*` API/RPC names. Current CRM code should use
+> `api.crm_customer_list`, `api.crm_customer_overview`, and
+> `api.crm_update_customer`; the old `crm_account_*` names are compatibility
+> objects only. See
+> [`../crm-customer-contract-rollout.md`](../crm-customer-contract-rollout.md).
+
 CRM (`u2giants/popcrm-web`) migrated from the Directus backend to the shared
 Supabase project, **preview-complete**: schema + frontend + worker are done and
 validated locally; nothing touches production. The live `db push` to the preview
