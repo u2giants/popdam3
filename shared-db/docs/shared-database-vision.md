@@ -95,13 +95,11 @@ Key rules:
   `core.customer` by the email worker. The worker calls
   `crm.record_ingested_domain(...)`, which only touches `crm.ingested_domain`.
   Other apps must never join to `crm.ingested_domain` — it is CRM-private.
-- **Garbage never enters the important table.** A domain becomes a `core.customer`
-  row **only** when a human upgrades it via `crm.promote_ingested_domain(...)`,
-  which inserts a *potential* customer. This is the **front-door / additive**
-  model: we never dump noise into `core.customer` and wait to clean it up later.
-- **Active customers come only from PLM/ERP.** `crm.promote_ingested_domain` and
-  any CRM/PM-created row are always `is_potential = true`. A customer becomes
-  active only when ColdLion confirms the relationship and an ERP source ref is
+- **Garbage never enters the important table.** Ingested domains must never
+  create, promote into, source-ref, FK to, or otherwise associate with
+  `core.customer`. There is no ingested-domain promotion path.
+- **Active customers come only from PLM/ERP.** A customer becomes active only
+  when ColdLion/PLM confirms the relationship and an ERP/PLM source ref is
   attached. The `is_potential` flag is the shared signal every app uses; it is
   kept authoritative by the `core.sync_customer_potential` trigger, which flips it
   to `false` the moment a `designflow_plm`/`coldlion` source ref lands.
@@ -113,7 +111,7 @@ Customer-logo contract:
 
 - Logo inventory belongs to **customers**, not ingested domains. Do not derive or
   assign customer logos from `crm.ingested_domain`; those rows are email evidence
-  only until a human promotes one into `core.customer`.
+  only and must not be promoted into `core.customer`.
 - `plm.customer_import.logo_url` carries the PLM/ERP `customers_logo` value when
   the source provides one. That stored URL is the intended source for full-width
   customer logos.
@@ -127,13 +125,14 @@ Customer-logo contract:
   CRM-specific customer screens should use `api.crm_customer_list`, not legacy
   account-named compatibility views.
 
-### Lifecycle: domain → potential → active (one identity, never re-pointed)
+### Lifecycle: customer identity
 
 ```txt
 crm.ingested_domain (email noise)
-   │  crm.promote_ingested_domain()   — a human upgrades it (additive insert)
-   ▼
-core.customer  (potential: is_potential = true, no ERP source ref)
+   │
+   └─ no customer FK, no promotion, no source ref, no picker use
+
+core.customer  (customer candidate from CRM/PM customer workflow, not email-domain ingestion)
    │  plm.import_master_data()        — ColdLion confirms we transacted
    ▼
 core.customer  (active: SAME row, is_potential = false, now has an ERP source ref)

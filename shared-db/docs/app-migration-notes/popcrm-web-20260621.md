@@ -53,9 +53,11 @@ views, and RPC guards verified functionally.
 | Settings | `api.crm_ai_model_config_list`, `api.crm_ignore_rule_list` | `crm.ai_model_config` |
 | Auth | `api.current_user_profile()` RPC | Supabase Auth (Azure OAuth + password) |
 
-The "curated customers vs full ingested registry" split (Directus
-`retailer`/`buyer` vs `ingested_domains`/`ingested_contact`) is collapsed to one
-`core.company`/`core.contact`, filtered by `customer_status` in the frontend.
+The "curated customers vs full ingested registry" split is preserved for
+domains: Directus `retailer` can map to `core.customer`, but
+`ingested_domains` is CRM-private triage data only and must never map, promote,
+source-ref, or FK to `core.customer`. Contacts still use segmentation contracts
+for curated vs ingested contact workflows.
 
 ## Contacts segmented API contract
 

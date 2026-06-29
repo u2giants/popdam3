@@ -9,7 +9,9 @@
 -- Source of truth for field shapes: u2giants/directus pm-system/crm-schema.mjs.
 
 -- ---------------------------------------------------------------------------
--- core.company  <-  Directus `retailer` / `ingested_domains`
+-- core.company  <-  Directus `retailer`
+-- Directus `ingested_domains` belongs in crm.ingested_domain only and must not
+-- source-ref, promote into, FK to, or otherwise associate with customers.
 -- customer_status / chain_type / routing_aliases / so_patterns are CRM-owned
 -- account attributes that drive CRM UI badges, filters, and email routing.
 -- ---------------------------------------------------------------------------

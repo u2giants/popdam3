@@ -53,7 +53,7 @@ Status values:
 |---|---|---|---|---|
 | People and auth | PopDAM `profiles`, `user_roles`, `invitations`, `app_access`; PM/CRM `directus_users`; PLM `users`, `Roles`, `RolePermissions`, `UIElements`, `auth_token`, `quote_auth_token` | `app.profile`, `app.role`, `app.user_role`, `app.app_access` | shared | Supabase Auth should own identity. PLM and Directus users need cross-reference tables, not copied auth systems. |
 | Customers | PM/CRM `retailer`; PLM `customers`, `externalCustomer`; DAM `style_groups.customer`, `assets.customer`, `prod_order_headers_current.customer_*` | `core.customer`, `core.company_source_ref` | shared | One canonical customer hub holding potential + active customers. `is_potential = false` (active) only when an ERP/PLM source ref is present; everything else is potential. Preserve PLM customer ids, Directus ids, and DAM path customer strings as source refs. See `shared-database-vision.md` → "Customer vs. Company vs. Ingested Domain". Renamed from `core.company` via hard rename (no compat view). |
-| Ingested email domains (NOT customers) | CRM `ingested_domains` | `crm.ingested_domain` | **CRM-only** | Email noise / triage inbox. Every domain seen in an ingested email. Not a customer, not shared. The worker records via `crm.record_ingested_domain()`; promote with `crm.promote_ingested_domain()` to create a *potential* `core.customer`. |
+| Ingested email domains (NOT customers) | CRM `ingested_domains` | `crm.ingested_domain` | **CRM-only** | Email noise / triage inbox. Every domain seen in an ingested email. Not a customer, not shared. The worker records via `crm.record_ingested_domain()` only. Ingested domains must never create, promote into, source-ref, FK to, or otherwise associate with `core.customer`. |
 | Contacts and buyers | PM/CRM `buyer`, `ingested_contact`; CRM department primary buyers; PLM users/vendors where acting as contacts | `core.contact`, `core.contact_company` | shared | Buyer/contact should be unified. Keep role/scope/title fields as CRM attributes. CRM browser reads use `api.crm_contact_list`; segmented Contacts tabs use `api.crm_contact_segment_list` / `api.crm_contact_segment_counts` so the CRM can load customer, department, and triage contacts independently. |
 | Departments/accounts | CRM `crm_department`; PM project/buyer context; PLM customer divisions where relevant | `crm.department` plus FK to `core.company` | app-owned with shared FK | CRM owns operational departments. PM may read department context through `api` views later. |
 | Licensors, properties, characters | DAM `licensors`, `properties`, `characters`; PM `licensor`, `property`; PLM `licenseList`, `properties_and_characters`, `property_character_associations`, `item_character_associations` | `core.licensor`, `core.property`, `core.character`, `core.character_ref` | shared | This is one of the biggest duplicate areas. DAM's existing taxonomy should be matched to PLM/PM by external ids/codes/name aliases. |
@@ -117,7 +117,8 @@ Collections used by the CRM frontend:
 
 Target placement:
 
-- Shared: `retailer`/`ingested_domains` -> `core.company`; `buyer`/`ingested_contact` -> `core.contact`; `factory` -> `core.factory`; `directus_users` -> `app.profile`.
+- Shared: `retailer` -> `core.customer`; `buyer`/`ingested_contact` -> `core.contact`; `factory` -> `core.factory`; `directus_users` -> `app.profile`.
+- CRM-private only: `ingested_domains` -> `crm.ingested_domain`; never `core.customer` or `core.company_source_ref`.
 - CRM-owned: `crm_department`, `crm_opportunity`, `crm_email_message`, `crm_meeting_note`, `crm_ignore_rule`, `crm_ai_model_config`, `crm_note`, `crm_task`, `crm_licensor_approval_thread`.
 - PM crossover: `project` remains `pim.project`; CRM opportunities can link to it.
 

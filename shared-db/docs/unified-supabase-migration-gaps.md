@@ -17,7 +17,7 @@ This document lists conflicts, missing links, risky tables, and decisions requir
 
 | Duplicate | Current sources | Risk | Resolution |
 |---|---|---|---|
-| Customer/company | CRM `retailer`, `ingested_domains`; PM `retailer`; PLM `customers`, `externalCustomer`; DAM path/PO customer fields | Split accounts break realtime and reporting. | Create `core.company` plus source refs; do not keep app-specific customer tables as peers. |
+| Customer | CRM `retailer`; PM `retailer`; PLM `customers`, `externalCustomer`; DAM path/PO customer fields | Split accounts break realtime and reporting. | Use `core.customer` plus source refs for real customer sources only. `ingested_domains` is CRM-private email triage and must never source-ref or associate with customers. |
 | Contact/buyer | CRM `buyer`, `ingested_contact`; PM `buyer`; PLM users/vendors as contacts | Multiple buyer records per account, broken email routing. | Create `core.contact`; keep CRM fields like scope/contact type as CRM or bridge attributes. |
 | Licensor/property/character | DAM taxonomy, PM taxonomy, PLM `licenseList` and property/character association tables | Assets, PM products, and PLM approvals will not join reliably. | Create shared `core` taxonomy with alias/code/source-ref tables. |
 | Product/item/style/SKU | PM `product`; DAM `style_groups/assets/erp_items_current`; PLM `itemHeader`; ClickUp task ids | Wrong joins can merge different records with similar names or missing style numbers. | Use `core.sku_ref` and explicit match confidence; only hard-link on verified stable SKU/item ids. |
@@ -95,4 +95,3 @@ Before migration SQL is written:
 - Define exact RLS roles and pricing/vendor field exposure rules.
 - Define source-reference table structures and matching rules for company/contact/taxonomy/SKU/factory/order.
 - Run dry-run dedupe reports before merging any shared rows.
-

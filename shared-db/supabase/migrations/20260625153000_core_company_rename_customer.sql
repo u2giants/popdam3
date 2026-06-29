@@ -25,8 +25,10 @@
 -- ----------------------------
 -- Active/confirmed customers are companies we have actually done business with;
 -- their authoritative source is PLM/ERP (ColdLion) only. A row is active iff it
--- has a designflow_plm/coldlion source ref. Everything else (CRM/PM-created, or
--- promoted from an ingested domain) is a potential customer. is_potential makes
+-- has a designflow_plm/coldlion source ref. Everything else created through a
+-- customer workflow is a potential customer. Ingested domains are not customers
+-- and are removed from customer association by a later corrective migration.
+-- is_potential makes
 -- that explicit and is kept authoritative by core.sync_customer_potential().
 
 -- 1. Rename. FKs, indexes, triggers, grants, RLS, and the rowtype follow the table.

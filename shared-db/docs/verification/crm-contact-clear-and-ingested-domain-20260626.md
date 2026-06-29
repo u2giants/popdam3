@@ -37,23 +37,19 @@ explicit `p_clear_*` flags; do not rely on `null` to clear relationship fields.
 ## Ingested-domain triage flow
 
 What changed:
-The preview triage/promotion contract was verified for
-`crm.record_ingested_domain(...)`, `api.crm_ingested_domain_list`, and
-`crm.promote_ingested_domain(...)`.
+The ingested-domain triage contract is record/list only:
+`crm.record_ingested_domain(...)` and `api.crm_ingested_domain_list`.
 
 Why:
 POP CRM Accounts Triage must keep random email domains out of shared
-`core.customer` until a human promotes them to potential customers.
+`core.customer`. Ingested domains are never customers and have no promotion path.
 
 Verification:
-A rollback-safe preview transaction recorded
-`codex-preview-ingest.example`, confirmed it appeared as an unpromoted row in
-`api.crm_ingested_domain_list`, promoted it, confirmed a
-`core.customer` row with `is_potential = true` and
-`customer_status = 'POTENTIAL_CUSTOMER'`, and confirmed the unpromoted triage
-filter no longer matched.
+A rollback-safe preview transaction should record a sample domain, confirm it
+appears in `api.crm_ingested_domain_list`, and confirm no `core.customer` row or
+`core.company_source_ref` row is created.
 
 Future sessions should:
 Keep worker-side unknown-domain ingestion on
-`crm.record_ingested_domain(...)`. Promotion should be the only path from
-triage domain to potential customer.
+`crm.record_ingested_domain(...)`. Do not add a promotion path from triage domain
+to customer.

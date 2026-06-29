@@ -37,7 +37,7 @@ Do not create production SQL by hand in the Supabase dashboard. Do not keep perm
 | Current Directus collection | Target |
 |---|---|
 | `retailer` | `core.company` |
-| `ingested_domains` | `core.company_source_ref` or `ingest.raw_record` |
+| `ingested_domains` | `crm.ingested_domain` only; never `core.customer`, `core.company_source_ref`, or customer pickers |
 | `buyer` | `core.contact` and `core.contact_company` |
 | `ingested_contact` | `core.contact_source_ref` or `ingest.raw_record` |
 | `factory` | `core.factory` |

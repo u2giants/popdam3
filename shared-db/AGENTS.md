@@ -132,6 +132,21 @@ These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones
   until granted. The grants live in `20260621164759_service_role_grants.sql`
   (usage + ALL on tables/sequences for `app, core, crm, pim, plm, ingest, api`,
   plus default privileges). Re-run/verify after adding new schemas.
+- **Supabase Auth has one `site_url`; every app needs explicit redirect allowlist entries.**
+  The production project's Auth `site_url` is `https://crm.designflow.app`, so OAuth
+  flows for PM/DAM/SG/master-data apps must pass an explicit app-origin `redirectTo`
+  and that origin must be in `uri_allow_list`. Keep bare origin, trailing-slash origin,
+  and `/**` wildcard entries for `crm`, `crm-dev`, `pm`, `pm-dev`, `pm-ci`, `dam`,
+  `sg`, and `master` designflow hosts. If Microsoft SSO from one app lands on CRM,
+  check `GET /v1/projects/qsllyeztdwjgirsysgai/config/auth` before changing frontend
+  routing.
+- **Ingested domains are never customers.** `crm.ingested_domain` is CRM-private
+  email triage data only. It must not FK to, promote into, source-ref, join as,
+  feed picker lists for, or otherwise associate with `core.customer`. The
+  corrective migration `20260629034500_remove_ingested_domain_customer_association.sql`
+  removed `api.customer_list`, `crm.promote_ingested_domain(...)`,
+  `crm.ingested_domain.promoted_customer_id`, and all `directus/ingested_domains`
+  customer source refs after 3,741 polluted refs were found in production.
 - **`unique nulls not distinct (external_source, external_id)`** on `crm.*` and
   `core.*` tables means you cannot bulk-insert many rows with both columns NULL —
   the second NULL/NULL row collides. Importers must set a real

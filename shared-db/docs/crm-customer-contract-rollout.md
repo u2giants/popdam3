@@ -138,7 +138,7 @@ Use these names:
 | CRM email routing tab counts | `api.crm_email_routing_segment_counts` |
 | CRM customer segment feed | `api.crm_customer_segment_list` |
 | CRM customer segment counts | `api.crm_customer_segment_counts` |
-| Shared plain customer picker/basic read | `api.customer_list` |
+| Shared plain customer picker/basic read | No shared broad picker. Use app-specific customer contracts. `api.customer_list` was removed because it exposed polluted broad customer data. |
 
 Do not add new callers of:
 

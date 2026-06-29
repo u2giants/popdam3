@@ -56,7 +56,7 @@ Use source-reference tables instead of overwriting historical ids.
 
 | Canonical object | Existing ids to preserve | Proposed source-ref key |
 |---|---|---|
-| Company/customer | Directus `retailer.id`, `ingested_domains.id`, PLM `customers_id`, PLM `externalCustomer`, DAM path `customer`/PO `customer_code` | `(source_system, source_table, source_id)` |
+| Customer | Directus `retailer.id`, PLM `customers_id`, PLM `externalCustomer`, DAM path `customer`/PO `customer_code` | `(source_system, source_table, source_id)` |
 | Contact/buyer | Directus `buyer.id`, `ingested_contact.id`, CRM email/person ids if present | `(source_system, source_table, source_id)` |
 | Licensor | DAM `licensors.id/external_id`, PM `licensor.id`, PLM `licenseList`/MG code | `(source_system, source_table, source_id, code)` |
 | Property/character | DAM `properties/characters`, PM `property`, PLM `properties_and_characters`, association tables | `(source_system, parent_ref, code_or_name)` |
@@ -118,7 +118,7 @@ Realtime implications:
 
 | Relationship | Current signal | Target |
 |---|---|---|
-| Company/customer | CRM `retailer/ingested_domains`; PLM `customers/externalCustomer`; DAM production PO customer fields | `core.company` with `core.company_source_ref` |
+| Customer | CRM `retailer`; PLM `customers/externalCustomer`; DAM production PO customer fields | `core.customer` with `core.company_source_ref` |
 | Contact/buyer | CRM `buyer/ingested_contact`; PLM may not expose buyers as first-class in selected source | `core.contact`; PLM customer contact fields remain source refs if found later |
 | Opportunity to production | CRM opportunity fields `production_po_number`, `sales_order_number`, `factory`, `project` | Link opportunities to `plm.production_order` and `pim.project` when numbers match |
 | Factory/vendor | CRM `factory`; PLM `Factory/vendor` | `core.factory` canonical |

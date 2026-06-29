@@ -25,21 +25,22 @@ Why this matters for the frontend:
   `crm.record_ingested_domain(...)`, never by inserting into `core.customer`.
 - **Garbage never enters the customer table.** The **Accounts → Triage** tab is
   the review queue, fed from `api.crm_ingested_domain_list` (i.e.
-  `crm.ingested_domain`), *not* from the customer list. A domain becomes a
-  `core.customer` row only when someone promotes it via
-  `crm.promote_ingested_domain(...)`, which always creates a **potential**
-  customer. Curated customers come from `api.crm_account_list`.
+  `crm.ingested_domain`), *not* from the customer list. A domain never becomes a
+  `core.customer` row, never source-refs a customer, and never FKs to a customer.
+  Curated customers come from customer-specific contracts such as
+  `api.crm_customer_list`.
 - **Active vs. potential is owned by PLM/ERP, not the CRM.** Only ColdLion makes a
-  customer active (`is_potential = false`); CRM-created and promoted rows are
-  always potential. Use `is_potential` for the factual "have we done business with
+  customer active (`is_potential = false`); CRM/PM-created customer rows are
+  potential until confirmed by PLM/ERP. Use `is_potential` for the factual "have we done business with
   them," and treat `customer_status` (`ACTIVE_CUSTOMER` / `POTENTIAL_CUSTOMER` /
   `OTHER` / `UNASSIGNED`) as the CRM's *subjective* triage opinion on a separate
   axis.
 
-Lifecycle (one identity, never re-pointed):
+Lifecycle:
 
 ```txt
-crm.ingested_domain  ──promote──▶  core.customer (potential)  ──ColdLion import──▶  core.customer (active, same row)
+crm.ingested_domain  ── no customer association
+core.customer (potential, from customer workflow) ──ColdLion import──▶ core.customer (active, same row)
 ```
 
 A potential customer and the active customer it becomes are the **same**
