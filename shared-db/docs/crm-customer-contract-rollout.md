@@ -17,9 +17,19 @@ The safe rollout is:
 
 ## Current Shared-DB Work
 
-Branch: `codex/crm-customer-contracts`
+Original branch: `codex/crm-customer-contracts`
 
-PR: `https://github.com/u2giants/shared-db/pull/19`
+Primary rename PR: `https://github.com/u2giants/shared-db/pull/19`
+
+Follow-up timeout-safety PRs:
+
+- `https://github.com/u2giants/shared-db/pull/20`
+- `https://github.com/u2giants/shared-db/pull/21`
+
+Important: PR #19 by itself explains the customer-named replacement contracts
+and compatibility strategy, but it does **not** include the later browser
+timeout-safe Email Routing and customer segment RPCs. Use this document as the
+current cross-repo source of truth because it includes PR #19 plus PRs #20/#21.
 
 Migration:
 
@@ -29,14 +39,25 @@ Migration:
 
 Production status:
 
-- Applied on 2026-06-28 with `supabase db push` against linked project
-  `qsllyeztdwjgirsysgai`.
+- `20260628165000_crm_customer_contracts.sql` applied on 2026-06-28 with
+  `supabase db push` against linked project `qsllyeztdwjgirsysgai`.
+- `20260629031500_crm_timeout_fixes.sql` applied on 2026-06-29.
+- `20260629033000_crm_customer_segment_timeout_fixes.sql` applied on
+  2026-06-29.
 - Verification returned:
   - `api.crm_customer_list`: 3,777 rows
   - `api.crm_account_list`: 3,777 rows
   - `api.crm_customer_overview`: 3,777 rows
   - `api.crm_account_overview`: 3,777 rows
   - `api.crm_update_customer`: exists
+  - `api.crm_email_routing_recent(500)`: returns newest production email rows
+    quickly
+  - `api.crm_email_routing_segment_counts()`: returns full Email Routing tab
+    counts quickly
+  - `api.crm_customer_segment_list('active', -1)`: returns 105 active customer
+    rows quickly
+  - `api.crm_customer_segment_counts()`: returns active 105, triage 62,
+    dismissed 3,635, all 3,777 quickly
 
 Adds:
 
@@ -143,8 +164,10 @@ CRM:
 
 - Repo: `/worksp/popcrm-web`
 - Tracking file: `/worksp/popcrm-web/fix_remove_account.md`
-- App commit exists locally and should be pushed only after this migration is
-  applied to the target schema.
+- Production app has been deployed on customer-named contracts and
+  timeout-safe customer/email RPCs.
+- Browser verification on 2026-06-29 showed `/customers`, `/email`, and
+  `/contacts` load without failed or slow Supabase responses.
 
 PM/PIM:
 
@@ -198,7 +221,8 @@ select count(*) from api.crm_customer_segment_list('active', -1);
 select * from api.crm_customer_segment_counts();
 ```
 
-Expected production behavior after `20260629031500_crm_timeout_fixes.sql`:
+Expected production behavior after `20260629031500_crm_timeout_fixes.sql` and
+`20260629033000_crm_customer_segment_timeout_fixes.sql`:
 
 - `api.crm_email_routing_recent(500)` returns the newest 500 browser-safe rows
   quickly, including current emails.
