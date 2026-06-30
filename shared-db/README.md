@@ -3,6 +3,8 @@
 > [`u2giants/shared-db`](https://github.com/u2giants/shared-db) is the **single source of truth**. Its entire contents are automatically mirrored into the **`shared-db/` folder** of every consumer repo (CRM, DAM, PM, Directus, and the `popcre/designflow-*` repos) on each push to `main`, via [`.github/workflows/sync.yml`](https://github.com/u2giants/shared-db/blob/main/.github/workflows/sync.yml).
 >
 > **Reading this inside a consumer repo's `shared-db/` folder?** These files are a read-only copy — any edits here are **overwritten on the next sync**. Make changes in the canonical repo instead.
+>
+> The `popcre/designflow-*` mirrors intentionally push to each repo's default branch. Sandbox deploy suppression belongs in the Cloud Build trigger path filters (`ignored_files = ["shared-db/**"]` in `popcre/infrastructure`), not by removing consumers from this sync.
 
 ---
 
