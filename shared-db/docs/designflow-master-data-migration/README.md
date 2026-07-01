@@ -2,7 +2,7 @@
 
 **Status:** **Phase A complete** — analysis & planning only; **no schema or data changes have been made.** Ready for Phase B (preview DDL).
 
-**Last updated:** 2026-07-01 (MG07 division semantics + division codes 01/08/09)
+**Last updated:** 2026-07-01 (MG05/MG06 division labels + MG07 semantics)
 
 This document is the working plan for migrating DesignFlow PLM master data (primarily `designflow.merchGroup` and `designflow.customers`) into the shared Supabase project used by DAM, CRM, PM/PIM, and PLM.
 
@@ -111,8 +111,8 @@ Note: quoted identifiers match PostgreSQL case for mixed-case column names (`"mg
 | MG02 | `02` | Product Sub Type | 518 | 317 | 201 | 0 |
 | MG03 | `03` | Product Sub Sub Type | 1,137 | 803 | 334 | 0 |
 | MG04 | `04` | Size | 661 | 3 | 658 | 0 |
-| MG05 | `05` | Licensor | 82 | 2 | 80 | 0 |
-| MG06 | `06` | Property | 614 | 519 | 95 | 0 |
+| MG05 | `05` | Licensor / Big Theme (div-dependent) | 82 | 2 | 80 | 0 |
+| MG06 | `06` | Property / Little Theme (div-dependent) | 614 | 519 | 95 | 0 |
 | MG07 | `07` | Style Guide / Art Type (division-dependent) | 81 | 2 | 79 | 0 |
 | MG08 | `08` | Art Source | 32 | 9 | 23 | 0 |
 | MG09 | `09` | Artist | 280 | 201 | 79 | 0 |
@@ -226,6 +226,8 @@ All **3,645** `merchGroup` rows span the three active divisions below (`company_
 
 | MG | Scope | Active import count | Notes |
 |---|---|---:|---|
+| MG05 | Div **01**, **08**: **Licensor** — Div **09**: **Big Theme** | (see §3.1.2) | Import **all rows** (§9) |
+| MG06 | Div **01**, **08**: **Property** — Div **09**: **Little Theme** | (see §3.1.2) | `is_active IS TRUE` + parent MG05 |
 | MG07 **Style Guide** | Divisions **01**, **08** | 0 | **Future** — no rows to import yet |
 | MG07 **Art Type** | Division **09** only | 2 | PHOTO (`PH`), ARTIST (`AR`) |
 | MG09 Artist | Divisions **01**, **08**, **09** | 201 | Same artist names repeated per division |
@@ -270,7 +272,7 @@ ORDER BY "mgTypeCode", "divisionCode_id_fk";
 
 ### 3.2 MG code → business entity
 
-**Owner-confirmed mapping** (business names are documentation only — the database stores `'01'`–`'10'` in `mgTypeCode`, never “Product Type” or “Licensor”):
+**Owner-confirmed mapping** (business names are **not stored** in the database — only `mgTypeCode` `'01'`–`'10'`. Labels below are division-dependent where noted):
 
 | MG label | `mgTypeCode` | Business entity | Parent rule |
 |---|---|---|---|
@@ -278,14 +280,22 @@ ORDER BY "mgTypeCode", "divisionCode_id_fk";
 | MG02 | `02` | Product Sub Type | `parent_id` → MG01 row |
 | MG03 | `03` | Product Sub Sub Type | `parent_id` → MG02 row |
 | MG04 | `04` | Size | **No parent** (independent) |
-| MG05 | `05` | Licensor / Big Theme | Root of theme hierarchy |
-| MG06 | `06` | Property / Little Theme | `parent_id` → MG05 row |
-| MG07 | `07` | **Style Guide** (div **01**, **08**) / **Art Type** (div **09**) | See §3.5 — same `mgTypeCode`, label depends on division |
+| MG05 | `05` | **Division-dependent** — see §3.5 | Root of theme hierarchy |
+| MG06 | `06` | **Division-dependent** — see §3.5 | `parent_id` → MG05 row |
+| MG07 | `07` | **Style Guide** (div **01**, **08**) / **Art Type** (div **09**) | See §3.5 |
 | MG08 | `08` | Art Source | Independent list |
 | MG09 | `09` | Artist | Divisions **01**, **08**, **09** — see §3.6 |
 | MG10 | `10` | Age Group | Divisions **01**, **08**, **09** — see §3.7 |
 
-**MG07 uses one `mgTypeCode` (`07`) with division-dependent meaning** — not two separate MG types in the database.
+**MG05 / MG06 use one `mgTypeCode` each with division-dependent business labels** (same pattern as MG07):
+
+| Division code | MG05 label | MG06 label |
+|---|---|---|
+| **01** (Pop Lic) | **Licensor** | **Property** |
+| **08** (Spruce Lic) | **Licensor** | **Property** |
+| **09** (Spruce Non-Lic) | **Big Theme** | **Little Theme** |
+
+Store `metadata.mg05_role` / `metadata.mg06_role` (or equivalent display label) on import so Supabase APIs can show the correct term per division.
 
 ### 3.3 Product hierarchy (MG01 → MG02 → MG03)
 
@@ -311,23 +321,35 @@ Cloud SQL: **661 rows**, only **3** with `is_active = true`, but owner confirms 
 
 ### 3.5 Theme hierarchy (MG05 → MG06) and MG07 (division-dependent)
 
-**MG05 / MG06 (theme hierarchy):**
+**MG05 / MG06 — same `mgTypeCode`, label depends on division:**
+
+| Division | MG05 (`mgTypeCode = '05'`) | MG06 (`mgTypeCode = '06'`) | Relationship |
+|---|---|---|---|
+| **01**, **08** | **Licensor** | **Property** | MG06 `parent_id` → MG05 |
+| **09** (Spruce Non-Lic) | **Big Theme** | **Little Theme** | MG06 `parent_id` → MG05 |
+
+> **Owner-confirmed:** Big Theme / Little Theme apply to division **09** only (Spruce Non-Lic, `divCode_id = 9`, EH001). Divisions **01** and **08** use Licensor / Property for the same `mgTypeCode` values.
 
 ```
-mgTypeCode '05'  (Licensor)
-   └── parent_id ← mgTypeCode '06'  (Property)
+Divisions 01 / 08:
+  mgTypeCode '05'  (Licensor)
+     └── parent_id ← mgTypeCode '06'  (Property)
+
+Division 09:
+  mgTypeCode '05'  (Big Theme)
+     └── parent_id ← mgTypeCode '06'  (Little Theme)
 ```
 
-**Validated in code** (`item_library.service.js` → `getLicensorsWithProperties`):
+**Validated in code** (`item_library.service.js` → `getLicensorsWithProperties`) — uses **Licensor / Property** wording; applies to licensed divisions. Non-lic division **09** rows use **Big Theme / Little Theme** in business UI but share the same `mgTypeCode` and `parent_id` structure.
 
 1. Load properties where `mgTypeCode = '06'` and `is_active = true` (optional division filter).
-2. Collect distinct `parent_id` values → licensor `mg_id`s.
-3. Load licensors where `mgTypeCode = '05'` and `mg_id IN (...)`.
-4. Nest properties under licensors; **omit licensors with zero properties**.
+2. Collect distinct `parent_id` values → parent MG05 `mg_id`s (Licensor or Big Theme).
+3. Load parents where `mgTypeCode = '05'` and `mg_id IN (...)`.
+4. Nest MG06 children under MG05 parents.
 
-Licensors are **not** filtered by `is_active` in that API (only properties are). Cloud SQL shows **80 of 82 licensors** have `is_active = false` but owner requires **full MG05 import** anyway (§9).
+MG05 is **not** filtered by `is_active` in that API (only MG06 children are). Cloud SQL shows **80 of 82** MG05 rows with `is_active = false` — owner requires **full MG05 import** anyway (§9).
 
-**MG07 — same `mgTypeCode`, different label by division:**
+**MG07** (separate from MG05/MG06 theme hierarchy):
 
 | Division code | MG07 business label | Data today | Import |
 |---|---|---|---|
@@ -502,8 +524,8 @@ erDiagram
 | Product Sub Type | MG02 | **`core.product_subtype`** | Table exists; parent `product_type_id`. |
 | Product Sub Sub Type | MG03 | **`core.product_subsubtype`** (new) | **No third level today** — required for MG03 hierarchy. |
 | Size | MG04 | **`core.product_size`** (new) | Independent shared picker; used on every item/SKU context. Prefer `core` over `plm` because DAM/PM will need sizes without PLM operational coupling. |
-| Licensor | MG05 | **`core.licensor`** | Exists; already canonical for licensing taxonomy. |
-| Property | MG06 | **`core.property`** | Exists; `licensor_id` FK already modeled. |
+| Licensor / Big Theme | MG05 | **`core.licensor`** | All divisions; `metadata.division_code` + display label (Licensor vs Big Theme) |
+| Property / Little Theme | MG06 | **`core.property`** | All divisions; `licensor_id` FK; label Property vs Little Theme in metadata |
 | Style Guide (MG07, div 01/08) | MG07 | **`core.style_guide_type`** (new, future) | Taxonomy for Style Guide — **no import yet**; not `dam.style_guide_file` |
 | Art Type (MG07, div 09) | MG07 | **`core.art_type`** (new) | Art Type taxonomy — PHOTO, ARTIST today |
 
@@ -586,8 +608,8 @@ Extend existing `core.product_type` / `core.product_subtype` with optional `stat
 | `merchGroup` where `mgTypeCode='02'` | `is_active IS TRUE` + valid `parent_id` → MG01; skip 54 inactive orphans | `core.product_subtype` | FK `product_type_id` resolved via source ref |
 | `merchGroup` where `mgTypeCode='03'` | `is_active IS TRUE` + valid `parent_id` → MG02; **exclude 1 orphan** | `core.product_subsubtype` | FK `product_subtype_id` resolved via source ref |
 | `merchGroup` where `mgTypeCode='04'` | **All rows** (661) — regardless of `is_active` | `core.product_size` | taxonomy source ref |
-| `merchGroup` where `mgTypeCode='05'` | **All rows** (82) — regardless of `is_active` | `core.licensor` | existing `taxonomy_source_ref` pattern |
-| `merchGroup` where `mgTypeCode='06'` | `is_active IS TRUE` + parent MG05 | `core.property` | `licensor_id` via parent source ref |
+| `merchGroup` where `mgTypeCode='05'` | **All rows** (82) — Licensor (div **01**/**08**) or Big Theme (div **09**) | `core.licensor` | `metadata.mg05_label` per division |
+| `merchGroup` where `mgTypeCode='06'` | `is_active IS TRUE` + parent MG05 | `core.property` | `licensor_id` via parent; Property vs Little Theme in metadata |
 | `merchGroup` where `mgTypeCode='07'` AND `divisionCode_id_fk = 9` | `is_active IS TRUE` (2 Art Type rows) | `core.art_type` | `metadata.mg07_role = 'art_type'`, division **09** |
 | `merchGroup` where `mgTypeCode='07'` AND `divisionCode_id_fk IN (1, 8)` | **Skip** — Style Guide future | `core.style_guide_type` (later) | No data today |
 | `merchGroup` where `mgTypeCode='08'` | `is_active IS TRUE` | `core.art_source` | taxonomy source ref |
@@ -618,7 +640,7 @@ Extend existing `core.product_type` / `core.product_subtype` with optional `stat
 |---|---|
 | **`mgTypeCode IN ('01'…'10')` only** | All types — exclude 50 rows with codes `11`, `12`, `13`, `14`, `15`, `18`, `105`, `109`, `E` |
 | **`is_active IS TRUE`** | MG01, MG02, MG03, MG06, MG07, MG08, MG09, MG10 (default) |
-| **Import all rows regardless of `is_active`** | **MG04 (Size)** and **MG05 (Licensor)** — referenced on live items despite `is_active = false` |
+| **Import all rows regardless of `is_active`** | **MG04 (Size)** and **MG05** (Licensor / Big Theme) — referenced on live items despite `is_active = false` |
 | **Skip inactive orphans** | MG02 — 54 rows with wrong/missing MG01 parent and `is_active = false` |
 | **Exclude** | MG03 — 1 orphan row |
 | **Division filter on import** | MG07 Art Type: division **09** only (2 rows); MG07 Style Guide (**01**/**08**): skip; MG09/MG10: all divisions |
@@ -631,8 +653,8 @@ Extend existing `core.product_type` / `core.product_subtype` with optional `stat
 | MG | `is_active` usage in DesignFlow code |
 |---|---|
 | MG01–MG03 | **Required true** for RFQ copy (`is_active === true` strictly) |
-| MG06 | Filtered `is_active: true` in `getLicensorsWithProperties` |
-| MG05 | **Not** filtered in that API — aligns with full MG05 import |
+| MG05 | **Not** filtered in licensors API — aligns with full MG05 import; label Licensor (div **01**/**08**) or Big Theme (div **09**) |
+| MG06 | Filtered `is_active: true` in `getLicensorsWithProperties`; label Property (div **01**/**08**) or Little Theme (div **09**) |
 | MG04 | Almost all rows `is_active = false` in DB but still on items — **full import** overrides flag filter |
 
 ### Customers
@@ -668,7 +690,7 @@ Use `customers_status = 'ACTIVE'` — **55 rows** in Cloud SQL (matches API).
 | `is_active` mapping | Always preserve: `true` → `active`, `false`/`NULL` → `inactive` — even for MG04/MG05 full import |
 | MG04 / MG05 | Import **all** rows; do not filter on `is_active` |
 | Non-MG01–MG10 codes | Skip entirely (50 rows) |
-| Division | Preserve `divisionCode_id_fk` + canonical code **01**/**08**/**09** + `divisionCode_fk` on every row (§3.1.3) |
+| Division | Preserve `divisionCode_id_fk` + code **01**/**08**/**09**; set MG05/MG06 display labels per §3.5 |
 | MG07 | Import Art Type (div **09**) only; Style Guide (div **01**/**08**) is future — same `mgTypeCode` `07` |
 | MG07 / MG09 / MG10 source | **`merchGroup` only** — ignore separate Sequelize `art_types` / `artists` / `age_group` tables |
 | Passwords | Strip `customers_passw` before any `ingest.raw_record` |
@@ -758,13 +780,14 @@ Use `customers_status = 'ACTIVE'` — **55 rows** in Cloud SQL (matches API).
 2. All MG01–MG10 entities are rows in `merchGroup` only; `mgTypeCode` is the authoritative discriminator (not `mg_code` prefix or human-readable names).
 3. **`is_active` default is `false`** — import filter is type-specific (§9); MG04 and MG05 import all rows.
 4. **Three active divisions** — codes **01**, **08**, **09** (DB FKs 1, 8, 9); all 3,645 merchGroup rows span them (§3.1.3).
-5. **MG07** — Style Guide (div **01**, **08**): future, no data. Art Type (div **09**): 2 active rows (PHOTO, ARTIST).
-6. MG09/MG10 canonical source is **`merchGroup`**, not separate Sequelize tables.
-7. MG03 orphan (1 row) is **excluded** from import.
-8. Integer `mg_id` remains stable — source-ref spine for future full PLM DB cutover.
-9. Supabase project `qsllyeztdwjgirsysgai` is the correct target.
-10. Migration is **additive**; no dropping `public.*` PopDAM tables in this phase.
-11. **`designflow.customers`** = 55 rows — matches API-active scope.
+5. **MG05 / MG06 labels** — div **01**/**08**: Licensor / Property; div **09**: Big Theme / Little Theme (§3.5).
+6. **MG07** — Style Guide (div **01**, **08**): future. Art Type (div **09**): 2 active rows.
+7. MG09/MG10 canonical source is **`merchGroup`**, not separate Sequelize tables.
+8. MG03 orphan (1 row) is **excluded** from import.
+9. Integer `mg_id` remains stable — source-ref spine for future full PLM DB cutover.
+10. Supabase project `qsllyeztdwjgirsysgai` is the correct target.
+11. Migration is **additive**; no dropping `public.*` PopDAM tables in this phase.
+12. **`designflow.customers`** = 55 rows — matches API-active scope.
 
 ---
 
@@ -793,6 +816,7 @@ All items below are done. This README is the signed-off planning baseline for Ph
 - [x] Import filter policy — MG04/MG05 full import; MG02 inactive orphans skipped; MG03 orphan excluded
 - [x] Division codes + MG07/MG09/MG10 division scoping (§3.1.3)
 - [x] Canonical source: `merchGroup` for MG07/MG09/MG10 (not separate Sequelize tables)
+- [x] MG05/MG06 division labels — Licensor/Property (**01**/**08**) vs Big Theme/Little Theme (**09**)
 - [x] MG07 division semantics — Style Guide (**01**/**08**) vs Art Type (**09**)
 
 ### Phase B — DDL on preview (`xjcyeuvzkhtzsheknaiu`)
@@ -876,7 +900,7 @@ flowchart TB
   MG10["MG10 Age Group"]
   CUST["customers"]
 
-  MG01 & MG02 & MG03 & MG04 & MG05 & MG06 & MG07SG & MG07AT & MG08 & MG09 & MG10 --> SB[(Supabase core.*)]
+  MG01 & MG02 & MG03 & MG04 & MG05A & MG06A & MG07SG & MG07AT & MG08 & MG09 & MG10 --> SB[(Supabase core.*)]
   CUST --> SB
 ```
 
@@ -886,8 +910,9 @@ flowchart TB
 
 | Date | Change |
 |---|---|
-| 2026-07-01 | **Phase A finalized** — analysis complete; deferred items moved to §17 |
-| 2026-07-01 | MG07: Style Guide (div **01**/**08**, future) vs Art Type (div **09**, PHOTO/ARTIST); division codes **01**/**08**/**09** |
+| 2026-07-01 | Owner confirmed division **09** (not 07) for Big Theme / Little Theme |
+| 2026-07-01 | MG05/MG06 division labels: Licensor/Property (div **01**/**08**), Big Theme/Little Theme (div **09**) |
+| 2026-07-01 | **Phase A finalized** — analysis complete; deferred items in §17 |
 | 2026-07-01 | Row counts, import policy (**2,660**), MG03 orphan excluded, division scoping |
 | 2026-07-01 | Cloud SQL `merchGroup` schema confirmed; MG01–MG10 mapping documented |
 | 2026-07-01 | Initial analysis: codebase + Supabase complete |
