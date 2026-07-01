@@ -25,6 +25,7 @@ import TiffHygieneTab from "@/components/settings/TiffHygieneTab";
 import FileHygieneTab from "@/components/settings/FileHygieneTab";
 import ErpEnrichmentTab from "@/components/settings/ErpEnrichmentTab";
 import AiTaggingTab from "@/components/settings/AiTaggingTab";
+import AiTagBakeoffTab from "@/components/settings/AiTagBakeoffTab";
 import OperationsTab from "@/components/settings/OperationsTab";
 import StyleGuideCrawlTab from "@/components/settings/StyleGuideCrawlTab";
 import PopSGAgentTab from "@/components/settings/PopSGAgentTab";
@@ -1171,6 +1172,7 @@ const SETTINGS_SEARCH_ITEMS: { label: string; desc: string; tab: string; subTab?
   { label: "PopSG Connection", desc: "Connect PopSG style guide agent", tab: "agents", subTab: "popsg" },
   { label: "Install Bundles", desc: "Download Bridge and Windows agent installers", tab: "agents", subTab: "install" },
   { label: "AI Tagging", desc: "Run AI tagging jobs, configure models and instructions", tab: "processing", subTab: "ai-tagging" },
+  { label: "Vision Bake-Off", desc: "Compare three AI vision tagging models side by side", tab: "processing", subTab: "ai-bakeoff" },
   { label: "PDF Text Extraction", desc: "Test and review PDF text and OCR extraction", tab: "processing", subTab: "pdf-text" },
   { label: "ERP Sync", desc: "Sync and enrich product data from your ERP system", tab: "processing", subTab: "erp" },
   { label: "Taxonomy / APIs", desc: "Manage licensors, properties, characters — sync from external APIs", tab: "processing", subTab: "taxonomy" },
@@ -1419,6 +1421,7 @@ export default function SettingsPage() {
           <SubTabBar
             tabs={[
               { id: "ai-tagging", label: "AI Tagging" },
+              { id: "ai-bakeoff", label: "Vision Bake-Off" },
               { id: "pdf-text", label: "PDF Text" },
               { id: "erp", label: "ERP Sync" },
               { id: "taxonomy", label: "Taxonomy" },
@@ -1427,6 +1430,7 @@ export default function SettingsPage() {
             onChange={setProcessingSubTab}
           />
           {processingSubTab === "ai-tagging" && <AiTaggingTab />}
+          {processingSubTab === "ai-bakeoff" && <AiTagBakeoffTab />}
           {processingSubTab === "pdf-text" && <PdfTextSamplesTab />}
           {processingSubTab === "erp" && <ErpEnrichmentTab />}
           {processingSubTab === "taxonomy" && <ApisTab />}

@@ -16,6 +16,7 @@ import { db } from "./supabase.js";
 import { logger } from "./logger.js";
 import type { BatchResult, OpState } from "./types.js";
 import { handleBulkAiTag } from "./handlers/ai-tagging.js";
+import { handleAiTagBakeoff } from "./handlers/ai-tag-bakeoff.js";
 import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileStyleGroupStats } from "./handlers/style-groups.js";
 import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
@@ -36,6 +37,7 @@ const OP_LANES: Record<string, string> = {
   "ai-tag-untagged": "ai-tagging",
   "ai-tag-all": "ai-tagging",
   "ai-tag-groups": "ai-tagging",
+  "ai-tag-bakeoff": "ai-tagging",
   "rebuild-style-groups": "style-groups",
   "reconcile-style-group-stats": "style-groups",
   "reprocess-metadata": "metadata",
@@ -57,9 +59,10 @@ const OP_CONFLICTS: Readonly<Record<string, readonly string[]>> = {
   "ai-tag-untagged":      ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
   "ai-tag-all":           ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
   "ai-tag-groups":        ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
-  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
-  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups"],
-  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "erp-enrichment"],
+  "ai-tag-bakeoff":       ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
+  "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff"],
+  "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "erp-enrichment"],
   "backfill-sku-names":   ["erp-enrichment"],
   "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
 };
@@ -97,6 +100,16 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
         total: (prev.total as number) || (batch.total_count as number) || 0,
         failure_samples: [...prevFail, ...batchFail].slice(-200),
         skip_samples: [...prevSkip, ...batchSkip].slice(-200),
+      };
+    }
+    case "ai-tag-bakeoff": {
+      const prevFail = Array.isArray(prev.failure_samples) ? prev.failure_samples as unknown[] : [];
+      const batchFail = Array.isArray(batch.failure_samples) ? batch.failure_samples as unknown[] : [];
+      return {
+        evaluated: ((prev.evaluated as number) || 0) + ((batch.evaluated as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
+        total: (prev.total as number) || (batch.total_count as number) || 0,
+        failure_samples: [...prevFail, ...batchFail].slice(-100),
       };
     }
     case "rebuild-style-groups":
@@ -225,6 +238,8 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
     case "ai-tag-all":
     case "ai-tag-groups":
       return `Tagged ${progress.tagged}. ${progress.skipped || 0} skipped. ${progress.failed || 0} failed.`;
+    case "ai-tag-bakeoff":
+      return `Evaluated ${progress.evaluated || 0} model responses. ${progress.failed || 0} failed.`;
     case "rebuild-style-groups":
       return `Created ${progress.groups} style groups, assigned ${progress.assigned} assets`;
     case "reconcile-style-group-stats":
@@ -258,6 +273,8 @@ async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
     case "ai-tag-all":
     case "ai-tag-groups":
       return handleBulkAiTag(opState, true);
+    case "ai-tag-bakeoff":
+      return handleAiTagBakeoff(opState);
     case "rebuild-style-groups":
       return handleRebuildStyleGroups(opState);
     case "reconcile-style-group-stats":

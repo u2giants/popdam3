@@ -891,10 +891,134 @@ async function handleGetOpenrouterVisionModels() {
     id: m.id as string,
     name: (m.name as string | null) ?? (m.id as string),
     context_length: m.context_length as number | null,
+    supports_tools: Array.isArray(m.supported_parameters) && (m.supported_parameters as string[]).includes("tools"),
     pricing: m.pricing as Record<string, unknown> | null,
   }));
 
   return json({ ok: true, models });
+}
+
+// ── Routes: AI tag bake-off ────────────────────────────────────────
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : [];
+}
+
+async function handleCreateAiTagBakeoffRun(body: Record<string, unknown>, userId: string) {
+  const db = serviceClient();
+  const modelIds = stringArray(body.model_ids).slice(0, 3);
+  if (modelIds.length !== 3) return err("model_ids must contain exactly 3 models", 400);
+
+  const requestedSampleSize = typeof body.sample_size === "number" ? Math.floor(body.sample_size) : 30;
+  const sampleSize = Math.min(500, Math.max(1, requestedSampleSize));
+  const explicitAssetIds = stringArray(body.asset_ids).slice(0, sampleSize);
+  let assetIds = explicitAssetIds;
+
+  if (assetIds.length === 0) {
+    const { data: assets, error: assetErr } = await db
+      .from("assets")
+      .select("id")
+      .eq("is_deleted", false)
+      .not("thumbnail_url", "is", null)
+      .not("primary_sort_tier", "in", "(4,8)")
+      .order("modified_at", { ascending: false })
+      .limit(sampleSize);
+    if (assetErr) return err(`Failed to select sample assets: ${assetErr.message}`, 500);
+    assetIds = (assets ?? []).map((a: { id: string }) => a.id);
+  }
+
+  if (assetIds.length === 0) return err("No eligible assets with thumbnails found", 400);
+
+  const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : `Vision bake-off ${new Date().toISOString().slice(0, 10)}`;
+
+  const { data: run, error: runErr } = await db
+    .from("ai_tag_bakeoff_runs")
+    .insert({
+      name,
+      status: "draft",
+      model_a: modelIds[0],
+      model_b: modelIds[1],
+      model_c: modelIds[2],
+      sample_size: assetIds.length,
+      asset_ids: assetIds,
+      created_by: userId === "system" ? null : userId,
+    })
+    .select("*")
+    .single();
+
+  if (runErr) return err(`Failed to create bake-off run: ${runErr.message}`, 500);
+  return json({ ok: true, run });
+}
+
+async function handleListAiTagBakeoffRuns() {
+  const db = serviceClient();
+  const { data, error: qErr } = await db
+    .from("ai_tag_bakeoff_runs")
+    .select("id, name, status, model_a, model_b, model_c, sample_size, created_at, updated_at, completed_at")
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (qErr) return err(`Failed to list bake-off runs: ${qErr.message}`, 500);
+  return json({ ok: true, runs: data ?? [] });
+}
+
+async function handleGetAiTagBakeoffRun(body: Record<string, unknown>) {
+  const runId = typeof body.run_id === "string" ? body.run_id : null;
+  if (!runId) return err("run_id is required", 400);
+  const db = serviceClient();
+
+  const { data: run, error: runErr } = await db
+    .from("ai_tag_bakeoff_runs")
+    .select("*")
+    .eq("id", runId)
+    .single();
+  if (runErr || !run) return err(`Bake-off run not found: ${runErr?.message ?? "no data"}`, 404);
+
+  const assetIds = ((run as { asset_ids?: string[] }).asset_ids ?? []) as string[];
+  const [{ data: assets, error: assetsErr }, { data: results, error: resultsErr }, { data: reviews, error: reviewsErr }] = await Promise.all([
+    assetIds.length > 0
+      ? db.from("assets").select("id, filename, relative_path, thumbnail_url, ai_model, ai_tagged_at").in("id", assetIds)
+      : Promise.resolve({ data: [], error: null }),
+    db.from("ai_tag_bakeoff_results").select("*").eq("run_id", runId),
+    db.from("ai_tag_bakeoff_reviews").select("*").eq("run_id", runId),
+  ]);
+  if (assetsErr) return err(`Failed to load bake-off assets: ${assetsErr.message}`, 500);
+  if (resultsErr) return err(`Failed to load bake-off results: ${resultsErr.message}`, 500);
+  if (reviewsErr) return err(`Failed to load bake-off reviews: ${reviewsErr.message}`, 500);
+
+  const assetMap = new Map((assets ?? []).map((a: Record<string, unknown>) => [a.id as string, a]));
+  const orderedAssets = assetIds.map((id) => assetMap.get(id)).filter(Boolean);
+
+  return json({ ok: true, run, assets: orderedAssets, results: results ?? [], reviews: reviews ?? [] });
+}
+
+async function handleScoreAiTagBakeoffField(body: Record<string, unknown>, userId: string) {
+  const runId = typeof body.run_id === "string" ? body.run_id : null;
+  const assetId = typeof body.asset_id === "string" ? body.asset_id : null;
+  const field = typeof body.field === "string" ? body.field : null;
+  const winnerSlot = typeof body.winner_slot === "string" && body.winner_slot ? body.winner_slot : null;
+  const notes = typeof body.notes === "string" ? body.notes : null;
+  const scores = body.scores && typeof body.scores === "object" ? body.scores : {};
+  if (!runId || !assetId || !field) return err("run_id, asset_id, and field are required", 400);
+  if (!["tags", "description", "characters", "property", "overall"].includes(field)) return err("Invalid field", 400);
+  if (winnerSlot && !["a", "b", "c"].includes(winnerSlot)) return err("Invalid winner_slot", 400);
+
+  const db = serviceClient();
+  const { data, error: upsertErr } = await db
+    .from("ai_tag_bakeoff_reviews")
+    .upsert({
+      run_id: runId,
+      asset_id: assetId,
+      field,
+      winner_slot: winnerSlot,
+      scores,
+      notes,
+      reviewed_by: userId === "system" ? null : userId,
+      reviewed_at: new Date().toISOString(),
+    }, { onConflict: "run_id,asset_id,field" })
+    .select("*")
+    .single();
+  if (upsertErr) return err(`Failed to save review: ${upsertErr.message}`, 500);
+  return json({ ok: true, review: data });
 }
 
 // ── Routes: pdf-backfill ─────────────────────────────────────────────────────
@@ -1481,6 +1605,14 @@ corsServe(async (req: Request) => {
       // ── AI tagging (from ai-tagging-handlers.ts) ──
       case "count-untagged-assets":
         return await handleCountUntaggedAssets();
+      case "create-ai-tag-bakeoff-run":
+        return await handleCreateAiTagBakeoffRun(body, userId);
+      case "list-ai-tag-bakeoff-runs":
+        return await handleListAiTagBakeoffRuns();
+      case "get-ai-tag-bakeoff-run":
+        return await handleGetAiTagBakeoffRun(body);
+      case "score-ai-tag-bakeoff-field":
+        return await handleScoreAiTagBakeoffField(body, userId);
       case "bulk-propagate-group-tags":
         return await handleBulkPropagateGroupTags(body);
       case "count-groups-for-propagation":

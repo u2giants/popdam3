@@ -308,7 +308,29 @@ Normalized tag storage. The `assets.tags` text array is a denormalized copy main
 
 Indexes: `idx_asset_tags_asset_id`, `idx_asset_tags_source`
 
-### 3.2 tiff_optimization_queue
+### 3.2 AI Tag Bake-Off Tables
+
+Non-destructive A/B/C evaluation for vision tagging models. These tables store model trial outputs and human review choices without overwriting production `assets`, `asset_tags`, or `asset_characters`.
+
+#### `ai_tag_bakeoff_runs`
+- `id uuid PK`, `name text`, `status text` (`draft`, `queued`, `running`, `completed`, `failed`, `stopped`)
+- `model_a text`, `model_b text`, `model_c text`
+- `sample_size int`, `asset_ids uuid[]`
+- `created_by uuid`, `created_at`, `updated_at`, `completed_at`
+
+#### `ai_tag_bakeoff_results`
+One row per `(run, asset, model_slot)`.
+- `run_id uuid FK`, `asset_id uuid FK`, `model_slot text` (`a`, `b`, `c`), `model_id text`
+- `status text` (`pending`, `running`, `succeeded`, `failed`)
+- Field outputs: `tags text[]`, `ai_description text`, `character_ids uuid[]`, `character_names text[]`, `property_id uuid`, `property_name text`
+- Audit/debug fields: `raw_output jsonb`, `latency_ms int`, `error_message text`, timestamps
+
+#### `ai_tag_bakeoff_reviews`
+Human scoring for the matrix UI.
+- `run_id uuid FK`, `asset_id uuid FK`, `field text` (`tags`, `description`, `characters`, `property`, `overall`)
+- `winner_slot text`, `scores jsonb`, `notes text`, `reviewed_by uuid`, `reviewed_at`
+
+### 3.3 tiff_optimization_queue
 Tracks TIFF files on the NAS that are candidates for compression optimization.
 
 - `id uuid PK DEFAULT gen_random_uuid()`
