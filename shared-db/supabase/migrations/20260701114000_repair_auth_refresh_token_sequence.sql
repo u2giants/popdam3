@@ -1,0 +1,7 @@
+-- Production migration-history marker.
+--
+-- This migration version is already recorded in production as
+-- `repair_auth_refresh_token_sequence`, but the original SQL was applied
+-- outside the canonical shared-db migration flow. Keep this no-op file so
+-- Supabase CLI can reconcile local migration history with the production
+-- ledger.
