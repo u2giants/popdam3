@@ -44,9 +44,13 @@ Coolify also needs pull access from the VPS. The deployment helper reads the hos
 
 | Secret | Type / source | Purpose |
 |--------|---------------|---------|
-| `SUPABASE_ACCESS_TOKEN` | Supabase personal access token | Authenticate `supabase db push` |
+| `SUPABASE_ACCESS_TOKEN` | Supabase personal access token | Authenticate edge-function deploys and type generation |
 | `EXTERNAL_SUPABASE_PROJECT_ID` | Supabase project ID | Target Supabase project |
-| `EXTERNAL_SUPABASE_DB_PASSWORD` | Database password | Database connection for migrations |
+
+Database migration secrets live only in canonical `u2giants/shared-db`.
+Do not add `EXTERNAL_SUPABASE_DB_PASSWORD`, `SUPABASE_DB_PASSWORD`,
+`SUPABASE_DB_URL`, `POSTGRES_URL`, or equivalent direct database credentials to
+this app repo.
 
 ### Bridge Agent (publish-bridge-agent.yml)
 

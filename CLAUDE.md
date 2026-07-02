@@ -33,23 +33,24 @@ When a required tool, credential, or environment is unavailable, stop and say ex
 
 ## Supabase Migrations
 
-Use this only for real schema changes. Data queries and one-off DML can use `execute_sql`; DDL must not.
+This app repo must not author or apply shared Supabase migrations. The local
+`supabase/migrations/` folder is historical only, and CI blocks new app-owned
+shared DB migrations.
 
-| Path | Records in migration history? | Creates local file? | Use for |
-|------|-------------------------------|---------------------|---------|
-| `apply_migration` MCP | Yes, with Supabase's recorded timestamp | No | DDL/schema changes |
-| `execute_sql` MCP | No | No | Data reads, data fixes, one-off DML |
-| `supabase db push` CI | Yes, from local filenames | Reads committed files | Automated deployment only |
+Safe workflow for any schema, trigger, policy, RPC, pg_cron, view, or data
+migration:
 
-Safe migration workflow:
+1. Stop work in this repo before creating migration SQL.
+2. Switch to canonical `/worksp/shared-db`.
+3. Create a dedicated `shared-db` branch.
+4. Add a new timestamped file under `/worksp/shared-db/supabase/migrations/`.
+5. Run the `shared-db/AGENTS.md` preview-first checklist.
+6. Open and merge the shared-db PR when safe.
+7. Return here only for app/function/type changes that consume the new contract.
 
-1. Write and review the SQL.
-2. Apply it with `apply_migration`.
-3. Immediately call `list_migrations`.
-4. Create `supabase/migrations/<exact-recorded-timestamp>_<name>.sql`.
-5. Commit promptly.
-
-Never create the local migration filename from your own clock guess. Supabase records the actual apply time; a mismatch causes `supabase db push` to fail.
+Use this repo for Supabase edge-function code under `supabase/functions/**`.
+The `.github/workflows/deploy-supabase.yml` workflow deploys functions and
+generates types; it does not run `supabase db push`.
 
 Project IDs:
 
@@ -62,7 +63,7 @@ Project IDs:
 
 ## After Pushes
 
-After pushing changes under `supabase/migrations/**` or `supabase/functions/**`, check the `Deploy Supabase` GitHub Actions run. The workflow now fails if any edge function deploy fails.
+After pushing changes under `supabase/functions/**`, check the `Deploy Supabase Edge Functions` GitHub Actions run. The workflow now fails if any edge function deploy fails. Do not push new files under `supabase/migrations/**`; use canonical `/worksp/shared-db`.
 
 After pushing `apps/worker/**`, remember Railway rebuilds automatically on every push to `main`, even if GitHub Actions does not run a worker workflow.
 

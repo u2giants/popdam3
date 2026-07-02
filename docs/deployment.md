@@ -8,7 +8,7 @@ Every production change follows this path:
 2. GitHub Actions evaluates path filters and runs the relevant workflow(s).
 3. For frontend changes: `publish-frontend.yml` builds the React app, builds a Docker image with `Dockerfile.ci`, pushes it to GHCR as `ghcr.io/u2giants/popdam-frontend:latest`, `:sha-<short-sha>`, and `:<short-sha>` using `GHCR_PAT` when present, otherwise the workflow `GITHUB_TOKEN`, then calls the Coolify deploy API.
 4. Coolify receives the webhook, pulls `:latest` from GHCR, and replaces the running container. No SSH is involved.
-5. For Supabase changes: `deploy-supabase.yml` runs `supabase db push` (migrations) and/or deploys all edge functions, then auto-generates and commits `src/integrations/supabase/types.ts`.
+5. For Supabase edge-function changes: `deploy-supabase.yml` deploys all edge functions, then auto-generates and commits `src/integrations/supabase/types.ts`. Database migrations are not run from this repo; they go through canonical `u2giants/shared-db`.
 6. For Railway worker changes: Railway detects the push to `main` and triggers its own rebuild automatically — no GitHub Actions step required. GitHub's green `popdam / production` deployment badge is Railway worker status, not proof that the frontend has deployed.
 
 Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by the same container. Traefik on the VPS routes both hostnames to `popdam-frontend`.
@@ -21,7 +21,7 @@ Both `dam.designflow.app` (PopDAM) and `sg.designflow.app` (PopSG) are served by
 |------|------|---------|-------------|
 | CI | `ci.yml` | Push or PR to `main` | Lint, test, and build the frontend with Bun. No deployment. |
 | Publish Frontend Image | `publish-frontend.yml` | Push to `main` touching `src/**`, `public/**`, `index.html`, `package.json`, `package-lock.json`, `vite.config.ts`, `tailwind.config.ts`, `postcss.config.js`, `tsconfig*.json`, `Dockerfile`, `Dockerfile.ci`, `nginx.conf`, or the workflow file; also `workflow_dispatch` | `npm ci` → `vite build` → GHCR login via `GHCR_PAT` or `GITHUB_TOKEN` → `docker/build-push-action` with `Dockerfile.ci` → push to GHCR (`:latest`, `:sha-<sha>`, `:<sha>`) → POST Coolify deploy API |
-| Deploy Supabase (Edge Functions + Migrations) | `deploy-supabase.yml` | Push to `main` touching `supabase/functions/**`, `supabase/migrations/**`, or the workflow file; also `workflow_dispatch` | `supabase db push` (if migrations changed) → deploy all edge functions except `_shared` and fail the job if any deploy fails → generate TypeScript types → commit types back to `main` with `[skip ci]` |
+| Deploy Supabase Edge Functions | `deploy-supabase.yml` | Push to `main` touching `supabase/functions/**` or the workflow file; also `workflow_dispatch` | Deploy all edge functions except `_shared` and fail the job if any deploy fails → generate TypeScript types → commit types back to `main` with `[skip ci]` |
 | Edge Functions Format | `edge-functions-format.yml` | Push or PR to `main` touching `supabase/functions/**/*.ts`; also `workflow_dispatch` | Runs `deno fmt` on `supabase/functions/` and commits any formatting changes back |
 | Publish Bridge Agent | `publish-bridge-agent.yml` | Push to `main` touching `apps/bridge-agent/**` or `packages/path-filters/**`; also tags matching `bridge-v*` | Builds and pushes Docker image `ghcr.io/u2giants/popdam-bridge` to GHCR with tags `:latest`, `:stable`, `:v{version}`, `:<sha>`; upserts `BRIDGE_LATEST_BUILD` in `admin_config` via Supabase PostgREST |
 | Publish Windows Agent | `publish-windows-agent.yml` | Push to `main` touching `apps/windows-agent/**` or `packages/path-filters/**` | Builds TypeScript, bundles Node.js runtime, creates NSIS installer and zip artifact, creates versioned GitHub Release and updates `windows-agent-latest` release, POSTs `notify-build` to `agent-api` |
@@ -127,15 +127,15 @@ Coolify then pulls `ghcr.io/u2giants/popdam-frontend:latest` and replaces the ru
 
 **Supabase project:** `qsllyeztdwjgirsysgai` (popdam-prod, Virginia), supplied via GitHub secret `EXTERNAL_SUPABASE_PROJECT_ID`. The previous Ohio project was `ryltkzzernhwnojzouyb`.
 
-**Migrations:** When `supabase/migrations/**` files change in a push, the workflow runs `supabase db push`. This applies any local migration files not yet recorded in the DB's migration history, in timestamp order. The workflow does NOT use `--include-all`. The CI job checks `git diff HEAD~1 HEAD` to detect whether migration files changed before running `db push`.
+**Migrations:** This repo no longer runs database migrations. New shared Supabase schema/data changes must be authored in canonical `u2giants/shared-db` under `supabase/migrations/`, tested through the `Shared Supabase Migrations` workflow, and merged via the shared-db branch + PR process. The local `supabase/migrations/` folder is historical only.
 
 **Edge functions:** When `supabase/functions/**` files change, the workflow deploys all subdirectories under `supabase/functions/` except `_shared`, using `supabase functions deploy <name> --no-verify-jwt`. The loop records failures and exits non-zero after attempting all deploys, so a broken function no longer produces a green workflow.
 
 **TypeScript type generation:** After deploying, the workflow runs `supabase gen types typescript --project-id $SUPABASE_PROJECT_ID` and writes the output to `src/integrations/supabase/types.ts`. If the file changed, it commits it back to `main` with message `chore: auto-generate Supabase types [skip ci]`.
 
-**Required GitHub secrets:** `SUPABASE_ACCESS_TOKEN`, `EXTERNAL_SUPABASE_PROJECT_ID`, `EXTERNAL_SUPABASE_DB_PASSWORD`.
+**Required GitHub secrets:** `SUPABASE_ACCESS_TOKEN`, `EXTERNAL_SUPABASE_PROJECT_ID`.
 
-**Critical constraint:** The local migration filename timestamp must match the timestamp Supabase recorded when the migration was applied. Use `apply_migration` MCP → `list_migrations` MCP → create local file with the exact recorded timestamp. A mismatch causes `supabase db push` to fail in CI. See `CLAUDE.md` for the full discipline.
+**Critical constraint:** Do not add new files under this repo's `supabase/migrations/`. The `Forbid Shared DB Bypass` workflow blocks app-owned shared database changes. Use `shared-db/AGENTS.md` for the canonical migration discipline.
 
 ---
 

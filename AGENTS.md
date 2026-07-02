@@ -94,9 +94,10 @@ Startup checklist:
    `/worksp/shared-db` before editing.
 3. Treat `shared-db/` inside this repo as a read-only mirror. Do not create or
    edit migrations there; use canonical `/worksp/shared-db`.
-4. PopDAM-owned migrations under this repo's `supabase/migrations/` still follow
-   this repo's migration discipline. Cross-app/shared-schema migrations belong in
-   canonical `/worksp/shared-db`.
+4. Do not create new database migrations in this repo's `supabase/migrations/`.
+   That folder is historical only. All shared Supabase schema/data migrations,
+   including DAM-only tables/functions/triggers/RPCs, belong in canonical
+   `/worksp/shared-db`.
 5. If `/worksp/shared-db` has untracked migrations or unrelated dirty files, stop
    and report them before creating new database work. Do not mix another
    session's shared-db changes into this app's commit.
@@ -218,19 +219,19 @@ Files outside project-owned areas that were intentionally modified:
 |------|---------------|-------------------|
 | Add/fix admin UI bulk operation | `src/components/settings/diagnostics/`, `apps/worker/src/handlers/`, `apps/worker/src/operation-loop.ts`, `supabase/functions/_shared/operation-constants.ts` | `supabase/functions/bulk-job-runner/` (no-op stub) |
 | Add/fix edge function route | `supabase/functions/admin-api/index.ts` or `agent-api/index.ts`, `supabase/functions/_shared/admin-handlers/` | `src/integrations/supabase/types.ts` (auto-generated) |
-| DB schema change | New file in `supabase/migrations/` via `apply_migration` MCP | Any existing migration file |
-| Fix style group rebuild | `apps/worker/src/handlers/style-groups.ts`, DB functions in `supabase/migrations/` | `supabase/functions/bulk-job-runner/` |
-| Fix style group asset_count drift | `supabase/migrations/` (new migration), `supabase/functions/_shared/` | — |
+| DB schema change | Canonical `/worksp/shared-db/supabase/migrations/` via shared-db branch + PR | This repo's `supabase/migrations/`; any existing migration file |
+| Fix style group rebuild | `apps/worker/src/handlers/style-groups.ts`, DB functions in canonical `/worksp/shared-db/supabase/migrations/` | `supabase/functions/bulk-job-runner/`; this repo's `supabase/migrations/` |
+| Fix style group asset_count drift | Canonical `/worksp/shared-db/supabase/migrations/`, `supabase/functions/_shared/` if function code changes | This repo's `supabase/migrations/` |
 | Fix ERP sync | `apps/worker/src/handlers/erp.ts`, `supabase/functions/_shared/mg-codes.ts`, `src/lib/mg-lookup.ts` | — |
-| Fix production PO sync | `supabase/functions/_shared/admin-handlers/prod-order-handlers.ts`, `supabase/migrations/`, `src/components/settings/ErpEnrichmentTab.tsx`, `src/components/library/StyleGroupDetailPanel.tsx` | Do not rely on copied browser JWTs as durable auth |
+| Fix production PO sync | `supabase/functions/_shared/admin-handlers/prod-order-handlers.ts`, canonical `/worksp/shared-db/supabase/migrations/` for DB changes, `src/components/settings/ErpEnrichmentTab.tsx`, `src/components/library/StyleGroupDetailPanel.tsx` | This repo's `supabase/migrations/`; do not rely on copied browser JWTs as durable auth |
 | Fix bridge agent scan / ingest / move detection | `apps/bridge-agent/src/index.ts`, `apps/bridge-agent/src/scanner.ts`, `apps/bridge-agent/src/api-client.ts`, `supabase/functions/agent-api/index.ts`, `docs/WORKER_LOGIC.md`, `docs/API_CONTRACTS.md` | Do not treat `quick_hash` as unique; do not edit generated Supabase types |
 | Fix thumbnail generation | `apps/bridge-agent/src/thumbnailer.ts` | — |
 | Add PopSG page | `src/pages/popsg/`, `src/App.tsx` (route guard) | `src/components/library/` (PopDAM-only) |
 | Change Traefik routing | `/data/coolify/proxy/dynamic/` on VPS, or Coolify app config | `nginx.conf` (unless fixing health check) |
 | Change AI classification prompt | `apps/worker/src/handlers/erp.ts` (~line 336) | — |
-| Change stage/customer/program derivation | New migration editing `infer_path_attrs()` + a re-backfill (batched); `src/types/assets.ts`, `src/hooks/useAssets.ts`, `src/hooks/useStyleGroups.ts`, `src/components/library/FilterSidebar.tsx` | `workflow_status` derivation in `_shared/metadata-derivation.ts` (separate concern) |
+| Change stage/customer/program derivation | New canonical shared-db migration editing `infer_path_attrs()` + a re-backfill (batched); `src/types/assets.ts`, `src/hooks/useAssets.ts`, `src/hooks/useStyleGroups.ts`, `src/components/library/FilterSidebar.tsx` | This repo's `supabase/migrations/`; `workflow_status` derivation in `_shared/metadata-derivation.ts` (separate concern) |
 | Fix Seafile check-in receipt verification | `apps/bridge-agent/src/checkin-verifier.ts`, `supabase/functions/agent-api/index.ts` (claim-checkin-verifications / report-checkin-verification), `supabase/functions/helper-api/index.ts` (complete-checkin Seafile branch) | — |
-| Add new pg_cron job | New migration file using `cron.schedule()` | Direct Supabase Dashboard edits |
+| Add new pg_cron job | New canonical shared-db migration file using `cron.schedule()` | This repo's `supabase/migrations/`; direct Supabase Dashboard edits |
 
 ---
 
@@ -270,7 +271,7 @@ Files outside project-owned areas that were intentionally modified:
 | Windows render agent | Illustrator/Windows render and PDF text backfill agent | Manual Windows VM install | Release channel `windows-agent-latest` | `apps/windows-agent/`, packaged by `.github/workflows/publish-windows-agent.yml` |
 | POP DAM Helper | Designer desktop checkout/check-in helper | End-user desktop install | Release channel `popdam-helper-latest` | `apps/popdam-helper/`, packaged by `.github/workflows/publish-popdam-helper.yml` |
 | Supabase edge functions | Admin, agent, helper, auth, export, sync APIs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/functions/**`, deployed by `.github/workflows/deploy-supabase.yml` |
-| PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/migrations/**`, applied by `.github/workflows/deploy-supabase.yml` |
+| PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | Canonical `u2giants/shared-db/supabase/migrations/**`, applied through shared-db preview-first workflow |
 
 **Railway deploy note:** Railway watches `main` and rebuilds on every push. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
 **GitHub deployment badge gotcha:** the green `popdam / production` deployment shown in GitHub's repository sidebar is emitted by Railway (`railway-app[bot]`). It means the Railway worker deployed that commit; it does **not** prove the frontend at `dam.designflow.app` / `sg.designflow.app` updated. For frontend freshness, check the `Publish Frontend Image` workflow and the live build SHA/header.
@@ -520,9 +521,8 @@ Use this exact shape for every new quirk:
 | `ANTHROPIC_API_KEY` | Worker ERP classification fallback/alternative; listed in `apps/worker/.env.example` | Railway env vars | No | Optional |
 | `GOOGLE_AI_API_KEY` | Legacy Gemini AI tagging fallback and `supabase/functions/ai-tag` | Railway env vars / Supabase function secrets | No | Optional unless using legacy AI tag path |
 | `WORKER_POLL_INTERVAL_MS` / `AI_BATCH_CONCURRENCY` / `AI_BATCH_SIZE` | Worker tuning knobs | Railway env vars | No | Optional |
-| `SUPABASE_ACCESS_TOKEN` | CI → Supabase CLI | GitHub secret | No | Yes |
-| `EXTERNAL_SUPABASE_PROJECT_ID` | CI → Supabase CLI | GitHub secret | No | Yes |
-| `EXTERNAL_SUPABASE_DB_PASSWORD` | CI → Supabase CLI | GitHub secret | No | Yes |
+| `SUPABASE_ACCESS_TOKEN` | CI → Supabase CLI for edge-function deploys/types | GitHub secret | No | Yes |
+| `EXTERNAL_SUPABASE_PROJECT_ID` | CI → Supabase CLI target project | GitHub secret | No | Yes |
 | `GHCR_PAT` | GHCR push fallback (frontend) + bridge agent CI | GitHub secret | No | Yes |
 | `GHCR_USERNAME` | Optional username for `GHCR_PAT` owner | GitHub secret | No | No |
 | `COOLIFY_TOKEN` | CI → Coolify deploy API | GitHub secret | No | Yes |
@@ -565,12 +565,12 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 **Stale-site check:** if the live header shows an old commit, check the latest `Publish Frontend Image` run first. If it failed before "Push image to GHCR" or "Deploy via Coolify", Coolify will keep running the previous successful image (for example, `8c0508d` stayed live because later runs failed before a newer GHCR `:latest` image was published). If the workflow is green but the site is old, inspect Coolify deployment logs and `docker ps` on the VPS; do not assume the GitHub deployment sidebar means the frontend is current.
 **Rollback:** In Coolify UI, select an older deployment and redeploy. The `:<sha>` tag is the immutable rollback target.
 
-### Supabase (DB migrations + edge functions)
+### Supabase edge functions
 
 **Workflow:** `.github/workflows/deploy-supabase.yml`
-**Triggers:** push to `main` touching `supabase/migrations/**` or `supabase/functions/**`
-**Steps:** `supabase db push` (if migrations changed) → deploy all edge functions (if functions changed) → auto-generate and commit `src/integrations/supabase/types.ts`
-**CRITICAL:** migration filename timestamp must match the timestamp Supabase records. See `CLAUDE.md` for the full discipline.
+**Triggers:** push to `main` touching `supabase/functions/**`
+**Steps:** deploy edge functions (if functions changed) → auto-generate and commit `src/integrations/supabase/types.ts`
+**Database rule:** this repo no longer runs `supabase db push`. All shared Supabase migrations go through canonical `/worksp/shared-db` branch + PR, using `shared-db/AGENTS.md` and the `Shared Supabase Migrations` workflow.
 
 ### Railway Worker
 

@@ -60,22 +60,18 @@ Short version:
 3. Create the local file as `supabase/migrations/<that-timestamp>_<name>.sql`
 4. Commit immediately — do not let timestamp-fix work accumulate
 
-### The two-path problem
+### Shared database changes
 
-| Path | Records in migration history? | When to use |
-|------|-------------------------------|-------------|
-| `apply_migration` MCP | YES — with actual clock timestamp | All DDL changes |
-| `execute_sql` MCP | NO | Data queries, one-off DML only |
-| `supabase db push` (CI) | YES — uses local filename timestamp | Automated CI only |
+This repo does not own shared Supabase migrations anymore. For any DDL,
+policy, trigger, RPC, pg_cron, view, or data migration:
 
-**Never use `execute_sql` for DDL.** It silently bypasses migration history, causing the next CI run to fail.
+1. Stop editing this repo.
+2. Switch to canonical `/worksp/shared-db`.
+3. Follow `shared-db/AGENTS.md` and create a shared-db branch + PR.
+4. Return here only for app/function/type changes that consume the new contract.
 
-To run migrations locally (requires Supabase CLI linked to the project):
-```bash
-supabase db push --db-url "postgresql://..."
-```
-
-In Claude Code sessions, use the `mcp__supabase__apply_migration` tool instead.
+Use this repo for Supabase edge-function code under `supabase/functions/**`.
+Do not add new files under this repo's `supabase/migrations/`.
 
 ## Edge Functions
 

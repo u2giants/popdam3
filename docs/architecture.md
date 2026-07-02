@@ -23,7 +23,7 @@ Located in `src/`. Built with Vite 5, React 18, Tailwind CSS, Shadcn/UI, and Tan
 
 **Project ID:** `qsllyeztdwjgirsysgai` (host: `qsllyeztdwjgirsysgai.supabase.co`)
 
-PostgreSQL with extensions `pg_cron`, `pg_net`, `pg_trgm`, `pgcrypto`, `pgsodium`/Vault. Schema changes are managed via timestamped migration files in `supabase/migrations/` applied through `supabase db push` in CI (`deploy-supabase.yml`). Migration filename timestamps must exactly match the timestamp Supabase records when `apply_migration` MCP is called.
+PostgreSQL with extensions `pg_cron`, `pg_net`, `pg_trgm`, `pgcrypto`, `pgsodium`/Vault. Schema changes are managed in canonical `u2giants/shared-db` via timestamped migration files under `shared-db/supabase/migrations/` and the shared-db preview-first workflow. This repo deploys Supabase edge functions only; it must not run `supabase db push`.
 
 Twelve deployed Deno edge functions (see Key Edge Functions section). Functions that require CORS preflight have `verify_jwt = false` in `supabase/config.toml`; JWT verification is done inside the function body. Shared code lives in `supabase/functions/_shared/`.
 
