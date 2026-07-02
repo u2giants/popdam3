@@ -18,7 +18,15 @@ import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { useScanProgress } from "@/hooks/useScanProgress";
 import { useScanLifecycle } from "@/hooks/useScanLifecycle";
 import { useSelectionManager } from "@/hooks/useSelectionManager";
+import { useResizablePanel } from "@/hooks/useResizablePanel";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 import { useRef } from "react";
+
+/** Detail-panel resize bounds (desktop only). */
+const DETAIL_MIN_WIDTH = 360;
+const DETAIL_MAX_WIDTH = 960;
+const DETAIL_DEFAULT_WIDTH = 408;
 
 export default function LibraryPage() {
   const queryClient = useQueryClient();
@@ -33,6 +41,19 @@ export default function LibraryPage() {
   const [pageSize, setPageSize] = useState(200);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
   const [detailAssetId, setDetailAssetId] = useState<string | null>(null);
+
+  // ── Detail panel resize (side-by-side layout only; below 1400px it overlays)
+  const isDesktop = useMediaQuery("(min-width: 1400px)");
+  const { width: detailWidth, dragging: detailDragging, reset: resetDetailWidth, handleProps: detailHandleProps } =
+    useResizablePanel({
+      storageKey: "pd-detail-panel-width",
+      defaultWidth: DETAIL_DEFAULT_WIDTH,
+      min: DETAIL_MIN_WIDTH,
+      max: DETAIL_MAX_WIDTH,
+      side: "left",
+    });
+  // Panel width: dynamic when docked side-by-side, fixed default when overlaying.
+  const panelWidth = isDesktop ? detailWidth : DETAIL_DEFAULT_WIDTH;
 
   // ── Agent & scan state ──────────────────────────────────────────
   const agentStatus = useAgentStatus();
@@ -187,7 +208,7 @@ export default function LibraryPage() {
           />
         )}
 
-        <div className="flex flex-1 flex-col overflow-auto">
+        <div className="flex flex-1 flex-col overflow-auto min-w-[400px]">
           {isGroupsMode ? (
             viewMode === "grid" ? (
               <StyleGroupGrid
@@ -237,12 +258,48 @@ export default function LibraryPage() {
           </div>
         </div>
 
+        {/* Drag handle — only when a panel is docked side-by-side (desktop). */}
+        {isDesktop && (isGroupsMode ? !!detailGroup : !!detailAsset) && (
+          <div
+            {...detailHandleProps}
+            onDoubleClick={resetDetailWidth}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize detail panel"
+            title="Drag to resize · double-click to reset"
+            className={cn(
+              "group relative z-10 flex w-2 shrink-0 cursor-col-resize touch-none select-none items-stretch justify-center",
+              detailDragging ? "" : "hover:bg-[var(--pd-surface-3,transparent)]",
+            )}
+          >
+            {/* Center line: subtle by default, accent while hovering/dragging. */}
+            <span
+              className="my-auto h-full w-px transition-colors"
+              style={{
+                background: detailDragging ? "var(--pd-accent, #3b82f6)" : "var(--pd-border)",
+              }}
+            />
+            {/* Grip pill on hover/drag. */}
+            <span
+              className={cn(
+                "pointer-events-none absolute top-1/2 flex h-8 w-1.5 -translate-y-1/2 items-center justify-center rounded-full transition-opacity",
+                detailDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+              )}
+              style={{ background: "var(--pd-accent, #3b82f6)" }}
+            />
+          </div>
+        )}
+
         {/* Detail panel: style group */}
         {isGroupsMode && detailGroup && (
-          <div className="h-full max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
+          <div
+            className="h-full shrink-0 max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl"
+            style={{ userSelect: detailDragging ? "none" : undefined }}
+          >
             <StyleGroupDetailPanel
               key={detailGroup.id}
               group={detailGroup}
+              width={panelWidth}
               onClose={() => setDetailGroupId(null)}
             />
           </div>
@@ -250,9 +307,13 @@ export default function LibraryPage() {
 
         {/* Detail panel: individual asset */}
         {!isGroupsMode && detailAsset && (
-          <div className="h-full max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl">
+          <div
+            className="h-full shrink-0 max-[1399px]:absolute max-[1399px]:inset-y-0 max-[1399px]:right-0 max-[1399px]:z-20 max-[1399px]:shadow-xl"
+            style={{ userSelect: detailDragging ? "none" : undefined }}
+          >
             <AssetDetailPanel
               asset={detailAsset}
+              width={panelWidth}
               onClose={() => setDetailAssetId(null)}
               onOpenGroup={(groupId) => {
                 handleLibraryModeChange("groups");

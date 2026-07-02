@@ -166,9 +166,15 @@ interface AssetDetailPanelProps {
   asset: Asset;
   onClose: () => void;
   onOpenGroup?: (groupId: string) => void;
+  /** Panel width in px (driven by the drag-to-resize handle). */
+  width?: number;
 }
 
-export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetDetailPanelProps) {
+/** Above this width the content reflows into two columns to use the space. */
+const WIDE_THRESHOLD = 620;
+
+export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 408 }: AssetDetailPanelProps) {
+  const wide = width >= WIDE_THRESHOLD;
   const queryClient = useQueryClient();
   const [editingTags, setEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState("");
@@ -440,11 +446,11 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetD
   // ── Render ────────────────────────────────────────────────────
   return (
     <TooltipProvider>
-      <div className="flex h-full w-[408px] flex-col overflow-hidden border-l animate-in slide-in-from-right duration-200"
-        style={{ borderColor: "var(--pd-border)", background: "var(--pd-surface)" }}>
+      <div className="flex h-full flex-col overflow-hidden border-l animate-in slide-in-from-right duration-200"
+        style={{ width, borderColor: "var(--pd-border)", background: "var(--pd-surface)" }}>
 
         {/* ── Hero 16:10 ────────────────────────────────────────── */}
-        <div className="relative w-full shrink-0" style={{ aspectRatio: "8/5" }}>
+        <div className="relative w-full shrink-0" style={{ aspectRatio: "8/5", maxHeight: wide ? 300 : undefined }}>
           {asset.thumbnail_url ? (
             <img
               src={asset.thumbnail_url}
@@ -562,7 +568,14 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetD
         {/* ── Scrollable content ────────────────────────────────── */}
         <div className="relative flex-1">
           <div className="absolute inset-0 overflow-y-auto">
-            <div className="p-4 space-y-5">
+            <div
+              className={cn(
+                "p-4",
+                wide
+                  ? "[column-count:2] [column-gap:1.25rem] [&>*]:mb-5 [&>*]:break-inside-avoid"
+                  : "space-y-5",
+              )}
+            >
 
               {/* ── Belongs to style group card ─────────────────── */}
               {styleGroupId && styleGroup && (
@@ -649,7 +662,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetD
                 </dl>
               </section>
 
-              <Separator />
+              {!wide && <Separator />}
 
               {/* ── Location / path block ────────────────────────── */}
               <section className="space-y-2.5">
@@ -743,7 +756,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetD
                 )}
               </section>
 
-              <Separator />
+              {!wide && <Separator />}
 
               {/* ── Tags ─────────────────────────────────────────── */}
               <section className="space-y-2.5">
@@ -788,7 +801,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetD
                 )}
               </section>
 
-              <Separator />
+              {!wide && <Separator />}
 
               {/* ── AI Analysis ──────────────────────────────────── */}
               <section className="space-y-2.5">
@@ -849,7 +862,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetD
                 )}
               </section>
 
-              <Separator />
+              {!wide && <Separator />}
 
               {/* ── File dates ───────────────────────────────────── */}
               <section className="space-y-2">
@@ -869,7 +882,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetD
                 </div>
               </section>
 
-              <Separator />
+              {!wide && <Separator />}
 
               {/* ── Quick hash ───────────────────────────────────── */}
               <section className="space-y-1.5">
@@ -881,7 +894,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup }: AssetD
               {/* ── Path history ─────────────────────────────────── */}
               {pathHistory && pathHistory.length > 0 && (
                 <>
-                  <Separator />
+                  {!wide && <Separator />}
                   <section className="space-y-2">
                     <h4 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider" style={{ color: "var(--pd-fg-muted)" }}>
                       <History className="h-3.5 w-3.5" /> Path History

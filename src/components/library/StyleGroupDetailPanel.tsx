@@ -40,7 +40,12 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 interface StyleGroupDetailPanelProps {
   group: StyleGroup;
   onClose: () => void;
+  /** Panel width in px (driven by the drag-to-resize handle). */
+  width?: number;
 }
+
+/** Above this width the overview content reflows into two columns. */
+const WIDE_THRESHOLD = 620;
 
 /* ── Tiny helpers ─────────────────────────────────────────── */
 
@@ -421,7 +426,8 @@ function skuToHue(sku: string): number {
 
 /* ── Main component ───────────────────────────────────────── */
 
-export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDetailPanelProps) {
+export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: StyleGroupDetailPanelProps) {
+  const wide = width >= WIDE_THRESHOLD;
   const queryClient = useQueryClient();
   const { call: adminApi } = useAdminApi();
   const [localPrimaryId, setLocalPrimaryId] = useState<string | null>(group.primary_asset_id);
@@ -741,7 +747,7 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
       <div
         className="flex flex-col overflow-hidden border-l border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface,hsl(var(--background)))]"
         style={{
-          width: 408,
+          width,
           height: "100%",
           // Slide-in animation via CSS custom property + inline style for compat
         }}
@@ -941,7 +947,14 @@ export default function StyleGroupDetailPanel({ group, onClose }: StyleGroupDeta
 
             {/* ===== OVERVIEW TAB ===== */}
             {activeTab === "overview" && (
-              <div className="p-4 space-y-5">
+              <div
+                className={cn(
+                  "p-4",
+                  wide
+                    ? "[column-count:2] [column-gap:1.25rem] [&>*]:mb-5 [&>*]:break-inside-avoid"
+                    : "space-y-5",
+                )}
+              >
 
                 {/* DETAILS */}
                 <div>
