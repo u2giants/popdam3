@@ -178,7 +178,7 @@ Appropriate uses:
 SSH is not appropriate for:
 - Routine deployments (use GitHub Actions → Coolify API)
 - Runtime configuration changes (use Coolify UI)
-- Schema or edge function changes (use `apply_migration` MCP + push to `main`)
+- Schema changes (use canonical `shared-db` branch + PR) or edge function changes (commit to this repo and let `deploy-supabase.yml` deploy functions)
 - Hotfixes (commit to `main` and push; CI deploys in ~2 minutes)
 
 Any change made via SSH must be followed immediately by committing a permanent fix to the repo or recording the change in Coolify. The server must never become a hidden source of truth.

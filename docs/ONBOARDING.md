@@ -566,7 +566,8 @@ The `@popdam/path-filters` package (in `packages/path-filters/`) provides shared
 | What | How | When |
 |------|-----|------|
 | **Frontend** | Lovable "Publish" button | Manual — click in Lovable UI |
-| **Edge Functions + Migrations** | GitHub Actions `deploy-supabase.yml` | Push to `main` or manual dispatch |
+| **Edge Functions** | GitHub Actions `deploy-supabase.yml` | Push to `main` or manual dispatch |
+| **Database migrations** | Canonical `u2giants/shared-db` branch + PR, then `Shared Supabase Migrations` workflow | Shared-db migration work only |
 | **Bridge Agent** | GitHub Actions builds Docker → GHCR → SSH update on NAS | Push to `main` (if `apps/bridge-agent/` changed) |
 | **Windows Agent** | GitHub Actions builds NSIS installer → GitHub Releases | Push to `main` (if `apps/windows-agent/` changed) |
 | **Cloud Worker** | Railway auto-deploy | Push to `main` (if `apps/worker/` changed) |
@@ -576,11 +577,10 @@ The `@popdam/path-filters` package (in `packages/path-filters/`) provides shared
 When making changes to `apps/bridge-agent/`, bump the version in `apps/bridge-agent/package.json` in the same commit. The Docker image tag includes this version.
 
 ### Migration workflow
-1. Write SQL
-2. Apply via MCP tool (`mcp__Supabase__apply_migration`)
-3. Check `list_migrations` to get the exact timestamp Supabase recorded
-4. Create the local file in `supabase/migrations/` using **that exact timestamp**
-5. If timestamps don't match, `supabase db push` will try to re-apply and fail
+Do not create database migrations in this repo. For schema, policy, RPC, trigger,
+pg_cron, view, or data migrations, switch to canonical `u2giants/shared-db`,
+follow `shared-db/AGENTS.md`, test preview first, and merge the shared-db PR
+before returning here for app or edge-function changes.
 
 ---
 

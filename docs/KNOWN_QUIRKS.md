@@ -165,7 +165,10 @@ This document explains intentional code decisions that may appear like bugs or b
 
 **Current state**: These orphaned history entries were resolved in April 2026. The local files and DB history are now in sync.
 
-**Prevention**: See `CLAUDE.md` — always use `apply_migration` (not `execute_sql`) for DDL, always match local filenames to the exact timestamp recorded by Supabase, and check CI after every push.
+**Prevention**: This repo no longer authors database migrations. New shared
+Supabase migrations must go through canonical `u2giants/shared-db`, where the
+complete remote migration history is present and the preview-first workflow can
+validate it before production.
 
 ---
 

@@ -50,17 +50,7 @@ The Vite build injects `APP_COMMIT` and `APP_DATE` from env vars (set in CI). Th
 APP_COMMIT=$(git rev-parse --short HEAD) APP_DATE=$(git log -1 --format=%cI) npm run build
 ```
 
-## Supabase Migrations
-
-**Read [CLAUDE.md](../CLAUDE.md) before writing any migration.** The timestamp discipline is critical — a mismatch between the local filename timestamp and the DB-recorded timestamp breaks CI.
-
-Short version:
-1. Apply via `apply_migration` MCP
-2. Immediately call `list_migrations` to get the exact timestamp Supabase recorded
-3. Create the local file as `supabase/migrations/<that-timestamp>_<name>.sql`
-4. Commit immediately — do not let timestamp-fix work accumulate
-
-### Shared database changes
+## Shared Database Changes
 
 This repo does not own shared Supabase migrations anymore. For any DDL,
 policy, trigger, RPC, pg_cron, view, or data migration:
@@ -140,7 +130,7 @@ git push origin main
 git push github main
 ```
 
-After any push touching `supabase/migrations/` or `supabase/functions/`, check the `Deploy Supabase` workflow run in GitHub Actions.
+After any push touching `supabase/functions/`, check the `Deploy Supabase Edge Functions` workflow run in GitHub Actions. Database migrations belong in canonical `shared-db`, not this repo.
 
 After any push touching `apps/worker/`, Railway auto-deploys. No workflow file — Railway watches `main` directly. Changes to `apps/worker/` do **not** trigger `deploy-supabase.yml` or `publish-frontend.yml`; only Railway picks them up. Bump `apps/worker/package.json` version in the same commit.
 
