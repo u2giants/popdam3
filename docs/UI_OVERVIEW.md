@@ -100,6 +100,33 @@ Appears when one or more groups are selected (multi-select via checkbox). Provid
 
 ---
 
+## Detail Panel Layout, Resizing & Responsiveness
+
+Both detail panels (`AssetDetailPanel.tsx`, `StyleGroupDetailPanel.tsx`) share one
+resize/responsive contract, orchestrated from `Index.tsx` via the
+`useResizablePanel.ts` hook. Non-obvious details worth knowing before editing:
+
+- **The panel width is a prop, not a hardcoded class.** Both panels take a `width`
+  prop (default `408`) and set their own inline width from it. The old hardcoded
+  `w-[408px]` / `width: 408` is gone — do not reintroduce it.
+- **Draggable divider, desktop only.** At `≥1400px` the panel is docked
+  side-by-side and a drag handle sits between the list and the panel; below
+  `1400px` the panel overlays absolutely (as before) and the handle is not
+  rendered. The `1400px` breakpoint matches the existing `max-[1399px]:` overlay
+  classes — keep the two in sync if either changes.
+- **Width is clamped and persisted.** Range is `[360, 960]` px, saved to
+  `localStorage` under key **`pd-detail-panel-width`**. Double-clicking the handle
+  resets to `408`. The list keeps a `min-w-[400px]` floor and the panel wrappers
+  are `shrink-0` so the dragged width is honored and the list absorbs the squeeze.
+- **Content reflows into two columns when wide.** Above `width ≥ 620` (`WIDE_THRESHOLD`
+  in each panel) the scrollable content switches from a single vertical stack to a
+  two-column CSS multi-column layout (`break-inside-avoid` per section), the
+  single-stack `<Separator />` dividers are hidden, and the hero image is capped
+  at 300px tall. If you add a new section, keep it as a direct child of the
+  content container so the column flow and break rules apply to it.
+
+Shipped 2026-07-02 (commit `5c266f83`). Frontend-only; no DB/backend involvement.
+
 ## Style Group Detail Panel (`StyleGroupDetailPanel.tsx`)
 
 Opens on the right side when a style group is selected. Contains the following sections:
