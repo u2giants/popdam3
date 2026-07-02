@@ -30,7 +30,7 @@
 import sharp from "sharp";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm, readdir, open, copyFile } from "node:fs/promises";
+import { mkdtemp, rm, readdir, open, copyFile, readFile } from "node:fs/promises";
 import { readdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -242,6 +242,9 @@ const POPPLER_EXE = findPoppler();
 
 // ── AI PDF-compat pre-check ─────────────────────────────────────
 
+// Load mupdf at runtime only (optional native dep — see pdf-backfill.ts).
+const dynamicImport = new Function("m", "return import(m)") as (m: string) => Promise<any>;
+
 /**
  * Detect AI files saved without PDF compatibility.
  *
@@ -255,24 +258,52 @@ const POPPLER_EXE = findPoppler();
 async function isAiWithoutPdfCompat(filePath: string): Promise<boolean> {
   const READ_SIZE = 65536; // 64 KB — enough for DSC comments and PDF structure markers
   const fh = await open(withLongPathPrefix(filePath), "r");
+  let head: string;
   try {
     const buf = Buffer.alloc(READ_SIZE);
     const { bytesRead } = await fh.read(buf, 0, READ_SIZE, 0);
-    const head = buf.slice(0, bytesRead).toString("latin1");
-
-    // Older format: pure PostScript without embedded PDF stream
-    if (head.startsWith("%!PS-Adobe-") && !head.includes("%PDF-")) {
-      return true;
-    }
-
-    // Modern format: PDF-wrapped but page content calls /CompatibilityAlert form
-    if (head.includes("/CompatibilityAlert")) {
-      return true;
-    }
-
-    return false;
+    head = buf.slice(0, bytesRead).toString("latin1");
   } finally {
     await fh.close();
+  }
+
+  // Older format: pure PostScript without embedded PDF stream — always a sentinel.
+  if (head.startsWith("%!PS-Adobe-") && !head.includes("%PDF-")) {
+    return true;
+  }
+
+  // Modern format: PDF-wrapped. Do NOT byte-search for "/CompatibilityAlert" — it is
+  // defined in the resource dictionary of EVERY modern .ai PDF (including fully
+  // compatible artwork), so it flags essentially all files. Instead extract page-0
+  // text with mupdf and confirm the page paints no real artwork; this matches the
+  // bridge agent's shared detector. mupdf is an optional dep here (see pdf-backfill.ts),
+  // so if it is unavailable we fall back to attempting PDF-based rendering.
+  try {
+    const mupdf: any = await dynamicImport("mupdf").catch(() => null);
+    if (!mupdf) return false;
+
+    const fileBuffer = await readFile(withLongPathPrefix(filePath));
+    const doc = mupdf.Document.openDocument(fileBuffer, "application/pdf");
+    if (doc.countPages() === 0) return false;
+    const page = doc.loadPage(0);
+    const text: string = page.toStructuredText("preserve-whitespace").asText();
+    if (!text.includes("saved without PDF Content")) return false;
+
+    // Marker present — probe draw ops to tell a text-only placeholder apart from
+    // real artwork that merely carries the CompatibilityAlert text.
+    let imageOps = 0;
+    let pathOps = 0;
+    const probe = new mupdf.Device({
+      fillImage() { imageOps++; },
+      fillImageMask() { imageOps++; },
+      fillShade() { imageOps++; },
+      fillPath() { pathOps++; },
+      strokePath() { pathOps++; },
+    });
+    page.run(probe, mupdf.Matrix.identity);
+    return imageOps === 0 && pathOps <= 3;
+  } catch {
+    return false;
   }
 }
 
