@@ -1,0 +1,44 @@
+name: Forbid Shared DB Bypass
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  forbid-shared-db-bypass:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject app-owned shared database changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            base="${{ github.event.before }}"
+          else
+            base="$(git rev-list --max-parents=0 HEAD)"
+          fi
+
+          changed="$(git diff --name-only "$base" HEAD)"
+          printf '%s\n' "$changed"
+
+          if printf '%s\n' "$changed" | grep -E '^supabase/migrations/.*\.sql$'; then
+            echo "Shared Supabase migrations must be authored in u2giants/shared-db, not this app repo."
+            exit 1
+          fi
+
+          scan_files="$(printf '%s\n' "$changed" | grep -E '^(\.github/workflows/|scripts/|package\.json|package-lock\.json)' | grep -v '^\.github/workflows/forbid-shared-db-bypass\.yml$' || true)"
+          if [ -n "$scan_files" ]; then
+            pattern='supabase[[:space:]]+db[[:space:]]+(push|reset)|supabase[[:space:]]+migration[[:space:]]+repair|schema_migrations|SUPABASE_DB_PASSWORD|SUPABASE_DB_URL|POSTGRES_URL_NON_POOLING'
+            if printf '%s\n' "$scan_files" | xargs grep -nE "$pattern"; then
+              echo "App repos may not mutate or repair the shared Supabase database. Put DB changes in u2giants/shared-db."
+              exit 1
+            fi
+          fi
