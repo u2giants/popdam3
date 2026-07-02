@@ -109,6 +109,7 @@ Realtime implications:
 | Relationship | Current signal | Target |
 |---|---|---|
 | Product to item master | PM `product.code`, ClickUp/import ids; PLM `itemHeader` item number/style fields | `pim.product.plm_item_id -> plm.item.id` after SKU matching |
+| Art piece to item/SKU/style | PLM `artPiece`; DAM/style tracker SKU and style values | `plm.art_piece_item` junction table links `plm.art_piece` to `plm.item` and/or SKU/style text. One art piece can be used by many SKUs/styles. Approved artist attribution lives on `plm.art_piece.artist_id -> core.artist.id`; legacy `plm.art_piece.artist` is import/source text only. |
 | Order to production order | PM `order.order_number`; DAM/PLM production refs | `pim.order.production_order_id -> plm.production_order.id` or line id |
 | Factory/vendor | PM `product.factory`; PLM `Factory/vendor` | PM should reference `core.factory`, which maps to PLM factories/vendors |
 | Samples | PM `product_sample`; PLM sample tables absent on selected `main` | Keep PM samples in `pim.product_sample`; add PLM sample links only if sample models are merged to `main` |
@@ -128,7 +129,7 @@ Realtime implications:
 | Concept | Current sources | Target |
 |---|---|---|
 | Comments | PM `directus_comments`; PLM `comments`; CRM notes; DAM no generic comments table | `app.comment` with typed entity links or domain-specific note tables |
-| Files | PM `directus_files/product_file`; DAM `assets/style_guide_files`; PLM `itemAttachment/artPieceAttachment/itemLicenseImage`; Spaces URLs | `app.file_asset` only for generic uploads; keep DAM assets as first-class `dam.asset` |
+| Files and art assets | PM `directus_files/product_file`; DAM `assets/style_guide_files`; PLM `itemAttachment/artPieceAttachment/itemLicenseImage`; Spaces URLs | `app.file_asset` only for generic uploads; keep DAM assets as first-class `dam.asset`; expose PLM art-piece metadata to DAM through `api.art_piece_library` rather than duplicating art-piece records in DAM |
 | Activity/audit | PM `product_activity`, Directus activity if imported; PLM `AuditLog`, `email_logs`; DAM logs/queues | `app.activity` for cross-app user-visible events, domain logs stay local |
 | Saved views/layouts | PM `pm_saved_view`, `pm_view_pref`; PLM `Grid*`, `viewlayout`; CRM frontend state | Keep separate by domain initially. Shared view system is a future product decision. |
 | Notifications | PLM `user_notification`; future PM/CRM needs | `app.notification` with domain origin/source refs |
@@ -143,5 +144,6 @@ Expose frontend contracts through `api` views/RPCs after raw tables are in place
 | `api.pm_product_assets` | `pim.product`, `pim.design`, `dam.asset`, `dam.style_group` |
 | `api.crm_customer_overview` | `core.customer`, `core.contact`, `crm.department`, `crm.opportunity`, `pim.project`, `plm.production_order` |
 | `api.dam_asset_library` | `dam.assets`, `dam.style_groups`, `core.taxonomy`, RLS-safe metadata |
+| `api.art_piece_library` | `plm.art_piece`, `plm.art_piece_item`, `core.artist`, linked `plm.item` SKU/style metadata for DAM and other apps |
 | `api.plm_item_status` | `plm.item`, `plm.production_order`, `plm.licensing_status`, `core.taxonomy` |
 | `api.global_search` | `core.company/contact`, `pim.product/project/design`, `crm.opportunity`, `dam.asset/style_group`, `plm.item/order` |
