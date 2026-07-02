@@ -18,7 +18,12 @@ import { requireBridgeLatest } from "../bridge-version.ts";
 import { markAiIgnored } from "../mark-ai-ignored.ts";
 import { handleListSiblingImages } from "./sibling-scan-handlers.ts";
 
-const SENTINEL_TEXT = "saved without PDF Content";
+// The bridge agent's pdf-text-sampler collapses a confirmed sentinel's extracted_text
+// to exactly this canonical phrase. We match it EXACTLY (not as a substring): a real
+// artwork file may also contain "saved without PDF Content" somewhere in its real page
+// text, and a substring match would wrongly list (and offer to delete) that artwork.
+// Detection itself lives in the bridge agent (ai-sentinel-detect.ts).
+const SENTINEL_PHRASE = "This is an Adobe® Illustrator® File that was saved without PDF Content.";
 
 // ── GET: stats + pending files (with asset thumbnails) + recent log ──────────
 
@@ -38,7 +43,7 @@ export async function handleGetAiSentinelStatus() {
       db
         .from("pdf_text_samples")
         .select("asset_id, filename, relative_path, assets!inner(thumbnail_url, is_deleted)")
-        .like("extracted_text", `%${SENTINEL_TEXT}%`)
+        .eq("extracted_text", SENTINEL_PHRASE)
         .eq("assets.is_deleted", false)
         .limit(200),
       db.from("ai_sentinel_cleanup_log").select("ai_asset_id"),
@@ -124,7 +129,7 @@ export async function handleRunAiSentinelCleanup(body: Record<string, unknown>) 
   let pendingQuery = db
     .from("pdf_text_samples")
     .select("asset_id, filename, relative_path, extraction_method")
-    .like("extracted_text", `%${SENTINEL_TEXT}%`);
+    .eq("extracted_text", SENTINEL_PHRASE);
 
   if (requestedIds) {
     pendingQuery = pendingQuery.in("asset_id", requestedIds);
