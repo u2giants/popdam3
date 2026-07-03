@@ -260,6 +260,26 @@ Risks / watchouts:
 - The recent style-tracker backend objects were manually applied to the live Virginia Supabase project during rapid preview work; the live Supabase migration ledger did not show the recent style-tracker migration versions when checked. Formalize them in `shared-db` before treating them as durable shared-schema infrastructure.
 - The review dropdown is derived from the latest rows loaded in the browser, not the entire table when the default 2,500-row limit is active. A value absent from the dropdown may still exist in older hidden rows.
 
+### 5.13 `.ai` thumbnails / sentinel cleanup (2026-07-03)
+
+**Status:** mostly done; one bulk job in flight, a few follow-ups open.
+
+**Context / correction:** ".ai saved without PDF Content" files are **NOT empty placeholders** — they retain full native artwork; only the PDF preview is a boilerplate stub. See the AGENTS.md quirk "`.ai` 'no PDF compatibility' ≠ empty". The old ".ai Sentinel Cleanup" delete flow is unsafe (soft-deletes real art; ~1,319 already hidden but recoverable — NAS files untouched). Do not run it.
+
+**Done + deployed:**
+- `ai-sentinel-detect.ts` (shared PDF-layer detector) wired into bridge scanner/thumbnailer/pdf-text-sampler + windows renderer. `get_ai_sentinel_stats` re-homed to shared-db (exact-phrase match), applied to preview+prod (shared-db PR #33, migration `20260702220336`).
+- `compat-audit.ts` rewritten: OCR → **perceptual-hash (dHash)** detection (OCR was broken: matched "compatibility", warning says "Compatible" → 0 flagged). Windows agent `0.16.3.150`.
+- Windows self-update pipeline fixed: `publish-windows-agent.yml` now writes `WINDOWS_LATEST_BUILD` via PostgREST (was `notify-build`/`DEPLOY_WEBHOOK_KEY`, broke at the 2026-06-20 cutover). Agent unblocked (was frozen 2 weeks on `0.16.1.147`).
+
+**In flight:** full **Compat Thumbnail Audit** fired 2026-07-03 (`COMPAT_AUDIT_REQUEST`). Preview found **547** boilerplate thumbnails across 45,841 `.ai`. The audit clears those + re-queues for native (Inkscape) render → real art.
+**Next action:** confirm the audit completed and the 547 got real thumbnails: `render_queue` pending/claimed should drain; spot-check a few of the 547 asset thumbnails. Watch the Windows agent stays healthy under render load.
+
+**Risks / watchouts:**
+- **15 flagged `.ai` errored `ENOENT`** during a re-sample — their `assets.relative_path` is stale (files moved on the NAS). Separate move-reconciliation issue.
+- Orphaned migration `supabase/migrations/20260702120000_ai_sentinel_stats_exact_match.sql` is inert; **do not try to delete it** (the `forbid-shared-db-bypass` guard fails CI on any `supabase/migrations/*.sql` change, incl. deletions).
+- `DEPLOY_WEBHOOK_KEY` / `notify-build` path is still broken in prod — not used anymore, but don't route new deploy notifications through it.
+- Consider retiring/repurposing the ".ai Sentinel Cleanup" card (delete → "needs PDF-compat re-save" list, or gate deletion on a confirmed sibling copy).
+
 ---
 
 ## 6. Exact next action

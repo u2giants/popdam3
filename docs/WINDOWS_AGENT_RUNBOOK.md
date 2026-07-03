@@ -169,3 +169,25 @@ This script stops the agent task, deletes all stale PopDAM/ImageMagick temp arti
 | Stop agent | `Stop-ScheduledTask -TaskName "PopDAM Windows Render Agent"` |
 | View error log | `Get-Content "$env:ProgramData\PopDAM\logs\agent-error.log" -Tail 50` |
 | Clean temp files | `.\cleanup-temp.ps1` |
+
+## 7. Self-update pointer (`WINDOWS_LATEST_BUILD`) — read this if the agent is stuck on an old version
+
+The agent's self-updater (`apps/windows-agent/src/updater.ts`) checks on startup + every 10 min, compares its version to `admin_config.WINDOWS_LATEST_BUILD.version` (component-wise), downloads `download_url`, **verifies `checksum_sha256`**, hot-swaps `dist/`, and restarts. If that pointer is stale, the agent never updates even though publishes "succeed".
+
+**2026-07-03 incident:** the pointer was frozen at `0.16.1.147` since the **2026-06-20 Virginia cutover**. `publish-windows-agent.yml` had notified the cloud via the `notify-build` edge function using `DEPLOY_WEBHOOK_KEY`, which wasn't set in the new project — and the step was `continue-on-error: true`, so it 401'd silently. Fixed by writing the pointer via **PostgREST + `EXTERNAL_SUPABASE_SERVICE_ROLE_KEY`** (same as `publish-bridge-agent.yml`) with `curl -sf` and no `continue-on-error`. Do **not** revive the `notify-build`/`DEPLOY_WEBHOOK_KEY` path — it is still unset in prod.
+
+**Manually unblock a stuck agent** (upsert against prod `qsllyeztdwjgirsysgai`, not the decommissioned Ohio project):
+```sql
+insert into admin_config (key, value, updated_at) values ('WINDOWS_LATEST_BUILD', jsonb_build_object(
+  'version','<new version>',
+  'download_url','https://github.com/u2giants/popdam3/releases/download/windows-agent-latest/popdam-windows-agent-dist.zip',
+  'installer_url','https://github.com/u2giants/popdam3/releases/download/windows-agent-latest/popdam-windows-agent-setup.exe',
+  'checksum_sha256','<sha256 of that exact zip>',  -- REQUIRED to match, or the update aborts
+  'commit_sha','<git sha>', 'published_at', now()::text), now())
+on conflict (key) do update set value=excluded.value, updated_at=now();
+```
+Get the checksum by downloading the release zip and running `sha256sum`. The agent picks it up within ~10 min.
+
+## 8. Compat-thumbnail audit (fix `.ai` warning-page thumbnails in bulk)
+
+Some `.ai` thumbnails render Adobe's "saved without PDF Content" warning page instead of artwork (an earlier render used the PDF layer). **Settings → Windows Agent → "Audit AI Compat Thumbnails"** OCR-detected these — but as of 2026-07-03 it uses a **perceptual hash** (`compat-audit.ts`, `COMPAT_REF_HASHES`), because the old OCR looked for "compatibility" while the page says "Compatible" (flagged 0). The audit hashes every `.ai` thumbnail, clears the warning ones (`thumbnail_url=null`), and re-queues them for **native (Inkscape) render**, which recovers the real artwork. Triggers: `COMPAT_AUDIT_PREVIEW_REQUEST` (read-only report) and `COMPAT_AUDIT_REQUEST` (clear + re-render) in `admin_config`. A full ~46k scan takes ~8 min. **Do not** use the ".ai Sentinel Cleanup" delete flow for these — the files contain real artwork (see AGENTS.md `.ai` quirk).
