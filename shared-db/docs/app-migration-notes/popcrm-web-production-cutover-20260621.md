@@ -66,6 +66,14 @@ abort with `Database error saving new user` because `app.profile.email` is
 unique. The migration was applied to preview and production; verification is in
 `docs/verification/crm-auth-profile-link-20260703.md`.
 
+2026-07-03 follow-up 2:
+`20260703220000_fix_crm_auth_profile_mismatched_email_relink.sql` extends the
+same trigger to relink a matching CRM profile when its existing `auth_user_id`
+points at an Auth user with a different email. This fixed `adweck@popcre.com`,
+whose CRM profile was linked to an older Google Auth user with a different
+email. Production inspection found this was the only mismatched-email CRM
+profile at the time of the fix.
+
 ### service_role grants
 `20260621164759_service_role_grants.sql` — usage + ALL on tables/sequences for
 `app, core, crm, pim, plm, ingest, api`, plus default privileges on
