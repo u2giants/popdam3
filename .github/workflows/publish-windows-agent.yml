@@ -464,22 +464,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify cloud of new version
+      - name: Update WINDOWS_LATEST_BUILD in admin_config
+        if: success()
         shell: bash
-        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.EXTERNAL_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
+          # Write the self-update pointer the SAME way publish-bridge-agent.yml does:
+          # a direct PostgREST upsert with the service-role key. The previous approach
+          # POSTed to the notify-build edge function with DEPLOY_WEBHOOK_KEY, which broke
+          # silently at the 2026-06-20 Supabase cutover (key not carried to the new
+          # project) and left the agent stranded on an old build. `curl -sf` (no
+          # continue-on-error) now fails the job loudly if the write does not succeed.
           DOWNLOAD_URL="https://github.com/u2giants/popdam3/releases/download/windows-agent-latest/popdam-windows-agent-dist.zip"
           INSTALLER_URL="https://github.com/u2giants/popdam3/releases/download/windows-agent-latest/popdam-windows-agent-setup.exe"
-          curl -sS -X POST \
-            "${{ secrets.SUPABASE_URL }}/functions/v1/agent-api" \
+          PUBLISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          curl -sf -X POST \
+            "${SUPABASE_URL}/rest/v1/admin_config" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
             -H "Content-Type: application/json" \
-            -H "x-deploy-key: ${{ secrets.DEPLOY_WEBHOOK_KEY }}" \
-            -d '{
-              "action": "notify-build",
-              "agent_type": "windows-render",
-              "version": "${{ steps.version.outputs.version }}",
-              "download_url": "'"$DOWNLOAD_URL"'",
-              "installer_url": "'"$INSTALLER_URL"'",
-              "checksum_sha256": "${{ steps.checksum.outputs.sha256 }}",
-              "commit_sha": "${{ github.sha }}"
-            }'
+            -H "Prefer: resolution=merge-duplicates" \
+            -d "{
+              \"key\": \"WINDOWS_LATEST_BUILD\",
+              \"value\": {
+                \"version\": \"${{ steps.version.outputs.version }}\",
+                \"download_url\": \"${DOWNLOAD_URL}\",
+                \"installer_url\": \"${INSTALLER_URL}\",
+                \"checksum_sha256\": \"${{ steps.checksum.outputs.sha256 }}\",
+                \"commit_sha\": \"${{ github.sha }}\",
+                \"published_at\": \"${PUBLISHED_AT}\"
+              }
+            }"
+          echo "✅ Updated WINDOWS_LATEST_BUILD to v${{ steps.version.outputs.version }}"
