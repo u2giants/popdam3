@@ -57,6 +57,15 @@ history" reconciled them). Do not edit applied migrations.
 Effect: staff can sign in with Microsoft and immediately have CRM access; no manual
 profile seeding. This closes the "Phase 5 identity" gap from the preview note.
 
+2026-07-03 follow-up:
+`20260703172500_fix_crm_auth_profile_email_link.sql` updates
+`app.handle_new_auth_user()` so first SSO login links a pre-seeded
+`app.profile` by matching email before inserting a new row. Without this, imported
+staff profiles with `email` set and `auth_user_id` null can make Supabase Auth
+abort with `Database error saving new user` because `app.profile.email` is
+unique. The migration was applied to preview and production; verification is in
+`docs/verification/crm-auth-profile-link-20260703.md`.
+
 ### service_role grants
 `20260621164759_service_role_grants.sql` — usage + ALL on tables/sequences for
 `app, core, crm, pim, plm, ingest, api`, plus default privileges on
@@ -131,5 +140,9 @@ shared infrastructure that PM/PIM will also depend on when it exposes `pim`.
 - The auto-provision trigger grants `crm` access to **any** successful SSO user.
   Acceptable for a single internal app today; tighten if the shared project starts
   hosting externally-authenticated users.
+- CRM SSO provisioning now depends on `app.profile.email` being a stable
+  case-insensitive staff identifier when linking pre-seeded profiles. If identity
+  imports ever allow duplicate or placeholder emails, revisit the trigger before
+  changing profile uniqueness.
 - Directus stays up as rollback/import source; do not delete it until the cutover
   has soaked.
