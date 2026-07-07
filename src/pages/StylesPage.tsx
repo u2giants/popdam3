@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 LicenseManager.setLicenseKey("");
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 
-type FieldKey = "sku" | "customer" | "licensor" | "factory";
+type FieldKey = "sku" | "customer" | "licensor" | "designer" | "factory";
 type RowData = Record<string, unknown>;
 
 type StyleRow = {
@@ -51,6 +51,8 @@ type StyleRow = {
   company_id?: string | null;
   public_licensor_id?: string | null;
   core_licensor_id?: string | null;
+  creative_designer_id?: string | null;
+  canonical_designer_name?: string | null;
   factory_id?: string | null;
   plm_item_id?: string | null;
 };
@@ -95,7 +97,7 @@ const licensedColumns: SheetColumn[] = [
   { letter: "C", header: "Group ID", width: 118, typedField: "group_id", legacyKey: "group_id" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Originally Designed For", width: 190, typedField: "customer", legacyKey: "originally_designed_for", linkKind: "customer" },
-  { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer" },
+  { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
   { letter: "G", header: "New BA# commissioned", width: 170, typedField: "commissioned", legacyKey: "commissioned" },
   { letter: "H", header: "RFQ #", width: 125 },
   { letter: "I", header: "Legacy BA#", width: 130, hide: true, legacyKey: "legacy_ba" },
@@ -141,7 +143,7 @@ const genericColumns: SheetColumn[] = [
   { letter: "C", header: "GroupID", width: 118, typedField: "group_id", legacyKey: "group_id" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Special Customer", width: 170, typedField: "customer", legacyKey: "special_customer", linkKind: "customer" },
-  { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer" },
+  { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
   { letter: "G", header: "commissioned", width: 140, typedField: "commissioned", legacyKey: "commissioned" },
   { letter: "H", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
   { letter: "I", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
@@ -212,13 +214,19 @@ function valueFor(row: StyleRow | undefined, column: SheetColumn) {
 }
 
 function normalized(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 function fieldValue(row: StyleRow, field: FieldKey) {
   if (field === "sku") return row.sku;
   if (field === "customer") return row.customer;
   if (field === "licensor") return row.licensor;
+  if (field === "designer") return row.designer;
   return row.default_vendor;
 }
 
@@ -226,6 +234,7 @@ function fieldLabel(field: FieldKey) {
   if (field === "sku") return "Style # / SKU";
   if (field === "customer") return "Customer";
   if (field === "licensor") return "Licensor";
+  if (field === "designer") return "Designer";
   return "Vendor";
 }
 
@@ -233,7 +242,16 @@ function hasFieldMatch(row: StyleRow, field: FieldKey) {
   if (field === "sku") return Boolean(row.erp_item_id || row.style_group_id || row.plm_item_id);
   if (field === "customer") return Boolean(row.company_id);
   if (field === "licensor") return Boolean(row.public_licensor_id || row.core_licensor_id);
+  if (field === "designer") return Boolean(row.creative_designer_id);
   return Boolean(row.factory_id);
+}
+
+function hasManualResolution(row: StyleRow, fieldKey: FieldKey) {
+  const manualByField = row.match_notes?.manual_resolutions;
+  if (manualByField && typeof manualByField === "object" && !Array.isArray(manualByField)) {
+    if (Object.hasOwn(manualByField, fieldKey)) return true;
+  }
+  return manualResolutionField(row) === fieldKey;
 }
 
 function manualResolutionField(row: StyleRow) {
@@ -294,6 +312,20 @@ async function fetchCount(sourceSheet: string) {
 
 async function searchCandidates(item: ReviewItem | null) {
   if (!item) return [] as LinkCandidate[];
+  if (item.fieldKey === "designer") {
+    const options = await fetchDesignerRecords();
+    return options
+      .map((designer) => ({
+        target_schema: "core",
+        target_table: "creative_designer",
+        target_id: designer.id,
+        target_label: designer.name,
+        score: designerCandidateScore(item.rawValue, designer.name),
+      }))
+      .filter((candidate) => candidate.score >= 0.55)
+      .sort((a, b) => b.score - a.score || a.target_label.localeCompare(b.target_label))
+      .slice(0, 8);
+  }
   const fuzzy = await (supabase as any).rpc("search_style_tracker_link_candidates", {
     p_field_key: item.fieldKey,
     p_query: item.rawValue,
@@ -341,6 +373,51 @@ async function fetchLicensorOptions() {
   return compactPickerOptions(publicQuery.data);
 }
 
+async function fetchDesignerRecords() {
+  const { data, error } = await (supabase as any)
+    .schema("core")
+    .from("creative_designer")
+    .select("id, name")
+    .eq("status", "active")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as PickerOption[]).filter((row) => row.id && row.name);
+}
+
+async function fetchDesignerOptions() {
+  return compactPickerOptions(await fetchDesignerRecords());
+}
+
+function designerCandidateScore(rawValue: string, candidateName: string) {
+  const raw = normalized(rawValue);
+  const candidate = normalized(candidateName);
+  if (!raw || !candidate) return 0;
+  if (raw === candidate) return 1;
+
+  const candidateParts = candidate.split(" ");
+  const rawParts = raw.split(/\s*(?:\/|&|\band\b|,)\s*/).filter(Boolean);
+  if (rawParts.length > 1) return 0;
+  const firstName = candidateParts[0];
+  if (rawParts.some((part) => part === firstName || (part.length >= 4 && candidateParts.includes(part)))) return 0.96;
+
+  return 1 - levenshtein(raw, candidate) / Math.max(raw.length, candidate.length);
+}
+
+function levenshtein(a: string, b: string) {
+  const rows = Array.from({ length: a.length + 1 }, (_, index) => [index]);
+  for (let column = 1; column <= b.length; column += 1) rows[0][column] = column;
+  for (let row = 1; row <= a.length; row += 1) {
+    for (let column = 1; column <= b.length; column += 1) {
+      rows[row][column] = Math.min(
+        rows[row - 1][column] + 1,
+        rows[row][column - 1] + 1,
+        rows[row - 1][column - 1] + (a[row - 1] === b[column - 1] ? 0 : 1),
+      );
+    }
+  }
+  return rows[a.length][b.length];
+}
+
 function compactPickerOptions(rows: unknown) {
   const seen = new Set<string>();
   return ((rows as PickerOption[] | null) ?? [])
@@ -370,15 +447,18 @@ export default function StylesPage() {
   const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
   const customerOptionsQuery = useQuery({ queryKey: ["style-tracker-customer-options"], queryFn: fetchCustomerOptions });
   const licensorOptionsQuery = useQuery({ queryKey: ["style-tracker-licensor-options"], queryFn: fetchLicensorOptions });
+  const designerOptionsQuery = useQuery({ queryKey: ["style-tracker-designer-options"], queryFn: fetchDesignerOptions });
   const rows = rowsQuery.data ?? [];
+  const designerOptionKeys = useMemo(() => new Set((designerOptionsQuery.data ?? []).map((name) => normalized(name))), [designerOptionsQuery.data]);
 
   const reviewItems = useMemo(() => {
     const items = new Map<string, ReviewItem>();
     for (const row of rows) {
-      for (const field of ["sku", "customer", "licensor", "factory"] as FieldKey[]) {
-        if (manualResolutionField(row) === field) continue;
+      for (const field of ["sku", "customer", "licensor", "designer", "factory"] as FieldKey[]) {
+        if (hasManualResolution(row, field)) continue;
         const rawValue = fieldValue(row, field);
         if (!rawValue) continue;
+        if (field === "designer" && designerOptionKeys.has(normalized(String(rawValue)))) continue;
         if (hasFieldMatch(row, field) && !fuzzyCandidate(row, field)) continue;
         const key = `${field}:${normalized(rawValue)}`;
         if (resolvedReviewKeys.has(key)) continue;
@@ -388,7 +468,7 @@ export default function StylesPage() {
       }
     }
     return [...items.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-  }, [rows, resolvedReviewKeys]);
+  }, [designerOptionKeys, rows, resolvedReviewKeys]);
 
   const selectedReviewItem = reviewItems.find((item) => item.key === selectedReviewKey) ?? reviewItems[0] ?? null;
   const candidateQuery = useQuery({
@@ -404,6 +484,12 @@ export default function StylesPage() {
 
   const updateCell = useMutation({
     mutationFn: async ({ row, column, value }: { row: StyleRow; column: SheetColumn; value: unknown }) => {
+      if (column.typedField === "designer") {
+        const nextValue = String(value ?? "").trim();
+        if (nextValue && !designerOptionKeys.has(normalized(nextValue))) {
+          throw new Error("Choose a designer from the creative designer list.");
+        }
+      }
       const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
       if (error) throw error;
       const refreshed = await (supabase as any).rpc("refresh_style_tracker_item_bridge");
@@ -516,12 +602,17 @@ export default function StylesPage() {
         pinned: column.pinned,
         hide: column.hide,
         editable: true,
-        cellEditor: column.typedField === "customer" || column.typedField === "licensor" ? "agRichSelectCellEditor" : undefined,
+        cellEditor: column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer" ? "agRichSelectCellEditor" : undefined,
         cellEditorParams:
-          column.typedField === "customer" || column.typedField === "licensor"
+          column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
             ? {
-                values: column.typedField === "customer" ? customerOptionsQuery.data ?? [] : licensorOptionsQuery.data ?? [],
-                allowTyping: true,
+                values:
+                  column.typedField === "customer"
+                    ? customerOptionsQuery.data ?? []
+                    : column.typedField === "licensor"
+                      ? licensorOptionsQuery.data ?? []
+                      : designerOptionsQuery.data ?? [],
+                allowTyping: column.typedField !== "designer",
                 filterList: true,
                 highlightMatch: true,
                 searchType: "matchAny",
@@ -553,6 +644,14 @@ export default function StylesPage() {
           : undefined,
         valueSetter: (params) => {
           if (!params.data) return false;
+          if (column.typedField === "designer") {
+            const oldValue = String(params.oldValue ?? "").trim();
+            const newValue = String(params.newValue ?? "").trim();
+            if (newValue && normalized(newValue) !== normalized(oldValue) && !designerOptionKeys.has(normalized(newValue))) {
+              toast.error("Choose a designer from the creative designer list");
+              return false;
+            }
+          }
           const payload = buildUpdate(params.data, column, params.newValue);
           params.data.row_data = payload.row_data;
           if (column.typedField) (params.data[column.typedField] as unknown) = payload[column.typedField];
@@ -560,7 +659,7 @@ export default function StylesPage() {
         },
       })),
     ],
-    [active, customerOptionsQuery.data, licensorOptionsQuery.data],
+    [active, customerOptionsQuery.data, designerOptionKeys, designerOptionsQuery.data, licensorOptionsQuery.data],
   );
 
   const totalRows = countQuery.data ?? rows.length;
