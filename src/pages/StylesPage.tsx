@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValueChangedEvent, ColDef, DefaultMenuItem, GetContextMenuItemsParams, MenuItemDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
-import { AgGridReact } from "ag-grid-react";
+import { AgGridReact, type CustomCellEditorProps } from "ag-grid-react";
 import { Check, ChevronDown, Clock3, Columns3, Database, Plus, RefreshCw, Search, Table2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -90,6 +90,20 @@ type PickerOption = {
   name: string;
 };
 
+type DescriptionSectionKey = "productMaterial" | "licensorProperty" | "artDescription" | "size";
+
+type DescriptionParts = Record<DescriptionSectionKey, string>;
+
+type DescriptionEditorOptions = {
+  productMaterial: string[];
+  licensorProperty: string[];
+  size: string[];
+};
+
+type DescriptionEditorProps = CustomCellEditorProps<StyleRow, string> & {
+  options?: DescriptionEditorOptions;
+};
+
 type AuditLogEntry = {
   id: string;
   event_type: "row_added" | "cell_update" | "value_resolution";
@@ -114,6 +128,60 @@ type AuditCell = {
 
 const DEFAULT_ROW_LIMIT = 2500;
 const MANUAL_CANDIDATE_LIMIT = 100;
+
+const COMMON_PRODUCT_MATERIAL_OPTIONS = [
+  "2pc Canvas Set",
+  "3pc Canvas Set",
+  "4pc Canvas Set",
+  "Coir Doormat",
+  "Figural Resin Pencil Cup",
+  "PE Rattan 2-Tier Wall Shelf",
+  "Printed Canvas",
+  "Printed Glass Shadowbox",
+  "Printed Wood Wall Decor",
+  "Resin Tabletop Decor",
+  "Wood Wall Shelf",
+];
+
+const APPROVED_LICENSOR_PROPERTY_OPTIONS = [
+  "ATLA",
+  "Coca-Cola",
+  "Disney Mickey Mouse",
+  "Disney Mickey Mouse Christmas",
+  "Disney Minnie Mouse Valentine's",
+  "Disney Princess",
+  "HTTYD",
+  "Marvel Avengers",
+  "Marvel Comics Spider-Man",
+  "Marvel Spider-Man",
+  "Marvel Universe",
+  "NBCU Shrek",
+  "Paramount Mean Girls",
+  "Peanuts Snoopy Harvest",
+  "SEGA Classic Sonic",
+  "SEGA Modern Sonic",
+  "SEGA Sonic",
+  "SpongeBob",
+  "Star Wars",
+  "Strawberry Shortcake",
+  "TMNT",
+  "WB Friday the 13th",
+];
+
+const COMMON_SIZE_OPTIONS = [
+  "8x10\"",
+  "11x14\"",
+  "12x12\"",
+  "12x16\"",
+  "16x20\"",
+  "16x20\" x1.2\"",
+  "18x24\"",
+  "20x20\"",
+  "24x24\" x1.5\"",
+  "24x36\"",
+];
+
+const SIZE_AT_END_RE = /(?:^|\s)(\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?(?:\s*(?:"|in))?(?:\s*[x×]\s*\d+(?:\.\d+)?\s*(?:"|in)?)?)$/i;
 
 const licensedColumns: SheetColumn[] = [
   { letter: "A", header: "Print Fair Row#", width: 118, hide: true, legacyKey: "print_fair_row" },
@@ -580,6 +648,244 @@ function compactPickerOptions(rows: unknown) {
     });
 }
 
+function compactStringOptions(values: Iterable<string | null | undefined>, limit = 500) {
+  const seen = new Set<string>();
+  const options: string[] = [];
+  for (const value of values) {
+    const option = value?.replace(/\s+/g, " ").trim();
+    if (!option) continue;
+    const key = normalized(option);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    options.push(option);
+    if (options.length >= limit) break;
+  }
+  return options.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+async function fetchPropertyOptions() {
+  const { data, error } = await (supabase as any)
+    .schema("core")
+    .from("property")
+    .select("id, name, licensor:licensor_id(name)")
+    .eq("status", "active")
+    .order("name", { ascending: true })
+    .limit(1000);
+  if (error) throw error;
+  return compactStringOptions(
+    ((data ?? []) as { name?: string | null; licensor?: { name?: string | null } | { name?: string | null }[] | null }[]).map((row) => {
+      const licensor = Array.isArray(row.licensor) ? row.licensor[0]?.name : row.licensor?.name;
+      return [licensor, row.name].map((part) => part?.trim()).filter(Boolean).join(" ");
+    }),
+    1200,
+  );
+}
+
+async function fetchProductMaterialOptions() {
+  const { data, error } = await (supabase as any)
+    .schema("core")
+    .from("product_material")
+    .select("id, name")
+    .eq("status", "active")
+    .order("name", { ascending: true })
+    .limit(1000);
+  if (error) return compactStringOptions(COMMON_PRODUCT_MATERIAL_OPTIONS, 500);
+  return compactPickerOptions(data);
+}
+
+async function fetchSizeOptions() {
+  const coreSize = await (supabase as any)
+    .schema("core")
+    .from("product_size")
+    .select("id, name")
+    .eq("status", "active")
+    .order("name", { ascending: true })
+    .limit(1000);
+  if (!coreSize.error) return compactPickerOptions(coreSize.data);
+
+  const styleGroupSizes = await (supabase as any)
+    .from("style_groups")
+    .select("size_name")
+    .not("size_name", "is", null)
+    .limit(1000);
+  if (styleGroupSizes.error) return compactStringOptions(COMMON_SIZE_OPTIONS, 500);
+  return compactStringOptions(
+    ((styleGroupSizes.data ?? []) as { size_name?: string | null }[]).map((row) => row.size_name),
+    500,
+  );
+}
+
+function buildLicensorPropertyOptions(properties: string[]) {
+  return compactStringOptions([...APPROVED_LICENSOR_PROPERTY_OPTIONS, ...properties], 1200);
+}
+
+function parseDescriptionParts(value: unknown, options: DescriptionEditorOptions): DescriptionParts {
+  let remaining = String(value ?? "").replace(/\s+/g, " ").trim();
+  const parts: DescriptionParts = {
+    productMaterial: "",
+    licensorProperty: "",
+    artDescription: "",
+    size: "",
+  };
+
+  const sizeMatch = remaining.match(SIZE_AT_END_RE);
+  if (sizeMatch?.[1]) {
+    parts.size = sizeMatch[1].replace(/\s*[x×]\s*/g, "x").replace(/\s+/g, " ").trim();
+    remaining = remaining.slice(0, sizeMatch.index).trim();
+  }
+
+  const productOption = longestPrefixMatch(remaining, options.productMaterial);
+  if (productOption) {
+    parts.productMaterial = productOption;
+    remaining = remaining.slice(productOption.length).trim();
+  }
+
+  const licensorPropertyOption = longestPrefixMatch(remaining, options.licensorProperty);
+  if (licensorPropertyOption) {
+    parts.licensorProperty = licensorPropertyOption;
+    remaining = remaining.slice(licensorPropertyOption.length).trim();
+  }
+
+  parts.artDescription = remaining;
+  return parts;
+}
+
+function longestPrefixMatch(value: string, options: string[]) {
+  const normalizedValue = normalized(value);
+  if (!normalizedValue) return "";
+  return [...options]
+    .sort((a, b) => b.length - a.length)
+    .find((option) => {
+      const key = normalized(option);
+      return normalizedValue === key || normalizedValue.startsWith(`${key} `);
+    }) ?? "";
+}
+
+function assembleDescription(parts: DescriptionParts) {
+  return [parts.productMaterial, parts.licensorProperty, parts.artDescription, parts.size]
+    .map((part) => part.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function optionSet(options: string[]) {
+  return new Set(options.map((option) => normalized(option)));
+}
+
+function validateDescriptionSelection(value: unknown, options: DescriptionEditorOptions) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+
+  const parts = parseDescriptionParts(text, options);
+  const missing: string[] = [];
+  if (!optionSet(options.productMaterial).has(normalized(parts.productMaterial))) missing.push("Product Type + Material");
+  if (!optionSet(options.licensorProperty).has(normalized(parts.licensorProperty))) missing.push("Licensor + Property");
+  if (!optionSet(options.size).has(normalized(parts.size))) missing.push("Size");
+  return missing.length ? `Choose approved values for ${missing.join(", ")}.` : null;
+}
+
+function DescriptionBuilderEditor(props: DescriptionEditorProps) {
+  const options = props.options ?? {
+    productMaterial: COMMON_PRODUCT_MATERIAL_OPTIONS,
+    licensorProperty: APPROVED_LICENSOR_PROPERTY_OPTIONS,
+    size: COMMON_SIZE_OPTIONS,
+  };
+  const initialParts = useMemo(() => parseDescriptionParts(props.value ?? "", options), [options, props.value]);
+  const [parts, setParts] = useState<DescriptionParts>(initialParts);
+  const [activeSection, setActiveSection] = useState<DescriptionSectionKey>("productMaterial");
+  const inputRefs = useRef<Record<DescriptionSectionKey, HTMLInputElement | null>>({
+    productMaterial: null,
+    licensorProperty: null,
+    artDescription: null,
+    size: null,
+  });
+
+  useEffect(() => {
+    window.setTimeout(() => inputRefs.current.productMaterial?.focus(), 0);
+  }, []);
+
+  const updatePart = (section: DescriptionSectionKey, value: string) => {
+    setParts((current) => {
+      const next = { ...current, [section]: value };
+      props.onValueChange(assembleDescription(next));
+      return next;
+    });
+  };
+
+  const activeOptions = activeSection === "artDescription" ? [] : options[activeSection];
+  const activeValue = parts[activeSection];
+  const filteredOptions = activeOptions
+    .filter((option) => normalized(option).includes(normalized(activeValue)))
+    .slice(0, 80);
+
+  const selectOption = (option: string) => {
+    updatePart(activeSection, option);
+    inputRefs.current[activeSection]?.focus();
+  };
+
+  const onEditorKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      props.stopEditing();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      props.stopEditing(true);
+    }
+  };
+
+  const sections: { key: DescriptionSectionKey; label: string; placeholder: string; className: string }[] = [
+    { key: "productMaterial", label: "Product Type + Material", placeholder: "Coir Doormat", className: "min-w-[190px] flex-[1.05]" },
+    { key: "licensorProperty", label: "Licensor + Property", placeholder: "Marvel Spider-Man", className: "min-w-[190px] flex-[1.05]" },
+    { key: "artDescription", label: "Art Description", placeholder: "Building Hopping", className: "min-w-[190px] flex-1" },
+    { key: "size", label: "Size", placeholder: "16x20\" x1.2\"", className: "min-w-[140px] flex-[0.75]" },
+  ];
+
+  return (
+    <div className="w-[min(920px,calc(100vw-2rem))] rounded-md border border-border bg-popover p-2 shadow-lg" onMouseDown={(event) => event.stopPropagation()}>
+      <div className="flex min-h-14 overflow-hidden rounded-md border border-input bg-background">
+        {sections.map((section, index) => (
+          <label key={section.key} className={cn("flex flex-col justify-center gap-0.5 px-2 py-1.5", index > 0 && "border-l border-border/70", section.className)}>
+            <span className="truncate text-[10px] font-medium uppercase text-muted-foreground">{section.label}</span>
+            <input
+              ref={(node) => {
+                inputRefs.current[section.key] = node;
+              }}
+              value={parts[section.key]}
+              onChange={(event) => updatePart(section.key, event.target.value)}
+              onFocus={() => setActiveSection(section.key)}
+              onKeyDown={onEditorKeyDown}
+              className="h-6 min-w-0 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/55"
+              placeholder={section.placeholder}
+              spellCheck={section.key === "artDescription"}
+            />
+          </label>
+        ))}
+      </div>
+      {activeSection !== "artDescription" && (
+        <div className="mt-2 max-h-56 overflow-y-auto rounded-md border border-border bg-background p-1">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectOption(option)}
+                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted"
+              >
+                <span className="min-w-0 truncate">{option}</span>
+                {normalized(option) === normalized(activeValue) && <Check className="ml-2 h-3.5 w-3.5 shrink-0 text-primary" />}
+              </button>
+            ))
+          ) : (
+            <div className="px-2 py-2 text-xs text-muted-foreground">No approved values found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StylesPage() {
   const queryClient = useQueryClient();
   const { theme } = useAppearance();
@@ -603,10 +909,27 @@ export default function StylesPage() {
     enabled: Boolean(auditCell),
   });
   const customerOptionsQuery = useQuery({ queryKey: ["style-tracker-customer-options"], queryFn: fetchCustomerOptions });
+  const productMaterialOptionsQuery = useQuery({ queryKey: ["style-tracker-product-material-options"], queryFn: fetchProductMaterialOptions });
   const licensorOptionsQuery = useQuery({ queryKey: ["style-tracker-licensor-options"], queryFn: fetchLicensorOptions });
+  const propertyOptionsQuery = useQuery({ queryKey: ["style-tracker-property-options"], queryFn: fetchPropertyOptions });
+  const sizeOptionsQuery = useQuery({ queryKey: ["style-tracker-size-options"], queryFn: fetchSizeOptions });
   const designerOptionsQuery = useQuery({ queryKey: ["style-tracker-designer-options"], queryFn: fetchDesignerOptions });
   const rows = rowsQuery.data ?? [];
   const designerOptionKeys = useMemo(() => new Set((designerOptionsQuery.data ?? []).map((name) => normalized(name))), [designerOptionsQuery.data]);
+  const descriptionOptions = useMemo<DescriptionEditorOptions>(() => {
+    const parsedSizes = rows
+      .map((row) => {
+        const match = String(row.description ?? "").match(SIZE_AT_END_RE);
+        return match?.[1]?.replace(/\s*[x×]\s*/g, "x").replace(/\s+/g, " ").trim();
+      })
+      .filter((value): value is string => Boolean(value));
+
+    return {
+      productMaterial: productMaterialOptionsQuery.data?.length ? productMaterialOptionsQuery.data : compactStringOptions(COMMON_PRODUCT_MATERIAL_OPTIONS, 500),
+      licensorProperty: buildLicensorPropertyOptions(propertyOptionsQuery.data ?? []),
+      size: compactStringOptions([...(sizeOptionsQuery.data?.length ? sizeOptionsQuery.data : COMMON_SIZE_OPTIONS), ...parsedSizes], 500),
+    };
+  }, [productMaterialOptionsQuery.data, propertyOptionsQuery.data, rows, sizeOptionsQuery.data]);
 
   const reviewItems = useMemo(() => {
     const items = new Map<string, ReviewItem>();
@@ -775,9 +1098,18 @@ export default function StylesPage() {
         pinned: column.pinned,
         hide: column.hide,
         editable: true,
-        cellEditor: column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer" ? "agRichSelectCellEditor" : undefined,
+        cellEditor:
+          column.typedField === "description"
+            ? DescriptionBuilderEditor
+            : column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
+              ? "agRichSelectCellEditor"
+              : undefined,
+        cellEditorPopup: column.typedField === "description" ? true : undefined,
+        cellEditorPopupPosition: column.typedField === "description" ? "under" : undefined,
         cellEditorParams:
-          column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
+          column.typedField === "description"
+            ? { options: descriptionOptions }
+            : column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
             ? {
                 values:
                   column.typedField === "customer"
@@ -817,6 +1149,13 @@ export default function StylesPage() {
           : undefined,
         valueSetter: (params) => {
           if (!params.data) return false;
+          if (column.typedField === "description") {
+            const validationError = validateDescriptionSelection(params.newValue, descriptionOptions);
+            if (validationError) {
+              toast.error("Description is incomplete", { description: validationError });
+              return false;
+            }
+          }
           if (column.typedField === "designer") {
             const oldValue = String(params.oldValue ?? "").trim();
             const newValue = String(params.newValue ?? "").trim();
@@ -832,7 +1171,7 @@ export default function StylesPage() {
         },
       })),
     ],
-    [active, customerOptionsQuery.data, designerOptionKeys, designerOptionsQuery.data, licensorOptionsQuery.data],
+    [active, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, licensorOptionsQuery.data],
   );
 
   const totalRows = countQuery.data ?? rows.length;
