@@ -27,8 +27,18 @@ const JANITOR_INTERVAL_MS = 60 * 60 * 1000;
 /** Only delete items older than this (default: 24 hours) */
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
-/** Directory prefixes to clean (these are temp dirs created by renderer.ts) */
-const DIR_PREFIXES = ["popdam-gs-", "popdam-ink-", "popdam-im-"];
+/** Directory prefixes to clean (these are temp dirs created by renderer/inspection flows) */
+const DIR_PREFIXES = [
+  "popdam-gs-",
+  "popdam-ink-",
+  "popdam-im-",
+  "popdam-poppler-",
+  "popdam-pdf-",
+  "popdam-ni-",
+  "popdam-lp-",
+  "popdam-jsx-",
+  "popdam-inspect-",
+];
 
 /** File prefixes to clean (ImageMagick temp files) */
 const FILE_PREFIXES = ["magick-"];
@@ -52,17 +62,22 @@ function isTargetEntry(name: string, isDirectory: boolean): boolean {
 }
 
 /**
- * Estimate size of a directory (non-recursive, top-level files only).
+ * Estimate size of a directory recursively.
  * Best-effort — returns 0 on error.
  */
 async function estimateDirSize(dirPath: string): Promise<number> {
   try {
-    const entries = await readdir(dirPath);
+    const entries = await readdir(dirPath, { withFileTypes: true });
     let total = 0;
     for (const entry of entries) {
+      const childPath = path.join(dirPath, entry.name);
       try {
-        const s = await stat(path.join(dirPath, entry));
-        total += s.size;
+        if (entry.isDirectory()) {
+          total += await estimateDirSize(childPath);
+        } else {
+          const s = await stat(childPath);
+          total += s.size;
+        }
       } catch {
         /* skip unreadable entries */
       }

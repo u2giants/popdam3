@@ -17,8 +17,39 @@ Users sign in with their Microsoft / Azure AD account via Supabase's built-in Az
 | `src/pages/LoginPage.tsx` | Renders the "Continue with Microsoft" button |
 | `apps/popdam-helper/src/main/oauth.ts` | Desktop Helper Microsoft OAuth via browser + localhost PKCE callback |
 | `supabase/migrations/20260608100936_allow_azure_company_sso_signup.sql` | Trigger change — bypasses invitation check for Azure users |
+| `supabase/migrations/20260630173500_restore_popdam_auth_trigger.sql` | Restores the PopDAM-specific `auth.users` trigger after shared CRM auth provisioning replaced the generic trigger name |
+| `supabase/migrations/20260701114000_repair_auth_refresh_token_sequence.sql` | Repairs `auth.refresh_tokens_id_seq` after the shared database import left it behind existing rows |
 
 For the desktop Helper, Supabase Auth must allow `http://127.0.0.1:47380/auth/callback` as a redirect URL. The Helper opens the system browser, receives the `code` on its local HTTP server, exchanges it for a Supabase session, and then uses the same helper-api JWT flow as email/password sign-in.
+
+### Production auth provisioning notes
+
+PopDAM now has a PopDAM-specific trigger on `auth.users`:
+
+- `on_auth_user_created_popdam` → `public.handle_new_user()`
+
+The shared backend also has its own trigger:
+
+- `on_auth_user_created` → `app.handle_new_auth_user()`
+
+Do not reuse the generic `on_auth_user_created` trigger name for PopDAM. A shared CRM migration (`20260621162220_crm_auth_provision` in `/worksp/shared-db`) dropped/recreated that generic trigger and replaced PopDAM's profile/app-access provisioning. The PopDAM fix is migration `20260630173500_restore_popdam_auth_trigger.sql`, which adds the separate trigger name and backfills missing `public.profiles`, `public.user_roles`, and `public.app_access('popdam')` rows for managed SSO users.
+
+If Microsoft login shows `500: Database error granting user`, check Supabase Auth logs and Postgres logs for the exact wrapped error. On 2026-07-01 the actual cause was not the provisioning trigger; Postgres logged `duplicate key value violates unique constraint "refresh_tokens_pkey"`. The `auth.refresh_tokens_id_seq` sequence was behind `auth.refresh_tokens.max(id)` after the shared database import. The live repair and committed migration `20260701114000_repair_auth_refresh_token_sequence.sql` reset it with:
+
+```sql
+SELECT setval(
+  'auth.refresh_tokens_id_seq',
+  (SELECT COALESCE(MAX(id), 0) + 1 FROM auth.refresh_tokens),
+  false
+);
+```
+
+Verification query:
+
+```sql
+SELECT max(id) FROM auth.refresh_tokens;
+SELECT last_value, is_called FROM auth.refresh_tokens_id_seq;
+```
 
 ---
 

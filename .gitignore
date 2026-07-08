@@ -10,6 +10,12 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+out
+apps/*/out/
+apps/*/dist/
+apps/*/node_modules/
+packages/path-filters/dist/
+*.tsbuildinfo
 *.local
 
 # Editor directories and files

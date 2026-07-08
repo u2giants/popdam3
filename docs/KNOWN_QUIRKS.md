@@ -547,3 +547,37 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 - **Never cache `~\AppData\Local\electron-builder\Cache`** (or its macOS/Linux equivalents `~/Library/Caches/electron-builder`, `~/.cache/electron-builder`) in CI. It is a *mutable build toolchain*, not an immutable dependency; caching it risks shipping corrupted installers/uninstallers that pass the build but fail at install/uninstall time. Cache only the Electron **binary** download (`electron/Cache`), which is per-version and immutable.
 - If a Windows uninstall fails with "Error launching installer" again, first rule out the toolchain (already done here): trigger a clean build and reinstall. If a freshly-built uninstaller **still** fails, it is cause (2) — Windows blocking the unsigned temp copy — and the only clean fix is code signing. Do **not** switch the Windows target to MSI to dodge it: the Helper auto-updates via `electron-updater`, which only supports the NSIS target, so MSI would break auto-update.
 - To recover a machine whose currently-installed uninstaller is the broken one, you do **not** need manual file deletion — running a corrected installer over the top overwrites in place and writes a new, working uninstaller.
+
+---
+
+## 55. Supabase Auth "500: Database Error Granting User" Can Hide DB Trigger or Sequence Failures (Fixed 2026-07-01)
+
+**What it looks like**: The first Microsoft/Azure login attempt redirects back to `dam.designflow.app` with `500: Database error granting user`. A second attempt may work, making it look like a flaky OAuth/front-end problem.
+
+**What it actually means**: Supabase GoTrue is wrapping a database failure that happened while creating/granting the Auth session. The browser message is generic; the useful detail is in Supabase Auth logs plus Postgres logs for the same timestamp/request.
+
+**Two separate PopDAM causes were found and fixed**:
+1. **PopDAM auth trigger was clobbered by shared CRM provisioning**. The shared migration `20260621162220_crm_auth_provision` in `/worksp/shared-db` used the generic trigger name `on_auth_user_created` on `auth.users`, dropping/replacing PopDAM's original trigger. New Azure users were created in `auth.users` and `app.profile`, but missing PopDAM `public.profiles`, `public.user_roles`, and `public.app_access('popdam')`. Fixed by PopDAM migration `20260630173500_restore_popdam_auth_trigger.sql`, which adds `on_auth_user_created_popdam` and backfills managed SSO users.
+2. **`auth.refresh_tokens_id_seq` was behind the imported rows**. Postgres logged `duplicate key value violates unique constraint "refresh_tokens_pkey"` at the exact failed `/callback` request. The sequence was at `281` while `auth.refresh_tokens.max(id)` was `3518`, so token creation hit duplicate IDs. Fixed live and committed as migration `20260701114000_repair_auth_refresh_token_sequence.sql`.
+
+**How to diagnose next time**:
+- Query the live Virginia project `qsllyeztdwjgirsysgai`, not the old Ohio project.
+- In Supabase logs, look in `auth_logs` for `Database error granting user`, note the timestamp/request ID, then search `postgres_logs` around that time for `duplicate key`, `violates`, `handle_new_user`, `trigger`, or `refresh_tokens_pkey`.
+- Verify both auth triggers exist:
+
+```sql
+SELECT tgname, pg_get_triggerdef(oid)
+FROM pg_trigger
+WHERE tgrelid = 'auth.users'::regclass
+  AND NOT tgisinternal
+ORDER BY tgname;
+```
+
+- Verify the refresh token sequence is not behind:
+
+```sql
+SELECT max(id) FROM auth.refresh_tokens;
+SELECT last_value, is_called FROM auth.refresh_tokens_id_seq;
+```
+
+**Future sessions should**: Keep PopDAM's trigger name app-specific (`on_auth_user_created_popdam`). Shared app migrations may add their own `auth.users` triggers, but they must not drop PopDAM's trigger. After imports/restores/cutovers, check sequence alignment for Auth-owned serial tables before blaming OAuth.

@@ -630,6 +630,20 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 
 ## Critical incidents
 
+### Resolved 2026-07-01: Microsoft login returned "500: Database error granting user" on first attempt
+
+What happened: Users signing into `dam.designflow.app` with Microsoft/Azure hit `500: Database error granting user` on the first OAuth callback. Retrying often worked, which made it look like a transient OAuth issue.
+
+Impact: New/returning SSO users could not reliably enter PopDAM on the first attempt. No asset data impact.
+
+Root cause 1 (fixed 2026-06-30, commit `4073f2c`): the shared CRM auth migration in `/worksp/shared-db` (`20260621162220_crm_auth_provision`) used the generic `on_auth_user_created` trigger name on `auth.users`, replacing PopDAM's original `public.handle_new_user()` trigger. Azure users were created in `auth.users` and shared `app.profile`, but did not get PopDAM `public.profiles`, `public.user_roles`, or `public.app_access('popdam')`. Fix: migration `20260630173500_restore_popdam_auth_trigger.sql` adds a PopDAM-specific `on_auth_user_created_popdam` trigger and backfills missing managed-SSO access rows.
+
+Root cause 2 (actual remaining first-login failure, fixed 2026-07-01, commit `ab265bb`): Supabase Auth logs still showed `Database error granting user`; the matching Postgres log showed `duplicate key value violates unique constraint "refresh_tokens_pkey"`. `auth.refresh_tokens_id_seq` was behind the imported rows (`last_value = 281`, `max(id) = 3518`), so token creation could collide. Fix: reset the live sequence and commit migration `20260701114000_repair_auth_refresh_token_sequence.sql`.
+
+Rule added to prevent recurrence: Never use the generic `on_auth_user_created` trigger name for PopDAM-owned provisioning; keep `on_auth_user_created_popdam`. When Supabase Auth reports `Database error granting user`, inspect both `auth_logs` and `postgres_logs` around the same timestamp/request ID; the browser error is only a wrapper. After Supabase imports/restores/cutovers, verify Auth-owned sequences such as `auth.refresh_tokens_id_seq` are not behind their table max.
+
+---
+
 ### Resolved 2026-06-25: PopDAM Helper (Windows) uninstall failed with "NSIS Error: Error launching installer" — CI cached the NSIS toolchain
 
 What happened: A pilot user could not uninstall the Windows Helper — it failed **100% of the time** with `NSIS Error — Error launching installer`, both via Settings → Apps → Uninstall and by running the uninstaller directly; quitting the tray app first did not help. Install worked; only uninstall was broken.
