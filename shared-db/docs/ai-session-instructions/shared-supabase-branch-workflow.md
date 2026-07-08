@@ -63,42 +63,63 @@ Baseline result:
 ## Required Working Pattern
 
 1. Clone or open `u2giants/shared-db`.
-2. Link the Supabase CLI to the preview branch, not production:
+2. Authenticate the installed Supabase CLI with the canonical 1Password PAT:
 
    ```bash
-   supabase link --project-ref xjcyeuvzkhtzsheknaiu
+   SUPABASE_ACCESS_TOKEN="$(op read 'op://vibe_coding/Supabase CLI Personal Access Token/SUPABASE_ACCESS_TOKEN')"
+   supabase login --token "$SUPABASE_ACCESS_TOKEN"
+   supabase projects list
    ```
 
-3. Create new migration files in `supabase/migrations`.
-4. Keep changes additive whenever possible.
-5. Run local/static checks:
+   If the one-command environment form returns Unauthorized, do not rotate the
+   PAT until you have tested `supabase login --token ...` and the direct
+   Management API. The installed CLI may need its stored login refreshed.
+
+3. Link the Supabase CLI to the preview branch, not production, using the
+   preview branch database password from 1Password:
+
+   ```bash
+   PREVIEW_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)/password')"
+   supabase link --project-ref xjcyeuvzkhtzsheknaiu --password "$PREVIEW_DB_PASSWORD"
+   ```
+
+4. Create new migration files in `supabase/migrations`.
+5. Keep changes additive whenever possible.
+6. Run local/static checks:
 
    ```bash
    scripts/check-sql.sh
    ```
 
-6. Dry-run against the preview branch:
+7. Dry-run against the preview branch:
 
    ```bash
    supabase db push --dry-run
    ```
 
-7. Apply only to the preview branch:
+8. Apply only to the preview branch:
 
    ```bash
    supabase db push
    ```
 
-8. Point the app rewrite to the preview branch URL and test the frontend there.
-9. Commit the migration files and any docs to `shared-db`.
+9. Point the app rewrite to the preview branch URL and test the frontend there.
+10. Commit the migration files and any docs to `shared-db`.
 
-If `supabase db push` or `supabase migration list` fails with a login role or connection error, set the database password for the linked project:
+If `supabase db push` or `supabase migration list` fails with a login role or
+connection error, relink with the branch password from 1Password. Do not switch
+to manual SQL or dashboard edits:
 
 ```bash
-export SUPABASE_DB_PASSWORD='<preview-branch-db-password>'
+PREVIEW_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)/password')"
+supabase link --project-ref xjcyeuvzkhtzsheknaiu --password "$PREVIEW_DB_PASSWORD"
+supabase db push --dry-run
 ```
 
 Do not commit passwords, service-role keys, anon keys, or generated `.env` files.
+If a script builds a database URL from an environment variable, export the
+variable or pass it into that command; otherwise child processes such as `node`
+may see `undefined` and make a valid password look rejected.
 
 ## Migration Naming
 
@@ -160,30 +181,48 @@ The promotion path is migration-file based:
 1. Confirm the app rewrite works against preview project `xjcyeuvzkhtzsheknaiu`.
 2. Commit and push the migration files to `u2giants/shared-db`.
 3. Review schema diff, RLS exposure, and frontend behavior.
-4. Link a clean checkout of `shared-db` to production:
+4. Authenticate the installed Supabase CLI with the canonical 1Password PAT:
 
    ```bash
-   supabase link --project-ref qsllyeztdwjgirsysgai
+   SUPABASE_ACCESS_TOKEN="$(op read 'op://vibe_coding/Supabase CLI Personal Access Token/SUPABASE_ACCESS_TOKEN')"
+   supabase login --token "$SUPABASE_ACCESS_TOKEN"
+   supabase projects list
    ```
 
-5. Dry-run production:
+5. Link a clean checkout of `shared-db` to production with the production DB
+   password from 1Password:
+
+   ```bash
+   PROD_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase DB Password - shared POP database/password')"
+   supabase link --project-ref qsllyeztdwjgirsysgai --password "$PROD_DB_PASSWORD"
+   ```
+
+6. Dry-run production:
 
    ```bash
    supabase db push --dry-run
    ```
 
-6. Confirm only approved migrations are listed.
-7. Apply to production during an approved window:
+7. Confirm only approved migrations are listed.
+8. Apply to production during an approved window:
 
    ```bash
    supabase db push
    ```
 
-8. Immediately verify:
+9. Immediately verify:
 
    ```bash
    supabase migration list
    ```
+
+If production auth fails, fix the CLI login or 1Password credential notes before
+continuing. A valid PAT can still return Unauthorized through the installed CLI
+until `supabase login --token ...` refreshes local CLI auth. A valid DB password
+can look bad if a shell variable was not exported before a child process used
+it. Prefer the linked CLI migration path; if direct DB access is required, use
+the Supabase pooler host `aws-1-us-east-1.pooler.supabase.com`, port `6543`,
+user `postgres.qsllyeztdwjgirsysgai`, database `postgres`.
 
 For the first production promotion, production does not yet have the baseline shared schema migrations. Expect the baseline migrations plus any accepted CRM/PM migrations to appear in the dry-run. If that is not desired, stop and split the rollout deliberately.
 

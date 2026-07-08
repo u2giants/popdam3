@@ -112,7 +112,57 @@ Production project ref: qsllyeztdwjgirsysgai
 
 Never commit anon keys, service-role keys, database passwords, or `.env` files.
 
-## 8. Where to read more
+## 8. Supabase CLI and database credential runbook
+
+Use the canonical credentials in 1Password. Do not work around auth failures with
+manual SQL, dashboard edits, copied browser tokens, embedded remote URLs, or
+one-off connection strings. If the normal path fails, fix the credential/tool
+login path and then prove it with `supabase projects list`, `supabase link`, and
+`supabase db push --dry-run`.
+
+Production items in the `vibe_coding` vault:
+
+```text
+Supabase CLI Personal Access Token
+Supabase DB Password - shared POP database
+Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)
+```
+
+Canonical production login/link flow:
+
+```bash
+SUPABASE_ACCESS_TOKEN="$(op read 'op://vibe_coding/Supabase CLI Personal Access Token/SUPABASE_ACCESS_TOKEN')"
+supabase login --token "$SUPABASE_ACCESS_TOKEN"
+supabase projects list
+
+PROD_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase DB Password - shared POP database/password')"
+supabase link --project-ref qsllyeztdwjgirsysgai --password "$PROD_DB_PASSWORD"
+supabase db push --dry-run
+```
+
+Important gotchas from the 2026-07-08 PopDAM style-group repair:
+
+- Setting `SUPABASE_ACCESS_TOKEN=...` for one command may still leave the
+  installed CLI unauthorized. Run `supabase login --token ...` and verify with
+  `supabase projects list` before deciding the PAT is bad.
+- A DB password that works through `supabase link --password` can look rejected
+  if a child process reads an unexported shell variable. Export or pass the
+  variable in the same command before building URLs or invoking Node scripts.
+- Direct IPv6 database connections can fail from some hosts. Prefer the linked
+  Supabase CLI path for migrations. If a direct connection is required, use the
+  Supabase pooler host `aws-1-us-east-1.pooler.supabase.com`, port `6543`, user
+  `postgres.qsllyeztdwjgirsysgai`, database `postgres`, with the same production
+  DB password.
+- After fixing or rotating any credential, update the matching 1Password item
+  notes so the next AI session sees the durable usage path.
+
+Preview branch credentials live in 1Password item
+`Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)`.
+Use the same pattern: authenticate the CLI with the Supabase PAT, then link to
+preview project `xjcyeuvzkhtzsheknaiu` with that branch's database password
+before running preview dry-runs or pushes.
+
+## 9. Where to read more
 
 - App rewrite guides: [`docs/ai-session-instructions/`](docs/ai-session-instructions/README.md)
 - Shared branch workflow: [`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](docs/ai-session-instructions/shared-supabase-branch-workflow.md)
@@ -120,7 +170,7 @@ Never commit anon keys, service-role keys, database passwords, or `.env` files.
 - Migration risks: [`docs/unified-supabase-migration-gaps.md`](docs/unified-supabase-migration-gaps.md)
 - CRM production cutover (migrations promoted, Azure OAuth, auto-provision, data import): [`docs/app-migration-notes/popcrm-web-production-cutover-20260621.md`](docs/app-migration-notes/popcrm-web-production-cutover-20260621.md)
 
-## 9. Hosted-Supabase gotchas (do not relearn these the hard way)
+## 10. Hosted-Supabase gotchas (do not relearn these the hard way)
 
 These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones.
 
