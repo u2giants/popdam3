@@ -470,6 +470,7 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 - Keep `get_filter_counts` reading only columns present in `idx_assets_facet_counts`. If you add a facet, add its column to the index `INCLUDE` list or you reintroduce a 271MB heap scan and the cold 500.
 - After large ingests, the index-only scan's `Heap Fetches` climbs until `VACUUM` runs; a one-off `VACUUM (ANALYZE) assets` clears it. autovacuum normally handles this.
 - Judge any `assets`-aggregation RPC against the **8s `authenticated`** ceiling, cold, not against `postgres` timings.
+- Keep the expensive all-assets list query disabled while the library is in **Style Groups** mode. On 2026-07-08, opening the filter panel with Wall/`3FZ` filters active fired a background `assets` GET that returned 500 even though the visible style-group queries succeeded. Groups mode should use `style_groups` queries for visible rows, group counts, and filtered file totals; the all-assets query is only for Assets mode.
 
 ---
 

@@ -67,6 +67,8 @@ Persistent control bar at the top of the library:
 
 The header agent-status pill and the library scan controls are visible only for real admins. Regular users can browse/search/filter without issuing bridge-agent status or scan-control requests.
 
+In **Groups** mode, the displayed group count comes from `useStyleGroupCount`, and the displayed file count is the sum of `style_groups.asset_count` for the same filtered group set (`useStyleGroupAssetCount`). The page intentionally does not run the all-assets list query while Groups mode is active; that query is only needed in Assets mode and can time out when a group-only filter expands to path-based legacy matches.
+
 ### Filter Sidebar (`FilterSidebar.tsx`)
 Faceted filter panel that appears on the left side. Filters include:
 - Licensor
@@ -79,6 +81,8 @@ Faceted filter panel that appears on the left side. Filters include:
 - Date range (modified_at or file_created_at)
 
 All filter counts update live as other filters change.
+
+The Product Category filter uses `product_category` when present. For **Wall**, it also treats legacy folder signals such as `WALL ART` and `3FZ` as Wall matches because older framed 3D wall-art SKUs may predate complete ERP category enrichment.
 
 ### Scan Monitor Banner (`ScanMonitorBanner.tsx`)
 A collapsible progress bar that appears when a Bridge Agent scan is active. Shows:
@@ -357,6 +361,7 @@ See `docs/BULK_JOBS.md` for the full conflict map and enforcement details.
 |------|---------|
 | `useStyleGroups` | Fetches style groups with filtering, sorting, pagination |
 | `useStyleGroupCount` | Total group count matching current filters |
+| `useStyleGroupAssetCount` | Sum of `style_groups.asset_count` across the current filtered group set |
 | `useUngroupedCount` | Count of assets not in any group |
 | `useTotalAssetCount` | Total visible asset count |
 | `useAssets` | Fetches individual assets with filtering |

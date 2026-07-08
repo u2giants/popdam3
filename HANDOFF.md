@@ -305,11 +305,13 @@ Done:
 - Started the Railway worker `rebuild-style-groups` operation via `public.update_bulk_operation(...)`; it completed with `Created 86827 style groups, assigned 87236 assets`.
 - Verified production search shape after rebuild: `3fz` matches **335** style groups, and `sku = 'B3M_3FZ - 3D Lenticular framed'` matches **0** groups.
 - Updated the 1Password item `Supabase DB Password - shared POP database` with a `Migration usage notes` field containing direct/pooler connection guidance and the verified pooler host (`aws-1-us-east-1.pooler.supabase.com:6543`, user `postgres.qsllyeztdwjgirsysgai`).
+- Follow-up frontend fix (commits `2189b25` and `70056f8`): Style Groups mode now computes the displayed group count from filtered `style_groups` and the displayed file count by summing matching groups' cached `asset_count`; it does not fire the all-assets list query while Groups mode is active. The Product Category = Wall filter also includes legacy folder signals (`WALL ART`, `3FZ`) so searching/filtering old framed 3D wall art does not drop rows that lack ERP `product_category`.
 
 Verification:
 - `npm test -- --run src/test/style-grouping.test.ts` passed.
 - `deno check supabase/functions/agent-api/index.ts` passed.
 - `/worksp/shared-db/scripts/check-sql.sh` passed.
+- Frontend follow-up verification: `npm test -- --run src/test/asset-filters.test.ts src/test/product-category-filters.test.ts src/test/style-grouping.test.ts` and `npm run build` passed.
 - Preview DB function definition contains `length(seg) >= 7`.
 - Production dry-run after apply reports `Remote database is up to date`.
 - Production function definition contains `length(seg) >= 7` and `^[A-Za-z0-9]+$`.

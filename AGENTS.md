@@ -542,7 +542,7 @@ Use this exact shape for every new quirk:
 
 **Looks like:** `get_filter_counts` / `assets` count queries 500 intermittently on cold load; "works in SQL."
 **Actually:** Direct SQL runs as `postgres` (no statement_timeout). The browser runs as `authenticated` (`statement_timeout=8s`, Supavisor-enforced — `SET LOCAL` can't raise it, see `docs/KNOWN_QUIRKS.md` #33). `get_filter_counts` was 14s (5 table scans); fixed to ~260ms via one materialized scan + the `idx_assets_facet_counts` covering index (index-only). `asset_path_history` reads needed `idx_asset_path_history_asset_id_detected_at` (30s→16ms).
-**Do not change because:** Always size `assets`-aggregation RPCs against the 8s `authenticated` ceiling cold, never against `postgres` timings. Keep `get_filter_counts` reading only columns in `idx_assets_facet_counts`. Detail: `docs/KNOWN_QUIRKS.md` #49–#52.
+**Do not change because:** Always size `assets`-aggregation RPCs against the 8s `authenticated` ceiling cold, never against `postgres` timings. Keep `get_filter_counts` reading only columns in `idx_assets_facet_counts`. In Style Groups mode, do not run the background all-assets list query just to populate counters; group counts and filtered file totals should come from `style_groups` (`useStyleGroupCount` / `useStyleGroupAssetCount`). This matters for legacy Wall/`3FZ` filters, where the group queries are valid but the unnecessary `assets` query can 500. Detail: `docs/KNOWN_QUIRKS.md` #49–#52.
 
 ## Credentials and environment
 
