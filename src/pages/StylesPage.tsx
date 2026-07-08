@@ -1,13 +1,14 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CellValueChangedEvent, ColDef } from "ag-grid-community";
+import type { CellValueChangedEvent, ColDef, DefaultMenuItem, GetContextMenuItemsParams, MenuItemDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
-import { Check, ChevronDown, Clock3, Columns3, Database, Plus, RefreshCw, Search, Table2, X } from "lucide-react";
+import { Check, ChevronDown, Clock3, Columns3, Database, Plus, RefreshCw, Search, Table2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,6 +105,11 @@ type AuditLogEntry = {
   changed_at: string;
   changed_by_label: string | null;
   changed_by_email: string | null;
+};
+
+type AuditCell = {
+  row: StyleRow;
+  column: SheetColumn;
 };
 
 const DEFAULT_ROW_LIMIT = 2500;
@@ -354,13 +360,15 @@ async function fetchRows(sourceSheet: string, showAll: boolean) {
   return rows;
 }
 
-async function fetchAuditLog(sourceSheet: string) {
+async function fetchCellAuditLog(cell: AuditCell | null) {
+  if (!cell) return [] as AuditLogEntry[];
   const { data, error } = await (supabase as any)
     .from("style_tracker_audit_log_with_user")
     .select("*")
-    .or(`source_sheet.eq.${sourceSheet},source_sheet.is.null`)
+    .eq("style_tracker_row_id", cell.row.id)
+    .eq("column_letter", cell.column.letter)
     .order("changed_at", { ascending: false })
-    .limit(100);
+    .limit(50);
   if (error) throw error;
   return (data ?? []) as AuditLogEntry[];
 }
@@ -506,12 +514,16 @@ export default function StylesPage() {
   const [showAllRows, setShowAllRows] = useState(false);
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [auditCell, setAuditCell] = useState<AuditCell | null>(null);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
   const rowsQuery = useQuery({ queryKey: ["style-rows", active.name, showAllRows], queryFn: () => fetchRows(active.name, showAllRows) });
   const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
-  const auditQuery = useQuery({ queryKey: ["style-audit-log", active.name], queryFn: () => fetchAuditLog(active.name), enabled: historyOpen });
+  const cellAuditQuery = useQuery({
+    queryKey: ["style-cell-audit", auditCell?.row.id, auditCell?.column.letter],
+    queryFn: () => fetchCellAuditLog(auditCell),
+    enabled: Boolean(auditCell),
+  });
   const customerOptionsQuery = useQuery({ queryKey: ["style-tracker-customer-options"], queryFn: fetchCustomerOptions });
   const licensorOptionsQuery = useQuery({ queryKey: ["style-tracker-licensor-options"], queryFn: fetchLicensorOptions });
   const designerOptionsQuery = useQuery({ queryKey: ["style-tracker-designer-options"], queryFn: fetchDesignerOptions });
@@ -564,7 +576,7 @@ export default function StylesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
-      queryClient.invalidateQueries({ queryKey: ["style-audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
     },
     onError: (error) => toast.error("Could not save style row", { description: error.message }),
   });
@@ -581,7 +593,7 @@ export default function StylesPage() {
     onSuccess: (_data, count) => {
       toast.success(count === 1 ? "Row added" : `${count} rows added`);
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
-      queryClient.invalidateQueries({ queryKey: ["style-audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
       queryClient.invalidateQueries({ queryKey: ["style-row-count"] });
     },
     onError: (error) => toast.error("Could not add row", { description: error.message }),
@@ -606,7 +618,7 @@ export default function StylesPage() {
       toast.success("Master Data link saved");
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
       queryClient.invalidateQueries({ queryKey: ["style-candidates"] });
-      queryClient.invalidateQueries({ queryKey: ["style-audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
     },
     onError: (error) => toast.error("Could not save link", { description: error.message }),
   });
@@ -627,7 +639,7 @@ export default function StylesPage() {
       toast.success("Master Data-only value saved");
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
       queryClient.invalidateQueries({ queryKey: ["style-candidates"] });
-      queryClient.invalidateQueries({ queryKey: ["style-audit-log"] });
+      queryClient.invalidateQueries({ queryKey: ["style-cell-audit"] });
     },
     onError: (error) => toast.error("Could not save Master Data value", { description: error.message }),
   });
@@ -737,6 +749,29 @@ export default function StylesPage() {
 
   const totalRows = countQuery.data ?? rows.length;
   const hiddenRows = Math.max(totalRows - rows.length, 0);
+  const auditRows = cellAuditQuery.data ?? [];
+
+  const contextMenuItems = (params: GetContextMenuItemsParams<StyleRow>): (DefaultMenuItem | MenuItemDef<StyleRow>)[] => {
+    const defaultItems = params.defaultItems ?? [];
+    const colId = params.column?.getColId();
+    const column = active.columns.find((item) => item.letter === colId);
+    const row = params.node?.data;
+    if (!row || !column) return defaultItems;
+
+    return [
+      {
+        name: "Audit history",
+        subMenu: [
+          {
+            name: `Open ${columnLabel(row.source_sheet, column.letter)}`,
+            action: () => setAuditCell({ row, column }),
+          },
+        ],
+      },
+      "separator",
+      ...defaultItems,
+    ];
+  };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">
@@ -768,17 +803,6 @@ export default function StylesPage() {
             <Button variant="outline" size="sm" onClick={() => gridRef.current?.api.openToolPanel("columns")}>
               <Columns3 className="h-4 w-4" />
               Columns
-            </Button>
-            <Button
-              variant={historyOpen ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => {
-                setHistoryOpen((value) => !value);
-                if (!historyOpen) auditQuery.refetch();
-              }}
-            >
-              <Clock3 className="h-4 w-4" />
-              History
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -874,7 +898,7 @@ export default function StylesPage() {
           </div>
         )}
       </div>
-      <div className={cn("grid min-h-0 flex-1 gap-3 p-3", historyOpen ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "grid-cols-1")}>
+      <div className="min-h-0 flex-1 p-3">
         <div className="h-full min-h-0 overflow-hidden rounded-md border border-border bg-card">
           <AgGridReact
             ref={gridRef}
@@ -885,6 +909,7 @@ export default function StylesPage() {
             loading={rowsQuery.isLoading}
             quickFilterText={quickFilter}
             getRowId={(params) => params.data.id}
+            getContextMenuItems={contextMenuItems}
             onCellValueChanged={(event: CellValueChangedEvent<StyleRow>) => {
               if (!event.data || event.oldValue === event.newValue) return;
               const column = active.columns.find((item) => item.letter === event.colDef.colId);
@@ -899,47 +924,37 @@ export default function StylesPage() {
             stopEditingWhenCellsLoseFocus
           />
         </div>
-        {historyOpen && (
-          <aside className="flex min-h-0 flex-col rounded-md border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-3 py-2">
-              <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-foreground">Audit History</h2>
-                <p className="text-xs text-muted-foreground">Recent Master Data changes</p>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => auditQuery.refetch()} disabled={auditQuery.isFetching}>
-                  <RefreshCw className={cn("h-4 w-4", auditQuery.isFetching && "animate-spin")} />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              {auditQuery.isLoading && <div className="text-sm text-muted-foreground">Loading history...</div>}
-              {auditQuery.isError && <div className="text-sm text-destructive">Could not load audit history.</div>}
-              {!auditQuery.isLoading && !auditQuery.isError && (auditQuery.data ?? []).length === 0 && <div className="text-sm text-muted-foreground">No changes recorded yet.</div>}
-              <div className="space-y-3">
-                {(auditQuery.data ?? []).map((entry) => (
-                  <div key={entry.id} className="rounded-md border border-border bg-background p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-foreground">{auditTitle(entry)}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{auditDescription(entry)}</div>
-                      </div>
-                      {entry.source_row_number && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Row {entry.source_row_number}</span>}
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-                      <span>{entry.changed_by_label ?? "Unknown user"}</span>
-                      <span>{formatAuditTime(entry.changed_at)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-        )}
       </div>
+      <Dialog open={Boolean(auditCell)} onOpenChange={(open) => !open && setAuditCell(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Clock3 className="h-4 w-4 text-primary" />
+              Audit History
+            </DialogTitle>
+            <DialogDescription>
+              {auditCell ? `${columnLabel(auditCell.row.source_sheet, auditCell.column.letter)} · Row ${auditCell.row.source_row_number ?? ""}` : "Cell change history"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {cellAuditQuery.isLoading && <div className="text-sm text-muted-foreground">Loading history...</div>}
+            {cellAuditQuery.isError && <div className="text-sm text-destructive">Could not load audit history.</div>}
+            {!cellAuditQuery.isLoading && !cellAuditQuery.isError && auditRows.length === 0 && <div className="text-sm text-muted-foreground">No changes recorded for this cell yet.</div>}
+            <div className="space-y-3">
+              {auditRows.map((entry) => (
+                <div key={entry.id} className="rounded-md border border-border bg-background p-3">
+                  <div className="text-sm font-medium text-foreground">{auditTitle(entry)}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{auditDescription(entry)}</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                    <span>{entry.changed_by_label ?? "Unknown user"}</span>
+                    <span>{formatAuditTime(entry.changed_at)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

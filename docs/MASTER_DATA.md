@@ -52,7 +52,7 @@ Verified populated counts from the 2026-06-24 import:
 - Tabs:
   - Google Sheet `License.Style` maps to **Licensed**
   - Google Sheet `Generic.Style` maps to **Generic**
-- **History** opens the user-visible audit log for recent row additions, cell edits, and Master Data match decisions.
+- Right-click a spreadsheet cell and open **Audit history** to see that cell's change history.
 - `Print Fair Row#` is hidden by default.
 - `Legacy BA#` is hidden by default.
 - `Match` column is the row-level Master Data cross-reference status.
