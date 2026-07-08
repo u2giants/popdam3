@@ -68,7 +68,7 @@ export interface FacetCounts {
 
 export function hasActiveFilters(filters: AssetFilters): boolean {
   return (
-    filters.search !== "" ||
+    filters.search.trim() !== "" ||
     filters.fileType.length > 0 ||
     filters.status.length > 0 ||
     filters.workflowStatus.length > 0 ||

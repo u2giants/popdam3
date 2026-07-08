@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
 import type { AssetFilters } from "@/types/assets";
@@ -95,7 +96,8 @@ function applyStyleGroupFilters(query: any, filters: AssetFilters) {
     query = query.in("primary_asset_type", filters.assetType);
   }
   if (filters.productCategory.length > 0) {
-    query = query.in("product_category", filters.productCategory);
+    const categoryFilter = buildProductCategoryOrFilter(filters.productCategory, "folder_path");
+    if (categoryFilter) query = query.or(categoryFilter);
   }
   return query;
 }
@@ -181,6 +183,42 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
       if (error) throw error;
       return count ?? 0;
     },
+  });
+}
+
+export function useStyleGroupAssetCount(filters: AssetFilters, visibilityDate?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["style-group-asset-count", filters, visibilityDate],
+    enabled,
+    queryFn: async () => {
+      const pageSize = 1000;
+      const minDate = visibilityDate ?? "2020-01-01";
+      let from = 0;
+      let total = 0;
+
+      while (true) {
+        let query = supabase
+          .from("style_groups")
+          .select("asset_count")
+          .order("id", { ascending: true })
+          .range(from, from + pageSize - 1);
+
+        query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
+        query = applyStyleGroupFilters(query, filters);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const rows = data ?? [];
+        total += rows.reduce((sum, row) => sum + Number(row.asset_count ?? 0), 0);
+
+        if (rows.length < pageSize) break;
+        from += pageSize;
+      }
+
+      return total;
+    },
+    placeholderData: (prev) => prev,
   });
 }
 

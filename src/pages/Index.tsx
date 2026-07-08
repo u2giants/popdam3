@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useStyleGroups, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
+import { useStyleGroups, useStyleGroupAssetCount, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
 import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets } from "@/hooks/useAssets";
-import { defaultFilters, countActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
+import { defaultFilters, countActiveFilters, hasActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
 import type { Asset, CardStyle } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
 import FilterSidebar from "@/components/library/FilterSidebar";
@@ -135,6 +135,8 @@ export default function LibraryPage() {
   }, [queryClient]);
 
   const activeFilterCount = countActiveFilters(filters);
+  const hasLibraryFilters = hasActiveFilters(filters);
+  const { data: filteredGroupAssetCount } = useStyleGroupAssetCount(filters, visibilityDate, isGroupsMode && hasLibraryFilters);
   const selectedGroups = groups.filter((g) => selectedIds.has(g.id));
 
   const detailGroup = useMemo(
@@ -163,7 +165,7 @@ export default function LibraryPage() {
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
         activeFilterCount={activeFilterCount}
-        totalCount={isGroupsMode ? ((totalGroupCount ?? 0) + (ungroupedCount ?? 0)) : (assetData?.totalCount ?? 0)}
+        totalCount={isGroupsMode ? (totalGroupCount ?? 0) : (assetData?.totalCount ?? 0)}
         totalAssets={totalAssets ?? 0}
         scanRunning={scanRunning}
         scanStale={scanProgress.status === "stale"}
@@ -180,10 +182,10 @@ export default function LibraryPage() {
         scanBlockedReason={agentStatus.scanBlockedReason}
         cardStyle={cardStyle}
         onCardStyleChange={setCardStyle}
-        groupCount={isGroupsMode ? ((totalGroupCount ?? 0) + (ungroupedCount ?? 0)) : 0}
-        fileCount={isGroupsMode ? (totalGroupCount ? groups.reduce((s, g) => s + (g.asset_count || 0), 0) : 0) : (assetData?.totalCount ?? 0)}
+        groupCount={isGroupsMode ? (totalGroupCount ?? 0) : 0}
+        fileCount={isGroupsMode ? (hasLibraryFilters ? (filteredGroupAssetCount ?? 0) : (totalAssets ?? 0)) : (assetData?.totalCount ?? 0)}
         scanProgress={scanProgress}
-        ungroupedCount={isGroupsMode ? ungroupedCount : null}
+        ungroupedCount={isGroupsMode && !hasLibraryFilters ? ungroupedCount : null}
       />
 
       {isGroupsMode && selectedIds.size > 0 && (

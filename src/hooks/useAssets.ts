@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 
 const PAGE_SIZE = 200;
 
@@ -73,7 +74,8 @@ function applyFilters(query: any, filters: AssetFilters) {
     query = query.in("art_source", filters.artSource);
   }
   if (filters.productCategory.length > 0) {
-    query = query.in("product_category", filters.productCategory);
+    const categoryFilter = buildProductCategoryOrFilter(filters.productCategory, "relative_path");
+    if (categoryFilter) query = query.or(categoryFilter);
   }
   if (filters.tagFilter) {
     query = query.contains("tags", [filters.tagFilter]);
