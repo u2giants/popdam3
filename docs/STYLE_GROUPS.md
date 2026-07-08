@@ -27,7 +27,7 @@ Deletes every row from the `style_groups` table in batches of 200. After this st
 
 ### Stage 3: `rebuild_assets`
 Calls the `rebuild_style_groups_batch` PostgreSQL RPC function in batches (default 100 assets/batch). This function:
-- Walks each asset's `relative_path` to find the first segment matching the SKU pattern (`^[A-Za-z]{1,6}[0-9]`, length ≥ 10, not the last segment).
+- Walks each asset's `relative_path` to find the first segment that looks like a SKU folder: purely alphanumeric, length ≥ 7, contains at least one letter and one digit, and is not the last segment.
 - Groups assets by SKU.
 - Upserts a `style_groups` row for each distinct SKU (inheriting metadata from the first asset in the batch for that SKU).
 - Sets `assets.style_group_id` for every asset in the batch.

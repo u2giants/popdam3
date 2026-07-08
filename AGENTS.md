@@ -345,6 +345,13 @@ Use this exact shape for every new quirk:
 **Drift can occur when:** A bulk asset delete bypasses the trigger (e.g., direct SQL via service role without triggering the transition table logic), or the trigger fires but the DB rolls back after the count update. Before the nightly cron was added (2026-05-31), pre-existing drift from before 2026-05-15 was never cleaned up — 17 style groups had stale counts including 2 with `asset_count=1` but zero actual assets.
 **Do not change because:** Use `reconcile-style-group-stats` op or the nightly cron to fix drift; computing live would reintroduce expensive page loads.
 
+### Style-group SKU extraction must skip category folders but accept digit-leading SKUs
+
+**Looks like:** The SKU folder regex should require a long code that starts with letters, such as `MQK8ASESC01`.
+**Actually:** Real DAM SKU folders can start with digits and can be shorter, for example `3FZ93DYEC01`, `27W4AV4`, and `3DWC01JK`. The durable rule is: path segment is purely alphanumeric, length ≥ 7, contains at least one letter and one digit, and is not the filename segment. This skips category folders like `B3M_3FZ - 3D Lenticular framed` while still grouping real `3FZ...` art.
+**Why:** On 2026-07-08, live production `rebuild_style_groups_batch` still used the old loose regex (`^[A-Za-z]{1,6}[0-9]` without an end anchor), so searching Style Groups for `3fz` returned one bogus category group with 2,234 assets. A preview-verified shared-db migration `20260708150000_dam_strict_style_group_sku_regex.sql` updates the DB rebuild RPC, and `supabase/functions/_shared/style-grouping.ts` matches it.
+**Do not change because:** Tightening back to "starts with letters" or length ≥ 10 drops valid digit-leading/short SKUs; loosening back to prefix matching collapses category folders into giant bogus groups. If grouping looks wrong, compare app extractor and DB RPC first, then rebuild style groups after the migration is live.
+
 ### `supabase-popsg/` directory is dead code
 
 **Looks like:** A separate Supabase project for PopSG with its own functions and workflow.

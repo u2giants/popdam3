@@ -430,7 +430,7 @@ A database trigger (`compute_primary_sort_tier`) assigns each asset a tier 0–9
 A **style group** represents one "product" — all the files (art, mockups, tech packs, packaging) that share the same SKU.
 
 ### How SKUs are extracted
-The system walks the `relative_path` segments looking for a folder name matching `^[A-Za-z]{1,6}[0-9]` with length ≥ 10. The deepest matching segment is the SKU. Example:
+The system walks the `relative_path` segments looking for a folder name that is purely alphanumeric, length ≥ 7, and contains both letters and digits. The first matching segment is the SKU. Example:
 ```
 Decor/Projects/Disney/Frozen/HXP8RNBHN02/Tech Pack/art.psd
                                 ↑ SKU = HXP8RNBHN02

@@ -13,7 +13,8 @@
  * top-level SKU folder (e.g. "AAE20DCBM01").
  *
  * Returns null if no ancestor matches the SKU pattern
- * (must start with 1-6 letters followed by a digit).
+ * (must be purely alphanumeric, at least 7 characters, and contain both
+ * letters and digits).
  *
  * Examples:
  *   "Decor/.../CSG10DYMU02/CSG10DYMU02_ART FILE.ai"
@@ -25,22 +26,23 @@
  *   "Decor/.../AAE20DCBM01/AAE20DCBM01_SAMPLE_OLD/file.psd"
  *   → "AAE20DCBM01"  (outermost SKU wins, subfolder absorbed)
  *
- *   "Decor/.../GDC6201/GDC6201_art.ai"
- *   → "GDC6201"
+ *   "Decor/.../3FZ93DYEC01/Professional Photos/3FZ93DYEC01_3-4.psd"
+ *   → "3FZ93DYEC01"
  */
 export function extractSkuFolder(relativePath: string): string | null {
   const parts = relativePath.split("/");
   if (parts.length < 2) return null;
-  // SKU pattern: 1-6 letters followed by digits/letters (purely alphanumeric, no
-  // spaces/underscores/dashes), minimum 10 total characters.
-  // The $ anchor is critical — it prevents matching product-category folder names like
-  // "AA1_VS1 - Canvas with foil" (which start with letters+digit but contain spaces).
-  // Real SKUs are purely alphanumeric: "AA0131P1P01" (11), "CSG10DYMU02" (11).
-  const SKU_PATTERN = /^[A-Za-z]{1,6}\d[A-Za-z0-9]*$/;
+  // Real SKU folders are purely alphanumeric, contain both letters and digits,
+  // and are at least 7 characters. This skips category folders like
+  // "B3M_3FZ - 3D Lenticular framed" while still accepting digit-leading SKUs
+  // such as "3FZ93DYEC01".
+  const SKU_PATTERN = /^[A-Za-z0-9]+$/;
   // Walk from root toward file — first (outermost) SKU match wins
   for (let i = 0; i < parts.length - 1; i++) {
     const folder = parts[i];
-    if (SKU_PATTERN.test(folder) && folder.length >= 10) return folder;
+    if (SKU_PATTERN.test(folder) && folder.length >= 7 && /[A-Za-z]/.test(folder) && /\d/.test(folder)) {
+      return folder;
+    }
   }
   return null;
 }

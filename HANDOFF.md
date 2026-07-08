@@ -280,6 +280,46 @@ Risks / watchouts:
 - `DEPLOY_WEBHOOK_KEY` / `notify-build` path is still broken in prod — not used anymore, but don't route new deploy notifications through it.
 - Consider retiring/repurposing the ".ai Sentinel Cleanup" card (delete → "needs PDF-compat re-save" list, or gate deletion on a confirmed sibling copy).
 
+### 5.14 Style Groups `3fz` collapse / SKU extractor drift (2026-07-08)
+
+Status:
+**done / deployed.** Production DB migration is applied, `agent-api` is deployed, and the style-group rebuild completed successfully.
+
+What happened:
+- In PopDAM, selecting **Style Groups** and searching `3fz` returned one bogus group with **2,234 files**: `sku = 'B3M_3FZ - 3D Lenticular framed'`, `id = 33664017-187b-4599-872c-957c42e4017e`.
+- That folder is a category/product-type folder, not a SKU. The production DB function `public.rebuild_style_groups_batch(uuid, integer)` still used the old loose regex `^[A-Za-z]{1,6}[0-9]`, so it matched the prefix `B3M` in `B3M_3FZ - 3D Lenticular framed`.
+- The app-side extractor had already been stricter, but it was too strict for real digit-leading/short SKUs. Live samples showed valid SKU folders such as `3FZ93DYEC01`, `27W4AV4`, and `3DWC01JK`.
+
+Done:
+- Updated `supabase/functions/_shared/style-grouping.ts` to use the durable SKU rule: path segment is purely alphanumeric, length ≥ 7, contains both letters and digits, and is not the filename segment.
+- Added regression test `src/test/style-grouping.test.ts` covering the `B3M_3FZ - 3D Lenticular framed` collapse and short/digit-leading SKUs.
+- Updated `docs/STYLE_GROUPS.md`, `docs/ONBOARDING.md`, and this `AGENTS.md` quirk.
+- Created canonical shared-db branch `codex/dam-fix-style-group-sku-regex` with migration `supabase/migrations/20260708150000_dam_strict_style_group_sku_regex.sql` replacing `public.rebuild_style_groups_batch(...)` with the matching DB rule.
+- Applied that migration to the preview branch (`xjcyeuvzkhtzsheknaiu`) after dry-run. Preview also applied already-merged `20260707171500_masterdata_designer_resolution.sql`; it printed its expected skip notice because style-tracker bridge objects are absent there.
+- Verified that the corrected expression would split the bad live 2,234-file group into **323 distinct SKU groups** with **0 ungrouped** assets.
+- Refreshed Supabase CLI auth with the updated `Supabase CLI Personal Access Token` from 1Password. `supabase login --token ...` was required; simply setting `SUPABASE_ACCESS_TOKEN` still returned `Unauthorized` in the installed CLI.
+- Relinked `/worksp/shared-db` to production project `qsllyeztdwjgirsysgai` using the updated `Supabase DB Password - shared POP database`.
+- Brought already-applied production migration `20260708143000_crm_customer_logo_overrides.sql` from branch `codex/crm-logo-admin` into the shared-db branch so local migration history matched production.
+- Production dry-run showed only `20260708150000_dam_strict_style_group_sku_regex.sql`; production apply succeeded.
+- Deployed PopDAM `agent-api` to production with `supabase functions deploy agent-api --project-ref qsllyeztdwjgirsysgai`.
+- Started the Railway worker `rebuild-style-groups` operation via `public.update_bulk_operation(...)`; it completed with `Created 86827 style groups, assigned 87236 assets`.
+- Verified production search shape after rebuild: `3fz` matches **335** style groups, and `sku = 'B3M_3FZ - 3D Lenticular framed'` matches **0** groups.
+- Updated the 1Password item `Supabase DB Password - shared POP database` with a `Migration usage notes` field containing direct/pooler connection guidance and the verified pooler host (`aws-1-us-east-1.pooler.supabase.com:6543`, user `postgres.qsllyeztdwjgirsysgai`).
+
+Verification:
+- `npm test -- --run src/test/style-grouping.test.ts` passed.
+- `deno check supabase/functions/agent-api/index.ts` passed.
+- `/worksp/shared-db/scripts/check-sql.sh` passed.
+- Preview DB function definition contains `length(seg) >= 7`.
+- Production dry-run after apply reports `Remote database is up to date`.
+- Production function definition contains `length(seg) >= 7` and `^[A-Za-z0-9]+$`.
+- Production rebuild op completed at `2026-07-08T15:47:01.674Z`.
+
+Risks / watchouts:
+- Do not reintroduce the old prefix regex. It collapses category folders.
+- Do not require "starts with letters" or length ≥ 10. That drops valid live DAM SKUs.
+- Shared-db branch `codex/dam-fix-style-group-sku-regex` still needs normal git finalization (commit, PR, merge) so the already-applied production migration is durable in `main`.
+
 ---
 
 ## 6. Exact next action
