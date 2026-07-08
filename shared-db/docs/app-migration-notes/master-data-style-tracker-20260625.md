@@ -62,3 +62,16 @@ stored resolution row now groups under `core/customer`.
 ## Browser Boundary
 
 The browser should continue using the RPC. It must not call the Designflow PLM APIs directly and must not receive the PLM API key. If the frontend needs a broader direct-read contract later, add an `api.*` view or RPC here first.
+
+## Audit Log
+
+Migration `20260708183000_masterdata_audit_log.sql` adds `public.style_tracker_audit_log`
+and `public.style_tracker_audit_log_with_user` for the Master Data page's
+History panel. The log records row additions, spreadsheet cell edits detected
+from `style_tracker_rows.row_data`, and manual value-resolution decisions made
+through `public.upsert_style_tracker_value_resolution(...)`.
+
+The migration is guarded because the shared-db preview branch does not currently
+contain the temporary `public.style_tracker_rows` objects. On databases without
+those objects it emits a skip notice; on production, where Master Data exists,
+it creates the table, trigger, view, and updated resolution RPC.
