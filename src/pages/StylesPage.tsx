@@ -13,12 +13,18 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppearance } from "@/hooks/useAppearance";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import {
+  filterStyleTrackerCandidates,
+  normalizeStyleTrackerValue,
+  type StyleTrackerFieldKey,
+  type StyleTrackerLinkCandidate,
+} from "@/lib/style-tracker-candidates";
 import { cn } from "@/lib/utils";
 
 LicenseManager.setLicenseKey("");
 ModuleRegistry.registerModules([AllCommunityModule, AllEnterpriseModule]);
 
-type FieldKey = "sku" | "customer" | "licensor" | "designer" | "factory";
+type FieldKey = StyleTrackerFieldKey;
 type RowData = Record<string, unknown>;
 
 type StyleRow = {
@@ -76,13 +82,7 @@ type ReviewItem = {
   count: number;
 };
 
-type LinkCandidate = {
-  target_schema: string;
-  target_table: string;
-  target_id: string;
-  target_label: string;
-  score: number;
-};
+type LinkCandidate = StyleTrackerLinkCandidate;
 
 type PickerOption = {
   id: string;
@@ -225,12 +225,7 @@ function valueFor(row: StyleRow | undefined, column: SheetColumn) {
 }
 
 function normalized(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+  return normalizeStyleTrackerValue(value);
 }
 
 function fieldValue(row: StyleRow, field: FieldKey) {
@@ -402,7 +397,8 @@ async function searchCandidates(item: ReviewItem | null) {
     p_match_mode: "fuzzy",
   });
   if (fuzzy.error) throw fuzzy.error;
-  if (fuzzy.data?.length) return fuzzy.data as LinkCandidate[];
+  const fuzzyCandidates = filterStyleTrackerCandidates(item.rawValue, (fuzzy.data ?? []) as LinkCandidate[]);
+  if (fuzzyCandidates.length) return fuzzyCandidates.slice(0, 8);
   if (item.fieldKey === "sku") return [];
   const all = await (supabase as any).rpc("search_style_tracker_link_candidates", {
     p_field_key: item.fieldKey,
@@ -411,7 +407,7 @@ async function searchCandidates(item: ReviewItem | null) {
     p_match_mode: "all",
   });
   if (all.error) throw all.error;
-  return (all.data ?? []) as LinkCandidate[];
+  return filterStyleTrackerCandidates(item.rawValue, (all.data ?? []) as LinkCandidate[]).slice(0, 8);
 }
 
 async function fetchCustomerOptions() {
