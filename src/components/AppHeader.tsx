@@ -43,6 +43,7 @@ import {
   Sun,
   Moon,
   Bell,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
@@ -52,6 +53,7 @@ import { CURRENT_APP, IS_POPSG } from "@/lib/app-mode";
 const popdamNavItems = [
   { to: "/", label: "Library", icon: Library },
   { to: "/files", label: "Files", icon: FolderOpen },
+  { href: "https://dam.designflow.app/styles", label: "Master Data", icon: Database },
   { to: "/setup", label: "Setup", icon: Wand2 },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/downloads", label: "Downloads", icon: Download },
@@ -358,23 +360,38 @@ function DesktopNav() {
   return (
     <nav className="hidden md:flex items-center gap-0.5 ml-2">
       {navItems.map((item) => {
-        const active = isNavActive(item.to);
+        const active = "to" in item ? isNavActive(item.to) : false;
+        const className = "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors";
+        const style = active
+          ? {
+              background: "var(--pd-accent-soft, var(--accent))",
+              color: "var(--pd-accent-soft-fg, var(--accent-foreground))",
+              fontWeight: 600,
+            }
+          : {
+              color: "var(--pd-fg-muted, var(--muted-foreground))",
+            };
+
+        if ("href" in item) {
+          return (
+            <a
+              key={item.href}
+              href={item.href}
+              className={className}
+              style={style}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </a>
+          );
+        }
+
         return (
           <Link
             key={item.to}
             to={item.to}
-            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors"
-            style={
-              active
-                ? {
-                    background: "var(--pd-accent-soft, var(--accent))",
-                    color: "var(--pd-accent-soft-fg, var(--accent-foreground))",
-                    fontWeight: 600,
-                  }
-                : {
-                    color: "var(--pd-fg-muted, var(--muted-foreground))",
-                  }
-            }
+            className={className}
+            style={style}
           >
             <item.icon className="h-4 w-4" />
             {item.label}
@@ -433,19 +450,35 @@ export default function AppHeader() {
             </SheetTrigger>
             <SheetContent side="left" className="w-56 p-4 pt-10">
               <nav className="flex flex-col gap-1">
-                {navItems.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === "/" || item.to === "/library"}
-                    className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                    activeClassName="bg-accent text-foreground"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                  </NavLink>
-                ))}
+                {navItems.map((item) => {
+                  if ("href" in item) {
+                    return (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                        onClick={() => setMobileOpen(false)}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </a>
+                    );
+                  }
+
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === "/" || item.to === "/library"}
+                      className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      activeClassName="bg-accent text-foreground"
+                      onClick={() => setMobileOpen(false)}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </NavLink>
+                  );
+                })}
               </nav>
             </SheetContent>
           </Sheet>
