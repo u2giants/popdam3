@@ -79,6 +79,7 @@ interface LibraryTopBarProps {
   fileCount: number;
   scanProgress?: ScanProgress | null;
   ungroupedCount?: number | null;
+  canManageScan?: boolean;
 }
 
 const GROUP_SORT_OPTIONS: { value: SortField; label: string }[] = [
@@ -141,6 +142,7 @@ export default function LibraryTopBar({
   fileCount,
   scanProgress,
   ungroupedCount,
+  canManageScan = true,
 }: LibraryTopBarProps) {
   const isScanRunning = scanProgress?.status === "running";
   const isScanStale = scanProgress?.status === "stale";
@@ -588,46 +590,47 @@ export default function LibraryTopBar({
         )}
       </div>
 
-      {/* Sync icon button */}
-      <TooltipProvider delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className={cn("inline-flex", syncDisabled && "cursor-not-allowed")}>
-              <button
-                type="button"
-                onClick={onSync}
-                disabled={syncDisabled}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "34px",
-                  height: "34px",
-                  borderRadius: "6px",
-                  border: "1px solid var(--pd-border)",
-                  background: "transparent",
-                  color: syncDisabled ? "var(--pd-fg-muted)" : "var(--pd-fg)",
-                  cursor: syncDisabled ? "not-allowed" : "pointer",
-                  opacity: syncDisabled ? 0.5 : 1,
-                  flexShrink: 0,
-                  pointerEvents: syncDisabled ? "none" : "auto",
-                }}
-              >
-                <RefreshCw
-                  style={{ width: 14, height: 14 }}
-                  className={cn(scanRunning && !scanStale && "animate-spin")}
-                />
-              </button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[280px]">
-            {syncTitle}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      {canManageScan && (
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={cn("inline-flex", syncDisabled && "cursor-not-allowed")}>
+                <button
+                  type="button"
+                  onClick={onSync}
+                  disabled={syncDisabled}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "34px",
+                    height: "34px",
+                    borderRadius: "6px",
+                    border: "1px solid var(--pd-border)",
+                    background: "transparent",
+                    color: syncDisabled ? "var(--pd-fg-muted)" : "var(--pd-fg)",
+                    cursor: syncDisabled ? "not-allowed" : "pointer",
+                    opacity: syncDisabled ? 0.5 : 1,
+                    flexShrink: 0,
+                    pointerEvents: syncDisabled ? "none" : "auto",
+                  }}
+                >
+                  <RefreshCw
+                    style={{ width: 14, height: 14 }}
+                    className={cn(scanRunning && !scanStale && "animate-spin")}
+                  />
+                </button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[280px]">
+              {syncTitle}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
 
       {/* Compact scan status pill */}
-      {(isScanRunning || isScanStale) && (
+      {canManageScan && (isScanRunning || isScanStale) && (
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>

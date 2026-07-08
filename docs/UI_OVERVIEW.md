@@ -8,24 +8,32 @@ PopDAM is a React + TypeScript single-page application built with Vite, shadcn/u
 
 | Route | Component | Purpose |
 |-------|-----------|---------|
-| `/` | `Index.tsx` | Main library — browse, search, and tag assets and groups |
+| `/` | `LoginPage.tsx` | Sign-in entry point; redirects signed-in users to `/library` |
+| `/library` | `Index.tsx` / `PopSGLibraryPage.tsx` | Main PopDAM asset library, or PopSG style-guide library in PopSG mode |
 | `/files` | `FileBrowserPage.tsx` | NAS directory browser (available to all authenticated users) |
-| `/settings` | `SettingsPage.tsx` | Admin control panel (multiple tabs) |
-| `/setup` | `SetupPage.tsx` | First-run wizard for initial configuration |
-| `/downloads` | `DownloadsPage.tsx` | Agent installer download links |
+| `/styles` | `StylesPage.tsx` | Master Data style tracker table |
+| `/settings` | `SettingsPage.tsx` / `PopSGSettingsPage.tsx` | Admin control panel (multiple tabs) |
+| `/setup` | `SetupPage.tsx` | First-run wizard for initial configuration (PopDAM mode only) |
+| `/downloads` | `DownloadsPage.tsx` | Agent and Helper installer download links (PopDAM mode only) |
 | `/login` | `LoginPage.tsx` | Invitation-only sign-in form |
-| `/ai-tagging/:id` | `AiTaggingDetailPage.tsx` | Detail view for a single AI tagging run |
-| `/scan-diagnostics` | `ScanDiagnosticsPage.tsx` | Bridge Agent scan history and error details |
+| `/forgot-password` | `ForgotPasswordPage.tsx` | Password reset request form |
+| `/reset-password` | `ResetPasswordPage.tsx` | Password update form after reset link |
+| `/auth/callback` | `AuthCallbackPage.tsx` | OAuth/SSO callback handler |
+| `/privacy` | `PrivacyPolicyPage.tsx` | Public privacy policy |
+| `/terms` | `TermsOfServicePage.tsx` | Public terms of service |
+| `/settings/ai-tagging-failures` | `AiTaggingFailuresPage.tsx` | AI tagging failure review (PopDAM mode only) |
+| `/settings/ai-tagging-detail` | `AiTaggingDetailPage.tsx` | Detail view for AI tagging diagnostics (PopDAM mode only) |
+| `/settings/scan-diagnostics` | `ScanDiagnosticsPage.tsx` | Bridge Agent scan history and error details (PopDAM mode only) |
 
-All routes except `/login` and `/setup` require an authenticated user with at least the `user` role. `/files` is available to all authenticated users (not admin-only). Admin-only settings tabs additionally require the `admin` role.
+Protected app routes require an authenticated user with at least the `user` role. Public auth/legal routes are available without a session. `/files` is available to all authenticated users, but its bridge-agent fallback uses admin-api and therefore requires an admin session when the local Helper is not running. Settings, setup, scan diagnostics, agent controls, and background-job controls require the `admin` role.
 
 ---
 
 ## NAS File Browser (`/files`)
 
-Click-through directory browser that shows the server-side filesystem as seen by the bridge agent. Available to all authenticated users from the top nav.
+Click-through directory browser available from the top nav. It prefers the local POP DAM Helper for fast local filesystem browsing when the Helper is running and has roots configured. If the Helper is not available, it falls back to the bridge-agent directory-browse flow, which is admin-only because it uses `admin-api`.
 
-**How it works:** The UI posts a `request-dir-browse` action to admin-api with a path, which writes a `DIR_BROWSE_REQUEST` key to `admin_config`. The bridge agent picks this up on its next heartbeat (within 30s), lists the directory, and posts results back via `report-dir-browse`. The UI polls `get-dir-browse-result` until the `request_id` matches.
+**How it works:** The UI first probes `http://localhost:47380/status`. When the Helper is present, browse requests call `http://localhost:47380/browse?path=...`. Otherwise the UI posts a `request-dir-browse` action to admin-api with a path, which writes a `DIR_BROWSE_REQUEST` key to `admin_config`. The bridge agent picks this up on its next heartbeat (within 30s), lists the directory, and posts results back via `report-dir-browse`. The UI polls `get-dir-browse-result` until the `request_id` matches.
 
 - Empty path = lists configured scan roots
 - Click any folder to navigate into it
@@ -54,8 +62,10 @@ Persistent control bar at the top of the library:
 - **Mode toggle** — Groups / Assets
 - **View toggle** — Grid / List
 - **Sort control** — sort field and direction (e.g. modified_at, SKU, workflow_status)
-- **Sync button** — triggers a Bridge Agent scan
+- **Sync button** — admin-only; triggers a Bridge Agent scan
 - **Refresh button** — reloads the current query
+
+The header agent-status pill and the library scan controls are visible only for real admins. Regular users can browse/search/filter without issuing bridge-agent status or scan-control requests.
 
 ### Filter Sidebar (`FilterSidebar.tsx`)
 Faceted filter panel that appears on the left side. Filters include:

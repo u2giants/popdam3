@@ -152,17 +152,20 @@ async function fetchAgentStatus(): Promise<AgentStatusInfo> {
  * Reads agent_registrations directly via Supabase JS client.
  * Realtime subscription pushes invalidations on any change — no polling.
  */
-export function useAgentStatus(): AgentStatusInfo {
+export function useAgentStatus(enabled = true): AgentStatusInfo {
   const queryClient = useQueryClient();
 
   const { data } = useQuery({
     queryKey: ["agent-status"],
     queryFn: fetchAgentStatus,
+    enabled,
     staleTime: Infinity,
     placeholderData: DEFAULT_STATUS,
   });
 
   useEffect(() => {
+    if (!enabled) return;
+
     const channel = supabase
       .channel("agent-status-realtime")
       .on("postgres_changes", {
@@ -173,7 +176,7 @@ export function useAgentStatus(): AgentStatusInfo {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [queryClient]);
+  }, [enabled, queryClient]);
 
   return data ?? DEFAULT_STATUS;
 }

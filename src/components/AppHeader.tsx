@@ -409,7 +409,7 @@ export default function AppHeader() {
   const { name, email, avatarUrl } = useUserProfile();
   const { isRealAdmin } = useIsAdmin();
   const { impersonatedRole, startImpersonating, stopImpersonating } = useImpersonation();
-  const agent = useAgentStatus();
+  const agent = useAgentStatus(isRealAdmin);
   const { theme, setTheme, accent, setAccent } = useAppearance();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -525,7 +525,7 @@ export default function AppHeader() {
           </span>
 
           {/* Sync status pill */}
-          <SyncPill agent={agent} />
+          {isRealAdmin && <SyncPill agent={agent} />}
 
           {/* Appearance button */}
           <AppearanceButton

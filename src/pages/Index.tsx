@@ -20,6 +20,7 @@ import { useScanLifecycle } from "@/hooks/useScanLifecycle";
 import { useSelectionManager } from "@/hooks/useSelectionManager";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
 
@@ -41,6 +42,7 @@ export default function LibraryPage() {
   const [pageSize, setPageSize] = useState(200);
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
   const [detailAssetId, setDetailAssetId] = useState<string | null>(null);
+  const { isAdmin } = useIsAdmin();
 
   // ── Detail panel resize (side-by-side layout only; below 1400px it overlays)
   const isDesktop = useMediaQuery("(min-width: 1400px)");
@@ -56,7 +58,7 @@ export default function LibraryPage() {
   const panelWidth = isDesktop ? detailWidth : DETAIL_DEFAULT_WIDTH;
 
   // ── Agent & scan state ──────────────────────────────────────────
-  const agentStatus = useAgentStatus();
+  const agentStatus = useAgentStatus(isAdmin);
   const scanProgress = useScanProgress();
   const {
     scanTriggered, scanRunning, scanQueued,
@@ -186,6 +188,7 @@ export default function LibraryPage() {
         fileCount={isGroupsMode ? (hasLibraryFilters ? (filteredGroupAssetCount ?? 0) : (totalAssets ?? 0)) : (assetData?.totalCount ?? 0)}
         scanProgress={scanProgress}
         ungroupedCount={isGroupsMode && !hasLibraryFilters ? ungroupedCount : null}
+        canManageScan={isAdmin}
       />
 
       {isGroupsMode && selectedIds.size > 0 && (
