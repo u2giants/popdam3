@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValueChangedEvent, ColDef, DefaultMenuItem, GetContextMenuItemsParams, MenuItemDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
@@ -113,6 +113,7 @@ type AuditCell = {
 };
 
 const DEFAULT_ROW_LIMIT = 2500;
+const MANUAL_CANDIDATE_LIMIT = 100;
 
 const licensedColumns: SheetColumn[] = [
   { letter: "A", header: "Print Fair Row#", width: 118, hide: true, legacyKey: "print_fair_row" },
@@ -418,6 +419,81 @@ async function searchCandidates(item: ReviewItem | null) {
   return filterStyleTrackerCandidates(item.rawValue, (all.data ?? []) as LinkCandidate[]).slice(0, 8);
 }
 
+async function searchManualCandidates(item: ReviewItem | null, query: string, showAll: boolean) {
+  if (!item) return [] as LinkCandidate[];
+  const term = query.trim();
+  if (!showAll && term.length < 2) return [] as LinkCandidate[];
+
+  if (!showAll && item.fieldKey !== "designer") {
+    const { data, error } = await (supabase as any).rpc("search_style_tracker_link_candidates", {
+      p_field_key: item.fieldKey,
+      p_query: term,
+      p_limit: MANUAL_CANDIDATE_LIMIT,
+      p_match_mode: "fuzzy",
+    });
+    if (error) throw error;
+    return (data ?? []) as LinkCandidate[];
+  }
+
+  return fetchCandidateTableRows(item.fieldKey, term, showAll);
+}
+
+async function fetchCandidateTableRows(fieldKey: FieldKey, query: string, showAll: boolean) {
+  const term = query.trim();
+  if (fieldKey === "sku") {
+    let q = (supabase as any)
+      .from("style_groups")
+      .select("id, sku")
+      .not("sku", "is", null)
+      .order("sku", { ascending: true })
+      .limit(MANUAL_CANDIDATE_LIMIT);
+    if (term) q = q.ilike("sku", `%${term}%`);
+    else if (!showAll) return [] as LinkCandidate[];
+    const { data, error } = await q;
+    if (error) throw error;
+    return ((data ?? []) as { id: string; sku: string | null }[])
+      .filter((row) => row.id && row.sku)
+      .map((row) => ({
+        target_schema: "public",
+        target_table: "style_groups",
+        target_id: row.id,
+        target_label: row.sku!,
+        score: term ? 0.5 : 0,
+      }));
+  }
+
+  const tableByField: Partial<Record<FieldKey, string>> = {
+    customer: "customer",
+    licensor: "licensor",
+    designer: "creative_designer",
+    factory: "factory",
+  };
+  const table = tableByField[fieldKey];
+  if (!table) return [] as LinkCandidate[];
+
+  let q = (supabase as any)
+    .schema("core")
+    .from(table)
+    .select("id, name")
+    .not("name", "is", null)
+    .order("name", { ascending: true })
+    .limit(MANUAL_CANDIDATE_LIMIT);
+  if (term) q = q.ilike("name", `%${term}%`);
+  else if (!showAll) return [] as LinkCandidate[];
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return ((data ?? []) as { id: string; name: string | null }[])
+    .filter((row) => row.id && row.name)
+    .map((row) => ({
+      target_schema: "core",
+      target_table: table,
+      target_id: row.id,
+      target_label: row.name!,
+      score: term ? 0.5 : 0,
+    }));
+}
+
 async function fetchCustomerOptions() {
   const { data, error } = await (supabase as any).rpc("get_path_facets");
   if (error) throw error;
@@ -515,6 +591,8 @@ export default function StylesPage() {
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
   const [auditCell, setAuditCell] = useState<AuditCell | null>(null);
+  const [manualCandidateSearch, setManualCandidateSearch] = useState("");
+  const [showAllManualCandidates, setShowAllManualCandidates] = useState(false);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
   const rowsQuery = useQuery({ queryKey: ["style-rows", active.name, showAllRows], queryFn: () => fetchRows(active.name, showAllRows) });
@@ -555,6 +633,16 @@ export default function StylesPage() {
     queryFn: () => searchCandidates(selectedReviewItem),
     enabled: isAdmin && Boolean(selectedReviewItem),
   });
+  const manualCandidateQuery = useQuery({
+    queryKey: ["style-manual-candidates", selectedReviewItem?.key, manualCandidateSearch, showAllManualCandidates],
+    queryFn: () => searchManualCandidates(selectedReviewItem, manualCandidateSearch, showAllManualCandidates),
+    enabled: isAdmin && Boolean(selectedReviewItem) && (showAllManualCandidates || manualCandidateSearch.trim().length >= 2) && !candidateQuery.isFetching && (candidateQuery.data ?? []).length === 0,
+  });
+
+  useEffect(() => {
+    setManualCandidateSearch("");
+    setShowAllManualCandidates(false);
+  }, [selectedReviewItem?.key]);
 
   const removeResolvedReviewItem = (item: ReviewItem) => {
     setResolvedReviewKeys((current) => new Set(current).add(item.key));
@@ -878,7 +966,54 @@ export default function StylesPage() {
                         </Button>
                       ))}
                       {candidateQuery.isFetching && <span className="text-xs text-muted-foreground">Searching...</span>}
-                      {!candidateQuery.isFetching && (candidateQuery.data ?? []).length === 0 && <span className="text-xs text-muted-foreground">No candidate values found</span>}
+                      {!candidateQuery.isFetching && (candidateQuery.data ?? []).length === 0 && (
+                        <div className="grid w-full min-w-0 gap-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <div className="relative min-w-0 flex-1">
+                              <Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                              <Input
+                                value={manualCandidateSearch}
+                                onChange={(event) => setManualCandidateSearch(event.target.value)}
+                                className="h-8 pl-7 text-xs"
+                                placeholder={`Search ${selectedReviewItem.label.toLowerCase()} values`}
+                              />
+                            </div>
+                            <label className="flex h-8 shrink-0 items-center gap-2 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                className="h-3.5 w-3.5"
+                                checked={showAllManualCandidates}
+                                onChange={(event) => setShowAllManualCandidates(event.target.checked)}
+                              />
+                              Show all
+                            </label>
+                          </div>
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            {manualCandidateQuery.isFetching && <span className="text-xs text-muted-foreground">Searching table...</span>}
+                            {!manualCandidateQuery.isFetching && !showAllManualCandidates && manualCandidateSearch.trim().length < 2 && (
+                              <span className="text-xs text-muted-foreground">No candidate values found. Search the table or enable Show all.</span>
+                            )}
+                            {!manualCandidateQuery.isFetching && (manualCandidateQuery.data ?? []).map((candidate) => (
+                              <Button
+                                key={`manual-${candidate.target_schema}.${candidate.target_table}.${candidate.target_id}`}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 max-w-72 justify-start text-xs"
+                                disabled={resolveCanonical.isPending || resolveLocal.isPending}
+                                onClick={() => resolveCanonical.mutate({ item: selectedReviewItem, candidate })}
+                                title={`Approve ${candidate.target_label} and remove ${selectedReviewItem.rawValue} from the review list`}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                <span className="truncate">Approve: {candidate.target_label}</span>
+                              </Button>
+                            ))}
+                            {!manualCandidateQuery.isFetching && (showAllManualCandidates || manualCandidateSearch.trim().length >= 2) && (manualCandidateQuery.data ?? []).length === 0 && (
+                              <span className="text-xs text-muted-foreground">No table values found</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <Button
