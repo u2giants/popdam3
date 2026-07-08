@@ -20,6 +20,8 @@ The Google Sheet was imported into:
 
 - `public.style_tracker_rows`
 - `public.style_tracker_rows_with_bridge`
+- `public.style_tracker_audit_log`
+- `public.style_tracker_audit_log_with_user`
 - `plm.style_tracker_item_bridge`
 - `plm.style_tracker_value_resolution`
 - `public.style_tracker_user_views`
@@ -50,6 +52,7 @@ Verified populated counts from the 2026-06-24 import:
 - Tabs:
   - Google Sheet `License.Style` maps to **Licensed**
   - Google Sheet `Generic.Style` maps to **Generic**
+- **History** opens the user-visible audit log for recent row additions, cell edits, and Master Data match decisions.
 - `Print Fair Row#` is hidden by default.
 - `Legacy BA#` is hidden by default.
 - `Match` column is the row-level Master Data cross-reference status.

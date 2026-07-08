@@ -4,7 +4,7 @@ import type { CellValueChangedEvent, ColDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import { AgGridReact } from "ag-grid-react";
-import { Check, ChevronDown, Columns3, Database, Plus, RefreshCw, Search, Table2 } from "lucide-react";
+import { Check, ChevronDown, Clock3, Columns3, Database, Plus, RefreshCw, Search, Table2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -87,6 +87,23 @@ type LinkCandidate = {
 type PickerOption = {
   id: string;
   name: string;
+};
+
+type AuditLogEntry = {
+  id: string;
+  event_type: "row_added" | "cell_update" | "value_resolution";
+  style_tracker_row_id: string | null;
+  source_sheet: string | null;
+  source_row_number: number | null;
+  field_key: FieldKey | string | null;
+  column_letter: string | null;
+  old_value: unknown;
+  new_value: unknown;
+  metadata: RowData | null;
+  changed_by: string | null;
+  changed_at: string;
+  changed_by_label: string | null;
+  changed_by_email: string | null;
 };
 
 const DEFAULT_ROW_LIMIT = 2500;
@@ -277,6 +294,53 @@ function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown) {
   return payload;
 }
 
+function columnLabel(sourceSheet: string | null | undefined, letter: string | null | undefined) {
+  if (!letter) return "field";
+  const config = configs.find((item) => item.name === sourceSheet) ?? configs[0];
+  const column = config.columns.find((item) => item.letter === letter);
+  return column ? `${column.header} (${letter})` : letter;
+}
+
+function displayAuditValue(value: unknown) {
+  if (value === null || value === undefined) return "blank";
+  if (typeof value === "string") return value || "blank";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const label = record.target_label ?? record.local_value ?? record.raw_value ?? record.resolution_type;
+    if (typeof label === "string" && label) return label;
+  }
+  return JSON.stringify(value);
+}
+
+function auditTitle(entry: AuditLogEntry) {
+  if (entry.event_type === "row_added") return `Added row ${entry.source_row_number ?? ""}`.trim();
+  if (entry.event_type === "value_resolution") {
+    const metadata = entry.metadata ?? {};
+    const rawValue = typeof metadata.raw_value === "string" ? metadata.raw_value : "";
+    return `${fieldLabel((entry.field_key as FieldKey) ?? "sku")} match${rawValue ? `: ${rawValue}` : ""}`;
+  }
+  return `${columnLabel(entry.source_sheet, entry.column_letter)} changed`;
+}
+
+function auditDescription(entry: AuditLogEntry) {
+  if (entry.event_type === "row_added") return "New Master Data row created.";
+  if (entry.event_type === "value_resolution") {
+    const metadata = entry.metadata ?? {};
+    const kind = metadata.resolution_type === "canonical" ? "Linked to" : "Kept in Master Data as";
+    return `${kind} ${displayAuditValue(entry.new_value)}.`;
+  }
+  return `${displayAuditValue(entry.old_value)} -> ${displayAuditValue(entry.new_value)}`;
+}
+
+function formatAuditTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 async function fetchRows(sourceSheet: string, showAll: boolean) {
   const rows: StyleRow[] = [];
   const maxRows = showAll ? Number.POSITIVE_INFINITY : DEFAULT_ROW_LIMIT;
@@ -293,6 +357,17 @@ async function fetchRows(sourceSheet: string, showAll: boolean) {
     if (!data || data.length < 1000) break;
   }
   return rows;
+}
+
+async function fetchAuditLog(sourceSheet: string) {
+  const { data, error } = await (supabase as any)
+    .from("style_tracker_audit_log_with_user")
+    .select("*")
+    .or(`source_sheet.eq.${sourceSheet},source_sheet.is.null`)
+    .order("changed_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []) as AuditLogEntry[];
 }
 
 async function fetchCount(sourceSheet: string) {
@@ -435,10 +510,12 @@ export default function StylesPage() {
   const [showAllRows, setShowAllRows] = useState(false);
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [resolvedReviewKeys, setResolvedReviewKeys] = useState<Set<string>>(() => new Set());
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
   const rowsQuery = useQuery({ queryKey: ["style-rows", active.name, showAllRows], queryFn: () => fetchRows(active.name, showAllRows) });
   const countQuery = useQuery({ queryKey: ["style-row-count", active.name], queryFn: () => fetchCount(active.name) });
+  const auditQuery = useQuery({ queryKey: ["style-audit-log", active.name], queryFn: () => fetchAuditLog(active.name), enabled: historyOpen });
   const customerOptionsQuery = useQuery({ queryKey: ["style-tracker-customer-options"], queryFn: fetchCustomerOptions });
   const licensorOptionsQuery = useQuery({ queryKey: ["style-tracker-licensor-options"], queryFn: fetchLicensorOptions });
   const designerOptionsQuery = useQuery({ queryKey: ["style-tracker-designer-options"], queryFn: fetchDesignerOptions });
@@ -489,7 +566,10 @@ export default function StylesPage() {
       const refreshed = await (supabase as any).rpc("refresh_style_tracker_item_bridge");
       if (refreshed.error) throw refreshed.error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["style-rows"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["style-rows"] });
+      queryClient.invalidateQueries({ queryKey: ["style-audit-log"] });
+    },
     onError: (error) => toast.error("Could not save style row", { description: error.message }),
   });
 
@@ -505,6 +585,7 @@ export default function StylesPage() {
     onSuccess: (_data, count) => {
       toast.success(count === 1 ? "Row added" : `${count} rows added`);
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
+      queryClient.invalidateQueries({ queryKey: ["style-audit-log"] });
       queryClient.invalidateQueries({ queryKey: ["style-row-count"] });
     },
     onError: (error) => toast.error("Could not add row", { description: error.message }),
@@ -529,6 +610,7 @@ export default function StylesPage() {
       toast.success("Master Data link saved");
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
       queryClient.invalidateQueries({ queryKey: ["style-candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["style-audit-log"] });
     },
     onError: (error) => toast.error("Could not save link", { description: error.message }),
   });
@@ -549,6 +631,7 @@ export default function StylesPage() {
       toast.success("Master Data-only value saved");
       queryClient.invalidateQueries({ queryKey: ["style-rows"] });
       queryClient.invalidateQueries({ queryKey: ["style-candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["style-audit-log"] });
     },
     onError: (error) => toast.error("Could not save Master Data value", { description: error.message }),
   });
@@ -690,6 +773,17 @@ export default function StylesPage() {
               <Columns3 className="h-4 w-4" />
               Columns
             </Button>
+            <Button
+              variant={historyOpen ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => {
+                setHistoryOpen((value) => !value);
+                if (!historyOpen) auditQuery.refetch();
+              }}
+            >
+              <Clock3 className="h-4 w-4" />
+              History
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" disabled={addRow.isPending}>
@@ -784,8 +878,8 @@ export default function StylesPage() {
           </div>
         )}
       </div>
-      <div className="min-h-0 flex-1 p-3">
-        <div className="h-full overflow-hidden rounded-md border border-border bg-card">
+      <div className={cn("grid min-h-0 flex-1 gap-3 p-3", historyOpen ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "grid-cols-1")}>
+        <div className="h-full min-h-0 overflow-hidden rounded-md border border-border bg-card">
           <AgGridReact
             ref={gridRef}
             theme={theme === "dark" ? darkGridTheme : lightGridTheme}
@@ -809,6 +903,46 @@ export default function StylesPage() {
             stopEditingWhenCellsLoseFocus
           />
         </div>
+        {historyOpen && (
+          <aside className="flex min-h-0 flex-col rounded-md border border-border bg-card">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-foreground">Audit History</h2>
+                <p className="text-xs text-muted-foreground">Recent Master Data changes</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => auditQuery.refetch()} disabled={auditQuery.isFetching}>
+                  <RefreshCw className={cn("h-4 w-4", auditQuery.isFetching && "animate-spin")} />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {auditQuery.isLoading && <div className="text-sm text-muted-foreground">Loading history...</div>}
+              {auditQuery.isError && <div className="text-sm text-destructive">Could not load audit history.</div>}
+              {!auditQuery.isLoading && !auditQuery.isError && (auditQuery.data ?? []).length === 0 && <div className="text-sm text-muted-foreground">No changes recorded yet.</div>}
+              <div className="space-y-3">
+                {(auditQuery.data ?? []).map((entry) => (
+                  <div key={entry.id} className="rounded-md border border-border bg-background p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-foreground">{auditTitle(entry)}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{auditDescription(entry)}</div>
+                      </div>
+                      {entry.source_row_number && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Row {entry.source_row_number}</span>}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                      <span>{entry.changed_by_label ?? "Unknown user"}</span>
+                      <span>{formatAuditTime(entry.changed_at)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   );
