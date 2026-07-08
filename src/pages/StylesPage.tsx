@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValueChangedEvent, ColDef, DefaultMenuItem, GetContextMenuItemsParams, MenuItemDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
-import { AgGridReact, type CustomCellEditorProps } from "ag-grid-react";
+import { AgGridReact, type CustomCellEditorProps, type CustomCellRendererProps, type CustomHeaderProps } from "ag-grid-react";
 import { Check, ChevronDown, Clock3, Columns3, Database, Plus, RefreshCw, Search, Table2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -186,7 +187,6 @@ const SIZE_AT_END_RE = /(?:^|\s)(\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?(?:\s*(?:"
 const licensedColumns: SheetColumn[] = [
   { letter: "A", header: "Print Fair Row#", width: 118, hide: true, legacyKey: "print_fair_row" },
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
-  { letter: "C", header: "Group ID", width: 118, typedField: "group_id", legacyKey: "group_id" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Originally Designed For", width: 190, typedField: "customer", legacyKey: "originally_designed_for", linkKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
@@ -232,7 +232,6 @@ const licensedColumns: SheetColumn[] = [
 const genericColumns: SheetColumn[] = [
   { letter: "A", header: "A", width: 130 },
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
-  { letter: "C", header: "GroupID", width: 118, typedField: "group_id", legacyKey: "group_id" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Special Customer", width: 170, typedField: "customer", legacyKey: "special_customer", linkKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
@@ -886,6 +885,65 @@ function DescriptionBuilderEditor(props: DescriptionEditorProps) {
   );
 }
 
+function RowNumberCell(params: CustomCellRendererProps<StyleRow, number | null>) {
+  const { node, value } = params;
+  const [selected, setSelected] = useState(() => node.isSelected() ?? false);
+
+  useEffect(() => {
+    const listener = () => setSelected(node.isSelected() ?? false);
+    node.addEventListener("rowSelected", listener);
+    return () => node.removeEventListener("rowSelected", listener);
+  }, [node]);
+
+  return (
+    <div className="flex h-full items-center gap-2">
+      <Checkbox
+        checked={selected}
+        onCheckedChange={(checked) => node.setSelected(checked === true)}
+        onClick={(event) => event.stopPropagation()}
+        aria-label="Select row"
+      />
+      <span className="font-mono text-muted-foreground">{value ?? ""}</span>
+    </div>
+  );
+}
+
+function RowNumberHeader(params: CustomHeaderProps<StyleRow>) {
+  const { api } = params;
+  const [checked, setChecked] = useState<boolean | "indeterminate">(false);
+
+  const refresh = useCallback(() => {
+    let total = 0;
+    let selectedCount = 0;
+    api.forEachNodeAfterFilter((node) => {
+      total += 1;
+      if (node.isSelected()) selectedCount += 1;
+    });
+    setChecked(total === 0 || selectedCount === 0 ? false : selectedCount === total ? true : "indeterminate");
+  }, [api]);
+
+  useEffect(() => {
+    refresh();
+    api.addEventListener("selectionChanged", refresh);
+    api.addEventListener("modelUpdated", refresh);
+    return () => {
+      api.removeEventListener("selectionChanged", refresh);
+      api.removeEventListener("modelUpdated", refresh);
+    };
+  }, [api, refresh]);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox
+        checked={checked}
+        onCheckedChange={(value) => (value ? api.selectAll("filtered") : api.deselectAll("filtered"))}
+        aria-label="Select all rows"
+      />
+      <span>#</span>
+    </div>
+  );
+}
+
 export default function StylesPage() {
   const queryClient = useQueryClient();
   const { theme } = useAppearance();
@@ -1060,12 +1118,13 @@ export default function StylesPage() {
       {
         field: "source_row_number",
         headerName: "#",
-        width: 72,
+        width: 96,
         pinned: "left",
         editable: false,
         filter: "agNumberColumnFilter",
         suppressFillHandle: true,
-        cellClass: "font-mono text-muted-foreground",
+        cellRenderer: RowNumberCell,
+        headerComponent: RowNumberHeader,
       },
       {
         colId: "match",
@@ -1389,7 +1448,7 @@ export default function StylesPage() {
               const column = active.columns.find((item) => item.letter === event.colDef.colId);
               if (column) updateCell.mutate({ row: event.data, column, value: event.newValue });
             }}
-            rowSelection={{ mode: "multiRow" }}
+            rowSelection={{ mode: "multiRow", checkboxes: false, headerCheckbox: false }}
             cellSelection={{ handle: { mode: "fill", direction: "xy" } }}
             sideBar={{ toolPanels: [{ id: "columns", labelDefault: "Columns", labelKey: "columns", iconKey: "columns", toolPanel: "agColumnsToolPanel" }], hiddenByDefault: true }}
             pagination
