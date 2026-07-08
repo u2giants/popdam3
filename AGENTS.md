@@ -120,6 +120,15 @@ Shutdown checklist:
 4. Final reports must separate app commits from shared-db status so the owner can
    keep vibe-coding without becoming the git janitor.
 
+Credential/auth failures are not a reason to invent alternate production paths:
+if Supabase CLI, database, GitHub, 1Password, or other deployment credentials
+fail, fix the canonical credential or tool login path first, verify it with the
+normal dry-run/status command, and update the relevant 1Password notes. Do not
+paper over the failure with ad hoc SQL/API calls, embedded tokens, copied browser
+sessions, or one-off host state. A failed env-var invocation can be a shell/tool
+usage bug, not a bad secret; prove the credential independently before rotating
+or declaring it broken.
+
 ---
 
 ## Multi-model AI usage in code (where models are configured)
