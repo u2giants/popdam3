@@ -127,7 +127,9 @@ normal dry-run/status command, and update the relevant 1Password notes. Do not
 paper over the failure with ad hoc SQL/API calls, embedded tokens, copied browser
 sessions, or one-off host state. A failed env-var invocation can be a shell/tool
 usage bug, not a bad secret; prove the credential independently before rotating
-or declaring it broken.
+or declaring it broken. For the exact Supabase CLI, preview branch, production
+DB password, and pooler commands, use `/worksp/shared-db/AGENTS.md` section
+"Supabase CLI and database credential runbook."
 
 ---
 
