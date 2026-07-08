@@ -65,17 +65,17 @@ export default function LibraryPage() {
   } = useScanLifecycle(scanProgress);
 
   // ── Data queries ────────────────────────────────────────────────
+  const isGroupsMode = libraryMode === "groups";
   const { data: visibilityDate } = useVisibilityDate();
   const { data: sgData, isLoading: sgLoading } = useStyleGroups(filters, sortField, sortDirection, page, pageSize, visibilityDate);
   const { data: totalGroupCount } = useStyleGroupCount(filters, visibilityDate);
   const { data: ungroupedCount } = useUngroupedCount();
   const { data: totalAssets } = useTotalAssetCount();
-  const { data: assetData, isLoading: assetLoading } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize);
+  const { data: assetData, isLoading: assetLoading } = useAssets(filters, sortField, sortDirection, page, visibilityDate, pageSize, !isGroupsMode);
   const { licensors, properties } = useFilterOptions(filters.licensorId);
   const { data: facetCounts } = useFilterCounts(filters);
   const { data: pathFacets } = usePathFacets(filters.customer);
 
-  const isGroupsMode = libraryMode === "groups";
   const groups = sgData?.groups ?? [];
   const assets = assetData?.assets ?? [];
   const isLoading = isGroupsMode ? sgLoading : assetLoading;
