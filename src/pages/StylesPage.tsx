@@ -1,19 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CellValueChangedEvent, ColDef, DefaultMenuItem, GetContextMenuItemsParams, MenuItemDef } from "ag-grid-community";
+import type { CellValueChangedEvent, ColDef, ColumnState, DefaultMenuItem, GetContextMenuItemsParams, GridReadyEvent, MenuItemDef } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry, iconSetMaterial, themeQuartz } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import { AgGridReact, type CustomCellEditorProps, type CustomCellRendererProps, type CustomHeaderProps } from "ag-grid-react";
-import { Check, ChevronDown, Clock3, Columns3, Database, Plus, RefreshCw, Search, Table2 } from "lucide-react";
+import { Check, ChevronDown, Clock3, Columns3, Database, Pencil, Plus, RefreshCw, RotateCcw, Save, Search, Star, Table2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppearance } from "@/hooks/useAppearance";
+import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
   filterStyleTrackerCandidates,
@@ -125,6 +133,15 @@ type AuditLogEntry = {
 type AuditCell = {
   row: StyleRow;
   column: SheetColumn;
+};
+
+type SavedView = {
+  id: string;
+  view_name: string;
+  source_sheet: string;
+  column_state: ColumnState[] | null;
+  filter_model: Record<string, unknown> | null;
+  updated_at: string;
 };
 
 const DEFAULT_ROW_LIMIT = 2500;
@@ -439,6 +456,22 @@ async function fetchCellAuditLog(cell: AuditCell | null) {
     .limit(50);
   if (error) throw error;
   return (data ?? []) as AuditLogEntry[];
+}
+
+function activeViewStorageKey(sourceSheet: string) {
+  return `master-data-active-view:${sourceSheet}`;
+}
+
+async function fetchSavedViews(userId: string | undefined, sourceSheet: string) {
+  if (!userId) return [] as SavedView[];
+  const { data, error } = await (supabase as any)
+    .from("style_tracker_user_views")
+    .select("id, view_name, source_sheet, column_state, filter_model, updated_at")
+    .eq("user_id", userId)
+    .eq("source_sheet", sourceSheet)
+    .order("view_name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SavedView[];
 }
 
 async function fetchCount(sourceSheet: string) {
@@ -948,6 +981,7 @@ export default function StylesPage() {
   const queryClient = useQueryClient();
   const { theme } = useAppearance();
   const { isAdmin } = useIsAdmin();
+  const { user } = useAuth();
   const gridRef = useRef<AgGridReact<StyleRow>>(null);
   const [activeSheet, setActiveSheet] = useState<(typeof configs)[number]["name"]>("License.Style");
   const [quickFilter, setQuickFilter] = useState("");
@@ -957,6 +991,12 @@ export default function StylesPage() {
   const [auditCell, setAuditCell] = useState<AuditCell | null>(null);
   const [manualCandidateSearch, setManualCandidateSearch] = useState("");
   const [showAllManualCandidates, setShowAllManualCandidates] = useState(false);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [viewDialog, setViewDialog] = useState<{ mode: "save" | "rename"; viewId?: string } | null>(null);
+  const [viewNameInput, setViewNameInput] = useState("");
+  const [gridReady, setGridReady] = useState(false);
+  const [viewsMenuOpen, setViewsMenuOpen] = useState(false);
+  const lastAppliedSheetRef = useRef<string | null>(null);
 
   const active = configs.find((config) => config.name === activeSheet) ?? configs[0];
   const rowsQuery = useQuery({ queryKey: ["style-rows", active.name, showAllRows], queryFn: () => fetchRows(active.name, showAllRows) });
@@ -972,6 +1012,13 @@ export default function StylesPage() {
   const propertyOptionsQuery = useQuery({ queryKey: ["style-tracker-property-options"], queryFn: fetchPropertyOptions });
   const sizeOptionsQuery = useQuery({ queryKey: ["style-tracker-size-options"], queryFn: fetchSizeOptions });
   const designerOptionsQuery = useQuery({ queryKey: ["style-tracker-designer-options"], queryFn: fetchDesignerOptions });
+  const savedViewsQuery = useQuery({
+    queryKey: ["style-tracker-views", user?.id, active.name],
+    queryFn: () => fetchSavedViews(user?.id, active.name),
+    enabled: Boolean(user?.id),
+  });
+  const savedViews = savedViewsQuery.data ?? [];
+  const activeView = savedViews.find((view) => view.id === activeViewId) ?? null;
   const rows = rowsQuery.data ?? [];
   const designerOptionKeys = useMemo(() => new Set((designerOptionsQuery.data ?? []).map((name) => normalized(name))), [designerOptionsQuery.data]);
   const descriptionOptions = useMemo<DescriptionEditorOptions>(() => {
@@ -1112,6 +1159,170 @@ export default function StylesPage() {
     },
     onError: (error) => toast.error("Could not save Master Data value", { description: error.message }),
   });
+
+  const applyView = useCallback((view: SavedView | null) => {
+    const api = gridRef.current?.api;
+    if (!api) return;
+    if (!view) {
+      api.resetColumnState();
+      api.setFilterModel(null);
+      return;
+    }
+    if (Array.isArray(view.column_state) && view.column_state.length) {
+      api.applyColumnState({ state: view.column_state, applyOrder: true });
+    }
+    api.setFilterModel(view.filter_model ?? null);
+  }, []);
+
+  const selectView = useCallback(
+    (view: SavedView | null) => {
+      setActiveViewId(view?.id ?? null);
+      try {
+        if (view) window.localStorage.setItem(activeViewStorageKey(active.name), view.id);
+        else window.localStorage.removeItem(activeViewStorageKey(active.name));
+      } catch {
+        // ignore storage failures (private mode, etc.)
+      }
+      applyView(view);
+    },
+    [active.name, applyView],
+  );
+
+  // Re-apply the remembered view when the grid mounts, when the sheet changes,
+  // or once that sheet's saved views finish loading.
+  useEffect(() => {
+    const api = gridRef.current?.api;
+    if (!api || !gridReady || savedViewsQuery.isFetching) return;
+    if (lastAppliedSheetRef.current === active.name) return;
+    lastAppliedSheetRef.current = active.name;
+    let storedId: string | null = null;
+    try {
+      storedId = window.localStorage.getItem(activeViewStorageKey(active.name));
+    } catch {
+      storedId = null;
+    }
+    const view = savedViews.find((item) => item.id === storedId) ?? null;
+    setActiveViewId(view?.id ?? null);
+    applyView(view);
+  }, [gridReady, active.name, savedViews, savedViewsQuery.isFetching, applyView]);
+
+  const captureViewState = () => {
+    const api = gridRef.current?.api;
+    if (!api) throw new Error("The grid is not ready yet.");
+    return {
+      column_state: api.getColumnState() as ColumnState[],
+      filter_model: api.getFilterModel() as Record<string, unknown>,
+    };
+  };
+
+  const saveView = useMutation({
+    mutationFn: async (name: string) => {
+      if (!user?.id) throw new Error("You must be signed in to save a view.");
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error("Enter a name for this view.");
+      const { column_state, filter_model } = captureViewState();
+      const { data, error } = await (supabase as any)
+        .from("style_tracker_user_views")
+        .insert({ user_id: user.id, source_sheet: active.name, view_name: trimmed, column_state, filter_model })
+        .select("id, view_name, source_sheet, column_state, filter_model, updated_at")
+        .single();
+      if (error) throw error;
+      return data as SavedView;
+    },
+    onSuccess: (view) => {
+      toast.success(`Saved view “${view.view_name}”`);
+      setActiveViewId(view.id);
+      try {
+        window.localStorage.setItem(activeViewStorageKey(active.name), view.id);
+      } catch {
+        // ignore storage failures
+      }
+      setViewDialog(null);
+      setViewNameInput("");
+      queryClient.invalidateQueries({ queryKey: ["style-tracker-views", user?.id, active.name] });
+    },
+    onError: (error) => toast.error("Could not save view", { description: error.message }),
+  });
+
+  const updateView = useMutation({
+    mutationFn: async (view: SavedView) => {
+      const { column_state, filter_model } = captureViewState();
+      const { error } = await (supabase as any)
+        .from("style_tracker_user_views")
+        .update({ column_state, filter_model })
+        .eq("id", view.id);
+      if (error) throw error;
+      return view;
+    },
+    onSuccess: (view) => {
+      toast.success(`Updated “${view.view_name}”`);
+      queryClient.invalidateQueries({ queryKey: ["style-tracker-views", user?.id, active.name] });
+    },
+    onError: (error) => toast.error("Could not update view", { description: error.message }),
+  });
+
+  const renameView = useMutation({
+    mutationFn: async ({ view, name }: { view: SavedView; name: string }) => {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error("Enter a name for this view.");
+      const { error } = await (supabase as any)
+        .from("style_tracker_user_views")
+        .update({ view_name: trimmed })
+        .eq("id", view.id);
+      if (error) throw error;
+      return trimmed;
+    },
+    onSuccess: (name) => {
+      toast.success(`Renamed view to “${name}”`);
+      setViewDialog(null);
+      setViewNameInput("");
+      queryClient.invalidateQueries({ queryKey: ["style-tracker-views", user?.id, active.name] });
+    },
+    onError: (error) => toast.error("Could not rename view", { description: error.message }),
+  });
+
+  const deleteView = useMutation({
+    mutationFn: async (view: SavedView) => {
+      const { error } = await (supabase as any).from("style_tracker_user_views").delete().eq("id", view.id);
+      if (error) throw error;
+      return view;
+    },
+    onSuccess: (view) => {
+      toast.success(`Deleted “${view.view_name}”`);
+      if (activeViewId === view.id) {
+        setActiveViewId(null);
+        try {
+          window.localStorage.removeItem(activeViewStorageKey(active.name));
+        } catch {
+          // ignore storage failures
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["style-tracker-views", user?.id, active.name] });
+    },
+    onError: (error) => toast.error("Could not delete view", { description: error.message }),
+  });
+
+  const openSaveViewDialog = () => {
+    setViewsMenuOpen(false);
+    setViewNameInput("");
+    setViewDialog({ mode: "save" });
+  };
+
+  const openRenameViewDialog = (view: SavedView) => {
+    setViewsMenuOpen(false);
+    setViewNameInput(view.view_name);
+    setViewDialog({ mode: "rename", viewId: view.id });
+  };
+
+  const submitViewDialog = () => {
+    if (!viewDialog) return;
+    if (viewDialog.mode === "save") {
+      saveView.mutate(viewNameInput);
+      return;
+    }
+    const target = savedViews.find((item) => item.id === viewDialog.viewId);
+    if (target) renameView.mutate({ view: target, name: viewNameInput });
+  };
 
   const columnDefs = useMemo<ColDef<StyleRow>[]>(
     () => [
@@ -1290,6 +1501,74 @@ export default function StylesPage() {
               <Columns3 className="h-4 w-4" />
               Columns
             </Button>
+            <DropdownMenu open={viewsMenuOpen} onOpenChange={setViewsMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="max-w-56">
+                  <Star className={cn("h-4 w-4", activeView && "fill-current text-amber-500")} />
+                  <span className="truncate">{activeView ? activeView.view_name : "Views"}</span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Saved views</DropdownMenuLabel>
+                {savedViewsQuery.isLoading ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">Loading…</div>
+                ) : savedViews.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">No saved views yet.</div>
+                ) : (
+                  savedViews.map((view) => (
+                    <div key={view.id} className="flex items-center gap-1 pr-1">
+                      <DropdownMenuItem
+                        className="min-w-0 flex-1"
+                        onClick={() => selectView(view)}
+                      >
+                        <Check className={cn("h-3.5 w-3.5 shrink-0", view.id === activeViewId ? "opacity-100" : "opacity-0")} />
+                        <span className="min-w-0 truncate">{view.view_name}</span>
+                      </DropdownMenuItem>
+                      <button
+                        type="button"
+                        title="Rename view"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          openRenameViewDialog(view);
+                        }}
+                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete view"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          deleteView.mutate(view);
+                        }}
+                        className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={openSaveViewDialog} disabled={!user}>
+                  <Save className="h-3.5 w-3.5" />
+                  Save current view…
+                </DropdownMenuItem>
+                {activeView && (
+                  <DropdownMenuItem onClick={() => updateView.mutate(activeView)} disabled={updateView.isPending}>
+                    <Check className="h-3.5 w-3.5" />
+                    Update “{activeView.view_name}”
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => selectView(null)}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reset to default
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" disabled={addRow.isPending}>
@@ -1443,6 +1722,12 @@ export default function StylesPage() {
             quickFilterText={quickFilter}
             getRowId={(params) => params.data.id}
             getContextMenuItems={contextMenuItems}
+            onGridReady={(event: GridReadyEvent<StyleRow>) => {
+              void event;
+              setGridReady(true);
+            }}
+            suppressDragLeaveHidesColumns
+            maintainColumnOrder
             onCellValueChanged={(event: CellValueChangedEvent<StyleRow>) => {
               if (!event.data || event.oldValue === event.newValue) return;
               const column = active.columns.find((item) => item.letter === event.colDef.colId);
@@ -1486,6 +1771,58 @@ export default function StylesPage() {
               ))}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(viewDialog)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewDialog(null);
+            setViewNameInput("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              {viewDialog?.mode === "rename" ? <Pencil className="h-4 w-4 text-primary" /> : <Save className="h-4 w-4 text-primary" />}
+              {viewDialog?.mode === "rename" ? "Rename view" : "Save view"}
+            </DialogTitle>
+            <DialogDescription>
+              {viewDialog?.mode === "rename"
+                ? "Give this saved view a new name."
+                : `Save the current column layout, order, sizing, and filters for ${active.label}.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-1">
+            <Input
+              autoFocus
+              value={viewNameInput}
+              onChange={(event) => setViewNameInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  submitViewDialog();
+                }
+              }}
+              placeholder="e.g. Concept pipeline"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setViewDialog(null);
+                setViewNameInput("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={submitViewDialog} disabled={!viewNameInput.trim() || saveView.isPending || renameView.isPending}>
+              {viewDialog?.mode === "rename" ? "Rename" : "Save view"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

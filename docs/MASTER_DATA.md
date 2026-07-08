@@ -59,6 +59,29 @@ Verified populated counts from the 2026-06-24 import:
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
 - AG Grid Enterprise is installed without a license key for now, matching the PLM-style trial setup. Keep AG Grid packages pinned to the same exact version; a previous `35.3.1` Enterprise + `35.1.0` Community/React mismatch caused a blank page before React mounted.
 
+## View Customization (Saved Views)
+
+Users can customize the grid and save named, per-user views:
+
+- **Show / hide columns and re-order:** the **Columns** button opens AG Grid's
+  columns tool panel (drag to reorder, toggle checkboxes to show/hide). Columns
+  are also draggable **live in the grid** by dragging their headers; the grid
+  option `maintainColumnOrder` preserves a user's manual order across the async
+  option-list refreshes that rebuild `columnDefs`.
+- **Save / name views:** the **Views** dropdown (star icon) lists the current
+  user's saved views for the active tab and offers **Save current view…**,
+  **Update "<active view>"**, per-row **rename** (pencil) and **delete** (trash),
+  and **Reset to default**. Saving captures the full AG Grid column state
+  (order, visibility, width, pinning, sort) via `getColumnState()` plus the
+  `getFilterModel()` filters.
+- **Persistence:** views are stored per user + per tab in
+  `public.style_tracker_user_views` (`column_state`, `filter_model`,
+  `source_sheet`, `view_name`). The last-applied view id is also remembered in
+  `localStorage` (`master-data-active-view:<source_sheet>`) and re-applied on
+  grid mount and when switching tabs, so a user's chosen layout survives reloads.
+- Views are scoped to the active tab's `source_sheet` (Licensed vs Generic), so
+  the Licensed and Generic tabs keep independent saved views.
+
 ## Matching Workflow
 
 The **Master Data matching** panel is admin-only.
@@ -129,5 +152,5 @@ Verified during the 2026-06-26 core.customer cutover repair:
 ## Follow-Ups
 
 - Keep candidate matching constrained to PLM-backed source refs through `public.search_style_tracker_link_candidates(...)`.
-- Restore/finish per-user saved grid views if the simplified page source is kept; the database table exists but the current recreated page only exposes the AG Grid columns panel.
+- ✅ Per-user saved grid views are now implemented (see "View Customization" above); they persist to `public.style_tracker_user_views`. Formalize that table in `shared-db` before treating it as durable shared-schema infrastructure.
 - Move the temporary Master Data tables/RPCs into a cleaner PLM bridge namespace or replace them when PLM lands in the shared Supabase project.
