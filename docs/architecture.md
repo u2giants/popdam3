@@ -93,6 +93,16 @@ Located in `apps/popdam-helper/`. An Electron desktop application (built with el
 4. Results inserted into `product_category_predictions`.
 5. Human reviews pending predictions in ERP Items Browser or Review Queue. Approved predictions are pushed to `style_groups.product_category` and `assets.product_category` via "Apply ERP Enrichment" (`erp-enrichment` worker op).
 
+### 5. Library Search
+
+The PopDAM library search uses indexed database RPCs before applying the normal filter/sort/page queries:
+
+- `search_assets_full_text(query, limit)` returns matching `assets.id` values from indexed asset metadata plus `pdf_text_samples.extracted_text`.
+- `search_style_groups_full_text(query, limit)` returns matching `style_groups.id` values from indexed group metadata plus member asset/PDF matches.
+- GIN indexes backing the RPCs live in canonical `shared-db` migrations `20260709150000_dam_full_text_search.sql` and `20260709151000_dam_full_text_search_preserve_substring.sql`.
+
+The frontend caps the RPC handoff at 500 IDs. If a search is too broad, or the RPC is missing during a deploy ordering mismatch, it falls back to the older metadata substring search. This preserves SKU-prefix behavior such as `3fz` matching `3FZ93DYEC01`, while making narrower tech-pack/licensor-sheet text queries searchable through the extracted PDF text index.
+
 ---
 
 ## Key Database Tables

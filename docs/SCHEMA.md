@@ -540,6 +540,10 @@ Tracks the lifecycle of a file checked out to a local machine. The unique partia
   `assets(licensor_id)`, `assets(property_id)`, `assets(product_subtype_id)`,
   `assets(quick_hash)`
 - GIN: `assets(tags)`
+- GIN full-text search:
+  - `idx_assets_full_text_search` on asset filename/path/product-description/search metadata (`assets`, partial where `is_deleted = false`)
+  - `idx_style_groups_full_text_search` on SKU/folder/product-description/search metadata (`style_groups`)
+  - `idx_pdf_text_samples_extracted_text_search` on `pdf_text_samples.extracted_text`
 - trigram (pg_trgm): `assets(filename)` and optionally `assets(relative_path)`
 
 ---
@@ -565,6 +569,7 @@ Create a single SQL function (or view) used everywhere:
 - queue functions: `claim_jobs(...)` using `FOR UPDATE SKIP LOCKED`, `reset_stale_jobs(...)`
 - optional: `get_filter_counts(filters)` and `get_asset_count(filters)` using the same visibility logic
 - path-derived attributes (see PATH_ATTRIBUTES.md): `infer_path_attrs(path)` (IMMUTABLE) + `trg_set_path_attrs` triggers on `assets`/`style_groups`; `get_path_facets(customer)` for the customer/program filter combos
+- library full-text search: `search_assets_full_text(query, limit)` and `search_style_groups_full_text(query, limit)` return matching IDs for the frontend to intersect with the normal filtered queries. These functions search extracted PDF text via indexed `pdf_text_samples.extracted_text`, and preserve substring behavior for SKU-prefix searches like `3fz`.
 
 ---
 
