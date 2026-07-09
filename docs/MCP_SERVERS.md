@@ -14,7 +14,7 @@ and how their tokens are managed. Established/rotated 2026-06-22.
 
 | MCP server | Endpoint | Runs where | Auth |
 |---|---|---|---|
-| `supabase` | local `npx @supabase/mcp-server-supabase` `--project-ref qsllyeztdwjgirsysgai` | local | `SUPABASE_ACCESS_TOKEN` env |
+| `supabase` | local `npx @supabase/mcp-server-supabase` `--project-ref qsllyeztdwjgirsysgai` | local | `SUPABASE_ACCESS_TOKEN` env, wired via an explicit `env: {"SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"}` block in `.mcp.json` (added 2026-07-09 — see below) |
 | `devops-mcp` | `https://mcp.designflow.app/mcp` (native `type:http`) | Coolify **Service** on the Hetzner VPS (uuid `vj5f76xet05bxwdq4utw1kho`) | `Authorization: Bearer ${DEVOPS_MCP_TOKEN}` |
 | `synology-monitor` | `https://nas-mcp.designflow.app/mcp` (native `type:http`) | Coolify **Application** on the VPS (uuid `efl17f5iocnz94840pexre9d`); relays to the NAS | `Authorization: Bearer ${NAS_MCP_TOKEN}` |
 | `playwright` | local `npx @playwright/mcp` | local | none |
@@ -46,6 +46,13 @@ There is **no 1Password MCP** wired into a VPS Claude Code session — use the `
 SA token is in `/root/.bashrc` and `/home/ai/.bashrc`). The user's *Windows Desktop app* has
 a `@takescake/1password-mcp` server (separate config; see "Windows" below).
 
+**Update 2026-07-09:** at least one non-VPS (cloud/remote) session type does have a working
+1Password MCP (`@u2giants/1password-mcp`, tool names `mcp__1password__*`), backed by the same
+`OP_SERVICE_ACCOUNT_TOKEN` and scoped to the `vibe_coding` vault only — `vault_list`/`item_list`
+were used successfully to audit vault contents without exposing secret values. Unclear whether
+this is present on literal VPS sessions too, or specific to how that other session type is
+launched; verify with `mcp__1password__vault_list` before assuming it's absent.
+
 ---
 
 ## How `.mcp.json` placeholders get resolved
@@ -58,6 +65,17 @@ a `@takescake/1password-mcp` server (separate config; see "Windows" below).
   session, check that block and that `op` + the SA token work (`op whoami`).
 - **Anywhere else (e.g. a local laptop running this repo):** launch via
   `op run --env-file=<file with op://vibe_coding/designflow-mcp/* refs> -- claude`.
+- **Cloud/remote sessions not launched via the `.bashrc` shell path:** confirmed 2026-07-09
+  that at least one such session type never sourced that block, so `SUPABASE_ACCESS_TOKEN`
+  was unset and the `supabase` MCP server (a stdio process with no `env` block at the time)
+  failed instantly on startup. `devops-mcp`/`synology-monitor` still worked in that same
+  session because their `${VAR}` placeholders live in the `headers` of an `http`-type server,
+  which this environment appears to resolve from 1Password on its own — that resolution has
+  **not** been observed for `env` blocks on stdio servers, so stdio servers must carry an
+  explicit `"env": {"SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"}` block (now added to
+  `.mcp.json`) rather than relying on ambient shell export. If `supabase` MCP tools are still
+  missing after this fix + a session restart, this environment's placeholder resolution may
+  not extend to stdio `env` blocks either — fall back to `op run` (above) or ask the user.
 
 ---
 

@@ -486,6 +486,12 @@ Use this exact shape for every new quirk:
 **Actually:** The tokens are injected from 1Password (`vibe_coding/designflow-mcp`) — on the VPS via a `~/.bashrc` `op read` block, elsewhere via `op run`. The old hardcoded tokens were exposed in git history and had to be rotated (2026-06-22).
 **Do not change because:** pasting real tokens back into `.mcp.json` commits them to git and re-exposes them. Full model + rotation steps: `docs/MCP_SERVERS.md`.
 
+### `supabase` MCP server needs its own explicit `env` block, unlike the `http`-type servers
+
+**Looks like:** Since `devops-mcp`/`synology-monitor` resolve their `${VAR}` bearer-token placeholders automatically, the `supabase` entry (a local `npx` stdio server) should too.
+**Actually:** `${VAR}` auto-resolution from 1Password (some hosting environments do this) has only been observed for `http`-type servers' `headers` block. The `supabase` entry originally had **no `env` key at all**, so it depended entirely on `SUPABASE_ACCESS_TOKEN` already being exported in the shell that launches the session (the `~/.bashrc` `op read` block) — which doesn't happen in every session type (confirmed 2026-07-08: a non-VPS session had the token unset, and `npx @supabase/mcp-server-supabase` failed instantly with "provide a personal access token"). Fixed by adding `"env": {"SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"}` to the `supabase` entry in `.mcp.json`, matching the placeholder pattern already used elsewhere in the file.
+**Do not change because:** this still carries no literal secret (placeholder only). If `supabase` MCP tools are unavailable after a session restart, check whether the specific environment's launcher exports `SUPABASE_ACCESS_TOKEN` before starting Claude Code — see `docs/MCP_SERVERS.md`.
+
 ### `src/integrations/supabase/client.ts` is a one-line re-export
 
 **Looks like:** Should create a Supabase client.

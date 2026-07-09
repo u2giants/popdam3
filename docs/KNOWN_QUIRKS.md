@@ -582,3 +582,15 @@ SELECT last_value, is_called FROM auth.refresh_tokens_id_seq;
 ```
 
 **Future sessions should**: Keep PopDAM's trigger name app-specific (`on_auth_user_created_popdam`). Shared app migrations may add their own `auth.users` triggers, but they must not drop PopDAM's trigger. After imports/restores/cutovers, check sequence alignment for Auth-owned serial tables before blaming OAuth.
+
+---
+
+## 56. Manually Stopping a Scan Reported "Scan Failed Before Details Were Recorded" (Fixed 2026-07-09)
+
+**What it looks like**: Settings → Scan Diagnostics shows a red "Scan failed before details were recorded" card after an admin uses the **Stop Scan** button — even though nothing actually crashed. The card's own copy blames a legacy pre-enforcement agent, which is misleading for a fresh, intentional stop.
+
+**Why it happened**: Two different code paths write `SCAN_PROGRESS.status = "failed"`. The normal agent-crash path (`handleScanProgress` in `agent-api/index.ts`) always synthesizes a fallback `error` message via `synthesizeScanFailure()` when the agent didn't report one — so genuine crashes always carry a reason. But `handleStopScan()` (in `supabase/functions/_shared/admin-handlers/agent-handlers.ts`) force-writes `status: "failed"` directly into `admin_config.SCAN_PROGRESS` to break a stuck "running" state, and never went through that synthesis — it wrote no `error` field at all, so the UI fell through to its generic "before details were enforced" copy meant for old data, not for this live path.
+
+**How it was fixed**: `handleStopScan()` now writes `error: "Scan stopped manually via the Stop Scan action."` alongside `status: "failed"`. `src/pages/ScanDiagnosticsPage.tsx`'s `explainScanError()` recognizes the phrase `"stopped manually"` and shows a calm, non-alarming "Scan stopped manually" card instead of the generic error explanation.
+
+**Future sessions should**: If you add another place that force-sets `SCAN_PROGRESS.status = "failed"` outside the agent's own reporting path, always include an explicit `error` string — don't rely on `synthesizeScanFailure()`, which only runs inside `handleScanProgress`. The status is still literally `"failed"` (not a distinct `"stopped"` state) — introducing a real `"stopped"` status would touch more surfaces (badge color, any code branching on `status === "failed"`) and wasn't done here; the fix is message-only.
