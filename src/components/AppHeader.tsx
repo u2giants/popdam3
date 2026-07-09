@@ -44,6 +44,7 @@ import {
   Moon,
   Bell,
   Database,
+  ImageDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
@@ -53,6 +54,7 @@ import { CURRENT_APP, IS_POPSG } from "@/lib/app-mode";
 const popdamNavItems = [
   { to: "/", label: "Library", icon: Library },
   { to: "/files", label: "Files", icon: FolderOpen },
+  { to: "/sell-through", label: "Sell-through", icon: ImageDown },
   { href: "https://dam.designflow.app/styles", label: "Master Data", icon: Database },
   { to: "/setup", label: "Setup", icon: Wand2 },
   { to: "/settings", label: "Settings", icon: Settings },
