@@ -46,19 +46,55 @@ export interface StyleGroup {
 }
 
 const PAGE_SIZE = 200;
+const FULL_TEXT_SEARCH_LIMIT = 500;
+const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
 
-function applyStyleGroupFilters(query: any, filters: AssetFilters) {
+export function buildStyleGroupSearchFilter(search: string) {
+  const term = search.replace(/[(),]/g, " ").trim();
+  if (!term) return null;
+
+  return (
+    `sku.ilike.%${term}%,` +
+    `cover_description.ilike.%${term}%,` +
+    `folder_path.ilike.%${term}%,` +
+    `licensor_name.ilike.%${term}%,` +
+    `property_name.ilike.%${term}%,` +
+    `product_category.ilike.%${term}%,` +
+    `customer.ilike.%${term}%,` +
+    `program.ilike.%${term}%`
+  );
+}
+
+function isMissingFullTextRpc(error: unknown) {
+  const err = error as { code?: string; message?: string; details?: string };
+  const text = `${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
+  return err.code === "PGRST202" || text.includes("search_style_groups_full_text");
+}
+
+async function fetchStyleGroupFullTextIds(search: string) {
+  const term = search.replace(/[(),]/g, " ").trim();
+  if (!term) return null;
+
+  const { data, error } = await (supabase.rpc as any)("search_style_groups_full_text", {
+    p_query: term,
+    p_limit: FULL_TEXT_SEARCH_LIMIT,
+  });
+  if (error) {
+    if (isMissingFullTextRpc(error)) return undefined;
+    throw error;
+  }
+
+  const ids = ((data ?? []) as { style_group_id: string }[]).map((row) => row.style_group_id);
+  return ids.length >= FULL_TEXT_SEARCH_LIMIT ? undefined : ids;
+}
+
+function applyStyleGroupFilters(query: any, filters: AssetFilters, fullTextGroupIds?: string[] | null) {
   if (filters.search) {
-    const term = filters.search.replace(/[(),]/g, " ").trim();
-    if (term) {
-      query = query.or(
-        `sku.ilike.%${term}%,` +
-        `licensor_name.ilike.%${term}%,` +
-        `property_name.ilike.%${term}%,` +
-        `product_category.ilike.%${term}%,` +
-        `customer.ilike.%${term}%,` +
-        `program.ilike.%${term}%`
-      );
+    if (fullTextGroupIds) {
+      query = query.in("id", fullTextGroupIds.length > 0 ? fullTextGroupIds : [NO_MATCH_UUID]);
+    } else {
+      const searchFilter = buildStyleGroupSearchFilter(filters.search);
+      if (searchFilter) query = query.or(searchFilter);
     }
   }
   if (filters.stage.length > 0) {
@@ -117,6 +153,7 @@ export function useStyleGroups(
     queryFn: async () => {
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
+      const fullTextGroupIds = filters.search ? await fetchStyleGroupFullTextIds(filters.search) : null;
 
       let query = supabase
         .from("style_groups")
@@ -130,7 +167,7 @@ export function useStyleGroups(
       query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
 
       // Filters
-      query = applyStyleGroupFilters(query, filters);
+      query = applyStyleGroupFilters(query, filters, fullTextGroupIds);
 
       // Sort — map the library sort fields onto real style_groups columns.
       const sgSortField =
@@ -173,11 +210,12 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
       let query = supabase
         .from("style_groups")
         .select("*", { count: "exact", head: true });
+      const fullTextGroupIds = filters.search ? await fetchStyleGroupFullTextIds(filters.search) : null;
 
       const minDate = visibilityDate ?? "2020-01-01";
       query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
 
-      query = applyStyleGroupFilters(query, filters);
+      query = applyStyleGroupFilters(query, filters, fullTextGroupIds);
 
       const { count, error } = await query;
       if (error) throw error;
@@ -195,6 +233,7 @@ export function useStyleGroupAssetCount(filters: AssetFilters, visibilityDate?: 
       const minDate = visibilityDate ?? "2020-01-01";
       let from = 0;
       let total = 0;
+      const fullTextGroupIds = filters.search ? await fetchStyleGroupFullTextIds(filters.search) : null;
 
       while (true) {
         let query = supabase
@@ -204,7 +243,7 @@ export function useStyleGroupAssetCount(filters: AssetFilters, visibilityDate?: 
           .range(from, from + pageSize - 1);
 
         query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
-        query = applyStyleGroupFilters(query, filters);
+        query = applyStyleGroupFilters(query, filters, fullTextGroupIds);
 
         const { data, error } = await query;
         if (error) throw error;

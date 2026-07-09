@@ -6,6 +6,8 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 
 const PAGE_SIZE = 200;
+const FULL_TEXT_SEARCH_LIMIT = 500;
+const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
 
 /** Fetch THUMBNAIL_MIN_DATE from admin_config (cached) */
 export function useVisibilityDate() {
@@ -27,17 +29,52 @@ export function useVisibilityDate() {
   });
 }
 
-function applyFilters(query: any, filters: AssetFilters) {
+export function buildAssetSearchFilter(search: string) {
+  const term = search.replace(/[(),]/g, " ").trim();
+  if (!term) return null;
+
+  return (
+    `filename.ilike.%${term}%,` +
+    `cover_description.ilike.%${term}%,` +
+    `ai_description.ilike.%${term}%,` +
+    `scene_description.ilike.%${term}%,` +
+    `program.ilike.%${term}%,` +
+    `customer.ilike.%${term}%`
+  );
+}
+
+function isMissingFullTextRpc(error: unknown) {
+  const err = error as { code?: string; message?: string; details?: string };
+  const text = `${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
+  return err.code === "PGRST202" || text.includes("search_assets_full_text");
+}
+
+async function fetchAssetFullTextIds(search: string) {
+  const term = search.replace(/[(),]/g, " ").trim();
+  if (!term) return null;
+
+  const { data, error } = await (supabase.rpc as any)("search_assets_full_text", {
+    p_query: term,
+    p_limit: FULL_TEXT_SEARCH_LIMIT,
+  });
+  if (error) {
+    if (isMissingFullTextRpc(error)) return undefined;
+    throw error;
+  }
+
+  const ids = ((data ?? []) as { asset_id: string }[]).map((row) => row.asset_id);
+  return ids.length >= FULL_TEXT_SEARCH_LIMIT ? undefined : ids;
+}
+
+function applyFilters(query: any, filters: AssetFilters, fullTextAssetIds?: string[] | null) {
   query = query.eq("is_deleted", false);
 
   if (filters.search) {
-    // Match filename, customer program, or customer so a search like "Ross Wall 2026"
-    // surfaces every file in that program. Strip PostgREST .or() reserved chars.
-    const term = filters.search.replace(/[(),]/g, " ").trim();
-    if (term) {
-      query = query.or(
-        `filename.ilike.%${term}%,program.ilike.%${term}%,customer.ilike.%${term}%`
-      );
+    if (fullTextAssetIds) {
+      query = query.in("id", fullTextAssetIds.length > 0 ? fullTextAssetIds : [NO_MATCH_UUID]);
+    } else {
+      const searchFilter = buildAssetSearchFilter(filters.search);
+      if (searchFilter) query = query.or(searchFilter);
     }
   }
   if (filters.stage.length > 0) {
@@ -130,12 +167,13 @@ export function useAssets(
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
       const minDate = visibilityDate ?? "2020-01-01";
+      const fullTextAssetIds = filters.search ? await fetchAssetFullTextIds(filters.search) : null;
 
       let query = supabase
         .from("assets")
         .select("*", { count: "exact" });
 
-      query = applyFilters(query, filters);
+      query = applyFilters(query, filters, fullTextAssetIds);
       query = applyVisibility(query, minDate);
       const assetSortField =
         sortField === "sku" ? "filename"
@@ -163,12 +201,13 @@ export function useAssetCount(filters: AssetFilters, visibilityDate?: string) {
     queryKey: ["asset-count", filters, visibilityDate],
     queryFn: async () => {
       const minDate = visibilityDate ?? "2020-01-01";
+      const fullTextAssetIds = filters.search ? await fetchAssetFullTextIds(filters.search) : null;
 
       let query = supabase
         .from("assets")
         .select("*", { count: "exact", head: true });
 
-      query = applyFilters(query, filters);
+      query = applyFilters(query, filters, fullTextAssetIds);
       query = applyVisibility(query, minDate);
       const { count, error } = await query;
       if (error) throw error;
