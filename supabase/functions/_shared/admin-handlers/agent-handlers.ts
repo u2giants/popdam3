@@ -246,6 +246,7 @@ export async function handleStopScan(_body: Record<string, unknown>) {
       status: "failed",
       counters,
       current_path: typeof progressVal.current_path === "string" ? progressVal.current_path : null,
+      error: "Scan stopped manually via the Stop Scan action.",
       updated_at: now,
     },
     updated_at: now,

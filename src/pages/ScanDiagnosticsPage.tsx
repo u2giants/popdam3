@@ -26,6 +26,14 @@ function explainScanError(error: string | undefined): { headline: string; detail
 
   const lower = error.toLowerCase();
 
+  if (lower.includes("stopped manually")) {
+    return {
+      headline: "Scan stopped manually",
+      detail: "An admin used the Stop Scan action to halt this scan before it finished. This is not a crash.",
+      suggestion: "Start a new scan from the Library page when ready. Counters below reflect progress up to the point it was stopped.",
+    };
+  }
+
   if (lower.includes("enoent") || lower.includes("not a directory") || lower.includes("no such file") || lower.includes("roots_invalid")) {
     return {
       headline: "Scan root folder not found",
