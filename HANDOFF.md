@@ -322,10 +322,54 @@ Risks / watchouts:
 - Do not require "starts with letters" or length ≥ 10. That drops valid live DAM SKUs.
 - Shared-db branch `codex/dam-fix-style-group-sku-regex` still needs normal git finalization (commit, PR, merge) so the already-applied production migration is durable in `main`.
 
+### 5.15 Rich tech-pack / licensing-sheet PDF extraction (2026-07-09)
+
+Status:
+**discovery spike done; implementation not started.** No code, migration, schema, RPC, worker, or production data changes were made for this feature. Durable notes were added to `docs/RICH_PDF_EXTRACTION.md` and `/worksp/shared-db/docs/app-migration-notes/popdam-rich-pdf-extraction-20260709.md`.
+
+User goal:
+For all new styles going forward, scrape tech-pack and licensor/licensing-sheet PDFs for relevant rich data, attach that data to the `style_group` and make it available/searchable through all member assets, then backfill existing styles.
+
+Done:
+- Verified the current system already has a narrow PDF text path: `pdf_text_samples.extracted_text`, `sku_files_used` parsing for Style Guide Sources, and full-text search over extracted PDF text if the shared-db search RPCs are live.
+- Queried live production project `qsllyeztdwjgirsysgai` using service-role credentials from 1Password.
+- Found current extracted-text corpus: **125 tech-pack PDFs** and **14 licensing-sheet PDFs**.
+- Sampled 5 tech packs and 5 licensing sheets from live `pdf_text_samples`.
+- Ran Qwen **`qwen3.7-plus`** through DashScope compatible-mode with `enable_thinking=false`.
+- Generated local working reports:
+  - `/tmp/popdam-rich-pdf-data-sample.md`
+  - `/tmp/popdam-rich-pdf-data-sample.json`
+- Verified the secrets touched in this session are already in 1Password:
+  - `Supabase Runtime Keys - shared POP database (production)`
+  - `OpenRouter API Key - The Oracle (local .env.local)`
+  - `ai-provider-api-keys` (`dashscope` field)
+
+Key findings:
+- Useful recurring fields: source art/file refs, style-guide reference names, designer/technical designer names, approval/submission dates, product dimensions, production materials/finish/hardware/packaging, compliance/legal requirements, manufacturer/factory info, Pantone/color references, and retailer program/season values.
+- Qwen produced many overlapping field names (`material_specs`, `production_material`, `production_materials`, `compliance_codes`, `compliance_standards`, `regulatory_compliance`). Collapse these into a small canonical schema before implementation.
+- The available OpenRouter key is present in 1Password but returned a privacy/data-policy guardrail error for `qwen/qwen3.7-plus`. Direct DashScope worked. Future tests requiring this exact model should use the `dashscope` credential unless OpenRouter privacy settings are changed.
+
+Recommended implementation direction:
+- Design shared backend objects in canonical `/worksp/shared-db`, not this app repo's historical `supabase/migrations/`.
+- Likely objects: source-level extraction table per PDF asset, style-group rollup table or jsonb field, flattened search projection/RPC update, and resumable backfill bookkeeping.
+- Treat asset-level "attachment" as a projection/search concern first; avoid blindly duplicating mutable rich metadata onto every asset row unless query performance requires it.
+- Keep provenance: source PDF asset ID, model ID, raw text reference, confidence, parse errors, and timestamps.
+
+Next action:
+Create a dedicated `/worksp/shared-db` branch for the backend design. Draft the migration/schema proposal for rich PDF extraction and a PopDAM worker/backfill plan. Then implement the app/worker side in `/worksp/popdam` only after the shared-db contract is clear.
+
+Risks / watchouts:
+- Do not create new PopDAM app-repo migrations for this feature.
+- Existing extracted-text coverage is sparse; backfill must include both rich metadata extraction for existing `pdf_text_samples` and missing text extraction for eligible PDFs not yet sampled.
+- `/tmp/popdam-rich-pdf-data-sample.*` are local artifacts and may not survive environment cleanup; the durable summary lives in docs.
+- No new secret values were added to docs. Do not print 1Password credential values when re-running the test.
+
 ---
 
 ## 6. Exact next action
-For the currently active user thread, continue **5.11 Master Data style tracker** only if the user asks for Master Data polish: saved grid views and eventual cleanup/replacement of the temporary style-tracker backend objects are still open. PLM-backed candidate matching itself is done and deployed.
+For the currently active user thread, continue **5.15 Rich tech-pack / licensing-sheet PDF extraction**: create a dedicated `/worksp/shared-db` branch, design the shared schema/RPC/backfill contract, then implement the PopDAM worker/app side against that contract.
+
+Continue **5.11 Master Data style tracker** only if the user asks for Master Data polish: saved grid views and eventual cleanup/replacement of the temporary style-tracker backend objects are still open. PLM-backed candidate matching itself is done and deployed.
 
 The most unblocked Helper next step is still **5.2 Brazil/Seafile pilot**: test a real checkout/check-in on one Brazil Mac using Microsoft OAuth. Code signing is permanently abandoned (§5.3) and does not block the pilot. The PO-sync thread (5.8) is blocked on the PLM team providing durable server-to-server auth. The §5.9 history-row prune is optional housekeeping with no urgency (growth has stopped); do it only if asked, and re-measure on the live Virginia project first (§0 trap).
 
