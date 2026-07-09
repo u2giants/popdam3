@@ -5,3 +5,17 @@ docs/verification/*.sql
 # or docs/, not in tool-local settings or root-level draft plans.
 .claude/
 dflow_migration_plan.md
+
+# Generated designer/artist cleanup review artifacts from local data-audit sessions.
+designer_artist_cleaned_aligned_by_source.csv
+designer_artist_cleaned_four_lists.csv
+designer_artist_cleanup_review.csv
+designer_artist_move_to_table_review.csv
+designer_artist_proposed_in_place_cleanup.csv
+designer_artist_proposed_in_place_cleanup.xlsx
+designer_artist_proposed_in_place_cleanup_with_move_header.csv
+designer_artist_raw_to_clean_mapping.csv
+designer_artist_record_values_long.csv
+designer_record_containers.csv
+designer_record_values_long.csv
+tools/clean-designer-artist-records.mjs
