@@ -17,6 +17,9 @@ staleness, not the query.
 ## Required client pool settings (verified fix)
 For any app backend connecting to the shared Supabase over TCP with a persistent pool:
 
+- `pool.max` must be sized against the Supabase pooler's configured session limit. For the
+  Designflow sandbox services using the shared Supabase pooler, keep app defaults at `5` unless
+  the pooler plan/config is changed and a cross-service connection budget is recalculated.
 - `pool.min = 0` — never hold an idle connection that can go stale.
 - short `pool.idle` (~10s) + a `pool.evict` sweep (~5s) — close idle connections before the
   pooler does.
@@ -28,10 +31,62 @@ For any app backend connecting to the shared Supabase over TCP with a persistent
 Avoid the inverse (`min >= 1` without keepAlive, multi-minute `acquire`/`connectTimeout`) — it
 reintroduces the stall.
 
+## Follow-up incident: Designflow sandbox session-pool exhaustion (2026-07-09)
+
+The Albert sandbox at `https://alsand.designflow.app/login` intermittently showed the SPA's
+generic 503 banner and then loaded successfully on retry. This was not a shared database schema
+problem and no database DDL or data migration was required.
+
+Observed evidence:
+
+- Public frontend HTML and BFF `/api/core/verifyToken` were usually healthy.
+- Cloud Run logs showed `popcre-albert-item-sandbox` crashing during the first login/load burst.
+- The item-master service logged:
+  `(EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15`.
+- The affected item-master revision was running `npm test && ... nodemon index.js` at Cloud Run
+  container startup, so live traffic could arrive while Jest/nodemon startup work and DB auth were
+  competing for the same Supabase pooler session budget.
+- A rollout revision of core also logged skipped startup migrations with the same
+  `EMAXCONNSESSION` message before the final runtime cleanup landed.
+
+App-level remediation applied in the Designflow app repos:
+
+- `designflow-item-master`
+  - Cloud Run container now starts with `node index.js`, not `yarn start:$NODE_ENV`.
+  - Cloud Build now runs unit tests before image build/deploy; tests are not run inside the
+    Cloud Run runtime container.
+  - `models/db.js` defaults `DB_POOL_MAX` to `5`, keeps `pool.min=0`, and retries transient DB
+    auth failures such as `EMAXCONNSESSION`.
+  - `index.js` waits for `db.ready` before `app.listen`, so the service does not accept traffic
+    before DB authentication succeeds.
+  - `cloudbuild.yaml` persists `DB_POOL_MAX=5` and `DB_AUTH_RETRIES=5` through future deploys.
+- `designflow-backend` (core)
+  - Cloud Run container now starts with `node index.js`, not `yarn start:$NODE_ENV`.
+  - `models/db.js` defaults `DB_POOL_MAX` to `5`.
+  - `cloudbuild.yaml` persists `DB_POOL_MAX=5` and `DB_AUTH_RETRIES=5`.
+- `designflow-bff` and `designflow-data-syncing`
+  - Cloud Run containers now start directly with `node`.
+  - Unit tests moved to Cloud Build so runtime cold starts do not run Jest.
+- Live Albert sandbox Cloud Run mitigation:
+  - `popcre-albert-bff-sandbox`, `popcre-albert-core-sandbox`, and
+    `popcre-albert-item-sandbox` have `minScale=1`.
+  - Core and item-master Cloud Run env includes `DB_POOL_MAX=5` and `DB_AUTH_RETRIES=5`.
+
+Shared-db governance conclusion:
+
+- No Supabase schema change was made.
+- No migration SQL was required or applied.
+- The fix belongs in app runtime/deploy configuration plus this shared DB operational guidance,
+  because the observed failure was pooler session exhaustion and startup behavior against the
+  existing shared Supabase database.
+
 ## Affected apps
 - Confirmed: **designflow-tracking** (PM/PIM tracking service). Implementation:
   `models/db.js`; guarded by `tests/unit/db.migration.test.js`; app commit `6d22d93` on
   `sandbox-albert`.
+- Confirmed: **designflow-backend** and **designflow-item-master** need conservative pool defaults
+  against the shared Supabase pooler. As of 2026-07-09, both use `DB_POOL_MAX=5` for the Albert
+  sandbox and keep the same `pool.min=0`, short idle/evict, and keep-alive pattern.
 - Audited 2026-06-23:
   - `u2giants/popcrm-web` is a static browser app. It uses `@supabase/supabase-js` in
     `src/lib/supabase.ts` and has no Sequelize/`pg` dependency or server-side Postgres pool in
