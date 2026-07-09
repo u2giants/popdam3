@@ -56,6 +56,11 @@ Verified populated counts from the 2026-06-24 import:
 - `Print Fair Row#` is hidden by default.
 - `Legacy BA#` is hidden by default.
 - `Match` column is the row-level Master Data cross-reference status.
+- `Sample Vendor` uses the active `core.factory` list as its cell picker in both Licensed and Generic tabs.
+- Double-clicking the `Description` cell opens the SKU-description builder. It still saves one string to `public.style_tracker_rows.description` / column `D`, but users compose that string from four visual sections:
+  `Product Type + Material`, `Licensor + Property`, `Art Description`, and `Size`.
+- The controlled description sections are picker/autocomplete driven. `Product Type + Material` reads `core.product_material` with local convention examples as a fallback; `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
+- A nonblank description must have approved values for Product Type + Material, Licensor + Property, and Size before the grid accepts the edit. This is intended to force spellings such as `Spider-Man`, `Coca-Cola`, and `Coir Doormat` through shared picker values instead of personal spelling variants.
 - The `Row` button opens a menu for `+1`, `+5`, `+10`, `+25`.
 - AG Grid Enterprise is installed without a license key for now, matching the PLM-style trial setup. Keep AG Grid packages pinned to the same exact version; a previous `35.3.1` Enterprise + `35.1.0` Community/React mismatch caused a blank page before React mounted.
 
@@ -89,7 +94,8 @@ The **Master Data matching** panel is admin-only.
 Plain English:
 
 - The left dropdown is built from imported Google Sheet values in the currently loaded Master Data rows.
-- The candidate box next to it is built from `public.search_style_tracker_link_candidates(...)`.
+- The candidate box next to it is built from `public.search_style_tracker_link_candidates(...)`, then filtered client-side so broad fallback results do not show unrelated approval buttons.
+- If no automatic candidate survives, the UI shows a manual picker. Typing in the manual search uses the corresponding canonical candidate search where possible; checking **Show all** explicitly lists up to 100 rows from the corresponding table/list so an admin can choose the right value.
 - **Approve: X** saves a canonical match and removes the selected value from the review dropdown.
 - **Dismiss: Keep In Master Data** means **Master Data only**. It marks the raw sheet value as accepted locally and does not link or write to a shared canonical table.
 
@@ -121,6 +127,30 @@ Endpoints:
 - Auth header: `x-api-key`
 
 The active candidate-search contract is `public.search_style_tracker_link_candidates(...)`. It should return PLM-backed canonical rows for customer/licensor/property matching by joining `core.customer` through `core.company_source_ref` or joining `core.licensor` / `core.property` through `core.taxonomy_source_ref`, with `source_system = 'designflow_plm'`. Do not add browser-side PLM API calls or broad customer-name searches for this workflow.
+
+The manual picker is an admin override for unresolved values. It may list existing `core.customer`, `core.licensor`, `core.creative_designer`, `core.factory`, or `public.style_groups` rows, but it must not create canonical rows or call PLM APIs directly from the browser.
+
+## SKU Description Builder
+
+The description builder follows the convention document:
+
+```text
+Product Type + Material -> Licensor + Property -> Art Description -> Size
+```
+
+Examples:
+
+- `Printed Glass Shadowbox Marvel Spider-Man Building Hopping 16x20" x1.2"`
+- `PE Rattan 2-Tier Wall Shelf Disney Princess Floral Icons 12x16"`
+- `Coir Doormat Coca-Cola Classic Logo 18x30"`
+
+Picker sources:
+
+- `core.product_material` is the canonical shared table for approved Product Type + Material display phrases such as `Printed Glass Shadowbox`, `Coir Doormat`, and `PE Rattan 2-Tier Wall Shelf`.
+- `core.property` has the property name and `licensor_id`; the UI shows the property picker as `Licensor Property`, so users browse by property but the final description includes the licensor automatically.
+- `core.product_size` is the preferred future size picker. Until it is live everywhere, the UI falls back to DAM style-group `size_name` values and the examples from the convention document.
+
+Do not add browser-side PLM calls for these pickers. Add or update shared picker tables/RPCs in `u2giants/shared-db`, then consume them from the Master Data page.
 
 ## Known Data Provenance Finding
 

@@ -82,6 +82,7 @@ type SheetColumn = {
   typedField?: keyof StyleRow;
   legacyKey?: string;
   linkKind?: FieldKey;
+  optionKind?: "customer" | "licensor" | "designer" | "factory";
 };
 
 type ReviewItem = {
@@ -221,7 +222,7 @@ const licensedColumns: SheetColumn[] = [
   { letter: "R", header: "Concept Approval", width: 165, legacyKey: "concept_approval" },
   { letter: "S", header: "Concept Approved with Comments", width: 225, legacyKey: "concept_approved_with_comments" },
   { letter: "T", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
-  { letter: "U", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor" },
+  { letter: "U", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
   { letter: "V", header: "RFQ Code", width: 130, legacyKey: "rfq_code" },
   { letter: "W", header: "Sample Photos Received", width: 200, legacyKey: "sample_photos_received" },
   { letter: "X", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
@@ -256,7 +257,7 @@ const genericColumns: SheetColumn[] = [
   { letter: "H", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
   { letter: "I", header: "Customer SKU", width: 150, typedField: "customer_sku", legacyKey: "customer_sku" },
   { letter: "R", header: "Request Pre Production Sample", width: 235, legacyKey: "request_pre_production_sample" },
-  { letter: "S", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor" },
+  { letter: "S", header: "Sample Vendor", width: 160, legacyKey: "sample_vendor", optionKind: "factory" },
   { letter: "T", header: "RFQ Code", width: 150, legacyKey: "rfq_code" },
   { letter: "U", header: "Sample Received", width: 170, legacyKey: "sample_received" },
   { letter: "V", header: "Pre Production Sent", width: 185, typedField: "pre_production_status", legacyKey: "pre_production_sent" },
@@ -637,6 +638,18 @@ async function fetchDesignerOptions() {
   return compactPickerOptions(await fetchDesignerRecords());
 }
 
+async function fetchFactoryOptions() {
+  const { data, error } = await (supabase as any)
+    .schema("core")
+    .from("factory")
+    .select("id, name")
+    .eq("status", "active")
+    .order("name", { ascending: true })
+    .limit(1000);
+  if (error) throw error;
+  return compactPickerOptions(data);
+}
+
 function designerCandidateScore(rawValue: string, candidateName: string) {
   const raw = normalized(rawValue);
   const candidate = normalized(candidateName);
@@ -1012,6 +1025,7 @@ export default function StylesPage() {
   const propertyOptionsQuery = useQuery({ queryKey: ["style-tracker-property-options"], queryFn: fetchPropertyOptions });
   const sizeOptionsQuery = useQuery({ queryKey: ["style-tracker-size-options"], queryFn: fetchSizeOptions });
   const designerOptionsQuery = useQuery({ queryKey: ["style-tracker-designer-options"], queryFn: fetchDesignerOptions });
+  const factoryOptionsQuery = useQuery({ queryKey: ["style-tracker-factory-options"], queryFn: fetchFactoryOptions });
   const savedViewsQuery = useQuery({
     queryKey: ["style-tracker-views", user?.id, active.name],
     queryFn: () => fetchSavedViews(user?.id, active.name),
@@ -1371,7 +1385,7 @@ export default function StylesPage() {
         cellEditor:
           column.typedField === "description"
             ? DescriptionBuilderEditor
-            : column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
+            : column.optionKind || column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
               ? "agRichSelectCellEditor"
               : undefined,
         cellEditorPopup: column.typedField === "description" ? true : undefined,
@@ -1379,15 +1393,17 @@ export default function StylesPage() {
         cellEditorParams:
           column.typedField === "description"
             ? { options: descriptionOptions }
-            : column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
+            : column.optionKind || column.typedField === "customer" || column.typedField === "licensor" || column.typedField === "designer"
             ? {
                 values:
-                  column.typedField === "customer"
+                  (column.optionKind ?? column.typedField) === "customer"
                     ? customerOptionsQuery.data ?? []
-                    : column.typedField === "licensor"
+                    : (column.optionKind ?? column.typedField) === "licensor"
                       ? licensorOptionsQuery.data ?? []
-                      : designerOptionsQuery.data ?? [],
-                allowTyping: column.typedField !== "designer",
+                      : (column.optionKind ?? column.typedField) === "factory"
+                        ? factoryOptionsQuery.data ?? []
+                        : designerOptionsQuery.data ?? [],
+                allowTyping: (column.optionKind ?? column.typedField) !== "designer",
                 filterList: true,
                 highlightMatch: true,
                 searchType: "matchAny",
@@ -1441,7 +1457,7 @@ export default function StylesPage() {
         },
       })),
     ],
-    [active, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, licensorOptionsQuery.data],
+    [active, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data],
   );
 
   const totalRows = countQuery.data ?? rows.length;
