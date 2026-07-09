@@ -63,6 +63,7 @@ These objects should have one canonical owner:
 | Character | `core.character` |
 | Factory/vendor identity | `core.factory` |
 | Product category/type/subtype | `core.product_category`, `core.product_type`, `core.product_subtype` |
+| Product type + material description phrase | `core.product_material` |
 | SKU/style/item reference spine | `core.sku_ref` |
 | CRM opportunity | `crm.opportunity` |
 | PM product/project/design workflow | `pim.product`, `pim.project`, `pim.design` |

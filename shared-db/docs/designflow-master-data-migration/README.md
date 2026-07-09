@@ -467,6 +467,7 @@ No `is_active` column on customers — activity is via `customers_status`.
 | `core.property` | 256 | Includes DAM rows |
 | `plm.property_import` | 468 | PLM API |
 | `core.product_type` / `product_subtype` | 0 | **Awaiting migration** |
+| `core.product_material` | 11 | SKU-description picker phrases; seeded from PopDAM naming conventions |
 | `core.merch_group` | 0 | Generic MG tree unused so far |
 | `plm.reference_value` | 0 | Generic reference spine unused |
 | `public.product_types` | ~500 | PopDAM legacy — **do not conflate with PLM MG01** without reconciliation |
@@ -523,6 +524,7 @@ erDiagram
 | Product Type | MG01 | **`core.product_type`** | Table exists; `dam.asset` / `pim.product` already FK here. |
 | Product Sub Type | MG02 | **`core.product_subtype`** | Table exists; parent `product_type_id`. |
 | Product Sub Sub Type | MG03 | **`core.product_subsubtype`** (new) | **No third level today** — required for MG03 hierarchy. |
+| Product Type + Material phrase | — | **`core.product_material`** | Shared SKU-description picker phrase, e.g. `Printed Glass Shadowbox`; separate from MG01 product type but may FK to product type/subtype. |
 | Size | MG04 | **`core.product_size`** (new) | Independent shared picker; used on every item/SKU context. Prefer `core` over `plm` because DAM/PM will need sizes without PLM operational coupling. |
 | Licensor / Big Theme | MG05 | **`core.licensor`** | All divisions; `metadata.division_code` + display label (Licensor vs Big Theme) |
 | Property / Little Theme | MG06 | **`core.property`** | All divisions; `licensor_id` FK; label Property vs Little Theme in metadata |
@@ -559,6 +561,23 @@ erDiagram
 - `name text NOT NULL`, `code text`
 - `status app.entity_status`
 - `metadata jsonb` — include `division_code_id`; unique on `(division_code_id, code)` not `code` alone
+
+#### `core.product_material` (live, migration `20260708201000`)
+
+- `id uuid PK`
+- Optional `product_type_id uuid FK -> core.product_type(id)` and
+  `product_subtype_id uuid FK -> core.product_subtype(id)`
+- `name text NOT NULL` — approved display phrase used directly in SKU/Master
+  Data descriptions
+- `material text`, `code text`, `status app.entity_status`, `metadata jsonb`
+- Unique display phrase per optional product type/subtype; code is unique only
+  when non-null
+- RLS: shared read for authenticated app roles, admin write, service-role access
+
+This table is not a PLM MG table. It exists because item descriptions need a
+standardized phrase that combines product type, material, and sometimes product
+shape/count, such as `Coir Doormat`, `3pc Canvas Set`, or `Figural Resin Pencil
+Cup`.
 
 #### `core.art_type` (MG07 — Art Type, division **09** only today)
 

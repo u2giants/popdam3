@@ -63,6 +63,35 @@ stored resolution row now groups under `core/customer`.
 
 The browser should continue using the RPC. It must not call the Designflow PLM APIs directly and must not receive the PLM API key. If the frontend needs a broader direct-read contract later, add an `api.*` view or RPC here first.
 
+## SKU Description Pickers
+
+The PopDAM Master Data page's `Description` cell uses a structured builder for
+the SKU naming convention:
+
+```text
+Product Type + Material -> Licensor + Property -> Art Description -> Size
+```
+
+Shared picker contract:
+
+- `core.product_material` is the canonical table for the first segment,
+  Product Type + Material. It stores approved display phrases such as
+  `Printed Glass Shadowbox`, `Coir Doormat`, and `PE Rattan 2-Tier Wall Shelf`.
+  This table is intentionally separate from PLM MG01 `core.product_type`: it is
+  the exact user-facing description phrase, optionally linked back to
+  `core.product_type` / `core.product_subtype`.
+- `core.property` remains the browser-facing property picker source. The app
+  joins to `core.licensor` through `core.property.licensor_id` and displays
+  options as `Licensor Property`, so users browse/select the property while the
+  resulting description includes the licensor prefix automatically.
+- `core.product_size` is the intended shared size picker once MG04 is migrated.
+  Until then, PopDAM may fall back to existing DAM `style_groups.size_name`
+  values and convention examples.
+
+Migration `20260708201000_core_product_material.sql` adds
+`core.product_material`, shared read/admin-write RLS, service-role grants, the
+`app.set_updated_at()` trigger, and initial convention seed values.
+
 ## Audit Log
 
 Migration `20260708183000_masterdata_audit_log.sql` adds `public.style_tracker_audit_log`
