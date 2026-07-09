@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import { CURRENT_APP } from "@/lib/app-mode";
 import {
   createSellThroughPreviewRows,
   generateSellThroughWorkbook,
@@ -19,6 +20,7 @@ import {
   type SellThroughSummary,
   type StyleGroupImageMatch,
   type ThumbnailFetchFailure,
+  type ThumbnailBytes,
 } from "@/lib/sell-through-export";
 
 type Step = "idle" | "parsing" | "ready" | "generating";
@@ -97,6 +99,38 @@ function makeOutputFilename(inputName: string | null): string {
   return `${base}-popdam-images.xlsx`;
 }
 
+async function fetchThumbnailThroughAdminApi(url: string): Promise<ThumbnailBytes> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error("Not signed in");
+
+  const response = await fetch(`${CURRENT_APP.supabaseUrl}/functions/v1/admin-api`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: CURRENT_APP.supabaseAnonKey,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ action: "fetch-thumbnail-by-url", url }),
+  });
+
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      const errorBody = await response.json();
+      if (typeof errorBody?.error === "string") message = errorBody.error;
+    } catch {
+      // Binary/non-JSON error response; keep status message.
+    }
+    throw new Error(message);
+  }
+
+  return {
+    buffer: await response.arrayBuffer(),
+    contentType: response.headers.get("content-type") || "image/jpeg",
+  };
+}
+
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-md border border-border bg-muted/20 p-3">
@@ -163,7 +197,7 @@ export default function SellThroughExportPage() {
     setThumbnailFailures([]);
 
     try {
-      const generated = await generateSellThroughWorkbook(parsed.headers, previewRows);
+      const generated = await generateSellThroughWorkbook(parsed.headers, previewRows, fetchThumbnailThroughAdminApi);
       const filename = makeOutputFilename(fileName);
       setDownload({ blob: generated.blob, filename });
       setThumbnailFailures(generated.thumbnailFailures);

@@ -36,6 +36,13 @@ export interface GeneratedSellThroughWorkbook {
   thumbnailFailures: ThumbnailFetchFailure[];
 }
 
+export interface ThumbnailBytes {
+  buffer: ArrayBuffer;
+  contentType: string;
+}
+
+export type ThumbnailFetcher = (url: string) => Promise<ThumbnailBytes>;
+
 export function normalizeStockNumber(value: string | null | undefined): string {
   return (value ?? "").trim().toUpperCase();
 }
@@ -157,7 +164,7 @@ function imageExtension(contentType: string, url: string): "jpeg" | "png" | "gif
   return "jpeg";
 }
 
-async function fetchThumbnail(url: string): Promise<{ buffer: ArrayBuffer; extension: "jpeg" | "png" | "gif" }> {
+async function defaultThumbnailFetcher(url: string): Promise<ThumbnailBytes> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -166,13 +173,14 @@ async function fetchThumbnail(url: string): Promise<{ buffer: ArrayBuffer; exten
   const blob = await response.blob();
   return {
     buffer: await blob.arrayBuffer(),
-    extension: imageExtension(blob.type, url),
+    contentType: blob.type,
   };
 }
 
 export async function generateSellThroughWorkbook(
   headers: string[],
   rows: SellThroughRowPreview[],
+  fetchThumbnail: ThumbnailFetcher = defaultThumbnailFetcher,
 ): Promise<GeneratedSellThroughWorkbook> {
   const ExcelJS = await import("exceljs");
   const workbook = new ExcelJS.default.Workbook();
@@ -221,7 +229,7 @@ export async function generateSellThroughWorkbook(
       const thumbnail = await fetchThumbnail(previewRow.match.thumbnailUrl);
       const imageId = workbook.addImage({
         buffer: thumbnail.buffer,
-        extension: thumbnail.extension,
+        extension: imageExtension(thumbnail.contentType, previewRow.match.thumbnailUrl),
       });
 
       sheet.addImage(imageId, {

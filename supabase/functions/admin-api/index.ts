@@ -199,6 +199,7 @@ const USER_ACCESSIBLE_ACTIONS = new Set([
   "get-sibling-scan-by-folder",
   "ingest-sibling-images",
   "sync-group-tags",
+  "fetch-thumbnail-by-url",
 ]);
 
 // ── Retry helper for transient connection / body-read errors ────────
@@ -281,6 +282,45 @@ function formatPostgrestError(error: unknown): string {
     hint ? `hint: ${hint}` : "",
     raw && message === "Bad Request" ? `raw: ${raw}` : "",
   ].filter(Boolean).join(" | ");
+}
+
+function isAllowedThumbnailUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== "https:") return false;
+    if (!url.pathname.startsWith("/thumbnails/")) return false;
+
+    return [
+      "popdam.nyc3.digitaloceanspaces.com",
+      "popdam.nyc3.cdn.digitaloceanspaces.com",
+      "cdn.designflow.app",
+    ].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function handleFetchThumbnailByUrl(body: Record<string, unknown>): Promise<Response> {
+  const url = optionalString(body, "url");
+  if (!url) return err("Missing thumbnail URL", 400);
+  if (!isAllowedThumbnailUrl(url)) return err("Thumbnail URL is not allowed", 400);
+
+  const upstream = await fetch(url);
+  if (!upstream.ok) {
+    return err(`Thumbnail fetch failed: HTTP ${upstream.status}`, upstream.status >= 500 ? 502 : 400);
+  }
+
+  const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+  if (!contentType.toLowerCase().startsWith("image/")) {
+    return err("Thumbnail URL did not return an image", 400);
+  }
+
+  return new Response(upstream.body, {
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=3600",
+    },
+  });
 }
 
 // ── Route: get-config ───────────────────────────────────────────────
@@ -1508,6 +1548,9 @@ corsServe(async (req: Request) => {
     const { userId } = authResult;
 
     switch (action) {
+      case "fetch-thumbnail-by-url":
+        return await handleFetchThumbnailByUrl(body);
+
       // ── Config ──
       case "get-config":
         return await handleGetConfig(body);
