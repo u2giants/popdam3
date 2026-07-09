@@ -4,9 +4,12 @@ import { Settings as SettingsIcon, RefreshCw, Activity, Key, UserPlus, Copy, Che
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useAuth } from "@/hooks/useAuth";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { parseInputPath, type NasConfig } from "@/lib/path-utils";
 import { getUserSyncRoot, setUserSyncRoot } from "@/lib/path-utils";
 import { formatDateTime } from "@/lib/format-date";
+import { canManagePackagingTypes } from "@/lib/packaging-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +33,7 @@ import OperationsTab from "@/components/settings/OperationsTab";
 import StyleGuideCrawlTab from "@/components/settings/StyleGuideCrawlTab";
 import PopSGAgentTab from "@/components/settings/PopSGAgentTab";
 import PdfTextSamplesTab from "@/components/settings/PdfTextSamplesTab";
+import PackagingTypesTab from "@/components/settings/PackagingTypesTab";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -1160,9 +1164,10 @@ function SubTabBar({ tabs, active, onChange }: { tabs: { id: string; label: stri
 
 // ── Settings search ─────────────────────────────────────────────────
 
-const SETTINGS_SEARCH_ITEMS: { label: string; desc: string; tab: string; subTab?: string }[] = [
+const SETTINGS_SEARCH_ITEMS: { label: string; desc: string; tab: string; subTab?: string; requiresPackagingTypesAccess?: boolean }[] = [
   { label: "Users & Access", desc: "Manage users, roles, and invitations", tab: "general" },
   { label: "App Password", desc: "Helper app password for Synology integration", tab: "general" },
+  { label: "Packaging Types", desc: "Shared packaging lookup values", tab: "reference-data", subTab: "packaging-types", requiresPackagingTypesAccess: true },
   { label: "NAS & Folders", desc: "Volume mapping, scan folders, subfolder filters", tab: "storage", subTab: "nas" },
   { label: "Scanning", desc: "Auto-scan intervals, batch size, date cutoffs, resource guard", tab: "storage", subTab: "scanning" },
   { label: "Image Output", desc: "Thumbnail and preview output settings", tab: "storage", subTab: "image-output" },
@@ -1183,7 +1188,13 @@ const SETTINGS_SEARCH_ITEMS: { label: string; desc: string; tab: string; subTab?
   { label: "Diagnostics", desc: "System health, connected agents, error history, database inspector", tab: "diagnostics" },
 ];
 
-function SettingsSearch({ onNavigate }: { onNavigate: (tab: string, subTab?: string) => void }) {
+function SettingsSearch({
+  onNavigate,
+  canShowPackagingTypes,
+}: {
+  onNavigate: (tab: string, subTab?: string) => void;
+  canShowPackagingTypes: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1191,10 +1202,11 @@ function SettingsSearch({ onNavigate }: { onNavigate: (tab: string, subTab?: str
   const results = useMemo(() => {
     if (!query.trim()) return [];
     const q = query.toLowerCase();
-    return SETTINGS_SEARCH_ITEMS.filter(
-      (item) => item.label.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q)
-    );
-  }, [query]);
+    return SETTINGS_SEARCH_ITEMS.filter((item) => {
+      if (item.requiresPackagingTypesAccess && !canShowPackagingTypes) return false;
+      return item.label.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q);
+    });
+  }, [canShowPackagingTypes, query]);
 
   return (
     <div className="relative w-72">
@@ -1318,8 +1330,11 @@ function HelperPasswordCard() {
 // ── Main Settings Page ──────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const { isRealAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "general";
+  const canManagePackagingTypeSettings = canManagePackagingTypes(user?.email, isRealAdmin);
   const handleTabChange = useCallback((value: string) => {
     setSearchParams({ tab: value }, { replace: true });
   }, [setSearchParams]);
@@ -1328,6 +1343,7 @@ export default function SettingsPage() {
   const [agentsSubTab, setAgentsSubTab] = useState("bridge");
   const [processingSubTab, setProcessingSubTab] = useState("ai-tagging");
   const [fileHealthSubTab, setFileHealthSubTab] = useState("style-guide");
+  const [referenceSubTab, setReferenceSubTab] = useState("packaging-types");
 
   const navigateTo = useCallback((tab: string, subTab?: string) => {
     handleTabChange(tab);
@@ -1336,8 +1352,15 @@ export default function SettingsPage() {
       else if (tab === "agents") setAgentsSubTab(subTab);
       else if (tab === "processing") setProcessingSubTab(subTab);
       else if (tab === "file-health") setFileHealthSubTab(subTab);
+      else if (tab === "reference-data") setReferenceSubTab(subTab);
     }
   }, [handleTabChange]);
+
+  useEffect(() => {
+    if (activeTab === "reference-data" && !canManagePackagingTypeSettings && !authLoading && !isAdminLoading) {
+      handleTabChange("general");
+    }
+  }, [activeTab, authLoading, canManagePackagingTypeSettings, handleTabChange, isAdminLoading]);
 
   return (
     <div className="container max-w-7xl py-8 space-y-6">
@@ -1347,7 +1370,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-semibold">Settings</h1>
         </div>
         <div className="flex items-center gap-4">
-          <SettingsSearch onNavigate={navigateTo} />
+          <SettingsSearch onNavigate={navigateTo} canShowPackagingTypes={canManagePackagingTypeSettings} />
           <span className="text-xs text-muted-foreground font-mono select-all" title="Git commit hash and date of this build">
             {__APP_COMMIT__} · {formatDateTime(__APP_DATE__)}
           </span>
@@ -1359,6 +1382,9 @@ export default function SettingsPage() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
+          {canManagePackagingTypeSettings && (
+            <TipTab value="reference-data" label="Reference Data" tip="Shared lookup tables used by DAM and other apps" />
+          )}
           <TipTab value="processing" label="Processing" tip="AI tagging, PDF text extraction, ERP sync, and taxonomy APIs" />
           <TipTab value="file-health" label="File Health" tip="Style guide crawl, TIFF compression, and file quality checks" />
           <TipTab value="maintenance" label="Maintenance" tip="Bulk data operations: rebuild style groups, reprocess metadata" />
@@ -1415,6 +1441,20 @@ export default function SettingsPage() {
           {agentsSubTab === "popsg" && <PopSGAgentTab />}
           {agentsSubTab === "install" && <InstallBundleTab />}
         </TabsContent>
+
+        {/* ── Reference Data ── */}
+        {canManagePackagingTypeSettings && (
+          <TabsContent value="reference-data" className="space-y-4">
+            <SubTabBar
+              tabs={[
+                { id: "packaging-types", label: "Packaging Types" },
+              ]}
+              active={referenceSubTab}
+              onChange={setReferenceSubTab}
+            />
+            {referenceSubTab === "packaging-types" && <PackagingTypesTab />}
+          </TabsContent>
+        )}
 
         {/* ── Processing (AI Tagging + PDF Text + ERP + Taxonomy) ── */}
         <TabsContent value="processing" className="space-y-4">
