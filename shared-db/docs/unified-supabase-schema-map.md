@@ -94,7 +94,14 @@ Views/materialized views:
 
 Important RPC/function families:
 
-`claim_jobs`, `claim_render_jobs`, `claim_sg_render_jobs`, `claim_tiff_jobs`, `get_filter_counts`, `get_path_facets`, `infer_path_attrs`, `set_style_group_cover`, `refresh_style_group_counts*`, `refresh_style_group_primaries`, `rebuild_style_groups_batch`, `reconcile_style_group_stats_batch`, `propagate_group_tags_batch`, `resolve_sku_files_used*`, `parse_pdf_files_used`, `bulk_insert_pdf_text_samples`, `get_sg_preview_stats`, `get_sg_render_queue_stats`, `refresh_style_guide_matviews`, `has_role`, `has_app_access`, `execute_readonly_query`.
+`claim_jobs`, `claim_render_jobs`, `claim_sg_render_jobs`, `claim_tiff_jobs`, `get_filter_counts`, `get_path_facets`, `infer_path_attrs`, `set_style_group_cover`, `refresh_style_group_counts*`, `refresh_style_group_primaries`, `rebuild_style_groups_batch`, `reconcile_style_group_stats_batch`, `propagate_group_tags_batch`, `resolve_sku_files_used*`, `parse_pdf_files_used`, `bulk_insert_pdf_text_samples`, `search_assets_full_text`, `search_style_groups_full_text`, `get_sg_preview_stats`, `get_sg_render_queue_stats`, `refresh_style_guide_matviews`, `has_role`, `has_app_access`, `execute_readonly_query`.
+
+DAM library search:
+
+- `search_assets_full_text(query, limit)` and `search_style_groups_full_text(query, limit)` are app-facing RPCs for PopDAM library search. They return matching IDs rather than full rows so the app can intersect search results with existing filters, visibility guards, sorting, and pagination.
+- Indexed sources: asset metadata (`filename`, `relative_path`, product/AI descriptions, customer/program, licensor/property/category), style-group metadata (`sku`, `folder_path`, product description, customer/program, licensor/property/category), and `pdf_text_samples.extracted_text` from tech-pack/licensor-sheet PDF extraction.
+- Indexes: `idx_assets_full_text_search`, `idx_style_groups_full_text_search`, and `idx_pdf_text_samples_extracted_text_search` (all GIN full-text). Migration files: `20260709150000_dam_full_text_search.sql` and `20260709151000_dam_full_text_search_preserve_substring.sql`.
+- Compatibility note: the second migration preserves existing substring behavior for SKU-style searches such as `3fz`, because pure PostgreSQL full-text search does not match inside `3FZ93DYEC01`.
 
 Enums:
 

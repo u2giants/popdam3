@@ -14,6 +14,15 @@ DAM `popdam-web`, and the `directus` backend). Read it before touching code or
 the database. It exists to stop four apps — often driven by separate AI sessions
 — from breaking each other through the one database they all depend on.
 
+## Session wrap-up convention
+
+When the user says **"wrap up"**, that means finish the session safely: update
+the relevant Markdown docs with durable knowledge from the work, run required
+checks, complete branch/PR/merge/apply steps, verify 1Password coverage for any
+secrets encountered, and leave the repo handoff-safe. For this repo, do not leave
+untracked migrations or docs behind; either finish the shared-db branch + PR +
+merge workflow or write an explicit handoff with the next exact action.
+
 ## 0. The owner is not a programmer
 
 The repository owner directs the work and judges results, but does **not** review
