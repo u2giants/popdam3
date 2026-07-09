@@ -15,6 +15,10 @@ import { toast } from "sonner";
 
 const SHOW_AUTHENTIK_SSO = false;
 
+function getAuthRedirectUrl() {
+  return `${window.location.origin}/`;
+}
+
 export default function LoginPage() {
   const { user, loading } = useAuth();
   const [email, setEmail] = useState("");
@@ -74,7 +78,7 @@ export default function LoginPage() {
     setError(null);
     const { error } = await externalSupabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: getAuthRedirectUrl() },
     });
     if (error) {
       setError(error.message || "Google sign-in failed");
@@ -88,7 +92,7 @@ export default function LoginPage() {
       options: {
         // profile → display name; User.Read → Microsoft Graph profile photo
         scopes: "openid profile email offline_access User.Read",
-        redirectTo: window.location.origin,
+        redirectTo: getAuthRedirectUrl(),
       },
     });
     if (error) {
@@ -106,7 +110,7 @@ export default function LoginPage() {
         const { error } = await externalSupabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo: getAuthRedirectUrl() },
         });
         if (error) throw error;
         toast("Check your email", {

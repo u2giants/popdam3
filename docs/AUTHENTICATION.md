@@ -10,6 +10,8 @@ PopDAM uses Supabase Auth for session management. Login is available through Mic
 
 Users sign in with their Microsoft / Azure AD account via Supabase's built-in Azure provider. New Azure users bypass invitation rows in `handle_new_user()` and are auto-provisioned with the `user` role and `popdam` app access. Google and email/password still require invitations.
 
+The Supabase Auth project is shared with CRM, PM, SG, and master-data apps. Its `site_url` is `https://crm.designflow.app`, so PopDAM and PopSG login flows must always pass an explicit app-origin redirect URL. The Supabase project's redirect allowlist must include `https://dam.designflow.app`, `https://dam.designflow.app/`, `https://dam.designflow.app/**`, `https://sg.designflow.app`, `https://sg.designflow.app/`, and `https://sg.designflow.app/**`. If a Microsoft or Google login lands on CRM, check that allowlist before changing frontend routing.
+
 ### Relevant files
 
 | File | Purpose |
