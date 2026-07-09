@@ -25,7 +25,7 @@ PopDAM is a React + TypeScript single-page application built with Vite, shadcn/u
 | `/settings/ai-tagging-detail` | `AiTaggingDetailPage.tsx` | Detail view for AI tagging diagnostics (PopDAM mode only) |
 | `/settings/scan-diagnostics` | `ScanDiagnosticsPage.tsx` | Bridge Agent scan history and error details (PopDAM mode only) |
 
-Protected app routes require an authenticated user with at least the `user` role. Public auth/legal routes are available without a session. `/files` is available to all authenticated users, but its bridge-agent fallback uses admin-api and therefore requires an admin session when the local Helper is not running. Settings, setup, scan diagnostics, agent controls, and background-job controls require the `admin` role.
+Protected app routes require an authenticated user with at least the `user` role. Public auth/legal routes are available without a session. `/files` is available to all authenticated users, but its bridge-agent fallback uses admin-api and therefore requires an admin session when the local Helper is not running. Settings, setup, scan diagnostics, agent controls, and background-job controls generally require the `admin` role. Exception: `apinilla@popcre.com` can access the Settings -> Reference Data -> Packaging Types editor for the shared `core.packaging_type` lookup.
 
 ---
 
@@ -226,6 +226,12 @@ Opens on the right side when an individual asset is selected. Shows:
 ## Settings Page (`/settings`)
 
 The settings page is an admin-only control panel organized into tabs.
+
+### Tab: Reference Data
+- **Packaging Types** (`PackagingTypesTab.tsx`) edits the shared `core.packaging_type` lookup owned by `u2giants/shared-db`.
+- Visible to PopDAM admins and to `apinilla@popcre.com`.
+- Supports add, edit, active/inactive status, refresh, and remove. New rows set `metadata.source = "popdam_settings"`.
+- The matching database table/RLS lives in shared-db migration `20260709144500_core_packaging_type.sql`; keep UI access rules and RLS aligned if more non-admin maintainers are added.
 
 ### Tab: Storage
 Configures DigitalOcean Spaces connection (bucket, region, endpoint, public base URL). Also sets `SCAN_MIN_DATE` and `THUMBNAIL_MIN_DATE`.
