@@ -1,6 +1,6 @@
 > ⚠️ **Auto-synced — do not hand-edit the copies.**
 >
-> [`u2giants/shared-db`](https://github.com/u2giants/shared-db) is the **single source of truth**. Its entire contents are mirrored into the **`shared-db/` folder** of every consumer repo (CRM, DAM, PM, Directus) on each push to `main`.
+> [`u2giants/shared-db`](https://github.com/u2giants/shared-db) is the **single source of truth**. Its entire contents are mirrored into the **`shared-db/` folder** of every consumer repo (CRM, DAM, PM/PIM, DesignFlow PLM) on each push to `main`.
 >
 > **Reading this inside a consumer repo's `shared-db/` folder?** It's a read-only copy — edits here are overwritten on the next sync. Change the canonical repo instead.
 
@@ -10,8 +10,8 @@
 
 This is the operating contract for **every AI session working on any app that
 shares the Supabase database**: PM/PIM `poppim-web`, CRM `popcrm-web`, DAM
-`popdam-web`, the `directus` backend, and the six `popcre/designflow-*` PLM
-repos. Read it before touching code or the database. It exists to stop separate
+`popdam-web`, and the six `popcre/designflow-*` PLM repos. Read it before
+touching code or the database. It exists to stop separate
 AI sessions from breaking each other through the one database they all depend on.
 
 ## 0. Shared-db gatekeeper rule for consumer repos
@@ -80,7 +80,7 @@ code, manage branches, or merge pull requests. Therefore:
 
 | Where | Workflow | Why |
 |---|---|---|
-| **Non-DesignFlow app repo** (`poppim-web`, `popcrm-web`, `popdam-web`, `directus`) | Commit straight to **`main`. No branches.** Build must pass, then push; CI deploys. | One app, one owner, a deploy you can watch. Branches add ceremony with no safety gain. Fix-forward or revert on `main`. |
+| **Non-DesignFlow app repo** (`poppim-web`, `popcrm-web`, `popdam-web`) | Commit straight to **`main`. No branches.** Build must pass, then push; CI deploys. | One app, one owner, a deploy you can watch. Branches add ceremony with no safety gain. Fix-forward or revert on `main`. |
 | **DesignFlow app repo** (`popcre/designflow-*`) | Work on **`sandbox-albert`**, push, and open/update a PR to **`develop`**. Do not merge it yourself. | DesignFlow work is reviewed by Uma. Keep schema changes out of these repos; use `shared-db` first. |
 | **This repo** (`shared-db`) | **Branch + PR, and the AI merges it** once the §5 checklist passes. | All apps read these tables. A bad change breaks everyone at once. The PR is a safety checkpoint and an undo button — not paperwork for the owner. |
 
