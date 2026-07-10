@@ -24,7 +24,7 @@ When the user says **"wrap up"**, that means: update the relevant Markdown docs 
 |-----------|----------|----------|
 | React web app | `src/` | Coolify (Docker, self-hosted VPS) |
 | Supabase edge functions | `supabase/functions/` | Supabase (Deno) |
-| PostgreSQL DB | `supabase/migrations/` | Supabase (hosted) |
+| PostgreSQL DB | canonical `/worksp/shared-db/supabase/migrations/` | Supabase (hosted) |
 | Cloud worker (AI tagging, ERP, rebuild) | `apps/worker/` | Railway (Node.js) |
 | Bridge agent (NAS scanner + thumbnailer) | `apps/bridge-agent/` | Synology Docker |
 | Windows render agent (Illustrator) | `apps/windows-agent/` | Windows VM (manual install) |
@@ -60,7 +60,7 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 | Change configuration, env vars, admin_config keys, or runtime settings | `AGENTS.md`, `docs/configuration.md`, `docs/INFRASTRUCTURE.md`; Coolify for prod runtime env | unrelated architecture docs |
 | Change local setup, dev scripts, test/lint, tooling | `AGENTS.md`, `docs/development.md`, the relevant `package.json`/config | `docs/deployment.md` unless CI/CD changes |
 | Change deployment, Docker, CI/CD, hosting, rollback | `AGENTS.md` → Deployment, `docs/deployment.md`, `SELFHOST.md`, `.github/workflows/*` | local-only dev docs |
-| Change DB schema, migrations, models, external IDs, data flow | `AGENTS.md`, `CLAUDE.md` (migration timestamp discipline — **read before any migration**), `docs/SCHEMA.md`, `docs/STYLE_GROUPS.md` if groups are touched | deployment docs unless rollout changes |
+| Change DB schema, migrations, models, external IDs, data flow | `AGENTS.md` → Shared DB Gatekeeper, canonical `/worksp/shared-db/AGENTS.md`, `docs/SCHEMA.md`, `docs/STYLE_GROUPS.md` if groups are touched | deployment docs unless rollout changes |
 | Work on stage / customer / program (path-derived attributes) or the Stage/Customer/Program filters | `AGENTS.md`, `docs/PATH_ATTRIBUTES.md` (and `docs/PATH_UTILS.md` for canonical path format) | unrelated UI/ERP docs |
 | Work on bulk operations / the Railway worker | `AGENTS.md`, `docs/BULK_JOBS.md`, `docs/WORKER_LOGIC.md` | unrelated UI docs |
 | Work on ERP sync / MG codes / category classification / production PO sync | `AGENTS.md`, `docs/ERP_ENRICHMENT_PLAN.md` | deployment docs |
@@ -84,6 +84,26 @@ Then load additional docs only when relevant — do **not** ingest every `.md` f
 **Host/server change boundary:** this repo is app-layer. Durable host/OS changes belong in the canonical Ansible repo at `/worksp/ansible` / `https://github.com/u2giants/ansible`, then GitHub Actions applies them. Host changes include packages, users, firewall, SSH/sudo, Docker engine or daemon config, systemd units/timers, cron, `/etc`, `/usr/local/bin` or `/usr/local/sbin`, Cloudflare Tunnel 1, Coolify host glue, and backup/DNS watchdogs. Do not SSH, sudo, or edit the host directly for durable infra changes; make an Ansible PR instead. App code/config owned by PopDAM still changes here and deploys through the normal PopDAM/Coolify pipeline. Break-glass direct host repair must be explicitly called out, then followed by an Ansible PR to capture or reconcile the drift.
 
 ---
+
+## Shared DB Gatekeeper
+
+This repo shares Supabase backend project `qsllyeztdwjgirsysgai` with the other
+POP apps. All database/schema changes for that shared backend must be authored
+in the canonical repo [`u2giants/shared-db`](https://github.com/u2giants/shared-db)
+using a branch + PR + timestamped migration, preview-first, with the AI owning
+the merge before any dependent app code is written.
+
+Never make shared database changes from this app repo. That means no app-side
+DDL, no inline/startup migrations, no Dashboard SQL, no one-off `execute_sql`,
+and no new migration files under this repo's local `supabase/migrations/`
+folder. The only allowed copy of shared DB migrations in this repo is the
+vendored read-only `shared-db/` mirror that syncs from the canonical repo.
+
+The `.github/workflows/shared-db-guard.yml` workflow runs on `push` and
+`pull_request` and fails changes that add database DDL or migrations outside the
+vendored `shared-db/` folder. The only override is an explicitly approved
+exception: add PR label `db-change-approved`, or include `[db-change-approved]`
+in the commit message for direct pushes.
 
 ## Shared-backend startup/shutdown hygiene
 
@@ -169,7 +189,7 @@ popdam3/
 │   │   ├── helper-api/         ← Desktop helper checkout/checkin
 │   │   ├── _shared/            ← Shared handlers, types, constants
 │   │   └── bulk-job-runner/    ← No-op stub (replaced by Railway worker)
-│   └── migrations/             ← Timestamped SQL migration files
+│   └── migrations/             ← Historical/inert only; new migrations go in `/worksp/shared-db`
 ├── apps/
 │   ├── worker/                 ← Railway cloud worker (Node.js, TypeScript)
 │   │   └── src/handlers/       ← Per-operation batch handlers
@@ -194,7 +214,7 @@ popdam3/
 - `.lovable/` — Lovable platform memory (ignore)
 - `supabase-popsg/` — dead code directory for an abandoned separate Supabase project
 
-**Project-owned source:** `src/`, `supabase/functions/`, `supabase/migrations/`, `apps/*/src/`, `packages/path-filters/src/`.
+**Project-owned source:** `src/`, `supabase/functions/`, `apps/*/src/`, `packages/path-filters/src/`.
 **Docs and runbooks:** root `*.md`, `docs/`, `SELFHOST.md`, `HANDOFF.md`.
 **Scripts and deployment metadata:** `scripts/`, `deploy/`, `.github/workflows/`, Dockerfiles, `nginx.conf`.
 
@@ -207,7 +227,6 @@ Project-owned code lives in:
 ```
 src/
 supabase/functions/
-supabase/migrations/
 apps/worker/src/
 apps/bridge-agent/src/
 apps/windows-agent/src/
@@ -299,7 +318,7 @@ Files outside project-owned areas that were intentionally modified:
 
 **VPS session check:** Some AI sessions run directly on the production VPS (`hetz`, public IP `178.156.180.212`). Before attempting `ssh root@178.156.180.212`, run `hostname -f` and `ip route get 1.1.1.1`; if already on the VPS, inspect local Docker/Coolify state directly. For urgent frontend break-glass deploys, use the Coolify compose file under `/data/coolify/applications/qxj8a0j3tpa9lq4q5rs6pezy/` and document the manual action afterward (see `docs/deployment.md`).
 
-**CI path triggers:** `publish-frontend.yml` triggers only on application file changes (`src/**`, `Dockerfile`, `Dockerfile.ci`, etc.) — documentation-only changes to `docs/**` and top-level `.md` files do not trigger a frontend build. `deploy-supabase.yml` triggers only on `supabase/migrations/**` and `supabase/functions/**` changes.
+**CI path triggers:** `publish-frontend.yml` triggers only on application file changes (`src/**`, `Dockerfile`, `Dockerfile.ci`, etc.) — documentation-only changes to `docs/**` and top-level `.md` files do not trigger a frontend build. `deploy-supabase.yml` triggers only on `supabase/functions/**` changes for app-owned deploys; new database migrations belong in canonical `/worksp/shared-db`, not this repo.
 
 ---
 

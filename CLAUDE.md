@@ -2,8 +2,30 @@
 
 Read `AGENTS.md` first. It is the canonical guide for project summary, repo structure, task navigation, deployment, credentials, incidents, quirks, and pending work. This file is only for Claude Code-specific workflow reminders.
 
-## Shared database / cross-app
-Before any shared Supabase database, schema, migration, or cross-app change, read and follow `shared-db/AGENTS.md` (the cross-app coordination playbook). App code here is `main`-only (no branches); `shared-db` changes use branch+PR and the AI owns the merge.
+## Shared DB Gatekeeper
+
+This repo shares Supabase backend project `qsllyeztdwjgirsysgai` with the other
+POP apps. All database/schema changes for that shared backend must be authored
+in canonical [`u2giants/shared-db`](https://github.com/u2giants/shared-db) using
+a branch + PR + timestamped migration, preview-first, with the AI owning the
+merge before any dependent app code is written.
+
+Never make shared database changes from this app repo. That means no app-side
+DDL, no inline/startup migrations, no Dashboard SQL, no one-off `execute_sql`,
+and no new migration files under this repo's local `supabase/migrations/`
+folder. The only allowed copy of shared DB migrations in this repo is the
+vendored read-only `shared-db/` mirror that syncs from the canonical repo.
+
+The `.github/workflows/shared-db-guard.yml` workflow runs on `push` and
+`pull_request` and fails changes that add database DDL or migrations outside the
+vendored `shared-db/` folder. The only override is an explicitly approved
+exception: add PR label `db-change-approved`, or include `[db-change-approved]`
+in the commit message for direct pushes.
+
+Before any shared Supabase database, schema, migration, or cross-app change,
+read and follow `shared-db/AGENTS.md` (the cross-app coordination playbook). App
+code here is `main`-only (no branches); `shared-db` changes use branch+PR and
+the AI owns the merge.
 
 ---
 
