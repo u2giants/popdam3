@@ -8,11 +8,49 @@
 
 # AGENTS.md — cross-app coordination playbook
 
-This is the operating contract for **every AI session working on any of the four
-apps that share one Supabase database** (PM/PIM `poppim-web`, CRM `popcrm-web`,
-DAM `popdam-web`, and the `directus` backend). Read it before touching code or
-the database. It exists to stop four apps — often driven by separate AI sessions
-— from breaking each other through the one database they all depend on.
+This is the operating contract for **every AI session working on any app that
+shares the Supabase database**: PM/PIM `poppim-web`, CRM `popcrm-web`, DAM
+`popdam-web`, the `directus` backend, and the six `popcre/designflow-*` PLM
+repos. Read it before touching code or the database. It exists to stop separate
+AI sessions from breaking each other through the one database they all depend on.
+
+## 0. Shared-db gatekeeper rule for consumer repos
+
+`shared-db` is the gatekeeper for every database schema change in the shared
+Supabase project, including DesignFlow PLM tables that still appear in app repos
+as Sequelize models or legacy inline startup migrations.
+
+Consumer repos must not author schema changes locally. That means no app-repo
+inline migrations, no direct SQL runbooks, no dashboard edits, and no model-only
+"add the column here" changes for tables that live in the shared database. A
+database change starts here with a new timestamped migration under
+`supabase/migrations/`, then follows the preview/prod protocol in this document.
+
+App repos may still change app code after the shared migration lands: models,
+generated types, query code, API handlers, UI code, tests, and docs are normal
+app work. The schema itself belongs here.
+
+DesignFlow consumer guardrails added on 2026-07-10:
+
+- `popcre/designflow-bff`
+- `popcre/designflow-frontend`
+- `popcre/designflow-backend`
+- `popcre/designflow-item-master`
+- `popcre/designflow-tracking`
+- `popcre/designflow-data-syncing`
+
+Each repo has a checked-in Cursor rule at
+`.cursor/rules/shared-db-gatekeeper.mdc`. The rule is intentionally duplicated
+across all six repos so Cursor sees it no matter which repo a programmer opens.
+If any agent changes that Cursor rule in one repo, that agent must make the same
+change to the other five repos in the same session and commit/push all six
+together. `designflow-frontend/AGENTS.md` also has a shared-db section near the
+top, and `designflow-item-master/AGENTS.md` was created so agents no longer have
+to infer this rule from other repos.
+
+Historical warning: older DesignFlow docs and code may still mention
+`models/db.js` inline migrations. Treat those as legacy implementation history,
+not permission to add new schema changes in app repos.
 
 ## Session wrap-up convention
 
@@ -23,7 +61,7 @@ secrets encountered, and leave the repo handoff-safe. For this repo, do not leav
 untracked migrations or docs behind; either finish the shared-db branch + PR +
 merge workflow or write an explicit handoff with the next exact action.
 
-## 0. The owner is not a programmer
+## 1. The owner is not a programmer
 
 The repository owner directs the work and judges results, but does **not** review
 code, manage branches, or merge pull requests. Therefore:
@@ -31,37 +69,38 @@ code, manage branches, or merge pull requests. Therefore:
 - **The AI owns all git mechanics.** Branches, commits, pull requests, and merges
   are the AI's job from start to finish. Never leave an open PR for the owner to
   deal with — open it *and* merge it within the same piece of work, once it is
-  safe (see §4).
+  safe (see §5).
 - **The owner reviews behavior, not code.** Their feedback is "the board doesn't
   load," "the dropdown is empty." Translate that into changes yourself.
 - **Surface risk in plain English.** Before anything hard to undo (dropping a
   column, applying to production, deleting data), explain the risk in one or two
   plain sentences and ask. Approval for one change does not extend to the next.
 
-## 1. Two workflows — choose by where you are working
+## 2. Two workflows — choose by where you are working
 
 | Where | Workflow | Why |
 |---|---|---|
-| **An app repo** (`poppim-web`, `popcrm-web`, `popdam-web`, `directus`) | Commit straight to **`main`. No branches.** Build must pass, then push; CI deploys. | One app, one owner, a deploy you can watch. Branches add ceremony with no safety gain. Fix-forward or revert on `main`. |
-| **This repo** (`shared-db`) | **Branch + PR, and the AI merges it** once the §4 checklist passes. | All four apps read these tables. A bad change breaks everyone at once. The PR is a safety checkpoint and an undo button — not paperwork for the owner. |
+| **Non-DesignFlow app repo** (`poppim-web`, `popcrm-web`, `popdam-web`, `directus`) | Commit straight to **`main`. No branches.** Build must pass, then push; CI deploys. | One app, one owner, a deploy you can watch. Branches add ceremony with no safety gain. Fix-forward or revert on `main`. |
+| **DesignFlow app repo** (`popcre/designflow-*`) | Work on **`sandbox-albert`**, push, and open/update a PR to **`develop`**. Do not merge it yourself. | DesignFlow work is reviewed by Uma. Keep schema changes out of these repos; use `shared-db` first. |
+| **This repo** (`shared-db`) | **Branch + PR, and the AI merges it** once the §5 checklist passes. | All apps read these tables. A bad change breaks everyone at once. The PR is a safety checkpoint and an undo button — not paperwork for the owner. |
 
-## 1.1 Host/server boundary
+## 2.1 Host/server boundary
 
 This repo owns shared database schema, Supabase migrations, PLM import code, and the `systemd/plm-sync.*` templates. Durable host/OS changes on `hetz` are owned by the canonical Ansible repo at `/worksp/ansible` / [`u2giants/ansible`](https://github.com/u2giants/ansible), then applied by GitHub Actions.
 
 Route packages, users, firewall, SSH/sudo, Docker engine or daemon config, systemd units/timers, cron, `/etc`, `/usr/local/bin`, `/usr/local/sbin`, Cloudflare Tunnel 1, Coolify host glue, and backup/DNS watchdogs through an Ansible PR. Do not SSH, sudo, or hand-edit the host directly for durable infrastructure changes. App/database code and templates that belong to `shared-db` still change here; deploying those templates onto the host belongs in Ansible. Break-glass direct host repair must be explicit and followed by an Ansible PR that captures or reconciles the drift.
 
-## 2. Why `shared-db` is the dangerous one
+## 3. Why `shared-db` is the dangerous one
 
 Every app reads and writes the **same tables in the same Supabase project**. A
 single schema change here can break an app that a different session built months
 ago. The database has no "just this app" — it is always shared. That is why the
 four rules below are non-negotiable for any database change.
 
-## 3. The four anti-collision rules (shared database)
+## 4. The four anti-collision rules (shared database)
 
 1. **One schema change in flight at a time.** Before starting database work,
-   check whether another change is already in progress (§5). If so, finish or
+   check whether another change is already in progress (§6). If so, finish or
    land that one first, or coordinate with the owner. Two simultaneous schema
    edits are the number-one cause of a broken shared database.
 2. **Preview database first. Production never receives untested schema.** Apply
@@ -70,12 +109,12 @@ four rules below are non-negotiable for any database change.
 3. **Additive by default (expand, then contract).** Adding a column or table
    cannot break another app. **Renaming or dropping** one that another app reads
    *will*. Default to additive changes. Only rename/drop after explicit owner
-   sign-off and a checked deprecation across all four apps.
+   sign-off and a checked deprecation across all dependent apps.
 4. **New timestamped migration files only.** Each change is a new
    `YYYYMMDDHHMMSS_*.sql` file. Never edit a migration that has already been
    applied anywhere — that is how two sessions silently clobber each other.
 
-## 4. The `shared-db` merge protocol (the checklist the AI runs)
+## 5. The `shared-db` merge protocol (the checklist the AI runs)
 
 Merge a `shared-db` PR **only when every item is true**:
 
@@ -91,7 +130,7 @@ Then: merge to `main` (this auto-syncs the `shared-db/` folder into all apps) an
 promote to **production only in an approved window**. Docs-only PRs (no schema
 change) need just items 1 and "it reads correctly" — merge them promptly.
 
-## 5. How to tell if a change is already in flight
+## 6. How to tell if a change is already in flight
 
 Before starting database work, run these and read the result:
 
@@ -105,14 +144,14 @@ git status --short              # uncommitted migration files in the working tre
 If anything looks like in-progress database work, **stop and serialize** — land
 it (or ask the owner) before adding your own schema change.
 
-## 6. When two apps need conflicting database changes
+## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
 the next. Where possible, prefer one **additive** change that satisfies both apps
 rather than two competing edits. If they genuinely conflict, explain the trade-off
 to the owner in plain English and let them choose order.
 
-## 7. Project references
+## 8. Project references
 
 ```text
 Preview project ref:  xjcyeuvzkhtzsheknaiu   (Supabase branch "shared-db-schema-rehearsal")
@@ -121,7 +160,7 @@ Production project ref: qsllyeztdwjgirsysgai
 
 Never commit anon keys, service-role keys, database passwords, or `.env` files.
 
-## 8. Supabase CLI and database credential runbook
+## 9. Supabase CLI and database credential runbook
 
 Use the canonical credentials in 1Password. Do not work around auth failures with
 manual SQL, dashboard edits, copied browser tokens, embedded remote URLs, or
@@ -171,7 +210,7 @@ Use the same pattern: authenticate the CLI with the Supabase PAT, then link to
 preview project `xjcyeuvzkhtzsheknaiu` with that branch's database password
 before running preview dry-runs or pushes.
 
-## 9. Where to read more
+## 10. Where to read more
 
 - App rewrite guides: [`docs/ai-session-instructions/`](docs/ai-session-instructions/README.md)
 - Shared branch workflow: [`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](docs/ai-session-instructions/shared-supabase-branch-workflow.md)
@@ -179,7 +218,7 @@ before running preview dry-runs or pushes.
 - Migration risks: [`docs/unified-supabase-migration-gaps.md`](docs/unified-supabase-migration-gaps.md)
 - CRM production cutover (migrations promoted, Azure OAuth, auto-provision, data import): [`docs/app-migration-notes/popcrm-web-production-cutover-20260621.md`](docs/app-migration-notes/popcrm-web-production-cutover-20260621.md)
 
-## 10. Hosted-Supabase gotchas (do not relearn these the hard way)
+## 11. Hosted-Supabase gotchas (do not relearn these the hard way)
 
 These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones.
 

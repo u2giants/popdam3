@@ -14,9 +14,38 @@ Planning and migration repo for the unified POP shared database on Supabase.
 
 This repo holds schema mapping, relationship design, migration gaps, Supabase migrations, branch verification notes, and cutover preparation for consolidating DAM, CRM, PM, and the operational PLM data needed by those apps into one Supabase project.
 
+## Shared-db Gatekeeper
+
+All database schema changes for the shared Supabase project start in this repo.
+That includes DesignFlow PLM tables even when a consumer repo has Sequelize
+models, old inline startup migrations, or local docs that mention `models/db.js`.
+
+For future sessions with no chat context: do not add columns, tables, indexes,
+RLS policies, triggers, functions, views, enums, storage policies, realtime
+publication changes, or extension changes inside a consumer repo. Create a new
+timestamped migration under `supabase/migrations/` here, test it against the
+preview branch, then update the app repos after the shared migration lands.
+
+On 2026-07-10, the six `popcre/designflow-*` repos were updated with an
+always-on Cursor rule at `.cursor/rules/shared-db-gatekeeper.mdc`. The file is
+duplicated across:
+
+- `designflow-bff`
+- `designflow-frontend`
+- `designflow-backend`
+- `designflow-item-master`
+- `designflow-tracking`
+- `designflow-data-syncing`
+
+If any agent changes that Cursor rule in one repo, the same change must be made
+to the other five repos in the same session, then all six must be committed and
+pushed together. `designflow-frontend/AGENTS.md` now has a shared-db section near
+the top, and `designflow-item-master/AGENTS.md` was created so future agents see
+the rule even before reading app-specific docs.
+
 ## Current Documents
 
-- [Cross-app coordination playbook](AGENTS.md) - **read first.** The operating contract for every AI session: which repos use `main` vs branch+PR, the four rules that stop the four apps from breaking each other through the shared database, and the merge protocol the AI runs.
+- [Cross-app coordination playbook](AGENTS.md) - **read first.** The operating contract for every AI session: which repos use `main` vs DesignFlow PR workflow vs shared-db PR workflow, the four rules that stop dependent apps from breaking each other through the shared database, and the merge protocol the AI runs.
 - [Unified Supabase schema map](docs/unified-supabase-schema-map.md) - canonical entity/table ownership map across DAM, CRM, PM, and PLM.
 - [Shared database vision](docs/shared-database-vision.md) - the grander intention: one shared Supabase database for DAM, CRM, PM/PIM, and PLM.
 - [Unified Supabase relationships](docs/unified-supabase-relationships.md) - crossover relationships, join strategy, realtime boundaries, and browser-facing API contracts.
