@@ -27,8 +27,13 @@ async function authenticateUser(req: Request) {
   if (!header) return null;
 
   const token = header.replace("Bearer ", "");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (serviceRoleKey && token === serviceRoleKey) return { userId: "system", serviceRole: true };
+  const serviceRoleClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    token,
+    { global: { headers: { Authorization: header } } },
+  );
+  const { error: serviceRoleError } = await serviceRoleClient.rpc("get_dam_search_embedding_status");
+  if (!serviceRoleError) return { userId: "system", serviceRole: true };
 
   const client = createClient(
     Deno.env.get("SUPABASE_URL")!,
