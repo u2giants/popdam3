@@ -16,6 +16,7 @@
   - `supabase/migrations/20260709150000_dam_full_text_search.sql`
   - `supabase/migrations/20260709151000_dam_full_text_search_preserve_substring.sql`
   - `supabase/migrations/20260713215134_dam_search_index_speed.sql`
+  - `supabase/migrations/20260713221518_dam_hybrid_search_foundation.sql`
 
 ### Why
 
@@ -49,6 +50,11 @@ sort, and pagination queries.
   indexed SKU/path-style fields (`filename`, `relative_path`, `sku`,
   `folder_path`, `customer`, and `program`). Description, licensor, property,
   category, and extracted PDF text remain covered by full-text indexes.
+- `20260713221518_dam_hybrid_search_foundation.sql` adds
+  `dam_search_documents`, stored generated `search_tsv`, Supabase performance
+  tooling extensions (`pg_stat_statements`, `index_advisor`/`hypopg`), pgvector
+  storage for 384-dimensional `gte-small` embeddings, and compatibility wrappers
+  for the existing PopDAM frontend search RPCs.
 - The PopDAM frontend caps RPC result handoff at 500 IDs and keeps using that
   capped indexed set for broad matches. If the RPC is temporarily unavailable
   during deploy ordering, the frontend falls back to the older metadata
