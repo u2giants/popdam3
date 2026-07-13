@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.ai-tag]
 verify_jwt = false
 
+[functions.dam-search-ai]
+verify_jwt = false
+
 [functions.send-invite-email]
 verify_jwt = false
 
