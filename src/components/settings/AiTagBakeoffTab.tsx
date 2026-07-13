@@ -20,6 +20,15 @@ type VisionModel = {
   id: string;
   name: string;
   supports_tools?: boolean;
+  architecture?: { input_modalities?: string[] };
+  pricing?: OpenRouterPricing | null;
+};
+
+type OpenRouterModelResponse = {
+  id: string;
+  name?: string;
+  supported_parameters?: string[];
+  architecture?: { input_modalities?: string[] };
   pricing?: OpenRouterPricing | null;
 };
 
@@ -79,6 +88,10 @@ function fmtModel(id: string) {
   return id.split("/").pop() ?? id;
 }
 
+function unwrapConfigString(value: unknown) {
+  return ((value as Record<string, unknown>)?.value ?? value ?? "") as string;
+}
+
 function fieldValue(result: BakeoffResult | undefined, field: Field) {
   if (!result) return "Pending";
   if (result.status === "failed") return result.error_message || "Failed";
@@ -103,19 +116,64 @@ export default function AiTagBakeoffTab() {
   const [sampleSize, setSampleSize] = useState(30);
   const [models, setModels] = useState<[string, string, string]>(["", "", ""]);
 
-  const { data: modelData, isLoading: modelsLoading } = useQuery({
-    queryKey: ["openrouter-vision-models-bakeoff"],
-    queryFn: () => call("get-openrouter-vision-models"),
+  const { data: openRouterConfig } = useQuery({
+    queryKey: ["admin-config", "OPENROUTER_API_KEY"],
+    queryFn: () => call("get-config", { keys: ["OPENROUTER_API_KEY"] }),
+    staleTime: 30_000,
+  });
+  const savedOpenRouterKey = unwrapConfigString(openRouterConfig?.config?.OPENROUTER_API_KEY);
+
+  const {
+    data: modelData,
+    isFetching: modelsFetching,
+    isLoading: modelsLoading,
+    error: modelsError,
+    refetch: refetchModels,
+  } = useQuery<VisionModel[]>({
+    queryKey: ["openrouter-vision-models-bakeoff", savedOpenRouterKey],
+    enabled: !!savedOpenRouterKey,
+    queryFn: async () => {
+      const res = await fetch("https://openrouter.ai/api/v1/models/user", {
+        headers: { Authorization: `Bearer ${savedOpenRouterKey}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      const data = await res.json();
+      const items: OpenRouterModelResponse[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+      return items.map((m) => ({
+        id: m.id,
+        name: m.name ?? m.id,
+        supports_tools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
+        architecture: m.architecture,
+        pricing: m.pricing,
+      }));
+    },
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 
   const visionModels = useMemo(() => {
-    const list = ((modelData?.models ?? []) as VisionModel[]);
+    const list = (modelData ?? []).filter((m) => Array.isArray(m.architecture?.input_modalities) && m.architecture.input_modalities.includes("image"));
     return [...list].sort((a, b) => {
       if (a.supports_tools !== b.supports_tools) return a.supports_tools ? -1 : 1;
       return a.id.localeCompare(b.id);
     });
   }, [modelData]);
+
+  async function refreshModels() {
+    const toastId = toast.loading("Refreshing OpenRouter vision models...");
+    try {
+      const result = await refetchModels();
+      if (result.error) throw result.error;
+      const count = (result.data ?? []).filter((m) => Array.isArray(m.architecture?.input_modalities) && m.architecture.input_modalities.includes("image")).length;
+      toast.success(`OpenRouter vision models refreshed (${count})`, { id: toastId });
+    } catch (e) {
+      toast.error(`Failed to refresh models: ${(e as Error).message}`, { id: toastId });
+    }
+  }
 
   const { data: runsData, isLoading: runsLoading } = useQuery({
     queryKey: ["ai-tag-bakeoff-runs"],
@@ -256,13 +314,23 @@ export default function AiTagBakeoffTab() {
             size="icon"
             className="h-7 w-7"
             title="Refresh model list from OpenRouter"
-            disabled={modelsLoading}
-            onClick={() => queryClient.refetchQueries({ queryKey: ["openrouter-vision-models-bakeoff"] })}
+            disabled={!savedOpenRouterKey || modelsFetching}
+            onClick={refreshModels}
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${modelsLoading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${modelsFetching ? "animate-spin" : ""}`} />
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
+          {modelsFetching && (
+            <div className="text-[10px] text-muted-foreground">
+              {modelsLoading ? "Loading OpenRouter guardrail models..." : "Refreshing OpenRouter guardrail models..."}
+            </div>
+          )}
+          {modelsError && (
+            <div className="text-[10px] text-destructive">
+              Failed to load OpenRouter models: {(modelsError as Error).message}
+            </div>
+          )}
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="grid gap-3 sm:grid-cols-3">
               {modelSelect(0)}
