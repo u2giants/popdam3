@@ -357,11 +357,17 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 ---
 
-## 37. AI Vision Model Picker Fetches from OpenRouter Live
+## 37. AI Model Pickers Fetch Guardrailed OpenRouter Models Live
 
-**File**: `src/components/settings/PdfTextSamplesTab.tsx`
+**Files**: `src/components/settings/ApisTab.tsx`, `src/components/settings/AiTagBakeoffTab.tsx`, `src/components/settings/PdfTextSamplesTab.tsx`, `supabase/functions/admin-api/index.ts`
 
-**Why**: The `AI_MODELS` / `admin_config` approach required manually maintaining a list of OpenRouter models that support image input. OpenRouter's model catalog changes frequently. The `get-openrouter-vision-models` edge function calls `https://openrouter.ai/api/v1/models` and filters on image input support — no manual maintenance required.
+**What it looks like**: The dropdowns should just list every OpenRouter model that supports the task.
+
+**Why**: They must use the OpenRouter key-scoped `/api/v1/models/user` response, not the public `/api/v1/models` catalog. The user endpoint reflects the account's model guardrails/policy. The public catalog can include providers and aliases that are not allowed for this PopDAM key.
+
+**Extra filter rules**: Vision Bake-Off is stricter than "vision capable": the worker calls OpenRouter with `tool_choice: "required"`, so bake-off options must support both image input and tools. OpenRouter can also return unavailable placeholder aliases with negative pricing (for example `-1000000` per token); those are filtered out everywhere and their prices are not displayed.
+
+**What breaks if you "fix" it**: Switching back to the public catalog, or listing vision models without checking tools/availability, lets users queue bake-off runs against models that OpenRouter will reject or that ignore the required tool response.
 
 ---
 

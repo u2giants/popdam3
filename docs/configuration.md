@@ -108,6 +108,12 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 | `UPDATE_REQUEST` | Bridge agent self-update trigger |
 | `CHECKIN_VERIFICATION_ENABLED` | **Feature flag** (boolean). When true, Seafile-sourced check-ins park in `verifying` until the bridge agent confirms receipt on the Synology (size + quick-hash); when false/absent they complete immediately on upload. Activated 2026-06-09. Set to `false` for instant rollback — no redeploy. See the "Seafile check-ins park in `verifying`" quirk in `AGENTS.md`. |
 
+### AI model dropdown refresh
+
+Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Vision Bake-Off then filters that guardrailed list to image-capable, tool-capable models because the bake-off worker requires structured tool output.
+
+OpenRouter can return unavailable placeholder aliases with negative pricing. The UI treats negative prompt/completion pricing as unavailable and filters those entries out rather than displaying the sentinel price.
+
 ---
 
 ## Supabase — Vault Secrets
