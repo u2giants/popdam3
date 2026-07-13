@@ -544,7 +544,13 @@ export function AiModelsConfigSection() {
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
 
-  const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string; supportsTools: boolean; pricing?: OpenRouterPricing }>>({
+  const {
+    data: openRouterModels,
+    isFetching: fetchingModels,
+    isLoading: loadingModels,
+    error: modelsError,
+    refetch: refetchOpenRouterModels,
+  } = useQuery<Array<{ id: string; name: string; supportsTools: boolean; pricing?: OpenRouterPricing }>>({
     queryKey: ["openrouter-models", savedOpenRouterKey],
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
@@ -570,6 +576,17 @@ export function AiModelsConfigSection() {
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
+
+  async function refreshOpenRouterModels() {
+    const toastId = toast.loading("Refreshing OpenRouter models...");
+    try {
+      const result = await refetchOpenRouterModels();
+      if (result.error) throw result.error;
+      toast.success(`OpenRouter models refreshed (${result.data?.length ?? 0})`, { id: toastId });
+    } catch (e) {
+      toast.error(`Failed to refresh models: ${(e as Error).message}`, { id: toastId });
+    }
+  }
 
   const savedGoogleKey = unwrap(configData?.config?.GOOGLE_AI_API_KEY);
   const savedAnthropicKey = unwrap(configData?.config?.ANTHROPIC_API_KEY);
@@ -628,16 +645,24 @@ export function AiModelsConfigSection() {
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Label className="text-xs font-medium">Model per Task</Label>
-            {loadingModels && <span className="text-[10px] text-muted-foreground">Loading models…</span>}
-            {!loadingModels && (
-              <button
+            {fetchingModels && (
+              <span className="text-[10px] text-muted-foreground">
+                {loadingModels ? "Loading models..." : "Refreshing models..."}
+              </span>
+            )}
+            {savedOpenRouterKey && (
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 title="Refresh model list from OpenRouter"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => queryClient.refetchQueries({ queryKey: ["openrouter-models", savedOpenRouterKey] })}
+                aria-label="Refresh model list from OpenRouter"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                disabled={fetchingModels}
+                onClick={refreshOpenRouterModels}
               >
-                <RefreshCw className="h-3 w-3" />
-              </button>
+                <RefreshCw className={`h-3 w-3 ${fetchingModels ? "animate-spin" : ""}`} />
+              </Button>
             )}
             {modelsError && (
               <span className="text-[10px] text-destructive">
