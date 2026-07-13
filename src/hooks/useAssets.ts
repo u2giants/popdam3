@@ -43,10 +43,16 @@ export function buildAssetSearchFilter(search: string) {
   );
 }
 
-function isMissingFullTextRpc(error: unknown) {
+function shouldFallbackFromFullTextRpc(error: unknown) {
   const err = error as { code?: string; message?: string; details?: string };
   const text = `${err.message ?? ""} ${err.details ?? ""}`.toLowerCase();
-  return err.code === "PGRST202" || text.includes("search_assets_full_text");
+  return (
+    err.code === "PGRST202" ||
+    err.code === "57014" ||
+    text.includes("search_assets_full_text") ||
+    text.includes("statement timeout") ||
+    text.includes("canceling statement due to statement timeout")
+  );
 }
 
 async function fetchAssetFullTextIds(search: string) {
@@ -58,7 +64,7 @@ async function fetchAssetFullTextIds(search: string) {
     p_limit: FULL_TEXT_SEARCH_LIMIT,
   });
   if (error) {
-    if (isMissingFullTextRpc(error)) return undefined;
+    if (shouldFallbackFromFullTextRpc(error)) return undefined;
     throw error;
   }
 
