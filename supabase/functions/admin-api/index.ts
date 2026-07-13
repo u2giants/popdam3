@@ -917,13 +917,14 @@ async function handleGetOpenrouterVisionModels() {
   const apiKey = (keyRow?.value as string | null) ?? null;
   if (!apiKey) return err("OPENROUTER_API_KEY not configured in admin_config", 400);
 
-  const resp = await fetch("https://openrouter.ai/api/v1/models", {
+  const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
     headers: { Authorization: `Bearer ${apiKey}` },
   });
-  if (!resp.ok) return err(`OpenRouter API error: ${resp.status} ${resp.statusText}`, 502);
+  if (!resp.ok) return err(`OpenRouter API error: ${resp.status} ${resp.statusText}: ${await resp.text()}`, 502);
 
-  const payload = await resp.json() as { data: Array<Record<string, unknown>> };
-  const models = (payload.data ?? []).filter((m) => {
+  const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+  const items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+  const models = items.filter((m) => {
     const arch = m.architecture as Record<string, unknown> | undefined;
     const modalities = arch?.input_modalities as string[] | undefined;
     return Array.isArray(modalities) && modalities.includes("image");

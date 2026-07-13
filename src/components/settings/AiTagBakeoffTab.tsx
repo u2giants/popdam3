@@ -246,10 +246,21 @@ export default function AiTagBakeoffTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <BarChart3 className="h-4 w-4" /> Vision Bake-Off
           </CardTitle>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="Refresh model list from OpenRouter"
+            disabled={modelsLoading}
+            onClick={() => queryClient.refetchQueries({ queryKey: ["openrouter-vision-models-bakeoff"] })}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${modelsLoading ? "animate-spin" : ""}`} />
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">

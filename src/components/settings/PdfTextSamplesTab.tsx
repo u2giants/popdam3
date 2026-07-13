@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, Trash2, Check, X, Clock } from "lucide-react";
+import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, RefreshCw, Trash2, Check, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { formatOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 
@@ -466,7 +466,20 @@ function AiVisionConfigCard() {
         {visionModels.length > 0 && (
           <div className="flex items-end gap-3">
             <div className="flex-1 space-y-1.5">
-              <Label className="text-xs">Vision model ({visionModels.length} available)</Label>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">Vision model ({visionModels.length} available)</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  title="Refresh model list from OpenRouter"
+                  disabled={modelsLoading}
+                  onClick={() => queryClient.refetchQueries({ queryKey: ["openrouter-vision-models"] })}
+                >
+                  <RefreshCw className={`h-3 w-3 ${modelsLoading ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
               <Select value={selectedModelId} onValueChange={setSelectedModelId}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select a vision model…" />
