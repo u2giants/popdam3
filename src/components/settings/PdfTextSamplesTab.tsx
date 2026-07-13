@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, RefreshCw, Trash2, Check, X, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { formatOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -405,7 +405,8 @@ function AiVisionConfigCard() {
     queryFn: () => call("get-config", { keys: ["PDF_EXTRACTION_CONFIG"] }),
   });
 
-  const visionModels: OpenRouterModel[] = (modelsData?.models ?? []) as OpenRouterModel[];
+  const visionModels: OpenRouterModel[] = ((modelsData?.models ?? []) as OpenRouterModel[])
+    .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing));
 
   const savedModelId: string = (() => {
     const raw = configData?.config?.PDF_EXTRACTION_CONFIG?.value ?? configData?.config?.PDF_EXTRACTION_CONFIG;

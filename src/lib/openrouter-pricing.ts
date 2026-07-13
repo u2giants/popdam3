@@ -16,7 +16,20 @@ function formatPerMillionTokenPrice(value: string | number | null | undefined) {
   return perMillion.toFixed(4);
 }
 
+function parseTokenPrice(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function hasUnavailableOpenRouterPricing(pricing: OpenRouterPricing | null | undefined) {
+  const prompt = parseTokenPrice(pricing?.prompt);
+  const completion = parseTokenPrice(pricing?.completion);
+  return (prompt !== null && prompt < 0) || (completion !== null && completion < 0);
+}
+
 export function formatOpenRouterPricing(pricing: OpenRouterPricing | null | undefined) {
+  if (hasUnavailableOpenRouterPricing(pricing)) return undefined;
   if (!pricing?.prompt && !pricing?.completion) return undefined;
   return `$${formatPerMillionTokenPrice(pricing.prompt)}/$${formatPerMillionTokenPrice(pricing.completion)}`;
 }

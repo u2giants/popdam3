@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { formatOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 
 type Slot = "a" | "b" | "c";
 type Field = "tags" | "description" | "characters" | "property";
@@ -156,7 +156,12 @@ export default function AiTagBakeoffTab() {
   });
 
   const visionModels = useMemo(() => {
-    const list = (modelData ?? []).filter((m) => Array.isArray(m.architecture?.input_modalities) && m.architecture.input_modalities.includes("image"));
+    const list = (modelData ?? []).filter((m) => (
+      m.supports_tools === true &&
+      !hasUnavailableOpenRouterPricing(m.pricing) &&
+      Array.isArray(m.architecture?.input_modalities) &&
+      m.architecture.input_modalities.includes("image")
+    ));
     return [...list].sort((a, b) => {
       if (a.supports_tools !== b.supports_tools) return a.supports_tools ? -1 : 1;
       return a.id.localeCompare(b.id);
@@ -168,7 +173,12 @@ export default function AiTagBakeoffTab() {
     try {
       const result = await refetchModels();
       if (result.error) throw result.error;
-      const count = (result.data ?? []).filter((m) => Array.isArray(m.architecture?.input_modalities) && m.architecture.input_modalities.includes("image")).length;
+      const count = (result.data ?? []).filter((m) => (
+        m.supports_tools === true &&
+        !hasUnavailableOpenRouterPricing(m.pricing) &&
+        Array.isArray(m.architecture?.input_modalities) &&
+        m.architecture.input_modalities.includes("image")
+      )).length;
       toast.success(`OpenRouter vision models refreshed (${count})`, { id: toastId });
     } catch (e) {
       toast.error(`Failed to refresh models: ${(e as Error).message}`, { id: toastId });

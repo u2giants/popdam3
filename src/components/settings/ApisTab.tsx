@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
-import { formatOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 import { toast } from "sonner";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -565,6 +565,7 @@ export function AiModelsConfigSection() {
           ? data.data
           : [];
       return items
+        .filter((m) => !hasUnavailableOpenRouterPricing(m.pricing))
         .map((m) => ({
           id: m.id,
           name: m.name ?? m.id,
