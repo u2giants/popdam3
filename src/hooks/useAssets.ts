@@ -7,7 +7,15 @@ import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
 
 const PAGE_SIZE = 200;
 const FULL_TEXT_SEARCH_LIMIT = 500;
+const SEARCH_ID_CACHE_TTL_MS = 30_000;
 const NO_MATCH_UUID = "00000000-0000-0000-0000-000000000000";
+
+type SearchIdCacheEntry = {
+  expiresAt: number;
+  promise: Promise<string[] | null | undefined>;
+};
+
+const assetSearchIdCache = new Map<string, SearchIdCacheEntry>();
 
 /** Fetch THUMBNAIL_MIN_DATE from admin_config (cached) */
 export function useVisibilityDate() {
@@ -58,18 +66,37 @@ function shouldFallbackFromFullTextRpc(error: unknown) {
 async function fetchAssetFullTextIds(search: string) {
   const term = search.replace(/[(),]/g, " ").trim();
   if (!term) return null;
+  const cacheKey = `${term}\u0000${FULL_TEXT_SEARCH_LIMIT}`;
+  const cached = assetSearchIdCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.promise;
 
-  const { data, error } = await (supabase.rpc as any)("search_assets_full_text", {
-    p_query: term,
-    p_limit: FULL_TEXT_SEARCH_LIMIT,
+  const promise = (async () => {
+    const { data, error } = await (supabase.rpc as any)("search_assets_full_text", {
+      p_query: term,
+      p_limit: FULL_TEXT_SEARCH_LIMIT,
+    });
+    if (error) {
+      if (shouldFallbackFromFullTextRpc(error)) return undefined;
+      throw error;
+    }
+
+    const ids = ((data ?? []) as { asset_id: string }[]).map((row) => row.asset_id);
+    // Keep using the indexed RPC result even when it reaches the handoff cap.
+    // Falling back here reintroduces broad unindexed substring scans on popular searches.
+    return ids;
+  })();
+
+  assetSearchIdCache.set(cacheKey, {
+    expiresAt: Date.now() + SEARCH_ID_CACHE_TTL_MS,
+    promise,
   });
-  if (error) {
-    if (shouldFallbackFromFullTextRpc(error)) return undefined;
+
+  try {
+    return await promise;
+  } catch (error) {
+    assetSearchIdCache.delete(cacheKey);
     throw error;
   }
-
-  const ids = ((data ?? []) as { asset_id: string }[]).map((row) => row.asset_id);
-  return ids.length === 0 || ids.length >= FULL_TEXT_SEARCH_LIMIT ? undefined : ids;
 }
 
 function applyFilters(query: any, filters: AssetFilters, fullTextAssetIds?: string[] | null) {
