@@ -882,6 +882,69 @@ export type Database = {
           },
         ]
       }
+      dam_search_documents: {
+        Row: {
+          asset_id: string | null
+          content_sha256: string
+          customer: string | null
+          document_type: string
+          embedding: string | null
+          embedding_error: string | null
+          embedding_model: string | null
+          embedding_updated_at: string | null
+          entity_id: string
+          indexed_at: string
+          metadata: Json
+          path: string
+          program: string | null
+          search_text: string
+          search_tsv: unknown
+          source_updated_at: string | null
+          style_group_id: string | null
+          title: string
+        }
+        Insert: {
+          asset_id?: string | null
+          content_sha256?: string
+          customer?: string | null
+          document_type: string
+          embedding?: string | null
+          embedding_error?: string | null
+          embedding_model?: string | null
+          embedding_updated_at?: string | null
+          entity_id: string
+          indexed_at?: string
+          metadata?: Json
+          path?: string
+          program?: string | null
+          search_text?: string
+          search_tsv?: unknown
+          source_updated_at?: string | null
+          style_group_id?: string | null
+          title?: string
+        }
+        Update: {
+          asset_id?: string | null
+          content_sha256?: string
+          customer?: string | null
+          document_type?: string
+          embedding?: string | null
+          embedding_error?: string | null
+          embedding_model?: string | null
+          embedding_updated_at?: string | null
+          entity_id?: string
+          indexed_at?: string
+          metadata?: Json
+          path?: string
+          program?: string | null
+          search_text?: string
+          search_tsv?: unknown
+          source_updated_at?: string | null
+          style_group_id?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       erp_enrichment_log: {
         Row: {
           applied_at: string
@@ -2580,12 +2643,32 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      advise_dam_search_query_indexes: {
+        Args: { p_query: string }
+        Returns: {
+          errors: string[]
+          index_statements: string[]
+          startup_cost_after: Json
+          startup_cost_before: Json
+          total_cost_after: Json
+          total_cost_before: Json
+        }[]
+      }
       backfill_pdf_files_used: { Args: never; Returns: number }
       bulk_assign_style_groups: {
         Args: { p_assignments: Json }
         Returns: number
       }
       bulk_insert_pdf_text_samples: { Args: { p_rows: Json }; Returns: number }
+      claim_dam_search_embedding_documents: {
+        Args: { p_limit?: number }
+        Returns: {
+          content_sha256: string
+          document_type: string
+          entity_id: string
+          search_text: string
+        }[]
+      }
       claim_jobs: {
         Args: { p_agent_id: string; p_batch_size?: number }
         Returns: {
@@ -2701,6 +2784,20 @@ export type Database = {
         }[]
       }
       get_ai_sentinel_stats: { Args: never; Returns: Json }
+      get_dam_search_embedding_status: { Args: never; Returns: Json }
+      get_dam_search_performance_stats: {
+        Args: never
+        Returns: {
+          calls: number
+          max_exec_ms: number
+          mean_exec_ms: number
+          query: string
+          rows: number
+          shared_blks_hit: number
+          shared_blks_read: number
+          total_exec_ms: number
+        }[]
+      }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       get_path_facets: { Args: { p_customer?: string }; Returns: Json }
       get_sg_preview_stats: { Args: never; Returns: Json }
@@ -2724,6 +2821,15 @@ export type Database = {
         Args: { p_file_type: string; p_filename: string }
         Returns: boolean
       }
+      mark_dam_search_embedding_error: {
+        Args: {
+          p_content_sha256: string
+          p_document_type: string
+          p_entity_id: string
+          p_error: string
+        }
+        Returns: boolean
+      }
       normalize_for_sg_match: { Args: { p: string }; Returns: string }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
       propagate_group_tags_batch: {
@@ -2740,6 +2846,7 @@ export type Database = {
         Args: { p_file_ids: string[] }
         Returns: number
       }
+      rebuild_dam_search_documents: { Args: never; Returns: Json }
       rebuild_style_groups_batch: {
         Args: { p_batch_size?: number; p_last_asset_id?: string }
         Returns: {
@@ -2758,6 +2865,14 @@ export type Database = {
           processed: number
           sub: string
         }[]
+      }
+      refresh_dam_search_asset_document: {
+        Args: { p_asset_id: string }
+        Returns: undefined
+      }
+      refresh_dam_search_style_group_document: {
+        Args: { p_style_group_id: string }
+        Returns: undefined
       }
       refresh_style_group_counts: { Args: never; Returns: undefined }
       refresh_style_group_counts_batch: {
@@ -2808,6 +2923,23 @@ export type Database = {
           style_group_id: string
         }[]
       }
+      search_dam_documents: {
+        Args: {
+          p_document_types?: string[]
+          p_limit?: number
+          p_query: string
+          p_query_embedding?: string
+        }
+        Returns: {
+          asset_id: string
+          document_type: string
+          entity_id: string
+          keyword_rank: number
+          rank: number
+          semantic_rank: number
+          style_group_id: string
+        }[]
+      }
       search_style_groups_full_text: {
         Args: { p_limit?: number; p_query: string }
         Returns: {
@@ -2839,6 +2971,16 @@ export type Database = {
         Returns: Json
       }
       update_bulk_operations_batch: { Args: { p_updates: Json }; Returns: Json }
+      upsert_dam_search_embedding: {
+        Args: {
+          p_content_sha256: string
+          p_document_type: string
+          p_embedding: string
+          p_embedding_model?: string
+          p_entity_id: string
+        }
+        Returns: boolean
+      }
       upsert_style_tracker_value_resolution: {
         Args: {
           p_field_key: string
