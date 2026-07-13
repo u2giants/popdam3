@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, Trash2, Check, X, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { formatOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -383,6 +384,7 @@ interface OpenRouterModel {
   id: string;
   name: string;
   context_length: number | null;
+  pricing?: OpenRouterPricing | null;
 }
 
 // ── AI vision model config card ───────────────────────────────────────────────
@@ -469,9 +471,9 @@ function AiVisionConfigCard() {
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select a vision model…" />
                 </SelectTrigger>
-                <SelectContent className="max-h-72">
+                <SelectContent className="max-h-72 sm:min-w-[34rem]">
                   {visionModels.map((m) => (
-                    <SelectItem key={m.id} value={m.id} className="text-xs">
+                    <SelectItem key={m.id} value={m.id} className="text-xs" suffix={formatOpenRouterPricing(m.pricing)}>
                       {m.name}
                       <span className="ml-2 text-muted-foreground text-[10px]">{m.id}</span>
                     </SelectItem>

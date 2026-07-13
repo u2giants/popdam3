@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CURRENT_APP } from "@/lib/app-mode";
+import { formatOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 import { toast } from "sonner";
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -543,7 +544,7 @@ export function AiModelsConfigSection() {
 
   const savedOpenRouterKey = unwrap(configData?.config?.OPENROUTER_API_KEY);
 
-  const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string; supportsTools: boolean; promptPrice?: number; completionPrice?: number }>>({
+  const { data: openRouterModels, isLoading: loadingModels, error: modelsError } = useQuery<Array<{ id: string; name: string; supportsTools: boolean; pricing?: OpenRouterPricing }>>({
     queryKey: ["openrouter-models", savedOpenRouterKey],
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
@@ -552,7 +553,7 @@ export function AiModelsConfigSection() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const data = await res.json();
-      const items: Array<{ id: string; name?: string; supported_parameters?: string[]; pricing?: { prompt?: string; completion?: string } }> = Array.isArray(data)
+      const items: Array<{ id: string; name?: string; supported_parameters?: string[]; pricing?: OpenRouterPricing }> = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
           ? data.data
@@ -562,8 +563,7 @@ export function AiModelsConfigSection() {
           id: m.id,
           name: m.name ?? m.id,
           supportsTools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
-          promptPrice: m.pricing?.prompt ? parseFloat(m.pricing.prompt) * 1_000_000 : undefined,
-          completionPrice: m.pricing?.completion ? parseFloat(m.pricing.completion) * 1_000_000 : undefined,
+          pricing: m.pricing,
         }))
         .sort((a, b) => a.id.localeCompare(b.id));
     },
@@ -675,12 +675,8 @@ export function AiModelsConfigSection() {
                     </SelectTrigger>
                     <SelectContent>
                       {options.map((m) => {
-                        const fmt = (p?: number) => p !== undefined ? (p === 0 ? "0" : `${p < 0.01 ? p.toFixed(3) : p.toFixed(2)}`) : "?";
-                        const price = (m.promptPrice !== undefined || m.completionPrice !== undefined)
-                          ? `$${fmt(m.promptPrice)}/$${fmt(m.completionPrice)}`
-                          : undefined;
                         return (
-                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={price}>
+                          <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={formatOpenRouterPricing(m.pricing)}>
                             {displayNames[m.id] || m.id}{!m.supportsTools && requiresTools ? " ⚠" : ""}
                           </SelectItem>
                         );

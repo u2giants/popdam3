@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { formatOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 
 type Slot = "a" | "b" | "c";
 type Field = "tags" | "description" | "characters" | "property";
@@ -19,7 +20,7 @@ type VisionModel = {
   id: string;
   name: string;
   supports_tools?: boolean;
-  pricing?: { prompt?: string; completion?: string };
+  pricing?: OpenRouterPricing | null;
 };
 
 type BakeoffRun = {
@@ -219,9 +220,9 @@ export default function AiTagBakeoffTab() {
           <SelectTrigger className="h-8 font-mono text-xs">
             <SelectValue placeholder={modelsLoading ? "Loading..." : "Select model"} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="sm:min-w-[28rem]">
             {visionModels.map((model) => (
-              <SelectItem key={model.id} value={model.id} className="font-mono text-xs">
+              <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
                 {fmtModel(model.id)}{model.supports_tools === false ? " (no tools)" : ""}
               </SelectItem>
             ))}
