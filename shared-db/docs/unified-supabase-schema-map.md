@@ -101,8 +101,8 @@ DAM library search:
 
 - `search_assets_full_text(query, limit)` and `search_style_groups_full_text(query, limit)` are app-facing RPCs for PopDAM library search. They return matching IDs rather than full rows so the app can intersect search results with existing filters, visibility guards, sorting, and pagination.
 - Indexed sources: asset metadata (`filename`, `relative_path`, product/AI descriptions, customer/program, licensor/property/category), style-group metadata (`sku`, `folder_path`, product description, customer/program, licensor/property/category), and `pdf_text_samples.extracted_text` from tech-pack/licensor-sheet PDF extraction.
-- Indexes: `idx_assets_full_text_search`, `idx_style_groups_full_text_search`, and `idx_pdf_text_samples_extracted_text_search` (all GIN full-text). Migration files: `20260709150000_dam_full_text_search.sql` and `20260709151000_dam_full_text_search_preserve_substring.sql`.
-- Compatibility note: the second migration preserves existing substring behavior for SKU-style searches such as `3fz`, because pure PostgreSQL full-text search does not match inside `3FZ93DYEC01`.
+- Indexes: `idx_assets_full_text_search`, `idx_style_groups_full_text_search`, and `idx_pdf_text_samples_extracted_text_search` (GIN full-text), plus trigram substring indexes for SKU/path-style fields used by the RPCs. Migration files: `20260709150000_dam_full_text_search.sql`, `20260709151000_dam_full_text_search_preserve_substring.sql`, and `20260713215134_dam_search_index_speed.sql`.
+- Compatibility note: substring behavior is intentionally limited to indexed SKU/path-style fields such as `filename`, `relative_path`, `sku`, `folder_path`, `customer`, and `program`; broad description/licensor/property/category search stays in the full-text vectors.
 
 Enums:
 

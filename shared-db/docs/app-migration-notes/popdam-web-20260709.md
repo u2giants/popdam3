@@ -15,6 +15,7 @@
 - Migration files:
   - `supabase/migrations/20260709150000_dam_full_text_search.sql`
   - `supabase/migrations/20260709151000_dam_full_text_search_preserve_substring.sql`
+  - `supabase/migrations/20260713215134_dam_search_index_speed.sql`
 
 ### Why
 
@@ -44,9 +45,14 @@ sort, and pagination queries.
 - The second migration intentionally preserves existing substring search
   behavior for queries such as `3fz` matching `3FZ93DYEC01`; pure PostgreSQL
   full-text search does not match inside that token.
-- The PopDAM frontend caps RPC result handoff at 500 IDs. If a query is too
-  broad or the RPC is temporarily unavailable during deploy ordering, the
-  frontend falls back to the older metadata substring predicate.
+- `20260713215134_dam_search_index_speed.sql` narrows substring matching to
+  indexed SKU/path-style fields (`filename`, `relative_path`, `sku`,
+  `folder_path`, `customer`, and `program`). Description, licensor, property,
+  category, and extracted PDF text remain covered by full-text indexes.
+- The PopDAM frontend caps RPC result handoff at 500 IDs and keeps using that
+  capped indexed set for broad matches. If the RPC is temporarily unavailable
+  during deploy ordering, the frontend falls back to the older metadata
+  substring predicate.
 
 ### Verified
 
@@ -66,6 +72,9 @@ sort, and pagination queries.
 - Broad terms can still match many rows. Keep the frontend ID handoff cap
   unless the app moves fully to an RPC that applies filters, sorting, and
   pagination server-side.
+- Do not re-add broad unindexed `ILIKE` predicates to the search RPCs. If a new
+  field needs substring matching, add a matching trigram index or keep it in the
+  full-text vector only.
 - If search semantics change, test SKU-prefix queries such as `3fz`; do not
   accidentally regress substring matching while adding full-text behavior.
 - The extracted PDF text search depends on `pdf_text_samples` coverage. Missing
