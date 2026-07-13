@@ -63,7 +63,7 @@ async function fetchAssetFullTextIds(search: string) {
   }
 
   const ids = ((data ?? []) as { asset_id: string }[]).map((row) => row.asset_id);
-  return ids.length >= FULL_TEXT_SEARCH_LIMIT ? undefined : ids;
+  return ids.length === 0 || ids.length >= FULL_TEXT_SEARCH_LIMIT ? undefined : ids;
 }
 
 function applyFilters(query: any, filters: AssetFilters, fullTextAssetIds?: string[] | null) {
@@ -192,7 +192,6 @@ export function useAssets(
         page,
       };
     },
-    placeholderData: (prev) => prev,
   });
 }
 

@@ -81,9 +81,16 @@ export default function LibraryPage() {
   const groups = sgData?.groups ?? [];
   const assets = assetData?.assets ?? [];
   const isLoading = isGroupsMode ? sgLoading : assetLoading;
+  const activeFilterCount = countActiveFilters(filters);
+  const hasLibraryFilters = hasActiveFilters(filters);
   const count = isGroupsMode
     ? (totalGroupCount ?? sgData?.totalCount ?? 0)
     : (assetData?.totalCount ?? 0);
+  const showRebuildHint =
+    isGroupsMode &&
+    !hasLibraryFilters &&
+    groups.length === 0 &&
+    ((totalGroupCount ?? 0) > 0 || (ungroupedCount ?? 0) > 0);
 
   // ── Selection ───────────────────────────────────────────────────
   const currentItems = isGroupsMode ? groups : assets;
@@ -136,8 +143,6 @@ export default function LibraryPage() {
     queryClient.invalidateQueries({ queryKey: ["assets"] });
   }, [queryClient]);
 
-  const activeFilterCount = countActiveFilters(filters);
-  const hasLibraryFilters = hasActiveFilters(filters);
   const { data: filteredGroupAssetCount } = useStyleGroupAssetCount(filters, visibilityDate, isGroupsMode && hasLibraryFilters);
   const selectedGroups = groups.filter((g) => selectedIds.has(g.id));
 
@@ -221,7 +226,7 @@ export default function LibraryPage() {
                 selectedIds={selectedIds}
                 onSelect={handleSelect}
                 isLoading={isLoading}
-                rebuildHint={groups.length === 0 && ((totalGroupCount ?? 0) > 0 || (ungroupedCount ?? 0) > 0)}
+                rebuildHint={showRebuildHint}
                 cardStyle={cardStyle}
               />
             ) : (
@@ -230,7 +235,7 @@ export default function LibraryPage() {
                 selectedIds={selectedIds}
                 onSelect={handleSelect}
                 isLoading={isLoading}
-                rebuildHint={groups.length === 0 && ((totalGroupCount ?? 0) > 0 || (ungroupedCount ?? 0) > 0)}
+                rebuildHint={showRebuildHint}
               />
             )
           ) : (

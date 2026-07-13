@@ -85,7 +85,7 @@ async function fetchStyleGroupFullTextIds(search: string) {
   }
 
   const ids = ((data ?? []) as { style_group_id: string }[]).map((row) => row.style_group_id);
-  return ids.length >= FULL_TEXT_SEARCH_LIMIT ? undefined : ids;
+  return ids.length === 0 || ids.length >= FULL_TEXT_SEARCH_LIMIT ? undefined : ids;
 }
 
 function applyStyleGroupFilters(query: any, filters: AssetFilters, fullTextGroupIds?: string[] | null) {
@@ -199,7 +199,6 @@ export function useStyleGroups(
         page,
       };
     },
-    placeholderData: (prev) => prev,
   });
 }
 
@@ -257,7 +256,6 @@ export function useStyleGroupAssetCount(filters: AssetFilters, visibilityDate?: 
 
       return total;
     },
-    placeholderData: (prev) => prev,
   });
 }
 

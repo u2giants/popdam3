@@ -101,7 +101,7 @@ The PopDAM library search uses indexed database RPCs before applying the normal 
 - `search_style_groups_full_text(query, limit)` returns matching `style_groups.id` values from indexed group metadata plus member asset/PDF matches.
 - GIN indexes backing the RPCs live in canonical `shared-db` migrations `20260709150000_dam_full_text_search.sql` and `20260709151000_dam_full_text_search_preserve_substring.sql`.
 
-The frontend caps the RPC handoff at 500 IDs. If a search is too broad, or the RPC is missing during a deploy ordering mismatch, it falls back to the older metadata substring search. This preserves SKU-prefix behavior such as `3fz` matching `3FZ93DYEC01`, while making narrower tech-pack/licensor-sheet text queries searchable through the extracted PDF text index.
+The frontend caps the RPC handoff at 500 IDs. If a search is too broad, returns no ID handoff, or the RPC is missing during a deploy ordering mismatch, it falls back to the older metadata substring search. This preserves SKU-prefix behavior such as `3fz` matching `3FZ93DYEC01`, while making narrower tech-pack/licensor-sheet text queries searchable through the extracted PDF text index.
 
 ---
 
