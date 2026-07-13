@@ -113,9 +113,7 @@ corsServe(async (req) => {
     const query = typeof body.query === "string" ? body.query.trim() : "";
     if (!query) return err("Missing query", 400);
     const limit = Math.min(500, Math.max(1, Number(body.limit) || 100));
-    const documentTypes = Array.isArray(body.document_types)
-      ? body.document_types.filter((v): v is string => typeof v === "string")
-      : null;
+    const documentTypes = Array.isArray(body.document_types) ? body.document_types.filter((v): v is string => typeof v === "string") : null;
     const embedding = await embedText(query);
 
     const db = serviceClient();
