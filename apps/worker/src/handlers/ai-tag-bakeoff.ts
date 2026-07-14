@@ -342,7 +342,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
 
   const started = Date.now();
   try {
-    const apiKey = config.openRouterApiKey || config.googleAiApiKey;
+    const apiKey = config.openRouterApiKey;
     const messages = buildImageTaggingMessages(
       prompt,
       image,
@@ -454,7 +454,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   const client = db();
   const runId = typeof opState.params?.run_id === "string" ? opState.params.run_id : null;
   if (!runId) return { ok: false, done: false, error: "run_id param is required" };
-  if (!(config.openRouterApiKey || config.googleAiApiKey)) return { ok: false, done: false, error: "No AI API key configured" };
+  if (!config.openRouterApiKey) return { ok: false, done: false, error: "No AI API key configured" };
   await markStaleRunningResults(runId);
 
   const { data: run, error: runErr } = await client

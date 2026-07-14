@@ -5,8 +5,12 @@
  * Replaces direct calls to Google Gemini and Anthropic APIs.
  *
  * All models are specified as OpenRouter model IDs, e.g.:
- *   "google/gemini-2.0-flash-001"
- *   "anthropic/claude-3.5-haiku"
+ *   "qwen/qwen3-vl-32b-instruct"
+ *   "deepseek/deepseek-v4-pro"
+ *
+ * Every request is routed through the "Exacto" variant by default (see
+ * withExactoRouting) for best tool-calling accuracy. Pin an explicit ":variant"
+ * suffix on a model slug to opt out.
  */
 
 import { logger } from "./logger.js";
@@ -145,6 +149,25 @@ export function buildProviderPin(
     .filter(Boolean);
   if (list.length === 0) return undefined;
   return { only: list, allow_fallbacks: false };
+}
+
+/**
+ * OpenRouter "Exacto" routing variant. Routes each request to the upstream
+ * provider endpoint with the best measured tool-calling / structured-output
+ * accuracy for the given model. Exacto is a free virtual variant (no separate
+ * endpoint pool, no price premium), applied to every call by default because
+ * our tagging/ERP pipelines depend on reliable tool calls and JSON — it is the
+ * routing-level fix for the cross-provider tool_choice/malformed-JSON failures
+ * this client otherwise papers over with fallback ladders.
+ *
+ * A model that already carries an explicit ":variant" suffix (":nitro",
+ * ":floor", ":free", ":exacto", …) is returned unchanged, so a caller can opt a
+ * specific model out of Exacto by pinning its own variant in the model slug.
+ */
+export function withExactoRouting(model: string): string {
+  const trimmed = model.trim();
+  if (!trimmed || trimmed.includes(":")) return trimmed;
+  return `${trimmed}:exacto`;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -290,7 +313,9 @@ export async function chatCompletion(
     toolChoiceFallbacks.push("auto");
   }
 
-  let currentRequest = request;
+  // Apply Exacto routing by default (best tool-calling accuracy). Idempotent:
+  // a model that already carries an explicit variant suffix is left untouched.
+  let currentRequest: ChatCompletionRequest = { ...request, model: withExactoRouting(request.model) };
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {

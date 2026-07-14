@@ -4,8 +4,11 @@
  * All AI calls go through OpenRouter (OpenAI-compatible API) so the model
  * is selectable from the admin panel without code changes.
  *
- * The model is read from admin_config.AI_TASK_MODELS.vision_tagging
- * (default: "google/gemini-2.0-flash-001").
+ * The live model is read from admin_config.AI_TASK_MODELS.vision_tagging
+ * (production primary: "qwen/qwen3-vl-32b-instruct", fallback:
+ * "minimax/minimax-m3"). DEFAULT_VISION_MODEL below is only a hardcoded
+ * last-resort used if that config row is missing — it is NOT the configured
+ * default.
  */
 
 import { db } from "../supabase.js";
@@ -25,7 +28,9 @@ import {
 } from "./ai-tagging-shared.js";
 
 const AI_TIMEOUT_MS = 60_000;
-const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
+// Last-resort fallback only, used if admin_config.AI_TASK_MODELS is missing.
+// Kept in sync with the live production primary (see getVisionModels()).
+const DEFAULT_VISION_MODEL = "qwen/qwen3-vl-32b-instruct";
 const SAME_MODEL_STRUCTURED_RETRY_COUNT = 1;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -137,7 +142,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
   const apiKey = getAiTaggingApiKey();
 
   if (!apiKey) {
-    logger.error("No AI API key configured (OPENROUTER_API_KEY or GOOGLE_AI_API_KEY)");
+    logger.error("No AI API key configured (OPENROUTER_API_KEY)");
     return { outcome: "failed", error: "No AI API key configured (set OPENROUTER_API_KEY in Railway)" };
   }
 

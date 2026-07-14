@@ -390,5 +390,5 @@ export async function callTagAssetModel(
 }
 
 export function getAiTaggingApiKey() {
-  return config.openRouterApiKey || config.googleAiApiKey;
+  return config.openRouterApiKey;
 }

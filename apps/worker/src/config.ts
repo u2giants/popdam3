@@ -28,8 +28,8 @@ export const config = {
   // OpenRouter API key — single gateway for all AI providers
   openRouterApiKey: optional("OPENROUTER_API_KEY", ""),
 
-  // Legacy direct keys — kept for fallback; prefer OpenRouter
-  googleAiApiKey: optional("GOOGLE_AI_API_KEY", ""),
+  // Legacy direct Anthropic key (unused by the OpenRouter path; kept for
+  // any residual direct calls).
   anthropicApiKey: optional("ANTHROPIC_API_KEY", ""),
 
   // How often to poll Supabase for pending operations (ms).
