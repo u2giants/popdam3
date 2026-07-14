@@ -945,6 +945,113 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : [];
 }
 
+type BakeoffSampleAsset = {
+  id: string;
+  filename: string | null;
+  relative_path: string | null;
+  quick_hash?: string | null;
+  sku?: string | null;
+};
+
+function bakeoffSampleKeys(asset: BakeoffSampleAsset) {
+  const keys: string[] = [];
+  const filename = (asset.filename ?? "").trim().toLowerCase();
+  if (asset.quick_hash) keys.push(`hash:${asset.quick_hash}`);
+  if (filename) {
+    if (asset.sku) keys.push(`sku-file:${asset.sku.trim().toLowerCase()}:${filename}`);
+    keys.push(`filename:${filename}`);
+  }
+  return keys;
+}
+
+function isTechpackPath(asset: BakeoffSampleAsset) {
+  return /(^|\/)techpack(\/|$)/i.test(asset.relative_path ?? "");
+}
+
+function dedupeBakeoffAssets(assets: BakeoffSampleAsset[], limit: number) {
+  const selected: BakeoffSampleAsset[] = [];
+  const usedKeys = new Map<string, number>();
+
+  for (const asset of assets) {
+    const keys = bakeoffSampleKeys(asset);
+    const existingIndex = keys.map((key) => usedKeys.get(key)).find((idx): idx is number => idx !== undefined);
+    if (existingIndex === undefined) {
+      selected.push(asset);
+      const idx = selected.length - 1;
+      for (const key of keys) usedKeys.set(key, idx);
+    } else if (isTechpackPath(selected[existingIndex]) && !isTechpackPath(asset)) {
+      selected[existingIndex] = asset;
+    }
+    if (selected.length >= limit) break;
+  }
+
+  return selected.slice(0, limit);
+}
+
+async function fetchBakeoffAssetsByIds(db: ReturnType<typeof serviceClient>, assetIds: string[]) {
+  if (assetIds.length === 0) return [];
+  const { data, error } = await db
+    .from("assets")
+    .select("id, filename, relative_path, quick_hash, sku")
+    .in("id", assetIds);
+  if (error) throw new Error(`Failed to load explicit assets: ${error.message}`);
+  const byId = new Map(((data ?? []) as BakeoffSampleAsset[]).map((asset) => [asset.id, asset]));
+  return assetIds.map((id) => byId.get(id)).filter((asset): asset is BakeoffSampleAsset => !!asset);
+}
+
+function randomInt(maxExclusive: number) {
+  return Math.floor(Math.random() * Math.max(1, maxExclusive));
+}
+
+async function selectRandomBakeoffAssets(db: ReturnType<typeof serviceClient>, sampleSize: number) {
+  const baseQuery = () => db
+    .from("assets")
+    .select("id, filename, relative_path, quick_hash, sku")
+    .eq("is_deleted", false)
+    .not("thumbnail_url", "is", null)
+    .not("primary_sort_tier", "in", "(4,8)");
+
+  const pageSize = Math.min(1000, Math.max(100, sampleSize * 25));
+  const seenIds = new Set<string>();
+  const pool: BakeoffSampleAsset[] = [];
+  const maxAttempts = 20;
+
+  for (let attempt = 0; attempt < maxAttempts && dedupeBakeoffAssets(pool, sampleSize).length < sampleSize; attempt++) {
+    const pivot = crypto.randomUUID();
+    const { data, error } = await baseQuery()
+      .order("id", { ascending: true })
+      .gte("id", pivot)
+      .limit(pageSize);
+    if (error) throw new Error(`Failed to select random sample assets: ${error.message}`);
+    for (const asset of (data ?? []) as BakeoffSampleAsset[]) {
+      if (!seenIds.has(asset.id)) {
+        seenIds.add(asset.id);
+        pool.push(asset);
+      }
+    }
+  }
+
+  if (dedupeBakeoffAssets(pool, sampleSize).length < sampleSize) {
+    const { data, error } = await baseQuery()
+      .order("id", { ascending: true })
+      .limit(pageSize);
+    if (error) throw new Error(`Failed to fill random sample assets: ${error.message}`);
+    for (const asset of (data ?? []) as BakeoffSampleAsset[]) {
+      if (!seenIds.has(asset.id)) {
+        seenIds.add(asset.id);
+        pool.push(asset);
+      }
+    }
+  }
+
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+
+  return dedupeBakeoffAssets(pool, sampleSize);
+}
+
 async function handleCreateAiTagBakeoffRun(body: Record<string, unknown>, userId: string) {
   const db = serviceClient();
   const modelIds = stringArray(body.model_ids).slice(0, 5);
@@ -953,21 +1060,17 @@ async function handleCreateAiTagBakeoffRun(body: Record<string, unknown>, userId
   const requestedSampleSize = typeof body.sample_size === "number" ? Math.floor(body.sample_size) : 30;
   const sampleSize = Math.min(500, Math.max(1, requestedSampleSize));
   const explicitAssetIds = stringArray(body.asset_ids).slice(0, sampleSize);
-  let assetIds = explicitAssetIds;
+  let sampleAssets: BakeoffSampleAsset[] = [];
 
-  if (assetIds.length === 0) {
-    const { data: assets, error: assetErr } = await db
-      .from("assets")
-      .select("id")
-      .eq("is_deleted", false)
-      .not("thumbnail_url", "is", null)
-      .not("primary_sort_tier", "in", "(4,8)")
-      .order("modified_at", { ascending: false })
-      .limit(sampleSize);
-    if (assetErr) return err(`Failed to select sample assets: ${assetErr.message}`, 500);
-    assetIds = (assets ?? []).map((a: { id: string }) => a.id);
+  try {
+    sampleAssets = explicitAssetIds.length > 0
+      ? dedupeBakeoffAssets(await fetchBakeoffAssetsByIds(db, explicitAssetIds), sampleSize)
+      : await selectRandomBakeoffAssets(db, sampleSize);
+  } catch (e) {
+    return err(e instanceof Error ? e.message : String(e), 500);
   }
 
+  const assetIds = sampleAssets.map((asset) => asset.id);
   if (assetIds.length === 0) return err("No eligible assets with thumbnails found", 400);
 
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 120) : `Vision bake-off ${new Date().toISOString().slice(0, 10)}`;
@@ -1015,6 +1118,18 @@ async function handleGetAiTagBakeoffRun(body: Record<string, unknown>) {
     .eq("id", runId)
     .single();
   if (runErr || !run) return err(`Bake-off run not found: ${runErr?.message ?? "no data"}`, 404);
+
+  const staleCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await db
+    .from("ai_tag_bakeoff_results")
+    .update({
+      status: "failed",
+      error_message: "Stale running result: no final result was written within 10 minutes",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("run_id", runId)
+    .eq("status", "running")
+    .lt("updated_at", staleCutoff);
 
   const assetIds = ((run as { asset_ids?: string[] }).asset_ids ?? []) as string[];
   const [{ data: assets, error: assetsErr }, { data: results, error: resultsErr }, { data: reviews, error: reviewsErr }] = await Promise.all([
