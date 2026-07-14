@@ -185,18 +185,23 @@ export type Database = {
           asset_id: string
           character_ids: string[]
           character_names: string[]
+          completion_tokens: number | null
+          cost_usd: number | null
           created_at: string
           error_message: string | null
           id: string
           latency_ms: number | null
           model_id: string
           model_slot: string
+          pricing_snapshot: Json | null
+          prompt_tokens: number | null
           property_id: string | null
           property_name: string | null
           raw_output: Json | null
           run_id: string
           status: string
           tags: string[]
+          total_tokens: number | null
           updated_at: string
         }
         Insert: {
@@ -204,18 +209,23 @@ export type Database = {
           asset_id: string
           character_ids?: string[]
           character_names?: string[]
+          completion_tokens?: number | null
+          cost_usd?: number | null
           created_at?: string
           error_message?: string | null
           id?: string
           latency_ms?: number | null
           model_id: string
           model_slot: string
+          pricing_snapshot?: Json | null
+          prompt_tokens?: number | null
           property_id?: string | null
           property_name?: string | null
           raw_output?: Json | null
           run_id: string
           status?: string
           tags?: string[]
+          total_tokens?: number | null
           updated_at?: string
         }
         Update: {
@@ -223,18 +233,23 @@ export type Database = {
           asset_id?: string
           character_ids?: string[]
           character_names?: string[]
+          completion_tokens?: number | null
+          cost_usd?: number | null
           created_at?: string
           error_message?: string | null
           id?: string
           latency_ms?: number | null
           model_id?: string
           model_slot?: string
+          pricing_snapshot?: Json | null
+          prompt_tokens?: number | null
           property_id?: string | null
           property_name?: string | null
           raw_output?: Json | null
           run_id?: string
           status?: string
           tags?: string[]
+          total_tokens?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -322,6 +337,8 @@ export type Database = {
           model_a: string
           model_b: string
           model_c: string
+          model_d: string | null
+          model_e: string | null
           name: string
           sample_size: number
           status: string
@@ -336,6 +353,8 @@ export type Database = {
           model_a: string
           model_b: string
           model_c: string
+          model_d?: string | null
+          model_e?: string | null
           name: string
           sample_size?: number
           status?: string
@@ -350,6 +369,8 @@ export type Database = {
           model_a?: string
           model_b?: string
           model_c?: string
+          model_d?: string | null
+          model_e?: string | null
           name?: string
           sample_size?: number
           status?: string
