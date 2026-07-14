@@ -92,6 +92,12 @@ mirroring the bake-off change.
 M3's "lots of JSON errors" is structured-output reliability, not image size.
 Levers in `callTagAssetModel` / the `provider` block on `ChatCompletionRequest`
 (supported in `openrouter.ts` but currently unset):
+- Production Image Tagging now has one bounded same-model retry around the full
+  structured-output ladder for intermittent routing/structured-output failures
+  (`No endpoints found`, OpenRouter 404, tool-use support errors, malformed tool
+  JSON, no parsable JSON). This is separate from the JSON repair retry inside
+  `callTagAssetModel` and does not retry content-inspection, thumbnail, or DB
+  write failures.
 - OpenRouter routes one model ID across multiple provider endpoints and
   load-balances/falls back unless pinned; endpoints differ in tool-calling,
   `response_format`, and `strict` support — a prime cause of intermittent JSON
