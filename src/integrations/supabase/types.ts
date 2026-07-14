@@ -966,6 +966,33 @@ export type Database = {
         }
         Relationships: []
       }
+      dam_search_synonyms: {
+        Row: {
+          created_at: string
+          expansion: string
+          is_active: boolean
+          note: string | null
+          search_term: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expansion: string
+          is_active?: boolean
+          note?: string | null
+          search_term: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expansion?: string
+          is_active?: boolean
+          note?: string | null
+          search_term?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       erp_enrichment_log: {
         Row: {
           applied_at: string
@@ -2794,6 +2821,12 @@ export type Database = {
         Returns: number
       }
       execute_readonly_query: { Args: { query_text: string }; Returns: Json }
+      expand_dam_search_queries: {
+        Args: { p_query: string }
+        Returns: {
+          query_text: string
+        }[]
+      }
       find_ai_pdf_duplicates: {
         Args: never
         Returns: {
