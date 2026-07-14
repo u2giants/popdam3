@@ -80,6 +80,7 @@ type BakeoffReview = {
   asset_id: string;
   field: Field | "overall";
   winner_slot: Slot | null;
+  scores?: Record<string, unknown> | null;
   notes: string | null;
 };
 
@@ -135,6 +136,18 @@ function fieldValue(result: BakeoffResult | undefined, field: Field) {
   if (field === "description") return result.ai_description || "No description";
   if (field === "characters") return result.character_names.length ? result.character_names.join(", ") : "No characters";
   return result.property_name || "No property";
+}
+
+function selectedReviewSlots(review: BakeoffReview | undefined): Slot[] {
+  const fromScores = review?.scores?.winner_slots;
+  if (Array.isArray(fromScores)) {
+    return fromScores.filter((slot): slot is Slot => SLOTS.includes(slot as Slot));
+  }
+  return review?.winner_slot ? [review.winner_slot] : [];
+}
+
+function toggleSlot(slots: Slot[], slot: Slot) {
+  return slots.includes(slot) ? slots.filter((item) => item !== slot) : [...slots, slot];
 }
 
 function RunStatusBadge({ status }: { status: string }) {
@@ -260,7 +273,7 @@ export default function AiTagBakeoffTab() {
     const slots = runSlots(currentRun);
     const wins: Record<Slot, number> = { a: 0, b: 0, c: 0, d: 0, e: 0 };
     for (const review of reviews) {
-      if (review.winner_slot) wins[review.winner_slot]++;
+      for (const slot of selectedReviewSlots(review)) wins[slot]++;
     }
     return {
       slots,
@@ -298,8 +311,10 @@ export default function AiTagBakeoffTab() {
   });
 
   const scoreField = useMutation({
-    mutationFn: (payload: { asset_id: string; field: Field | "overall"; winner_slot: Slot }) => call("score-ai-tag-bakeoff-field", {
+    mutationFn: (payload: { asset_id: string; field: Field | "overall"; winner_slots: Slot[] }) => call("score-ai-tag-bakeoff-field", {
       run_id: activeRunId,
+      winner_slot: payload.winner_slots[0] ?? null,
+      scores: { winner_slots: payload.winner_slots },
       ...payload,
     }),
     onSuccess: () => {
@@ -464,6 +479,7 @@ export default function AiTagBakeoffTab() {
                 {assets.map((asset) => {
                   const bySlot = resultsByAsset.get(asset.id) ?? {};
                   const overallReview = reviewsByAssetField.get(`${asset.id}:overall`);
+                  const overallSlots = selectedReviewSlots(overallReview);
                   return (
                     <div key={asset.id} className="rounded-md border border-border overflow-hidden">
                       <div className="grid gap-3 lg:grid-cols-[220px_1fr] p-3 bg-muted/30">
@@ -487,12 +503,12 @@ export default function AiTagBakeoffTab() {
                               {summary.slots.map((slot) => (
                                 <Button
                                   key={slot}
-                                  variant={overallReview?.winner_slot === slot ? "default" : "outline"}
+                                  variant={overallSlots.includes(slot) ? "default" : "outline"}
                                   size="sm"
                                   className="h-7 px-2 text-xs"
-                                  onClick={() => scoreField.mutate({ asset_id: asset.id, field: "overall", winner_slot: slot })}
+                                  onClick={() => scoreField.mutate({ asset_id: asset.id, field: "overall", winner_slots: toggleSlot(overallSlots, slot) })}
                                 >
-                                  {overallReview?.winner_slot === slot && <Check className="mr-1 h-3 w-3" />}
+                                  {overallSlots.includes(slot) && <Check className="mr-1 h-3 w-3" />}
                                   {slot.toUpperCase()}
                                 </Button>
                               ))}
@@ -520,30 +536,31 @@ export default function AiTagBakeoffTab() {
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                      <div className="overflow-hidden">
+                        <table className="w-full table-fixed text-sm">
                           <thead>
                             <tr className="border-t border-border bg-muted/20">
-                              <th className="w-32 px-3 py-2 text-left text-xs font-medium text-muted-foreground">Field</th>
+                              <th className="w-28 px-3 py-2 text-left text-xs font-medium text-muted-foreground">Field</th>
                               {summary.slots.map((slot) => (
-                                <th key={slot} className="min-w-[240px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">{SLOT_LABELS[slot]}</th>
+                                <th key={slot} className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{SLOT_LABELS[slot]}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
                             {(["tags", "description", "characters", "property"] as Field[]).map((field) => {
                               const review = reviewsByAssetField.get(`${asset.id}:${field}`);
+                              const selectedSlots = selectedReviewSlots(review);
                               return (
                                 <tr key={field} className="border-t border-border align-top">
                                   <td className="px-3 py-3 text-xs font-medium text-muted-foreground">{FIELD_LABELS[field]}</td>
                                   {summary.slots.map((slot) => {
-                                    const selected = review?.winner_slot === slot;
+                                    const selected = selectedSlots.includes(slot);
                                     const result = bySlot[slot];
                                     return (
-                                      <td key={slot} className="px-3 py-3">
+                                      <td key={slot} className="min-w-0 px-3 py-3">
                                         <button
-                                          className={`w-full rounded-md border p-2 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50"}`}
-                                          onClick={() => scoreField.mutate({ asset_id: asset.id, field, winner_slot: slot })}
+                                          className={`w-full overflow-hidden rounded-md border p-2 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-border hover:bg-muted/50"}`}
+                                          onClick={() => scoreField.mutate({ asset_id: asset.id, field, winner_slots: toggleSlot(selectedSlots, slot) })}
                                         >
                                           <div className="min-h-10 text-xs leading-relaxed whitespace-pre-wrap break-words">
                                             {fieldValue(result, field)}

@@ -1157,6 +1157,11 @@ async function handleScoreAiTagBakeoffField(body: Record<string, unknown>, userI
   const winnerSlot = typeof body.winner_slot === "string" && body.winner_slot ? body.winner_slot : null;
   const notes = typeof body.notes === "string" ? body.notes : null;
   const scores = body.scores && typeof body.scores === "object" ? body.scores : {};
+  const winnerSlots = Array.isArray(body.winner_slots)
+    ? [...new Set(body.winner_slots.filter((slot): slot is string => typeof slot === "string" && ["a", "b", "c", "d", "e"].includes(slot)))]
+    : winnerSlot
+      ? [winnerSlot]
+      : [];
   if (!runId || !assetId || !field) return err("run_id, asset_id, and field are required", 400);
   if (!["tags", "description", "characters", "property", "overall"].includes(field)) return err("Invalid field", 400);
   if (winnerSlot && !["a", "b", "c", "d", "e"].includes(winnerSlot)) return err("Invalid winner_slot", 400);
@@ -1168,8 +1173,8 @@ async function handleScoreAiTagBakeoffField(body: Record<string, unknown>, userI
       run_id: runId,
       asset_id: assetId,
       field,
-      winner_slot: winnerSlot,
-      scores,
+      winner_slot: winnerSlots[0] ?? null,
+      scores: { ...(scores as Record<string, unknown>), winner_slots: winnerSlots },
       notes,
       reviewed_by: userId === "system" ? null : userId,
       reviewed_at: new Date().toISOString(),

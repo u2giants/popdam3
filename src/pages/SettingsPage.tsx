@@ -1362,8 +1362,12 @@ export default function SettingsPage() {
     }
   }, [activeTab, authLoading, canManagePackagingTypeSettings, handleTabChange, isAdminLoading]);
 
+  const settingsContainerClass = activeTab === "processing" && processingSubTab === "ai-bakeoff"
+    ? "w-full max-w-none px-4 sm:px-6 lg:px-8 py-8 space-y-6"
+    : "container max-w-7xl py-8 space-y-6";
+
   return (
-    <div className="container max-w-7xl py-8 space-y-6">
+    <div className={settingsContainerClass}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <SettingsIcon className="h-6 w-6 text-primary" />
