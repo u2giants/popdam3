@@ -4,6 +4,14 @@ Date: 2026-07-14
 Scope: what resolution image PopDAM sends to vision models for tagging, and an
 unresolved production decision.
 
+Durable homes (this file is the ephemeral handoff for the *pending decision*
+only — the shipped behavior and the constraint live in the canonical docs):
+- `docs/KNOWN_QUIRKS.md` #61 — bake-off hi-res PDF rendition + why raster can't
+  use it without agent work (the Option A/B constraint).
+- `docs/MODEL_RULES.md` (Image source) — the bake-off image-source rule and
+  `_popdam_image_rendition` values.
+Delete this file once the Option A/B production decision below is made.
+
 ## TL;DR
 
 - Every vision call today sends the **800px longest-edge, JPEG q85 thumbnail**
