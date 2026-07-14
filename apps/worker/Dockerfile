@@ -15,6 +15,11 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src/ ./src/
+# Railway builds with apps/worker as the Docker context. Mirror the canonical
+# shared tag contract at its monorepo-relative path so TypeScript and runtime
+# imports resolve inside the isolated image build.
+COPY vendor/tag-asset-contract.js /supabase/functions/_shared/tag-asset-contract.js
+COPY vendor/tag-asset-contract.d.ts /supabase/functions/_shared/tag-asset-contract.d.ts
 RUN npm run build
 
 # Remove devDependencies
