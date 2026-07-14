@@ -83,6 +83,7 @@ interface LibraryTopBarProps {
 }
 
 const GROUP_SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: "relevance", label: "Relevance" },
   { value: "modified_at", label: "Last modified" },
   { value: "file_created_at", label: "Date created" },
   { value: "sku", label: "SKU (A–Z)" },
@@ -90,6 +91,7 @@ const GROUP_SORT_OPTIONS: { value: SortField; label: string }[] = [
 ];
 
 const FILE_SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: "relevance", label: "Relevance" },
   { value: "modified_at", label: "Last modified" },
   { value: "file_created_at", label: "Date added" },
   { value: "filename", label: "Name (A–Z)" },

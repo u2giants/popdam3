@@ -23,6 +23,7 @@ type VisionModel = {
   name: string;
   supports_tools?: boolean;
   supports_structured_outputs?: boolean;
+  supports_response_format?: boolean;
   architecture?: { input_modalities?: string[] };
   pricing?: OpenRouterPricing | null;
 };
@@ -100,7 +101,7 @@ function fmtModel(id: string) {
 
 function supportsImageTaggingContract(model: VisionModel) {
   return (
-    (model.supports_tools === true || model.supports_structured_outputs === true) &&
+    (model.supports_tools === true || model.supports_structured_outputs === true || model.supports_response_format === true) &&
     !hasUnavailableOpenRouterPricing(model.pricing) &&
     Array.isArray(model.architecture?.input_modalities) &&
     model.architecture.input_modalities.includes("image")
@@ -206,6 +207,7 @@ export default function AiTagBakeoffTab() {
         name: m.name ?? m.id,
         supports_tools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
         supports_structured_outputs: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("structured_outputs"),
+        supports_response_format: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("response_format"),
         architecture: m.architecture,
         pricing: m.pricing,
       }));
@@ -219,6 +221,7 @@ export default function AiTagBakeoffTab() {
     return [...list].sort((a, b) => {
       if (a.supports_tools !== b.supports_tools) return a.supports_tools ? -1 : 1;
       if (a.supports_structured_outputs !== b.supports_structured_outputs) return a.supports_structured_outputs ? -1 : 1;
+      if (a.supports_response_format !== b.supports_response_format) return a.supports_response_format ? -1 : 1;
       return a.id.localeCompare(b.id);
     });
   }, [modelData]);
@@ -345,7 +348,7 @@ export default function AiTagBakeoffTab() {
           <SelectContent className="sm:min-w-[28rem]">
             {visionModels.map((model) => (
               <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
-                {fmtModel(model.id)}{model.supports_tools ? "" : " (schema)"}
+                {fmtModel(model.id)}{model.supports_tools ? "" : model.supports_structured_outputs ? " (schema)" : " (json)"}
               </SelectItem>
             ))}
           </SelectContent>

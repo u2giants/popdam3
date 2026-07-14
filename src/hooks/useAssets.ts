@@ -4,6 +4,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { Asset, AssetFilters, SortField, SortDirection, FacetCounts } from "@/types/assets";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
+import { fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
 
 const PAGE_SIZE = 200;
 const FULL_TEXT_SEARCH_LIMIT = 500;
@@ -66,24 +67,23 @@ function shouldFallbackFromFullTextRpc(error: unknown) {
 async function fetchAssetFullTextIds(search: string) {
   const term = search.replace(/[(),]/g, " ").trim();
   if (!term) return null;
-  const cacheKey = `${term}\u0000${FULL_TEXT_SEARCH_LIMIT}`;
+  const searchMode = await getSearchMode();
+  const cacheKey = `${searchMode}\u0000${term}\u0000${FULL_TEXT_SEARCH_LIMIT}`;
   const cached = assetSearchIdCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.promise;
 
   const promise = (async () => {
-    const { data, error } = await (supabase.rpc as any)("search_assets_full_text", {
-      p_query: term,
-      p_limit: FULL_TEXT_SEARCH_LIMIT,
+    return fetchSearchIds(searchMode, term, "asset", FULL_TEXT_SEARCH_LIMIT, async () => {
+      const { data, error } = await (supabase.rpc as any)("search_assets_full_text", {
+        p_query: term,
+        p_limit: FULL_TEXT_SEARCH_LIMIT,
+      });
+      if (error) {
+        if (shouldFallbackFromFullTextRpc(error)) return undefined;
+        throw error;
+      }
+      return ((data ?? []) as { asset_id: string }[]).map((row) => row.asset_id);
     });
-    if (error) {
-      if (shouldFallbackFromFullTextRpc(error)) return undefined;
-      throw error;
-    }
-
-    const ids = ((data ?? []) as { asset_id: string }[]).map((row) => row.asset_id);
-    // Keep using the indexed RPC result even when it reaches the handoff cap.
-    // Falling back here reintroduces broad unindexed substring scans on popular searches.
-    return ids;
   })();
 
   assetSearchIdCache.set(cacheKey, {
@@ -208,18 +208,25 @@ export function useAssets(
 
       query = applyFilters(query, filters, fullTextAssetIds);
       query = applyVisibility(query, minDate);
-      const assetSortField =
-        sortField === "sku" ? "filename"
-        : sortField === "asset_count" ? "file_size"
-        : sortField;
-      query = query.order(assetSortField, { ascending: sortDirection === "asc" });
-      query = query.range(from, to);
+      const useRelevance = Boolean(filters.search?.trim() && fullTextAssetIds);
+      if (!useRelevance) {
+        const assetSortField =
+          sortField === "relevance" ? "modified_at"
+          : sortField === "sku" ? "filename"
+          : sortField === "asset_count" ? "file_size"
+          : sortField;
+        query = query.order(assetSortField, { ascending: sortDirection === "asc" });
+        query = query.range(from, to);
+      }
 
       const { data, error, count } = await query;
       if (error) throw error;
 
+      const assets = useRelevance
+        ? sortByRank((data ?? []) as Asset[], fullTextAssetIds!, (asset) => asset.id).slice(from, to + 1)
+        : (data ?? []) as Asset[];
       return {
-        assets: (data ?? []) as Asset[],
+        assets,
         totalCount: count ?? 0,
         pageSize: effectivePageSize,
         page,

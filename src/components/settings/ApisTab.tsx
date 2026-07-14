@@ -450,7 +450,7 @@ const TASK_MODEL_LABELS: Record<string, {
 }> = {
   vision_tagging: {
     label: "Image Tagging",
-    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support image input plus tool calls or structured outputs.",
+    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support image input plus tools, structured outputs, or JSON mode.",
     defaultModel: "google/gemini-2.5-flash",
     requiresVision: true,
     requiresStructuredOutput: true,
@@ -474,75 +474,77 @@ const TASK_MODEL_BRIEFS: Record<string, string> = {
   vision_tagging: `IMAGE TAGGING — model selection brief
 
 WHAT THIS TASK DOES
-Analyzes a design/product asset image (a garment, licensed-character artwork, tech pack, style guide page, etc.) and produces structured metadata used to catalog and search the asset library: descriptive tags, a one-sentence AI description, a short "cover" product label, a scene description, asset type, art source, design style/ref, matched character/licensor/property IDs from a controlled taxonomy, designer/technical-designer/freelancer names extracted from title blocks, and a deduplicated list of "Files Used" referenced in any attached tech-pack text.
-
-WHERE THIS RUNS IN CODE
-Primary production path: apps/worker/src/handlers/ai-tagging.ts (Railway worker, used by the bulk "Run AI Tagging" job and single-asset re-tag). A near-identical reduced-scope path exists for the model comparison harness ("Vision Bake-Off"): apps/worker/src/handlers/ai-tag-bakeoff.ts, which runs up to 5 candidate models side-by-side on the same asset for human review before promoting a model to production. A legacy copy (supabase/functions/ai-tag/index.ts) is now only invoked by the older Windows agent path.
+Looks at one asset image (licensed-character artwork, a product photo, a tech pack or style-guide page, etc.) plus its file metadata and returns structured catalog metadata: descriptive tags, a one-sentence description, a short product-label "cover description", a scene description, asset type and art source, design style/reference, matched character / licensor / property IDs from a controlled in-house taxonomy, designer / technical-designer / freelancer names read off title blocks, and a deduplicated list of "Files Used" pulled from any attached tech-pack text. It runs as a single-turn image+text request (no chat history, no multi-step agent loop), at bulk-job scale across the whole library.
 
 HOW THE CODE INVOKES THE MODEL
-Called through OpenRouter (OpenAI-compatible Chat Completions API), so any OpenRouter-listed model can be selected here without a code change if it satisfies the Image Tagging contract. API key precedence: OPENROUTER_API_KEY, falling back to GOOGLE_AI_API_KEY only for the legacy path. The worker first requests a structured tag_asset tool call for models/providers that support tool use; if tool calling is not supported, it retries the same prompt/schema through OpenRouter response_format json_schema structured outputs. The bake-off uses this same request path. This is a SINGLE-TURN, image+text request — no chat history, no multi-step agentic loop.
+All calls go through OpenRouter (OpenAI-compatible Chat Completions), so any listed model that meets the contract can be selected without a code change. The worker asks for structured output through a fallback ladder and takes whichever the model supports: (1) a forced tag_asset tool/function call; (2) OpenRouter json_schema structured outputs; (3) plain JSON mode with schema instructions in the prompt. It then validates that the required fields are present. So a model does NOT need native tool calling to qualify — it needs to reliably return valid JSON matching the schema through at least one of those mechanisms. It DOES need real image input; a text-only model cannot do this task.
 
 WHAT IS FED TO THE MODEL
-- One image: the asset's existing THUMBNAIL (not the original full-resolution source file), fetched over HTTP (20s timeout), base64-encoded, sent as an inline OpenAI-style image_url data URI. Whatever compression/resolution the thumbnail pipeline already produced is what the model sees — there is no separate high-res pass.
-- A text system prompt containing: filename, relative path, file type, existing tags, an ERP item_description for the asset's SKU (used ONLY to derive the short cover/product label — the prompt explicitly instructs the model to ignore the image for that one field, since the image often shows artwork rather than the literal product), up to ~4000 characters of previously-extracted PDF/tech-pack text for that asset (if any), and a "known taxonomy" block listing candidate licensors (up to 50), properties (up to 200), and characters (priority characters for the asset's known property first, falling back to the full roster) — all with their DB UUIDs so the model can return exact foreign-key matches instead of free text.
-- Optional admin-configured custom tagging instructions (company-specific rules) and an optional "priority character list" hint.
+- One image: the asset's THUMBNAIL, not the full-resolution original — an already-compressed, downscaled raster sent inline. There is no separate high-res pass, so the model must read small detail (style numbers, fine print in title blocks, near-identical character variants) off a low-resolution image.
+- A text prompt with: filename / path / type / existing tags; optionally the product's ERP description (used ONLY to derive the cover label — the prompt explicitly tells the model to ignore the image for that one field, because the image is often artwork rather than the finished product); optionally a slice of previously-extracted PDF/tech-pack text; and a "known taxonomy" block listing candidate licensors, properties, and characters each paired with its database UUID, so the model can return exact foreign-key matches instead of free text. This taxonomy block can be large, and optional company-specific tagging instructions may be appended.
 
 WHAT WE EXPECT BACK
-A structured JSON object from either a tag_asset tool call or OpenRouter response_format json_schema. Fields include: tags (string[]), ai_description (string), cover_description (string, max ~8 words, product-label style, explicitly excluding licensor names/SKUs/dimensions/art style), scene_description (string), asset_type (enum: art_piece | product), art_source (enum: freelancer | straight_style_guide | style_guide_composition), design_style, design_ref, character_ids (string[] of UUIDs — must be exact matches only, never invented), licensor_id / property_id (UUIDs), designer_name / technical_designer_name / freelancer_name (nullable strings pulled from title blocks), and files_used (string[] deduplicated across all "Files Used"-style sections in any attached PDF text). Only tags, ai_description, and scene_description are strictly required; everything else may be omitted/null when not identifiable. The app-layer guards against hallucinated UUIDs: any FK violation on write triggers a retry with licensor_id/property_id stripped, and a UUID-shape validator filters bogus IDs before the DB write.
+A structured object. Required: tags (string[]), ai_description, scene_description. Optional/nullable: cover_description (short product label, no licensor names/SKUs/dimensions), asset_type (art_piece | product), art_source enum, design_style, design_ref, character_ids (UUIDs — exact matches only), licensor_id / property_id (UUIDs), designer_name / technical_designer_name / freelancer_name, files_used (string[]). IDs must be chosen only from the provided taxonomy; the app defends against bad IDs (it strips them and retries on a foreign-key violation, and filters anything that isn't a valid UUID), but that is cleanup for a model that misbehaved — it is not a substitute for a model that follows the "use only listed IDs" rule.
 
-WHY IT NEEDS VISION + RELIABLE STRUCTURED OUTPUT
-This is a multi-field structured-extraction task from an image, not open-ended chat, so the model MUST support (a) native vision/image input and (b) one of the app's structured-output mechanisms: tool/function calling or OpenRouter json_schema structured outputs. A model that can only caption images in prose is not enough, but a model does not need native tool calling if it can reliably satisfy the same JSON schema through response_format. Because the taxonomy block can be large (up to ~250 candidate licensor/property/character entries plus filename/path/ERP/PDF context), a generous context window (well beyond a few thousand tokens) matters. Because the image is a compressed thumbnail rather than a full-resolution scan, strong low-resolution/small-detail visual recognition (reading small style numbers, distinguishing similar-looking licensed characters, reading text in title blocks) is more important than raw megapixel-scale image handling. Because tags/characters/licensors must map onto a fixed, sometimes idiosyncratic in-house taxonomy (not a general "what's in this image" answer), instruction-following fidelity — respecting "do not invent UUIDs," "ignore the image for cover_description if ERP text is present," and category-specific correction rules — matters more than raw creative captioning ability. Latency and cost matter too: this runs at bulk-job scale across the entire asset library, so per-call cost and throughput are real constraints, which is why the current default is a fast/cheap vision-capable model (Gemini 2.5 Flash) rather than a top-tier reasoning model.
+CAPABILITIES THAT MATTER, AND WHY
+- Vision is mandatory; reliable structured/JSON output through one of the three mechanisms above is mandatory. Native tool calling is nice-to-have, not required.
+- Strong small-detail reading on a compressed thumbnail matters more than headline "supports high-res images", because the input is already downscaled.
+- A comfortably large context window matters, because the taxonomy block plus metadata and PDF text can be sizable.
+- Instruction-following fidelity matters more than creative captioning: the model must honor narrow rules (only use listed UUIDs, derive the cover label from ERP text not the image, follow company tagging instructions) rather than free-associate.
+- Because it runs across the entire library, per-call cost and throughput are real constraints — this is a high-volume task, not a one-off.
 
-CURRENT DEFAULT / EVALUATION
-Default model: google/gemini-2.5-flash via OpenRouter, with an optional admin-configured fallback model used only when the primary model fails with a model-specific error (content-filter rejection, download failure, no available endpoint) — general/transient errors are NOT retried onto the fallback. Model quality for this task is evaluated empirically via the "Vision Bake-Off" tool in this same Settings > Processing area, which runs several candidate models on the same real assets, tracks live per-model OpenRouter cost/latency, and lets a human reviewer pick the winning model(s) per field before it's promoted to the live default.`,
+MODEL BEHAVIORS THAT HELP OR HURT (lessons, not endorsements)
+- Content-filter refusals are a known failure mode. The pipeline carries special handling for vision models/providers (Alibaba/Qwen-style hosts have shown this) that reject an image during content inspection — "inappropriate content", failed media download — and it treats those as model-specific failures worth routing to a fallback model. For a library that is mostly licensed characters and product art, a model with an over-eager content filter will fail systematically on ordinary assets; prefer models that process normal product/character imagery without spurious refusals.
+- UUID hallucination is a known failure mode: models that invent taxonomy IDs instead of matching the provided list create bad links (guarded against, but wasteful and lossy). Prefer a model that obeys "only use IDs from this list, otherwise leave it null."
+- Prose-only vision models that describe the picture but won't commit to the schema are disqualified regardless of how good the caption is.
+
+HOW TO EVALUATE CANDIDATES
+Use the Vision Bake-Off tool in this same Settings > Processing area: it runs candidate models against real assets, captures per-call cost and latency, and lets a human compare outputs field-by-field before committing a choice — better than picking on reputation alone.`,
 
   text_classification: `ERP CLASSIFICATION — model selection brief
 
 WHAT THIS TASK DOES
-Classifies a home-décor product (identified by ERP style number) into exactly ONE of 7 fixed categories: Wall, Tabletop, Clock, Storage, Workspace, Floor, Garden, or Other. This is a closed-vocabulary, single-label, TEXT-ONLY classification task — it only runs as a fallback for older ERP records (roughly 5,500 style groups from before the deterministic mg_category mapping was introduced); newer ERP data is categorized deterministically without any model call at all.
-
-WHERE THIS RUNS IN CODE
-apps/worker/src/handlers/erp.ts, function handleClassifyErpCategories(). Junk/unclassifiable descriptions (empty text, ID-only strings, "assortment", "test", pure digit strings, etc.) are filtered out BEFORE calling the model and written directly as category "Unknown" / confidence 0 — so the model only ever sees plausible, real product descriptions.
+Classifies a home-décor product into exactly ONE of a small, fixed set of categories (Wall, Tabletop, Clock, Storage, Workspace, Floor, Garden, Other). Closed-vocabulary, single-label, TEXT-ONLY (no image). It runs only as a fallback for records that lack a reliable deterministic category mapping, so the model is a backstop for the ambiguous long tail, not the primary categorizer. Obvious-junk descriptions are filtered out in code before the model is ever called, so the model only sees plausible, real product descriptions.
 
 HOW THE CODE INVOKES THE MODEL
-Through OpenRouter, using tool/function calling with tool_choice forced to a specific function name (classify_product), max_tokens ~1024. API key precedence: OPENROUTER_API_KEY, falling back to ANTHROPIC_API_KEY. Single-turn, text-only request (no image).
+Through OpenRouter, single-turn, text-only, with a forced function call (classify_product). The model MUST reliably produce a valid forced tool/function call with a typed result — there is no JSON-mode fallback ladder here as there is for image tagging, so weak or flaky function calling directly breaks the pipeline.
 
 WHAT IS FED TO THE MODEL
-A system prompt establishing it as "a product classification expert for a home décor company," plus a user prompt containing: the full definition and examples for each of the 7 categories, a set of hard classification rules (e.g. "MDF letter/box items are always Wall, not Storage"), a list of specific "correction examples" documenting past model mistakes and their correct answers (e.g. "Disney MDF box → Wall, not Storage"; "shadowbox → Wall, not freestanding storage"), and then the actual product to classify: style number, item_description, and raw ERP "MG fields" (a JSON blob of miscellaneous ERP attributes). No image is provided — classification is driven entirely by text/description and structured ERP metadata.
+A system role framing it as a product-classification expert, then a prompt containing: the definition of each category, a set of hard rules, a list of explicit "correction examples" pairing a description with its correct category, and finally the item to classify — its style number, its text description, and a blob of raw ERP attribute fields. Everything the model reasons from is text and structured metadata.
 
 WHAT WE EXPECT BACK
-A single structured tool call with exactly three fields: category (must be one of the 7 enum values), confidence (number 0–1), and rationale (string, max 200 chars, explaining the reasoning). Confidence drives an automation threshold: results with confidence ≥ 0.65 are auto-applied to the product record; anything below that is queued for human review rather than applied automatically. The prompt explicitly instructs the model NOT to guess and to use low confidence when the description is ambiguous, since a wrong high-confidence answer auto-applies without review.
+A structured result with three fields: category (one of the fixed enum values), confidence (0–1), and a short rationale. Confidence is not decorative: it gates automation — results above a confidence threshold are auto-applied to the product record, and results below it are queued for a human to review. The prompt explicitly tells the model not to guess and to report low confidence when a description is genuinely ambiguous.
 
-WHY IT NEEDS RELIABLE TOOL CALLING BUT NOT VISION
-This is pure text classification against a small closed taxonomy with a set of counter-intuitive, memorized business rules (several categories look like they should be "Storage" or "Tabletop" by their common-sense meaning but are actually "Wall" in this company's catalog). The most important model property is INSTRUCTION-FOLLOWING FIDELITY against the correction-example list and rules block, not general reasoning power or world knowledge — a model that pattern-matches on generic english meaning ("box" → storage) rather than the in-context corrections will misclassify. It must also reliably call the forced classify_product function with a strictly-typed enum + numeric confidence rather than free text, since malformed output breaks the auto-apply/review pipeline. Because the prompt (rules + correction examples) is fixed and short, and the per-item description is short, this does not need a large context window or vision support — it benefits more from being cheap and fast, since it can be invoked across thousands of style groups. Well-calibrated confidence output matters unusually much here compared to the other two tasks, because confidence directly gates whether a change is auto-applied to production ERP category data versus routed to a human — a model that is systematically over-confident is actively harmful even if its category guesses are often right, since it will auto-apply wrong answers instead of surfacing them for review.
+CAPABILITIES THAT MATTER, AND WHY
+- Rock-solid forced function calling with a strictly-typed enum + numeric confidence. This is the hard gate; a model that sometimes answers in prose or drifts off-enum is disqualified.
+- Strong in-context instruction-following, because the whole task is applying this company's rules over the model's own generic priors.
+- Well-calibrated confidence — unusually important here, because confidence directly decides auto-apply vs. human review. A systematically over-confident model is actively harmful even when it is often right, since it will auto-apply its wrong answers instead of surfacing them.
+- No vision, small context, short outputs. This is a cheap/fast, high-volume task — favor efficient models; heavyweight reasoning models buy little here.
 
-CURRENT DEFAULT / KNOWN INCONSISTENCY
-In-code default (apps/worker/src/handlers/erp.ts): anthropic/claude-3.5-haiku. The Settings UI's default label for this task is anthropic/claude-haiku-4.5 — these two defaults do not currently match, which is worth reconciling; whichever value is actually saved in admin_config.AI_TASK_MODELS.text_classification is what's really in effect at runtime, not either hardcoded default.`,
+MODEL BEHAVIORS THAT HELP OR HURT (lessons, not endorsements)
+- The prompt deliberately carries a list of real past misclassifications as corrections — for example, in this catalog an "MDF box" or "wooden box" is decorative Wall art, not Storage; a "canvas" is Wall; a "shadowbox" is wall-mounted, not freestanding Storage. These exist because models default to the everyday meaning of a word ("box" ⇒ storage) and get it wrong for this business. A good model overrides its generic prior when the prompt gives it an explicit correction; a weak-instruction-following model repeats the generic mistake no matter how many corrections it is shown. Test candidates specifically on these counter-intuitive cases, not just easy ones.`,
 
   pdf_extraction: `PDF TEXT EXTRACTION — model selection brief
 
 WHAT THIS TASK DOES
-Extracts readable text from an uploaded PDF (or Illustrator .ai file) so it can be searched, and so it can feed the "Files Used" / designer-name context into the Image Tagging prompt (see the Image Tagging brief). Critically, this AI vision call is the LAST resort in a 4-step cascade, not the primary extraction method:
-1. Native text extraction via the mupdf library (fast, exact, works for any PDF with a real text layer).
-2. If that yields fewer than ~100 characters, the first page is rendered to a PNG (2x scale) and run through Tesseract.js OCR.
-3. If OCR also yields fewer than ~100 characters (i.e. the page is likely a scanned image OCR can't read cleanly, low contrast, handwriting, unusual layout, etc.), the SAME rendered page-0 PNG is sent to an AI vision model as the final fallback.
-4. PDFs over 100MB are skipped entirely before any of the above runs.
-Because this only fires when both a real text layer AND OCR have already failed, the AI vision step disproportionately sees the HARDEST pages: low quality scans, stylized/decorative text, dense tech-pack layouts, rotated or skewed pages, or pages mixing images and small print.
+Pulls readable text out of a PDF (or Illustrator file) page so it can be searched and can feed context into image tagging. This is important: the AI vision model is the LAST resort in a cascade, not the primary extractor. The cascade is: (1) native text extraction from the PDF's real text layer; (2) if that comes back nearly empty, render the page to an image and run local OCR (Tesseract); (3) only if OCR is also nearly empty does the rendered page image go to an AI vision model. Very large files are skipped before any of this. Because the AI step fires only after both a real text layer AND local OCR have already failed, it disproportionately sees the hardest pages — poor scans, stylized or decorative type, dense tech-pack layouts, skewed pages, small print mixed with imagery.
 
-WHERE THIS RUNS IN CODE
-apps/bridge-agent/src/pdf-text-sampler.ts and apps/windows-agent/src/pdf-text-sampler.ts (kept in sync — both must be updated if the extraction logic changes; the Windows agent is the primary path when it's backfill-capable, the bridge agent is the fallback). Model selection is read from admin_config.PDF_EXTRACTION_CONFIG.ai_vision_model_id, matched against a provider-agnostic admin_config.AI_MODELS catalog (id/provider/apiModel/capabilities) — this task is NOT routed through OpenRouter like the other two; it calls Google's Gemini API or Anthropic's API directly depending on the catalog entry's provider field, using GOOGLE_AI_API_KEY or ANTHROPIC_API_KEY respectively. The model entry must declare "vision" in its capabilities or it's skipped with a warning.
+HOW THE CODE INVOKES THE MODEL
+Not through OpenRouter. This path selects a model from a provider-agnostic catalog and calls the provider's API directly (Google or Anthropic today, chosen by the catalog entry's provider field), sending the rendered page as an inline image. The model entry must declare a vision capability or it is skipped. It is a plain text-completion vision call: no tools, no function calling, no JSON schema. The instruction is essentially "extract all text from this page and return only the raw text, no commentary."
 
 WHAT IS FED TO THE MODEL
-Only page 1 (index 0) of the PDF, rendered as a PNG at 2x zoom, base64-encoded and sent as an inline image — no other pages, and no raw/partial text from steps 1–2 is included as extra context. The prompt is a single plain-text instruction: "Extract all text from this document page. Return only the raw extracted text with no commentary." There is no JSON schema and no tool/function calling for this task — it's a plain text-completion vision call.
+A single rendered page image (one page, upscaled for legibility) as an inline image, and that one plain instruction. No partial text from the earlier cascade steps is passed in as a hint — the model works from the image alone.
 
 WHAT WE EXPECT BACK
-A raw plain-text string (the extracted text), trimmed of surrounding whitespace — no structured fields. The result is stored with extraction_method = "ai_vision" so downstream consumers know which tier of the cascade produced it (versus "pdf_text" or "ocr_text", which are generally more trustworthy since they're exact/deterministic rather than model-generated).
+Raw plain text — no structure, no fields. The result is tagged as AI-vision-sourced so downstream consumers know it is less trustworthy than deterministic text-layer or OCR output.
 
-WHY IT NEEDS VISION BUT NOT TOOL USE
-Because this step exists specifically to rescue pages that beat both a real PDF text layer AND Tesseract OCR, the differentiator that matters most is RAW OCR-GRADE VISUAL TEXT RECOGNITION ACCURACY on degraded, low-quality, or unusually laid-out page images — not reasoning, not structured output discipline, not tool calling (there is none here — it's asked to just return text, not call a function). A model that hallucinates plausible-looking text instead of admitting illegibility is actively worse than the empty string this cascade would otherwise fall back to, so faithfulness/refusal-to-hallucinate on unclear text matters more than fluency. Because only a single page image is sent per call and the output is free text with no schema, this doesn't need a large context window or complex instruction-following — it needs to be cheap and fast (potentially invoked across a large backlog of PDFs during a bulk backfill) while still being meaningfully better at fine print / low-quality-scan OCR than Tesseract, since Tesseract already handled the easier cases upstream.
+CAPABILITIES THAT MATTER, AND WHY
+- Vision is mandatory. The single differentiator is raw OCR-grade text-recognition accuracy on degraded, low-quality, or oddly-laid-out pages — nothing else about the model matters much here.
+- It must clear a HIGHER bar than ordinary OCR, because local OCR already tried and failed on exactly these pages upstream. A model that is merely "as good as Tesseract" adds nothing at this stage.
+- No tool use, no large context window, no complex reasoning, no structured-output discipline are needed. Cost and speed still matter because this can run over a large backlog.
 
-CURRENT DEFAULT / RELATED WORK
-Settings UI default: google/gemini-2.5-flash. The admin_config.AI_MODELS catalog placeholder currently lists example entries like gemini-2.0-flash and claude-haiku-4-5-20251001, so the effective model actually depends on what's configured in that catalog plus PDF_EXTRACTION_CONFIG.ai_vision_model_id — check both, not just this task's default label. Separately, docs/RICH_PDF_EXTRACTION.md documents an exploratory (not-yet-implemented) idea to run a further structured-extraction pass over already-extracted PDF text (tech-pack fields like designer names, dimensions, compliance text) using a different model — that is future work, not part of this task today.`,
+MODEL BEHAVIORS THAT HELP OR HURT (lessons, not endorsements)
+- Faithfulness beats fluency. A model that hallucinates plausible-looking text on an illegible page is WORSE than one that returns little or nothing, because this output is trusted downstream (search, and as context fed into image tagging) and there is no schema or validation to catch invented text. Prefer a model that transcribes what is actually legible and leaves genuine gaps, over one that "smooths over" unreadable regions with confident guesses. Evaluate candidates on hard, low-quality scans specifically — the easy pages never reach this step.`,
 };
 
 async function copyTaskBrief(taskKey: string, label: string) {
@@ -650,6 +652,7 @@ export function AiModelsConfigSection() {
     name: string;
     supportsTools: boolean;
     supportsStructuredOutputs: boolean;
+    supportsResponseFormat: boolean;
     inputModalities: string[];
     pricing?: OpenRouterPricing;
   }>>({
@@ -673,6 +676,7 @@ export function AiModelsConfigSection() {
           name: m.name ?? m.id,
           supportsTools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
           supportsStructuredOutputs: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("structured_outputs"),
+          supportsResponseFormat: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("response_format"),
           inputModalities: Array.isArray(m.architecture?.input_modalities) ? m.architecture.input_modalities : [],
           pricing: m.pricing,
         }))
@@ -785,12 +789,12 @@ export function AiModelsConfigSection() {
               const modelMeetsRequirements = (m: typeof modelList[number] | undefined) => {
                 if (!m) return false;
                 if (requiresTools && !m.supportsTools) return false;
-                if (requiresStructuredOutput && !(m.supportsTools || m.supportsStructuredOutputs)) return false;
+                if (requiresStructuredOutput && !(m.supportsTools || m.supportsStructuredOutputs || m.supportsResponseFormat)) return false;
                 if (requiresVision && !m.inputModalities.includes("image")) return false;
                 return true;
               };
               const requirementLabel = requiresStructuredOutput
-                ? "image input plus tool calls or structured outputs"
+                ? "image input plus tool calls, structured outputs, or JSON mode"
                 : requiresTools
                   ? "tool use"
                   : requiresVision
@@ -802,13 +806,13 @@ export function AiModelsConfigSection() {
               // If currentVal is set but not in filteredList, still show it (with a warning)
               const currentModelMeetsRequirements = !currentVal || !(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal));
               const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
-                ? [{ id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, inputModalities: [] }, ...filteredList]
+                ? [{ id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, inputModalities: [] }, ...filteredList]
                 : filteredList;
 
               const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
               const fallbackOptions = fallbackKey
                 ? (fallbackVal && !filteredList.some((m) => m.id === fallbackVal)
-                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, inputModalities: [] }, ...filteredList]
+                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, supportsResponseFormat: false, inputModalities: [] }, ...filteredList]
                   : filteredList)
                 : [];
 
@@ -820,9 +824,18 @@ export function AiModelsConfigSection() {
                     </SelectTrigger>
                     <SelectContent>
                       {options.map((m) => {
+                        const modeLabel = requiresStructuredOutput
+                          ? m.supportsTools
+                            ? ""
+                            : m.supportsStructuredOutputs
+                              ? " (schema)"
+                              : m.supportsResponseFormat
+                                ? " (json)"
+                                : ""
+                          : "";
                         return (
                           <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={formatOpenRouterPricing(m.pricing)}>
-                            {displayNames[m.id] || m.id}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
+                            {displayNames[m.id] || m.id}{modeLabel}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
                           </SelectItem>
                         );
                       })}

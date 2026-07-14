@@ -1,5 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsServe, err, json } from "../_shared/http.ts";
+import {
+  TAG_ASSET_SCHEMA,
+  buildTaggingSystemPrompt,
+  isStyleGuideSourcePdf,
+  toGeminiSchema,
+} from "../_shared/tag-asset-contract.js";
+
+// Gemini's functionDeclarations schema dialect rejects the canonical schema's
+// union types / null enums / additionalProperties, so adapt it once here.
+const GEMINI_TAG_ASSET_SCHEMA = toGeminiSchema(TAG_ASSET_SCHEMA);
 
 corsServe(async (req: Request) => {
   const authHeader = req.headers.get("Authorization");
@@ -176,43 +186,14 @@ corsServe(async (req: Request) => {
       .maybeSingle();
     const extractedPdfText = pdfSample?.extracted_text ?? null;
 
-    const erpCoverContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
-    const pdfTextContext = extractedPdfText ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n` : "";
-
-    const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
-
-Analyze the thumbnail image and file metadata to produce structured tags.
-
-File: ${asset.filename}
-Path: ${asset.relative_path}
-Type: ${asset.file_type}
-Existing tags: ${(asset.tags || []).join(", ") || "none"}
-${erpCoverContext}${pdfTextContext}
-Known taxonomy:
-${taxonomyContext}
-
-Based on the image and metadata, identify:
-1. Characters visible (match to known characters if possible)
-2. Style/design descriptors (flat, dimensional, vintage, modern, etc.)
-3. Color palette keywords
-4. Scene description (what's happening in the image)
-5. Any style numbers or design references visible
-6. Asset type: art_piece or product
-7. Art source: freelancer, straight_style_guide, or style_guide_composition
-7b. Product type — always derive from the ERP Product Description if provided (e.g. "Lap Desk" → tag "lapdesk"), otherwise infer from filename or folder path. Include as a tag even when the image shows artwork rather than the physical product.
-8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
-9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
-10. Cover description rule \u2014 **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
-   - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field \u2014 the image often shows artwork/art assets, NOT the actual product.
-   - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
-   - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
-   - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
-11. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions \u2014 include them regardless. Return as files_used. If no such section exists, return an empty array.
-${
-      usingPriorityOnly
-        ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
-        : ""
-    }${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
+    const systemPrompt = buildTaggingSystemPrompt({
+      asset,
+      taxonomyContext,
+      erpDescription,
+      extractedPdfText,
+      customInstructions,
+      usingPriorityOnly,
+    });
 
     console.log("ai-tag START", {
       assetId,
@@ -270,82 +251,7 @@ ${
                   {
                     name: "tag_asset",
                     description: "Return structured tagging data for this design asset.",
-                    parameters: {
-                      type: "object",
-                      properties: {
-                        tags: {
-                          type: "array",
-                          items: { type: "string" },
-                          description:
-                            "Descriptive tags: characters, styles, colors, themes, and product type. Always include the specific product type as a tag (e.g. 'lapdesk', 'backpack', 'mug', 'desk organizer', 'lunchbox', 'tee') — derive from the ERP Product Description if provided, otherwise from filename or folder path.",
-                        },
-                        ai_description: {
-                          type: "string",
-                          description: "One-sentence description of the design asset",
-                        },
-                        cover_description: {
-                          type: "string",
-                          description:
-                            "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY \u2014 do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
-                        },
-                        scene_description: {
-                          type: "string",
-                          description: "What is depicted in the image",
-                        },
-                        asset_type: {
-                          type: "string",
-                          enum: ["art_piece", "product"],
-                        },
-                        art_source: {
-                          type: "string",
-                          enum: [
-                            "freelancer",
-                            "straight_style_guide",
-                            "style_guide_composition",
-                          ],
-                        },
-                        design_style: {
-                          type: "string",
-                          description: "e.g. flat, dimensional, vintage, modern",
-                        },
-                        design_ref: {
-                          type: "string",
-                          description: "Any style number or design reference visible",
-                        },
-                        character_ids: {
-                          type: "array",
-                          items: { type: "string" },
-                          description: "UUIDs of identified characters from taxonomy",
-                        },
-                        licensor_id: {
-                          type: "string",
-                          description: "UUID of identified licensor",
-                        },
-                        property_id: {
-                          type: "string",
-                          description: "UUID of identified property",
-                        },
-                        designer_name: {
-                          type: "string",
-                          description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
-                        },
-                        technical_designer_name: {
-                          type: "string",
-                          description: "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
-                        },
-                        freelancer_name: {
-                          type: "string",
-                          description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
-                        },
-                        files_used: {
-                          type: "array",
-                          items: { type: "string" },
-                          description:
-                            "All entries from any 'Files Used' / 'Source Files' sections in the tech pack PDF text. Entries may or may not have file extensions. Deduplicated across all sections. Empty array if no such section exists.",
-                        },
-                      },
-                      required: ["tags", "ai_description", "scene_description"],
-                    },
+                    parameters: GEMINI_TAG_ASSET_SCHEMA as never,
                   },
                 ],
               },
@@ -474,15 +380,8 @@ ${
     // (see migration 20260610070731). Tagging of other artwork (.ai, packaging,
     // non-licensing PDFs) must NOT write rows here even if the model returns a
     // files_used list. ignoreDuplicates keeps pre-gating legacy rows intact.
-    const fname = ((asset.filename as string) || "").toLowerCase();
-    const isLicensingSourcePdf = asset.file_type === "pdf" && (
-      fname.includes("licensing sheet") || fname.includes("licensing_sheet") ||
-      fname.includes("license sheet") || fname.includes("license_sheet") ||
-      fname.includes("tech pack") || fname.includes("tech_pack") ||
-      fname.includes("techpack")
-    );
     if (
-      isLicensingSourcePdf && asset.sku &&
+      isStyleGuideSourcePdf(asset) && asset.sku &&
       Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0
     ) {
       const rows = (tagData.files_used as string[])

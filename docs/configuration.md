@@ -110,7 +110,7 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 
 ### AI model dropdown refresh
 
-Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Image Tagging and Vision Bake-Off then apply the same filter: image-capable models that support either tool calling or OpenRouter `response_format` JSON-schema structured outputs.
+Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Image Tagging and Vision Bake-Off then apply the same filter: image-capable models that support tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). JSON-mode outputs are parsed and must include the required `tags`, `ai_description`, and `scene_description` fields before the worker stores a result.
 
 Vision Bake-Off compares five models per run. Each result records the model latency, OpenRouter-reported prompt/completion/total token usage, and an estimated USD cost based on the current OpenRouter account pricing fetched from `/api/v1/models/user` when the worker processes the run. The pricing snapshot is stored with the result so historical runs are not reinterpreted if OpenRouter later changes prices.
 

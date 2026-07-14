@@ -365,7 +365,7 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 **Why**: They must use the OpenRouter key-scoped `/api/v1/models/user` response, not the public `/api/v1/models` catalog. The user endpoint reflects the account's model guardrails/policy. The public catalog can include providers and aliases that are not allowed for this PopDAM key.
 
-**Extra filter rules**: Image Tagging and Vision Bake-Off are stricter than "vision capable" but share the same contract. Options must support image input plus either tool calling or OpenRouter `response_format` JSON-schema structured outputs. The worker tries the structured `tag_asset` tool path first and falls back to the same schema through `response_format` when tool calling is not supported. OpenRouter can also return unavailable placeholder aliases with negative pricing (for example `-1000000` per token); those are filtered out everywhere and their prices are not displayed.
+**Extra filter rules**: Image Tagging and Vision Bake-Off are stricter than "vision capable" but share the same contract. Options must support image input plus tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). The worker tries the structured `tag_asset` tool path first, falls back to the same schema through `response_format`, then falls back to JSON mode with explicit schema instructions. All paths must parse as JSON and include the required `tags`, `ai_description`, and `scene_description` fields before the worker stores a result. OpenRouter can also return unavailable placeholder aliases with negative pricing (for example `-1000000` per token); those are filtered out everywhere and their prices are not displayed.
 
 **What breaks if you "fix" it**: Switching back to the public catalog, or listing vision models without checking image input plus structured-output support/availability, lets users queue production tagging or bake-off runs against models that OpenRouter will reject or that return prose the worker cannot safely apply.
 
@@ -638,3 +638,36 @@ correctly names a character but no UUID is stored, first check whether
 `public.characters` has the canonical row under the correct property. Missing or
 corrective taxonomy data belongs in canonical `/worksp/shared-db` migrations,
 not ad hoc Dashboard SQL or app-local migrations.
+
+---
+
+## 58. Gemma Models Skip the Tool-Call Leg in AI Tagging (2026-07-13)
+
+**File**: `apps/worker/src/handlers/ai-tagging-shared.ts`
+(`modelSupportsTools`, `callTagAssetModel`)
+
+**What it looks like**: `callTagAssetModel` attempts three output strategies in
+order — tool call, `json_schema`, then `json_object` — but for Gemma models the
+tool-call leg is skipped entirely and it goes straight to JSON. Looks like an
+inconsistent special case.
+
+**Why**: Gemma models on OpenRouter (e.g. `google/gemma-4-31b-it`) do not
+support OpenAI-style function/tool calling. Running the tool leg for them always
+fails over, but only after burning a full request that has its own 60s timeout
+budget. Because the legs run sequentially, that wasted leg materially increases
+the chance the whole call trips `AI_TIMEOUT_MS` (60s in `ai-tag-bakeoff.ts` and
+`ai-tagging.ts`). `modelSupportsTools()` matches `/(^|\/)gemma/i` so both
+`gemma-4-31b-it` and `google/gemma-4-31b-it` resolve the same; add other
+non-tool-calling families to `NON_TOOL_CALLING_MODEL_PATTERNS` as needed.
+
+**Root cause of the "operation was aborted due to timeout" errors**: That exact
+string is Node's `AbortSignal.timeout()` DOMException — a **client-side** abort
+at 60s, not an OpenRouter error. `google/gemma-4-31b-it` is a real, working model
+(observed ~7.9s avg, 25s worst across 21 bake-off successes); the 2 failures
+were provider-side stalls that blew past 60s. Skipping the tool leg reduces but
+does not eliminate these — a genuinely stalled provider can still exceed 60s on
+the JSON leg. If you need to absorb that too, raise `AI_TIMEOUT_MS`.
+
+**Future sessions should**: Do not "restore consistency" by making Gemma run the
+tool leg — it only adds latency and timeout risk. Verify a model actually
+supports tool calling before removing it from the skip list.

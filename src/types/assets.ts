@@ -2,7 +2,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 export type Asset = Tables<"assets">;
 
-export type SortField = "modified_at" | "file_created_at" | "filename" | "file_size" | "sku" | "asset_count";
+export type SortField = "relevance" | "modified_at" | "file_created_at" | "filename" | "file_size" | "sku" | "asset_count";
 export type SortDirection = "asc" | "desc";
 export type ViewMode = "grid" | "list";
 export type LibraryMode = "groups" | "assets";

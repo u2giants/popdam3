@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
+import { fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
 import type { AssetFilters } from "@/types/assets";
@@ -88,24 +89,23 @@ function shouldFallbackFromFullTextRpc(error: unknown) {
 async function fetchStyleGroupFullTextIds(search: string) {
   const term = search.replace(/[(),]/g, " ").trim();
   if (!term) return null;
-  const cacheKey = `${term}\u0000${FULL_TEXT_SEARCH_LIMIT}`;
+  const searchMode = await getSearchMode();
+  const cacheKey = `${searchMode}\u0000${term}\u0000${FULL_TEXT_SEARCH_LIMIT}`;
   const cached = styleGroupSearchIdCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.promise;
 
   const promise = (async () => {
-    const { data, error } = await (supabase.rpc as any)("search_style_groups_full_text", {
-      p_query: term,
-      p_limit: FULL_TEXT_SEARCH_LIMIT,
+    return fetchSearchIds(searchMode, term, "style_group", FULL_TEXT_SEARCH_LIMIT, async () => {
+      const { data, error } = await (supabase.rpc as any)("search_style_groups_full_text", {
+        p_query: term,
+        p_limit: FULL_TEXT_SEARCH_LIMIT,
+      });
+      if (error) {
+        if (shouldFallbackFromFullTextRpc(error)) return undefined;
+        throw error;
+      }
+      return ((data ?? []) as { style_group_id: string }[]).map((row) => row.style_group_id);
     });
-    if (error) {
-      if (shouldFallbackFromFullTextRpc(error)) return undefined;
-      throw error;
-    }
-
-    const ids = ((data ?? []) as { style_group_id: string }[]).map((row) => row.style_group_id);
-    // Keep using the indexed RPC result even when it reaches the handoff cap.
-    // Falling back here reintroduces broad unindexed substring scans on popular searches.
-    return ids;
   })();
 
   styleGroupSearchIdCache.set(cacheKey, {
@@ -202,19 +202,22 @@ export function useStyleGroups(
       // Filters
       query = applyStyleGroupFilters(query, filters, fullTextGroupIds);
 
-      // Sort — map the library sort fields onto real style_groups columns.
-      const sgSortField =
-        sortField === "file_created_at" ? "created_at"
-        : sortField === "sku" || sortField === "filename" ? "sku"
-        : sortField === "asset_count" || sortField === "file_size" ? "asset_count"
-        : "latest_file_date"; // modified_at + fallback
-      query = query.order(sgSortField, { ascending: sortDirection === "asc" });
-      query = query.range(from, to);
+      const useRelevance = Boolean(filters.search?.trim() && fullTextGroupIds);
+      if (!useRelevance) {
+        // Sort — map the library sort fields onto real style_groups columns.
+        const sgSortField =
+          sortField === "file_created_at" ? "created_at"
+          : sortField === "sku" || sortField === "filename" ? "sku"
+          : sortField === "asset_count" || sortField === "file_size" ? "asset_count"
+          : "latest_file_date"; // modified_at + fallback
+        query = query.order(sgSortField, { ascending: sortDirection === "asc" });
+        query = query.range(from, to);
+      }
 
       const { data, error, count } = await query;
       if (error) throw error;
 
-      const groups: StyleGroup[] = (data ?? []).map((row: any) => {
+      let groups: StyleGroup[] = (data ?? []).map((row: any) => {
         return {
           ...row,
           asset_count: row.asset_count ?? 0,
@@ -224,6 +227,9 @@ export function useStyleGroups(
           thumbnail_url: (row.primary_asset as any)?.thumbnail_url ?? row.primary_thumbnail_url ?? null,
         };
       });
+      if (useRelevance) {
+        groups = sortByRank(groups, fullTextGroupIds!, (group) => group.id).slice(from, to + 1);
+      }
 
       return {
         groups,

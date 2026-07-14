@@ -84,7 +84,7 @@ The worker reads `admin_config.AI_TASK_MODELS` for the model to use per task:
 }
 ```
 
-These are OpenRouter model IDs. If not set, the worker falls back to `DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-001"`. Configure via Settings → AI Models in the admin UI — the dropdowns are populated live from your OpenRouter account's guardrailed `/api/v1/models/user` list. Unavailable placeholder aliases with negative pricing are filtered out. Image Tagging and Vision Bake-Off use the same requirement: image input plus either tool calling or OpenRouter `response_format` JSON-schema structured outputs.
+These are OpenRouter model IDs. If not set, the worker falls back to `DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-001"`. Configure via Settings → AI Models in the admin UI — the dropdowns are populated live from your OpenRouter account's guardrailed `/api/v1/models/user` list. Unavailable placeholder aliases with negative pricing are filtered out. Image Tagging and Vision Bake-Off use the same requirement: image input plus tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`) with app-side required-field validation.
 
 ---
 

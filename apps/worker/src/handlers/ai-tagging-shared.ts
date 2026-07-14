@@ -1,84 +1,15 @@
 import { config } from "../config.js";
 import { db } from "../supabase.js";
 import { chatCompletion, imageContent, tool, type ChatMessage } from "../openrouter.js";
+import {
+  TAG_ASSET_SCHEMA,
+  buildTaggingSystemPrompt,
+  isStyleGuideSourcePdf,
+} from "../../../../supabase/functions/_shared/tag-asset-contract.js";
 
 const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
 
-export const TAG_ASSET_SCHEMA: Record<string, unknown> = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    tags: {
-      type: "array",
-      items: { type: "string" },
-      description: "Descriptive tags: characters, styles, colors, themes",
-    },
-    ai_description: {
-      type: "string",
-      description: "One-sentence description of the design asset",
-    },
-    cover_description: {
-      type: ["string", "null"],
-      description:
-        "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY - do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
-    },
-    scene_description: {
-      type: "string",
-      description: "What is depicted in the image",
-    },
-    asset_type: {
-      type: ["string", "null"],
-      enum: ["art_piece", "product", null],
-    },
-    art_source: {
-      type: ["string", "null"],
-      enum: ["freelancer", "straight_style_guide", "style_guide_composition", null],
-    },
-    design_style: {
-      type: ["string", "null"],
-      description: "e.g. flat, dimensional, vintage, modern",
-    },
-    design_ref: {
-      type: ["string", "null"],
-      description: "Any style number or design reference visible",
-    },
-    character_ids: {
-      type: "array",
-      items: { type: "string" },
-      description: "UUIDs of identified characters from taxonomy",
-    },
-    licensor_id: {
-      type: ["string", "null"],
-      description: "UUID of identified licensor",
-    },
-    property_id: {
-      type: ["string", "null"],
-      description: "UUID of identified property",
-    },
-    designer_name: {
-      type: ["string", "null"],
-      description:
-        "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
-    },
-    technical_designer_name: {
-      type: ["string", "null"],
-      description:
-        "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
-    },
-    freelancer_name: {
-      type: ["string", "null"],
-      description:
-        "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
-    },
-    files_used: {
-      type: "array",
-      items: { type: "string" },
-      description:
-        "All entries from any 'Files Used' / 'Source Files' / 'Art Files' sections in the tech pack PDF text. Deduplicated across all sections. Empty array if no such section exists.",
-    },
-  },
-  required: ["tags", "ai_description", "scene_description"],
-};
+export { TAG_ASSET_SCHEMA };
 
 export const TAG_ASSET_TOOL = tool(
   "tag_asset",
@@ -109,7 +40,7 @@ export type TagAssetCompletionResult = {
     completion_tokens?: number;
     total_tokens?: number;
   };
-  outputMode: "tool" | "json_schema" | "tool_content_json";
+  outputMode: "tool" | "json_schema" | "json_object" | "tool_content_json";
 };
 
 function parseJsonObject(content: string | undefined): Record<string, unknown> | null {
@@ -136,6 +67,18 @@ function parseJsonObject(content: string | undefined): Record<string, unknown> |
   return null;
 }
 
+// Model families that don't support OpenAI-style function/tool calling on
+// OpenRouter. For these we skip the tool_choice leg entirely and go straight
+// to structured JSON output — attempting the tool leg just wastes a full
+// request (with its own timeout budget) that always fails over. Match against
+// the bare model name so both "gemma-4-31b-it" and "google/gemma-4-31b-it"
+// resolve the same way.
+const NON_TOOL_CALLING_MODEL_PATTERNS = [/(^|\/)gemma/i];
+
+export function modelSupportsTools(model: string): boolean {
+  return !NON_TOOL_CALLING_MODEL_PATTERNS.some((re) => re.test(model));
+}
+
 function isToolCapabilityError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
   return (
@@ -148,15 +91,41 @@ function isToolCapabilityError(error: unknown): boolean {
   );
 }
 
-export function isStyleGuideSourcePdf(asset: { file_type: string | null; filename: string | null }): boolean {
-  const filename = (asset.filename ?? "").toLowerCase();
-  return asset.file_type === "pdf" && (
-    filename.includes("licensing sheet") || filename.includes("licensing_sheet") ||
-    filename.includes("license sheet") || filename.includes("license_sheet") ||
-    filename.includes("tech pack") || filename.includes("tech_pack") ||
-    filename.includes("techpack")
-  );
+function validateTagAssetData(value: Record<string, unknown>, mode: TagAssetCompletionResult["outputMode"]) {
+  const errors: string[] = [];
+  if (!Array.isArray(value.tags)) errors.push("tags must be an array");
+  if (typeof value.ai_description !== "string" || value.ai_description.trim().length === 0) {
+    errors.push("ai_description must be a non-empty string");
+  }
+  if (typeof value.scene_description !== "string" || value.scene_description.trim().length === 0) {
+    errors.push("scene_description must be a non-empty string");
+  }
+  if (errors.length > 0) {
+    throw new Error(`Model returned invalid ${mode} tag data: ${errors.join("; ")}`);
+  }
 }
+
+function validatedTagResult(
+  tagData: Record<string, unknown>,
+  usage: TagAssetCompletionResult["usage"],
+  outputMode: TagAssetCompletionResult["outputMode"],
+): TagAssetCompletionResult {
+  validateTagAssetData(tagData, outputMode);
+  return { tagData, usage, outputMode };
+}
+
+function withJsonObjectInstruction(messages: ChatMessage[]): ChatMessage[] {
+  return [
+    ...messages,
+    {
+      role: "user",
+      content:
+        "Return only a valid JSON object matching the tag_asset schema. Include at minimum tags, ai_description, and scene_description. Do not wrap it in markdown or prose.",
+    },
+  ];
+}
+
+export { isStyleGuideSourcePdf };
 
 export async function fetchImageData(thumbnailUrl: string, timeoutMs = THUMBNAIL_FETCH_TIMEOUT_MS): Promise<ImageData> {
   const resp = await fetch(thumbnailUrl, { signal: AbortSignal.timeout(timeoutMs) });
@@ -263,8 +232,6 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
     erpDescription = erpItem?.item_description ?? null;
   }
 
-  const erpCoverContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
-
   const { data: pdfSample } = await client
     .from("pdf_text_samples")
     .select("extracted_text")
@@ -273,41 +240,14 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
     .limit(1)
     .maybeSingle();
   const extractedPdfText = pdfSample?.extracted_text ?? null;
-  const pdfTextContext = extractedPdfText ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n` : "";
-
-  return `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
-
-Analyze the thumbnail image and file metadata to produce structured tags.
-
-File: ${asset.filename ?? ""}
-Path: ${asset.relative_path ?? ""}
-Type: ${asset.file_type ?? ""}
-Existing tags: ${(asset.tags || []).join(", ") || "none"}
-${erpCoverContext}${pdfTextContext}
-Known taxonomy:
-${taxonomyContext}
-
-Based on the image and metadata, identify:
-1. Characters visible (match to known characters if possible)
-2. Style/design descriptors (flat, dimensional, vintage, modern, etc.)
-3. Color palette keywords
-4. Scene description (what's happening in the image)
-5. Any style numbers or design references visible
-6. Asset type: art_piece or product
-7. Art source: freelancer, straight_style_guide, or style_guide_composition
-8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
-9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
-10. Cover description rule - **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
-   - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field - the image often shows artwork/art assets, NOT the actual product.
-   - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
-   - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
-   - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
-11. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions - include them regardless. Return as files_used. If no such section exists, return an empty array.
-${usingPriorityOnly
-    ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
-    : ""}${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}
-
-Return structured data matching the tag_asset schema. Do not invent UUIDs. Use character_ids, licensor_id, and property_id only for exact matches from the provided taxonomy.`;
+  return buildTaggingSystemPrompt({
+    asset,
+    taxonomyContext,
+    erpDescription,
+    extractedPdfText,
+    customInstructions,
+    usingPriorityOnly,
+  });
 }
 
 export function buildImageTaggingMessages(systemPrompt: string, image: ImageData, userText: string): ChatMessage[] {
@@ -332,28 +272,32 @@ export async function callTagAssetModel(
 ): Promise<TagAssetCompletionResult> {
   let toolError: unknown = null;
 
-  try {
-    const result = await chatCompletion(apiKey, {
-      model,
-      messages,
-      tools: [TAG_ASSET_TOOL],
-      tool_choice: "required",
-      max_tokens: maxTokens,
-    }, timeoutMs);
+  if (modelSupportsTools(model)) {
+    try {
+      const result = await chatCompletion(apiKey, {
+        model,
+        messages,
+        tools: [TAG_ASSET_TOOL],
+        tool_choice: "required",
+        max_tokens: maxTokens,
+      }, timeoutMs);
 
-    const toolData = result.toolCalls?.[0]?.arguments;
-    if (toolData) return { tagData: toolData, usage: result.usage, outputMode: "tool" };
+      const toolData = result.toolCalls?.[0]?.arguments;
+      if (toolData) return validatedTagResult(toolData, result.usage, "tool");
 
-    const contentData = parseJsonObject(result.content);
-    if (contentData) return { tagData: contentData, usage: result.usage, outputMode: "tool_content_json" };
+      const contentData = parseJsonObject(result.content);
+      if (contentData) return validatedTagResult(contentData, result.usage, "tool_content_json");
 
-    toolError = new Error("Model returned no structured tags from tool request");
-  } catch (e) {
-    toolError = e;
-  }
+      toolError = new Error("Model returned no structured tags from tool request");
+    } catch (e) {
+      toolError = e;
+    }
 
-  if (toolError && !isToolCapabilityError(toolError)) {
-    throw toolError;
+    if (toolError && !isToolCapabilityError(toolError)) {
+      throw toolError;
+    }
+  } else {
+    toolError = new Error(`Skipped tool call: ${model} does not support tool calling`);
   }
 
   try {
@@ -373,11 +317,25 @@ export async function callTagAssetModel(
 
     const contentData = parseJsonObject(result.content);
     if (!contentData) throw new Error("Model returned no parsable JSON for tag_asset schema");
-    return { tagData: contentData, usage: result.usage, outputMode: "json_schema" };
+    return validatedTagResult(contentData, result.usage, "json_schema");
   } catch (schemaError) {
-    const first = toolError instanceof Error ? toolError.message : String(toolError);
-    const second = schemaError instanceof Error ? schemaError.message : String(schemaError);
-    throw new Error(`Structured tag output failed. tool_call: ${first}; json_schema: ${second}`);
+    try {
+      const result = await chatCompletion(apiKey, {
+        model,
+        messages: withJsonObjectInstruction(messages),
+        response_format: { type: "json_object" },
+        max_tokens: maxTokens,
+      }, timeoutMs);
+
+      const contentData = parseJsonObject(result.content);
+      if (!contentData) throw new Error("Model returned no parsable JSON object");
+      return validatedTagResult(contentData, result.usage, "json_object");
+    } catch (jsonObjectError) {
+      const first = toolError instanceof Error ? toolError.message : String(toolError);
+      const second = schemaError instanceof Error ? schemaError.message : String(schemaError);
+      const third = jsonObjectError instanceof Error ? jsonObjectError.message : String(jsonObjectError);
+      throw new Error(`Structured tag output failed. tool_call: ${first}; json_schema: ${second}; json_object: ${third}`);
+    }
   }
 }
 
