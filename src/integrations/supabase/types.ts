@@ -2838,6 +2838,23 @@ export type Database = {
         }[]
       }
       get_ai_sentinel_stats: { Args: never; Returns: Json }
+      get_ai_tag_candidates: {
+        Args: {
+          p_after_id?: string
+          p_after_tier?: number
+          p_group_ids?: string[]
+          p_limit: number
+          p_mode: string
+        }
+        Returns: {
+          filename: string
+          id: string
+          primary_sort_tier: number
+          relative_path: string
+          style_group_id: string
+          thumbnail_url: string
+        }[]
+      }
       get_dam_search_embedding_status: { Args: never; Returns: Json }
       get_dam_search_performance_stats: {
         Args: never
