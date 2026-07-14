@@ -73,6 +73,7 @@ type BakeoffResult = {
   completion_tokens: number | null;
   total_tokens: number | null;
   cost_usd: string | number | null;
+  raw_output?: Record<string, unknown> | null;
   error_message: string | null;
 };
 
@@ -137,6 +138,49 @@ function formatCost(value: string | number | null | undefined) {
 
 function formatLatency(ms: number | null | undefined) {
   return typeof ms === "number" ? `${Math.round(ms / 100) / 10}s` : "pending";
+}
+
+function resultProvider(result: BakeoffResult | undefined) {
+  const provider = result?.raw_output?._popdam_provider;
+  if (!provider || typeof provider !== "object") return "unknown";
+  const info = provider as Record<string, unknown>;
+  const providerName = typeof info.provider === "string" && info.provider ? info.provider : "";
+  const endpointName = typeof info.endpoint === "string" && info.endpoint ? info.endpoint : "";
+  if (providerName && endpointName && providerName !== endpointName) return `${providerName} / ${endpointName}`;
+  if (providerName || endpointName) return providerName || endpointName;
+  return (
+    (typeof info.model === "string" && info.model) ||
+    (typeof info.generationId === "string" && info.generationId.slice(0, 12)) ||
+    "unknown"
+  );
+}
+
+function resultEndpointTitle(result: BakeoffResult | undefined) {
+  const provider = result?.raw_output?._popdam_provider;
+  if (!provider || typeof provider !== "object") return "No provider metadata captured";
+  return JSON.stringify(provider, null, 2);
+}
+
+function outputModeLabel(result: BakeoffResult | undefined) {
+  const mode = result?.raw_output?._popdam_output_mode;
+  const retries = result?.raw_output?._popdam_retry_count;
+  const suffix = typeof retries === "number" && retries > 0 ? ` +${retries} retry` : "";
+  return typeof mode === "string" ? `${mode}${suffix}` : "n/a";
+}
+
+function providerPatterns(results: BakeoffResult[]) {
+  const map = new Map<string, { model: string; provider: string; succeeded: number; failed: number }>();
+  for (const result of results) {
+    const provider = resultProvider(result);
+    const key = `${result.model_id}||${provider}`;
+    const entry = map.get(key) ?? { model: result.model_id, provider, succeeded: 0, failed: 0 };
+    if (result.status === "succeeded") entry.succeeded++;
+    if (result.status === "failed") entry.failed++;
+    map.set(key, entry);
+  }
+  return [...map.values()]
+    .filter((entry) => entry.succeeded > 0 || entry.failed > 0)
+    .sort((a, b) => (b.failed - a.failed) || (b.succeeded - a.succeeded) || a.model.localeCompare(b.model));
 }
 
 function fieldValue(result: BakeoffResult | undefined, field: Field) {
@@ -288,6 +332,7 @@ export default function AiTagBakeoffTab() {
       wins,
     };
   }, [currentRun, results, reviews]);
+  const providerPatternSummary = useMemo(() => providerPatterns(results), [results]);
 
   const createRun = useMutation({
     mutationFn: async () => {
@@ -480,6 +525,25 @@ export default function AiTagBakeoffTab() {
                 ))}
               </div>
 
+              {providerPatternSummary.length > 0 && (
+                <div className="rounded-md border border-border p-3">
+                  <div className="mb-2 text-xs font-medium text-muted-foreground">Provider Patterns</div>
+                  <div className="flex flex-wrap gap-2">
+                    {providerPatternSummary.slice(0, 12).map((entry) => (
+                      <Badge
+                        key={`${entry.model}:${entry.provider}`}
+                        variant={entry.failed > 0 ? "destructive" : "secondary"}
+                        className="max-w-full justify-start font-mono text-[10px]"
+                        title={`${entry.model} via ${entry.provider}`}
+                      >
+                        <span className="truncate">{fmtModel(entry.model)} / {entry.provider}</span>
+                        <span className="ml-1 shrink-0">{entry.succeeded} ok · {entry.failed} fail</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4">
                 {assets.map((asset) => {
                   const bySlot = resultsByAsset.get(asset.id) ?? {};
@@ -535,6 +599,8 @@ export default function AiTagBakeoffTab() {
                                 <span>In</span><span className="text-right tabular-nums">{formatTokens(bySlot[slot]?.prompt_tokens)}</span>
                                 <span>Out</span><span className="text-right tabular-nums">{formatTokens(bySlot[slot]?.completion_tokens)}</span>
                                 <span>Cost</span><span className="text-right tabular-nums">{formatCost(bySlot[slot]?.cost_usd)}</span>
+                                <span>Endpoint</span><span className="truncate text-right font-mono" title={resultEndpointTitle(bySlot[slot])}>{resultProvider(bySlot[slot])}</span>
+                                <span>Mode</span><span className="truncate text-right" title={outputModeLabel(bySlot[slot])}>{outputModeLabel(bySlot[slot])}</span>
                               </div>
                             </div>
                           ))}

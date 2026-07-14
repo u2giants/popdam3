@@ -641,24 +641,30 @@ not ad hoc Dashboard SQL or app-local migrations.
 
 ---
 
-## 58. Gemma Models Skip the Tool-Call Leg in AI Tagging (2026-07-13)
+## 58. Some Vision Models Skip the Tool-Call Leg in AI Tagging (2026-07-13)
 
 **File**: `apps/worker/src/handlers/ai-tagging-shared.ts`
 (`modelSupportsTools`, `callTagAssetModel`)
 
 **What it looks like**: `callTagAssetModel` attempts three output strategies in
-order — tool call, `json_schema`, then `json_object` — but for Gemma models the
+order — tool call, `json_schema`, then `json_object` — but for Gemma and
+Llama 4 Scout models the
 tool-call leg is skipped entirely and it goes straight to JSON. Looks like an
 inconsistent special case.
 
 **Why**: Gemma models on OpenRouter (e.g. `google/gemma-4-31b-it`) do not
 support OpenAI-style function/tool calling. Running the tool leg for them always
 fails over, but only after burning a full request that has its own 60s timeout
-budget. Because the legs run sequentially, that wasted leg materially increases
+budget. Llama 4 Scout is image-capable, but some OpenRouter-routed endpoints
+reject the image + function-calling combination even when the model can succeed
+with structured JSON output. Because the legs run sequentially, a known-brittle
+tool leg materially increases
 the chance the whole call trips `AI_TIMEOUT_MS` (60s in `ai-tag-bakeoff.ts` and
 `ai-tagging.ts`). `modelSupportsTools()` matches `/(^|\/)gemma/i` so both
-`gemma-4-31b-it` and `google/gemma-4-31b-it` resolve the same; add other
-non-tool-calling families to `NON_TOOL_CALLING_MODEL_PATTERNS` as needed.
+`gemma-4-31b-it` and `google/gemma-4-31b-it` resolve the same, and
+`/(^|\/)llama-4-scout/i` for Scout. Add other non-tool-calling or
+endpoint-brittle families to `NON_TOOL_CALLING_MODEL_PATTERNS` only after
+observing repeatable failures.
 
 **Root cause of the "operation was aborted due to timeout" errors**: That exact
 string is Node's `AbortSignal.timeout()` DOMException — a **client-side** abort
@@ -668,6 +674,34 @@ were provider-side stalls that blew past 60s. Skipping the tool leg reduces but
 does not eliminate these — a genuinely stalled provider can still exceed 60s on
 the JSON leg. If you need to absorb that too, raise `AI_TIMEOUT_MS`.
 
-**Future sessions should**: Do not "restore consistency" by making Gemma run the
-tool leg — it only adds latency and timeout risk. Verify a model actually
-supports tool calling before removing it from the skip list.
+**Future sessions should**: Do not "restore consistency" by making these models
+run the tool leg — it only adds latency and timeout risk. This does not weaken
+the production Image Tagging contract: the JSON/schema legs still require
+`tags`, `ai_description`, and `scene_description` before storing a result. Verify
+a model actually supports image + tool calling on the routed endpoint before
+removing it from the skip list.
+
+---
+
+## 59. AI Tag Bake-Off Stores Provider Metadata in `raw_output` (2026-07-14)
+
+**File**: `apps/worker/src/openrouter.ts`,
+`apps/worker/src/handlers/ai-tag-bakeoff.ts`,
+`src/components/settings/AiTagBakeoffTab.tsx`
+
+**What changed**: OpenRouter calls request router metadata, capture generation
+ids/provider headers, enrich from `/api/v1/generation` when possible, and store
+that under `ai_tag_bakeoff_results.raw_output._popdam_provider`. The bake-off UI
+shows provider/endpoint next to time, tokens, and cost, and summarizes provider
+success/failure patterns per run.
+
+**Why**: The same OpenRouter model ID can route to different provider endpoints,
+and failures such as image + function-calling rejection can be endpoint-specific.
+The bake-off needs to evaluate production Image Tagging behavior, so provider
+route evidence must be visible alongside quality/cost/timing.
+
+**Future sessions should**: Keep this metadata best-effort. OpenRouter may omit
+headers or generation metadata, and old rows will show `unknown`; that is missing
+evidence, not proof there was no provider route. Avoid adding a shared-db
+migration for provider columns unless the app needs filtering/reporting on this
+metadata outside the bake-off UI.

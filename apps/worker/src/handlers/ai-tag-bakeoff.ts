@@ -8,6 +8,7 @@
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { OpenRouterError, type OpenRouterProviderInfo } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
 import {
   buildImageTaggingMessages,
@@ -102,6 +103,12 @@ type ModelPricing = {
   prompt: number | null;
   completion: number | null;
 };
+
+function providerInfoFromError(error: unknown): OpenRouterProviderInfo | undefined {
+  if (error instanceof OpenRouterError) return error.providerInfo;
+  const maybe = error as Error & { providerInfo?: OpenRouterProviderInfo };
+  return maybe?.providerInfo;
+}
 
 let pricingCache: { fetchedAt: number; prices: Map<string, ModelPricing> } | null = null;
 
@@ -317,15 +324,15 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
       image,
       "Analyze this design asset image and return structured tags matching the tag_asset schema.",
     );
-    const { tagData: output, usage, outputMode } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 1500);
+    const { tagData: output, usage, outputMode, providerInfo, retryCount } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 1500);
 
     const tags = normalizeTags(output.tags);
     const { characterIds, propertyId, debug } = await normalizeModelTaxonomy(asset, output, tags);
     const { characterNames, propertyName } = await resolveNames(characterIds, propertyId);
     const costUsd = computeCostUsd(usage, pricing);
     const rawOutput = Object.keys(debug).length > 0
-      ? { ...output, _popdam_debug: debug, _popdam_output_mode: outputMode }
-      : { ...output, _popdam_output_mode: outputMode };
+      ? { ...output, _popdam_debug: debug, _popdam_output_mode: outputMode, _popdam_provider: providerInfo, _popdam_retry_count: retryCount }
+      : { ...output, _popdam_output_mode: outputMode, _popdam_provider: providerInfo, _popdam_retry_count: retryCount };
 
     try {
       await upsertBakeoffResult({
@@ -378,6 +385,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    const providerInfo = providerInfoFromError(e);
     logger.warn("ai-tag-bakeoff: model failed", { runId, assetId: asset.id, slot, modelId, error: msg });
     await upsertBakeoffResult({
       run_id: runId,
@@ -392,6 +400,10 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
         prompt_per_token: pricing.prompt,
         completion_per_token: pricing.completion,
       } : null,
+      raw_output: {
+        _popdam_provider: providerInfo,
+        _popdam_failure_stage: "structured_output",
+      },
       error_message: msg.slice(0, 500),
       updated_at: new Date().toISOString(),
     });

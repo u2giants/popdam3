@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import { db } from "../supabase.js";
-import { chatCompletion, imageContent, tool, type ChatMessage } from "../openrouter.js";
+import { chatCompletion, imageContent, tool, OpenRouterError, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import {
   TAG_ASSET_SCHEMA,
   buildTaggingSystemPrompt,
@@ -41,6 +41,8 @@ export type TagAssetCompletionResult = {
     total_tokens?: number;
   };
   outputMode: "tool" | "json_schema" | "json_object" | "tool_content_json";
+  providerInfo?: OpenRouterProviderInfo;
+  retryCount: number;
 };
 
 function parseJsonObject(content: string | undefined): Record<string, unknown> | null {
@@ -72,8 +74,10 @@ function parseJsonObject(content: string | undefined): Record<string, unknown> |
 // to structured JSON output — attempting the tool leg just wastes a full
 // request (with its own timeout budget) that always fails over. Match against
 // the bare model name so both "gemma-4-31b-it" and "google/gemma-4-31b-it"
-// resolve the same way.
-const NON_TOOL_CALLING_MODEL_PATTERNS = [/(^|\/)gemma/i];
+// resolve the same way. Scout is image-capable, but some routed endpoints reject
+// the image + function-calling combination; structured JSON keeps the production
+// contract without forcing that brittle leg.
+const NON_TOOL_CALLING_MODEL_PATTERNS = [/(^|\/)gemma/i, /(^|\/)llama-4-scout/i];
 
 export function modelSupportsTools(model: string): boolean {
   return !NON_TOOL_CALLING_MODEL_PATTERNS.some((re) => re.test(model));
@@ -109,9 +113,11 @@ function validatedTagResult(
   tagData: Record<string, unknown>,
   usage: TagAssetCompletionResult["usage"],
   outputMode: TagAssetCompletionResult["outputMode"],
+  providerInfo: OpenRouterProviderInfo | undefined,
+  retryCount: number,
 ): TagAssetCompletionResult {
   validateTagAssetData(tagData, outputMode);
-  return { tagData, usage, outputMode };
+  return { tagData, usage, outputMode, providerInfo, retryCount };
 }
 
 function withJsonObjectInstruction(messages: ChatMessage[]): ChatMessage[] {
@@ -123,6 +129,23 @@ function withJsonObjectInstruction(messages: ChatMessage[]): ChatMessage[] {
         "Return only a valid JSON object matching the tag_asset schema. Include at minimum tags, ai_description, and scene_description. Do not wrap it in markdown or prose.",
     },
   ];
+}
+
+function withJsonRepairInstruction(messages: ChatMessage[], errorMessage: string): ChatMessage[] {
+  return [
+    ...messages,
+    {
+      role: "user",
+      content:
+        `The previous response could not be parsed or validated as JSON: ${errorMessage.slice(0, 300)}. Return a corrected JSON object only. Include tags, ai_description, and scene_description. No markdown, no commentary.`,
+    },
+  ];
+}
+
+function providerInfoFromError(error: unknown): OpenRouterProviderInfo | undefined {
+  if (error instanceof OpenRouterError) return error.providerInfo;
+  const maybe = error as Error & { providerInfo?: OpenRouterProviderInfo };
+  return maybe?.providerInfo;
 }
 
 export { isStyleGuideSourcePdf };
@@ -283,10 +306,10 @@ export async function callTagAssetModel(
       }, timeoutMs);
 
       const toolData = result.toolCalls?.[0]?.arguments;
-      if (toolData) return validatedTagResult(toolData, result.usage, "tool");
+      if (toolData) return validatedTagResult(toolData, result.usage, "tool", result.providerInfo, 0);
 
       const contentData = parseJsonObject(result.content);
-      if (contentData) return validatedTagResult(contentData, result.usage, "tool_content_json");
+      if (contentData) return validatedTagResult(contentData, result.usage, "tool_content_json", result.providerInfo, 0);
 
       toolError = new Error("Model returned no structured tags from tool request");
     } catch (e) {
@@ -317,7 +340,7 @@ export async function callTagAssetModel(
 
     const contentData = parseJsonObject(result.content);
     if (!contentData) throw new Error("Model returned no parsable JSON for tag_asset schema");
-    return validatedTagResult(contentData, result.usage, "json_schema");
+    return validatedTagResult(contentData, result.usage, "json_schema", result.providerInfo, 0);
   } catch (schemaError) {
     try {
       const result = await chatCompletion(apiKey, {
@@ -329,12 +352,34 @@ export async function callTagAssetModel(
 
       const contentData = parseJsonObject(result.content);
       if (!contentData) throw new Error("Model returned no parsable JSON object");
-      return validatedTagResult(contentData, result.usage, "json_object");
+      return validatedTagResult(contentData, result.usage, "json_object", result.providerInfo, 0);
     } catch (jsonObjectError) {
-      const first = toolError instanceof Error ? toolError.message : String(toolError);
-      const second = schemaError instanceof Error ? schemaError.message : String(schemaError);
-      const third = jsonObjectError instanceof Error ? jsonObjectError.message : String(jsonObjectError);
-      throw new Error(`Structured tag output failed. tool_call: ${first}; json_schema: ${second}; json_object: ${third}`);
+      try {
+        const repairMessage = jsonObjectError instanceof Error ? jsonObjectError.message : String(jsonObjectError);
+        const result = await chatCompletion(apiKey, {
+          model,
+          messages: withJsonRepairInstruction(withJsonObjectInstruction(messages), repairMessage),
+          response_format: { type: "json_object" },
+          max_tokens: maxTokens,
+          temperature: 0,
+        }, timeoutMs);
+
+        const contentData = parseJsonObject(result.content);
+        if (!contentData) throw new Error("Model returned no parsable JSON object after repair retry");
+        return validatedTagResult(contentData, result.usage, "json_object", result.providerInfo, 1);
+      } catch (repairError) {
+        const first = toolError instanceof Error ? toolError.message : String(toolError);
+        const second = schemaError instanceof Error ? schemaError.message : String(schemaError);
+        const third = jsonObjectError instanceof Error ? jsonObjectError.message : String(jsonObjectError);
+        const fourth = repairError instanceof Error ? repairError.message : String(repairError);
+        const failure = new Error(`Structured tag output failed. tool_call: ${first}; json_schema: ${second}; json_object: ${third}; repair: ${fourth}`);
+        (failure as Error & { providerInfo?: OpenRouterProviderInfo }).providerInfo =
+          providerInfoFromError(repairError) ??
+          providerInfoFromError(jsonObjectError) ??
+          providerInfoFromError(schemaError) ??
+          providerInfoFromError(toolError);
+        throw failure;
+      }
     }
   }
 }
