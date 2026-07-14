@@ -102,6 +102,8 @@ export interface OpenRouterProviderInfo {
   headers?: Record<string, string>;
 }
 
+type RouterEndpointMetadata = Record<string, unknown>;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build an image content part from a base64-encoded image */
@@ -142,8 +144,15 @@ function collectProviderInfo(headers: Headers, body?: Record<string, unknown>): 
   });
 
   const routerMetadata = body?.openrouter_metadata;
-  const selectedEndpoint = Array.isArray((routerMetadata as { endpoints?: { available?: unknown[] } } | undefined)?.endpoints?.available)
-    ? ((routerMetadata as { endpoints: { available: Array<Record<string, unknown>> } }).endpoints.available.find((endpoint) => endpoint.selected === true) ?? null)
+  const endpointCandidates = Array.isArray((routerMetadata as { endpoints?: { available?: unknown[] } } | undefined)?.endpoints?.available)
+    ? (routerMetadata as { endpoints: { available: RouterEndpointMetadata[] } }).endpoints.available
+    : [];
+  const selectedEndpoint = endpointCandidates.find((endpoint) => endpoint.selected === true) ?? null;
+  const successfulAttempt = Array.isArray((routerMetadata as { attempts?: unknown[] } | undefined)?.attempts)
+    ? (routerMetadata as { attempts: RouterEndpointMetadata[] }).attempts.find((attempt) => {
+      const status = attempt.status;
+      return typeof status === "number" && status >= 200 && status < 300;
+    }) ?? null
     : null;
 
   return {
@@ -152,7 +161,9 @@ function collectProviderInfo(headers: Headers, body?: Record<string, unknown>): 
       (typeof body?.provider === "string" ? body.provider : null) ??
       (typeof body?.provider_name === "string" ? body.provider_name : null) ??
       (typeof selectedEndpoint?.provider_name === "string" ? selectedEndpoint.provider_name : null) ??
-      (typeof selectedEndpoint?.provider === "string" ? selectedEndpoint.provider : null)
+      (typeof selectedEndpoint?.provider === "string" ? selectedEndpoint.provider : null) ??
+      (typeof successfulAttempt?.provider_name === "string" ? successfulAttempt.provider_name : null) ??
+      (typeof successfulAttempt?.provider === "string" ? successfulAttempt.provider : null)
     ),
     endpoint: (
       pickHeader(headers, ["x-openrouter-endpoint", "openrouter-endpoint"]) ??
@@ -160,16 +171,34 @@ function collectProviderInfo(headers: Headers, body?: Record<string, unknown>): 
       (typeof body?.endpoint_name === "string" ? body.endpoint_name : null) ??
       (typeof selectedEndpoint?.endpoint_name === "string" ? selectedEndpoint.endpoint_name : null) ??
       (typeof selectedEndpoint?.tag === "string" ? selectedEndpoint.tag : null) ??
-      (typeof selectedEndpoint?.slug === "string" ? selectedEndpoint.slug : null)
+      (typeof selectedEndpoint?.slug === "string" ? selectedEndpoint.slug : null) ??
+      (typeof selectedEndpoint?.model === "string" ? selectedEndpoint.model : null) ??
+      (typeof successfulAttempt?.endpoint_name === "string" ? successfulAttempt.endpoint_name : null) ??
+      (typeof successfulAttempt?.tag === "string" ? successfulAttempt.tag : null) ??
+      (typeof successfulAttempt?.slug === "string" ? successfulAttempt.slug : null) ??
+      (typeof successfulAttempt?.model === "string" ? successfulAttempt.model : null)
     ),
     model: (
       pickHeader(headers, ["x-openrouter-model", "openrouter-model"]) ??
-      (typeof body?.model === "string" ? body.model : null)
+      (typeof body?.model === "string" ? body.model : null) ??
+      (typeof selectedEndpoint?.model === "string" ? selectedEndpoint.model : null) ??
+      (typeof successfulAttempt?.model === "string" ? successfulAttempt.model : null)
     ),
     generationId: pickHeader(headers, ["x-generation-id", "x-openrouter-generation-id"]) ?? (typeof body?.id === "string" ? body.id : null),
     routerMetadata: routerMetadata ?? undefined,
     headers: Object.keys(selectedHeaders).length > 0 ? selectedHeaders : undefined,
   };
+}
+
+function parseJsonRecord(value: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function enrichProviderInfo(apiKey: string, info: OpenRouterProviderInfo, timeoutMs: number) {
@@ -318,6 +347,7 @@ export async function chatCompletion(
     }
 
     const errBody = await response.text();
+    const errJson = parseJsonRecord(errBody);
 
     // tool_choice compatibility fallback: if the model rejects our tool_choice
     // value, retry with the next less-strict value in the ladder.
@@ -333,7 +363,7 @@ export async function chatCompletion(
       continue;
     }
 
-    throw new OpenRouterError(response.status, errBody, collectProviderInfo(response.headers));
+    throw new OpenRouterError(response.status, errBody, collectProviderInfo(response.headers, errJson));
   }
 
   throw lastError ?? new Error("OpenRouter request failed after retries");

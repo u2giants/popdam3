@@ -148,6 +148,34 @@ function resultProvider(result: BakeoffResult | undefined) {
   const endpointName = typeof info.endpoint === "string" && info.endpoint ? info.endpoint : "";
   if (providerName && endpointName && providerName !== endpointName) return `${providerName} / ${endpointName}`;
   if (providerName || endpointName) return providerName || endpointName;
+  const routerMetadata = info.routerMetadata && typeof info.routerMetadata === "object"
+    ? info.routerMetadata as Record<string, unknown>
+    : null;
+  const endpoints = routerMetadata?.endpoints && typeof routerMetadata.endpoints === "object"
+    ? (routerMetadata.endpoints as Record<string, unknown>).available
+    : null;
+  const selectedEndpoint = Array.isArray(endpoints)
+    ? endpoints.find((endpoint) => endpoint && typeof endpoint === "object" && (endpoint as Record<string, unknown>).selected === true) as Record<string, unknown> | undefined
+    : undefined;
+  if (selectedEndpoint) {
+    const selectedProvider = typeof selectedEndpoint.provider === "string" ? selectedEndpoint.provider : "";
+    const selectedModel = typeof selectedEndpoint.model === "string" ? selectedEndpoint.model : "";
+    if (selectedProvider && selectedModel) return `${selectedProvider} / ${selectedModel}`;
+    if (selectedProvider || selectedModel) return selectedProvider || selectedModel;
+  }
+  const attempts = Array.isArray(routerMetadata?.attempts) ? routerMetadata.attempts : [];
+  const successfulAttempt = attempts.find((attempt) => {
+    if (!attempt || typeof attempt !== "object") return false;
+    const status = (attempt as Record<string, unknown>).status;
+    return typeof status === "number" && status >= 200 && status < 300;
+  }) as Record<string, unknown> | undefined;
+  if (successfulAttempt) {
+    const attemptProvider = typeof successfulAttempt.provider === "string" ? successfulAttempt.provider : "";
+    const attemptModel = typeof successfulAttempt.model === "string" ? successfulAttempt.model : "";
+    if (attemptProvider && attemptModel) return `${attemptProvider} / ${attemptModel}`;
+    if (attemptProvider || attemptModel) return attemptProvider || attemptModel;
+  }
+  if (typeof routerMetadata?.summary === "string" && routerMetadata.summary) return routerMetadata.summary;
   return (
     (typeof info.model === "string" && info.model) ||
     (typeof info.generationId === "string" && info.generationId.slice(0, 12)) ||
