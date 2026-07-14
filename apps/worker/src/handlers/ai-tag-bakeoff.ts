@@ -8,29 +8,17 @@
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { chatCompletion, imageContent, tool, type ChatMessage } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
+import {
+  buildImageTaggingMessages,
+  buildImageTaggingPrompt,
+  callTagAssetModel,
+  fetchImageData,
+} from "./ai-tagging-shared.js";
 
-const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
 const AI_TIMEOUT_MS = 60_000;
 const ASSETS_PER_BATCH = 2;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const TAG_ASSET_TOOL = tool(
-  "tag_asset",
-  "Return structured tagging data for this design asset.",
-  {
-    type: "object",
-    properties: {
-      tags: { type: "array", items: { type: "string" } },
-      ai_description: { type: "string" },
-      character_ids: { type: "array", items: { type: "string" } },
-      character_names: { type: "array", items: { type: "string" } },
-      property_id: { type: "string" },
-    },
-    required: ["tags", "ai_description"],
-  },
-);
 
 const SLOTS = ["a", "b", "c", "d", "e"] as const;
 type Slot = typeof SLOTS[number];
@@ -159,88 +147,6 @@ function computeCostUsd(usage: { prompt_tokens?: number; completion_tokens?: num
   if (!pricing || typeof promptTokens !== "number" || typeof completionTokens !== "number") return null;
   if (pricing.prompt === null || pricing.completion === null) return null;
   return (promptTokens * pricing.prompt) + (completionTokens * pricing.completion);
-}
-
-async function fetchImageData(thumbnailUrl: string): Promise<{ base64: string; mimeType: string }> {
-  const resp = await fetch(thumbnailUrl, { signal: AbortSignal.timeout(THUMBNAIL_FETCH_TIMEOUT_MS) });
-  if (!resp.ok) throw new Error(`Thumbnail fetch HTTP ${resp.status}`);
-  const mimeType = (resp.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
-  const bytes = Buffer.from(await resp.arrayBuffer());
-  return { base64: bytes.toString("base64"), mimeType };
-}
-
-async function buildPrompt(asset: BakeoffAsset): Promise<string> {
-  const client = db();
-  const [licensorsRes, propertiesRes] = await Promise.all([
-    client.from("licensors").select("id, name").limit(50),
-    client.from("properties").select("id, name, licensor_id").limit(200),
-  ]);
-
-  let characters: CharacterRow[] = [];
-  let characterContextLabel = "High-usage characters for broad matching";
-  if (asset.property_id) {
-    const { data } = await client
-      .from("characters")
-      .select("id, name, property_id, is_priority, usage_count")
-      .eq("property_id", asset.property_id)
-      .order("usage_count", { ascending: false })
-      .limit(500);
-    characters = data ?? [];
-    characterContextLabel = "Characters for this asset property";
-  } else if (asset.licensor_id) {
-    const { data: propIds } = await client
-      .from("properties")
-      .select("id")
-      .eq("licensor_id", asset.licensor_id);
-    const ids = (propIds ?? []).map((p: { id: string }) => p.id);
-    if (ids.length > 0) {
-      const { data } = await client
-        .from("characters")
-        .select("id, name, property_id, is_priority, usage_count")
-        .in("property_id", ids)
-        .order("usage_count", { ascending: false })
-        .limit(500);
-      characters = data ?? [];
-      characterContextLabel = "Characters for this asset licensor";
-    }
-  } else {
-    const { data } = await client
-      .from("characters")
-      .select("id, name, property_id, is_priority, usage_count")
-      .eq("is_priority", true)
-      .order("usage_count", { ascending: false })
-      .limit(150);
-    characters = data ?? [];
-  }
-
-  const taxonomyContext = [
-    `Licensors: ${(licensorsRes.data ?? []).map((l) => `${l.name} (${l.id})`).join(", ")}`,
-    `Properties: ${(propertiesRes.data ?? []).map((p) => `${p.name} (${p.id})`).join(", ")}`,
-    `${characterContextLabel}: ${characters.map((c) => `${c.name} (${c.id})`).join(", ") || "none"}`,
-  ].join("\n");
-
-  return `You are a design asset tagger for a consumer products company that licenses characters.
-
-Analyze the thumbnail image and file metadata. Return structured data only through the tag_asset function.
-
-File: ${asset.filename ?? ""}
-Path: ${asset.relative_path ?? ""}
-Type: ${asset.file_type ?? ""}
-Existing tags: ${(asset.tags ?? []).join(", ") || "none"}
-
-Known taxonomy:
-${taxonomyContext}
-
-Evaluate only these fields for this model comparison:
-1. tags: useful searchable tags, including characters, colors, themes, art style, product clues
-2. ai_description: one concise sentence describing the asset
-3. character_ids: matching UUIDs from the provided character list
-4. character_names: visible character names, even when no matching UUID is available
-5. property_id: matching UUID from the provided property list
-
-Do not invent UUIDs. Use character_ids only for exact matches from the provided character list.
-If you can identify a visible character but no listed UUID matches, put the character name in character_names.
-If a character or property UUID is uncertain, omit it.`;
 }
 
 async function resolveNames(characterIds: string[], propertyId: string | null): Promise<{ characterNames: string[]; propertyName: string | null }> {
@@ -405,34 +311,21 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
 
   const started = Date.now();
   try {
-    const messages: ChatMessage[] = [
-      { role: "system", content: prompt },
-      {
-        role: "user",
-        content: [
-          imageContent(image.base64, image.mimeType),
-          { type: "text", text: "Tag this asset for the model comparison." },
-        ],
-      },
-    ];
-    const result = await chatCompletion(config.openRouterApiKey || config.googleAiApiKey, {
-      model: modelId,
-      messages,
-      tools: [TAG_ASSET_TOOL],
-      tool_choice: "required",
-      max_tokens: 900,
-    }, AI_TIMEOUT_MS);
-
-    const output = result.toolCalls?.[0]?.arguments;
-    if (!output) throw new Error("Model returned no structured tag data");
+    const apiKey = config.openRouterApiKey || config.googleAiApiKey;
+    const messages = buildImageTaggingMessages(
+      prompt,
+      image,
+      "Analyze this design asset image and return structured tags matching the tag_asset schema.",
+    );
+    const { tagData: output, usage, outputMode } = await callTagAssetModel(apiKey, modelId, messages, AI_TIMEOUT_MS, 1500);
 
     const tags = normalizeTags(output.tags);
     const { characterIds, propertyId, debug } = await normalizeModelTaxonomy(asset, output, tags);
     const { characterNames, propertyName } = await resolveNames(characterIds, propertyId);
-    const costUsd = computeCostUsd(result.usage, pricing);
+    const costUsd = computeCostUsd(usage, pricing);
     const rawOutput = Object.keys(debug).length > 0
-      ? { ...output, _popdam_debug: debug }
-      : output;
+      ? { ...output, _popdam_debug: debug, _popdam_output_mode: outputMode }
+      : { ...output, _popdam_output_mode: outputMode };
 
     try {
       await upsertBakeoffResult({
@@ -449,9 +342,9 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
       property_name: propertyName,
       raw_output: rawOutput,
       latency_ms: Date.now() - started,
-      prompt_tokens: result.usage?.prompt_tokens ?? null,
-      completion_tokens: result.usage?.completion_tokens ?? null,
-      total_tokens: result.usage?.total_tokens ?? null,
+      prompt_tokens: usage?.prompt_tokens ?? null,
+      completion_tokens: usage?.completion_tokens ?? null,
+      total_tokens: usage?.total_tokens ?? null,
       cost_usd: costUsd,
       pricing_snapshot: pricing ? {
         source: "openrouter.models.user",
@@ -583,7 +476,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       continue;
     }
     try {
-      const [prompt, image] = await Promise.all([buildPrompt(asset), fetchImageData(asset.thumbnail_url)]);
+      const [prompt, image] = await Promise.all([buildImageTaggingPrompt(asset), fetchImageData(asset.thumbnail_url)]);
       for (const [slot, modelId] of models) {
         const result = await runModel(runId, asset, slot, modelId, prompt, image, prices.get(modelId));
         if (result.ok) evaluated++;

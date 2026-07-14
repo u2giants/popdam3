@@ -52,7 +52,15 @@ If a timestamp mutation incident occurs, record it in a `worker_incidents` table
 - `property_id uuid FK NOT NULL`
 - `name text NOT NULL`
 - `external_id text UNIQUE NULL`
+- `usage_count int NOT NULL DEFAULT 0`
+- `is_priority boolean NOT NULL DEFAULT false`
 - timestamps
+
+`is_priority` is a PopDAM usage shortcut, not an authoritative licensor flag.
+`rebuild-character-stats` resets all characters to `is_priority=false`, counts
+non-deleted `asset_characters` links, then marks characters whose count meets
+the threshold as priority. Rare/new characters can be real taxonomy rows while
+still having `is_priority=false`.
 
 ### 2.4 product_categories / product_types / product_subtypes
 As in the build spec (taxonomy tables with optional external_id).
@@ -318,12 +326,23 @@ Non-destructive evaluation for vision tagging models. These tables store model t
 - `sample_size int`, `asset_ids uuid[]`
 - `created_by uuid`, `created_at`, `updated_at`, `completed_at`
 
+When no explicit `asset_ids` are supplied, the admin API selects a random sample
+using random UUID pivots, then deduplicates candidates by `quick_hash`,
+`sku + filename`, and filename. If a duplicate exists in a base folder and in a
+`TECHPACK` folder, the base-folder asset is preferred.
+
 #### `ai_tag_bakeoff_results`
 One row per `(run, asset, model_slot)`.
 - `run_id uuid FK`, `asset_id uuid FK`, `model_slot text` (`a`, `b`, `c`, `d`, `e`), `model_id text`
 - `status text` (`pending`, `running`, `succeeded`, `failed`)
 - Field outputs: `tags text[]`, `ai_description text`, `character_ids uuid[]`, `character_names text[]`, `property_id uuid`, `property_name text`
 - Audit/debug fields: `raw_output jsonb`, `latency_ms int`, `prompt_tokens int`, `completion_tokens int`, `total_tokens int`, `cost_usd numeric`, `pricing_snapshot jsonb`, `error_message text`, timestamps
+
+The bake-off worker validates model-supplied taxonomy before storing it:
+conflicting `property_id` / `character_ids` are rejected, exact character names
+from the model can be resolved against `characters`, and rejected or unresolved
+taxonomy choices are recorded under `raw_output._popdam_debug`. Stale `running`
+rows older than 10 minutes are normalized to `failed`.
 
 #### `ai_tag_bakeoff_reviews`
 Human scoring for the matrix UI.

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save, Plus, Trash2, Eye, EyeOff, BarChart3 } from "lucide-react";
+import { Globe, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Sparkles, Save, Plus, Trash2, Eye, EyeOff, BarChart3, Copy } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -439,12 +439,21 @@ const DEFAULT_MODELS_PLACEHOLDER = JSON.stringify(
   2,
 );
 
-const TASK_MODEL_LABELS: Record<string, { label: string; description: string; defaultModel: string; requiresTools: boolean; fallbackKey?: string }> = {
+const TASK_MODEL_LABELS: Record<string, {
+  label: string;
+  description: string;
+  defaultModel: string;
+  requiresTools?: boolean;
+  requiresVision?: boolean;
+  requiresStructuredOutput?: boolean;
+  fallbackKey?: string;
+}> = {
   vision_tagging: {
     label: "Image Tagging",
-    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support tool use.",
+    description: "Vision model for analyzing thumbnails and generating tags, descriptions, characters. Must support image input plus tool calls or structured outputs.",
     defaultModel: "google/gemini-2.5-flash",
-    requiresTools: true,
+    requiresVision: true,
+    requiresStructuredOutput: true,
     fallbackKey: "vision_tagging_fallback",
   },
   text_classification: {
@@ -460,6 +469,92 @@ const TASK_MODEL_LABELS: Record<string, { label: string; description: string; de
     requiresTools: false,
   },
 };
+
+const TASK_MODEL_BRIEFS: Record<string, string> = {
+  vision_tagging: `IMAGE TAGGING — model selection brief
+
+WHAT THIS TASK DOES
+Analyzes a design/product asset image (a garment, licensed-character artwork, tech pack, style guide page, etc.) and produces structured metadata used to catalog and search the asset library: descriptive tags, a one-sentence AI description, a short "cover" product label, a scene description, asset type, art source, design style/ref, matched character/licensor/property IDs from a controlled taxonomy, designer/technical-designer/freelancer names extracted from title blocks, and a deduplicated list of "Files Used" referenced in any attached tech-pack text.
+
+WHERE THIS RUNS IN CODE
+Primary production path: apps/worker/src/handlers/ai-tagging.ts (Railway worker, used by the bulk "Run AI Tagging" job and single-asset re-tag). A near-identical reduced-scope path exists for the model comparison harness ("Vision Bake-Off"): apps/worker/src/handlers/ai-tag-bakeoff.ts, which runs up to 5 candidate models side-by-side on the same asset for human review before promoting a model to production. A legacy copy (supabase/functions/ai-tag/index.ts) is now only invoked by the older Windows agent path.
+
+HOW THE CODE INVOKES THE MODEL
+Called through OpenRouter (OpenAI-compatible Chat Completions API), so any OpenRouter-listed model can be selected here without a code change if it satisfies the Image Tagging contract. API key precedence: OPENROUTER_API_KEY, falling back to GOOGLE_AI_API_KEY only for the legacy path. The worker first requests a structured tag_asset tool call for models/providers that support tool use; if tool calling is not supported, it retries the same prompt/schema through OpenRouter response_format json_schema structured outputs. The bake-off uses this same request path. This is a SINGLE-TURN, image+text request — no chat history, no multi-step agentic loop.
+
+WHAT IS FED TO THE MODEL
+- One image: the asset's existing THUMBNAIL (not the original full-resolution source file), fetched over HTTP (20s timeout), base64-encoded, sent as an inline OpenAI-style image_url data URI. Whatever compression/resolution the thumbnail pipeline already produced is what the model sees — there is no separate high-res pass.
+- A text system prompt containing: filename, relative path, file type, existing tags, an ERP item_description for the asset's SKU (used ONLY to derive the short cover/product label — the prompt explicitly instructs the model to ignore the image for that one field, since the image often shows artwork rather than the literal product), up to ~4000 characters of previously-extracted PDF/tech-pack text for that asset (if any), and a "known taxonomy" block listing candidate licensors (up to 50), properties (up to 200), and characters (priority characters for the asset's known property first, falling back to the full roster) — all with their DB UUIDs so the model can return exact foreign-key matches instead of free text.
+- Optional admin-configured custom tagging instructions (company-specific rules) and an optional "priority character list" hint.
+
+WHAT WE EXPECT BACK
+A structured JSON object from either a tag_asset tool call or OpenRouter response_format json_schema. Fields include: tags (string[]), ai_description (string), cover_description (string, max ~8 words, product-label style, explicitly excluding licensor names/SKUs/dimensions/art style), scene_description (string), asset_type (enum: art_piece | product), art_source (enum: freelancer | straight_style_guide | style_guide_composition), design_style, design_ref, character_ids (string[] of UUIDs — must be exact matches only, never invented), licensor_id / property_id (UUIDs), designer_name / technical_designer_name / freelancer_name (nullable strings pulled from title blocks), and files_used (string[] deduplicated across all "Files Used"-style sections in any attached PDF text). Only tags, ai_description, and scene_description are strictly required; everything else may be omitted/null when not identifiable. The app-layer guards against hallucinated UUIDs: any FK violation on write triggers a retry with licensor_id/property_id stripped, and a UUID-shape validator filters bogus IDs before the DB write.
+
+WHY IT NEEDS VISION + RELIABLE STRUCTURED OUTPUT
+This is a multi-field structured-extraction task from an image, not open-ended chat, so the model MUST support (a) native vision/image input and (b) one of the app's structured-output mechanisms: tool/function calling or OpenRouter json_schema structured outputs. A model that can only caption images in prose is not enough, but a model does not need native tool calling if it can reliably satisfy the same JSON schema through response_format. Because the taxonomy block can be large (up to ~250 candidate licensor/property/character entries plus filename/path/ERP/PDF context), a generous context window (well beyond a few thousand tokens) matters. Because the image is a compressed thumbnail rather than a full-resolution scan, strong low-resolution/small-detail visual recognition (reading small style numbers, distinguishing similar-looking licensed characters, reading text in title blocks) is more important than raw megapixel-scale image handling. Because tags/characters/licensors must map onto a fixed, sometimes idiosyncratic in-house taxonomy (not a general "what's in this image" answer), instruction-following fidelity — respecting "do not invent UUIDs," "ignore the image for cover_description if ERP text is present," and category-specific correction rules — matters more than raw creative captioning ability. Latency and cost matter too: this runs at bulk-job scale across the entire asset library, so per-call cost and throughput are real constraints, which is why the current default is a fast/cheap vision-capable model (Gemini 2.5 Flash) rather than a top-tier reasoning model.
+
+CURRENT DEFAULT / EVALUATION
+Default model: google/gemini-2.5-flash via OpenRouter, with an optional admin-configured fallback model used only when the primary model fails with a model-specific error (content-filter rejection, download failure, no available endpoint) — general/transient errors are NOT retried onto the fallback. Model quality for this task is evaluated empirically via the "Vision Bake-Off" tool in this same Settings > Processing area, which runs several candidate models on the same real assets, tracks live per-model OpenRouter cost/latency, and lets a human reviewer pick the winning model(s) per field before it's promoted to the live default.`,
+
+  text_classification: `ERP CLASSIFICATION — model selection brief
+
+WHAT THIS TASK DOES
+Classifies a home-décor product (identified by ERP style number) into exactly ONE of 7 fixed categories: Wall, Tabletop, Clock, Storage, Workspace, Floor, Garden, or Other. This is a closed-vocabulary, single-label, TEXT-ONLY classification task — it only runs as a fallback for older ERP records (roughly 5,500 style groups from before the deterministic mg_category mapping was introduced); newer ERP data is categorized deterministically without any model call at all.
+
+WHERE THIS RUNS IN CODE
+apps/worker/src/handlers/erp.ts, function handleClassifyErpCategories(). Junk/unclassifiable descriptions (empty text, ID-only strings, "assortment", "test", pure digit strings, etc.) are filtered out BEFORE calling the model and written directly as category "Unknown" / confidence 0 — so the model only ever sees plausible, real product descriptions.
+
+HOW THE CODE INVOKES THE MODEL
+Through OpenRouter, using tool/function calling with tool_choice forced to a specific function name (classify_product), max_tokens ~1024. API key precedence: OPENROUTER_API_KEY, falling back to ANTHROPIC_API_KEY. Single-turn, text-only request (no image).
+
+WHAT IS FED TO THE MODEL
+A system prompt establishing it as "a product classification expert for a home décor company," plus a user prompt containing: the full definition and examples for each of the 7 categories, a set of hard classification rules (e.g. "MDF letter/box items are always Wall, not Storage"), a list of specific "correction examples" documenting past model mistakes and their correct answers (e.g. "Disney MDF box → Wall, not Storage"; "shadowbox → Wall, not freestanding storage"), and then the actual product to classify: style number, item_description, and raw ERP "MG fields" (a JSON blob of miscellaneous ERP attributes). No image is provided — classification is driven entirely by text/description and structured ERP metadata.
+
+WHAT WE EXPECT BACK
+A single structured tool call with exactly three fields: category (must be one of the 7 enum values), confidence (number 0–1), and rationale (string, max 200 chars, explaining the reasoning). Confidence drives an automation threshold: results with confidence ≥ 0.65 are auto-applied to the product record; anything below that is queued for human review rather than applied automatically. The prompt explicitly instructs the model NOT to guess and to use low confidence when the description is ambiguous, since a wrong high-confidence answer auto-applies without review.
+
+WHY IT NEEDS RELIABLE TOOL CALLING BUT NOT VISION
+This is pure text classification against a small closed taxonomy with a set of counter-intuitive, memorized business rules (several categories look like they should be "Storage" or "Tabletop" by their common-sense meaning but are actually "Wall" in this company's catalog). The most important model property is INSTRUCTION-FOLLOWING FIDELITY against the correction-example list and rules block, not general reasoning power or world knowledge — a model that pattern-matches on generic english meaning ("box" → storage) rather than the in-context corrections will misclassify. It must also reliably call the forced classify_product function with a strictly-typed enum + numeric confidence rather than free text, since malformed output breaks the auto-apply/review pipeline. Because the prompt (rules + correction examples) is fixed and short, and the per-item description is short, this does not need a large context window or vision support — it benefits more from being cheap and fast, since it can be invoked across thousands of style groups. Well-calibrated confidence output matters unusually much here compared to the other two tasks, because confidence directly gates whether a change is auto-applied to production ERP category data versus routed to a human — a model that is systematically over-confident is actively harmful even if its category guesses are often right, since it will auto-apply wrong answers instead of surfacing them for review.
+
+CURRENT DEFAULT / KNOWN INCONSISTENCY
+In-code default (apps/worker/src/handlers/erp.ts): anthropic/claude-3.5-haiku. The Settings UI's default label for this task is anthropic/claude-haiku-4.5 — these two defaults do not currently match, which is worth reconciling; whichever value is actually saved in admin_config.AI_TASK_MODELS.text_classification is what's really in effect at runtime, not either hardcoded default.`,
+
+  pdf_extraction: `PDF TEXT EXTRACTION — model selection brief
+
+WHAT THIS TASK DOES
+Extracts readable text from an uploaded PDF (or Illustrator .ai file) so it can be searched, and so it can feed the "Files Used" / designer-name context into the Image Tagging prompt (see the Image Tagging brief). Critically, this AI vision call is the LAST resort in a 4-step cascade, not the primary extraction method:
+1. Native text extraction via the mupdf library (fast, exact, works for any PDF with a real text layer).
+2. If that yields fewer than ~100 characters, the first page is rendered to a PNG (2x scale) and run through Tesseract.js OCR.
+3. If OCR also yields fewer than ~100 characters (i.e. the page is likely a scanned image OCR can't read cleanly, low contrast, handwriting, unusual layout, etc.), the SAME rendered page-0 PNG is sent to an AI vision model as the final fallback.
+4. PDFs over 100MB are skipped entirely before any of the above runs.
+Because this only fires when both a real text layer AND OCR have already failed, the AI vision step disproportionately sees the HARDEST pages: low quality scans, stylized/decorative text, dense tech-pack layouts, rotated or skewed pages, or pages mixing images and small print.
+
+WHERE THIS RUNS IN CODE
+apps/bridge-agent/src/pdf-text-sampler.ts and apps/windows-agent/src/pdf-text-sampler.ts (kept in sync — both must be updated if the extraction logic changes; the Windows agent is the primary path when it's backfill-capable, the bridge agent is the fallback). Model selection is read from admin_config.PDF_EXTRACTION_CONFIG.ai_vision_model_id, matched against a provider-agnostic admin_config.AI_MODELS catalog (id/provider/apiModel/capabilities) — this task is NOT routed through OpenRouter like the other two; it calls Google's Gemini API or Anthropic's API directly depending on the catalog entry's provider field, using GOOGLE_AI_API_KEY or ANTHROPIC_API_KEY respectively. The model entry must declare "vision" in its capabilities or it's skipped with a warning.
+
+WHAT IS FED TO THE MODEL
+Only page 1 (index 0) of the PDF, rendered as a PNG at 2x zoom, base64-encoded and sent as an inline image — no other pages, and no raw/partial text from steps 1–2 is included as extra context. The prompt is a single plain-text instruction: "Extract all text from this document page. Return only the raw extracted text with no commentary." There is no JSON schema and no tool/function calling for this task — it's a plain text-completion vision call.
+
+WHAT WE EXPECT BACK
+A raw plain-text string (the extracted text), trimmed of surrounding whitespace — no structured fields. The result is stored with extraction_method = "ai_vision" so downstream consumers know which tier of the cascade produced it (versus "pdf_text" or "ocr_text", which are generally more trustworthy since they're exact/deterministic rather than model-generated).
+
+WHY IT NEEDS VISION BUT NOT TOOL USE
+Because this step exists specifically to rescue pages that beat both a real PDF text layer AND Tesseract OCR, the differentiator that matters most is RAW OCR-GRADE VISUAL TEXT RECOGNITION ACCURACY on degraded, low-quality, or unusually laid-out page images — not reasoning, not structured output discipline, not tool calling (there is none here — it's asked to just return text, not call a function). A model that hallucinates plausible-looking text instead of admitting illegibility is actively worse than the empty string this cascade would otherwise fall back to, so faithfulness/refusal-to-hallucinate on unclear text matters more than fluency. Because only a single page image is sent per call and the output is free text with no schema, this doesn't need a large context window or complex instruction-following — it needs to be cheap and fast (potentially invoked across a large backlog of PDFs during a bulk backfill) while still being meaningfully better at fine print / low-quality-scan OCR than Tesseract, since Tesseract already handled the easier cases upstream.
+
+CURRENT DEFAULT / RELATED WORK
+Settings UI default: google/gemini-2.5-flash. The admin_config.AI_MODELS catalog placeholder currently lists example entries like gemini-2.0-flash and claude-haiku-4-5-20251001, so the effective model actually depends on what's configured in that catalog plus PDF_EXTRACTION_CONFIG.ai_vision_model_id — check both, not just this task's default label. Separately, docs/RICH_PDF_EXTRACTION.md documents an exploratory (not-yet-implemented) idea to run a further structured-extraction pass over already-extracted PDF text (tech-pack fields like designer names, dimensions, compliance text) using a different model — that is future work, not part of this task today.`,
+};
+
+async function copyTaskBrief(taskKey: string, label: string) {
+  const brief = TASK_MODEL_BRIEFS[taskKey];
+  if (!brief) return;
+  try {
+    await navigator.clipboard.writeText(brief);
+    toast.success(`Copied "${label}" model-selection brief to clipboard`);
+  } catch {
+    toast.error("Failed to copy to clipboard");
+  }
+}
 
 export function AiModelsConfigSection() {
   const { call } = useAdminApi();
@@ -550,7 +645,14 @@ export function AiModelsConfigSection() {
     isLoading: loadingModels,
     error: modelsError,
     refetch: refetchOpenRouterModels,
-  } = useQuery<Array<{ id: string; name: string; supportsTools: boolean; pricing?: OpenRouterPricing }>>({
+  } = useQuery<Array<{
+    id: string;
+    name: string;
+    supportsTools: boolean;
+    supportsStructuredOutputs: boolean;
+    inputModalities: string[];
+    pricing?: OpenRouterPricing;
+  }>>({
     queryKey: ["openrouter-models", savedOpenRouterKey],
     enabled: !!savedOpenRouterKey,
     queryFn: async () => {
@@ -559,7 +661,7 @@ export function AiModelsConfigSection() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const data = await res.json();
-      const items: Array<{ id: string; name?: string; supported_parameters?: string[]; pricing?: OpenRouterPricing }> = Array.isArray(data)
+      const items: Array<{ id: string; name?: string; supported_parameters?: string[]; architecture?: { input_modalities?: string[] }; pricing?: OpenRouterPricing }> = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
           ? data.data
@@ -570,6 +672,8 @@ export function AiModelsConfigSection() {
           id: m.id,
           name: m.name ?? m.id,
           supportsTools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
+          supportsStructuredOutputs: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("structured_outputs"),
+          inputModalities: Array.isArray(m.architecture?.input_modalities) ? m.architecture.input_modalities : [],
           pricing: m.pricing,
         }))
         .sort((a, b) => a.id.localeCompare(b.id));
@@ -675,21 +779,36 @@ export function AiModelsConfigSection() {
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, fallbackKey }]) => {
+            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, requiresVision, requiresStructuredOutput, fallbackKey }]) => {
               const currentVal = taskModels[key] || "";
               const modelList = openRouterModels ?? [];
-              // For tasks that require tool use, only show models that support it
-              const filteredList = requiresTools ? modelList.filter((m) => m.supportsTools) : modelList;
+              const modelMeetsRequirements = (m: typeof modelList[number] | undefined) => {
+                if (!m) return false;
+                if (requiresTools && !m.supportsTools) return false;
+                if (requiresStructuredOutput && !(m.supportsTools || m.supportsStructuredOutputs)) return false;
+                if (requiresVision && !m.inputModalities.includes("image")) return false;
+                return true;
+              };
+              const requirementLabel = requiresStructuredOutput
+                ? "image input plus tool calls or structured outputs"
+                : requiresTools
+                  ? "tool use"
+                  : requiresVision
+                    ? "image input"
+                    : "";
+              const filteredList = (requiresTools || requiresStructuredOutput || requiresVision)
+                ? modelList.filter(modelMeetsRequirements)
+                : modelList;
               // If currentVal is set but not in filteredList, still show it (with a warning)
-              const currentModelSupportsTools = !currentVal || !requiresTools || modelList.find((m) => m.id === currentVal)?.supportsTools !== false;
+              const currentModelMeetsRequirements = !currentVal || !(requiresTools || requiresStructuredOutput || requiresVision) || modelMeetsRequirements(modelList.find((m) => m.id === currentVal));
               const allOptions = currentVal && !filteredList.some((m) => m.id === currentVal)
-                ? [{ id: currentVal, name: currentVal, supportsTools: false }, ...filteredList]
+                ? [{ id: currentVal, name: currentVal, supportsTools: false, supportsStructuredOutputs: false, inputModalities: [] }, ...filteredList]
                 : filteredList;
 
               const fallbackVal = fallbackKey ? (taskModels[fallbackKey] || "") : "";
               const fallbackOptions = fallbackKey
                 ? (fallbackVal && !filteredList.some((m) => m.id === fallbackVal)
-                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false }, ...filteredList]
+                  ? [{ id: fallbackVal, name: fallbackVal, supportsTools: false, supportsStructuredOutputs: false, inputModalities: [] }, ...filteredList]
                   : filteredList)
                 : [];
 
@@ -703,7 +822,7 @@ export function AiModelsConfigSection() {
                       {options.map((m) => {
                         return (
                           <SelectItem key={m.id} value={m.id} className="text-xs font-mono" suffix={formatOpenRouterPricing(m.pricing)}>
-                            {displayNames[m.id] || m.id}{!m.supportsTools && requiresTools ? " ⚠" : ""}
+                            {displayNames[m.id] || m.id}{!modelMeetsRequirements(m) && requirementLabel ? " ⚠" : ""}
                           </SelectItem>
                         );
                       })}
@@ -722,17 +841,30 @@ export function AiModelsConfigSection() {
 
               return (
                 <div key={key} className="space-y-1">
-                  <Label className="text-xs">{label}</Label>
+                  <div className="flex items-center justify-between gap-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      title={`Copy model-selection brief for ${label}`}
+                      aria-label={`Copy model-selection brief for ${label}`}
+                      className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                      onClick={() => copyTaskBrief(key, label)}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
                   {renderSelect(key, currentVal, allOptions, defaultModel)}
-                  {!currentModelSupportsTools && (
-                    <p className="text-[10px] text-destructive">⚠ This model does not support tool use — AI tagging will fail. Select a different model.</p>
+                  {!currentModelMeetsRequirements && requirementLabel && (
+                    <p className="text-[10px] text-destructive">This model does not support {requirementLabel}; this task will fail. Select a different model.</p>
                   )}
                   {fallbackKey && (
                     <div className="mt-1.5 space-y-1">
                       <Label className="text-[10px] text-muted-foreground">Fallback model (on content filter / provider rejection)</Label>
                       {renderSelect(fallbackKey, fallbackVal, fallbackOptions, "None — mark as failed")}
-                      {fallbackVal && !modelList.find((m) => m.id === fallbackVal)?.supportsTools && modelList.length > 0 && (
-                        <p className="text-[10px] text-destructive">⚠ Fallback model does not support tool use.</p>
+                      {fallbackVal && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
+                        <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}.</p>
                       )}
                     </div>
                   )}

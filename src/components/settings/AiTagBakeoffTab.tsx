@@ -22,6 +22,7 @@ type VisionModel = {
   id: string;
   name: string;
   supports_tools?: boolean;
+  supports_structured_outputs?: boolean;
   architecture?: { input_modalities?: string[] };
   pricing?: OpenRouterPricing | null;
 };
@@ -95,6 +96,15 @@ const SLOT_LABELS: Record<Slot, string> = { a: "Model A", b: "Model B", c: "Mode
 
 function fmtModel(id: string) {
   return id.split("/").pop() ?? id;
+}
+
+function supportsImageTaggingContract(model: VisionModel) {
+  return (
+    (model.supports_tools === true || model.supports_structured_outputs === true) &&
+    !hasUnavailableOpenRouterPricing(model.pricing) &&
+    Array.isArray(model.architecture?.input_modalities) &&
+    model.architecture.input_modalities.includes("image")
+  );
 }
 
 function unwrapConfigString(value: unknown) {
@@ -195,6 +205,7 @@ export default function AiTagBakeoffTab() {
         id: m.id,
         name: m.name ?? m.id,
         supports_tools: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"),
+        supports_structured_outputs: Array.isArray(m.supported_parameters) && m.supported_parameters.includes("structured_outputs"),
         architecture: m.architecture,
         pricing: m.pricing,
       }));
@@ -204,14 +215,10 @@ export default function AiTagBakeoffTab() {
   });
 
   const visionModels = useMemo(() => {
-    const list = (modelData ?? []).filter((m) => (
-      m.supports_tools === true &&
-      !hasUnavailableOpenRouterPricing(m.pricing) &&
-      Array.isArray(m.architecture?.input_modalities) &&
-      m.architecture.input_modalities.includes("image")
-    ));
+    const list = (modelData ?? []).filter(supportsImageTaggingContract);
     return [...list].sort((a, b) => {
       if (a.supports_tools !== b.supports_tools) return a.supports_tools ? -1 : 1;
+      if (a.supports_structured_outputs !== b.supports_structured_outputs) return a.supports_structured_outputs ? -1 : 1;
       return a.id.localeCompare(b.id);
     });
   }, [modelData]);
@@ -221,12 +228,7 @@ export default function AiTagBakeoffTab() {
     try {
       const result = await refetchModels();
       if (result.error) throw result.error;
-      const count = (result.data ?? []).filter((m) => (
-        m.supports_tools === true &&
-        !hasUnavailableOpenRouterPricing(m.pricing) &&
-        Array.isArray(m.architecture?.input_modalities) &&
-        m.architecture.input_modalities.includes("image")
-      )).length;
+      const count = (result.data ?? []).filter(supportsImageTaggingContract).length;
       toast.success(`OpenRouter vision models refreshed (${count})`, { id: toastId });
     } catch (e) {
       toast.error(`Failed to refresh models: ${(e as Error).message}`, { id: toastId });
@@ -343,7 +345,7 @@ export default function AiTagBakeoffTab() {
           <SelectContent className="sm:min-w-[28rem]">
             {visionModels.map((model) => (
               <SelectItem key={model.id} value={model.id} className="font-mono text-xs" suffix={formatOpenRouterPricing(model.pricing)}>
-                {fmtModel(model.id)}{model.supports_tools === false ? " (no tools)" : ""}
+                {fmtModel(model.id)}{model.supports_tools ? "" : " (schema)"}
               </SelectItem>
             ))}
           </SelectContent>

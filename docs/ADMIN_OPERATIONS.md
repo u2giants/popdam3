@@ -502,6 +502,12 @@ Rebuilds usage counts and rankings for all characters in the `characters` table.
 |-------|------|-------|
 | `threshold` | `number` (optional) | Minimum asset count to include |
 
+This operation computes `characters.usage_count` from `asset_characters` joined
+to non-deleted assets. It also resets every character to `is_priority=false`,
+then sets `is_priority=true` only for characters whose usage count is greater
+than or equal to the threshold. `is_priority` therefore means "common enough to
+show in compact prompts", not "valid/licensor-approved character".
+
 ### `get-latest-agent-build`
 Returns the latest available version/tag for the specified agent type from GitHub Container Registry.
 

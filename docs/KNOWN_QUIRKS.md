@@ -365,9 +365,9 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 **Why**: They must use the OpenRouter key-scoped `/api/v1/models/user` response, not the public `/api/v1/models` catalog. The user endpoint reflects the account's model guardrails/policy. The public catalog can include providers and aliases that are not allowed for this PopDAM key.
 
-**Extra filter rules**: Vision Bake-Off is stricter than "vision capable": the worker calls OpenRouter with `tool_choice: "required"`, so bake-off options must support both image input and tools. OpenRouter can also return unavailable placeholder aliases with negative pricing (for example `-1000000` per token); those are filtered out everywhere and their prices are not displayed.
+**Extra filter rules**: Image Tagging and Vision Bake-Off are stricter than "vision capable" but share the same contract. Options must support image input plus either tool calling or OpenRouter `response_format` JSON-schema structured outputs. The worker tries the structured `tag_asset` tool path first and falls back to the same schema through `response_format` when tool calling is not supported. OpenRouter can also return unavailable placeholder aliases with negative pricing (for example `-1000000` per token); those are filtered out everywhere and their prices are not displayed.
 
-**What breaks if you "fix" it**: Switching back to the public catalog, or listing vision models without checking tools/availability, lets users queue bake-off runs against models that OpenRouter will reject or that ignore the required tool response.
+**What breaks if you "fix" it**: Switching back to the public catalog, or listing vision models without checking image input plus structured-output support/availability, lets users queue production tagging or bake-off runs against models that OpenRouter will reject or that return prose the worker cannot safely apply.
 
 ---
 
@@ -600,3 +600,41 @@ SELECT last_value, is_called FROM auth.refresh_tokens_id_seq;
 **How it was fixed**: `handleStopScan()` now writes `error: "Scan stopped manually via the Stop Scan action."` alongside `status: "failed"`. `src/pages/ScanDiagnosticsPage.tsx`'s `explainScanError()` recognizes the phrase `"stopped manually"` and shows a calm, non-alarming "Scan stopped manually" card instead of the generic error explanation.
 
 **Future sessions should**: If you add another place that force-sets `SCAN_PROGRESS.status = "failed"` outside the agent's own reporting path, always include an explicit `error` string — don't rely on `synthesizeScanFailure()`, which only runs inside `handleScanProgress`. The status is still literally `"failed"` (not a distinct `"stopped"` state) — introducing a real `"stopped"` status would touch more surfaces (badge color, any code branching on `status === "failed"`) and wasn't done here; the fix is message-only.
+
+---
+
+## 57. Vision Bake-Off Character Recognition Can Be Right While UUID Fields Are Empty (Fixed 2026-07-14)
+
+**What it looks like**: A model names a character correctly in `ai_description`
+or tags, but the Characters field is empty; or it describes the visible
+character correctly while storing an obviously wrong property/character UUID.
+
+**Why it happened**: The bake-off result columns store canonical UUID matches,
+not free text. Older bake-off prompting asked the model to return
+`character_ids` from a compact character list. That list used
+`characters.is_priority=true` in several cases, and `is_priority` is only a
+PopDAM usage shortcut computed by `rebuild-character-stats` from existing
+`asset_characters` links. Rare/new-but-valid characters can be
+`is_priority=false`, and missing taxonomy rows cannot be returned as UUIDs at
+all. Example found on 2026-07-13: models could describe Poppy from Trolls, but
+there was no Poppy row under the Trolls property; Frosty had a row but was not
+priority. In broad no-property prompts, models also chose unrelated UUIDs such
+as Woody Woodpecker, T.O.T.S., or Batman because the UUID list was too noisy.
+
+**How it was fixed**: The bake-off worker now lets models return
+`character_names` as well as `character_ids`, includes all characters for a
+known property/licensor instead of only priority characters, resolves exact
+character names after the model responds, rejects property/character UUIDs that
+conflict with the selected/evidenced property, and records rejected/unresolved
+taxonomy decisions under `raw_output._popdam_debug`. Stale `running` result rows
+older than 10 minutes are marked failed instead of staying live forever. The
+sampler also changed from latest-first to random UUID-pivot sampling with
+dedupe by `quick_hash`, `sku + filename`, and filename, preferring non-TECHPACK
+copies.
+
+**Future sessions should**: Do not treat `is_priority=false` as "invalid
+character." It only means "not common enough for compact prompts." If a model
+correctly names a character but no UUID is stored, first check whether
+`public.characters` has the canonical row under the correct property. Missing or
+corrective taxonomy data belongs in canonical `/worksp/shared-db` migrations,
+not ad hoc Dashboard SQL or app-local migrations.

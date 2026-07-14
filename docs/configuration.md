@@ -110,9 +110,24 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 
 ### AI model dropdown refresh
 
-Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Vision Bake-Off then filters that guardrailed list to image-capable, tool-capable models because the bake-off worker requires structured tool output.
+Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Image Tagging and Vision Bake-Off then apply the same filter: image-capable models that support either tool calling or OpenRouter `response_format` JSON-schema structured outputs.
 
 Vision Bake-Off compares five models per run. Each result records the model latency, OpenRouter-reported prompt/completion/total token usage, and an estimated USD cost based on the current OpenRouter account pricing fetched from `/api/v1/models/user` when the worker processes the run. The pricing snapshot is stored with the result so historical runs are not reinterpreted if OpenRouter later changes prices.
+
+Vision Bake-Off sampling is random, not recent-first. When the admin does not
+provide explicit asset IDs, `create-ai-tag-bakeoff-run` samples eligible
+thumbnail-backed assets by random UUID pivots and deduplicates by `quick_hash`,
+`sku + filename`, and filename, preferring non-`TECHPACK` copies over duplicated
+tech-pack copies. This avoids one freshly ingested SKU/folder copy dominating a
+run.
+
+Character/property outputs are grounded after the model responds. The prompt
+allows both `character_ids` and `character_names`; the worker accepts UUIDs only
+when they agree with the selected/evidenced property, resolves exact character
+names from the `characters` table, and stores rejected/unresolved taxonomy
+details in `raw_output._popdam_debug`. A model can correctly name a character in
+the description but still produce no `character_ids` if the canonical character
+row is missing.
 
 OpenRouter can return unavailable placeholder aliases with negative pricing. The UI treats negative prompt/completion pricing as unavailable and filters those entries out rather than displaying the sentinel price.
 

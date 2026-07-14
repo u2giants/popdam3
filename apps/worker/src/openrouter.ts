@@ -49,6 +49,16 @@ export interface ChatCompletionRequest {
   messages: ChatMessage[];
   tools?: Tool[];
   tool_choice?: { type: "function"; function: { name: string } } | "required" | "auto";
+  response_format?: {
+    type: "json_object";
+  } | {
+    type: "json_schema";
+    json_schema: {
+      name: string;
+      strict?: boolean;
+      schema: Record<string, unknown>;
+    };
+  };
   max_tokens?: number;
   temperature?: number;
 }

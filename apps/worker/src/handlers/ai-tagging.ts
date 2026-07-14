@@ -11,26 +11,22 @@
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { chatCompletion, imageContent, tool, type ChatMessage } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
+import {
+  buildImageTaggingMessages,
+  buildImageTaggingPrompt,
+  callTagAssetModel,
+  fetchImageData,
+  getAiTaggingApiKey,
+  isStyleGuideSourcePdf,
+} from "./ai-tagging-shared.js";
 
-const THUMBNAIL_FETCH_TIMEOUT_MS = 20_000;
 const AI_TIMEOUT_MS = 60_000;
 const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(v: unknown): v is string {
   return typeof v === "string" && UUID_RE.test(v);
-}
-
-function isStyleGuideSourcePdf(asset: { file_type: string | null; filename: string | null }): boolean {
-  const filename = (asset.filename ?? "").toLowerCase();
-  return asset.file_type === "pdf" && (
-    filename.includes("licensing sheet") || filename.includes("licensing_sheet") ||
-    filename.includes("license sheet") || filename.includes("license_sheet") ||
-    filename.includes("tech pack") || filename.includes("tech_pack") ||
-    filename.includes("techpack")
-  );
 }
 
 /** Convert raw AI/DB error strings into human-readable messages. */
@@ -79,90 +75,9 @@ function isModelSpecificError(msg: string): boolean {
     msg.includes("inappropriate content") ||
     msg.includes("Unable to download the media resource") ||
     msg.includes("Failed to download multimodal content") ||
-    msg.includes("No endpoints found") // tool_choice exhausted all fallbacks
+    msg.includes("No endpoints found")
   );
 }
-
-// ── Tag asset tool schema ───────────────────────────────────────────────────
-
-const TAG_ASSET_TOOL = tool(
-  "tag_asset",
-  "Return structured tagging data for this design asset.",
-  {
-    type: "object",
-    properties: {
-      tags: {
-        type: "array",
-        items: { type: "string" },
-        description: "Descriptive tags: characters, styles, colors, themes",
-      },
-      ai_description: {
-        type: "string",
-        description: "One-sentence description of the design asset",
-      },
-      cover_description: {
-        type: "string",
-        description:
-          "PRODUCT label (max 8 words). If ERP Product Description was provided, distill property + product type from THAT text ONLY — do NOT use the image. If no ERP description, infer from filename/path. Examples: 'Frozen backpack', 'Spider-Man lunchbox', 'Mickey tee'. NEVER describe the artwork/scene. OMIT licensor names, SKUs, dimensions.",
-      },
-      scene_description: {
-        type: "string",
-        description: "What is depicted in the image",
-      },
-      asset_type: {
-        type: "string",
-        enum: ["art_piece", "product"],
-      },
-      art_source: {
-        type: "string",
-        enum: ["freelancer", "straight_style_guide", "style_guide_composition"],
-      },
-      design_style: {
-        type: "string",
-        description: "e.g. flat, dimensional, vintage, modern",
-      },
-      design_ref: {
-        type: "string",
-        description: "Any style number or design reference visible",
-      },
-      character_ids: {
-        type: "array",
-        items: { type: "string" },
-        description: "UUIDs of identified characters from taxonomy",
-      },
-      licensor_id: {
-        type: "string",
-        description: "UUID of identified licensor",
-      },
-      property_id: {
-        type: "string",
-        description: "UUID of identified property",
-      },
-      designer_name: {
-        type: "string",
-        description:
-          "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
-      },
-      technical_designer_name: {
-        type: "string",
-        description:
-          "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
-      },
-      freelancer_name: {
-        type: "string",
-        description:
-          "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
-      },
-      files_used: {
-        type: "array",
-        items: { type: "string" },
-        description:
-          "All entries from any 'Files Used' / 'Source Files' / 'Art Files' sections in the tech pack PDF text. Deduplicated across all sections. Empty array if no such section exists.",
-      },
-    },
-    required: ["tags", "ai_description", "scene_description"],
-  },
-);
 
 // ── Single-asset tagging via OpenRouter ──────────────────────────────────────
 
@@ -170,7 +85,7 @@ type TagOutcome = { outcome: "tagged" | "skipped" | "failed"; error?: string };
 
 async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutcome> {
   const client = db();
-  const apiKey = config.openRouterApiKey || config.googleAiApiKey;
+  const apiKey = getAiTaggingApiKey();
 
   if (!apiKey) {
     logger.error("No AI API key configured (OPENROUTER_API_KEY or GOOGLE_AI_API_KEY)");
@@ -200,175 +115,19 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
     return { outcome: "failed", error: "No thumbnail URL" };
   }
 
-  // Fetch custom tagging instructions
-  const { data: instrRow } = await client
-    .from("admin_config")
-    .select("value")
-    .eq("key", "TAGGING_INSTRUCTIONS")
-    .maybeSingle();
-  const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
-
-  // Fetch taxonomy context
-  const [licensorsRes, propertiesRes] = await Promise.all([
-    client.from("licensors").select("id, name").limit(50),
-    client.from("properties").select("id, name, licensor_id").limit(200),
-  ]);
-  const licensors = licensorsRes.data ?? [];
-  const properties = propertiesRes.data ?? [];
-
-  // Two-tier character matching
-  let characters: { id: string; name: string }[] = [];
-  let usingPriorityOnly = false;
-
-  if (asset.property_id) {
-    const { data: priorityChars } = await client
-      .from("characters")
-      .select("id, name")
-      .eq("property_id", asset.property_id)
-      .eq("is_priority", true)
-      .order("usage_count", { ascending: false });
-
-    if (priorityChars && priorityChars.length > 0) {
-      characters = priorityChars;
-      usingPriorityOnly = true;
-    } else {
-      const { data: allChars } = await client
-        .from("characters")
-        .select("id, name")
-        .eq("property_id", asset.property_id)
-        .order("name");
-      characters = allChars ?? [];
-    }
-  } else if (asset.licensor_id) {
-    const { data: propIds } = await client
-      .from("properties")
-      .select("id")
-      .eq("licensor_id", asset.licensor_id);
-    const ids = (propIds ?? []).map((p: { id: string }) => p.id);
-
-    if (ids.length > 0) {
-      const { data: priorityChars } = await client
-        .from("characters")
-        .select("id, name")
-        .in("property_id", ids)
-        .eq("is_priority", true)
-        .order("usage_count", { ascending: false })
-        .limit(200);
-
-      if (priorityChars && priorityChars.length > 0) {
-        characters = priorityChars;
-        usingPriorityOnly = true;
-      } else {
-        const { data: allChars } = await client
-          .from("characters")
-          .select("id, name")
-          .in("property_id", ids)
-          .limit(300);
-        characters = allChars ?? [];
-      }
-    }
-  } else {
-    const { data: priorityChars } = await client
-      .from("characters")
-      .select("id, name")
-      .eq("is_priority", true)
-      .order("usage_count", { ascending: false })
-      .limit(150);
-    characters = priorityChars ?? [];
-  }
-
-  const charContext = usingPriorityOnly
-    ? "Priority characters for this property/licensor (match from this list first):\n"
-    : "Characters (full list for this property):\n";
-
-  const taxonomyContext = [
-    `Licensors: ${licensors.map((l) => `${l.name} (${l.id})`).join(", ")}`,
-    `Properties: ${properties.map((p) => `${p.name} (${p.id})`).join(", ")}`,
-    `${charContext}${characters.map((c) => `${c.name} (${c.id})`).join(", ")}`,
-  ].join("\n");
-
-  // Fetch ERP description for cover_description derivation
-  let erpDescription: string | null = null;
-  if (asset.sku) {
-    const { data: erpItem } = await client
-      .from("erp_items_current")
-      .select("item_description")
-      .eq("style_number", asset.sku)
-      .maybeSingle();
-    erpDescription = erpItem?.item_description ?? null;
-  }
-
-  const erpCoverContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
-
-  // Fetch extracted PDF text (if this asset has a text sample)
-  const { data: pdfSample } = await client
-    .from("pdf_text_samples")
-    .select("extracted_text")
-    .eq("asset_id", assetId)
-    .order("sampled_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const extractedPdfText = pdfSample?.extracted_text ?? null;
-  const pdfTextContext = extractedPdfText ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n` : "";
-
-  const systemPrompt = `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
-
-Analyze the thumbnail image and file metadata to produce structured tags.
-
-File: ${asset.filename}
-Path: ${asset.relative_path}
-Type: ${asset.file_type}
-Existing tags: ${(asset.tags || []).join(", ") || "none"}
-${erpCoverContext}${pdfTextContext}
-Known taxonomy:
-${taxonomyContext}
-
-Based on the image and metadata, identify:
-1. Characters visible (match to known characters if possible)
-2. Style/design descriptors (flat, dimensional, vintage, modern, etc.)
-3. Color palette keywords
-4. Scene description (what's happening in the image)
-5. Any style numbers or design references visible
-6. Asset type: art_piece or product
-7. Art source: freelancer, straight_style_guide, or style_guide_composition
-8. Suggested licensor_id and property_id from the taxonomy (if identifiable)
-9. If this is a Tech Pack or design document, extract the **Designer** (or Creative Designer) name, the **Technical Designer** name, and if freelancer art, the **Freelancer** name. Look for these in title blocks, header areas, or any text labels on the document. Return null for any you cannot find.
-10. Cover description rule — **CRITICAL**: This is a PRODUCT label, NOT an image description. Derive a very short card label (max 8 words) as **PROPERTY + PRODUCT TYPE**.
-   - If an "ERP Product Description" is provided above: extract the product type ONLY from that text. IGNORE the image entirely for this field — the image often shows artwork/art assets, NOT the actual product.
-   - If NO ERP description is available: infer from the filename or folder path (e.g. "backpack", "lunchbox", "tee").
-   - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
-   - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
-11. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions — include them regardless. Return as files_used. If no such section exists, return an empty array.
-${usingPriorityOnly
-    ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
-    : ""}${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}`;
-
-  // Fetch thumbnail and encode as base64
-  let imageBase64: string;
-  let imageMimeType: string;
+  const systemPrompt = await buildImageTaggingPrompt(asset);
+  let image: { base64: string; mimeType: string };
   try {
-    const imgResp = await fetch(thumbnailUrl, { signal: AbortSignal.timeout(THUMBNAIL_FETCH_TIMEOUT_MS) });
-    if (!imgResp.ok) {
-      logger.warn("ai-tag: thumbnail fetch failed", { assetId, status: imgResp.status });
-      if (imgResp.status === 403 || imgResp.status === 404) {
-        // Thumbnail file missing from storage — mark on the asset and skip (not a tagging failure)
-        await client.from("assets").update({ thumbnail_error: `Thumbnail not found in storage (HTTP ${imgResp.status})` }).eq("id", assetId);
-        return { outcome: "skipped" };
-      }
-      return { outcome: "failed", error: `Thumbnail fetch HTTP ${imgResp.status}` };
-    }
-    const contentType = imgResp.headers.get("content-type") || "image/jpeg";
-    imageMimeType = contentType.split(";")[0].trim();
-    const bytes = new Uint8Array(await imgResp.arrayBuffer());
-    let binary = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunkSize, bytes.length)));
-    }
-    imageBase64 = Buffer.from(binary, "binary").toString("base64");
+    image = await fetchImageData(thumbnailUrl);
   } catch (e) {
-    logger.warn("ai-tag: thumbnail fetch error", { assetId, error: String(e) });
-    return { outcome: "failed", error: `Thumbnail fetch error: ${String(e).slice(0, 200)}` };
+    const msg = e instanceof Error ? e.message : String(e);
+    logger.warn("ai-tag: thumbnail fetch error", { assetId, error: msg });
+    if (msg.includes("Thumbnail fetch HTTP 403") || msg.includes("Thumbnail fetch HTTP 404")) {
+      const status = msg.match(/HTTP (\d+)/)?.[1] ?? "unknown";
+      await client.from("assets").update({ thumbnail_error: `Thumbnail not found in storage (HTTP ${status})` }).eq("id", assetId);
+      return { outcome: "skipped" };
+    }
+    return { outcome: "failed", error: `Thumbnail fetch error: ${msg.slice(0, 200)}` };
   }
 
   // Get model from admin_config (cached for 1 min)
@@ -378,30 +137,13 @@ ${usingPriorityOnly
   const attemptTag = async (model: string): Promise<AttemptResult> => {
     // Call via OpenRouter
     try {
-      const messages: ChatMessage[] = [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            imageContent(imageBase64, imageMimeType),
-            { type: "text", text: "Analyze this design asset image and return structured tags using the tag_asset function." },
-          ],
-        },
-      ];
-
-      const result = await chatCompletion(apiKey, {
-        model,
-        messages,
-        tools: [TAG_ASSET_TOOL],
-        tool_choice: "required",
-        max_tokens: 1500,  // structured tag output is small; avoid burning credits on default 65535
-      }, AI_TIMEOUT_MS);
-
-      const tagData = result.toolCalls?.[0]?.arguments;
-      if (!tagData) {
-        logger.warn("ai-tag: AI did not return structured tags", { assetId, model });
-        return { outcome: "failed", error: `Model ${model} returned no structured tags (empty tool call)` };
-      }
+      const messages = buildImageTaggingMessages(
+        systemPrompt,
+        image,
+        "Analyze this design asset image and return structured tags matching the tag_asset schema.",
+      );
+      const { tagData, outputMode } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 1500);
+      logger.info("ai-tag: received structured tags", { assetId, model, outputMode });
 
       const updates: Record<string, unknown> = {
         status: "tagged",
