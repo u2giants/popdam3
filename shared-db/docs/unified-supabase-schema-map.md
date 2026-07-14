@@ -100,9 +100,10 @@ Important RPC/function families:
 DAM library search:
 
 - `dam_search_documents` is the canonical flattened DAM search table. It stores asset and style-group documents, a stored generated `search_tsv`, trigram-indexed SKU/path-style fields, optional `embedding vector(384)`, and metadata/source hashes for embedding freshness.
+- `dam_search_synonyms` is the curated business-language vocabulary for DAM search. `expand_dam_search_queries(query)` normalizes hyphen/slash/underscore spacing and applies active synonym rows before `search_dam_documents` ranks matches.
 - `search_dam_documents(query, limit, document_types, query_embedding)` is the canonical hybrid-capable RPC. `search_assets_full_text(query, limit)` and `search_style_groups_full_text(query, limit)` remain app-facing compatibility wrappers so PopDAM can keep intersecting IDs with existing filters, visibility guards, sorting, and pagination.
 - Indexed sources: asset metadata (`filename`, `relative_path`, product/AI descriptions, customer/program, licensor/property/category), style-group metadata (`sku`, `folder_path`, product description, customer/program, licensor/property/category), and `pdf_text_samples.extracted_text` from tech-pack/licensor-sheet PDF extraction.
-- Search support migrations: `20260709150000_dam_full_text_search.sql`, `20260709151000_dam_full_text_search_preserve_substring.sql`, `20260713215134_dam_search_index_speed.sql`, and `20260713221518_dam_hybrid_search_foundation.sql`.
+- Search support migrations: `20260709150000_dam_full_text_search.sql`, `20260709151000_dam_full_text_search_preserve_substring.sql`, `20260713215134_dam_search_index_speed.sql`, `20260713221518_dam_hybrid_search_foundation.sql`, `20260714165000_dam_search_spiderman_normalization.sql`, and `20260714173500_dam_search_synonyms.sql`.
 - Compatibility note: substring behavior is intentionally limited to indexed SKU/path-style fields such as `filename`, `relative_path`, `sku`, `folder_path`, `customer`, and `program`; broad description/licensor/property/category search stays in the full-text vectors.
 
 Enums:
