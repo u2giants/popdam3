@@ -7,9 +7,9 @@ Migrations:
 - `20260714180000_ai_tagging_keyset_candidates.sql`
 - `20260714180100_fix_ai_tag_candidate_tier_type.sql` (preview-rehearsal type correction)
 
-Status: preview verified; production promotion pending. This note is the
-canonical adoption and verification record for every application using Supabase project
-`qsllyeztdwjgirsysgai`.
+Status: database contract promoted to production and PopDAM caller merged. This
+note is the canonical adoption and verification record for every application
+using Supabase project `qsllyeztdwjgirsysgai`.
 
 ## Why this changed
 
@@ -72,13 +72,13 @@ representative `EXPLAIN (ANALYZE, BUFFERS)` evidence.
 
 | Gate | Status | Evidence |
 |---|---|---|
-| Shared-db PR | Pending | Branch `codex/ai-tagging-keyset-timeout` |
+| Shared-db PR | Passed | [PR #64](https://github.com/u2giants/shared-db/pull/64), merged as `fadebce` |
 | Preview dry-run/apply | Passed | Both migrations applied 2026-07-14 via the canonical non-pooling preview URL |
 | Preview correctness/roles | Passed | 120k rollback-only fixture; limit clamp 200, null groups eligible, zero tagged-group leaks, explicit group scope, invalid mode/half-cursor rejected; only `service_role` can execute |
 | Preview plans/latency | Passed | First page 55 ms, deep page 61 ms; underlying page used `idx_assets_ai_tag_untagged_candidates`, no sort/offset, 2.5 ms execution |
-| Production apply | Pending | Approved by the implementation request; timestamp pending |
-| Production plans/latency | Pending | To be recorded |
-| PopDAM worker adoption | Pending | To be recorded |
+| Production apply | Passed | RPC plus all three indexes verified live on `qsllyeztdwjgirsysgai` at 2026-07-14 16:46 UTC |
+| Production plans/latency | Passed | With `statement_timeout = '8s'`, first 50-row untagged page completed in 19.834 ms and the next 50-row keyset page in 16.746 ms |
+| PopDAM caller adoption | Passed | Caller merged in `6e7d289`; Railway build-context fixes landed in `280b9f5` and `9181891`; worker `1.4.3` deployed successfully. Worker tests/build, exact Docker build/startup, frontend cursor tests, and GitHub CI passed. |
 
 Rollback is additive and migration-based: stop the worker, revert the PopDAM
 caller if needed, and leave the RPC/indexes in place unless they are proven
