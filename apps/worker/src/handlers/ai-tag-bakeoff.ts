@@ -300,7 +300,31 @@ async function upsertBakeoffResult(row: Record<string, unknown>) {
   if (error) throw new Error(error.message);
 }
 
-async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId: string, prompt: string, image: { base64: string; mimeType: string }, pricing: ModelPricing | undefined) {
+/**
+ * Pick the highest-resolution rendition available to the cloud worker.
+ *
+ * For PDFs the render agents upload a 1500px hi-res page image and record its
+ * URL on `pdf_text_samples.thumbnail_url` (see windows-agent pdf-backfill).
+ * That is the only larger-than-800px rendition reachable from the worker —
+ * raster originals live on the on-prem source share and are never uploaded to
+ * Spaces, so raster assets fall back to the 800px `assets.thumbnail_url`.
+ */
+async function resolveBakeoffImageUrl(asset: BakeoffAsset): Promise<{ url: string; rendition: string } | null> {
+  const { data: sample } = await db()
+    .from("pdf_text_samples")
+    .select("thumbnail_url")
+    .eq("asset_id", asset.id)
+    .not("thumbnail_url", "is", null)
+    .order("sampled_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const hires = typeof sample?.thumbnail_url === "string" ? sample.thumbnail_url.trim() : "";
+  if (hires) return { url: hires, rendition: "pdf_hires_1500" };
+  if (asset.thumbnail_url) return { url: asset.thumbnail_url, rendition: "thumbnail_800" };
+  return null;
+}
+
+async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId: string, prompt: string, image: { base64: string; mimeType: string }, rendition: string, pricing: ModelPricing | undefined) {
   await upsertBakeoffResult({
     run_id: runId,
     asset_id: asset.id,
@@ -331,8 +355,8 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
     const { characterNames, propertyName } = await resolveNames(characterIds, propertyId);
     const costUsd = computeCostUsd(usage, pricing);
     const rawOutput = Object.keys(debug).length > 0
-      ? { ...output, _popdam_debug: debug, _popdam_output_mode: outputMode, _popdam_provider: providerInfo, _popdam_retry_count: retryCount }
-      : { ...output, _popdam_output_mode: outputMode, _popdam_provider: providerInfo, _popdam_retry_count: retryCount };
+      ? { ...output, _popdam_debug: debug, _popdam_output_mode: outputMode, _popdam_provider: providerInfo, _popdam_retry_count: retryCount, _popdam_image_rendition: rendition }
+      : { ...output, _popdam_output_mode: outputMode, _popdam_provider: providerInfo, _popdam_retry_count: retryCount, _popdam_image_rendition: rendition };
 
     try {
       await upsertBakeoffResult({
@@ -482,15 +506,16 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   }
 
   for (const asset of (assets ?? []) as BakeoffAsset[]) {
-    if (!asset.thumbnail_url) {
+    const source = await resolveBakeoffImageUrl(asset);
+    if (!source) {
       failed += models.length;
-      failureSamples.push({ at: new Date().toISOString(), asset_id: asset.id, filename: asset.filename ?? "", relative_path: asset.relative_path ?? "", error: "No thumbnail URL" });
+      failureSamples.push({ at: new Date().toISOString(), asset_id: asset.id, filename: asset.filename ?? "", relative_path: asset.relative_path ?? "", error: "No image URL" });
       continue;
     }
     try {
-      const [prompt, image] = await Promise.all([buildImageTaggingPrompt(asset), fetchImageData(asset.thumbnail_url)]);
+      const [prompt, image] = await Promise.all([buildImageTaggingPrompt(asset), fetchImageData(source.url)]);
       for (const [slot, modelId] of models) {
-        const result = await runModel(runId, asset, slot, modelId, prompt, image, prices.get(modelId));
+        const result = await runModel(runId, asset, slot, modelId, prompt, image, source.rendition, prices.get(modelId));
         if (result.ok) evaluated++;
         else {
           failed++;

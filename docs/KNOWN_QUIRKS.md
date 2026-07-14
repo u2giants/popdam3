@@ -772,3 +772,15 @@ then pin the winner. The bake-off itself is intentionally left **unpinned** — 
 must observe natural routing to be a discovery tool. Only Image Tagging reads the
 pin today; ERP classification and PDF extraction do not (add a sibling
 `*_provider` key + thread `buildProviderPin` if that need appears).
+
+## 61. Vision Bake-Off Uses Hi-Res PDF Pages, but Production Tagging Still Uses 800px Thumbnails (2026-07-14)
+
+**File**: `apps/worker/src/handlers/ai-tag-bakeoff.ts`.
+
+**What it looks like**: Running a Vision Bake-Off on PDF assets should behave exactly like production Image Tagging because both use the shared `tag_asset` contract.
+
+**Actually**: The contract is shared, but the image rendition can differ. Bake-off now prefers the latest 1500px PDF page image stored on `pdf_text_samples.thumbnail_url` and records `raw_output._popdam_image_rendition = "pdf_hires_1500"`. If no PDF page image exists, or for raster/non-PDF assets, it falls back to the 800px `assets.thumbnail_url` and records `"thumbnail_800"`.
+
+**Why**: The render agents already upload 1500px PDF page images to Spaces for PDF text sampling, so the Railway worker can use them without new storage, schema, or agent work. Raster originals are not uploaded to cloud storage; the worker can only reach the 800px thumbnail unless agents create and upload a new hi-res raster rendition.
+
+**Do not change because**: Treat this as a bake-off measurement path, not a silent production behavior change. Production Image Tagging still uses `assets.thumbnail_url`; moving production to hi-res raster inputs requires an agent-side rendition/backfill plan and, likely, a shared-db column for the new URL.
