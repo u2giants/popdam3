@@ -14,6 +14,7 @@ This document covers two distinct things: (1) which AI models are used inside th
 - To change the model: Settings → AI Models. This updates `admin_config.AI_TASK_MODELS`; the Railway worker still needs its own `OPENROUTER_API_KEY` env var set in Railway.
 - Output contract: every model must return `tags`, `ai_description`, and `scene_description`. The worker accepts OpenRouter tool calling, JSON-schema structured outputs, or JSON mode, then validates the required fields before storing a result.
 - Retry behavior: malformed/invalid JSON mode output gets one repair retry with a stricter JSON-only instruction.
+- **Endpoint pinning (optional):** `admin_config.AI_TASK_MODELS.vision_tagging_provider` = comma-separated OpenRouter provider slug(s) (e.g. `anthropic`, `anthropic,amazon-bedrock`). When set, the worker sends `provider: { only: [...], allow_fallbacks: false }` on every OpenRouter leg — forcing those endpoints and disabling silent fallback so a flaky endpoint hard-fails visibly. Blank = normal routing. Set it in Settings → AI Models → Image Tagging. Wiring: `buildProviderPin()` in `openrouter.ts` → `callTagAssetModel(..., provider)`. See `docs/KNOWN_QUIRKS.md` #60. Only Image Tagging reads this; ERP/PDF paths do not.
 
 ### Vision Bake-Off
 - Code path: `apps/worker/src/handlers/ai-tag-bakeoff.ts`, reusing `callTagAssetModel()` from `ai-tagging-shared.ts`.
@@ -21,6 +22,8 @@ This document covers two distinct things: (1) which AI models are used inside th
 - Model picker source: OpenRouter `/api/v1/models/user`, filtered to the current account's guardrails, image input, available pricing, and at least one supported structured-output path (`tools`, `structured_outputs`, or `response_format` JSON mode).
 - Each result stores latency, prompt/completion/total tokens, pricing snapshot, estimated cost, output mode, retry count, and best-effort OpenRouter provider/endpoint metadata under `raw_output._popdam_provider`.
 - Provider metadata is best-effort. OpenRouter cache hits, old rows, and some edge/auth/rate-limit failures can show `unknown`.
+- **⚠️ Open question (2026-07-14):** the "which endpoints *failed*" evidence — the `openrouter_metadata.attempts[]` / `endpoints.available` fields the parser reads — is **undocumented by OpenRouter and appears to never populate** (0/251 prod rows had a `_popdam_provider` blob at check time; docs list no such fields or `X-OpenRouter-Metadata` header; a live probe was blocked by the account data-policy). OpenRouter only ever exposes the *serving* endpoint (response `model` + `/api/v1/generation`), not the failed legs. Use the endpoint **pin** (above) to detect a bad endpoint via hard failure. To resolve the open question, run one bake-off on deployed tracking code and check whether any `_popdam_provider.routerMetadata.attempts` array is non-empty. Full detail: `docs/KNOWN_QUIRKS.md` #59.
+- The bake-off is intentionally **not** pinned — it must observe natural OpenRouter routing to serve as an endpoint-discovery tool.
 
 ### Legacy `ai-tag` Edge Function
 - Location: `supabase/functions/ai-tag/`.

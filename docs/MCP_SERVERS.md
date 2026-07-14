@@ -77,6 +77,27 @@ launched; verify with `mcp__1password__vault_list` before assuming it's absent.
   missing after this fix + a session restart, this environment's placeholder resolution may
   not extend to stdio `env` blocks either — fall back to `op run` (above) or ask the user.
 
+**Reconfirmed 2026-07-14** that the `supabase` MCP can still land in this
+unauthorized state (`Unauthorized. Please provide a valid access token…`) in a
+session where the `.bashrc` token block wasn't sourced. **This is not a
+dead end — do not report the DB as unreachable because of it.** The Supabase
+**CLI** (`supabase`, installed + authed, project linked to
+`qsllyeztdwjgirsysgai`), `psql`, and direct **PostgREST** all work when fed the
+service role from 1Password. Working no-secret-leak pattern used that session:
+
+```bash
+# resolve item id first (op:// refs break on titles containing "()"):
+RID=$(op item get "Supabase Runtime Keys - shared POP database (production)" \
+      --vault vibe_coding --format json | node -e '…print .id…')
+printf 'SUPABASE_URL=op://vibe_coding/%s/SUPABASE_URL\nSUPABASE_SERVICE_ROLE_KEY=op://vibe_coding/%s/SUPABASE_SERVICE_ROLE_KEY\n' "$RID" "$RID" > refs.env
+op run --env-file=refs.env -- node query.mjs   # secrets only in the subprocess env
+```
+
+Never `op read` a secret to stdout (the harness classifier blocks printing even a
+credential *prefix* — "credential materialization"); always inject via
+`op run --env-file`. The live PopDAM OpenRouter key is in
+`admin_config.OPENROUTER_API_KEY`, reachable the same way.
+
 ---
 
 ## Windows (Claude Desktop, Claude Code, Codex) — separate from this repo

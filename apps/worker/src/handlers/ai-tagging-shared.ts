@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import { db } from "../supabase.js";
-import { chatCompletion, imageContent, tool, OpenRouterError, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
+import { chatCompletion, imageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import {
   TAG_ASSET_SCHEMA,
   buildTaggingSystemPrompt,
@@ -292,6 +292,7 @@ export async function callTagAssetModel(
   messages: ChatMessage[],
   timeoutMs: number,
   maxTokens = 1500,
+  provider?: ChatCompletionRequest["provider"],
 ): Promise<TagAssetCompletionResult> {
   let toolError: unknown = null;
 
@@ -303,6 +304,7 @@ export async function callTagAssetModel(
         tools: [TAG_ASSET_TOOL],
         tool_choice: "required",
         max_tokens: maxTokens,
+        provider,
       }, timeoutMs);
 
       const toolData = result.toolCalls?.[0]?.arguments;
@@ -336,6 +338,7 @@ export async function callTagAssetModel(
         },
       },
       max_tokens: maxTokens,
+      provider,
     }, timeoutMs);
 
     const contentData = parseJsonObject(result.content);
@@ -348,6 +351,7 @@ export async function callTagAssetModel(
         messages: withJsonObjectInstruction(messages),
         response_format: { type: "json_object" },
         max_tokens: maxTokens,
+        provider,
       }, timeoutMs);
 
       const contentData = parseJsonObject(result.content);
@@ -362,6 +366,7 @@ export async function callTagAssetModel(
           response_format: { type: "json_object" },
           max_tokens: maxTokens,
           temperature: 0,
+          provider,
         }, timeoutMs);
 
         const contentData = parseJsonObject(result.content);

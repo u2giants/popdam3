@@ -447,6 +447,7 @@ const TASK_MODEL_LABELS: Record<string, {
   requiresVision?: boolean;
   requiresStructuredOutput?: boolean;
   fallbackKey?: string;
+  providerPinKey?: string;
 }> = {
   vision_tagging: {
     label: "Image Tagging",
@@ -455,6 +456,7 @@ const TASK_MODEL_LABELS: Record<string, {
     requiresVision: true,
     requiresStructuredOutput: true,
     fallbackKey: "vision_tagging_fallback",
+    providerPinKey: "vision_tagging_provider",
   },
   text_classification: {
     label: "ERP Classification",
@@ -783,7 +785,7 @@ export function AiModelsConfigSection() {
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, requiresVision, requiresStructuredOutput, fallbackKey }]) => {
+            {Object.entries(TASK_MODEL_LABELS).map(([key, { label, description, defaultModel, requiresTools, requiresVision, requiresStructuredOutput, fallbackKey, providerPinKey }]) => {
               const currentVal = taskModels[key] || "";
               const modelList = openRouterModels ?? [];
               const modelMeetsRequirements = (m: typeof modelList[number] | undefined) => {
@@ -879,6 +881,20 @@ export function AiModelsConfigSection() {
                       {fallbackVal && !modelMeetsRequirements(modelList.find((m) => m.id === fallbackVal)) && modelList.length > 0 && requirementLabel && (
                         <p className="text-[10px] text-destructive">Fallback model does not support {requirementLabel}.</p>
                       )}
+                    </div>
+                  )}
+                  {providerPinKey && (
+                    <div className="mt-1.5 space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Pin OpenRouter endpoint (optional)</Label>
+                      <Input
+                        value={taskModels[providerPinKey] || ""}
+                        onChange={(e) => setTaskModels((prev) => ({ ...prev, [providerPinKey]: e.target.value }))}
+                        placeholder="e.g. anthropic  (comma-separate for a short allow-list)"
+                        className="h-8 text-xs font-mono"
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Provider slug(s) to force for this model. When set, fallbacks are disabled so a flaky endpoint hard-fails instead of silently rerouting. Leave blank for normal OpenRouter routing. Find the winning/failing slug in the Vision Bake-Off provider-patterns table.
+                      </p>
                     </div>
                   )}
                   <p className="text-[10px] text-muted-foreground">{description}</p>

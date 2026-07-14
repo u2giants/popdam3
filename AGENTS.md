@@ -181,11 +181,26 @@ or `response_format: { "type": "json_object" }` with app-side validation.
 Required fields are `tags`, `ai_description`, and `scene_description`; malformed
 JSON gets one repair retry in JSON mode.
 
-OpenRouter model IDs may route to different provider endpoints. Bake-off result
-rows store best-effort route evidence under
-`ai_tag_bakeoff_results.raw_output._popdam_provider`; old rows and cache hits can
-show `unknown`. Do not add shared-db provider columns unless the app needs
-cross-run filtering/reporting outside the bake-off UI.
+OpenRouter model IDs may route to different provider endpoints, so the same
+model can flip pass/fail per call. Two things follow, both detailed in
+`docs/KNOWN_QUIRKS.md` #59/#60 and `docs/MODEL_RULES.md`:
+
+- **Detecting which endpoint failed is NOT supported by OpenRouter's API.**
+  Bake-off rows store best-effort route evidence under
+  `ai_tag_bakeoff_results.raw_output._popdam_provider`, but the
+  `openrouter_metadata.attempts[]` / `endpoints.available` fields the code
+  parses are **undocumented and, per a 2026-07-14 investigation, appear to never
+  populate** (0/251 prod rows had the blob; docs list no such fields; couldn't
+  confirm live because the account data-policy blocks bare text calls). The API
+  only ever names the *serving* endpoint (response `model` + `/api/v1/generation`),
+  never the failed legs. Don't build features assuming the failed-leg list
+  exists. Do not add shared-db provider columns unless the app needs cross-run
+  filtering/reporting outside the bake-off UI.
+- **To force / diagnose an endpoint, pin it.** Set
+  `admin_config.AI_TASK_MODELS.vision_tagging_provider` to OpenRouter provider
+  slug(s); the worker sends `provider: { only: [...], allow_fallbacks: false }`
+  so a bad endpoint hard-fails instead of silently rerouting. This is the
+  reliable way to know which endpoint failed. Only Image Tagging reads it today.
 
 ---
 

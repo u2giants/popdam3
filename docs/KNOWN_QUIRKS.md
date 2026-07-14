@@ -707,3 +707,68 @@ metadata; and old rows will show `unknown`. That is missing evidence, not proof
 there was no provider route. Avoid adding a shared-db migration for provider
 columns unless the app needs filtering/reporting on this metadata outside the
 bake-off UI.
+
+**⚠️ Verified caveat (2026-07-14): the `openrouter_metadata.attempts[]` /
+`endpoints.available` path likely never populates — treat "which endpoints
+failed" as UNSUPPORTED by OpenRouter's API until proven otherwise.** A session
+investigating "the same model sometimes fails, sometimes succeeds" checked this
+end to end:
+
+- **OpenRouter's own docs** (`/docs/features/provider-routing`,
+  `/docs/api-reference/*`) document **no** `openrouter_metadata` object, **no**
+  `attempts[]` array, **no** `endpoints.available` array, and **no**
+  `X-OpenRouter-Metadata` request header. Those field names appear to be
+  assumed, not real. The only documented route attribution is the response
+  `model` field and the `/api/v1/generation` endpoint — **both name only the
+  endpoint that ultimately *served* the call, never the failed legs of a
+  fallback chain.**
+- **Production data agrees**: at the time of the check, **0 of 251**
+  `ai_tag_bakeoff_results` rows had ever stored a `_popdam_provider` blob, even
+  though 143 carried the sibling `_popdam_output_mode` (written in the same
+  object spread). Only one bake-off run postdated the tracking commit
+  (`ff84eeb`, deploy-window), so this is *partly* "no data yet" — but combined
+  with the docs it strongly suggests the metadata never arrives.
+- **Could not be confirmed live**: the PopDAM OpenRouter account's
+  privacy/data-policy blocks bare text completions (`No endpoints available
+  matching your guardrail restrictions and data policy`), so a from-scratch
+  probe couldn't capture a real 200 body. Not worth flipping the account
+  setting (outward-facing prod config) to test.
+
+**The reliable way to detect a bad endpoint is quirk #60 (pin +
+`allow_fallbacks: false`)** — a hard failure then names the exact provider. The
+parser is defensively null-safe, so leaving the `attempts[]` code in place is
+harmless; just don't expect the failed-leg list to fill in. To close the open
+question, run **one** bake-off on the deployed tracking code and check whether a
+single `_popdam_provider` blob ever contains a `routerMetadata.attempts` array.
+
+## 60. Pinning an OpenRouter Endpoint to Force One Provider (2026-07-14)
+
+**File**: `apps/worker/src/openrouter.ts` (`buildProviderPin`),
+`apps/worker/src/handlers/ai-tagging-shared.ts` (`callTagAssetModel` `provider`
+param), `apps/worker/src/handlers/ai-tagging.ts` (config read),
+`src/components/settings/ApisTab.tsx` (admin field).
+
+**What it is**: Optional `admin_config.AI_TASK_MODELS.vision_tagging_provider` —
+one or more comma-separated OpenRouter provider slugs (e.g. `anthropic` or
+`anthropic,amazon-bedrock`). When set, the production Image Tagging worker sends
+`provider: { only: [...slugs], allow_fallbacks: false }` on every OpenRouter
+leg, forcing the call to those endpoints and **disabling silent fallback**.
+Blank = normal routing. Set it in Settings → AI Models → Image Tagging → "Pin
+OpenRouter endpoint (optional)".
+
+**Why**: The same model ID load-balances across upstream endpoints (Anthropic
+direct, Bedrock, Vertex, DeepInfra, …) that differ in tool-call fidelity,
+JSON-schema support, and content filtering — so "sometimes fails" is usually
+*which endpoint got picked*. `{only, allow_fallbacks:false}` is exactly
+OpenRouter's documented pin structure (verified against
+`/docs/features/provider-routing`). With fallbacks off, a flaky endpoint
+**hard-fails visibly** instead of silently rerouting, which both stabilizes
+production on a known-good endpoint and turns endpoint flakiness into a
+deterministic, attributable error.
+
+**Future sessions should**: Use the Vision Bake-Off to discover which provider
+slug wins/fails for a given model (its per-run provider success/failure table),
+then pin the winner. The bake-off itself is intentionally left **unpinned** — it
+must observe natural routing to be a discovery tool. Only Image Tagging reads the
+pin today; ERP classification and PDF extraction do not (add a sibling
+`*_provider` key + thread `buildProviderPin` if that need appears).

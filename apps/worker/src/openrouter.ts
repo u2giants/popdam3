@@ -91,6 +91,15 @@ export interface ChatCompletionResult {
   };
 }
 
+/** One upstream endpoint OpenRouter tried, in order. Includes failed legs. */
+export interface OpenRouterAttempt {
+  provider?: string | null;
+  endpoint?: string | null;
+  model?: string | null;
+  status?: number | null;
+  ok: boolean;
+}
+
 export interface OpenRouterProviderInfo {
   provider?: string | null;
   endpoint?: string | null;
@@ -98,11 +107,45 @@ export interface OpenRouterProviderInfo {
   generationId?: string | null;
   upstreamId?: string | null;
   upstreamStatus?: number | null;
+  /** Every endpoint OpenRouter attempted for this call — failed legs included. */
+  attempts?: OpenRouterAttempt[];
   routerMetadata?: unknown;
   headers?: Record<string, string>;
 }
 
 type RouterEndpointMetadata = Record<string, unknown>;
+
+function str(value: unknown): string | null {
+  return typeof value === "string" && value ? value : null;
+}
+
+/** Normalize one raw router attempt/endpoint record into a stable shape. */
+function normalizeAttempt(raw: RouterEndpointMetadata): OpenRouterAttempt {
+  const status = typeof raw.status === "number" ? raw.status : null;
+  return {
+    provider: str(raw.provider_name) ?? str(raw.provider),
+    endpoint: str(raw.endpoint_name) ?? str(raw.tag) ?? str(raw.slug) ?? str(raw.model),
+    model: str(raw.model),
+    status,
+    ok: typeof status === "number" ? status >= 200 && status < 300 : false,
+  };
+}
+
+/**
+ * Build a `provider` request override that pins a call to specific upstream
+ * endpoint(s) and disables silent fallback. Pass one or more OpenRouter
+ * provider slugs (e.g. "anthropic", "amazon-bedrock"); an empty/nullish value
+ * returns undefined so callers can pass it through unconditionally.
+ */
+export function buildProviderPin(
+  slugs: string | string[] | null | undefined,
+): ChatCompletionRequest["provider"] | undefined {
+  const list = (Array.isArray(slugs) ? slugs : (slugs ?? "").split(","))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (list.length === 0) return undefined;
+  return { only: list, allow_fallbacks: false };
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -148,12 +191,19 @@ function collectProviderInfo(headers: Headers, body?: Record<string, unknown>): 
     ? (routerMetadata as { endpoints: { available: RouterEndpointMetadata[] } }).endpoints.available
     : [];
   const selectedEndpoint = endpointCandidates.find((endpoint) => endpoint.selected === true) ?? null;
-  const successfulAttempt = Array.isArray((routerMetadata as { attempts?: unknown[] } | undefined)?.attempts)
-    ? (routerMetadata as { attempts: RouterEndpointMetadata[] }).attempts.find((attempt) => {
-      const status = attempt.status;
-      return typeof status === "number" && status >= 200 && status < 300;
-    }) ?? null
-    : null;
+
+  const rawAttempts = Array.isArray((routerMetadata as { attempts?: unknown[] } | undefined)?.attempts)
+    ? (routerMetadata as { attempts: RouterEndpointMetadata[] }).attempts
+    : [];
+  const attempts = rawAttempts.map(normalizeAttempt);
+  const successfulAttempt = rawAttempts.find((attempt) => {
+    const status = attempt.status;
+    return typeof status === "number" && status >= 200 && status < 300;
+  }) ?? null;
+  // For attribution, prefer the endpoint that actually served the response; on a
+  // pure-failure body there is no 2xx attempt, so fall back to the LAST attempt —
+  // that is the endpoint that failed, which is exactly what we want to record.
+  const representativeAttempt = successfulAttempt ?? rawAttempts[rawAttempts.length - 1] ?? null;
 
   return {
     provider: (
@@ -162,8 +212,7 @@ function collectProviderInfo(headers: Headers, body?: Record<string, unknown>): 
       (typeof body?.provider_name === "string" ? body.provider_name : null) ??
       (typeof selectedEndpoint?.provider_name === "string" ? selectedEndpoint.provider_name : null) ??
       (typeof selectedEndpoint?.provider === "string" ? selectedEndpoint.provider : null) ??
-      (typeof successfulAttempt?.provider_name === "string" ? successfulAttempt.provider_name : null) ??
-      (typeof successfulAttempt?.provider === "string" ? successfulAttempt.provider : null)
+      str(representativeAttempt?.provider_name) ?? str(representativeAttempt?.provider)
     ),
     endpoint: (
       pickHeader(headers, ["x-openrouter-endpoint", "openrouter-endpoint"]) ??
@@ -173,18 +222,17 @@ function collectProviderInfo(headers: Headers, body?: Record<string, unknown>): 
       (typeof selectedEndpoint?.tag === "string" ? selectedEndpoint.tag : null) ??
       (typeof selectedEndpoint?.slug === "string" ? selectedEndpoint.slug : null) ??
       (typeof selectedEndpoint?.model === "string" ? selectedEndpoint.model : null) ??
-      (typeof successfulAttempt?.endpoint_name === "string" ? successfulAttempt.endpoint_name : null) ??
-      (typeof successfulAttempt?.tag === "string" ? successfulAttempt.tag : null) ??
-      (typeof successfulAttempt?.slug === "string" ? successfulAttempt.slug : null) ??
-      (typeof successfulAttempt?.model === "string" ? successfulAttempt.model : null)
+      str(representativeAttempt?.endpoint_name) ?? str(representativeAttempt?.tag) ??
+      str(representativeAttempt?.slug) ?? str(representativeAttempt?.model)
     ),
     model: (
       pickHeader(headers, ["x-openrouter-model", "openrouter-model"]) ??
       (typeof body?.model === "string" ? body.model : null) ??
       (typeof selectedEndpoint?.model === "string" ? selectedEndpoint.model : null) ??
-      (typeof successfulAttempt?.model === "string" ? successfulAttempt.model : null)
+      str(representativeAttempt?.model)
     ),
     generationId: pickHeader(headers, ["x-generation-id", "x-openrouter-generation-id"]) ?? (typeof body?.id === "string" ? body.id : null),
+    attempts: attempts.length > 0 ? attempts : undefined,
     routerMetadata: routerMetadata ?? undefined,
     headers: Object.keys(selectedHeaders).length > 0 ? selectedHeaders : undefined,
   };

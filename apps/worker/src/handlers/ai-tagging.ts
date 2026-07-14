@@ -11,6 +11,7 @@
 import { db } from "../supabase.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { buildProviderPin } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
 import {
   buildImageTaggingMessages,
@@ -23,6 +24,7 @@ import {
 
 const AI_TIMEOUT_MS = 60_000;
 const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
+const SAME_MODEL_STRUCTURED_RETRY_COUNT = 1;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isValidUuid(v: unknown): v is string {
@@ -46,10 +48,10 @@ function humanizeError(raw: string): string {
 
 // ── Read model assignment from admin_config ─────────────────────────────────
 
-let cachedModels: { primary: string; fallback: string | null } | null = null;
+let cachedModels: { primary: string; fallback: string | null; providerPin: string | null } | null = null;
 let cacheExpiresAt = 0;
 
-async function getVisionModels(): Promise<{ primary: string; fallback: string | null }> {
+async function getVisionModels(): Promise<{ primary: string; fallback: string | null; providerPin: string | null }> {
   if (cachedModels && Date.now() < cacheExpiresAt) return cachedModels;
   const client = db();
   const { data } = await client
@@ -61,6 +63,10 @@ async function getVisionModels(): Promise<{ primary: string; fallback: string | 
   cachedModels = {
     primary: models?.vision_tagging || DEFAULT_VISION_MODEL,
     fallback: models?.vision_tagging_fallback || null,
+    // Optional: pin routing to specific OpenRouter provider slug(s), comma-separated
+    // (e.g. "anthropic" or "anthropic,amazon-bedrock"). When set, fallbacks are
+    // disabled so a flaky endpoint hard-fails instead of silently rerouting.
+    providerPin: models?.vision_tagging_provider || null,
   };
   cacheExpiresAt = Date.now() + 60_000; // cache 1 min
   return cachedModels;
@@ -77,6 +83,33 @@ function isModelSpecificError(msg: string): boolean {
     msg.includes("Failed to download multimodal content") ||
     msg.includes("No endpoints found")
   );
+}
+
+function isRetryableStructuredOutputError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes("data_inspection_failed") ||
+    lower.includes("datainspection") ||
+    lower.includes("inappropriate content")
+  ) {
+    return false;
+  }
+
+  return (
+    lower.includes("structured tag output failed") &&
+    (
+      lower.includes("no endpoints found") ||
+      lower.includes("tool use") ||
+      lower.includes("tool_call") ||
+      lower.includes("no parsable json") ||
+      lower.includes("malformed tool call json") ||
+      lower.includes("openrouter 404")
+    )
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ── Single-asset tagging via OpenRouter ──────────────────────────────────────
@@ -131,96 +164,111 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
   }
 
   // Get model from admin_config (cached for 1 min)
-  const { primary: primaryModel, fallback: fallbackModel } = await getVisionModels();
+  const { primary: primaryModel, fallback: fallbackModel, providerPin } = await getVisionModels();
+  const providerOverride = buildProviderPin(providerPin);
 
   type AttemptResult = TagOutcome & { _rawMsg?: string };
   const attemptTag = async (model: string): Promise<AttemptResult> => {
-    // Call via OpenRouter
-    try {
-      const messages = buildImageTaggingMessages(
-        systemPrompt,
-        image,
-        "Analyze this design asset image and return structured tags matching the tag_asset schema.",
-      );
-      const { tagData, outputMode, providerInfo, retryCount } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 1500);
-      logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount });
+    for (let sameModelRetry = 0; sameModelRetry <= SAME_MODEL_STRUCTURED_RETRY_COUNT; sameModelRetry++) {
+      // Call via OpenRouter
+      try {
+        const messages = buildImageTaggingMessages(
+          systemPrompt,
+          image,
+          "Analyze this design asset image and return structured tags matching the tag_asset schema.",
+        );
+        const { tagData, outputMode, providerInfo, retryCount } = await callTagAssetModel(apiKey, model, messages, AI_TIMEOUT_MS, 1500, providerOverride);
+        logger.info("ai-tag: received structured tags", { assetId, model, outputMode, providerInfo, retryCount, sameModelRetry });
 
-      const updates: Record<string, unknown> = {
-        status: "tagged",
-        ai_tagged_at: new Date().toISOString(),
-        ai_model: model,
-      };
-      if (tagData.ai_description) updates.ai_description = tagData.ai_description;
-      if (tagData.cover_description) updates.cover_description = tagData.cover_description;
-      if (tagData.scene_description) updates.scene_description = tagData.scene_description;
-      if (tagData.asset_type) updates.asset_type = tagData.asset_type;
-      if (tagData.art_source) updates.art_source = tagData.art_source;
-      if (tagData.design_style) updates.design_style = tagData.design_style;
-      if (tagData.design_ref) updates.design_ref = tagData.design_ref;
-      if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
-      if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
-      if (tagData.designer_name) updates.designer_name = tagData.designer_name;
-      if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
-      if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
+        const updates: Record<string, unknown> = {
+          status: "tagged",
+          ai_tagged_at: new Date().toISOString(),
+          ai_model: model,
+        };
+        if (tagData.ai_description) updates.ai_description = tagData.ai_description;
+        if (tagData.cover_description) updates.cover_description = tagData.cover_description;
+        if (tagData.scene_description) updates.scene_description = tagData.scene_description;
+        if (tagData.asset_type) updates.asset_type = tagData.asset_type;
+        if (tagData.art_source) updates.art_source = tagData.art_source;
+        if (tagData.design_style) updates.design_style = tagData.design_style;
+        if (tagData.design_ref) updates.design_ref = tagData.design_ref;
+        if (isValidUuid(tagData.licensor_id)) updates.licensor_id = tagData.licensor_id;
+        if (isValidUuid(tagData.property_id)) updates.property_id = tagData.property_id;
+        if (tagData.designer_name) updates.designer_name = tagData.designer_name;
+        if (tagData.technical_designer_name) updates.technical_designer_name = tagData.technical_designer_name;
+        if (tagData.freelancer_name) updates.freelancer_name = tagData.freelancer_name;
 
-      let { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
+        let { error: updateErr } = await client.from("assets").update(updates).eq("id", assetId);
 
-      // FK constraint failure: AI hallucinated a licensor/property UUID — retry without FK fields
-      if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
-        logger.warn("ai-tag: FK/type error, retrying without licensor_id/property_id", { assetId, error: updateErr.message });
-        delete updates.licensor_id;
-        delete updates.property_id;
-        const retry = await client.from("assets").update(updates).eq("id", assetId);
-        updateErr = retry.error;
-      }
-
-      if (updateErr) {
-        logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
-        return { outcome: "failed", error: `DB write failed: ${humanizeError(updateErr.message ?? "").slice(0, 300)}` };
-      }
-
-      // Write tags to asset_tags table
-      if (Array.isArray(tagData.tags) && tagData.tags.length > 0) {
-        await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
-        const tagRows = (tagData.tags as string[]).map((t: string) => ({
-          asset_id: assetId,
-          tag: t.trim().toLowerCase(),
-          source: "ai",
-        }));
-        await client.from("asset_tags").upsert(tagRows, { onConflict: "asset_id,tag" });
-      }
-
-      // Write character links
-      if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
-        const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
-        if (validCharIds.length > 0) {
-          const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
-          await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
+        // FK constraint failure: AI hallucinated a licensor/property UUID — retry without FK fields
+        if (updateErr && (updateErr.code === "23503" || updateErr.code === "22P02")) {
+          logger.warn("ai-tag: FK/type error, retrying without licensor_id/property_id", { assetId, error: updateErr.message });
+          delete updates.licensor_id;
+          delete updates.property_id;
+          const retry = await client.from("assets").update(updates).eq("id", assetId);
+          updateErr = retry.error;
         }
-      }
 
-      // Upsert files_used entries to sku_files_used (licensed products only).
-      // Style Guide Sources may ONLY come from a licensing-sheet / tech-pack PDF.
-      // The DB parser and edge ai-tag path enforce the same rule; keep the
-      // persistent worker aligned because Railway runs the batch tagger.
-      if (
-        isStyleGuideSourcePdf(asset) && asset.sku &&
-        Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0
-      ) {
-        const rows = (tagData.files_used as string[])
-          .filter((f) => typeof f === "string" && f.trim().length > 0)
-          .map((f) => ({ sku: asset.sku as string, file_name: f.trim(), source: "ai_tag" }));
-        if (rows.length > 0) {
-          await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+        if (updateErr) {
+          logger.error("ai-tag: failed to save tags", { assetId, error: updateErr.message });
+          return { outcome: "failed", error: `DB write failed: ${humanizeError(updateErr.message ?? "").slice(0, 300)}` };
         }
-      }
 
-      return { outcome: "tagged" };
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      logger.warn("ai-tag: AI call error", { assetId, model, error: msg });
-      return { outcome: "failed", error: `AI call error: ${humanizeError(msg).slice(0, 300)}`, _rawMsg: msg };
+        // Write tags to asset_tags table
+        if (Array.isArray(tagData.tags) && tagData.tags.length > 0) {
+          await client.from("asset_tags").delete().eq("asset_id", assetId).eq("source", "ai");
+          const tagRows = (tagData.tags as string[]).map((t: string) => ({
+            asset_id: assetId,
+            tag: t.trim().toLowerCase(),
+            source: "ai",
+          }));
+          await client.from("asset_tags").upsert(tagRows, { onConflict: "asset_id,tag" });
+        }
+
+        // Write character links
+        if (Array.isArray(tagData.character_ids) && tagData.character_ids.length > 0) {
+          const validCharIds = (tagData.character_ids as string[]).filter((cid) => isValidUuid(cid));
+          if (validCharIds.length > 0) {
+            const charLinks = validCharIds.map((cid) => ({ asset_id: assetId, character_id: cid }));
+            await client.from("asset_characters").upsert(charLinks, { onConflict: "asset_id,character_id" });
+          }
+        }
+
+        // Upsert files_used entries to sku_files_used (licensed products only).
+        // Style Guide Sources may ONLY come from a licensing-sheet / tech-pack PDF.
+        // The DB parser and edge ai-tag path enforce the same rule; keep the
+        // persistent worker aligned because Railway runs the batch tagger.
+        if (
+          isStyleGuideSourcePdf(asset) && asset.sku &&
+          Array.isArray(tagData.files_used) && (tagData.files_used as string[]).length > 0
+        ) {
+          const rows = (tagData.files_used as string[])
+            .filter((f) => typeof f === "string" && f.trim().length > 0)
+            .map((f) => ({ sku: asset.sku as string, file_name: f.trim(), source: "ai_tag" }));
+          if (rows.length > 0) {
+            await client.from("sku_files_used").upsert(rows, { onConflict: "sku,file_name", ignoreDuplicates: true });
+          }
+        }
+
+        return { outcome: "tagged" };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (sameModelRetry < SAME_MODEL_STRUCTURED_RETRY_COUNT && isRetryableStructuredOutputError(msg)) {
+          logger.warn("ai-tag: structured output/routing error, retrying same model", {
+            assetId,
+            model,
+            sameModelRetry: sameModelRetry + 1,
+            error: msg.slice(0, 300),
+          });
+          await sleep(1500 * (sameModelRetry + 1));
+          continue;
+        }
+        logger.warn("ai-tag: AI call error", { assetId, model, error: msg });
+        return { outcome: "failed", error: `AI call error: ${humanizeError(msg).slice(0, 300)}`, _rawMsg: msg };
+      }
     }
+
+    return { outcome: "failed", error: "AI call error: same-model structured output retry exhausted" };
   };
 
   const primaryResult = await attemptTag(primaryModel);

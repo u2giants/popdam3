@@ -380,3 +380,98 @@ The most unblocked Helper next step is still **5.2 Brazil/Seafile pilot**: test 
 - The Developer ID cert needs the Apple **Account Holder** role; an Admin/Member can't create it. Because of this (and the separate Windows OV/EV cert), signing is **permanently abandoned** as of 2026-06-25 — installers stay unsigned forever (§5.3).
 - USA direct SMB write depends on correct per-machine Helper root mappings. Windows may use UNC paths; macOS must use the mounted `/Volumes/...` path.
 - Production PO sync cannot run reliably until PLM provides durable server-to-server app-layer auth; copied browser JWTs are known-expiring.
+
+---
+
+## 8. AI Tagging — OpenRouter endpoint diagnostics & pinning (2026-07-14)
+
+_Separate workstream from the Seafile/PopSG pilot above. Started from the user
+question: "the same model is sometimes failing and sometimes succeeding — can we
+detect which endpoints succeeded/failed, and force OpenRouter to use one
+endpoint?"_
+
+**Status: partial — code written & verified, NOT committed/pushed; one core
+question still open.**
+
+### Done (verified this session, but UNCOMMITTED in the working tree)
+- **Endpoint pinning ("force one endpoint") — implemented & verified.**
+  - `apps/worker/src/openrouter.ts`: new `buildProviderPin(slugs)` →
+    `{ only: [...], allow_fallbacks: false }` (trims, drops empties, returns
+    `undefined` when blank). Matches OpenRouter's documented pin structure
+    exactly (checked against `/docs/features/provider-routing`).
+  - `apps/worker/src/handlers/ai-tagging-shared.ts`: `callTagAssetModel(...)`
+    takes an optional `provider` and threads it into **all four** completion legs
+    (tool, json_schema, json_object, repair).
+  - `apps/worker/src/handlers/ai-tagging.ts`: `getVisionModels()` also reads
+    `admin_config.AI_TASK_MODELS.vision_tagging_provider`; `tagSingleAsset` builds
+    the pin and passes it down. (My changes survived a concurrent-dev edit that
+    added same-model structured retries — verify they're still intact before
+    committing.)
+  - `src/components/settings/ApisTab.tsx`: "Pin OpenRouter endpoint (optional)"
+    input under Image Tagging, stored in the same `AI_TASK_MODELS` object as the
+    model/fallback pickers (no schema change).
+  - **Verification**: drove the real `chatCompletion` over a socket (global-fetch
+    intercept harness) — 13/13 assertions passed: pin serialized verbatim, no
+    pin ⇒ no `provider` key, success attributed to the serving endpoint, and the
+    core bug fix (hard-failure attributes `endpoint` to the **last failed leg**
+    instead of `null`). Both worker and frontend typecheck clean.
+- **`attempts[]` surfacing + failed-endpoint attribution** in `openrouter.ts`
+  (`OpenRouterAttempt[]`, `representativeAttempt = successful ?? last`) — code is
+  correct and null-safe, **but see the open question below.**
+
+### ⚠️ Open question #1 (the important one): does OpenRouter actually return the failed-endpoint metadata at all?
+The whole "detect which endpoints **failed**" feature (this session's additions
+**and** the prior `ff84eeb`/`8b3e90d` commits) parses
+`openrouter_metadata.attempts[]` / `endpoints.available` and sends an
+`X-OpenRouter-Metadata: enabled` header. Evidence gathered this session says
+**those fields probably don't exist**:
+- OpenRouter docs document **no** `openrouter_metadata`, `attempts[]`,
+  `endpoints.available`, or `X-OpenRouter-Metadata` header. Only the response
+  `model` field and `/api/v1/generation` are documented — both name only the
+  **serving** endpoint, never failed legs.
+- **0 of 251** `ai_tag_bakeoff_results` rows had ever stored a `_popdam_provider`
+  blob (143 had the sibling `_popdam_output_mode`, written in the same spread).
+  Only one run postdated the tracking commit (deploy-window), so it's *partly*
+  "no data yet."
+- **Could not confirm live**: PopDAM's OpenRouter account privacy/data-policy
+  blocks bare text completions (`No endpoints available matching your guardrail
+  restrictions and data policy`), so a from-scratch probe couldn't capture a real
+  200 body. Do **not** change that account setting to test (outward-facing prod).
+
+**To close it:** run one bake-off on the deployed tracking code, then check
+whether any `ai_tag_bakeoff_results.raw_output._popdam_provider.routerMetadata.attempts`
+is a non-empty array. If it's always empty → drop/deprioritize the `attempts[]`
+UI and rely on the pin (below) for endpoint diagnosis. Documented in
+`docs/KNOWN_QUIRKS.md` #59.
+
+### Open question #2 (smaller): is the pin the right diagnosis path? (believed yes)
+Because the failed-leg list likely never arrives, the **reliable** way to detect
+a bad endpoint is the pin with `allow_fallbacks: false` — a hard failure then
+names the exact provider. This is the recommended path. `docs/KNOWN_QUIRKS.md`
+#60.
+
+### Changed files (all UNCOMMITTED as of handoff)
+| File | What |
+|---|---|
+| `apps/worker/src/openrouter.ts` | `buildProviderPin`, `OpenRouterAttempt[]`, failed-leg attribution |
+| `apps/worker/src/handlers/ai-tagging-shared.ts` | `provider` param threaded through 4 legs |
+| `apps/worker/src/handlers/ai-tagging.ts` | reads `vision_tagging_provider`, applies pin |
+| `src/components/settings/ApisTab.tsx` | admin pin input |
+| `AGENTS.md`, `docs/MODEL_RULES.md`, `docs/configuration.md`, `docs/KNOWN_QUIRKS.md`, `docs/MCP_SERVERS.md` | docs for the above + the OpenRouter-metadata reality check + secret-access fallback |
+
+### Exact next action for this workstream
+1. Confirm my `providerPin` wiring is still intact in `ai-tagging.ts` after the
+   concurrent same-model-retry edit (lines ~14, 69, 167-168, 180).
+2. Commit + push to `main` (both remotes, per `CLAUDE.md`). Railway auto-rebuilds
+   `apps/worker/**`; Coolify/GHCR rebuilds the frontend.
+3. Run **one** Vision Bake-Off on deployed code → resolve Open question #1 by
+   inspecting `_popdam_provider.routerMetadata.attempts`.
+4. If a model is flaky, read its bake-off provider success/failure table, then
+   set `AI_TASK_MODELS.vision_tagging_provider` to the winning slug.
+
+### Infra note discovered while verifying (durable)
+`supabase` MCP was **unauthorized** this session; the DB is still reachable via
+the Supabase CLI / `psql` / PostgREST fed by `op run --env-file` (no-secret-leak
+pattern). Never `op read` a secret to stdout — the harness blocks printing even a
+credential prefix. Full detail: `docs/MCP_SERVERS.md` (2026-07-14 note) and the
+`op`/service-role pattern there.
