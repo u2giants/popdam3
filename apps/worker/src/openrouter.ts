@@ -61,6 +61,11 @@ export interface ToolCallResult {
 export interface ChatCompletionResult {
   toolCalls?: ToolCallResult[];
   content?: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -132,6 +137,11 @@ export async function chatCompletion(
             }>;
           };
         }>;
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+        };
       };
 
       const choice = data.choices?.[0]?.message;
@@ -145,10 +155,11 @@ export async function chatCompletion(
             name: tc.function.name,
             arguments: JSON.parse(tc.function.arguments),
           })),
+          usage: data.usage,
         };
       }
 
-      return { content: choice.content || "" };
+      return { content: choice.content || "", usage: data.usage };
     }
 
     if (response.status === 429) {

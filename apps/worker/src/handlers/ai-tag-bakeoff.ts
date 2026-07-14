@@ -1,7 +1,7 @@
 /**
  * AI tag model bake-off handler.
  *
- * Runs three configured vision models against the same assets and stores their
+ * Runs configured vision models against the same assets and stores their
  * outputs in shadow tables. This never writes production asset tags.
  */
 
@@ -31,12 +31,16 @@ const TAG_ASSET_TOOL = tool(
   },
 );
 
-type Slot = "a" | "b" | "c";
+const SLOTS = ["a", "b", "c", "d", "e"] as const;
+type Slot = typeof SLOTS[number];
+
 type BakeoffRun = {
   id: string;
   model_a: string;
   model_b: string;
   model_c: string;
+  model_d: string | null;
+  model_e: string | null;
   asset_ids: string[];
 };
 
@@ -63,6 +67,57 @@ function normalizeTags(v: unknown): string[] {
     .map((tag) => tag.trim().toLowerCase())
     .filter(Boolean))]
     .slice(0, 30);
+}
+
+type ModelPricing = {
+  prompt: number | null;
+  completion: number | null;
+};
+
+let pricingCache: { fetchedAt: number; prices: Map<string, ModelPricing> } | null = null;
+
+function parsePrice(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+  return null;
+}
+
+async function getOpenRouterPrices(apiKey: string): Promise<Map<string, ModelPricing>> {
+  const now = Date.now();
+  if (pricingCache && now - pricingCache.fetchedAt < 10 * 60 * 1000) return pricingCache.prices;
+
+  const resp = await fetch("https://openrouter.ai/api/v1/models/user", {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!resp.ok) throw new Error(`OpenRouter model pricing HTTP ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+
+  const payload = await resp.json() as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>;
+  const items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+  const prices = new Map<string, ModelPricing>();
+  for (const item of items) {
+    const id = typeof item.id === "string" ? item.id : null;
+    const pricing = item.pricing as Record<string, unknown> | undefined;
+    if (!id || !pricing) continue;
+    prices.set(id, {
+      prompt: parsePrice(pricing.prompt),
+      completion: parsePrice(pricing.completion),
+    });
+  }
+
+  pricingCache = { fetchedAt: now, prices };
+  return prices;
+}
+
+function computeCostUsd(usage: { prompt_tokens?: number; completion_tokens?: number } | undefined, pricing: ModelPricing | undefined): number | null {
+  const promptTokens = usage?.prompt_tokens;
+  const completionTokens = usage?.completion_tokens;
+  if (!pricing || typeof promptTokens !== "number" || typeof completionTokens !== "number") return null;
+  if (pricing.prompt === null || pricing.completion === null) return null;
+  return (promptTokens * pricing.prompt) + (completionTokens * pricing.completion);
 }
 
 async function fetchImageData(thumbnailUrl: string): Promise<{ base64: string; mimeType: string }> {
@@ -134,7 +189,7 @@ Existing tags: ${(asset.tags ?? []).join(", ") || "none"}
 Known taxonomy:
 ${taxonomyContext}
 
-Evaluate only these fields for this A/B/C test:
+Evaluate only these fields for this model comparison:
 1. tags: useful searchable tags, including characters, colors, themes, art style, product clues
 2. ai_description: one concise sentence describing the asset
 3. character_ids: matching UUIDs from the provided character list
@@ -159,7 +214,7 @@ async function resolveNames(characterIds: string[], propertyId: string | null): 
   };
 }
 
-async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId: string, prompt: string, image: { base64: string; mimeType: string }) {
+async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId: string, prompt: string, image: { base64: string; mimeType: string }, pricing: ModelPricing | undefined) {
   const client = db();
   await client.from("ai_tag_bakeoff_results").upsert({
     run_id: runId,
@@ -167,6 +222,12 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
     model_slot: slot,
     model_id: modelId,
     status: "running",
+    prompt_tokens: null,
+    completion_tokens: null,
+    total_tokens: null,
+    cost_usd: null,
+    pricing_snapshot: null,
+    error_message: null,
     updated_at: new Date().toISOString(),
   }, { onConflict: "run_id,asset_id,model_slot" });
 
@@ -178,7 +239,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
         role: "user",
         content: [
           imageContent(image.base64, image.mimeType),
-          { type: "text", text: "Tag this asset for the A/B/C comparison." },
+          { type: "text", text: "Tag this asset for the model comparison." },
         ],
       },
     ];
@@ -199,6 +260,7 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
       : [];
     const propertyId = validUuid(output.property_id) ? output.property_id : null;
     const { characterNames, propertyName } = await resolveNames(characterIds, propertyId);
+    const costUsd = computeCostUsd(result.usage, pricing);
 
     await client.from("ai_tag_bakeoff_results").upsert({
       run_id: runId,
@@ -214,6 +276,16 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
       property_name: propertyName,
       raw_output: output,
       latency_ms: Date.now() - started,
+      prompt_tokens: result.usage?.prompt_tokens ?? null,
+      completion_tokens: result.usage?.completion_tokens ?? null,
+      total_tokens: result.usage?.total_tokens ?? null,
+      cost_usd: costUsd,
+      pricing_snapshot: pricing ? {
+        source: "openrouter.models.user",
+        fetched_at: pricingCache ? new Date(pricingCache.fetchedAt).toISOString() : new Date().toISOString(),
+        prompt_per_token: pricing.prompt,
+        completion_per_token: pricing.completion,
+      } : null,
       error_message: null,
       updated_at: new Date().toISOString(),
     }, { onConflict: "run_id,asset_id,model_slot" });
@@ -228,6 +300,12 @@ async function runModel(runId: string, asset: BakeoffAsset, slot: Slot, modelId:
       model_id: modelId,
       status: "failed",
       latency_ms: Date.now() - started,
+      pricing_snapshot: pricing ? {
+        source: "openrouter.models.user",
+        fetched_at: pricingCache ? new Date(pricingCache.fetchedAt).toISOString() : new Date().toISOString(),
+        prompt_per_token: pricing.prompt,
+        completion_per_token: pricing.completion,
+      } : null,
       error_message: msg.slice(0, 500),
       updated_at: new Date().toISOString(),
     }, { onConflict: "run_id,asset_id,model_slot" });
@@ -243,7 +321,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
 
   const { data: run, error: runErr } = await client
     .from("ai_tag_bakeoff_runs")
-    .select("id, model_a, model_b, model_c, asset_ids")
+    .select("id, model_a, model_b, model_c, model_d, model_e, asset_ids")
     .eq("id", runId)
     .single();
   if (runErr || !run) return { ok: false, done: false, error: runErr?.message ?? "Bake-off run not found" };
@@ -263,7 +341,8 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", runId);
-    return { ok: true, done: true, total_count: assetIds.length * 3, evaluated: 0, failed: 0, nextOffset: cursor };
+    const modelCount = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e].filter(Boolean).length;
+    return { ok: true, done: true, total_count: assetIds.length * modelCount, evaluated: 0, failed: 0, nextOffset: cursor };
   }
 
   const { data: assets, error: assetErr } = await client
@@ -275,18 +354,29 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
   let evaluated = 0;
   let failed = 0;
   const failureSamples: Array<{ at: string; asset_id: string; filename: string; relative_path: string; error: string }> = [];
-  const models: Array<[Slot, string]> = [["a", typedRun.model_a], ["b", typedRun.model_b], ["c", typedRun.model_c]];
+  const runModels = [typedRun.model_a, typedRun.model_b, typedRun.model_c, typedRun.model_d, typedRun.model_e];
+  const models: Array<[Slot, string]> = SLOTS
+    .map((slot, index): [Slot, string | null] => [slot, runModels[index] ?? null])
+    .filter((entry): entry is [Slot, string] => typeof entry[1] === "string" && entry[1].trim().length > 0);
+  let prices = new Map<string, ModelPricing>();
+  if (config.openRouterApiKey) {
+    try {
+      prices = await getOpenRouterPrices(config.openRouterApiKey);
+    } catch (e) {
+      logger.warn("ai-tag-bakeoff: failed to fetch current OpenRouter pricing", { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
 
   for (const asset of (assets ?? []) as BakeoffAsset[]) {
     if (!asset.thumbnail_url) {
-      failed += 3;
+      failed += models.length;
       failureSamples.push({ at: new Date().toISOString(), asset_id: asset.id, filename: asset.filename ?? "", relative_path: asset.relative_path ?? "", error: "No thumbnail URL" });
       continue;
     }
     try {
       const [prompt, image] = await Promise.all([buildPrompt(asset), fetchImageData(asset.thumbnail_url)]);
       for (const [slot, modelId] of models) {
-        const result = await runModel(runId, asset, slot, modelId, prompt, image);
+        const result = await runModel(runId, asset, slot, modelId, prompt, image, prices.get(modelId));
         if (result.ok) evaluated++;
         else {
           failed++;
@@ -295,7 +385,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      failed += 3;
+      failed += models.length;
       failureSamples.push({ at: new Date().toISOString(), asset_id: asset.id, filename: asset.filename ?? "", relative_path: asset.relative_path ?? "", error: msg.slice(0, 500) });
     }
   }
@@ -316,7 +406,7 @@ export async function handleAiTagBakeoff(opState: OpState): Promise<BatchResult>
     evaluated,
     failed,
     failure_samples: failureSamples.slice(-50),
-    total_count: assetIds.length * 3,
+    total_count: assetIds.length * models.length,
     nextOffset,
   };
 }

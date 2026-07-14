@@ -112,6 +112,8 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 
 Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Vision Bake-Off then filters that guardrailed list to image-capable, tool-capable models because the bake-off worker requires structured tool output.
 
+Vision Bake-Off compares five models per run. Each result records the model latency, OpenRouter-reported prompt/completion/total token usage, and an estimated USD cost based on the current OpenRouter account pricing fetched from `/api/v1/models/user` when the worker processes the run. The pricing snapshot is stored with the result so historical runs are not reinterpreted if OpenRouter later changes prices.
+
 OpenRouter can return unavailable placeholder aliases with negative pricing. The UI treats negative prompt/completion pricing as unavailable and filters those entries out rather than displaying the sentinel price.
 
 ---

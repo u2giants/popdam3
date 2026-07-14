@@ -947,8 +947,8 @@ function stringArray(value: unknown): string[] {
 
 async function handleCreateAiTagBakeoffRun(body: Record<string, unknown>, userId: string) {
   const db = serviceClient();
-  const modelIds = stringArray(body.model_ids).slice(0, 3);
-  if (modelIds.length !== 3) return err("model_ids must contain exactly 3 models", 400);
+  const modelIds = stringArray(body.model_ids).slice(0, 5);
+  if (modelIds.length !== 5) return err("model_ids must contain exactly 5 models", 400);
 
   const requestedSampleSize = typeof body.sample_size === "number" ? Math.floor(body.sample_size) : 30;
   const sampleSize = Math.min(500, Math.max(1, requestedSampleSize));
@@ -980,6 +980,8 @@ async function handleCreateAiTagBakeoffRun(body: Record<string, unknown>, userId
       model_a: modelIds[0],
       model_b: modelIds[1],
       model_c: modelIds[2],
+      model_d: modelIds[3],
+      model_e: modelIds[4],
       sample_size: assetIds.length,
       asset_ids: assetIds,
       created_by: userId === "system" ? null : userId,
@@ -995,7 +997,7 @@ async function handleListAiTagBakeoffRuns() {
   const db = serviceClient();
   const { data, error: qErr } = await db
     .from("ai_tag_bakeoff_runs")
-    .select("id, name, status, model_a, model_b, model_c, sample_size, created_at, updated_at, completed_at")
+    .select("id, name, status, model_a, model_b, model_c, model_d, model_e, sample_size, created_at, updated_at, completed_at")
     .order("created_at", { ascending: false })
     .limit(30);
   if (qErr) return err(`Failed to list bake-off runs: ${qErr.message}`, 500);
@@ -1041,7 +1043,7 @@ async function handleScoreAiTagBakeoffField(body: Record<string, unknown>, userI
   const scores = body.scores && typeof body.scores === "object" ? body.scores : {};
   if (!runId || !assetId || !field) return err("run_id, asset_id, and field are required", 400);
   if (!["tags", "description", "characters", "property", "overall"].includes(field)) return err("Invalid field", 400);
-  if (winnerSlot && !["a", "b", "c"].includes(winnerSlot)) return err("Invalid winner_slot", 400);
+  if (winnerSlot && !["a", "b", "c", "d", "e"].includes(winnerSlot)) return err("Invalid winner_slot", 400);
 
   const db = serviceClient();
   const { data, error: upsertErr } = await db

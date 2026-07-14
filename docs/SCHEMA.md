@@ -310,20 +310,20 @@ Indexes: `idx_asset_tags_asset_id`, `idx_asset_tags_source`
 
 ### 3.2 AI Tag Bake-Off Tables
 
-Non-destructive A/B/C evaluation for vision tagging models. These tables store model trial outputs and human review choices without overwriting production `assets`, `asset_tags`, or `asset_characters`.
+Non-destructive evaluation for vision tagging models. These tables store model trial outputs and human review choices without overwriting production `assets`, `asset_tags`, or `asset_characters`.
 
 #### `ai_tag_bakeoff_runs`
 - `id uuid PK`, `name text`, `status text` (`draft`, `queued`, `running`, `completed`, `failed`, `stopped`)
-- `model_a text`, `model_b text`, `model_c text`
+- `model_a text`, `model_b text`, `model_c text`, `model_d text`, `model_e text`
 - `sample_size int`, `asset_ids uuid[]`
 - `created_by uuid`, `created_at`, `updated_at`, `completed_at`
 
 #### `ai_tag_bakeoff_results`
 One row per `(run, asset, model_slot)`.
-- `run_id uuid FK`, `asset_id uuid FK`, `model_slot text` (`a`, `b`, `c`), `model_id text`
+- `run_id uuid FK`, `asset_id uuid FK`, `model_slot text` (`a`, `b`, `c`, `d`, `e`), `model_id text`
 - `status text` (`pending`, `running`, `succeeded`, `failed`)
 - Field outputs: `tags text[]`, `ai_description text`, `character_ids uuid[]`, `character_names text[]`, `property_id uuid`, `property_name text`
-- Audit/debug fields: `raw_output jsonb`, `latency_ms int`, `error_message text`, timestamps
+- Audit/debug fields: `raw_output jsonb`, `latency_ms int`, `prompt_tokens int`, `completion_tokens int`, `total_tokens int`, `cost_usd numeric`, `pricing_snapshot jsonb`, `error_message text`, timestamps
 
 #### `ai_tag_bakeoff_reviews`
 Human scoring for the matrix UI.

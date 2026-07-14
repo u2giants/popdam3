@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
 
-type Slot = "a" | "b" | "c";
+const SLOTS = ["a", "b", "c", "d", "e"] as const;
+type Slot = typeof SLOTS[number];
 type Field = "tags" | "description" | "characters" | "property";
 
 type VisionModel = {
@@ -39,6 +41,8 @@ type BakeoffRun = {
   model_a: string;
   model_b: string;
   model_c: string;
+  model_d?: string | null;
+  model_e?: string | null;
   sample_size: number;
   created_at: string;
   completed_at: string | null;
@@ -63,6 +67,10 @@ type BakeoffResult = {
   character_names: string[];
   property_name: string | null;
   latency_ms: number | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  cost_usd: string | number | null;
   error_message: string | null;
 };
 
@@ -82,7 +90,7 @@ const FIELD_LABELS: Record<Field, string> = {
   property: "Property",
 };
 
-const SLOT_LABELS: Record<Slot, string> = { a: "Model A", b: "Model B", c: "Model C" };
+const SLOT_LABELS: Record<Slot, string> = { a: "Model A", b: "Model B", c: "Model C", d: "Model D", e: "Model E" };
 
 function fmtModel(id: string) {
   return id.split("/").pop() ?? id;
@@ -90,6 +98,33 @@ function fmtModel(id: string) {
 
 function unwrapConfigString(value: unknown) {
   return ((value as Record<string, unknown>)?.value ?? value ?? "") as string;
+}
+
+function runModelId(run: BakeoffRun, slot: Slot) {
+  return run[`model_${slot}` as keyof Pick<BakeoffRun, "model_a" | "model_b" | "model_c" | "model_d" | "model_e">] ?? "";
+}
+
+function runSlots(run: BakeoffRun | undefined): Slot[] {
+  if (!run) return SLOTS.slice();
+  return SLOTS.filter((slot) => !!runModelId(run, slot));
+}
+
+function formatTokens(value: number | null | undefined) {
+  return typeof value === "number" ? value.toLocaleString() : "n/a";
+}
+
+function formatCost(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return "n/a";
+  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return "n/a";
+  if (parsed === 0) return "$0";
+  if (parsed < 0.0001) return `$${parsed.toFixed(6)}`;
+  if (parsed < 0.01) return `$${parsed.toFixed(5)}`;
+  return `$${parsed.toFixed(4)}`;
+}
+
+function formatLatency(ms: number | null | undefined) {
+  return typeof ms === "number" ? `${Math.round(ms / 100) / 10}s` : "pending";
 }
 
 function fieldValue(result: BakeoffResult | undefined, field: Field) {
@@ -114,7 +149,7 @@ export default function AiTagBakeoffTab() {
   const [selectedRunId, setSelectedRunId] = useState("");
   const [name, setName] = useState("");
   const [sampleSize, setSampleSize] = useState(30);
-  const [models, setModels] = useState<[string, string, string]>(["", "", ""]);
+  const [models, setModels] = useState<string[]>(["", "", "", "", ""]);
 
   const { data: openRouterConfig } = useQuery({
     queryKey: ["admin-config", "OPENROUTER_API_KEY"],
@@ -222,23 +257,25 @@ export default function AiTagBakeoffTab() {
   }, [reviews]);
 
   const summary = useMemo(() => {
-    const wins: Record<Slot, number> = { a: 0, b: 0, c: 0 };
+    const slots = runSlots(currentRun);
+    const wins: Record<Slot, number> = { a: 0, b: 0, c: 0, d: 0, e: 0 };
     for (const review of reviews) {
       if (review.winner_slot) wins[review.winner_slot]++;
     }
     return {
-      totalResponses: (currentRun?.sample_size ?? 0) * 3,
+      slots,
+      totalResponses: (currentRun?.sample_size ?? 0) * slots.length,
       succeeded: results.filter((r) => r.status === "succeeded").length,
       failed: results.filter((r) => r.status === "failed").length,
       wins,
     };
-  }, [currentRun?.sample_size, results, reviews]);
+  }, [currentRun, results, reviews]);
 
   const createRun = useMutation({
     mutationFn: async () => {
       const selectedModels = models.map((m) => m.trim());
-      if (selectedModels.some((m) => !m)) throw new Error("Choose three models");
-      if (new Set(selectedModels).size !== 3) throw new Error("Choose three different models");
+      if (selectedModels.some((m) => !m)) throw new Error("Choose five models");
+      if (new Set(selectedModels).size !== 5) throw new Error("Choose five different models");
       const res = await call("create-ai-tag-bakeoff-run", {
         name: name.trim() || undefined,
         sample_size: sampleSize,
@@ -246,7 +283,7 @@ export default function AiTagBakeoffTab() {
       });
       await op.queue({
         params: { run_id: res.run.id },
-        initialProgress: { evaluated: 0, failed: 0, total: sampleSize * 3 },
+        initialProgress: { evaluated: 0, failed: 0, total: sampleSize * 5 },
         forceRestart: true,
       });
       return res.run as BakeoffRun;
@@ -276,12 +313,12 @@ export default function AiTagBakeoffTab() {
   const opDone = ((opProgress.evaluated as number) || 0) + ((opProgress.failed as number) || 0);
   const progressPct = opTotal > 0 ? Math.min(100, Math.round((opDone / opTotal) * 100)) : 0;
 
-  const modelSelect = (idx: 0 | 1 | 2) => (
-    <div className="space-y-1">
-      <Label className="text-xs">{SLOT_LABELS[(["a", "b", "c"] as Slot[])[idx]]}</Label>
+  const modelSelect = (idx: number) => (
+    <div key={SLOTS[idx]} className="space-y-1">
+      <Label className="text-xs">{SLOT_LABELS[SLOTS[idx]]}</Label>
       {visionModels.length > 0 ? (
         <Select value={models[idx]} onValueChange={(value) => setModels((prev) => {
-          const next: [string, string, string] = [...prev];
+          const next = [...prev];
           next[idx] = value;
           return next;
         })}>
@@ -300,7 +337,7 @@ export default function AiTagBakeoffTab() {
         <Input
           value={models[idx]}
           onChange={(e) => setModels((prev) => {
-            const next: [string, string, string] = [...prev];
+            const next = [...prev];
             next[idx] = e.target.value;
             return next;
           })}
@@ -342,10 +379,8 @@ export default function AiTagBakeoffTab() {
             </div>
           )}
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="grid gap-3 sm:grid-cols-3">
-              {modelSelect(0)}
-              {modelSelect(1)}
-              {modelSelect(2)}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              {SLOTS.map((_, idx) => modelSelect(idx))}
             </div>
             <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto] items-end">
               <div className="space-y-1">
@@ -408,7 +443,7 @@ export default function AiTagBakeoffTab() {
           {runLoading && <div className="text-sm text-muted-foreground">Loading run...</div>}
           {currentRun && (
             <>
-              <div className="grid gap-2 md:grid-cols-5">
+              <div className="grid gap-2 md:grid-cols-4 xl:grid-cols-7">
                 <div className="rounded-md border border-border p-3">
                   <div className="text-xs text-muted-foreground">Status</div>
                   <RunStatusBadge status={currentRun.status} />
@@ -417,7 +452,7 @@ export default function AiTagBakeoffTab() {
                   <div className="text-xs text-muted-foreground">Responses</div>
                   <div className="text-sm font-medium">{summary.succeeded} / {summary.totalResponses}</div>
                 </div>
-                {(["a", "b", "c"] as Slot[]).map((slot) => (
+                {summary.slots.map((slot) => (
                   <div key={slot} className="rounded-md border border-border p-3">
                     <div className="text-xs text-muted-foreground">{SLOT_LABELS[slot]} wins</div>
                     <div className="text-sm font-medium">{summary.wins[slot]}</div>
@@ -434,7 +469,14 @@ export default function AiTagBakeoffTab() {
                       <div className="grid gap-3 lg:grid-cols-[220px_1fr] p-3 bg-muted/30">
                         <div className="flex gap-3 min-w-0">
                           {asset.thumbnail_url ? (
-                            <img src={asset.thumbnail_url} alt="" className="h-24 w-24 object-contain rounded border border-border bg-background" />
+                            <HoverCard openDelay={150} closeDelay={80}>
+                              <HoverCardTrigger asChild>
+                                <img src={asset.thumbnail_url} alt="" className="h-24 w-24 shrink-0 object-contain rounded border border-border bg-background" />
+                              </HoverCardTrigger>
+                              <HoverCardContent side="right" align="start" className="w-[min(640px,80vw)] p-2">
+                                <img src={asset.thumbnail_url} alt={asset.filename ?? ""} className="max-h-[70vh] w-full object-contain rounded bg-background" />
+                              </HoverCardContent>
+                            </HoverCard>
                           ) : (
                             <div className="h-24 w-24 rounded border border-border bg-muted" />
                           )}
@@ -442,7 +484,7 @@ export default function AiTagBakeoffTab() {
                             <div className="text-sm font-medium truncate" title={asset.filename ?? ""}>{asset.filename}</div>
                             <div className="text-xs text-muted-foreground line-clamp-3" title={asset.relative_path ?? ""}>{asset.relative_path}</div>
                             <div className="flex gap-1 pt-2">
-                              {(["a", "b", "c"] as Slot[]).map((slot) => (
+                              {summary.slots.map((slot) => (
                                 <Button
                                   key={slot}
                                   variant={overallReview?.winner_slot === slot ? "default" : "outline"}
@@ -457,16 +499,21 @@ export default function AiTagBakeoffTab() {
                             </div>
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
-                          {(["a", "b", "c"] as Slot[]).map((slot) => (
+                        <div className="grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-5">
+                          {summary.slots.map((slot) => (
                             <div key={slot} className="rounded border border-border bg-background p-2 min-w-0">
-                              <div className="font-medium truncate" title={currentRun[`model_${slot}` as "model_a"]}>{SLOT_LABELS[slot]}</div>
-                              <div className="font-mono text-muted-foreground truncate" title={currentRun[`model_${slot}` as "model_a"]}>{fmtModel(currentRun[`model_${slot}` as "model_a"])}</div>
+                              <div className="font-medium truncate" title={runModelId(currentRun, slot)}>{SLOT_LABELS[slot]}</div>
+                              <div className="font-mono text-muted-foreground truncate" title={runModelId(currentRun, slot)}>{fmtModel(runModelId(currentRun, slot))}</div>
                               <div className="pt-1">
                                 <Badge variant={bySlot[slot]?.status === "succeeded" ? "default" : bySlot[slot]?.status === "failed" ? "destructive" : "secondary"}>
                                   {bySlot[slot]?.status ?? "pending"}
                                 </Badge>
-                                {bySlot[slot]?.latency_ms && <span className="ml-2 text-muted-foreground">{Math.round((bySlot[slot]!.latency_ms ?? 0) / 100) / 10}s</span>}
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                                <span>Time</span><span className="text-right tabular-nums">{formatLatency(bySlot[slot]?.latency_ms)}</span>
+                                <span>In</span><span className="text-right tabular-nums">{formatTokens(bySlot[slot]?.prompt_tokens)}</span>
+                                <span>Out</span><span className="text-right tabular-nums">{formatTokens(bySlot[slot]?.completion_tokens)}</span>
+                                <span>Cost</span><span className="text-right tabular-nums">{formatCost(bySlot[slot]?.cost_usd)}</span>
                               </div>
                             </div>
                           ))}
@@ -478,7 +525,7 @@ export default function AiTagBakeoffTab() {
                           <thead>
                             <tr className="border-t border-border bg-muted/20">
                               <th className="w-32 px-3 py-2 text-left text-xs font-medium text-muted-foreground">Field</th>
-                              {(["a", "b", "c"] as Slot[]).map((slot) => (
+                              {summary.slots.map((slot) => (
                                 <th key={slot} className="min-w-[240px] px-3 py-2 text-left text-xs font-medium text-muted-foreground">{SLOT_LABELS[slot]}</th>
                               ))}
                             </tr>
@@ -489,7 +536,7 @@ export default function AiTagBakeoffTab() {
                               return (
                                 <tr key={field} className="border-t border-border align-top">
                                   <td className="px-3 py-3 text-xs font-medium text-muted-foreground">{FIELD_LABELS[field]}</td>
-                                  {(["a", "b", "c"] as Slot[]).map((slot) => {
+                                  {summary.slots.map((slot) => {
                                     const selected = review?.winner_slot === slot;
                                     const result = bySlot[slot];
                                     return (
