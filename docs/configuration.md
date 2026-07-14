@@ -112,7 +112,11 @@ Runtime configuration lives in the `admin_config` table (`key`, `value` jsonb co
 
 Settings → AI Models and Settings → Processing model pickers refresh from OpenRouter using the saved `admin_config.OPENROUTER_API_KEY`. The UI calls OpenRouter's key-scoped `/api/v1/models/user` endpoint so the list reflects the account's guardrails, not the public model catalog. Image Tagging and Vision Bake-Off then apply the same filter: image-capable models that support tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). JSON-mode outputs are parsed and must include the required `tags`, `ai_description`, and `scene_description` fields before the worker stores a result.
 
+The Railway worker reads `admin_config.AI_TASK_MODELS.vision_tagging` for production Image Tagging and defaults to `google/gemini-2.5-flash` when unset. `vision_tagging_fallback` is optional. The worker caches the model config for 60 seconds.
+
 Vision Bake-Off compares five models per run. Each result records the model latency, OpenRouter-reported prompt/completion/total token usage, and an estimated USD cost based on the current OpenRouter account pricing fetched from `/api/v1/models/user` when the worker processes the run. The pricing snapshot is stored with the result so historical runs are not reinterpreted if OpenRouter later changes prices.
+
+The bake-off also stores best-effort OpenRouter route evidence in `ai_tag_bakeoff_results.raw_output._popdam_provider`. The worker opts into `X-OpenRouter-Metadata: enabled`, captures `X-Generation-Id`/OpenRouter headers, parses success and error-body `openrouter_metadata`, and enriches from `/api/v1/generation` when possible. The UI shows the resulting provider/endpoint beside time, tokens, and cost and summarizes provider success/failure patterns per run. Old rows, OpenRouter cache hits, and some edge/auth/rate-limit failures can still show `unknown`.
 
 Vision Bake-Off sampling is random, not recent-first. When the admin does not
 provide explicit asset IDs, `create-ai-tag-bakeoff-run` samples eligible

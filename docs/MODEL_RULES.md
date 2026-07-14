@@ -6,23 +6,37 @@ This document covers two distinct things: (1) which AI models are used inside th
 
 ## 1. Models Used Inside PopDAM
 
-### Asset Thumbnail Tagging (`ai-tag` edge function)
-- Uses **Google Gemini** (vision-capable model) to analyze thumbnail images
-- The specific model is **configurable** via `AI_MODELS` in admin_config — `ai-tag` finds the first entry with `provider: "google"` and `capabilities` including `"vision"`
-- Falls back to `gemini-2.5-flash-preview-04-17` if `AI_MODELS` config is absent or has no qualifying model
-- To change the model: update the `AI_MODELS` array in Settings → Admin Config
+### Production Image Tagging (Railway worker)
+- Code path: `apps/worker/src/handlers/ai-tagging.ts` plus the shared contract in `apps/worker/src/handlers/ai-tagging-shared.ts`.
+- Uses OpenRouter through the worker's `OPENROUTER_API_KEY`. `GOOGLE_AI_API_KEY` exists only as a legacy fallback if no OpenRouter key is configured.
+- Model config: `admin_config.AI_TASK_MODELS.vision_tagging`, cached by the worker for 60 seconds. Optional fallback: `vision_tagging_fallback`.
+- Default when unset: `google/gemini-2.5-flash`.
+- To change the model: Settings → AI Models. This updates `admin_config.AI_TASK_MODELS`; the Railway worker still needs its own `OPENROUTER_API_KEY` env var set in Railway.
+- Output contract: every model must return `tags`, `ai_description`, and `scene_description`. The worker accepts OpenRouter tool calling, JSON-schema structured outputs, or JSON mode, then validates the required fields before storing a result.
+- Retry behavior: malformed/invalid JSON mode output gets one repair retry with a stricter JSON-only instruction.
 
-### PDF Text Extraction (`pdf-text-sampler.ts` in bridge agent)
-- Uses a cascade: mupdf text extraction → OCR (tesseract.js) → AI vision fallback
-- The AI vision fallback is **configurable** via `AI_MODELS` + `PDF_EXTRACTION_CONFIG` in admin_config
-- `PDF_EXTRACTION_CONFIG.ai_vision_model_id` names the model ID from the `AI_MODELS` catalog to use
-- Supports Google Gemini and Anthropic providers
-- **Hard limit**: files larger than 100 MB are skipped (logged as warnings, surfaced in the PDF text sample progress UI)
+### Vision Bake-Off
+- Code path: `apps/worker/src/handlers/ai-tag-bakeoff.ts`, reusing `callTagAssetModel()` from `ai-tagging-shared.ts`.
+- Purpose: compare candidate models against the **same** production Image Tagging contract without overwriting production tags.
+- Model picker source: OpenRouter `/api/v1/models/user`, filtered to the current account's guardrails, image input, available pricing, and at least one supported structured-output path (`tools`, `structured_outputs`, or `response_format` JSON mode).
+- Each result stores latency, prompt/completion/total tokens, pricing snapshot, estimated cost, output mode, retry count, and best-effort OpenRouter provider/endpoint metadata under `raw_output._popdam_provider`.
+- Provider metadata is best-effort. OpenRouter cache hits, old rows, and some edge/auth/rate-limit failures can show `unknown`.
+
+### Legacy `ai-tag` Edge Function
+- Location: `supabase/functions/ai-tag/`.
+- This is not the production batch Image Tagging path anymore. It remains for Windows-agent / PDF text extraction support and calls Gemini directly.
+- Do not add batch tagging behavior here; batch tagging belongs in the Railway worker.
+
+### PDF Text Extraction (`pdf-text-sampler.ts` in bridge/windows agents)
+- Uses a cascade: mupdf text extraction → OCR (tesseract.js) → AI vision fallback.
+- The AI vision fallback is configurable separately from production image tagging. See `admin_config.AI_TASK_MODELS.pdf_extraction` and the bridge/windows sampler code before changing it.
+- **Hard limit**: files larger than 100 MB are skipped (logged as warnings, surfaced in the PDF text sample progress UI).
 
 ### ERP Product Category Classification
-- Uses Claude (via OpenRouter) to classify ERP items into product categories when deterministic MG code rules can't resolve them
-- Confidence < 65% → status `pending` (requires human review in the Review Queue)
-- Confidence ≥ 65% → status `auto_applied`
+- Uses OpenRouter to classify ERP items into product categories when deterministic MG code rules can't resolve them.
+- Model config: `admin_config.AI_TASK_MODELS.text_classification`; the current default in `apps/worker/src/handlers/erp.ts` is `anthropic/claude-3.5-haiku`.
+- Confidence < 65% → status `pending` (requires human review in the Review Queue).
+- Confidence ≥ 65% → status `auto_applied`.
 
 ---
 

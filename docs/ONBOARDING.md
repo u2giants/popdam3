@@ -450,7 +450,8 @@ Style groups inherit metadata from their assets: licensor, property, division, M
 
 ## 13. AI Tagging Pipeline
 
-Uses a **configurable AI model** (Google Gemini by default) to analyze asset thumbnails and generate:
+Uses a **configurable OpenRouter vision model** (Railway worker default:
+`google/gemini-2.5-flash`) to analyze asset thumbnails and generate:
 - Tags (e.g., "frozen", "elsa", "snowflake", "blue", "winter")
 - Character identification (matched to `characters` table)
 - Asset type classification (art_piece, product, packaging, tech_pack, photography)
@@ -459,7 +460,23 @@ Uses a **configurable AI model** (Google Gemini by default) to analyze asset thu
 - Cover description (one-sentence summary)
 - Licensed/unlicensed determination
 
-The model is selected from the `AI_MODELS` admin config array (first entry with `provider: "google"` and `"vision"` capability). Change the active model in Settings → Admin Config without redeploying. See `docs/MODEL_RULES.md` for details.
+Production tagging runs in the persistent Railway worker, not in the legacy
+`supabase/functions/ai-tag` edge function. The active model is read from
+`admin_config.AI_TASK_MODELS.vision_tagging` and cached for 60 seconds; an
+optional `vision_tagging_fallback` can be set there too. Change the active model
+in Settings → AI Models without redeploying. Eligible models must accept image
+input and return the same `tag_asset` contract through OpenRouter tools,
+JSON-schema structured outputs, or JSON mode. The worker validates that
+`tags`, `ai_description`, and `scene_description` exist before storing a result.
+See `docs/MODEL_RULES.md` for details.
+
+### Vision Bake-Off
+Settings → AI Tagging includes a Vision Bake-Off for comparing five candidate
+models against the production Image Tagging contract. It is deliberately
+non-destructive: results are written to `ai_tag_bakeoff_*` tables and do not
+overwrite production asset tags. Each response records latency, token usage,
+estimated cost, output mode, retry count, and best-effort OpenRouter
+provider/endpoint metadata so the team can spot endpoint-specific failures.
 
 ### PDF text extraction
 Before tagging, the bridge agent optionally extracts text from PDFs via a cascade: mupdf → OCR → AI vision fallback. Results are stored in `pdf_text_samples` and injected into the tagging prompt as additional context. Files over 100 MB are skipped automatically (logged with reason).

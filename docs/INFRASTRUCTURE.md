@@ -78,13 +78,15 @@ The worker reads `admin_config.AI_TASK_MODELS` for the model to use per task:
 
 ```json
 {
-  "vision_tagging": "google/gemini-2.0-flash-001",
+  "vision_tagging": "google/gemini-2.5-flash",
   "text_classification": "anthropic/claude-3.5-haiku",
   "pdf_extraction": "google/gemini-2.0-flash-001"
 }
 ```
 
-These are OpenRouter model IDs. If not set, the worker falls back to `DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-001"`. Configure via Settings → AI Models in the admin UI — the dropdowns are populated live from your OpenRouter account's guardrailed `/api/v1/models/user` list. Unavailable placeholder aliases with negative pricing are filtered out. Image Tagging and Vision Bake-Off use the same requirement: image input plus tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`) with app-side required-field validation.
+These are OpenRouter model IDs. If not set, the Railway worker falls back to `DEFAULT_VISION_MODEL = "google/gemini-2.5-flash"` for production Image Tagging. Configure via Settings → AI Models in the admin UI — the dropdowns are populated live from your OpenRouter account's guardrailed `/api/v1/models/user` list. Unavailable placeholder aliases with negative pricing are filtered out. Image Tagging and Vision Bake-Off use the same requirement: image input plus tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`) with app-side required-field validation.
+
+The shared Image Tagging worker contract lives in `apps/worker/src/handlers/ai-tagging-shared.ts`; both production tagging (`ai-tagging.ts`) and Vision Bake-Off (`ai-tag-bakeoff.ts`) call it. The contract requires `tags`, `ai_description`, and `scene_description` regardless of whether the model returned them through tools, JSON schema, or JSON mode. The bake-off stores best-effort OpenRouter provider/endpoint evidence in `ai_tag_bakeoff_results.raw_output._popdam_provider` so model quality can be interpreted alongside route, cost, tokens, and latency.
 
 ---
 

@@ -344,6 +344,17 @@ from the model can be resolved against `characters`, and rejected or unresolved
 taxonomy choices are recorded under `raw_output._popdam_debug`. Stale `running`
 rows older than 10 minutes are normalized to `failed`.
 
+`raw_output` also carries PopDAM-owned audit keys:
+- `_popdam_output_mode` — one of `tool`, `tool_content_json`, `json_schema`, or `json_object`
+- `_popdam_retry_count` — currently `0` or `1`; JSON mode gets one repair retry after malformed/invalid JSON
+- `_popdam_provider` — best-effort OpenRouter route metadata, including provider, endpoint/model, generation id, selected router metadata, response headers, and `/api/v1/generation` enrichment when available
+- `_popdam_failure_stage` — present on failed rows when the worker can identify the structured-output stage
+
+Provider metadata is intentionally stored in `raw_output` instead of dedicated
+columns. It is useful for the bake-off UI's provider-pattern summary, but it is
+best-effort: old rows, OpenRouter cache hits, and some failures can show
+`unknown`.
+
 #### `ai_tag_bakeoff_reviews`
 Human scoring for the matrix UI.
 - `run_id uuid FK`, `asset_id uuid FK`, `field text` (`tags`, `description`, `characters`, `property`, `overall`)

@@ -45,7 +45,7 @@ Located in `apps/worker/`. A persistent Node.js process deployed on Railway (aut
 
 **What it does:** polls `admin_config.BULK_OPERATIONS` every 1 s (configurable). Each tick reads the operations JSON blob, detects stale locks, auto-resumes interrupted ops, promotes queued ops into empty lanes with conflict isolation, dispatches batch handlers, and persists state back via the `update_bulk_operation` RPC. There is no HTTP endpoint; all triggering is done by writing to `admin_config.BULK_OPERATIONS` from the frontend or admin API.
 
-**Handlers:** `ai-tagging.ts` (AI tag operations), `erp.ts` (ERP enrichment + AI category classification), `style-groups.ts` (rebuild, reconcile, cleanup), `relink-orphaned.ts`, `tag-propagation.ts`.
+**Handlers:** `ai-tagging.ts` (production AI tag operations), `ai-tag-bakeoff.ts` (non-destructive model bake-off using the same tagging contract), `erp.ts` (ERP enrichment + AI category classification), `style-groups.ts` (rebuild, reconcile, cleanup), `relink-orphaned.ts`, `tag-propagation.ts`.
 
 **Lane isolation:** ops are assigned lanes (`ai-tagging`, `style-groups`, `erp`, `metadata`). Cross-lane conflicts are enforced (e.g., `ai-tag-*` and `rebuild-style-groups` cannot run concurrently). Kill switches stop a lane after 20 identical errors or 80%+ failure rate over 50+ items.
 
@@ -193,7 +193,7 @@ The `supabase-popsg/` directory in the repo root is dead code from an earlier ar
 |---------|------|
 | **Supabase** (`qsllyeztdwjgirsysgai`) | PostgreSQL database, Auth, Realtime, Edge Functions runtime (Deno). Single project for both PopDAM and PopSG. |
 | **DigitalOcean Spaces** | S3-compatible object storage. Bucket `popdam`, region `nyc3`. CDN at `cdn.designflow.app`. Stores all asset thumbnails. Path format: `thumbnails/{asset_id}.jpg`. |
-| **OpenRouter / Anthropic** | AI inference. OpenRouter (`OPENROUTER_API_KEY`) is the preferred provider; `ANTHROPIC_API_KEY` and `GOOGLE_AI_API_KEY` are fallbacks. Used by the Railway worker for ERP category classification and AI asset tagging. The bridge agent's PDF text extraction uses a vision model via OpenRouter as a last-resort fallback after MuPDF + OCR. |
+| **OpenRouter / Anthropic** | AI inference. OpenRouter (`OPENROUTER_API_KEY`) is the preferred provider; `ANTHROPIC_API_KEY` and `GOOGLE_AI_API_KEY` are fallbacks. Used by the Railway worker for ERP category classification, production Image Tagging, and Vision Bake-Off. The bridge agent's PDF text extraction uses a vision model via OpenRouter as a last-resort fallback after MuPDF + OCR. |
 | **Coolify** | Container orchestration on VPS `178.156.180.212`. Owns the `popdam-frontend` container lifecycle, runtime env vars, domain bindings, health checks, and restart policy. CI triggers deploys via the Coolify REST API (`POST /api/v1/deploy?uuid=qxj8a0j3tpa9lq4q5rs6pezy`). |
 | **Railway** | Hosts the cloud worker (`apps/worker/`). Auto-deploys from every push to `main`. Worker connects to Supabase directly using a service role key. |
 | **DesignFlow ERP API** | `https://api.item.designflow.app/lib/getApiAllItems`. Source of ERP item data synced into `erp_items_current`. |

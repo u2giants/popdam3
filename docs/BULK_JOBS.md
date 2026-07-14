@@ -2,7 +2,7 @@
 
 Bulk operations are orchestrated by a **persistent Node.js worker running on Railway** (`apps/worker/`), not by the `bulk-job-runner` Supabase edge function. The edge function is a deployed no-op stub kept for backward compatibility (see quirk #19 in [docs/KNOWN_QUIRKS.md](KNOWN_QUIRKS.md)).
 
-The worker polls `admin_config.BULK_OPERATIONS` every **5 seconds**. When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no timeout constraint — it runs until the operation completes, the user stops it, or it errors. The pg_cron schedule that previously called the edge function every minute was removed in migration `20260322000000`.
+The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`WORKER_POLL_INTERVAL_MS`, configurable). When it finds an operation with `status: "running"`, it claims a batch, processes it, writes progress back, and loops. It has no Supabase edge-function timeout constraint — it runs until the operation completes, the user stops it, or it errors. The pg_cron schedule that previously called the edge function every minute was removed in migration `20260322000000`.
 
 **Authoritative code locations:**
 - Orchestrator: `apps/worker/src/operation-loop.ts` (Railway)
@@ -19,6 +19,7 @@ The worker polls `admin_config.BULK_OPERATIONS` every **5 seconds**. When it fin
 | `ai-tag-untagged` | ai-tagging | assets, asset_tags, asset_characters | manual |
 | `ai-tag-all` | ai-tagging | assets, asset_tags, asset_characters | manual |
 | `ai-tag-groups` | ai-tagging | assets, asset_tags, asset_characters | manual |
+| `ai-tag-bakeoff` | ai-tagging | ai_tag_bakeoff_runs, ai_tag_bakeoff_results | manual |
 | `propagate-group-tags` | style-groups | assets, asset_tags, asset_characters | manual |
 | `rebuild-style-groups` | style-groups | assets (style_group_id), style_groups | manual |
 | `reconcile-style-group-stats` | style-groups | style_groups | manual / auto-queued after rebuild |
@@ -51,9 +52,9 @@ Some jobs in *different* lanes write to the same database rows. Running them at 
 
 | Jobs | Why they conflict |
 |------|------------------|
-| `ai-tag-*` ↔ `propagate-group-tags` | Both write `asset_tags`, `asset_characters`, and `assets`. The `UPDATE assets` was fixed with `FOR UPDATE SKIP LOCKED`, but `INSERT INTO asset_tags/asset_characters` still experiences speculative-insert index locks when both jobs try to insert the same `(asset_id, tag)` pair simultaneously — one waits for the other to commit. Across many groups this accumulates past the 120 s statement timeout. **Lock contention risk.** |
-| `ai-tag-*` ↔ `rebuild-style-groups` | Rebuild clears `style_group_id` on every asset then reassigns it. AI tagging reads `style_group_id` to scope tag propagation — if rebuild is mid-run, tags propagate to the wrong group or are lost entirely. **Data integrity risk.** |
-| `ai-tag-*` ↔ `reprocess-metadata` | Both write `licensor_id`, `property_id`, `is_licensed`, and `workflow_status` on `assets`. Last-writer-wins data races. **Data integrity risk.** |
+| `ai-tag-*` / `ai-tag-bakeoff` ↔ `propagate-group-tags` | AI tagging writes `asset_tags`, `asset_characters`, and `assets`; bake-off evaluates the same assets and shares the ai-tagging lane. `INSERT INTO asset_tags/asset_characters` can experience speculative-insert index locks when propagation and tagging insert the same `(asset_id, tag)` pair. **Lock contention risk.** |
+| `ai-tag-*` / `ai-tag-bakeoff` ↔ `rebuild-style-groups` | Rebuild clears `style_group_id` on every asset then reassigns it. AI tagging reads `style_group_id` to scope tag propagation; bake-off samples/evaluates thumbnail-backed assets and should not run while style-group assignment is being rewritten. **Data integrity/evaluation risk.** |
+| `ai-tag-*` / `ai-tag-bakeoff` ↔ `reprocess-metadata` | Production tagging and metadata reprocessing both write overlapping asset fields; bake-off evaluates the same metadata/prompt context and should not be mixed with a metadata rewrite. **Data integrity/evaluation risk.** |
 | `reprocess-metadata` ↔ `erp-enrichment` | Both write overlapping asset metadata columns. **Data integrity risk.** |
 | `backfill-sku-names` ↔ `erp-enrichment` | Both write licensor/property code columns on `assets` and `style_groups`. **Data integrity risk.** |
 

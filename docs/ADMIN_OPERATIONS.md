@@ -249,6 +249,44 @@ Immediately propagates tags from the primary asset to all sibling assets in a sp
 ### `count-untagged-assets`
 Returns the count of assets that have a thumbnail URL but no `ai_tagged_at`. No body parameters.
 
+### `create-ai-tag-bakeoff-run`
+Creates a non-destructive Vision Bake-Off run. The UI passes five OpenRouter
+model IDs and a sample size; the route stores the selected random/deduped asset
+IDs in `ai_tag_bakeoff_runs`. The Railway worker processes the run through the
+same shared Image Tagging contract used by production tagging.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | `string` optional | Defaults to a generated bake-off name |
+| `sample_size` | `number` | Number of assets to sample |
+| `model_ids` | `string[]` | Five distinct OpenRouter model IDs |
+| `asset_ids` | `string[]` optional | Explicit asset sample override |
+
+### `list-ai-tag-bakeoff-runs`
+Returns recent bake-off run headers for the Settings → AI Tagging run selector.
+No body parameters.
+
+### `get-ai-tag-bakeoff-run`
+Returns one run plus ordered assets, results, and human reviews. It also marks
+stale `running` result rows older than 10 minutes as `failed`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `run_id` | `string` | UUID of the bake-off run |
+
+### `score-ai-tag-bakeoff-field`
+Stores human review choices for one asset/field. The UI can store multiple
+winner slots in `scores.winner_slots`; `winner_slot` is kept as the first winner
+for compatibility.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `run_id` | `string` | UUID of the bake-off run |
+| `asset_id` | `string` | UUID of the sampled asset |
+| `field` | `string` | `tags`, `description`, `characters`, `property`, or `overall` |
+| `winner_slots` | `string[]` | Any of `a` through `e` |
+| `notes` | `string` optional | Human notes |
+
 ### `bulk-propagate-group-tags`
 Propagates AI tags, characters, and metadata from the primary (best-tagged) asset in each style group to all sibling assets. Calls the `propagate_group_tags_batch` PostgreSQL function directly via RPC.
 

@@ -170,6 +170,23 @@ This codebase uses multiple AI models in multiple places. Before changing any mo
 
 Changing a model in one place does not change it in others. Each consumer reads from a different config source.
 
+### Image Tagging / Vision Bake-Off contract
+
+Production Image Tagging and the Vision Bake-Off intentionally use the same
+worker path: `apps/worker/src/handlers/ai-tagging-shared.ts`. The bake-off is a
+production-behavior evaluator, not a stricter tool-calling-only test. A model is
+eligible when it has image input and can return the `tag_asset` contract via one
+of: OpenRouter tool calling, `response_format` JSON schema/structured outputs,
+or `response_format: { "type": "json_object" }` with app-side validation.
+Required fields are `tags`, `ai_description`, and `scene_description`; malformed
+JSON gets one repair retry in JSON mode.
+
+OpenRouter model IDs may route to different provider endpoints. Bake-off result
+rows store best-effort route evidence under
+`ai_tag_bakeoff_results.raw_output._popdam_provider`; old rows and cache hits can
+show `unknown`. Do not add shared-db provider columns unless the app needs
+cross-run filtering/reporting outside the bake-off UI.
+
 ---
 
 ## Repository structure

@@ -257,6 +257,12 @@ Configures DigitalOcean Spaces connection (bucket, region, endpoint, public base
 - Taxonomy sync controls (sync all licensors / sync one).
 - Untagged asset count and AI tagging controls (tag untagged / tag all).
 - Tag propagation controls.
+- Vision Bake-Off for comparing five OpenRouter vision models against the same
+  production Image Tagging contract. The result matrix shows tags,
+  descriptions, characters, property, human winner picks, latency, token usage,
+  estimated cost, output mode, retry count, and best-effort provider/endpoint
+  metadata. The Provider Patterns strip aggregates success/failure counts by
+  model + endpoint for the selected run.
 
 ### Tab: ERP Enrichment
 - **Sync section:** Configure ERP API credentials, trigger sync (full or incremental), view last 10 sync run history.

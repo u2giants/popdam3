@@ -365,7 +365,7 @@ The admin UI only updates `admin_config`. The Railway worker reads from Railway 
 
 **Why**: They must use the OpenRouter key-scoped `/api/v1/models/user` response, not the public `/api/v1/models` catalog. The user endpoint reflects the account's model guardrails/policy. The public catalog can include providers and aliases that are not allowed for this PopDAM key.
 
-**Extra filter rules**: Image Tagging and Vision Bake-Off are stricter than "vision capable" but share the same contract. Options must support image input plus tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). The worker tries the structured `tag_asset` tool path first, falls back to the same schema through `response_format`, then falls back to JSON mode with explicit schema instructions. All paths must parse as JSON and include the required `tags`, `ai_description`, and `scene_description` fields before the worker stores a result. OpenRouter can also return unavailable placeholder aliases with negative pricing (for example `-1000000` per token); those are filtered out everywhere and their prices are not displayed.
+**Extra filter rules**: Image Tagging and Vision Bake-Off are stricter than "vision capable" but share the same contract. Options must support image input plus tool calling, OpenRouter `response_format` JSON-schema structured outputs, or JSON mode (`response_format: { "type": "json_object" }`). The worker tries the structured `tag_asset` tool path first, falls back to the same schema through `response_format`, then falls back to JSON mode with explicit schema instructions and one JSON repair retry. All paths must parse as JSON and include the required `tags`, `ai_description`, and `scene_description` fields before the worker stores a result. OpenRouter can also return unavailable placeholder aliases with negative pricing (for example `-1000000` per token); those are filtered out everywhere and their prices are not displayed.
 
 **What breaks if you "fix" it**: Switching back to the public catalog, or listing vision models without checking image input plus structured-output support/availability, lets users queue production tagging or bake-off runs against models that OpenRouter will reject or that return prose the worker cannot safely apply.
 
@@ -647,10 +647,9 @@ not ad hoc Dashboard SQL or app-local migrations.
 (`modelSupportsTools`, `callTagAssetModel`)
 
 **What it looks like**: `callTagAssetModel` attempts three output strategies in
-order — tool call, `json_schema`, then `json_object` — but for Gemma and
-Llama 4 Scout models the
-tool-call leg is skipped entirely and it goes straight to JSON. Looks like an
-inconsistent special case.
+order — tool call, `json_schema`, then `json_object` — but for Gemma and Llama 4
+Scout models the tool-call leg is skipped entirely and it goes straight to JSON.
+Looks like an inconsistent special case.
 
 **Why**: Gemma models on OpenRouter (e.g. `google/gemma-4-31b-it`) do not
 support OpenAI-style function/tool calling. Running the tool leg for them always
@@ -689,10 +688,12 @@ removing it from the skip list.
 `apps/worker/src/handlers/ai-tag-bakeoff.ts`,
 `src/components/settings/AiTagBakeoffTab.tsx`
 
-**What changed**: OpenRouter calls request router metadata, capture generation
-ids/provider headers, enrich from `/api/v1/generation` when possible, and store
-that under `ai_tag_bakeoff_results.raw_output._popdam_provider`. The bake-off UI
-shows provider/endpoint next to time, tokens, and cost, and summarizes provider
+**What changed**: OpenRouter calls request router metadata
+(`X-OpenRouter-Metadata: enabled`), capture `X-Generation-Id`/provider headers,
+parse success and error-body `openrouter_metadata`, enrich from
+`/api/v1/generation` when possible, and store that under
+`ai_tag_bakeoff_results.raw_output._popdam_provider`. The bake-off UI shows
+provider/endpoint next to time, tokens, and cost, and summarizes provider
 success/failure patterns per run.
 
 **Why**: The same OpenRouter model ID can route to different provider endpoints,
@@ -701,7 +702,8 @@ The bake-off needs to evaluate production Image Tagging behavior, so provider
 route evidence must be visible alongside quality/cost/timing.
 
 **Future sessions should**: Keep this metadata best-effort. OpenRouter may omit
-headers or generation metadata, and old rows will show `unknown`; that is missing
-evidence, not proof there was no provider route. Avoid adding a shared-db
-migration for provider columns unless the app needs filtering/reporting on this
-metadata outside the bake-off UI.
+headers or generation metadata; OpenRouter cache hits intentionally omit router
+metadata; and old rows will show `unknown`. That is missing evidence, not proof
+there was no provider route. Avoid adding a shared-db migration for provider
+columns unless the app needs filtering/reporting on this metadata outside the
+bake-off UI.
