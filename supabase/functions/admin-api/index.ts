@@ -1160,8 +1160,8 @@ async function handleScoreAiTagBakeoffField(body: Record<string, unknown>, userI
   const winnerSlots = Array.isArray(body.winner_slots)
     ? [...new Set(body.winner_slots.filter((slot): slot is string => typeof slot === "string" && ["a", "b", "c", "d", "e"].includes(slot)))]
     : winnerSlot
-      ? [winnerSlot]
-      : [];
+    ? [winnerSlot]
+    : [];
   if (!runId || !assetId || !field) return err("run_id, asset_id, and field are required", 400);
   if (!["tags", "description", "characters", "property", "overall"].includes(field)) return err("Invalid field", 400);
   if (winnerSlot && !["a", "b", "c", "d", "e"].includes(winnerSlot)) return err("Invalid winner_slot", 400);
