@@ -408,6 +408,87 @@ question: "the same model is sometimes failing and sometimes succeeding — can 
 detect which endpoints succeeded/failed, and force OpenRouter to use one
 endpoint?"_
 
+> ### ⭐ Update — later 2026-07-14 session: Exacto is now the default fix; dead Gemini paths removed
+>
+> **Read this first — it supersedes §8's "the reliable path is the pin" conclusion.**
+> The earlier §8 work (below, commit `23a1b15`) added a manual endpoint *pin*. A
+> later session made **OpenRouter Exacto the automatic, default routing for every
+> call**, which is the real fix for the "same model flips pass/fail" problem this
+> whole section is about. The pin is now a manual diagnostic layer on top of it.
+>
+> **What shipped (commits `7c91c66` code + cleanup, `83f4f07` docs, both on `main`):**
+> - **Exacto by default.** `withExactoRouting()` in `apps/worker/src/openrouter.ts`
+>   appends OpenRouter's `:exacto` model-slug variant to **every** `chatCompletion`
+>   call (tagging, bake-off, ERP). Exacto routes to the provider endpoint with the
+>   best measured tool-calling accuracy. It is a **free** virtual variant (no price
+>   premium) and is idempotent — a slug that already carries an explicit `:variant`
+>   (`:nitro`, `:floor`, a manual `:exacto`) is left untouched, so that is the
+>   per-model opt-out. This is the routing-layer replacement for relying on the
+>   client's tool_choice/malformed-JSON fallback ladders. Confirmed via OpenRouter
+>   docs that Exacto is a slug suffix, not a request field.
+> - **Dead-code removal.** Deleted the unused `ai-tag` **edge function** (direct-Gemini
+>   batch tagging; no callers) — source + `supabase/config.toml` entry, and the
+>   deployed copy via `supabase functions delete ai-tag`. Removed the worker's
+>   broken `googleAiApiKey` fallback (a Google key can't authenticate to
+>   openrouter.ai). Corrected the stale "gemini-2.5-flash default" comment/constant.
+> - **Docs.** `docs/KNOWN_QUIRKS.md` **#62** (Exacto-by-default) and **#63**
+>   (`GOOGLE_AI_API_KEY` still live), `docs/MODEL_RULES.md`, `AGENTS.md` updated.
+>
+> **Live model config (queried from prod `qsllyeztdwjgirsysgai` this session, in
+> `admin_config.AI_TASK_MODELS` — NOT in code):** `vision_tagging` =
+> `qwen/qwen3-vl-32b-instruct` (primary, and the one model that's stable),
+> `vision_tagging_fallback` = `minimax/minimax-m3`, `pdf_extraction` =
+> `deepseek/deepseek-v4-flash`, `text_classification` = `deepseek/deepseek-v4-pro`.
+> **No Google/Gemini model runs through the worker.** The `DEFAULT_VISION_MODEL`
+> constant in `ai-tagging.ts` is only a missing-row fallback, not the live default.
+>
+> **⚠️ `GOOGLE_AI_API_KEY` is NOT dead — do not remove it.** After the `ai-tag`
+> deletion it looks dead, but the on-prem bridge/windows agents call Google
+> **directly** for PDF text extraction (`apps/*-agent/src/pdf-text-sampler.ts`,
+> `pdf-backfill.ts`) via the `agent-api` `google_ai_api_key` passthrough, set
+> through the ApisTab "Google AI API Key" field. Keep the key, the passthrough,
+> the ApisTab field, and the `google` entries in the `AI_MODELS` catalog. See #63.
+>
+> **Decisions (so a later session doesn't re-litigate):**
+> - **Do NOT migrate models to direct provider APIs wholesale.** The user asked
+>   about moving off OpenRouter to direct Google/Qwen/DeepSeek/MiniMax accounts.
+>   Findings: MiniMax **direct is ~2× OpenRouter cost** for the same model; Qwen
+>   (the primary) is stable on OpenRouter; the JSON/tool-call pain was a *routing*
+>   problem, not a provider problem. Exacto (free, config-level) is the fix.
+>   Direct-DeepSeek stays the only plausible future candidate, and only if it still
+>   misbehaves *with* Exacto.
+>
+> **What's LEFT for this workstream (fresh-dev next actions):**
+> 1. **Measure Exacto's impact — this is the open loop.** Exacto shipped but its
+>    effect on the prod failure rate is unconfirmed. After the Railway worker
+>    rebuild for `7c91c66` lands, watch AI-tag failures for the structured-output
+>    symptoms in `docs/KNOWN_QUIRKS.md` #58/#59 (OpenRouter 404, `No endpoints
+>    found`, malformed tool JSON, no parsable JSON) and compare before/after, or run
+>    a bake-off. If a specific model still fails (e.g. the MiniMax M3 JSON errors in
+>    §9), pin it (#60) or change it.
+> 2. **§8 Open question #1 (does `attempts[]` populate) is UNCHANGED** — Exacto does
+>    not affect it. Still resolve it per the steps below.
+> 3. **Prune `toGeminiSchema`** (in `supabase/functions/_shared/tag-asset-contract.js`
+>    + worker vendor mirror + `.d.ts` + its tests) — it went dead when `ai-tag` was
+>    deleted, but the contract mirror is being **concurrently edited** right now;
+>    prune only once that file is clean. See #63.
+>
+> **Dead ends this session (don't repeat):**
+> - Assumed Gemini was the production default (read it off `DEFAULT_VISION_MODEL`)
+>   and proposed a direct-API migration — **wrong**; the live default is
+>   `admin_config.AI_TASK_MODELS` (qwen). Always check the DB, not the constant.
+> - Nearly stripped the ApisTab Google key field + `agent-api` passthrough as
+>   "dead" — they are **live** (agent PDF text extraction). Verified before deleting
+>   and stopped.
+>
+> **How verified this session:** worker `tsc --noEmit` clean; worker tests (15,
+> incl. new `openrouter.test.ts` for `withExactoRouting`) + frontend vitest (52)
+> pass; GitHub Actions **CI** + **Deploy Supabase Edge Functions** green after the
+> `ai-tag` removal (proves the deletion didn't break the deploy); deployed `ai-tag`
+> function confirmed gone from the project; live `AI_TASK_MODELS` read via
+> service-role PostgREST (supabase MCP was unauthorized — used the `op`/service-role
+> pattern in §8's infra note).
+
 **Status: code SHIPPED (committed `23a1b15`, pushed to `main` 2026-07-14,
 Railway + Coolify auto-rebuilding); one core question still open (see #1 below)
 — resolve it after the deploy lands.**
