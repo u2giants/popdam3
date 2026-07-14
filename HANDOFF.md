@@ -1,6 +1,6 @@
 # Handoff
 
-_Last updated: 2026-06-25. Delete this file once the pilot, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, and production PO sync auth handoff are done. Helper code signing is **permanently abandoned** — installers stay unsigned forever (§5.3), not a blocker. (The quick_hash/move-detection and bridge build-identity work in §5.9 is **done and deployed** — kept only for the optional history-row cleanup.)_
+_Last updated: 2026-07-14. Delete this file once the pilot, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, production PO sync auth handoff, **and the §8 AI-tagging OpenRouter open question** are done. Helper code signing is **permanently abandoned** — installers stay unsigned forever (§5.3), not a blocker. (The quick_hash/move-detection and bridge build-identity work in §5.9 is **done and deployed** — kept only for the optional history-row cleanup.)_
 
 Read `AGENTS.md` first. This file is self-contained — a developer with **zero prior context** should be able to continue from here. Background detail lives in `docs/SEAFILE_INTEGRATION.md` and `docs/POPDAM_HELPER.md`.
 
@@ -390,10 +390,13 @@ question: "the same model is sometimes failing and sometimes succeeding — can 
 detect which endpoints succeeded/failed, and force OpenRouter to use one
 endpoint?"_
 
-**Status: partial — code written & verified, NOT committed/pushed; one core
-question still open.**
+**Status: code SHIPPED (committed `23a1b15`, pushed to `main` 2026-07-14,
+Railway + Coolify auto-rebuilding); one core question still open (see #1 below)
+— resolve it after the deploy lands.**
 
-### Done (verified this session, but UNCOMMITTED in the working tree)
+### Done — committed in `23a1b15` and pushed to `main`
+_(This commit also bundles a concurrent session's same-model structured-retry
+changes in `ai-tagging.ts` — typechecks clean; not authored here.)_
 - **Endpoint pinning ("force one endpoint") — implemented & verified.**
   - `apps/worker/src/openrouter.ts`: new `buildProviderPin(slugs)` →
     `{ only: [...], allow_fallbacks: false }` (trims, drops empties, returns
@@ -450,7 +453,7 @@ a bad endpoint is the pin with `allow_fallbacks: false` — a hard failure then
 names the exact provider. This is the recommended path. `docs/KNOWN_QUIRKS.md`
 #60.
 
-### Changed files (all UNCOMMITTED as of handoff)
+### Changed files (all in commit `23a1b15`, pushed to `main`)
 | File | What |
 |---|---|
 | `apps/worker/src/openrouter.ts` | `buildProviderPin`, `OpenRouterAttempt[]`, failed-leg attribution |
@@ -460,14 +463,31 @@ names the exact provider. This is the recommended path. `docs/KNOWN_QUIRKS.md`
 | `AGENTS.md`, `docs/MODEL_RULES.md`, `docs/configuration.md`, `docs/KNOWN_QUIRKS.md`, `docs/MCP_SERVERS.md` | docs for the above + the OpenRouter-metadata reality check + secret-access fallback |
 
 ### Exact next action for this workstream
-1. Confirm my `providerPin` wiring is still intact in `ai-tagging.ts` after the
-   concurrent same-model-retry edit (lines ~14, 69, 167-168, 180).
-2. Commit + push to `main` (both remotes, per `CLAUDE.md`). Railway auto-rebuilds
-   `apps/worker/**`; Coolify/GHCR rebuilds the frontend.
-3. Run **one** Vision Bake-Off on deployed code → resolve Open question #1 by
-   inspecting `_popdam_provider.routerMetadata.attempts`.
-4. If a model is flaky, read its bake-off provider success/failure table, then
-   set `AI_TASK_MODELS.vision_tagging_provider` to the winning slug.
+_(Code is already committed + pushed as `23a1b15`. What remains:)_
+1. **Verify the deploy landed** — confirm Railway rebuilt `apps/worker/**` and
+   Coolify/GHCR rebuilt the frontend for commit `23a1b15` (check the running
+   worker/build, per `deploy-and-verify` skill / `docs/deployment.md`).
+2. **Resolve Open question #1**: trigger **one** Vision Bake-Off from
+   Settings → Processing (or the ai-tag-bakeoff bulk op — see `docs/BULK_JOBS.md`
+   / `docs/ADMIN_OPERATIONS.md`), then query
+   `ai_tag_bakeoff_results.raw_output._popdam_provider.routerMetadata.attempts`
+   (DB access via the `op`/service-role pattern below). Non-empty array ⇒ the
+   metadata *does* populate, keep the feature. Always empty ⇒ confirm the finding,
+   drop/deprioritize the `attempts[]` UI, rely on the pin.
+3. **If a model is flaky**: read the bake-off's per-run provider success/failure
+   table, then set `AI_TASK_MODELS.vision_tagging_provider` to the winning slug
+   (Settings → AI Models → Image Tagging → "Pin OpenRouter endpoint").
+
+### How the code was verified (so a fresh session can re-run it)
+The pin serialization + `attempts[]`/failed-leg-attribution logic were verified
+by driving the real `chatCompletion` over a socket with a **global-`fetch`
+intercept** harness (capture request bytes, return canned OpenRouter-shaped
+responses) — 13/13 assertions passed; both `tsc --noEmit` clean. The harness
+lived in the session scratchpad (not committed); recreate it if you need to
+re-verify. A true live confirmation of OpenRouter's response shape was **not**
+possible — the PopDAM OpenRouter account's data-policy rejects bare text calls
+(`No endpoints available matching your guardrail restrictions and data policy`),
+so don't burn time trying a from-scratch live probe; use a real bake-off instead.
 
 ### Infra note discovered while verifying (durable)
 `supabase` MCP was **unauthorized** this session; the DB is still reachable via
