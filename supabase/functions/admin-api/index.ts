@@ -1004,12 +1004,13 @@ function randomInt(maxExclusive: number) {
 }
 
 async function selectRandomBakeoffAssets(db: ReturnType<typeof serviceClient>, sampleSize: number) {
-  const baseQuery = () => db
-    .from("assets")
-    .select("id, filename, relative_path, quick_hash, sku")
-    .eq("is_deleted", false)
-    .not("thumbnail_url", "is", null)
-    .not("primary_sort_tier", "in", "(4,8)");
+  const baseQuery = () =>
+    db
+      .from("assets")
+      .select("id, filename, relative_path, quick_hash, sku")
+      .eq("is_deleted", false)
+      .not("thumbnail_url", "is", null)
+      .not("primary_sort_tier", "in", "(4,8)");
 
   const pageSize = Math.min(1000, Math.max(100, sampleSize * 25));
   const seenIds = new Set<string>();
