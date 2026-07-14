@@ -588,7 +588,7 @@ Create a single SQL function (or view) used everywhere:
 - queue functions: `claim_jobs(...)` using `FOR UPDATE SKIP LOCKED`, `reset_stale_jobs(...)`
 - optional: `get_filter_counts(filters)` and `get_asset_count(filters)` using the same visibility logic
 - path-derived attributes (see PATH_ATTRIBUTES.md): `infer_path_attrs(path)` (IMMUTABLE) + `trg_set_path_attrs` triggers on `assets`/`style_groups`; `get_path_facets(customer)` for the customer/program filter combos
-- library search: `dam_search_documents` is the flattened search table for assets and style groups. Its stored generated `search_tsv` column is GIN-indexed; SKU/path-style substring fields use trigram indexes; optional `embedding vector(384)` supports Supabase `gte-small` semantic search. `search_assets_full_text(query, limit)` and `search_style_groups_full_text(query, limit)` remain compatibility wrappers for the frontend, while `search_dam_documents(...)` is the canonical hybrid-capable RPC.
+- library search: `dam_search_documents` is the flattened search table for assets and style groups. Its stored generated `search_tsv` column is GIN-indexed; SKU/path-style substring fields use trigram indexes; optional `embedding vector(384)` supports Supabase `gte-small` semantic search. `dam_search_synonyms` stores curated business-language aliases, and `expand_dam_search_queries(query)` normalizes punctuation/spacing before `search_dam_documents(...)` ranks matches. `search_assets_full_text(query, limit)` and `search_style_groups_full_text(query, limit)` remain compatibility wrappers for the frontend.
 
 ---
 
