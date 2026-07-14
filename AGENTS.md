@@ -182,8 +182,8 @@ Required fields are `tags`, `ai_description`, and `scene_description`; malformed
 JSON gets one repair retry in JSON mode.
 
 OpenRouter model IDs may route to different provider endpoints, so the same
-model can flip pass/fail per call. Two things follow, both detailed in
-`docs/KNOWN_QUIRKS.md` #59/#60 and `docs/MODEL_RULES.md`:
+model can flip pass/fail per call. Three things follow, detailed in
+`docs/KNOWN_QUIRKS.md` #59/#60/#62 and `docs/MODEL_RULES.md`:
 
 - **Detecting which endpoint failed is NOT supported by OpenRouter's API.**
   Bake-off rows store best-effort route evidence under
@@ -201,6 +201,16 @@ model can flip pass/fail per call. Two things follow, both detailed in
   slug(s); the worker sends `provider: { only: [...], allow_fallbacks: false }`
   so a bad endpoint hard-fails instead of silently rerouting. This is the
   reliable way to know which endpoint failed. Only Image Tagging reads it today.
+- **Exacto is the default routing mode.** Every OpenRouter call is sent with the
+  `:exacto` model variant (`withExactoRouting` in `openrouter.ts`), routing to
+  the endpoint with the best measured tool-calling accuracy. It's free and is the
+  primary mitigation for the flip-per-call problem — pin an explicit `:variant`
+  in a model slug to opt out. Applies to all OpenRouter paths. See #62.
+
+`GOOGLE_AI_API_KEY` looks dead after the direct-Gemini `ai-tag` edge function was
+deleted (2026-07-14), but it is **live**: the on-prem bridge/windows agents use it
+for direct-Google PDF text extraction. Do not remove it, the `agent-api`
+passthrough, or the ApisTab "Google AI API Key" field. See `docs/KNOWN_QUIRKS.md` #63.
 
 ---
 

@@ -8,9 +8,10 @@ This document covers two distinct things: (1) which AI models are used inside th
 
 ### Production Image Tagging (Railway worker)
 - Code path: `apps/worker/src/handlers/ai-tagging.ts` plus the shared contract in `apps/worker/src/handlers/ai-tagging-shared.ts`.
-- Uses OpenRouter through the worker's `OPENROUTER_API_KEY`. `GOOGLE_AI_API_KEY` exists only as a legacy fallback if no OpenRouter key is configured.
+- Uses OpenRouter through the worker's `OPENROUTER_API_KEY`. The worker no longer falls back to `GOOGLE_AI_API_KEY` (removed 2026-07-14 — a Google key cannot authenticate against openrouter.ai). `GOOGLE_AI_API_KEY` is still live, but only for the on-prem agents' direct-Google PDF text extraction (see PDF Text Extraction below and `docs/KNOWN_QUIRKS.md` #63).
+- **Exacto routing (default):** every OpenRouter call is sent with the `:exacto` model variant (`withExactoRouting()` in `openrouter.ts`, applied inside `chatCompletion`), routing to the provider endpoint with the best measured tool-calling accuracy. Free virtual variant, no price premium. A slug with an explicit `:variant` suffix opts out. This is the routing-layer fix for the endpoint-flip failures; see `docs/KNOWN_QUIRKS.md` #62. Applies to all OpenRouter paths (tagging, bake-off, ERP).
 - Model config: `admin_config.AI_TASK_MODELS.vision_tagging`, cached by the worker for 60 seconds. Optional fallback: `vision_tagging_fallback`.
-- Default when unset: `google/gemini-2.5-flash`.
+- Default when unset: `qwen/qwen3-vl-32b-instruct` — a hardcoded last-resort in `ai-tagging.ts`, NOT the configured default (the DB row is what runs). Live config as of 2026-07-14: `vision_tagging` = `qwen/qwen3-vl-32b-instruct`, `vision_tagging_fallback` = `minimax/minimax-m3`, `pdf_extraction` = `deepseek/deepseek-v4-flash`, `text_classification` = `deepseek/deepseek-v4-pro`. No Google/Gemini model runs through the worker.
 - To change the model: Settings → AI Models. This updates `admin_config.AI_TASK_MODELS`; the Railway worker still needs its own `OPENROUTER_API_KEY` env var set in Railway.
 - Output contract: every model must return `tags`, `ai_description`, and `scene_description`. The worker accepts OpenRouter tool calling, JSON-schema structured outputs, or JSON mode, then validates the required fields before storing a result.
 - Retry behavior: malformed/invalid JSON mode output gets one repair retry with a stricter JSON-only instruction inside `callTagAssetModel()`. Production Image Tagging also retries the **same model once** in `tagSingleAsset()` when the full structured-output ladder fails with routing/structured-output symptoms such as OpenRouter 404, `No endpoints found`, tool-use support errors, malformed tool JSON, or no parsable JSON. It does not same-model retry content-inspection failures, missing thumbnails, or DB write errors; after the bounded retry, the configured fallback model can still run for model/provider-specific failures.
@@ -26,13 +27,14 @@ This document covers two distinct things: (1) which AI models are used inside th
 - **⚠️ Open question (2026-07-14):** the "which endpoints *failed*" evidence — the `openrouter_metadata.attempts[]` / `endpoints.available` fields the parser reads — is **undocumented by OpenRouter and appears to never populate** (0/251 prod rows had a `_popdam_provider` blob at check time; docs list no such fields or `X-OpenRouter-Metadata` header; a live probe was blocked by the account data-policy). OpenRouter only ever exposes the *serving* endpoint (response `model` + `/api/v1/generation`), not the failed legs. Use the endpoint **pin** (above) to detect a bad endpoint via hard failure. To resolve the open question, run one bake-off on deployed tracking code and check whether any `_popdam_provider.routerMetadata.attempts` array is non-empty. Full detail: `docs/KNOWN_QUIRKS.md` #59.
 - The bake-off is intentionally **not** pinned — it must observe natural OpenRouter routing to serve as an endpoint-discovery tool.
 
-### Legacy `ai-tag` Edge Function
-- Location: `supabase/functions/ai-tag/`.
-- This is not the production batch Image Tagging path anymore. It remains for Windows-agent / PDF text extraction support and calls Gemini directly.
-- Do not add batch tagging behavior here; batch tagging belongs in the Railway worker.
+### Legacy `ai-tag` Edge Function (REMOVED 2026-07-14)
+- Deleted from `supabase/functions/ai-tag/` (source + `config.toml` entry) and from the Supabase project (`supabase functions delete ai-tag`). It was a direct-Gemini batch tagging path with no remaining callers; production batch tagging is the Railway worker.
+- Its old note claimed it backed "Windows-agent / PDF text extraction" — that was **wrong**. PDF text extraction is the separate agent path below, which calls Google directly and never invoked this function.
+- Do not recreate it. Batch tagging belongs in the Railway worker via OpenRouter.
 
 ### PDF Text Extraction (`pdf-text-sampler.ts` in bridge/windows agents)
 - Uses a cascade: mupdf text extraction → OCR (tesseract.js) → AI vision fallback.
+- The AI vision fallback calls Google's `generativelanguage.googleapis.com` **directly** (not through OpenRouter) using `GOOGLE_AI_API_KEY`, which the agents read via `agent-api`'s config passthrough. This is the only live consumer of `GOOGLE_AI_API_KEY` — keep it configured. See `docs/KNOWN_QUIRKS.md` #63.
 - The AI vision fallback is configurable separately from production image tagging. See `admin_config.AI_TASK_MODELS.pdf_extraction` and the bridge/windows sampler code before changing it.
 - **Hard limit**: files larger than 100 MB are skipped (logged as warnings, surfaced in the PDF text sample progress UI).
 

@@ -784,3 +784,25 @@ pin today; ERP classification and PDF extraction do not (add a sibling
 **Why**: The render agents already upload 1500px PDF page images to Spaces for PDF text sampling, so the Railway worker can use them without new storage, schema, or agent work. Raster originals are not uploaded to cloud storage; the worker can only reach the 800px thumbnail unless agents create and upload a new hi-res raster rendition.
 
 **Do not change because**: Treat this as a bake-off measurement path, not a silent production behavior change. Production Image Tagging still uses `assets.thumbnail_url`; moving production to hi-res raster inputs requires an agent-side rendition/backfill plan and, likely, a shared-db column for the new URL.
+
+## 62. Every OpenRouter Call Is Routed Through Exacto by Default (2026-07-14)
+
+**File**: `apps/worker/src/openrouter.ts` (`withExactoRouting`, applied inside `chatCompletion`).
+
+**What it looks like**: The worker configures bare model slugs (e.g. `qwen/qwen3-vl-32b-instruct`) in `admin_config.AI_TASK_MODELS`, but the model string actually sent to OpenRouter has a `:exacto` suffix appended.
+
+**Actually**: `chatCompletion()` rewrites every request's model through `withExactoRouting()`, which appends OpenRouter's `:exacto` routing variant. Exacto routes each call to the upstream provider endpoint with the best measured tool-calling accuracy for that model. It is a **free virtual variant** — no separate endpoint pool, no price premium.
+
+**Why**: OpenRouter maps one model ID to many upstream providers whose tool-calling / JSON-schema / content-filter behavior differs, which is what makes the same model flip pass/fail per call (see #58, #59). Exacto is the routing-layer fix for that, replacing reliance on the client's `tool_choice`/malformed-JSON fallback ladders. Confirmed via OpenRouter docs: Exacto is a model-slug suffix, not a request field.
+
+**Future sessions should**: Leave it on by default. To opt a specific model out, pin an explicit `:variant` suffix in its `AI_TASK_MODELS` slug (e.g. `:nitro`, `:floor`) — `withExactoRouting` is idempotent and leaves any slug that already carries a `:variant` untouched. Exacto composes with the endpoint pin (#60): a hard `provider.only` pin still wins. This applies to **all** OpenRouter calls (tagging, bake-off, ERP), because it lives in the shared client, not per-handler.
+
+## 63. `GOOGLE_AI_API_KEY` Is Still Live — Do Not Treat It as Dead (2026-07-14)
+
+**Files**: `apps/bridge-agent/src/pdf-text-sampler.ts`, `apps/bridge-agent/src/pdf-backfill.ts`, and the `windows-agent` equivalents; `agent-api` `google_ai_api_key` passthrough; the ApisTab "Google AI API Key" settings field.
+
+**What it looks like**: After the direct-Gemini `ai-tag` edge function was deleted and the worker's `googleAiApiKey` fallback removed (both 2026-07-14), `GOOGLE_AI_API_KEY` can look fully dead — nothing in the worker or edge functions calls Google anymore.
+
+**Actually**: The on-prem bridge/windows agents call Google's `generativelanguage.googleapis.com` **directly** (not through OpenRouter) as the AI-vision fallback in PDF text extraction. They read the key via `agent-api`'s config passthrough, which is set through the admin ApisTab field.
+
+**Future sessions should**: Keep `GOOGLE_AI_API_KEY`, the `agent-api` passthrough, the ApisTab field, and the `google`-provider entries in the `AI_MODELS` catalog. Removing any of them breaks agent PDF text extraction. The deleted `ai-tag` edge function was a *different*, genuinely dead path (direct-Gemini batch tagging superseded by the OpenRouter worker); its removal did not affect this one. The now-unused `toGeminiSchema` in the tag-asset contract can be pruned once that contract mirror is no longer being concurrently edited.
