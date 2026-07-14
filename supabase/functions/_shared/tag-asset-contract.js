@@ -39,18 +39,15 @@ export const TAG_ASSET_SCHEMA = {
     property_id: { type: ["string", "null"], description: "UUID of identified property" },
     designer_name: {
       type: ["string", "null"],
-      description:
-        "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
+      description: "Name of the Designer or Creative Designer found on a Tech Pack / design document. Null if not visible.",
     },
     technical_designer_name: {
       type: ["string", "null"],
-      description:
-        "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
+      description: "Name of the Technical Designer found on a Tech Pack / design document. Null if not visible.",
     },
     freelancer_name: {
       type: ["string", "null"],
-      description:
-        "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
+      description: "Name of the freelancer artist, if this is freelancer art and the name is visible on the document. Null if not visible.",
     },
     files_used: {
       type: "array",
@@ -72,9 +69,7 @@ export function buildTaggingSystemPrompt(context) {
     usingPriorityOnly = false,
   } = context;
   const erpContext = erpDescription ? `\nERP Product Description: "${erpDescription}"\n` : "";
-  const pdfContext = extractedPdfText
-    ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n`
-    : "";
+  const pdfContext = extractedPdfText ? `\nExtracted PDF text (first 4000 chars):\n${extractedPdfText.slice(0, 4000)}\n` : "";
 
   return `You are a design asset tagger for a consumer products company that licenses characters (Disney, Marvel, Star Wars, etc.).
 
@@ -105,9 +100,11 @@ Based on the image and metadata, identify:
    - Format: "Frozen backpack", "Spider-Man lunchbox", "Mickey tee".
    - OMIT: licensor names (Disney/Marvel/etc.), SKUs, dimensions, art style, scene descriptions, file types.
 11. If extracted PDF text is provided, scan the **entire text** for ALL sections labeled "Files Used", "Files used in design", "Source Files", "Art Files", or any similar heading. There may be multiple such sections (e.g. one per page, one per colorway). Collect every entry across all of them into a single deduplicated list. Entries may or may not have file extensions - include them regardless. Return as files_used. If no such section exists, return an empty array.
-${usingPriorityOnly
-    ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
-    : ""}${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}
+${
+    usingPriorityOnly
+      ? "\nNOTE: You are seeing a curated list of characters that actually appear in this company's asset library. Match against these first. If the character is not in this list, return character_ids as empty array."
+      : ""
+  }${customInstructions ? `\n\nCOMPANY-SPECIFIC TAGGING INSTRUCTIONS:\n${customInstructions}` : ""}
 
 Return structured data matching the tag_asset schema. Do not invent UUIDs. Use character_ids, licensor_id, and property_id only for exact matches from the provided taxonomy.`;
 }

@@ -1,11 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsServe, err, json } from "../_shared/http.ts";
-import {
-  TAG_ASSET_SCHEMA,
-  buildTaggingSystemPrompt,
-  isStyleGuideSourcePdf,
-  toGeminiSchema,
-} from "../_shared/tag-asset-contract.js";
+import { buildTaggingSystemPrompt, isStyleGuideSourcePdf, TAG_ASSET_SCHEMA, toGeminiSchema } from "../_shared/tag-asset-contract.js";
 
 // Gemini's functionDeclarations schema dialect rejects the canonical schema's
 // union types / null enums / additionalProperties, so adapt it once here.
