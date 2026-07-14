@@ -1,6 +1,6 @@
 # Handoff
 
-_Last updated: 2026-07-14. Delete this file once the pilot, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, production PO sync auth handoff, **and the §8 AI-tagging OpenRouter open question** are done. Helper code signing is **permanently abandoned** — installers stay unsigned forever (§5.3), not a blocker. (The quick_hash/move-detection and bridge build-identity work in §5.9 is **done and deployed** — kept only for the optional history-row cleanup.)_
+_Last updated: 2026-07-14. Delete this file once the pilot, PopSG render/backfill work, GHCR package access, style-guide archival readiness work, production PO sync auth handoff, **the §8 AI-tagging OpenRouter open question, and the §9 AI-tagging image-resolution Option A/B decision** are done. Helper code signing is **permanently abandoned** — installers stay unsigned forever (§5.3), not a blocker. (The quick_hash/move-detection and bridge build-identity work in §5.9 is **done and deployed** — kept only for the optional history-row cleanup.)_
 
 Read `AGENTS.md` first. This file is self-contained — a developer with **zero prior context** should be able to continue from here. Background detail lives in `docs/SEAFILE_INTEGRATION.md` and `docs/POPDAM_HELPER.md`.
 
@@ -495,3 +495,23 @@ the Supabase CLI / `psql` / PostgREST fed by `op run --env-file` (no-secret-leak
 pattern). Never `op read` a secret to stdout — the harness blocks printing even a
 credential prefix. Full detail: `docs/MCP_SERVERS.md` (2026-07-14 note) and the
 `op`/service-role pattern there.
+
+---
+
+## 9. AI Tagging — image resolution sent to vision models (2026-07-14)
+
+Sibling workstream to §8. Full detail lives in
+[`HANDOFF_ai_tag_image_resolution.md`](HANDOFF_ai_tag_image_resolution.md).
+
+Short version: every vision call sends the **800px q85 thumbnail**; `fit:"inside"`
+caps only the longest edge, so wide/tall art (banners, style guides, tech packs)
+collapses on the short edge and detail is lost before the model sees it. The
+**bake-off now sends the existing 1500px hi-res PDF page** for PDF assets
+(`pdf_text_samples.thumbnail_url`), tagged in `raw_output._popdam_image_rendition`;
+production taggers are unchanged. **Pending decision:** how to give the production
+**raster** path higher-res — Option A (agent-side hi-res rendition + shared-db
+`assets.hires_url` column + backfill) vs Option B (resize in the worker). **Option
+B is not feasible for raster** (worker has no `sharp`; raster originals never reach
+the cloud), so for raster A and B collapse — decide before touching the production
+tagger. The MiniMax M3 JSON errors are a separate structured-output/routing issue
+(overlaps §8), not a resolution problem.
