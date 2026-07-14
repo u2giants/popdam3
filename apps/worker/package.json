@@ -1,6 +1,6 @@
 {
   "name": "popdam-worker",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "PopDAM Cloud Worker — persistent batch processor for AI tagging, style group rebuild, and ERP classification",
   "type": "module",
   "main": "dist/index.js",
