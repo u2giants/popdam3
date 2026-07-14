@@ -15,7 +15,7 @@ export interface OperationProgress {
 
 export interface OperationState {
   status: "idle" | "running" | "completed" | "completed_with_repair" | "failed" | "interrupted" | "queued";
-  cursor?: number;
+  cursor?: number | string;
   params?: Record<string, unknown>;
   started_at?: string;
   updated_at?: string;
@@ -25,8 +25,13 @@ export interface OperationState {
   // Enhanced fields
   interruption_reason_code?: string;
   auto_resume_attempts?: number;
+  last_auto_resume_at?: string;
+  next_auto_resume_at?: string;
   run_id?: string;
   last_stage?: string;
+  last_stage_started_at?: string;
+  last_successful_cursor?: number | string;
+  retry_page_size?: number;
   last_substage?: string;
   queue_position?: number;
 }
@@ -34,6 +39,13 @@ export interface OperationState {
 const CONFIG_KEY = "BULK_OPERATIONS"; // used for polling reads only
 const POLL_ACTIVE_MS = 3_000;
 const POLL_IDLE_MS = 30_000;
+const AI_CURSOR_RE = /^ai1:\d+:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isResumableOperationCursor(operationKey: string, cursor: unknown): boolean {
+  const isAiTagOperation = operationKey === "ai-tag-untagged" || operationKey === "ai-tag-all" || operationKey === "ai-tag-groups";
+  if (isAiTagOperation) return typeof cursor === "string" && AI_CURSOR_RE.test(cursor);
+  return typeof cursor === "number" && Number.isFinite(cursor) && cursor >= 0;
+}
 
 export function usePersistentOperation(operationKey: string) {
   const { call } = useAdminApi();
@@ -124,7 +136,7 @@ export function usePersistentOperation(operationKey: string) {
       const shouldResume =
         options?.forceRestart !== true &&
         (state.status === "interrupted" || state.status === "failed") &&
-        typeof state.cursor === "number";
+        isResumableOperationCursor(operationKey, state.cursor);
 
       const now = new Date().toISOString();
       const running: OperationState = {
@@ -143,7 +155,7 @@ export function usePersistentOperation(operationKey: string) {
       setState(running);
       await persistState(running);
     },
-    [state, persistState],
+    [state, persistState, operationKey],
   );
 
   // ── Add to Queue ────────────────────────────────────────────────
@@ -156,7 +168,7 @@ export function usePersistentOperation(operationKey: string) {
       const shouldResume =
         options?.forceRestart !== true &&
         (state.status === "interrupted" || state.status === "failed") &&
-        typeof state.cursor === "number";
+        isResumableOperationCursor(operationKey, state.cursor);
 
       const now = new Date().toISOString();
       const queued: OperationState = {
@@ -174,7 +186,7 @@ export function usePersistentOperation(operationKey: string) {
       setState(queued);
       await persistState(queued);
     },
-    [state, persistState],
+    [state, persistState, operationKey],
   );
 
   // ── Stop (mark as interrupted by user) ─────────────────────────

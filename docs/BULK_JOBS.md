@@ -92,15 +92,17 @@ The conflict map is checked in **four** places:
 
 ## Auto-Resume
 
-Interrupted jobs are automatically retried after a 30-second cooldown. The runner tracks `auto_resume_attempts` and gives up after a per-operation maximum:
+Only transient interruptions (`statement_timeout`, gateway/connection failures,
+rate limiting, or stale runs) auto-resume. The worker persists an exponential
+backoff with jitter (about 15 s, 30 s, 1 min, 2 min, then 5 min), gives up after
+10 attempts, and does not promote a retry while its lane or a configured
+cross-lane conflict is active. User stops, invalid/legacy cursors, permissions,
+missing RPCs, and schema/contract errors never auto-resume.
 
-| Job | Max auto-resume attempts |
-|-----|------------------------|
-| `erp-classify` | 1000 (long-running, frequent gateway timeouts at scale) |
-| `propagate-group-tags` | 50 |
-| All others | 5 |
-
-Jobs interrupted with `interruption_reason_code: "user_stop"` are **never** auto-resumed — that respects an explicit operator stop.
+For AI candidate-fetch statement timeouts, the first retry keeps the configured
+page size; subsequent retries reduce `50 -> 25 -> 10`. A successful page clears
+the fallback. The page-size reduction is only resilience: the normal path is
+the indexed keyset RPC.
 
 ---
 
@@ -110,12 +112,16 @@ All job state lives in a single `admin_config` row with `key = 'BULK_OPERATIONS'
 
 ```
 status          running | queued | interrupted | completed | failed
-cursor          numeric offset or UUID cursor string
+cursor          numeric legacy/operation cursor or opaque versioned string
 progress        operation-specific counters
 error           last error message
 interruption_reason_code  why it was interrupted
 run_id          UUID for this run (changes on fresh start)
 auto_resume_attempts
+next_auto_resume_at
+last_stage / last_stage_started_at
+last_successful_cursor
+retry_page_size  transient AI candidate fallback only
 started_at / updated_at
 ```
 
@@ -125,13 +131,25 @@ State is written atomically via the `update_bulk_operation` RPC, which supports 
 
 ## Time Budget
 
-The Railway worker has no hard invocation timeout — it runs continuously. For safety, each individual batch processes at most **45 seconds** worth of work (`MAX_RUN_MS`). When the budget is exhausted, the cursor is saved and the worker's main loop picks it up on the next 5-second poll. The worker processes one operation per loop iteration (round-robin among running ops, oldest-updated-at first).
+The Railway worker has no invocation timeout and runs continuously. It persists
+state after every batch and yields after at most 50 batches so the next poll can
+serve other running lanes. AI inference remains bounded per model call; database
+candidate work is bounded by the RPC's clamped page size.
 
 ---
 
 ## RPC-Direct Operations
 
-`propagate-group-tags` and `reconcile-style-group-stats` bypass the `admin-api` HTTP layer entirely and call PostgreSQL functions directly via `db.rpc()`. This eliminates one network hop and avoids Supabase Edge Function rate limits for these high-frequency batch operations.
+`ai-tag-*`, `propagate-group-tags`, and `reconcile-style-group-stats` bypass the
+`admin-api` HTTP layer for their batch database reads and call PostgreSQL
+functions directly via `db.rpc()`.
+
+AI candidate discovery uses service-role-only
+`public.get_ai_tag_candidates(...)`, ordered by
+`(primary_sort_tier, id)`. The worker stores the final returned row as an opaque
+`ai1:<tier>:<uuid>` cursor. Untagged smart-skip runs inside SQL; there is no
+capped tagged-group prefetch, generated `NOT IN`, offset page, or exact count in
+the worker hot path. Completion is confirmed by an empty candidate page.
 
 The PostgreSQL function `propagate_group_tags_batch` runs with `SET statement_timeout = '120s'`. Each call processes up to 200 style groups in a single transaction. If a batch takes longer than 120 s (e.g., due to a very large group or lock contention), PostgreSQL cancels the statement and the runner marks the job interrupted for auto-resume.
 

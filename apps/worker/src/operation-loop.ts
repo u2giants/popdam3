@@ -6,7 +6,7 @@
  *
  * Key differences from bulk-job-runner:
  *   - No 45s time budget — processes until done or stopped
- *   - No AUTO_RESUME_MAX_ATTEMPTS ceiling — worker handles ops directly
+ *   - Bounded, persisted auto-resume backoff for transient failures
  *   - No HTTP round-trips to admin-api or ai-tag edge functions
  *   - Checks for user interruption every 10 batches (same threshold)
  *   - Stale lock detection: same 10-minute threshold
@@ -22,10 +22,16 @@ import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
+import {
+  getNextAutoResumeAt,
+  isTransientInterruption,
+  isValidAutoResumeCursor,
+} from "./operation-retry.js";
 
 const CONFIG_KEY = "BULK_OPERATIONS";
 const STALE_RUN_MINUTES = 10;
 const INTERRUPT_CHECK_EVERY = 10;
+const AUTO_RESUME_MAX_ATTEMPTS = 10;
 /** Yield after this many batches so the round-robin can serve other operations.
  *  Under the old 45s edge function, 5 was the max that fit safely. The persistent
  *  worker has no timeout, so 50 keeps ops running hot while still yielding often
@@ -180,6 +186,19 @@ function classifyError(msg: string): string {
   if (m.includes("too many connections") || m.includes("connection refused")) return "connection_error";
   if (m.includes("rate limit") || m.includes("429")) return "rate_limited";
   return "unknown";
+}
+
+function interruptionReason(result: BatchResult): string {
+  if (result.error_code === "legacy_cursor" || result.error_code === "invalid_cursor") {
+    return result.error_code;
+  }
+  return classifyError(result.error ?? "Batch failed");
+}
+
+function nextAutoResumeAt(reason: string, op: OpState): string | undefined {
+  if (!isTransientInterruption(reason)) return undefined;
+  if ((op.auto_resume_attempts ?? 0) >= AUTO_RESUME_MAX_ATTEMPTS) return undefined;
+  return getNextAutoResumeAt(Date.now(), op.auto_resume_attempts ?? 0);
 }
 
 // ── Failure kill switch ───────────────────────────────────────────────────────
@@ -351,6 +370,7 @@ export async function tick(): Promise<void> {
         status: "interrupted",
         interruption_reason_code: "stale_run",
         error: `No progress for ${STALE_RUN_MINUTES}+ minutes — marked as stale`,
+        next_auto_resume_at: nextAutoResumeAt("stale_run", op),
         updated_at: new Date().toISOString(),
       };
       staleUpdates[key] = allOps[key];
@@ -365,14 +385,23 @@ export async function tick(): Promise<void> {
   // Auto-resume interrupted ops (e.g. after a deploy killed the previous worker).
   // Only resume ops that were NOT stopped by the user and have a valid cursor.
   // Cap at AUTO_RESUME_MAX_ATTEMPTS to prevent infinite crash loops.
-  const AUTO_RESUME_MAX_ATTEMPTS = 10;
   const autoResumeUpdates: Record<string, OpState> = {};
+  const autoResumeRunningKeys = new Set(
+    Object.entries(allOps).filter(([, op]) => op.status === "running").map(([key]) => key),
+  );
   for (const [key, op] of Object.entries(allOps)) {
+    const lane = getLane(key);
+    const laneBusy = [...autoResumeRunningKeys].some((runningKey) => getLane(runningKey) === lane);
+    const crossLaneBusy = (OP_CONFLICTS[key] ?? []).some((conflictKey) => autoResumeRunningKeys.has(conflictKey));
     if (
       op.status === "interrupted" &&
       op.interruption_reason_code !== "user_stop" &&
-      typeof op.cursor === "number" &&
-      (op.auto_resume_attempts ?? 0) < AUTO_RESUME_MAX_ATTEMPTS
+      isTransientInterruption(op.interruption_reason_code) &&
+      isValidAutoResumeCursor(key, op.cursor) &&
+      (!op.next_auto_resume_at || new Date(op.next_auto_resume_at).getTime() <= Date.now()) &&
+      (op.auto_resume_attempts ?? 0) < AUTO_RESUME_MAX_ATTEMPTS &&
+      !laneBusy &&
+      !crossLaneBusy
     ) {
       const attempts = (op.auto_resume_attempts ?? 0) + 1;
       logger.info("tick: auto-resuming interrupted op", { opKey: key, attempts, reason: op.interruption_reason_code });
@@ -381,9 +410,11 @@ export async function tick(): Promise<void> {
         status: "running",
         auto_resume_attempts: attempts,
         last_auto_resume_at: new Date().toISOString(),
+        next_auto_resume_at: undefined,
         updated_at: new Date().toISOString(),
       };
       autoResumeUpdates[key] = allOps[key];
+      autoResumeRunningKeys.add(key);
     }
   }
   for (const [key, op] of Object.entries(autoResumeUpdates)) {
@@ -485,14 +516,19 @@ export async function tick(): Promise<void> {
       result = await dispatch(opKey, { ...currentState, cursor, progress });
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
+      const reason = classifyError(errMsg);
       logger.error("tick: dispatch threw", { opKey, error: errMsg });
       await persistOpState(opKey, {
         ...currentState,
         cursor,
         progress,
         status: "interrupted",
-        interruption_reason_code: classifyError(errMsg),
+        interruption_reason_code: reason,
         error: errMsg,
+        last_stage: currentState.last_stage,
+        last_stage_started_at: currentState.last_stage_started_at,
+        last_successful_cursor: cursor,
+        next_auto_resume_at: nextAutoResumeAt(reason, currentState),
         updated_at: new Date().toISOString(),
       });
       return;
@@ -520,18 +556,45 @@ export async function tick(): Promise<void> {
 
     if (!result.ok) {
       const batchErr = result.error ?? "Batch failed";
-      logger.error("tick: batch failed", { opKey, error: batchErr, batchCount });
+      const reason = interruptionReason(result);
+      logger.error("tick: batch failed", {
+        opKey,
+        run_id: currentState.run_id,
+        error: batchErr,
+        reason,
+        stage: result.error_stage,
+        batchCount,
+        page_size: result.retry_page_size ?? currentState.retry_page_size,
+        cursor_version: typeof cursor === "string" ? cursor.split(":", 1)[0] : "numeric",
+        elapsed_ms: result.elapsed_ms,
+        postgres_code: result.postgres_code,
+      });
       await persistOpState(opKey, {
         ...currentState,
         cursor,
         progress,
         status: "interrupted",
-        interruption_reason_code: classifyError(batchErr),
+        interruption_reason_code: reason,
         error: batchErr,
+        last_stage: result.error_stage,
+        last_stage_started_at: result.last_stage_started_at,
+        last_successful_cursor: cursor,
+        retry_page_size: result.retry_page_size ?? currentState.retry_page_size,
+        next_auto_resume_at: nextAutoResumeAt(reason, currentState),
         updated_at: new Date().toISOString(),
       });
       return;
     }
+
+    currentState = {
+      ...currentState,
+      error: undefined,
+      interruption_reason_code: undefined,
+      next_auto_resume_at: undefined,
+      retry_page_size: undefined,
+      last_stage: result.last_stage,
+      last_stage_started_at: result.last_stage_started_at,
+    };
 
     // Advance cursor
     if (result.nextOffset !== undefined && result.nextOffset !== null) {
@@ -547,6 +610,13 @@ export async function tick(): Promise<void> {
       cursor,
       progress,
       status: "running",
+      error: undefined,
+      interruption_reason_code: undefined,
+      next_auto_resume_at: undefined,
+      retry_page_size: undefined,
+      last_stage: result.last_stage,
+      last_stage_started_at: result.last_stage_started_at,
+      last_successful_cursor: cursor,
       updated_at: new Date().toISOString(),
     }, true);
     if (!stillRunning) {
@@ -561,6 +631,13 @@ export async function tick(): Promise<void> {
         cursor,
         progress,
         status: "completed",
+        error: undefined,
+        interruption_reason_code: undefined,
+        next_auto_resume_at: undefined,
+        retry_page_size: undefined,
+        last_stage: result.last_stage,
+        last_stage_started_at: result.last_stage_started_at,
+        last_successful_cursor: cursor,
         result_message: buildResultMessage(opKey, progress),
         updated_at: new Date().toISOString(),
       });

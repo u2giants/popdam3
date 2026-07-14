@@ -13,6 +13,8 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { buildProviderPin } from "../openrouter.js";
 import type { BatchResult, OpState } from "../types.js";
+import { AiTagCursorError, decodeAiTagCursor, encodeAiTagCursor } from "../ai-tag-cursor.js";
+import { getAiRetryPageSize } from "../operation-retry.js";
 import {
   buildImageTaggingMessages,
   buildImageTaggingPrompt,
@@ -115,6 +117,20 @@ function sleep(ms: number): Promise<void> {
 // ── Single-asset tagging via OpenRouter ──────────────────────────────────────
 
 type TagOutcome = { outcome: "tagged" | "skipped" | "failed"; error?: string };
+
+export interface AiTagRpcClient {
+  rpc: (
+    name: string,
+    params: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: null | { message: string; code?: string } }>;
+}
+
+interface AiTagHandlerDependencies {
+  client?: AiTagRpcClient;
+  tagAsset?: (assetId: string, force: boolean) => Promise<TagOutcome>;
+  batchSize?: number;
+  concurrency?: number;
+}
 
 async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutcome> {
   const client = db();
@@ -290,12 +306,18 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
 
 // ── Batch handler (called from operation-loop) ───────────────────────────────
 
-export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promise<BatchResult> {
-  const client = db();
-  const BATCH_SIZE = config.aiBatchSize;
-  const CONCURRENCY = config.aiBatchConcurrency;
+export async function handleBulkAiTag(
+  opState: OpState,
+  tagAll: boolean,
+  dependencies: AiTagHandlerDependencies = {},
+): Promise<BatchResult> {
+  const client = (dependencies.client ?? db()) as AiTagRpcClient;
+  const configuredBatchSize = dependencies.batchSize ?? config.aiBatchSize;
+  const BATCH_SIZE = Math.max(10, Math.min(configuredBatchSize, opState.retry_page_size ?? configuredBatchSize));
+  const CONCURRENCY = dependencies.concurrency ?? config.aiBatchConcurrency;
+  const tagAsset = dependencies.tagAsset ?? tagSingleAsset;
 
-  const cursor = typeof opState.cursor === "number" ? opState.cursor : 0;
+  const rawCursor = opState.cursor;
   const groupIds = Array.isArray(opState.params?.group_ids) ? opState.params.group_ids as string[] : null;
   const assetIds = Array.isArray(opState.params?.asset_ids) ? opState.params.asset_ids as string[] : null;
 
@@ -308,7 +330,7 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
       const chunk = assetIds.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(async (id) => {
-          const result = await tagSingleAsset(id, tagAll);
+          const result = await tagAsset(id, tagAll);
           return { ...result, asset_id: id };
         }),
       );
@@ -324,55 +346,92 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
       }
     }
 
-    return { ok: true, done: true, tagged, skipped, failed, failure_samples: failureSamples, skip_samples: [], nextOffset: cursor };
+    return { ok: true, done: true, tagged, skipped, failed, failure_samples: failureSamples, skip_samples: [], nextOffset: rawCursor ?? 0, last_stage: "tag_write" };
   }
 
-  // Smart-skip: for untagged mode, exclude groups that already have a tagged representative
-  let excludeGroupIds: string[] = [];
-  if (!tagAll && !groupIds) {
-    const { data: taggedGroups } = await client
-      .from("assets")
-      .select("style_group_id")
-      .eq("is_deleted", false)
-      .eq("status", "tagged")
-      .not("style_group_id", "is", null)
-      .not("ai_tagged_at", "is", null)
-      .limit(1000);
-    if (taggedGroups) {
-      excludeGroupIds = [...new Set(taggedGroups.map((r: { style_group_id: string }) => r.style_group_id))];
-    }
+  let cursor;
+  try {
+    cursor = decodeAiTagCursor(rawCursor);
+  } catch (error) {
+    const cursorError = error instanceof AiTagCursorError ? error : null;
+    return {
+      ok: false,
+      done: false,
+      error: cursorError?.message ?? "Invalid AI tagging cursor",
+      error_code: cursorError?.code ?? "invalid_cursor",
+      error_stage: "candidate_fetch",
+      last_stage_started_at: new Date().toISOString(),
+    };
   }
 
-  let query = client
-    .from("assets")
-    .select("id, thumbnail_url, filename, relative_path, style_group_id")
-    .eq("is_deleted", false)
-    .not("thumbnail_url", "is", null)
-    .not("primary_sort_tier", "in", "(4,8)");
-
-  if (Array.isArray(groupIds) && groupIds.length > 0) {
-    query = query.in("style_group_id", groupIds);
-  }
-
-  if (!tagAll && !groupIds) {
-    query = query.neq("status", "tagged");
-  }
-
-  if (excludeGroupIds.length > 0 && excludeGroupIds.length <= 200) {
-    query = query.not("style_group_id", "in", `(${excludeGroupIds.join(",")})`);
-  }
-
-  const { data: assets, error: fetchErr } = await query
-    .order("primary_sort_tier", { ascending: true })
-    .order("id", { ascending: true })
-    .range(cursor, cursor + BATCH_SIZE - 1);
+  const stageStartedAt = new Date().toISOString();
+  const fetchStarted = Date.now();
+  const { data, error: fetchErr } = await client.rpc("get_ai_tag_candidates", {
+    p_mode: tagAll ? "all" : "untagged",
+    p_limit: BATCH_SIZE,
+    p_after_tier: cursor?.tier ?? null,
+    p_after_id: cursor?.id ?? null,
+    p_group_ids: groupIds && groupIds.length > 0 ? groupIds : null,
+  });
+  const fetchElapsedMs = Date.now() - fetchStarted;
 
   if (fetchErr) {
-    return { ok: false, done: false, error: fetchErr.message };
+    const isStatementTimeout = fetchErr.code === "57014" || fetchErr.message.toLowerCase().includes("statement timeout");
+    logger.error("ai-tag: candidate fetch failed", {
+      stage: "candidate_fetch",
+      elapsed_ms: fetchElapsedMs,
+      page_size: BATCH_SIZE,
+      cursor_version: cursor ? "ai1" : "start",
+      postgres_code: fetchErr.code,
+      error: fetchErr.message,
+    });
+    return {
+      ok: false,
+      done: false,
+      error: fetchErr.message,
+      error_code: isStatementTimeout ? "statement_timeout" : fetchErr.code,
+      postgres_code: fetchErr.code,
+      error_stage: "candidate_fetch",
+      last_stage_started_at: stageStartedAt,
+      elapsed_ms: fetchElapsedMs,
+      retry_page_size: isStatementTimeout
+        ? getAiRetryPageSize(configuredBatchSize, opState.auto_resume_attempts ?? 0)
+        : BATCH_SIZE,
+    };
   }
 
+  type Candidate = {
+    id: string;
+    thumbnail_url: string;
+    filename: string;
+    relative_path: string;
+    style_group_id: string | null;
+    primary_sort_tier: number;
+  };
+  const assets = (data ?? []) as Candidate[];
+
+  logger.info("ai-tag: candidate page fetched", {
+    stage: "candidate_fetch",
+    elapsed_ms: fetchElapsedMs,
+    rows: assets.length,
+    page_size: BATCH_SIZE,
+    cursor_version: cursor ? "ai1" : "start",
+  });
+
   if (!assets || assets.length === 0) {
-    return { ok: true, done: true, tagged: 0, skipped: 0, failed: 0, failure_samples: [], skip_samples: [], nextOffset: cursor };
+    return {
+      ok: true,
+      done: true,
+      tagged: 0,
+      skipped: 0,
+      failed: 0,
+      failure_samples: [],
+      skip_samples: [],
+      nextOffset: rawCursor ?? 0,
+      last_stage: "candidate_fetch",
+      last_stage_started_at: stageStartedAt,
+      elapsed_ms: fetchElapsedMs,
+    };
   }
 
   let tagged = 0;
@@ -386,7 +445,7 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
     const chunk = assets.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       chunk.map(async (asset) => {
-        const result = await tagSingleAsset(asset.id as string, tagAll);
+        const result = await tagAsset(asset.id as string, tagAll);
         return { ...result, asset };
       }),
     );
@@ -428,34 +487,25 @@ export async function handleBulkAiTag(opState: OpState, tagAll: boolean): Promis
     }
   }
 
-  const done = assets.length < BATCH_SIZE;
-
-  // Emit total_count on the first batch so the UI can show progress bar / ETA
-  // even when the op was auto-resumed from an old state that had total=0.
-  let totalCount: number | undefined;
-  if (cursor === 0 || !(opState.progress?.total)) {
-    const countQuery = client
-      .from("assets")
-      .select("*", { count: "exact", head: true })
-      .eq("is_deleted", false)
-      .not("thumbnail_url", "is", null)
-      .not("primary_sort_tier", "in", "(4,8)");
-    if (!tagAll && !groupIds) {
-      countQuery.neq("status", "tagged");
-    }
-    const { count } = await countQuery;
-    if (count !== null) totalCount = count;
-  }
+  const finalCandidate = assets[assets.length - 1];
+  const nextCursor = encodeAiTagCursor({
+    tier: finalCandidate.primary_sort_tier,
+    id: finalCandidate.id,
+  });
 
   return {
     ok: true,
-    done,
+    // Confirm completion with an empty page so concurrent inserts cannot make a
+    // short page terminate the run early.
+    done: false,
     tagged,
     skipped,
     failed,
     failure_samples: failureSamples.slice(-200),
     skip_samples: skipSamples.slice(-200),
-    nextOffset: cursor + assets.length,
-    ...(totalCount !== undefined ? { total_count: totalCount } : {}),
+    nextOffset: nextCursor,
+    last_stage: "tag_write",
+    last_stage_started_at: stageStartedAt,
+    elapsed_ms: fetchElapsedMs,
   };
 }

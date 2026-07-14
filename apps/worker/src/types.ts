@@ -10,6 +10,15 @@ export type OpStatus =
   | "interrupted"
   | "failed";
 
+export type OperationStage =
+  | "candidate_fetch"
+  | "progress_count"
+  | "asset_fetch"
+  | "image_fetch"
+  | "model_inference"
+  | "tag_write"
+  | "state_persist";
+
 export interface OpState {
   status: OpStatus;
   cursor?: number | string;
@@ -20,11 +29,15 @@ export interface OpState {
   run_id?: string;
   auto_resume_attempts?: number;
   last_auto_resume_at?: string;
+  next_auto_resume_at?: string;
   interruption_reason_code?: string;
   error?: string;
   result_message?: string;
   queue_position?: number;
   last_stage?: string;
+  last_stage_started_at?: string;
+  last_successful_cursor?: number | string;
+  retry_page_size?: number;
   last_substage?: string;
 }
 
@@ -33,5 +46,12 @@ export interface BatchResult {
   done: boolean;
   nextOffset?: number | string | null;
   error?: string;
+  error_stage?: OperationStage;
+  error_code?: string;
+  postgres_code?: string;
+  elapsed_ms?: number;
+  retry_page_size?: number;
+  last_stage?: OperationStage;
+  last_stage_started_at?: string;
   [key: string]: unknown;
 }

@@ -4,6 +4,24 @@ _Last updated: 2026-07-14. Delete this file once the pilot, PopSG render/backfil
 
 Read `AGENTS.md` first. This file is self-contained — a developer with **zero prior context** should be able to continue from here. Background detail lives in `docs/SEAFILE_INTEGRATION.md` and `docs/POPDAM_HELPER.md`.
 
+> **AI-tagging statement timeout remediated (2026-07-14):** the definitive
+> diagnosis and implementation contract are in
+> [`fix_statement_timeout.md`](fix_statement_timeout.md). Shared-db PR
+> [#64](https://github.com/u2giants/shared-db/pull/64) merged as `fadebce`;
+> migrations `20260714180000` and `20260714180100` are present in both preview
+> and production ledgers. Preview used a rollback-only 120k-asset fixture:
+> first/deep RPC pages were 55/61 ms and the underlying indexed page was 2.5 ms.
+> Production measured 71 ms for the first page, 11 ms beyond the old cursor-60
+> failure region, and 189 ms beyond 10,000 eligible rows; the live plan used
+> both new indexes with no sort/offset and a 3.3 ms underlying execution.
+> The Railway worker now uses the keyset RPC and opaque `ai1` cursors, removes
+> the smart-skip prefetch/offset/exact count, persists stage-aware bounded
+> retries, and advances past failed assets. Diagnostics now report query/stage
+> timeouts, unknown totals, retry timing, and safe string-cursor resume. The
+> canonical cross-app guidance is
+> `shared-db/docs/app-migration-notes/ai-tagging-keyset-timeout-20260714.md`;
+> PLM, PM/PIM, and CRM repos were intentionally not edited.
+
 ---
 
 ## 0. Prerequisites a new developer needs

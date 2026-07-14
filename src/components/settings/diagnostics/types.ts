@@ -115,15 +115,25 @@ export const OP_CONFLICTS: Record<string, readonly string[]> = {
 
 export const REASON_LABELS: Record<string, string> = {
   gateway_timeout: "Gateway timeout (502/503/504)",
-  statement_timeout: "Database write timed out — will auto-resume",
+  statement_timeout: "Database query timed out - will auto-resume",
   rate_limited: "Rate limited (429)",
   user_stop: "Stopped by user",
   stale_run: "No progress detected (stale lock)",
   repeated_failure: "Auto-stopped: repeated identical failures",
   connection_error: "Connection error",
   legacy_format: "Legacy operation format",
+  legacy_cursor: "Legacy progress requires a restart",
+  invalid_cursor: "Invalid saved progress",
   unknown: "Unknown reason",
 };
+
+export function operationReasonLabel(reasonCode?: string, stage?: string): string | undefined {
+  if (reasonCode !== "statement_timeout") return reasonCode ? (REASON_LABELS[reasonCode] ?? reasonCode) : undefined;
+  if (stage === "candidate_fetch") return "Candidate lookup timed out - will auto-resume";
+  if (stage === "tag_write") return "Tag save timed out - will auto-resume";
+  if (stage === "asset_fetch") return "Asset lookup timed out - will auto-resume";
+  return REASON_LABELS.statement_timeout;
+}
 
 export function timeAgo(dateStr: string | null): string {
   if (!dateStr) return "never";

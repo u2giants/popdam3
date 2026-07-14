@@ -1,19 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { usePersistentOperation } from "@/hooks/usePersistentOperation";
+import { isResumableOperationCursor, usePersistentOperation } from "@/hooks/usePersistentOperation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sparkles, RefreshCw, Loader2, XCircle, Share2 } from "lucide-react";
 import type { RequestOpFn } from "./types";
-import { OP_NAMES, REASON_LABELS, timeAgo } from "./types";
+import { OP_NAMES, operationReasonLabel, timeAgo } from "./types";
 import { formatDuration, formatEta, calcRate } from "./progress-utils";
 import type { OperationState } from "@/hooks/usePersistentOperation";
 
 // ── Individual operation progress display ────────────────────────────
 
-function TaggingProgress({ opKey, op, liveTotal }: { opKey: string; op: ReturnType<typeof usePersistentOperation>; liveTotal?: number }) {
+function TaggingProgress({ opKey, op }: { opKey: string; op: ReturnType<typeof usePersistentOperation> }) {
   const s = op.state;
   const p = s.progress;
   if (!p) return null;
@@ -21,8 +21,7 @@ function TaggingProgress({ opKey, op, liveTotal }: { opKey: string; op: ReturnTy
   const tagged = (p.tagged as number) || 0;
   const skipped = (p.skipped as number) || 0;
   const failed = (p.failed as number) || 0;
-  // Use stored total; fall back to liveTotal (from parent query) when total wasn't captured at start
-  const total = (p.total as number) || liveTotal || 0;
+  const total = (p.total as number) || 0;
   const done = tagged + skipped + failed;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : null;
 
@@ -32,6 +31,8 @@ function TaggingProgress({ opKey, op, liveTotal }: { opKey: string; op: ReturnTy
   const rate = calcRate(done, elapsedMs);
 
   const label = OP_NAMES[opKey] || opKey;
+  const canResume = (s.status === "failed" || s.status === "interrupted") && isResumableOperationCursor(opKey, s.cursor);
+  const hasLegacyOffset = (s.status === "failed" || s.status === "interrupted") && typeof s.cursor === "number" && s.cursor > 0;
 
   return (
     <div className="space-y-2 rounded-md border border-border/50 p-3">
@@ -39,7 +40,7 @@ function TaggingProgress({ opKey, op, liveTotal }: { opKey: string; op: ReturnTy
         <div className="flex items-center gap-2">
           {op.isActive && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
           <span className="font-medium">{label}</span>
-          <StatusBadge status={s.status} reasonCode={s.interruption_reason_code} />
+          <StatusBadge status={s.status} reasonCode={s.interruption_reason_code} stage={s.last_stage} attempts={s.auto_resume_attempts} />
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
           {!op.isActive && s.updated_at && (
@@ -51,6 +52,24 @@ function TaggingProgress({ opKey, op, liveTotal }: { opKey: string; op: ReturnTy
           {op.isActive && (
             <Button variant="ghost" size="sm" className="h-5 px-1.5 text-destructive hover:text-destructive" onClick={() => op.stop()}>
               <XCircle className="h-3 w-3" />
+            </Button>
+          )}
+          {canResume && (
+            <Button variant="ghost" size="sm" className="h-5 px-2 text-xs text-primary hover:text-primary" onClick={() => op.start()}>
+              <RefreshCw className="h-3 w-3 mr-1" /> Resume
+            </Button>
+          )}
+          {hasLegacyOffset && opKey === "ai-tag-untagged" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-2 text-xs text-primary hover:text-primary"
+              onClick={() => op.start({
+                forceRestart: true,
+                confirmMessage: "Restart untagged AI tagging from the beginning? Already-tagged assets will be skipped safely.",
+              })}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" /> Restart safely
             </Button>
           )}
           {!op.isActive && s.status !== "idle" && (
@@ -73,6 +92,11 @@ function TaggingProgress({ opKey, op, liveTotal }: { opKey: string; op: ReturnTy
             className={`h-full rounded-full transition-all duration-300 ${s.status === "failed" ? "bg-destructive" : "bg-primary"}`}
             style={{ width: `${pct}%` }}
           />
+        </div>
+      )}
+      {pct === null && op.isActive && (
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
         </div>
       )}
 
@@ -104,6 +128,15 @@ function TaggingProgress({ opKey, op, liveTotal }: { opKey: string; op: ReturnTy
             <span className="text-muted-foreground ml-1">(auto-resumed {s.auto_resume_attempts} time{s.auto_resume_attempts !== 1 ? "s" : ""})</span>
           )}
         </p>
+      )}
+      {s.next_auto_resume_at && new Date(s.next_auto_resume_at).getTime() > Date.now() && (
+        <p className="text-xs text-muted-foreground">
+          Next automatic retry at {new Date(s.next_auto_resume_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          {s.retry_page_size ? ` with ${s.retry_page_size} assets per page` : ""}
+        </p>
+      )}
+      {hasLegacyOffset && opKey === "ai-tag-all" && (
+        <p className="text-xs text-[hsl(var(--warning))]">This re-tag-all run cannot resume from legacy offset progress. Restarting will reprocess assets from the beginning.</p>
       )}
     </div>
   );
@@ -204,7 +237,7 @@ function PropagationProgress({ op }: { op: ReturnType<typeof usePersistentOperat
   );
 }
 
-function StatusBadge({ status, reasonCode }: { status: OperationState["status"]; reasonCode?: string }) {
+function StatusBadge({ status, reasonCode, stage, attempts }: { status: OperationState["status"]; reasonCode?: string; stage?: string; attempts?: number }) {
   if (status === "idle") return null;
   const labels: Record<string, { text: string; cls: string }> = {
     running: { text: "Running", cls: "text-primary" },
@@ -219,7 +252,11 @@ function StatusBadge({ status, reasonCode }: { status: OperationState["status"];
     <span className={`text-xs ${l.cls}`}>
       {l.text}
       {(status === "interrupted" || status === "failed") && reasonCode && (
-        <span className="text-muted-foreground ml-1">— {REASON_LABELS[reasonCode] ?? reasonCode}</span>
+        <span className="text-muted-foreground ml-1">
+          - {reasonCode === "statement_timeout" && (attempts ?? 0) >= 10
+            ? `${stage === "candidate_fetch" ? "Candidate lookup" : "Database query"} timed out - automatic retries exhausted`
+            : operationReasonLabel(reasonCode, stage)}
+        </span>
       )}
     </span>
   );
@@ -279,9 +316,9 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
         confirmMessage: mode === "all"
           ? `Re-tag all ${total.toLocaleString()} assets with thumbnails? This will overwrite existing AI tags. Continue?`
           : `AI tag ${total.toLocaleString()} untagged assets? Continue?`,
-        initialProgress: { total },
+        initialProgress: {},
       }),
-      () => op.queue({ initialProgress: { total } }),
+      () => op.queue({ initialProgress: {} }),
     );
   }
 
@@ -308,14 +345,14 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
       }
       await tagUntaggedOp.start({
         confirmMessage: `Smart Tag + Propagate: AI-tag representative assets (one per style group, ~3x parallel), then propagate tags to all siblings. Continue?`,
-        initialProgress: { total },
+        initialProgress: {},
         forceRestart: true,
       });
       await propagateOp.queue({ initialProgress: { total: totalGroups } });
     };
     requestOp("ai-tag-untagged", OP_NAMES["ai-tag-untagged"],
       startFn,
-      () => tagUntaggedOp.queue({ initialProgress: { total } }),
+      () => tagUntaggedOp.queue({ initialProgress: {} }),
     );
   }
 
@@ -404,8 +441,8 @@ export function AiTaggingSection({ requestOp }: { requestOp: RequestOpFn }) {
         </div>
 
         {/* Show each operation's progress independently, stacked */}
-        {showTagUntagged && <TaggingProgress opKey="ai-tag-untagged" op={tagUntaggedOp} liveTotal={untaggedCount || totalWithThumb} />}
-        {showTagAll && <TaggingProgress opKey="ai-tag-all" op={tagAllOp} liveTotal={totalWithThumb} />}
+        {showTagUntagged && <TaggingProgress opKey="ai-tag-untagged" op={tagUntaggedOp} />}
+        {showTagAll && <TaggingProgress opKey="ai-tag-all" op={tagAllOp} />}
         {showPropagate && <PropagationProgress op={propagateOp} />}
       </CardContent>
     </Card>
