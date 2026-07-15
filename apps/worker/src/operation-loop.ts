@@ -21,6 +21,7 @@ import { handleCleanupMegaGroupTags, handleRebuildStyleGroups, handleReconcileSt
 import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
+import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import {
   getNextAutoResumeAt,
@@ -308,6 +309,8 @@ async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
       return handleApplyErpEnrichment(opState);
     case "erp-classify":
       return handleClassifyErpCategories(opState);
+    case "rich-pdf-extract":
+      return handleRichPdfExtract(opState);
     default:
       return { ok: false, done: false, error: `Unknown operation: ${opKey}` };
   }

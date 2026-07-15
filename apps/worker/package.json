@@ -1,12 +1,12 @@
 {
   "name": "popdam-worker",
   "version": "1.4.3",
-  "description": "PopDAM Cloud Worker — persistent batch processor for AI tagging, style group rebuild, and ERP classification",
+  "description": "PopDAM Cloud Worker \u2014 persistent batch processor for AI tagging, style group rebuild, and ERP classification",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "SUPABASE_URL=http://localhost SUPABASE_SERVICE_ROLE_KEY=test tsx --test src/ai-tag-cursor.test.ts src/operation-retry.test.ts src/handlers/ai-tagging.test.ts src/openrouter.test.ts",
+    "test": "SUPABASE_URL=http://localhost SUPABASE_SERVICE_ROLE_KEY=test tsx --test src/ai-tag-cursor.test.ts src/operation-retry.test.ts src/handlers/ai-tagging.test.ts src/openrouter.test.ts src/handlers/rich-pdf.test.ts",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },

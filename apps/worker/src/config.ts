@@ -25,8 +25,14 @@ export const config = {
   supabaseUrl: required("SUPABASE_URL"),
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
 
-  // OpenRouter API key — single gateway for all AI providers
+  // OpenRouter API key — single gateway for most AI providers
   openRouterApiKey: optional("OPENROUTER_API_KEY", ""),
+
+  // Direct DeepSeek API key — used ONLY for cacheable high-volume batch work
+  // (rich-PDF extraction) where DeepSeek's automatic prefix caching beats the
+  // OpenRouter path on cost. Value lives in 1Password ai-provider-api-keys
+  // (deepseek field); set DEEPSEEK_API_KEY in the Railway worker env.
+  deepSeekApiKey: optional("DEEPSEEK_API_KEY", ""),
 
   // Legacy direct Anthropic key (unused by the OpenRouter path; kept for
   // any residual direct calls).

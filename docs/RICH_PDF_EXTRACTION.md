@@ -98,3 +98,119 @@ All database work for this feature must be implemented in canonical `/worksp/sha
 - Whether source-file references should extend `sku_files_used` or move to a broader lineage table.
 - Whether asset-level copying should be physical denormalization or query-time/search-index projection from `style_groups`.
 - Which Qwen/DashScope credentials should be production-owned if this becomes a worker feature. The session used the existing `ai-provider-api-keys` 1Password item for a test only.
+
+---
+
+## Design (2026-07-15) — builds on the landed two-level foundation
+
+The two-level metadata foundation (`style_groups.item_description`,
+`assets.content_type` incl. `tech_pack`/`licensing_sheet`, and the
+`refresh_dam_search_*` rollup) was landed to production on 2026-07-15
+(shared-db PR #67). Rich-PDF data is **product-level `style_group` metadata**, so
+it extends that foundation rather than introducing a parallel schema.
+
+### Grounding facts (verified on prod `qsllyeztdwjgirsysgai`, 2026-07-15)
+- **Eligibility selector already exists:** `isStyleGuideSourcePdf(asset)` in
+  `supabase/functions/_shared/tag-asset-contract.js` (filename match:
+  `tech pack` / `tech_pack` / `techpack` / `licensing sheet` / `licensing_sheet`).
+  This is the durable backfill selector — it does **not** depend on
+  `assets.content_type`, which is `0` until image tagging next runs.
+- **Corpus:** ~15,686 "tech pack" + ~3,353 "licensing sheet" PDFs by filename
+  (~19k eligible). `pdf_text_samples` = 3,132 rows, **2,430 with real extracted
+  text**. So most eligible PDFs have **no text yet** → the backfill is two-pass.
+- `pdf_text_samples` (keyed by `asset_id`) has no structured-metadata column;
+  rich data needs a new home. Tech-pack/licensing PDFs carry a `style_group_id`
+  (their SKU group), so rollup target = the PDF asset's `style_group_id`.
+
+### Storage — two objects, mirroring the two-level pattern
+1. **Raw per-PDF extraction** — new `dam.pdf_rich_extraction`:
+   - `asset_id uuid primary key` (source PDF; FK `public.assets`), `style_group_id uuid`, `sku text`
+   - `doc_kind text` — `tech_pack` | `licensing_sheet`
+   - `data jsonb not null` — the canonical field schema below
+   - `source_text_sha256 text` — hash of the `pdf_text_samples.extracted_text` used (idempotency; skip re-extract when unchanged)
+   - `model text`, `prompt_version text`, `schema_version int`, `confidence numeric null`, `parse_error text null`, `extracted_at timestamptz default now()`
+   - One row per source PDF asset; re-extract updates in place.
+2. **Product-level rollup** — extend `public.style_groups` (additive, nullable):
+   `rich_metadata jsonb`, `rich_metadata_source text`, `rich_metadata_updated_at timestamptz`.
+   Merged best value across the group's member-PDF extractions — mirrors how
+   `item_description` sits on `style_groups`.
+
+### Canonical `data` schema (collapse Qwen's overlapping names; all fields optional)
+```
+{
+  source_files: [{ name, normalized, style_guide_file_id?, confidence }],
+  style_guide_reference: text,
+  approval_date: date, submission_date: date,
+  production_specs: { dimensions, materials[], finish[], hardware[], packaging, print_process, construction_notes },
+  compliance: { regulatory[], age_rating, warnings[], country_of_origin },
+  legal: { copyright[], required_text[], placement, font_size },
+  manufacturer: { name, address },
+  colors: [{ pantone?, name? }],
+  retailer_program: text, season: text
+}
+```
+Enforced with a strict `json_schema` at the model layer.
+
+### Rollup + search
+- `public.refresh_style_group_rich_metadata(p_style_group_id)` — recompute
+  `style_groups.rich_metadata` from member `dam.pdf_rich_extraction` rows
+  (newest/highest-confidence per field; licensing_sheet may win legal/compliance,
+  tech_pack may win production_specs).
+- Extend `refresh_dam_search_style_group_document` to fold a flattened
+  `rich_metadata` text into `search_text`; member assets inherit it via the
+  existing `style_group_id` rollup — **no per-asset physical denormalization**
+  (answers open Q3: search projection, not denorm).
+
+### Answers to the open questions above
+- **Q1 (one table vs jsonb column vs both):** both — raw extraction rows
+  (`dam.pdf_rich_extraction`) for provenance/idempotency **plus** a `style_groups`
+  rollup column for read/search.
+- **Q2 (source_files vs sku_files_used):** keep separate. `sku_files_used` stays
+  scoped to Style Guide Sources; rich `source_files` is lineage in the extraction
+  JSON, optionally reconciled to `style_guide_file_id` via the existing fuzzy
+  resolver later. Do not overload `sku_files_used`.
+- **Q3 (asset denorm vs projection):** projection via the style_group search
+  rollup; no physical per-asset copy in v1.
+- **Q4 (model + creds):** **direct DeepSeek API** (OpenAI-compatible,
+  `https://api.deepseek.com`), NOT OpenRouter. Rationale: the prompt has a large
+  fixed prefix (instructions + strict JSON schema) identical across all ~19k
+  calls; DeepSeek's **automatic prefix-based context caching** bills cache-hit
+  input at ~1/10 the miss price — a major saving on a batch this size. OpenRouter
+  adds a routing margin, does not reliably pass DeepSeek's auto-caching through,
+  and its account data-policy guardrails already blocked the spike. **The worker
+  must order messages stable-prefix-first** (instructions+schema, then the
+  variable PDF text last) to maximize cache hits. Key: the existing `deepseek`
+  field in 1Password `ai-provider-api-keys` (confirmed present) — no new secret.
+  Store the model id in `admin_config.AI_TASK_MODELS.rich_pdf_extraction`.
+
+### Worker + backfill
+- New bulk op `rich-pdf-extract` (operation-loop), resumable via keyset cursor
+  over `asset_id`, idempotent via `source_text_sha256`:
+  - **Pass 1 (text present):** eligible-by-`isStyleGuideSourcePdf` ∩
+    `pdf_text_samples.extracted_text` → call model → upsert
+    `dam.pdf_rich_extraction` → `refresh_style_group_rich_metadata` →
+    `refresh_dam_search_style_group_document`.
+  - **Pass 2 (no text yet, ~16k):** on-prem agent PDF text extraction must run
+    first (existing PDF backfill path — text extraction is on-prem, not cloud),
+    then Pass 1.
+- **Forward flow (new styles):** when tagging sets
+  `content_type in ('tech_pack','licensing_sheet')` and text is present, enqueue
+  rich extraction for that asset.
+
+### Shared-db migration plan (preview-first, additive)
+One additive migration: create `dam.pdf_rich_extraction`; add the 3 nullable
+`style_groups` columns; add `refresh_style_group_rich_metadata()`; extend the
+search rollup functions. All additive → cannot break CRM/PM/PLM.
+
+### Decisions (resolved 2026-07-15 with owner)
+1. **Extraction model:** **direct DeepSeek API** with automatic context caching
+   (see Q4). Not OpenRouter — this is a cacheable, high-volume batch and the owner
+   rule is "never use OpenRouter for cacheable repeated-prompt workloads." Worker
+   orders the stable instructions+schema prefix first, PDF text last.
+2. **Faceted filtering:** **project facet fields onto `assets` in v1** (owner
+   choice). In addition to the `style_groups.rich_metadata` rollup + search,
+   denormalize a small high-value set onto `assets` so `FilterSidebar` can facet
+   immediately. Proposed v1 facet set (tight, extensible): `product_material`
+   (text[]) and `product_dimensions` (text); candidates to add later:
+   `country_of_origin`, `age_rating`. These are populated from the same
+   extraction during rollup, and added to the asset search document + counts.

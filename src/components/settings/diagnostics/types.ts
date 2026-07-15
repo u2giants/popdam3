@@ -73,6 +73,7 @@ export const OP_NAMES: Record<string, string> = {
   "propagate-group-tags": "Propagate Group Tags",
   "cleanup-mega-group-tags": "Clean Mega-Group Tags",
   "relink-orphaned-assets": "Relink Orphaned Assets",
+  "rich-pdf-extract": "Rich PDF Extract",
 };
 
 // Operations in DIFFERENT lanes can run simultaneously — UNLESS they appear
@@ -92,6 +93,7 @@ export const OP_LANES: Record<string, string> = {
   "propagate-group-tags": "style-groups",
   "cleanup-mega-group-tags": "style-groups",
   "relink-orphaned-assets": "style-groups",
+  "rich-pdf-extract": "rich-pdf",
 };
 
 export function getLane(opKey: string): string {
@@ -107,10 +109,11 @@ export const OP_CONFLICTS: Record<string, readonly string[]> = {
   "ai-tag-groups":        ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
   "ai-tag-bakeoff":       ["rebuild-style-groups", "reprocess-metadata", "propagate-group-tags"],
   "propagate-group-tags": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff"],
-  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff"],
+  "rebuild-style-groups": ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "rich-pdf-extract"],
   "reprocess-metadata":   ["ai-tag-untagged", "ai-tag-all", "ai-tag-groups", "ai-tag-bakeoff", "erp-enrichment"],
   "backfill-sku-names":   ["erp-enrichment"],
   "erp-enrichment":       ["reprocess-metadata", "backfill-sku-names"],
+  "rich-pdf-extract":     ["rebuild-style-groups"],
 };
 
 export const REASON_LABELS: Record<string, string> = {

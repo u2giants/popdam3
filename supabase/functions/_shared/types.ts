@@ -46,7 +46,8 @@ export type BulkOperationKey =
   | "ai-tag-groups"
   | "reconcile-style-group-stats"
   | "erp-enrichment"
-  | "erp-classify";
+  | "erp-classify"
+  | "rich-pdf-extract";
 
 export type BulkOperationsMap = Record<string, OpState>;
 
