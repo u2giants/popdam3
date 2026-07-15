@@ -4,6 +4,11 @@ Companion to [`coldlion-erp-api-reference.md`](coldlion-erp-api-reference.md). M
 Coldlion item data onto the existing Supabase mirror (`public.erp_items_current`, served by
 `api.plm_item_list`). Written 2026-07-15 against live production.
 
+> **Relocation in progress.** This mirror is being moved out of `public` into the designed
+> `ingest` / `plm` / `api` layers — see [`../fix_schema_for_api.md`](../fix_schema_for_api.md).
+> Phase 1 (the `api.plm_item_list` serving view) is already live. The "two source options"
+> decision below (through-dflow vs. Coldlion-direct) is the open input to that plan's Phase 3.
+
 ## Key finding first: the current mirror is fed *through dflow*, not from Coldlion directly
 
 `public.erp_items_current` holds **17,703** items, all `source_system = 'designflow'`. The

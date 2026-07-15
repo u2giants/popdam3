@@ -144,6 +144,21 @@ git status --short              # uncommitted migration files in the working tre
 If anything looks like in-progress database work, **stop and serialize** — land
 it (or ask the owner) before adding your own schema change.
 
+**Currently in flight (as of 2026-07-15): the ERP mirror relocation.** The
+Coldlion ERP pull tables (`public.erp_*`, `public.prod_order_*`) are being moved
+out of `public` into the designed `ingest` / `plm` / `api` layers. The full
+5-phase plan, current state, and rationale live in
+[`fix_schema_for_api.md`](fix_schema_for_api.md) (repo root). **Phase 1 is done
+and live in production** (`api.plm_item_list` serving view + `style_tracker_rows_with_bridge`
+repointed; migration `20260715193000_erp_phase1_api_plm_item_list.sql`). Phases
+2–5 are pending. Before touching `erp_*`, `prod_order_*`, `api.plm_item_list`,
+`plm.item`, `plm.production_order*`, or `plm.refresh_style_tracker_item_bridge()`,
+read that plan first and continue it in order — do not start a parallel ERP
+schema change. Note the still-open source decision (keep sourcing **through
+dflow** for free enrichment vs. pull **Coldlion directly**) documented in
+[`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md);
+it affects Phase 3.
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start

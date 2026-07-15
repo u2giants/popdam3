@@ -184,9 +184,15 @@ Do not throw the current design away wholesale — its **bones are right**. Pres
    'erp_%'` string-matching in `public`. That is fragile and unenforceable; a schema boundary is
    self-documenting and grant-controllable.
 
-4. **`source_system = 'designflow'` is inconsistent with the rest of the repo,** which uses `'coldlion'`
-   / `'designflow_plm'` as the ERP source-ref label (see vision doc §Customer identity). The mirror
-   mislabels its own origin.
+4. **`source_system = 'designflow'` is inconsistent with the source-ref labels used elsewhere**
+   (`'coldlion'` / `'designflow_plm'`; see vision doc §Customer identity). **Nuance (do not treat as a
+   clear bug):** per [`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md),
+   the items are **not** pulled from Coldlion directly — the live pipeline is
+   **Coldlion → dflow (Cloud SQL + enrichment) → dflow item API → Supabase**, and the raw payload is
+   DesignFlow's shape, not Coldlion's `CLAPIServerEhp` shape. So `'designflow'` is *defensible* as the
+   immediate upstream. The real defect is only the **inconsistency** of the label across the repo, not
+   that it is obviously wrong. Whether the canonical label should be `'coldlion'` (ultimate origin) or
+   `'designflow'` (immediate source) is an open decision tied to the Phase-3 source choice below.
 
 5. **No `api`-schema serving layer.** App-facing dependents (`style_tracker_rows_with_bridge`, the
    style-tracker bridge FK) point straight at the physical table `public.erp_items_current`. That hard
@@ -242,8 +248,12 @@ api.plm_item_list / api.plm_production_order_list   (NEW browser/reads contract)
   separate is what let customers go "potential → active" without re-pointing a single FK. Items get the
   same durability.
 
-- **`source_system = 'coldlion'`** everywhere — fixes incorrectness #4 and matches the existing
-  `core.company_source_ref` convention, so item source-refs slot into the same resolution machinery.
+- **One consistent `source_system` label everywhere** — resolves incorrectness #4 so item source-refs
+  slot into the same `core.company_source_ref` resolution machinery. **Pick the label deliberately in
+  Phase 3**, not by assumption: `'coldlion'` if we move to pulling Coldlion `/items` directly, or keep
+  `'designflow'` if we keep sourcing through the dflow item API (which gives merch-group → licensor/
+  property enrichment for free). See the "two source options" analysis in
+  [`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md).
 
 - **`api.*` serving views** — fixes incorrectness #5. Once `style_tracker_rows_with_bridge` and the
   bridge resolver read an `api` view (or read `plm.item`), the physical ERP tables can change, move, or
@@ -305,8 +315,9 @@ moved.**
    `plm.item_import` + `plm.import_item_master_data`), keeping the old `public.erp_*` writes on.
    (App-repo change in `popdam-web`, coordinated but downstream of this schema PR.)
 2. One-time backfill: replay latest `erp_items_raw` payloads → `ingest.raw_record`; populate
-   `plm.item_import` from `erp_items_current`; run the resolver to fill `plm.item`. Relabel
-   `source_system` `'designflow'` → `'coldlion'` in the new rows.
+   `plm.item_import` from `erp_items_current`; run the resolver to fill `plm.item`. **Decide the source
+   strategy here** (keep sourcing through the dflow item API vs. pull Coldlion `/items` directly — see
+   field-mapping doc) and set one consistent `source_system` accordingly.
 3. Reconcile counts: `plm.item_import` row count == `erp_items_current` (17,703); every non-dismissed
    item resolves to exactly one `plm.item`.
 4. Migrate the `dismissed` flags onto the canonical layer.
