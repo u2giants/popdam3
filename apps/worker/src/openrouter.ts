@@ -170,6 +170,27 @@ export function withExactoRouting(model: string): string {
   return `${trimmed}:exacto`;
 }
 
+/**
+ * Per-model routing overrides that take precedence over Exacto.
+ *
+ * Some models regress badly under Exacto's "best tool-calling accuracy" routing.
+ * minimax/minimax-m3 is the clearest case (2026-07-14): 8 of its 9 OpenRouter
+ * endpoints do NOT support function-calling, and the one that does (AtlasCloud)
+ * returns truncated tool-call JSON — so Exacto pinned us to it and MiniMax failed
+ * ~89% (vs ~14% on default routing). Its first-party "minimax" endpoint supports
+ * response_format (JSON schema), not tools, so we hard-pin to that provider and
+ * skip Exacto; the json_schema fallback leg carries the call (minimax-m3 is also
+ * on the modelSupportsTools skip list so the tool leg is never attempted).
+ */
+const MODEL_ROUTING_OVERRIDES: Record<string, NonNullable<ChatCompletionRequest["provider"]>> = {
+  "minimax/minimax-m3": { only: ["minimax"], allow_fallbacks: false },
+};
+
+/** The bare "author/slug" model id, stripped of any ":variant" suffix. */
+function baseModelId(model: string): string {
+  return model.split(":")[0].trim();
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Build an image content part from a base64-encoded image */
@@ -313,9 +334,14 @@ export async function chatCompletion(
     toolChoiceFallbacks.push("auto");
   }
 
-  // Apply Exacto routing by default (best tool-calling accuracy). Idempotent:
-  // a model that already carries an explicit variant suffix is left untouched.
-  let currentRequest: ChatCompletionRequest = { ...request, model: withExactoRouting(request.model) };
+  // A per-model routing override (e.g. minimax/minimax-m3) wins over Exacto:
+  // send the bare model pinned to a known-good provider. Otherwise apply Exacto
+  // by default (idempotent — a slug with an explicit variant is left untouched).
+  // A caller-supplied provider (e.g. the config endpoint pin) always wins.
+  const routingOverride = MODEL_ROUTING_OVERRIDES[baseModelId(request.model)];
+  let currentRequest: ChatCompletionRequest = routingOverride
+    ? { ...request, model: baseModelId(request.model), provider: request.provider ?? routingOverride }
+    : { ...request, model: withExactoRouting(request.model) };
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {

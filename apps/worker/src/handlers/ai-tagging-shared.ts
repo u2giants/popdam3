@@ -77,7 +77,11 @@ function parseJsonObject(content: string | undefined): Record<string, unknown> |
 // resolve the same way. Scout is image-capable, but some routed endpoints reject
 // the image + function-calling combination; structured JSON keeps the production
 // contract without forcing that brittle leg.
-const NON_TOOL_CALLING_MODEL_PATTERNS = [/(^|\/)gemma/i, /(^|\/)llama-4-scout/i];
+// minimax-m3: its first-party OpenRouter endpoint (where we pin it, see
+// MODEL_ROUTING_OVERRIDES in openrouter.ts) supports response_format/JSON schema
+// but NOT function-calling; the one tool-capable endpoint returns truncated
+// tool JSON. Skip the tool leg and use the structured-JSON path directly.
+const NON_TOOL_CALLING_MODEL_PATTERNS = [/(^|\/)gemma/i, /(^|\/)llama-4-scout/i, /(^|\/)minimax-m3/i];
 
 export function modelSupportsTools(model: string): boolean {
   return !NON_TOOL_CALLING_MODEL_PATTERNS.some((re) => re.test(model));
