@@ -18,6 +18,8 @@ interface FilterSidebarProps {
   facetCounts: FacetCounts | null;
   customerOptions?: { name: string; count: number }[];
   programOptions?: { name: string; count: number }[];
+  /** Distinct product-material values for the Material facet (rich-PDF extraction). */
+  materialOptions?: string[];
   mode?: "groups" | "assets";
 }
 
@@ -408,6 +410,7 @@ export default function FilterSidebar({
   facetCounts,
   customerOptions = [],
   programOptions = [],
+  materialOptions = [],
   mode = "groups",
 }: FilterSidebarProps) {
   const update = (partial: Partial<AssetFilters>) =>
@@ -418,6 +421,7 @@ export default function FilterSidebar({
       search: filters.search,
       fileType: [],
       contentType: [],
+      productMaterial: [],
       status: [],
       workflowStatus: [],
       isLicensed: null,
@@ -461,6 +465,7 @@ export default function FilterSidebar({
   const activeCount = [
     filters.fileType.length,
     filters.contentType.length,
+    filters.productMaterial.length,
     filters.status.length,
     filters.workflowStatus.length,
     filters.fileStatus.length,
@@ -641,6 +646,16 @@ export default function FilterSidebar({
             selected={filters.contentType}
             onChange={(v) => update({ contentType: v })}
             labelMap={CONTENT_TYPE_LABELS}
+          />
+        )}
+
+        {/* Material — from rich-PDF extraction; only shown once options exist */}
+        {mode === "assets" && materialOptions.length > 0 && (
+          <CheckboxGroup
+            label="Material"
+            options={materialOptions}
+            selected={filters.productMaterial}
+            onChange={(v) => update({ productMaterial: v })}
           />
         )}
 

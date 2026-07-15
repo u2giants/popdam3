@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_config: {
@@ -672,6 +647,8 @@ export type Database = {
           pdf_page2_url: string | null
           primary_sort_tier: number
           product_category: string | null
+          product_dimensions: string | null
+          product_material: string[] | null
           product_subtype_id: string | null
           program: string | null
           property_code: string | null
@@ -739,6 +716,8 @@ export type Database = {
           pdf_page2_url?: string | null
           primary_sort_tier?: number
           product_category?: string | null
+          product_dimensions?: string | null
+          product_material?: string[] | null
           product_subtype_id?: string | null
           program?: string | null
           property_code?: string | null
@@ -808,6 +787,8 @@ export type Database = {
           pdf_page2_url?: string | null
           primary_sort_tier?: number
           product_category?: string | null
+          product_dimensions?: string | null
+          product_material?: string[] | null
           product_subtype_id?: string | null
           program?: string | null
           property_code?: string | null
@@ -1975,6 +1956,9 @@ export type Database = {
           property_code: string | null
           property_id: string | null
           property_name: string | null
+          rich_metadata: Json | null
+          rich_metadata_source: string | null
+          rich_metadata_updated_at: string | null
           size_code: string | null
           size_name: string | null
           sku: string
@@ -2017,6 +2001,9 @@ export type Database = {
           property_code?: string | null
           property_id?: string | null
           property_name?: string | null
+          rich_metadata?: Json | null
+          rich_metadata_source?: string | null
+          rich_metadata_updated_at?: string | null
           size_code?: string | null
           size_name?: string | null
           sku: string
@@ -2061,6 +2048,9 @@ export type Database = {
           property_code?: string | null
           property_id?: string | null
           property_name?: string | null
+          rich_metadata?: Json | null
+          rich_metadata_source?: string | null
+          rich_metadata_updated_at?: string | null
           size_code?: string | null
           size_name?: string | null
           sku?: string
@@ -2964,6 +2954,10 @@ export type Database = {
         Args: { p_group_ids: string[] }
         Returns: number
       }
+      refresh_style_group_rich_metadata: {
+        Args: { p_style_group_id: string }
+        Returns: undefined
+      }
       refresh_style_guide_matviews: { Args: never; Returns: undefined }
       refresh_style_tracker_item_bridge: {
         Args: never
@@ -3247,9 +3241,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_name: ["popdam", "styleguides"],

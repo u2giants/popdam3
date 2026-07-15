@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, FileText, CheckCircle2, XCircle, AlertTriangle, ChevronDown, ChevronUp, ScanLine, Sparkles, Save, Monitor, Server, ImageIcon, Play, Pause, RotateCcw, RefreshCw, Trash2, Check, X, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { formatOpenRouterPricing, hasUnavailableOpenRouterPricing, type OpenRouterPricing } from "@/lib/openrouter-pricing";
+import RichPdfExtractCard from "./RichPdfExtractCard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1418,6 +1419,7 @@ export default function PdfTextSamplesTab() {
 
   return (
     <div className="space-y-4">
+      <RichPdfExtractCard />
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">

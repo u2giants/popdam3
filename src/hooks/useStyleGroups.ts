@@ -42,6 +42,7 @@ export interface StyleGroup {
   updated_at: string;
   cover_description: string | null;
   item_description?: string | null;
+  rich_metadata?: Record<string, unknown> | null;
   stage: string | null;
   customer: string | null;
   program: string | null;

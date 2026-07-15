@@ -14,6 +14,8 @@ export interface AssetFilters {
   search: string;
   fileType: string[];
   contentType: string[];
+  /** Production material projected from rich-PDF extraction (assets.product_material). */
+  productMaterial: string[];
   status: string[];
   workflowStatus: string[];
   isLicensed: boolean | null;
@@ -45,6 +47,7 @@ export const defaultFilters: AssetFilters = {
   search: "",
   fileType: [],
   contentType: [],
+  productMaterial: [],
   status: [],
   workflowStatus: [],
   isLicensed: null,
@@ -73,6 +76,7 @@ export function hasActiveFilters(filters: AssetFilters): boolean {
     filters.search.trim() !== "" ||
     filters.fileType.length > 0 ||
     filters.contentType.length > 0 ||
+    filters.productMaterial.length > 0 ||
     filters.status.length > 0 ||
     filters.workflowStatus.length > 0 ||
     filters.isLicensed !== null ||
@@ -93,6 +97,7 @@ export function countActiveFilters(filters: AssetFilters): number {
   let count = 0;
   if (filters.fileType.length > 0) count++;
   if (filters.contentType.length > 0) count++;
+  if (filters.productMaterial.length > 0) count++;
   if (filters.status.length > 0) count++;
   if (filters.workflowStatus.length > 0) count++;
   if (filters.isLicensed !== null) count++;

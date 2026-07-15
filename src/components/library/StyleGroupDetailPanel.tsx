@@ -118,6 +118,54 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/* ── Rich product details (from tech-pack / licensing-sheet PDF extraction) ── */
+function RichProductDetails({ rich }: { rich?: Record<string, unknown> | null }) {
+  if (!rich || typeof rich !== "object") return null;
+  const r = rich as Record<string, any>;
+  const specs = (r.production_specs ?? {}) as Record<string, any>;
+  const compliance = (r.compliance ?? {}) as Record<string, any>;
+
+  const arr = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
+  const colors = arr(
+    (Array.isArray(r.colors) ? r.colors : []).map((c: any) => c?.pantone || c?.name).filter(Boolean),
+  );
+
+  const rows: Array<[string, React.ReactNode]> = [];
+  const push = (label: string, value: React.ReactNode) => {
+    if (value) rows.push([label, value]);
+  };
+  push("Dimensions", specs.dimensions);
+  push("Materials", arr(specs.materials).join(", ") || null);
+  push("Finish", arr(specs.finish).join(", ") || null);
+  push("Hardware", arr(specs.hardware).join(", ") || null);
+  push("Packaging", specs.packaging);
+  push("Print process", specs.print_process);
+  push("Colors", colors.join(", ") || null);
+  push("Compliance", arr(compliance.regulatory).join(", ") || null);
+  push("Age rating", compliance.age_rating);
+  push("Origin", compliance.country_of_origin);
+  push("Style guide ref", typeof r.style_guide_reference === "string" ? r.style_guide_reference : null);
+  push("Approved", typeof r.approval_date === "string" ? r.approval_date : null);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div>
+      <SectionLabel>
+        <span className="flex items-center gap-1.5"><FileText className="h-3 w-3" /> Product Details</span>
+      </SectionLabel>
+      <dl className="space-y-1.5">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[96px_1fr] gap-2 text-[12px]">
+            <dt className="text-muted-foreground/70">{label}</dt>
+            <dd className="text-foreground break-words">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 /* ── Details DL row ───────────────────────────────────────── */
 function DlRow({ label, children }: { label: string; children: React.ReactNode }) {
   if (!children || children === "—") return null;
@@ -1287,6 +1335,9 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                     )}
                   </div>
                 )}
+
+                {/* PRODUCT DETAILS (rich-PDF extraction) */}
+                <RichProductDetails rich={group.rich_metadata} />
 
                 {/* FOLDER PATH */}
                 <div>
