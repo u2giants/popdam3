@@ -2854,6 +2854,13 @@ export type Database = {
           thumbnail_url: string
         }[]
       }
+      get_dam_material_facets: {
+        Args: never
+        Returns: {
+          asset_count: number
+          material: string
+        }[]
+      }
       get_dam_search_embedding_status: { Args: never; Returns: Json }
       get_dam_search_performance_stats: {
         Args: never
@@ -2870,6 +2877,13 @@ export type Database = {
       }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
       get_path_facets: { Args: { p_customer?: string }; Returns: Json }
+      get_pdf_rich_extraction_hashes: {
+        Args: { p_asset_ids: string[] }
+        Returns: {
+          asset_id: string
+          source_text_sha256: string
+        }[]
+      }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
       has_app_access: {
@@ -3055,6 +3069,21 @@ export type Database = {
           p_entity_id: string
         }
         Returns: boolean
+      }
+      upsert_pdf_rich_extraction: {
+        Args: {
+          p_asset_id: string
+          p_data: Json
+          p_doc_kind: string
+          p_model: string
+          p_parse_error: string
+          p_prompt_version: string
+          p_schema_version: number
+          p_sku: string
+          p_source_text_sha256: string
+          p_style_group_id: string
+        }
+        Returns: undefined
       }
       upsert_style_tracker_value_resolution: {
         Args: {

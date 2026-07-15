@@ -302,6 +302,22 @@ export interface PathFacet {
  * Programs are scoped to the selected customer when one is provided.
  * Sourced from style_groups (the natural per-SKU unit) via the get_path_facets RPC.
  */
+/** Distinct product_material values (rich-PDF facet) for the library Material filter. */
+export function useProductMaterials() {
+  return useQuery({
+    queryKey: ["dam-material-facets"],
+    queryFn: async () => {
+      // Cast: get_dam_material_facets is added by migration; generated types may lag.
+      const { data, error } = await (supabase.rpc as any)("get_dam_material_facets");
+      if (error) throw error;
+      return ((data ?? []) as Array<{ material: string | null }>)
+        .map((r) => r.material)
+        .filter((m): m is string => !!m);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function usePathFacets(customer?: string | null) {
   return useQuery({
     queryKey: ["path-facets", customer ?? "all"],
