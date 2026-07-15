@@ -1,22 +1,25 @@
-export const TAG_ASSET_REQUIRED_FIELDS: string[];
+export const TAG_ASSET_REQUIRED_FIELDS: readonly string[];
 export const TAG_ASSET_SCHEMA: Record<string, unknown>;
+export const CONTENT_TYPE_VALUES: readonly string[];
 
-export function buildTaggingSystemPrompt(context: {
+export interface TaggingPromptContext {
   asset: {
-    filename?: string | null;
-    relative_path?: string | null;
-    file_type?: string | null;
-    tags?: string[] | null;
+    filename: string | null;
+    relative_path: string | null;
+    file_type: string | null;
+    tags: string[] | null;
   };
   taxonomyContext: string;
   erpDescription?: string | null;
+  itemDescription?: string | null;
   extractedPdfText?: string | null;
   customInstructions?: string | null;
   usingPriorityOnly?: boolean;
-}): string;
+}
 
-export function toGeminiSchema(schema: unknown): unknown;
+export function buildTaggingSystemPrompt(context: TaggingPromptContext): string;
+export function toGeminiSchema(schema: unknown): Record<string, unknown>;
 export function isStyleGuideSourcePdf(asset: {
-  filename?: string | null;
-  file_type?: string | null;
+  file_type: string | null;
+  filename: string | null;
 }): boolean;
