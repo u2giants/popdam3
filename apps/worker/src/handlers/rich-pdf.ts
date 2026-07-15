@@ -209,13 +209,17 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
   );
 
   // 3. Skip unchanged extractions (idempotency by source_text_sha256).
-  const { data: existing, error: exErr } = await client
-    .schema("dam")
-    .from("pdf_rich_extraction")
-    .select("asset_id, source_text_sha256")
-    .in("asset_id", assetIds);
+  //    dam.* is not exposed to PostgREST, so go through the public RPC wrapper.
+  const { data: existing, error: exErr } = await client.rpc("get_pdf_rich_extraction_hashes", {
+    p_asset_ids: assetIds,
+  });
   if (exErr) return { ok: false, done: false, error: exErr.message };
-  const existingHash = new Map((existing ?? []).map((e) => [e.asset_id as string, e.source_text_sha256 as string | null]));
+  const existingHash = new Map(
+    ((existing ?? []) as Array<{ asset_id: string; source_text_sha256: string | null }>).map((e) => [
+      e.asset_id,
+      e.source_text_sha256,
+    ]),
+  );
 
   const work = eligible.filter((r) => {
     const asset = assetById.get(r.asset_id);
@@ -246,25 +250,18 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
             user: `Document kind: ${docKind}\nFilename: ${r.filename ?? ""}\n\nPDF TEXT:\n${text}`,
           });
           const data = parseRichPdfData(result.content);
-          const { error: upErr } = await client
-            .schema("dam")
-            .from("pdf_rich_extraction")
-            .upsert(
-              {
-                asset_id: r.asset_id,
-                style_group_id: asset.style_group_id,
-                sku: asset.sku,
-                doc_kind: docKind,
-                data,
-                source_text_sha256: hash,
-                model: result.model,
-                prompt_version: RICH_PDF_PROMPT_VERSION,
-                schema_version: RICH_PDF_SCHEMA_VERSION,
-                parse_error: null,
-                extracted_at: new Date().toISOString(),
-              },
-              { onConflict: "asset_id" },
-            );
+          const { error: upErr } = await client.rpc("upsert_pdf_rich_extraction", {
+            p_asset_id: r.asset_id,
+            p_style_group_id: asset.style_group_id,
+            p_sku: asset.sku,
+            p_doc_kind: docKind,
+            p_data: data,
+            p_source_text_sha256: hash,
+            p_model: result.model,
+            p_prompt_version: RICH_PDF_PROMPT_VERSION,
+            p_schema_version: RICH_PDF_SCHEMA_VERSION,
+            p_parse_error: null,
+          });
           if (upErr) throw new Error(upErr.message);
           if (asset.style_group_id) affectedGroups.add(asset.style_group_id);
           processed++;
@@ -272,25 +269,18 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
           failed++;
           logger.warn(`rich-pdf extract failed for asset ${r.asset_id}: ${(err as Error).message}`);
           // Persist the failure so we don't hot-loop the same asset every tick.
-          await client
-            .schema("dam")
-            .from("pdf_rich_extraction")
-            .upsert(
-              {
-                asset_id: r.asset_id,
-                style_group_id: asset.style_group_id,
-                sku: asset.sku,
-                doc_kind: docKind,
-                data: {},
-                source_text_sha256: hash,
-                model,
-                prompt_version: RICH_PDF_PROMPT_VERSION,
-                schema_version: RICH_PDF_SCHEMA_VERSION,
-                parse_error: (err as Error).message.slice(0, 500),
-                extracted_at: new Date().toISOString(),
-              },
-              { onConflict: "asset_id" },
-            );
+          await client.rpc("upsert_pdf_rich_extraction", {
+            p_asset_id: r.asset_id,
+            p_style_group_id: asset.style_group_id,
+            p_sku: asset.sku,
+            p_doc_kind: docKind,
+            p_data: {},
+            p_source_text_sha256: hash,
+            p_model: model,
+            p_prompt_version: RICH_PDF_PROMPT_VERSION,
+            p_schema_version: RICH_PDF_SCHEMA_VERSION,
+            p_parse_error: (err as Error).message.slice(0, 500),
+          });
         }
       }),
     );
