@@ -459,13 +459,24 @@ endpoint?"_
 >   misbehaves *with* Exacto.
 >
 > **What's LEFT for this workstream (fresh-dev next actions):**
-> 1. **Measure Exacto's impact — this is the open loop.** Exacto shipped but its
->    effect on the prod failure rate is unconfirmed. After the Railway worker
->    rebuild for `7c91c66` lands, watch AI-tag failures for the structured-output
->    symptoms in `docs/KNOWN_QUIRKS.md` #58/#59 (OpenRouter 404, `No endpoints
->    found`, malformed tool JSON, no parsable JSON) and compare before/after, or run
->    a bake-off. If a specific model still fails (e.g. the MiniMax M3 JSON errors in
->    §9), pin it (#60) or change it.
+> 1. **Exacto's impact — MEASURED, and it's mixed. MiniMax regressed; a fix
+>    shipped (2026-07-15).** Exacto is verified deployed (build active on Railway).
+>    Measured effect from `ai_tag_bakeoff_results`: it **broke `minimax/minimax-m3`**
+>    — failures went ~14% → ~89% the moment it deployed (`Malformed tool call JSON:
+>    Unexpected end of JSON input`). Root cause: only 1 of minimax-m3's 9 OpenRouter
+>    endpoints supports function-calling (AtlasCloud) and it returns truncated tool
+>    JSON, so Exacto's "best tool-calling accuracy" routing pins us straight to it.
+>    **Fixed in commit `f532c08`**: `MODEL_ROUTING_OVERRIDES` in `openrouter.ts`
+>    hard-pins minimax-m3 to the first-party `minimax` provider and excludes it from
+>    Exacto; it's also on the `modelSupportsTools` skip list so it uses the
+>    `response_format`/JSON-schema path the MiniMax endpoint supports. See
+>    `docs/KNOWN_QUIRKS.md` #62 regression note. **Next actions:** (a) confirm
+>    `f532c08` deployed to Railway (GitHub deployment status, as done for `7c91c66`);
+>    (b) run a MiniMax bake-off and re-check the before/after failure rate — it
+>    should return toward ~14% (query `ai_tag_bakeoff_results` via the `op`/
+>    service-role pattern in §8's infra note); (c) **STILL UNMEASURED:** whether
+>    Exacto actually *helps* qwen/deepseek at all — if it doesn't, make it opt-in
+>    per-model instead of the blanket default.
 > 2. **§8 Open question #1 (does `attempts[]` populate) is UNCHANGED** — Exacto does
 >    not affect it. Still resolve it per the steps below.
 > 3. **Prune `toGeminiSchema`** (in `supabase/functions/_shared/tag-asset-contract.js`
