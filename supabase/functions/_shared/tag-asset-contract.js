@@ -1,8 +1,18 @@
 export const CONTENT_TYPE_VALUES = [
-  "source_art", "style_guide_art", "pattern_allover", "icon_badge",
-  "product_photo", "lifestyle_photo", "render_mockup", "tech_pack",
-  "licensing_sheet", "spec_layout_doc", "packaging_art", "sticker",
-  "jcard", "other",
+  "source_art",
+  "style_guide_art",
+  "pattern_allover",
+  "icon_badge",
+  "product_photo",
+  "lifestyle_photo",
+  "render_mockup",
+  "tech_pack",
+  "licensing_sheet",
+  "spec_layout_doc",
+  "packaging_art",
+  "sticker",
+  "jcard",
+  "other",
 ];
 
 export const TAG_ASSET_REQUIRED_FIELDS = ["tags", "ai_description", "scene_description", "content_type"];
