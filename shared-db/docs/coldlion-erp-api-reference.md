@@ -48,15 +48,19 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 `PUT /items`, and `POST /order`. The import only needs GETs. Any write path (pushing data
 back into the ERP) requires explicit sign-off before use.
 
-> **`PUT /itemImages` is update-only — it cannot create the first image** (verified live
-> 2026-07-15). The body is an `ItemImageDTO` with `resourceContent`/`thumbnail128` as raw
-> base64 JPEG (no `data:` prefix). PUT against an item that already has an image returns
-> `200` and swaps the bytes; PUT against an item with **zero** images returns
-> `500 InvalidDataAccessApiUsageException: "Target object must not be null"` (the server
-> looks up the existing row to update and gets null). There is **no POST/insert and no
-> DELETE** for images — the first image must be seeded elsewhere (the ERP UI), and existing
-> images can only be overwritten, never cleared. Also note: a successful PUT does **not**
-> bump `modTime`/`modUser`, so those can't be used to detect API-driven image changes.
+> **`PUT /itemImages` is update-only — it cannot create images** (verified live 2026-07-15).
+> The body is an `ItemImageDTO` with `resourceContent`/`thumbnail128` as raw base64 JPEG
+> (no `data:` prefix). The server locates the row to update by **`itemNo` + `colorCode`**
+> (`pkey`/`resourceId` are optional — a PUT with no `pkey` still updates the matching row).
+> - PUT matching an existing `(itemNo, colorCode)` image → `200`, swaps the bytes.
+> - PUT for an item with **zero** images, **or a new `colorCode`** (no matching row) →
+>   `500 InvalidDataAccessApiUsageException: "Target object must not be null"`.
+>
+> So you can neither seed an item's first image **nor add a second image (new colorCode)**
+> through the API — both need a pre-existing row created elsewhere (the ERP UI). There is
+> **no POST/insert and no DELETE** for images; existing images can only be overwritten,
+> never cleared. Also note: a successful PUT does **not** bump `modTime`/`modUser`, so those
+> can't be used to detect API-driven image changes.
 
 ## Which items have images? (the efficient pattern)
 - `/items` returns a **`hasImage`** flag per item (`"Y"`/`"N"`). One paged sweep of `/items`
