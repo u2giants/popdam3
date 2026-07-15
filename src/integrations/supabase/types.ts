@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_config: {
@@ -637,6 +612,7 @@ export type Database = {
           artboards: number | null
           asset_type: Database["public"]["Enums"]["asset_type"] | null
           big_theme: string | null
+          content_type: string | null
           cover_description: string | null
           created_at: string
           customer: string | null
@@ -703,6 +679,7 @@ export type Database = {
           artboards?: number | null
           asset_type?: Database["public"]["Enums"]["asset_type"] | null
           big_theme?: string | null
+          content_type?: string | null
           cover_description?: string | null
           created_at?: string
           customer?: string | null
@@ -771,6 +748,7 @@ export type Database = {
           artboards?: number | null
           asset_type?: Database["public"]["Enums"]["asset_type"] | null
           big_theme?: string | null
+          content_type?: string | null
           cover_description?: string | null
           created_at?: string
           customer?: string | null
@@ -1951,6 +1929,8 @@ export type Database = {
           freelancer_name: string | null
           id: string
           is_licensed: boolean | null
+          item_description: string | null
+          item_description_source: string | null
           latest_file_date: string | null
           licensor_code: string | null
           licensor_id: string | null
@@ -1991,6 +1971,8 @@ export type Database = {
           freelancer_name?: string | null
           id?: string
           is_licensed?: boolean | null
+          item_description?: string | null
+          item_description_source?: string | null
           latest_file_date?: string | null
           licensor_code?: string | null
           licensor_id?: string | null
@@ -2033,6 +2015,8 @@ export type Database = {
           freelancer_name?: string | null
           id?: string
           is_licensed?: boolean | null
+          item_description?: string | null
+          item_description_source?: string | null
           latest_file_date?: string | null
           licensor_code?: string | null
           licensor_id?: string | null
@@ -2945,6 +2929,7 @@ export type Database = {
         Args: { p_style_group_id: string }
         Returns: undefined
       }
+      refresh_sku_human_description: { Args: never; Returns: number }
       refresh_style_group_counts: { Args: never; Returns: undefined }
       refresh_style_group_counts_batch: {
         Args: { p_group_ids: string[] }
@@ -3237,9 +3222,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_name: ["popdam", "styleguides"],

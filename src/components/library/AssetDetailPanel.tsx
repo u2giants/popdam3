@@ -251,9 +251,9 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
     queryKey: ["style-group-brief", styleGroupId],
     queryFn: async () => {
       if (!styleGroupId) return null;
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("style_groups")
-        .select("id, sku, licensor_id, property_id")
+        .select("id, sku, licensor_id, property_id, item_description")
         .eq("id", styleGroupId)
         .single();
       return data ?? null;
@@ -817,6 +817,12 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
                     </span>
                   )}
                 </h4>
+                {styleGroup?.item_description && (
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--pd-fg-subtle)" }}>Product</span>
+                    <p className="text-xs leading-relaxed mt-0.5" style={{ color: "var(--pd-fg-muted)" }}>{styleGroup.item_description}</p>
+                  </div>
+                )}
                 {asset.ai_description ? (
                   <div className="space-y-2">
                     <div>

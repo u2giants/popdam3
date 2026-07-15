@@ -181,6 +181,12 @@ or `response_format: { "type": "json_object" }` with app-side validation.
 Required fields are `tags`, `ai_description`, and `scene_description`; malformed
 JSON gets one repair retry in JSON mode.
 
+The description fields are search metadata, not free-form captions.
+`ai_description` should be a concise, search-friendly sentence for designers and
+salespeople; `scene_description` should be a literal visual sentence. The
+canonical wording lives in `supabase/functions/_shared/tag-asset-contract.js`.
+Keep it compact because it is sent for every tagged asset.
+
 OpenRouter model IDs may route to different provider endpoints, so the same
 model can flip pass/fail per call. Three things follow, detailed in
 `docs/KNOWN_QUIRKS.md` #59/#60/#62 and `docs/MODEL_RULES.md`:

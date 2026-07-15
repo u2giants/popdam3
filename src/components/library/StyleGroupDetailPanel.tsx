@@ -462,6 +462,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
 
   const isLegacyGroup = erpItemData?.erp_updated_at ? erpItemData.erp_updated_at < ERP_MG_CUTOFF : false;
   const erpDescription = erpItemData?.item_description ?? null;
+  const itemDescription = group.item_description ?? erpDescription;
 
   const { data: groupAssets, isLoading: assetsLoading } = useQuery({
     queryKey: ["style-group-assets", group.id],
@@ -873,7 +874,7 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                 </p>
                 {/* Property name / ERP description */}
                 <p className="text-[19px] font-[800] text-[var(--pd-fg,hsl(var(--foreground)))] leading-tight truncate">
-                  {erpDescription ?? group.sku}
+                  {itemDescription ?? group.sku}
                 </p>
                 {/* WfTag + Category · Stage */}
                 <div className="flex items-center gap-1.5 flex-wrap">

@@ -9,4 +9,8 @@ describe("hasActiveFilters", () => {
   it("treats real search text as an active filter", () => {
     expect(hasActiveFilters({ ...defaultFilters, search: "3fz" })).toBe(true);
   });
+
+  it("treats a content-type selection as an active filter", () => {
+    expect(hasActiveFilters({ ...defaultFilters, contentType: ["tech_pack"] })).toBe(true);
+  });
 });

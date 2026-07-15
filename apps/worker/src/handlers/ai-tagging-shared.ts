@@ -3,6 +3,7 @@ import { db } from "../supabase.js";
 import { chatCompletion, imageContent, tool, OpenRouterError, type ChatCompletionRequest, type ChatMessage, type OpenRouterProviderInfo } from "../openrouter.js";
 import {
   TAG_ASSET_SCHEMA,
+  CONTENT_TYPE_VALUES,
   buildTaggingSystemPrompt,
   isStyleGuideSourcePdf,
 } from "../../../../supabase/functions/_shared/tag-asset-contract.js";
@@ -26,6 +27,7 @@ export type TaggingPromptAsset = {
   licensor_id: string | null;
   property_id: string | null;
   sku: string | null;
+  style_group_id?: string | null;
 };
 
 export type ImageData = {
@@ -108,6 +110,9 @@ function validateTagAssetData(value: Record<string, unknown>, mode: TagAssetComp
   if (typeof value.scene_description !== "string" || value.scene_description.trim().length === 0) {
     errors.push("scene_description must be a non-empty string");
   }
+  if (typeof value.content_type !== "string" || !CONTENT_TYPE_VALUES.includes(value.content_type)) {
+    errors.push("content_type must be a recognized file kind");
+  }
   if (errors.length > 0) {
     throw new Error(`Model returned invalid ${mode} tag data: ${errors.join("; ")}`);
   }
@@ -141,7 +146,7 @@ function withJsonRepairInstruction(messages: ChatMessage[], errorMessage: string
     {
       role: "user",
       content:
-        `The previous response could not be parsed or validated as JSON: ${errorMessage.slice(0, 300)}. Return a corrected JSON object only. Include tags, ai_description, and scene_description. No markdown, no commentary.`,
+        `The previous response could not be parsed or validated as JSON: ${errorMessage.slice(0, 300)}. Return a corrected JSON object only. Include tags, ai_description, scene_description, and content_type. No markdown, no commentary.`,
     },
   ];
 }
@@ -250,6 +255,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
   ].join("\n");
 
   let erpDescription: string | null = null;
+  let itemDescription: string | null = null;
   if (asset.sku) {
     const { data: erpItem } = await client
       .from("erp_items_current")
@@ -257,6 +263,23 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
       .eq("style_number", asset.sku)
       .maybeSingle();
     erpDescription = erpItem?.item_description ?? null;
+
+    const { data: humanDescription, error: humanDescriptionError } = await client
+      .schema("dam")
+      .from("sku_human_description")
+      .select("description")
+      .eq("sku", asset.sku)
+      .maybeSingle();
+    itemDescription = humanDescription?.description ?? null;
+
+    if (humanDescriptionError && asset.style_group_id) {
+      const { data: styleGroup } = await client
+        .from("style_groups")
+        .select("item_description")
+        .eq("id", asset.style_group_id)
+        .maybeSingle();
+      itemDescription = styleGroup?.item_description ?? null;
+    }
   }
 
   const { data: pdfSample } = await client
@@ -271,6 +294,7 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
     asset,
     taxonomyContext,
     erpDescription,
+    itemDescription,
     extractedPdfText,
     customInstructions,
     usingPriorityOnly,

@@ -1,5 +1,6 @@
 export const TAG_ASSET_REQUIRED_FIELDS: readonly string[];
 export const TAG_ASSET_SCHEMA: Record<string, unknown>;
+export const CONTENT_TYPE_VALUES: readonly string[];
 
 export interface TaggingPromptContext {
   asset: {
@@ -10,6 +11,7 @@ export interface TaggingPromptContext {
   };
   taxonomyContext: string;
   erpDescription?: string | null;
+  itemDescription?: string | null;
   extractedPdfText?: string | null;
   customInstructions?: string | null;
   usingPriorityOnly?: boolean;

@@ -137,6 +137,13 @@ details in `raw_output._popdam_debug`. A model can correctly name a character in
 the description but still produce no `character_ids` if the canonical character
 row is missing.
 
+The base description guidance is code-owned in
+`supabase/functions/_shared/tag-asset-contract.js`. It tells models to write
+`ai_description` as concise search metadata for designers/salespeople and
+`scene_description` as a literal visual description. `TAGGING_INSTRUCTIONS`
+should be used only for short organization-specific additions, not to paste a
+second full prompt; every extra token is paid on each tagged asset.
+
 OpenRouter can return unavailable placeholder aliases with negative pricing. The UI treats negative prompt/completion pricing as unavailable and filters those entries out rather than displaying the sentinel price.
 
 ---

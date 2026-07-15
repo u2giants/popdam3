@@ -13,6 +13,7 @@ export type FileStatusFilter = "has_preview" | "no_preview_renderable" | "no_pdf
 export interface AssetFilters {
   search: string;
   fileType: string[];
+  contentType: string[];
   status: string[];
   workflowStatus: string[];
   isLicensed: boolean | null;
@@ -43,6 +44,7 @@ export const STAGE_OPTIONS = [
 export const defaultFilters: AssetFilters = {
   search: "",
   fileType: [],
+  contentType: [],
   status: [],
   workflowStatus: [],
   isLicensed: null,
@@ -70,6 +72,7 @@ export function hasActiveFilters(filters: AssetFilters): boolean {
   return (
     filters.search.trim() !== "" ||
     filters.fileType.length > 0 ||
+    filters.contentType.length > 0 ||
     filters.status.length > 0 ||
     filters.workflowStatus.length > 0 ||
     filters.isLicensed !== null ||
@@ -89,6 +92,7 @@ export function hasActiveFilters(filters: AssetFilters): boolean {
 export function countActiveFilters(filters: AssetFilters): number {
   let count = 0;
   if (filters.fileType.length > 0) count++;
+  if (filters.contentType.length > 0) count++;
   if (filters.status.length > 0) count++;
   if (filters.workflowStatus.length > 0) count++;
   if (filters.isLicensed !== null) count++;

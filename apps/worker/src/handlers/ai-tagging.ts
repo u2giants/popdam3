@@ -210,6 +210,7 @@ async function tagSingleAsset(assetId: string, force: boolean): Promise<TagOutco
         if (tagData.cover_description) updates.cover_description = tagData.cover_description;
         if (tagData.scene_description) updates.scene_description = tagData.scene_description;
         if (tagData.asset_type) updates.asset_type = tagData.asset_type;
+        if (tagData.content_type) updates.content_type = tagData.content_type;
         if (tagData.art_source) updates.art_source = tagData.art_source;
         if (tagData.design_style) updates.design_style = tagData.design_style;
         if (tagData.design_ref) updates.design_ref = tagData.design_ref;

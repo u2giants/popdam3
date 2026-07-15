@@ -89,8 +89,8 @@ Required columns:
 - `little_theme text NULL`
 - `design_ref text NULL`
 - `design_style text NULL`
-- `ai_description text NULL`
-- `scene_description text NULL`
+- `ai_description text NULL` — AI-generated search-friendly summary for designers/salespeople.
+- `scene_description text NULL` — AI-generated literal visual description of what is visible.
 - `tags text[] NOT NULL DEFAULT '{}'::text[]`
 - `workflow_status workflow_status DEFAULT 'other'`
 - `status asset_status DEFAULT 'pending'`

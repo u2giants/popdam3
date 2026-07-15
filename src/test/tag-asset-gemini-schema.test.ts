@@ -40,7 +40,7 @@ describe("toGeminiSchema", () => {
   });
 
   it("preserves required fields and array item types", () => {
-    expect(gemini.required).toEqual(["tags", "ai_description", "scene_description"]);
+    expect(gemini.required).toEqual(["tags", "ai_description", "scene_description", "content_type"]);
     expect(gemini.properties.tags.items.type).toBe("string");
   });
 });

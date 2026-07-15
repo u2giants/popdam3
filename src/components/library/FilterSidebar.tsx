@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AssetFilters, FacetCounts, FileStatusFilter } from "@/types/assets";
+import { CONTENT_TYPE_LABELS, CONTENT_TYPE_OPTIONS } from "@/lib/asset-content-types";
 import { STAGE_OPTIONS } from "@/types/assets";
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
@@ -416,6 +417,7 @@ export default function FilterSidebar({
     onFiltersChange({
       search: filters.search,
       fileType: [],
+      contentType: [],
       status: [],
       workflowStatus: [],
       isLicensed: null,
@@ -458,6 +460,7 @@ export default function FilterSidebar({
   // Count active filters for the header badge
   const activeCount = [
     filters.fileType.length,
+    filters.contentType.length,
     filters.status.length,
     filters.workflowStatus.length,
     filters.fileStatus.length,
@@ -627,6 +630,17 @@ export default function FilterSidebar({
             selected={filters.fileType}
             onChange={(v) => update({ fileType: v })}
             counts={facetCounts?.fileType}
+          />
+        )}
+
+        {/* Content Type — AI-classified file kind, assets only */}
+        {mode === "assets" && (
+          <CheckboxGroup
+            label="Content Type"
+            options={[...CONTENT_TYPE_OPTIONS]}
+            selected={filters.contentType}
+            onChange={(v) => update({ contentType: v })}
+            labelMap={CONTENT_TYPE_LABELS}
           />
         )}
 

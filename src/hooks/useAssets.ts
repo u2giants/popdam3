@@ -122,6 +122,9 @@ function applyFilters(query: any, filters: AssetFilters, fullTextAssetIds?: stri
   if (filters.fileType.length > 0) {
     query = query.in("file_type", filters.fileType);
   }
+  if (filters.contentType.length > 0) {
+    query = query.in("content_type", filters.contentType);
+  }
   if (filters.status.length > 0) {
     query = query.in("status", filters.status);
   }
@@ -262,6 +265,7 @@ export function useFilterCounts(filters: AssetFilters) {
       const filterPayload: Record<string, unknown> = {};
       if (filters.search) filterPayload.search = filters.search;
       if (filters.fileType.length > 0) filterPayload.fileType = filters.fileType;
+      if (filters.contentType.length > 0) filterPayload.contentType = filters.contentType;
       if (filters.status.length > 0) filterPayload.status = filters.status;
       if (filters.workflowStatus.length > 0) filterPayload.workflowStatus = filters.workflowStatus;
       if (filters.isLicensed !== null) filterPayload.isLicensed = filters.isLicensed;

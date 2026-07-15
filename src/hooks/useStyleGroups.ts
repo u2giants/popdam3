@@ -41,6 +41,7 @@ export interface StyleGroup {
   created_at: string;
   updated_at: string;
   cover_description: string | null;
+  item_description?: string | null;
   stage: string | null;
   customer: string | null;
   program: string | null;
