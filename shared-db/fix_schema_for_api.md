@@ -1,7 +1,7 @@
 # Migration Plan — Fix the schema for Coldlion ERP API-pull tables
 
 **Repo:** `u2giants/shared-db` · **DB:** Supabase `qsllyeztdwjgirsysgai`
-**Status:** PROPOSAL (not yet started) · **Author:** engineering session 2026-07-15
+**Status:** IN PROGRESS — **Phase 1 shipped & live in production 2026-07-15** (PR #70); Phases 2–5 pending · **Author:** engineering session 2026-07-15
 **Change discipline:** shared-db branch + PR + preview-first + author-merges (never app-repo migrations, never direct DDL on prod)
 
 ---
@@ -273,14 +273,20 @@ Each phase = one shared-db PR, preview-branch-tested, PopDAM verified green, the
 stays fully live throughout. **No phase deletes a legacy table until the phase after its readers are
 moved.**
 
-### Phase 1 — Serving layer first (zero data movement, pure safety net)
+### Phase 1 — Serving layer first (zero data movement, pure safety net) ✅ DONE 2026-07-15
 *Goal: decouple every reader from the physical tables before anything moves.*
-1. Create `api.plm_item_list` as a view over **`public.erp_items_current`** (yes, the current table) with
-   the column names apps should use long-term.
-2. Repoint `public.style_tracker_rows_with_bridge` and `plm.refresh_style_tracker_item_bridge()` to read
-   the new `api` view instead of the base table.
-3. No writer changes, no data move. Ship + verify PopDAM style-tracker still renders.
-**Reversible:** drop the view, revert the two readers. **Risk: very low.**
+1. ✅ Created `api.plm_item_list` (`security_invoker`) as a faithful 1:1 view over
+   **`public.erp_items_current`** with forward-looking names (`external_id` → `source_id`).
+2. ✅ Repointed `public.style_tracker_rows_with_bridge` to read the ERP columns through the view.
+3. ⏸️ **`plm.refresh_style_tracker_item_bridge()` was intentionally NOT repointed.** It is a
+   matching function that writes the physical ERP `id` into the `erp_item_id` FK and has logic keyed on
+   `target_table='erp_items_current'`; routing it through a view gives no real decoupling and adds risk.
+   Its decoupling moves to **Phase 4**, when that FK repoints to `plm.item(id)`.
+4. ✅ Shipped via migration `20260715193000_erp_phase1_api_plm_item_list.sql` (PR #70), rehearsed on the
+   preview branch, then applied to production. Verified live: `api.plm_item_list` returns all 17,703
+   items with unique `source_id`; `style_tracker_rows_with_bridge` is row-for-row identical (0 mismatches
+   across 15,509 bridge rows).
+**Reversible:** drop the view, revert the reader. **Risk: very low.** **Actual outcome: no behavior change.**
 
 ### Phase 2 — Stand up the ingest + import tables (still no cutover)
 1. Add `plm.item_import` (typed, columns per §2.2 + `source_system`, `source_id`, `raw`, `imported_at`,
