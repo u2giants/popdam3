@@ -112,6 +112,40 @@ function sha256(s: string): string {
   return createHash("sha256").update(s).digest("hex");
 }
 
+/**
+ * Normalize a materials list so the DAM Material facet doesn't split on casing
+ * or whitespace noise (canvas / Canvas / CANVAS / " canvas "). Uppercasing is
+ * acronym-safe (MDF, DIY, GSM stay intact) and fully dedupes case variants.
+ * Genuinely different values (CANVAS vs PLAIN CANVAS) are preserved. Exported
+ * for reuse by the one-time backfill-cleanup path and tests.
+ */
+export function normalizeMaterialList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of v) {
+    if (typeof raw !== "string") continue;
+    const norm = raw.trim().replace(/\s+/g, " ").toUpperCase();
+    if (norm && !seen.has(norm)) {
+      seen.add(norm);
+      out.push(norm);
+    }
+  }
+  return out;
+}
+
+/** Normalize the materials array in-place on a parsed extraction object. */
+function normalizeExtraction(data: RichPdfData): RichPdfData {
+  const ps = (data as { production_specs?: unknown }).production_specs;
+  if (ps && typeof ps === "object" && !Array.isArray(ps)) {
+    const specs = ps as { materials?: unknown };
+    if (Array.isArray(specs.materials)) {
+      specs.materials = normalizeMaterialList(specs.materials);
+    }
+  }
+  return data;
+}
+
 function docKindFromFilename(filename: string): "tech_pack" | "licensing_sheet" {
   return /licens/i.test(filename) ? "licensing_sheet" : "tech_pack";
 }
@@ -249,7 +283,7 @@ export async function handleRichPdfExtract(opState: OpState): Promise<BatchResul
             system,
             user: `Document kind: ${docKind}\nFilename: ${r.filename ?? ""}\n\nPDF TEXT:\n${text}`,
           });
-          const data = parseRichPdfData(result.content);
+          const data = normalizeExtraction(parseRichPdfData(result.content));
           const { error: upErr } = await client.rpc("upsert_pdf_rich_extraction", {
             p_asset_id: r.asset_id,
             p_style_group_id: asset.style_group_id,

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildRichPdfSystemPrompt,
+  normalizeMaterialList,
   parseRichPdfData,
   RICH_PDF_PROMPT_VERSION,
 } from "./rich-pdf.js";
@@ -40,4 +41,23 @@ test("rejects non-object JSON", () => {
 
 test("rejects unusable output", () => {
   assert.throws(() => parseRichPdfData("no json here"), /did not return JSON/);
+});
+
+test("normalizeMaterialList uppercases, trims, collapses ws, dedupes casing", () => {
+  assert.deepEqual(
+    normalizeMaterialList(["canvas", "Canvas", " CANVAS ", "MDF", "plain  canvas"]),
+    ["CANVAS", "MDF", "PLAIN CANVAS"],
+  );
+});
+
+test("normalizeMaterialList preserves distinct materials + drops junk", () => {
+  assert.deepEqual(
+    normalizeMaterialList(["MDF", "Glass", "glass", "", "  ", 42, null, "DIY Canvas"]),
+    ["MDF", "GLASS", "DIY CANVAS"],
+  );
+});
+
+test("normalizeMaterialList handles non-arrays", () => {
+  assert.deepEqual(normalizeMaterialList(undefined), []);
+  assert.deepEqual(normalizeMaterialList("canvas"), []);
 });
