@@ -4,6 +4,13 @@ Companion to [`coldlion-erp-api-reference.md`](coldlion-erp-api-reference.md). M
 Coldlion item data onto the existing Supabase mirror (`public.erp_items_current`, served by
 `api.plm_item_list`). Written 2026-07-15 against live production.
 
+> **Customers & vendors are already imported** (2026-07-15) — Coldlion `/customers` (836) and
+> `/vendors` (539) now flow into `ingest.raw_record` → `plm.erp_customer`/`plm.erp_vendor` →
+> `core.customer`/`core.factory` via `plm.import_coldlion_customers()` /
+> `plm.import_coldlion_vendors()`. See
+> [`app-migration-notes/coldlion-customers-vendors-20260715.md`](app-migration-notes/coldlion-customers-vendors-20260715.md).
+> This document covers the **item** mirror only.
+
 > **Relocation in progress.** This mirror is being moved out of `public` into the designed
 > `ingest` / `plm` / `api` layers — see [`../fix_schema_for_api.md`](../fix_schema_for_api.md).
 > Phase 1 (the `api.plm_item_list` serving view) is already live. The "two source options"
