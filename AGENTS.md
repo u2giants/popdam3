@@ -623,6 +623,18 @@ Use this exact shape for every new quirk:
 **Actually:** Direct SQL runs as `postgres` (no statement_timeout). The browser runs as `authenticated` (`statement_timeout=8s`, Supavisor-enforced — `SET LOCAL` can't raise it, see `docs/KNOWN_QUIRKS.md` #33). `get_filter_counts` was 14s (5 table scans); fixed to ~260ms via one materialized scan + the `idx_assets_facet_counts` covering index (index-only). `asset_path_history` reads needed `idx_asset_path_history_asset_id_detected_at` (30s→16ms).
 **Do not change because:** Always size `assets`-aggregation RPCs against the 8s `authenticated` ceiling cold, never against `postgres` timings. Keep `get_filter_counts` reading only columns in `idx_assets_facet_counts`. In Style Groups mode, do not run the background all-assets list query just to populate counters; group counts and filtered file totals should come from `style_groups` (`useStyleGroupCount` / `useStyleGroupAssetCount`). This matters for legacy Wall/`3FZ` filters, where the group queries are valid but the unnecessary `assets` query can 500. Detail: `docs/KNOWN_QUIRKS.md` #49–#52.
 
+### The `dam` schema is NOT exposed to PostgREST — reach `dam.*` via `public` RPCs (2026-07-15)
+
+**Looks like:** `client.schema("dam").from(...)` from the worker/edge should work with the service-role key.
+**Actually:** `dam` is not in `pgrst.db_schemas` (`public, graphql_public, api, crm, pim, core, app`), so any PostgREST call to `dam.*` returns **`Invalid schema: dam`** — even for `service_role`. This is deliberate: `dam` holds worker-internal tables (`sku_human_description`, `pdf_rich_extraction`) the frontend never queries.
+**Do not change because:** Adding `dam` to the exposed list broadens the shared API surface for all apps and needs RLS on every `dam` table. Instead reach `dam.*` through `public` `SECURITY DEFINER` functions granted to `service_role` (e.g. `get_pdf_rich_extraction_hashes`, `upsert_pdf_rich_extraction`, `refresh_style_group_rich_metadata`). Full detail: `docs/KNOWN_QUIRKS.md` #64.
+
+### Rich-PDF extraction uses DeepSeek's **direct** API, not OpenRouter (2026-07-15)
+
+**Looks like:** all worker AI goes through OpenRouter/Exacto, so rich-PDF should too.
+**Actually:** the `rich-pdf-extract` op calls DeepSeek directly (`apps/worker/src/deepseek.ts`, key `DEEPSEEK_API_KEY`) because it sends an identical instructions+schema prefix on every one of ~19k calls, and DeepSeek's **automatic prefix caching** bills cache hits at ~1/10 — a saving OpenRouter does not reliably pass through. The op puts the stable prompt in `system` and the variable PDF text in `user` to maximize cache hits, and normalizes extracted `materials` (uppercase) so the DAM Material facet doesn't split on casing.
+**Do not change because:** routing this batch through OpenRouter loses the caching economics. General rule for future cacheable, high-volume LLM batches: prefer the direct provider API. Full detail: `docs/RICH_PDF_EXTRACTION.md`.
+
 ## Credentials and environment
 
 | Variable | Purpose | Stored where | Required in dev | Required in prod |
@@ -724,6 +736,8 @@ Keep `HANDOFF.md` while any row here is open. Delete `HANDOFF.md` only after the
 | 🟢 done 2026-06-18 | **Frontend deploy GHCR package access** | `publish-frontend.yml` now uses `GHCR_PAT` when present, the repo secret is set, and GHCR publish succeeded for image tags `latest`, `sha-5482fb7`, and `5482fb7`. Coolify pull access also depends on the VPS Docker login at `/root/.docker/config.json`; see the 2026-06-18 critical incident and `docs/deployment.md`. |
 | 🟡 open | **Style Guide Sources archival readiness** | Let the licensing-PDF backfill finish, add crawl-regression guard before archiving, then build an explicit archived state for old style guides. See `HANDOFF.md` and `docs/POPSG.md`. |
 | 🟢 done external | **Seafile server direct-MS SSO** | Fixed 2026-06-08 in the separate `u2giants/seafile` repo. Keep this note only as context for the Brazil pilot. |
+| 🟢 shipped 2026-07-15 | **Two-level asset metadata** | Product-level `style_groups.item_description` (+ `dam.sku_human_description`) and file-level `assets.content_type`, folded into the DAM search rollup (shared-db PR #67). Frontend Content Type filter + item-description display; worker classifies `content_type`. Done. |
+| 🟡 mostly done 2026-07-15 | **Rich tech-pack/licensing PDF extraction (§5.15)** | Schema + worker + frontend all shipped and live (shared-db PRs #74 schema, #77 RPC access, #78 material facet). Backfill **Pass 1 complete** (246 PDFs — every tech-pack/licensing PDF with extracted text). `DEEPSEEK_API_KEY` set in Railway (verified). Remaining: **Pass 2** — on-prem text-extract the ~19k eligible PDFs that have no `pdf_text_samples.extracted_text` yet, then re-run the `rich-pdf-extract` op (idempotent). See `docs/RICH_PDF_EXTRACTION.md`, `HANDOFF.md` §5.15. |
 
 ## Critical incidents
 

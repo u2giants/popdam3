@@ -808,3 +808,25 @@ pin today; ERP classification and PDF extraction do not (add a sibling
 **Actually**: The on-prem bridge/windows agents call Google's `generativelanguage.googleapis.com` **directly** (not through OpenRouter) as the AI-vision fallback in PDF text extraction. They read the key via `agent-api`'s config passthrough, which is set through the admin ApisTab field.
 
 **Future sessions should**: Keep `GOOGLE_AI_API_KEY`, the `agent-api` passthrough, the ApisTab field, and the `google`-provider entries in the `AI_MODELS` catalog. Removing any of them breaks agent PDF text extraction. The deleted `ai-tag` edge function was a *different*, genuinely dead path (direct-Gemini batch tagging superseded by the OpenRouter worker); its removal did not affect this one. The now-unused `toGeminiSchema` in the tag-asset contract can be pruned once that contract mirror is no longer being concurrently edited.
+
+## 64. The `dam` Schema Is NOT Exposed to PostgREST — Reach `dam.*` via `public` RPCs (2026-07-15)
+
+**Files**: `supabase/functions/_shared/*` and worker handlers that touch `dam.*` (`apps/worker/src/handlers/rich-pdf.ts`, `ai-tagging-shared.ts`); shared-db migration `20260715210000_dam_rich_pdf_rpc_access.sql`.
+
+**What it looks like**: A worker/edge call like `client.schema("dam").from("pdf_rich_extraction").upsert(...)` fails at runtime with **`Invalid schema: dam`**, even with the service-role key. It works fine in local SQL, so it looks like a permissions or migration bug.
+
+**Actually**: PostgREST only routes to schemas in its exposed list. On the shared backend that list is `public, graphql_public, api, crm, pim, core, app` (from `authenticator`'s `pgrst.db_schemas` role config) — **`dam` is deliberately not in it**, because `dam` holds worker-internal tables (`sku_human_description`, `pdf_rich_extraction`) that the frontend never queries. Every other app exposes its own schema (`crm`/`pim`/`core`) because those apps query them from the browser; DAM queries `public` (`assets`, `style_groups`), so `dam` stays unexposed on purpose. The service role still goes through PostgREST, so it hits the same wall.
+
+**Why**: Keeping `dam` unexposed means those tables aren't reachable from the API at all (no RLS surface to get wrong). The tradeoff is that server-side code can't use `.schema("dam").from(...)`.
+
+**Future sessions should**: Access `dam.*` from the worker/edge through **`public` `SECURITY DEFINER` functions** (granted to `service_role`), never a direct PostgREST table call. Existing examples: `public.get_pdf_rich_extraction_hashes(uuid[])`, `public.upsert_pdf_rich_extraction(...)`, and the `public.refresh_dam_search_*` / `refresh_style_group_rich_metadata` rollups. Do **not** "fix" this by adding `dam` to `pgrst.db_schemas` — that broadens the shared API surface for all apps and would need RLS on every `dam` table. Note: the two-level tagging path's `dam.sku_human_description` read hits the same wall but has a working fallback to `style_groups.item_description`, so it degrades silently rather than erroring — if you rely on that read, route it through an RPC too.
+
+## 65. Shared-db Migrations May Already Be Applied When You Push; Out-of-Order Needs `--include-all` (2026-07-15)
+
+**What it looks like**: After merging a `shared-db` PR you run `supabase db push` against prod and it says **"Remote database is up to date"** even though you never manually applied it; or a plain `supabase db push` refuses with **"Found local migration files to be inserted before the last migration on remote database."**
+
+**Actually**: Two things, both normal on the shared backend. (1) A merged migration can already be on prod by the time you push (merge-triggered apply and/or a concurrent app session applied theirs) — so **always `supabase db push --dry-run` first** and trust it; don't assume your local file is still pending. (2) Because CRM/DAM/PM/PLM sessions land migrations concurrently, your timestamp can end up **earlier** than migrations already applied by another app (e.g. this session's DAM `20260715183000` was pending after CRM/ERP `…184500`/`…193000` were already on prod). Plain `db push` blocks out-of-order inserts; apply yours with **`supabase db push --include-all`** after confirming the dry-run lists only your file.
+
+**Why**: Migration ordering is global across all apps sharing `qsllyeztdwjgirsysgai`, but each app authors on its own branch/timeline, so out-of-order is expected, not a mistake. `--include-all` is safe **only** when your change is additive and independent of the concurrently-applied ones (verify via the dry-run showing just your migration).
+
+**Future sessions should**: Dry-run before every prod push; use `--include-all` for a legitimately out-of-order additive migration; never renumber a migration that is already merged to `shared-db` `main` to "fix" ordering (that desyncs the ledger). See §8 project refs and the `shared-db-change` skill.

@@ -22,14 +22,109 @@ Read `AGENTS.md` first. This file is self-contained — a developer with **zero 
 > `shared-db/docs/app-migration-notes/ai-tagging-keyset-timeout-20260714.md`;
 > PLM, PM/PIM, and CRM repos were intentionally not edited.
 
+> **Active workstream — Search pipeline overhaul (2026-07-14):** a holistic,
+> sequenced plan to tune the three search layers (AI tagging → DB storage/indexing
+> → NL query translation) to one shared contract is in
+> [`fix_SEARCH_PIPELINE_PLAN.md`](fix_SEARCH_PIPELINE_PLAN.md). Direction is
+> **hybrid-semantic default**. Key confirmed prod finding: the hybrid corpus is
+> built and current (130,777 docs) but **only 1 doc is embedded** — nothing calls
+> `dam-search-ai` `embed-batch`, so semantic search is dead until the Phase-2
+> embedding pipeline is stood up. Start with Phase 1 (get tags + character names
+> into the search corpus). No DB changes made yet.
+
+> **Active workstream — AI tagging description contract (2026-07-14):** this
+> session tightened the canonical Image Tagging prompt/schema in
+> `supabase/functions/_shared/tag-asset-contract.js` so descriptions are written
+> as search metadata, not generic captions. `ai_description` is now defined as a
+> concise, search-friendly sentence for non-technical designers/salespeople;
+> `scene_description` is a literal visual sentence. The prompt now names real
+> PopDAM asset kinds found from live filename/path sampling: source art, icons,
+> badges, patterns/allover prints, style-guide art, full product photos,
+> renders/mockups, **professional/lifestyle photography**, close-ups/details,
+> tech packs/licensing sheets/spec documents, packaging art, stickers, and
+> J-cards. It also gives only a light product-context nudge (wall art/canvas/
+> framed prints, clocks, storage boxes/bins, lap desks/desktop items, mats,
+> tabletop/garden decor, packaging) and explicitly says never to force a product
+> type unless visible or supported by filename/path/ERP metadata. Docs updated:
+> `AGENTS.md`, `docs/INFRASTRUCTURE.md`, `docs/MODEL_RULES.md`,
+> `docs/configuration.md`, `docs/SCHEMA.md`. Test added:
+> `src/test/tag-asset-contract.test.ts`. Verification run:
+> `npm test -- --run src/test/tag-asset-contract.test.ts src/test/tag-asset-gemini-schema.test.ts`
+> passed. `npm run lint` also passed with existing warnings only. Important:
+> this changes future production tagging and bake-off behavior after the code is
+> committed/pushed/deployed; it does **not** rewrite existing `assets`
+> descriptions until those assets are re-tagged.
+
+## Workspace state at 2026-07-14 wrap-up
+
+> **SUPERSEDED 2026-07-15.** The "search/metadata workstream" described below
+> shipped: the two-level metadata + AI-tagging-contract changes and the rich-PDF
+> feature are all committed and deployed (see the §5.15 banner). The uncommitted
+> files this section lists no longer exist as uncommitted — the only remaining
+> untracked items are `fix_SEARCH_PIPELINE_PLAN.md` (separate search-pipeline
+> workstream), `scripts/mine-product-types.ts` (exploratory), and local-only
+> `.claude/` / `.scratchpad/`. Kept below for history.
+
+Status:
+Partial. The statement-timeout/keyset remediation is complete, merged, deployed,
+and documented. A separate search/metadata workstream is still active in this
+checkout and must not be mixed into a timeout-fix commit without review.
+
+Done:
+- Shared-db timeout migrations and documentation were merged through PRs #64,
+  #65, and #66; production and preview timing evidence is recorded in the
+  canonical shared-db migration note linked above.
+- PM, CRM, and all six PLM repositories now contain app-local query-performance
+  guidance. PM/CRM changes are on `main`; PLM changes are on each repo's
+  `sandbox-albert` branch and existing `develop` PR.
+- 1Password was checked through the MCP server. The production shared Supabase
+  DB password, CLI PAT, runtime keys, GitHub push PAT, and AI-provider key
+  collection are present with durable usage notes. No new secret value was
+  encountered or added.
+
+Next action:
+1. Review and finish the active search/metadata changes as one coherent
+   workstream, using `fix_SEARCH_PIPELINE_PLAN.md` as the plan.
+2. Run the targeted frontend and worker tests named by that plan, then commit
+   only after confirming whether the two-level metadata schema on canonical
+   shared-db branch `dam-two-level-metadata` is part of the same rollout.
+3. Complete the shared-db branch -> preview -> PR -> merge workflow before
+   landing dependent PopDAM code. Then push PopDAM `main` and verify Railway and
+   frontend deployments as applicable.
+
+Risks / watchouts:
+- Canonical `/worksp/shared-db` is clean but currently checked out on committed
+  branch `dam-two-level-metadata` at `58884f5`; do not overwrite, delete, or mix
+  it with another migration workstream.
+- Modified PopDAM files belonging to the active search/metadata and tagging
+  workstreams are: `AGENTS.md`, `HANDOFF.md`,
+  `apps/worker/src/handlers/ai-tagging-shared.ts`,
+  `apps/worker/src/handlers/ai-tagging.ts`, `docs/INFRASTRUCTURE.md`,
+  `docs/MODEL_RULES.md`, `docs/SCHEMA.md`, `docs/configuration.md`,
+  `src/components/library/AssetDetailPanel.tsx`,
+  `src/components/library/FilterSidebar.tsx`,
+  `src/components/library/StyleGroupDetailPanel.tsx`, `src/hooks/useAssets.ts`,
+  `src/hooks/useStyleGroups.ts`, `src/test/asset-filters.test.ts`,
+  `src/test/tag-asset-contract.test.ts`,
+  `src/test/tag-asset-gemini-schema.test.ts`, `src/types/assets.ts`,
+  `supabase/functions/_shared/tag-asset-contract.d.ts`, and
+  `supabase/functions/_shared/tag-asset-contract.js`.
+- Untracked project files are `fix_SEARCH_PIPELINE_PLAN.md`,
+  `scripts/mine-product-types.ts`, and `src/lib/asset-content-types.ts`; review
+  and commit them with that workstream rather than deleting them.
+- Untracked local-only state is under `.claude/` (including a linked Claude
+  worktree) and `.scratchpad/` (product-type mining output). These are not app
+  build inputs. Preserve them until the owning workstream decides whether to
+  exclude or remove them.
+
 ---
 
 ## 0. Prerequisites a new developer needs
 
 - **Apps & URLs:** PopDAM web = `https://dam.designflow.app`; PopSG = `https://sg.designflow.app` (same Docker image, mode by hostname). Seafile server = `https://seafile.designflow.app` (a **separate** system, repo `u2giants/seafile` — do not edit it from here).
 - **Admin access:** you need a PopDAM admin account (Microsoft SSO or email/password). Admin UI is Settings (gear). Authentik SSO still exists in the backend but the "Sign in with company account" button is hidden in `src/pages/LoginPage.tsx` as of 2026-06-08. For the Seafile side you need the Seafile admin account.
-- **Database / config:** prod Supabase project is **`qsllyeztdwjgirsysgai` (Virginia, "popdam")**. ⚠️ **Tooling trap:** the old Ohio project `ryltkzzernhwnojzouyb` ("popdam-prod.old") is **decommissioned** but still ACTIVE, and the default `mcp__supabase__*` MCP / `get_project_url` point at it — querying it returns real-looking data **frozen at the 2026-06-20 cutover**. For live data use `mcp__claude_ai_Supabase__execute_sql` with `project_id: "qsllyeztdwjgirsysgai"`. Agents self-migrate via `migrateSupabaseUrl()` in `apps/{bridge,windows}-agent/src/config.ts`. `admin_config` is a key/value table read by edge functions and agents; changes are plain SQL `UPDATE/INSERT`. DB **schema** changes go through committed migrations in `supabase/migrations/` — see `CLAUDE.md` for the timestamp discipline.
-- **Git:** trunk-based, commit straight to `main`, push to both `origin` and `github` (see `CLAUDE.md`).
+- **Database / config:** prod Supabase project is **`qsllyeztdwjgirsysgai` (Virginia, "popdam")**. ⚠️ **Tooling trap:** the old Ohio project `ryltkzzernhwnojzouyb` ("popdam-prod.old") is **decommissioned** but still ACTIVE, and the default `mcp__supabase__*` MCP / `get_project_url` point at it — querying it returns real-looking data **frozen at the 2026-06-20 cutover**. For live data use tooling explicitly pointed at `qsllyeztdwjgirsysgai`. Agents self-migrate via `migrateSupabaseUrl()` in `apps/{bridge,windows}-agent/src/config.ts`. `admin_config` is a key/value table read by edge functions and agents; runtime config changes are plain SQL `UPDATE/INSERT` through the canonical credential path. DB **schema** changes never originate in this repo; use canonical `/worksp/shared-db` branch + PR + preview-first workflow (see `AGENTS.md` and `/worksp/shared-db/AGENTS.md`).
+- **Git:** app code changes normally land on `main` for this repo. Shared Supabase schema work uses a dedicated `/worksp/shared-db` branch + PR and must not be mixed into PopDAM app commits.
 - **The Helper** (desktop app) is distributed via GitHub Release tag `popdam-helper-latest` and linked from `dam.designflow.app/downloads`.
 
 ---
@@ -342,8 +437,66 @@ Risks / watchouts:
 
 ### 5.15 Rich tech-pack / licensing-sheet PDF extraction (2026-07-09)
 
+> **2026-07-15 — the two-level metadata FOUNDATION this feature builds on is now
+> LANDED in production.** Before designing rich-PDF, the decision was to land the
+> in-flight `dam-two-level-metadata` shared-db work first, because rich-PDF data
+> is product-level `style_group` metadata sourced from PDFs classified via
+> `assets.content_type` — i.e. the next layer on that foundation. Landed this
+> session:
+> - shared-db PR [#67](https://github.com/u2giants/shared-db/pull/67) merged to
+>   `main` (migrations `20260714203000`–`203300`): `style_groups.item_description`
+>   / `item_description_source`, `dam.sku_human_description` (+ `refresh_sku_human_description()`),
+>   `assets.content_type` (14-value CHECK incl. `tech_pack`/`licensing_sheet`), and
+>   the extended `refresh_dam_search_{asset,style_group}_document` / `rebuild_dam_search_documents()`.
+> - Applied to **preview** then **production** `qsllyeztdwjgirsysgai` (verified:
+>   `item_description` backfilled 10,421/10,535 groups; `sku_human_description`
+>   15,115 rows; all function bodies runtime-validated).
+> - PopDAM app-side shipped on `main` (commits `581c9c9` feat + `b12a293` worker
+>   vendor-mirror sync): Content Type filter + `item_description` display; worker
+>   classifies/writes `content_type` and enriches the tagging prompt with the
+>   Master Data item description; regenerated types. CI + Deploy Supabase green;
+>   frontend live (bundle contains `contentType`/`item_description`); worker
+>   auto-redeployed on Railway.
+> - **Note for rich-PDF design:** do NOT create a parallel style_group metadata
+>   schema — extend this foundation (product-level fields on `style_groups`,
+>   folded into `refresh_dam_search_style_group_document`, PDFs selected via
+>   `assets.content_type in ('tech_pack','licensing_sheet')`).
+
 Status:
-**discovery spike done; implementation not started.** No code, migration, schema, RPC, worker, or production data changes were made for this feature. Durable notes were added to `docs/RICH_PDF_EXTRACTION.md` and `/worksp/shared-db/docs/app-migration-notes/popdam-rich-pdf-extraction-20260709.md`.
+**SHIPPED end-to-end (2026-07-15) — not yet run in production.** Full design +
+schema + worker + frontend landed. Durable design in `docs/RICH_PDF_EXTRACTION.md`.
+
+What shipped this session:
+- **Schema (prod):** shared-db PR [#74](https://github.com/u2giants/shared-db/pull/74)
+  merged; migration `20260715183000_dam_rich_pdf_extraction.sql` applied to preview
+  (full synthetic E2E) then prod `qsllyeztdwjgirsysgai` (via `--include-all`, out of
+  order after concurrent CRM/ERP migrations). Objects: `dam.pdf_rich_extraction`,
+  `style_groups.rich_metadata`/`_source`/`_updated_at`, `assets.product_material`/
+  `product_dimensions`, `refresh_style_group_rich_metadata()`, `dam.jsonb_leaf_text()`,
+  extended `refresh_dam_search_*`.
+- **Worker (commit `c98e9e8`, Railway):** `deepseek.ts` direct client (auto prefix
+  caching — see [[feedback_caching_direct_api]]), `handlers/rich-pdf.ts` op
+  `rich-pdf-extract` (eligibility via `isStyleGuideSourcePdf`, idempotent via
+  `source_text_sha256`, rollup + search refresh), registered + op-constants +
+  conflict-with-rebuild guard. Tests green.
+- **Frontend (commit `0d5706d`, live — bundle has `product_material`):** Product
+  Details section (`style_groups.rich_metadata`) in StyleGroupDetailPanel,
+  RichPdfExtractCard trigger in Settings → PDF Text, `productMaterial` filter +
+  guarded Material facet, regenerated types.
+- CI + Deploy Supabase (reran past a transient esm.sh 522) + Publish Frontend all green.
+
+**Operational prereqs before the backfill can run (owner):**
+1. Set `DEEPSEEK_API_KEY` in the **Railway worker env** (value in 1Password
+   `ai-provider-api-keys/deepseek`). Without it the op errors immediately with a
+   clear message.
+2. Optionally set `admin_config.AI_TASK_MODELS.rich_pdf_extraction` (defaults to
+   `deepseek-chat` in code).
+3. Trigger via Settings → PDF Text → **Rich PDF Extraction → Run** (two-pass: the
+   ~2,430 PDFs with extracted text first; ~16k more need on-prem text extraction).
+
+**Small follow-up:** the Material facet's options (`materialOptions` prop) aren't
+sourced yet — add a distinct-`product_material` query (facet is empty until the
+backfill populates data anyway).
 
 User goal:
 For all new styles going forward, scrape tech-pack and licensor/licensing-sheet PDFs for relevant rich data, attach that data to the `style_group` and make it available/searchable through all member assets, then backfill existing styles.
@@ -385,7 +538,14 @@ Risks / watchouts:
 ---
 
 ## 6. Exact next action
-For the currently active user thread, continue **5.15 Rich tech-pack / licensing-sheet PDF extraction**: create a dedicated `/worksp/shared-db` branch, design the shared schema/RPC/backfill contract, then implement the PopDAM worker/app side against that contract.
+Both the two-level metadata foundation **and** the §5.15 rich tech-pack /
+licensing-sheet PDF extraction feature (schema + worker + frontend) were **shipped
+to production on 2026-07-15** (see the §5.15 banner). The remaining step is
+**operational, not code**: set `DEEPSEEK_API_KEY` in the Railway worker env (value
+in 1Password `ai-provider-api-keys/deepseek`), then trigger the backfill from
+Settings → PDF Text → **Rich PDF Extraction → Run** and confirm
+`dam.pdf_rich_extraction` / `style_groups.rich_metadata` populate. Then wire the
+Material-facet `materialOptions` (distinct `product_material`) — small follow-up.
 
 Continue **5.11 Master Data style tracker** only if the user asks for Master Data polish: saved grid views and eventual cleanup/replacement of the temporary style-tracker backend objects are still open. PLM-backed candidate matching itself is done and deployed.
 

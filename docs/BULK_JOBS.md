@@ -29,6 +29,7 @@ The worker polls `admin_config.BULK_OPERATIONS` every **1 second** by default (`
 | `backfill-sku-names` | metadata | assets, style_groups (licensor/property codes) | manual |
 | `erp-enrichment` | erp | assets, style_groups (ERP codes) | manual |
 | `erp-classify` | erp | product_category_predictions | manual |
+| `rich-pdf-extract` | rich-pdf | dam.pdf_rich_extraction, style_groups.rich_metadata, assets.product_material/product_dimensions | manual (Settings → PDF Text → Rich PDF Extraction) |
 
 ---
 
@@ -57,6 +58,7 @@ Some jobs in *different* lanes write to the same database rows. Running them at 
 | `ai-tag-*` / `ai-tag-bakeoff` ↔ `reprocess-metadata` | Production tagging and metadata reprocessing both write overlapping asset fields; bake-off evaluates the same metadata/prompt context and should not be mixed with a metadata rewrite. **Data integrity/evaluation risk.** |
 | `reprocess-metadata` ↔ `erp-enrichment` | Both write overlapping asset metadata columns. **Data integrity risk.** |
 | `backfill-sku-names` ↔ `erp-enrichment` | Both write licensor/property code columns on `assets` and `style_groups`. **Data integrity risk.** |
+| `rich-pdf-extract` ↔ `rebuild-style-groups` | Rebuild reassigns `style_group_id`, which the rich-PDF rollup keys on to write `style_groups.rich_metadata` and project asset facets. **Data integrity risk.** (`rich-pdf-extract` also requires `DEEPSEEK_API_KEY` in the worker env — it fails fast with a clear message otherwise.) |
 
 ### Incident history: ai-tag-* ↔ propagate-group-tags
 

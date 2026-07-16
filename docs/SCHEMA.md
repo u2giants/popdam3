@@ -99,6 +99,9 @@ Required columns:
   - `customer text NULL` / `program text NULL` (only set in the In Development → Customer Adopted branch)
 - Visibility Guard: Add is_deleted boolean DEFAULT false.
 - Integrity Guard: Add UNIQUE(share_id, relative_path) to the assets table to prevent duplicate ingestion.
+- **File-level classification + facets (2026-07-15):**
+  - `content_type text NULL` — CHECK-constrained file kind assigned by image tagging (`source_art`, `style_guide_art`, `tech_pack`, `licensing_sheet`, `product_photo`, … 14 values). shared-db migration `20260714203200`.
+  - `product_material text[] NULL` / `product_dimensions text NULL` — projected from the SKU group's `rich_metadata` (rich-PDF extraction) onto each member asset for filtering; `product_material` is uppercase-normalized. GIN index `idx_assets_product_material_gin`. shared-db migrations `20260715183000` / `214500`.
 
 Hashing + scan bookkeeping:
 - `quick_hash text NOT NULL`
@@ -165,6 +168,9 @@ Hard constraints:
   - `technical_designer_name text NULL`
   - `freelancer_name text NULL`
   - `designer_conflict boolean NOT NULL DEFAULT false` (true when member assets have differing designer names)
+- **Two-level product metadata (2026-07-15):**
+  - `item_description text NULL` / `item_description_source text NULL` — authoritative product-level description shared by every member asset (seeded from Master Data via `dam.sku_human_description`; shared-db migration `20260714203100`).
+  - `rich_metadata jsonb NULL` / `rich_metadata_source text NULL` / `rich_metadata_updated_at timestamptz NULL` — merged structured data extracted from tech-pack/licensing-sheet PDFs, computed by `public.refresh_style_group_rich_metadata()` (shared-db migration `20260715183000`). See `docs/RICH_PDF_EXTRACTION.md`.
 
 ### 2.11 agent_registrations
 - `id uuid PK`
@@ -252,6 +258,19 @@ Latest normalized production PO header/detail row.
 - `style_number text NOT NULL` — joins to `style_groups.sku`; from detail fields such as `Item #` / `matchedItemNumber`
 - Optional display fields: `order_status`, `customer_code`, `customer_name`, `quantity`, `due_date`, `order_date`, `erp_updated_at`
 - `raw_payload jsonb`, `synced_at`, `sync_run_id uuid FK`
+
+### `dam` schema (worker-internal, NOT exposed to PostgREST)
+
+Tables the frontend never queries; `dam` is deliberately absent from `pgrst.db_schemas`, so server-side code must reach these via `public` `SECURITY DEFINER` RPCs (a direct `.schema("dam").from(...)` fails with `Invalid schema: dam` — see `docs/KNOWN_QUIRKS.md` #64).
+
+#### `dam.sku_human_description`
+Latest human-authored Master Data description per SKU (seeds `style_groups.item_description`). Refreshed by `public.refresh_sku_human_description()`. shared-db migration `20260714203000`.
+
+#### `dam.pdf_rich_extraction`
+Raw structured extraction per source tech-pack/licensing-sheet PDF asset.
+- `asset_id uuid PK FK assets`, `style_group_id uuid`, `sku text`, `doc_kind text` (`tech_pack`/`licensing_sheet`)
+- `data jsonb` (canonical fields: source_files, production_specs, compliance, legal, colors, …), `source_text_sha256 text` (idempotency), `model`, `prompt_version`, `schema_version`, `confidence`, `parse_error`, `extracted_at`
+- Written by the worker via `public.upsert_pdf_rich_extraction(...)`; rolled up to `style_groups.rich_metadata` by `public.refresh_style_group_rich_metadata()`. shared-db migrations `20260715183000` / `210000`. See `docs/RICH_PDF_EXTRACTION.md`.
 
 ### 2.16 Hygiene & Style Guide Tables
 

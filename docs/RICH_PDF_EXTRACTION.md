@@ -1,5 +1,33 @@
 # Rich PDF Extraction
 
+> **Status — SHIPPED to production 2026-07-15** (design spike was 2026-07-09, below).
+> Schema, worker op, and frontend are all live.
+>
+> **Live objects:** `dam.pdf_rich_extraction` (raw per-PDF), `style_groups.rich_metadata`
+> (product rollup), `assets.product_material` / `product_dimensions` (facets),
+> `refresh_style_group_rich_metadata()`, `get_dam_material_facets()`, and the public
+> RPC wrappers `get_pdf_rich_extraction_hashes` / `upsert_pdf_rich_extraction`
+> (shared-db PRs #74, #77, #78; migrations `20260715183000` / `210000` / `214500`).
+> **Worker:** op `rich-pdf-extract` (`apps/worker/src/handlers/rich-pdf.ts`) using the
+> **direct DeepSeek client** (`apps/worker/src/deepseek.ts`, key `DEEPSEEK_API_KEY`).
+> **Frontend:** Product Details section (StyleGroupDetailPanel), backfill trigger
+> (Settings → PDF Text → Rich PDF Extraction), and the Material filter facet
+> (`useProductMaterials`).
+>
+> **Two hard-won lessons (see `docs/KNOWN_QUIRKS.md` #64/#65):** (1) `dam.*` is not
+> exposed to PostgREST, so the worker MUST reach it through `public` `SECURITY DEFINER`
+> RPCs — a direct `.schema("dam").from(...)` fails with `Invalid schema: dam`. (2) DeepSeek
+> **direct** (not OpenRouter) is used deliberately for its automatic prefix caching on
+> this high-volume, fixed-prompt batch; keep the stable instructions+schema in `system`.
+>
+> **Backfill:** Pass 1 complete (246 PDFs — all tech-pack/licensing PDFs with extracted
+> text; 202 had materials). Model output `materials` are uppercase-normalized (worker +
+> a one-time cleanup of existing rows) so the Material facet doesn't split on casing.
+> **Pass 2 remaining:** ~19k eligible PDFs have no `pdf_text_samples.extracted_text` yet
+> — on-prem text extraction must run first, then re-run `rich-pdf-extract` (idempotent
+> via `source_text_sha256`). Model config: `admin_config.AI_TASK_MODELS.rich_pdf_extraction`
+> (defaults to `deepseek-chat` in code).
+
 This note records the 2026-07-09 discovery spike for scraping tech-pack and licensing-sheet PDFs into structured style data.
 
 ## Current State
