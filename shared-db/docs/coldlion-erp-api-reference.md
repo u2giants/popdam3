@@ -100,12 +100,43 @@ Supabase import. It does **not** sync `items` / `itemDetails` / `inventory` / `i
 - **OrderHeader → OrderDetail[]:** customer/bill-to/ship-to, dates, `details[]` line items.
 
 ## Reproduce
+
+> **Windows note (verified 2026-07-16 — the previously documented form here did not
+> work).** Do **not** use bash process substitution for the env-file:
+> `op run --env-file <(echo 'K=op://…')` fails on the Windows dev machines because the
+> native `op.exe` cannot read the msys `/proc/<pid>/fd/<n>` path it produces —
+> `open /proc/663/fd/63: The system cannot find the path specified`. Write a **real**
+> temp env-file instead. The file holds only the `op://` reference, never the secret,
+> so it is safe on disk; delete it anyway when done.
+
 ```bash
+# 1. Write a real env-file (reference only — no secret value in it)
+printf 'K=op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential\n' > /tmp/cl.env
+
 # full spec
-op run --env-file <(echo 'K=op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential') -- \
-  curl -s http://x5.coldlion.com/EhpApi/v2/api-docs
+op run --env-file /tmp/cl.env -- curl -s http://x5.coldlion.com/EhpApi/v2/api-docs
 
 # sample pull (customers, first page of 1)
-op run --env-file <(echo 'K=op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential') -- \
+op run --env-file /tmp/cl.env -- \
   bash -c 'curl -s -H "X-API-Key: $K" "http://x5.coldlion.com/EhpApi/customers?companyCode=EDGEHOME&size=1"'
+
+rm -f /tmp/cl.env
 ```
+
+**If you use the 1Password MCP `op_run` tool instead of the CLI:** do **not** route it
+through `bash` on the Windows machines. A bare `bash` there resolves to **WSL**, whose
+isolated Linux environment does not inherit the injected Windows env, so `$K` arrives
+**empty** and the API answers `400 Missing request header 'X-API-Key'` — which looks
+exactly like a broken tool but is not. Use a native child instead:
+
+```
+op_run  command: 'curl.exe -s -H "X-API-Key: %K%" "http://x5.coldlion.com/EhpApi/customers?companyCode=EDGEHOME&size=1"'
+        env:     { K: "op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential" }
+```
+
+(`command` runs via **cmd.exe** → use `%VAR%`; PowerShell → `$env:VAR`. `op_run`'s `argv`
+form is a direct spawn with **no shell**, so `$VAR`/`%VAR%` are not expanded there.
+Resolved secrets are redacted from output as `«REDACTED:NAME»`.) The Claude Code **Bash
+tool** is Git Bash, which *does* inherit Windows env — a different `bash` than the one
+`op_run`'s `argv` reaches. Full write-up: `u2giants/ai-devops` →
+`templates/system/machine-atlas.md`.

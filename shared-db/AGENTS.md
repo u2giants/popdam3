@@ -233,6 +233,30 @@ Important gotchas from the 2026-07-08 PopDAM style-group repair:
 - After fixing or rotating any credential, update the matching 1Password item
   notes so the next AI session sees the durable usage path.
 
+Gotchas added 2026-07-16 (each cost real time; all verified):
+
+- **`psql` is NOT installed on the Windows dev machines.** Do not plan an ad-hoc
+  query path around it. Use Node + the `pg` package (install it into a scratch dir)
+  against the pooler above, as user `postgres.qsllyeztdwjgirsysgai`. This is how the
+  Coldlion import and its verification were actually run.
+- **`op run --env-file <(echo …)` (process substitution) fails on Windows.** The
+  native `op.exe` cannot read the msys `/proc/<pid>/fd/<n>` path
+  (`The system cannot find the path specified`). Write a real temp env-file holding
+  only the `op://` reference. See `docs/coldlion-erp-api-reference.md` → Reproduce.
+- **Never route the 1Password MCP `op_run` tool through `bash` on Windows.** A bare
+  `bash` there is **WSL**, and WSL does not inherit the injected Windows env, so
+  secrets arrive as empty strings and the call fails in a way that looks like a
+  broken tool. `op_run` is fine — use a native child: `command` runs via cmd.exe
+  (`%VAR%`), or PowerShell (`$env:VAR`), or `node` (`process.env.VAR`). Its `argv`
+  form is a direct spawn with **no shell** (no `$VAR`/`%VAR%` expansion, no
+  builtins). Resolved secrets are redacted from output as `«REDACTED:NAME»`.
+  Background: `u2giants/ai-devops` → `templates/system/machine-atlas.md`.
+- **General rule these share:** presence is not capability. A tool answering
+  `--version` (or a reference resolving) proves nothing about whether the operation
+  works. Exercise the real operation before trusting it — and before blaming a tool
+  for an empty result, confirm the platform, resolved executable, shell, cwd, and
+  environment boundary you are actually running in.
+
 Preview branch credentials live in 1Password item
 `Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)`.
 Use the same pattern: authenticate the CLI with the Supabase PAT, then link to
