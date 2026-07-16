@@ -135,21 +135,93 @@ cannot drive this:
 | Spencer's | SPENCER GIFTS | 0.53 |
 | Shoppers World | SW GROUP-SHOPPERS WORLD | 0.65 |
 
-### 2.5 BUSINESS CALL — same brand, different entity
+### 2.5 DECISION LOG — Albert, 2026-07-16
 
-These are the same *brand* but plausibly separate ERP customers (different country, channel, or
-banner). Merging them would be wrong if they are billed separately. **Albert to decide, per row:**
+Rulings given. **None are implemented yet.** "Merge" = collapse into one canonical customer;
+"separate" = keep distinct canonical rows even though the brand is shared.
 
-| Our record | Coldlion candidate | The question |
+| # | Records | Ruling | Final status |
+|---|---|---|---|
+| 1 | Gordon Brothers: `GORDON BROTHER'S GROUP` (GBG802–807) = `GORDON BROTHERS GROUP` (GBG800–801) = Directus `Gordon Brothers` | **Merge all** | **Inactive** |
+| 2 | JUST A DOLLAR (JAD010/020/030/040, JUS572) | — | **Inactive** |
+| 3 | ONCE UPON A CHILD (ONC001/252/397/540) | — | **Inactive** |
+| 4 | Walmart `WAL010` (bricks & mortar) | keep | **Active** |
+| 5 | Walmart `WAL060` (WAL-MART.COM = 1P e-com), `WAL080` (WALMART SELLER CENTER = 3P e-com) | keep separate from WAL010 | **Inactive** (still needed in the ERP) |
+| 6 | Target `TAR010` (bricks & mortar) vs `TAR020` (TARGET.COM) | **keep separate** | **both Inactive** |
+| 7 | Nordstrom (Directus) + `NOR020` NORDSTROM RACK | **merge** | **Inactive** |
+| 8 | Big Lots (US) vs `BIG225` BIG LOTS CANADA | **separate** | Big Lots US **Active**; Canada **Inactive** |
+| 9 | TJX vs `TKM300` TJX UK | **separate** | TJX **Active**; TJX UK **Inactive** |
+| 10 | TJX Canada — "sometimes Winners, sometimes HomeSense" | **consolidate all under one customer named `TJX Canada`** | **Active** |
+| 11 | Amazon 1P vs Amazon 3P | **separate** | 1P **Active**; 3P **Inactive** |
+| 12 | `Dollarama L.P.` (Directus) + `Dollarama` (DesignFlow) + `DOL580` | **merge** | name → **`Dollarama`** |
+| 13 | `Burlington Stores, Inc.` (Directus) + `Burlington` (DesignFlow) + `MOD010/MOD011` | **merge**. Legacy alias **Modecraft** (hence the `MOD` codes) | name → **`Burlington`** |
+| 14 | `Michael's` vs `MICHAEL S ROTOLO` | **different companies** | **both Inactive** |
+| 15 | `Fiesta Mart` vs `D MART INC` | **different companies** | **both Inactive** |
+| 16 | `Ross Stores` (aka Ross Dress for Less / Ross) vs `P&P STORES` | **different companies** | Ross **Active**; P&P **Inactive** |
+| 17 | `Bed Bath` + `BED010` BED BATH & BEYOND | **merge** | **Inactive** |
+| 18 | `Homegoods` + `HOM020` HOME GOODS | **merge** | name → **`Homegoods`** · status **not stated — open** |
+
+**Schema implication raised by #10 and #13:** customers need **aliases** (TJX Canada ⇄ Winners ⇄
+HomeSense; Burlington ⇄ Modecraft). `core.customer.routing_aliases` (text) exists today for CRM
+email routing but is not a real alias model. A `core.customer_alias` junction table
+(`customer_id`, `alias`, `alias_type`, `source`) is the likely answer — decide before implementing
+the merges, since merges destroy the losing names and the aliases are how we keep them findable.
+
+**Gordon Brothers — business context (record for posterity):** they buy out bankrupt retailers and
+run going-out-of-business sales, taking a **new ERP code per order** with different shipping and
+store lists per retailer. That is why 8+ codes share the name. They are not a CRM/PLM/PM-relevant
+account, so the representation barely matters — the requirement is only that they end up Inactive.
+
+### 2.6 CORRECTION — the earlier "best match" list was misleading (top-1 only)
+
+The first pass reported only the **single** highest-scoring Coldlion candidate per record. Where
+scores tied or were close, that silently hid the right answer. Confirmed wrong calls from that pass:
+
+| Our record | What pass 1 reported | The actual match |
 |---|---|---|
-| Target | TARGET.COM (`TAR020`) | store vs. dot-com — one customer or two? |
-| Nordstrom | NORDSTROM RACK (`NOR020`) | separate banner? |
-| Amazon | Amazon 3P (`UCI`), AMAZON.COM.INDC LLCQ (`AMA030`,`AMA3P`) | 1P vs 3P |
-| Big Lots | BIG LOTS CANADA INC (`BIG225`) | US vs Canada |
-| Dollar Tree Stores | DOLLAR TREE STORES INC CAN (`DOL200`) | US vs Canada |
-| TJX | TJX UK (`TKM300`) | US vs UK |
+| Ross Stores | `PPS006` P&P STORES (0.50) | **`ROS010` ROSS STORES INC SUPPLIERS** |
+| Big Lots | `BIG225` BIG LOTS **CANADA** (0.45) | **`BIG226` BIG LOTS STORES INC** (Columbus OH, US) |
+| Dollar Tree Stores | `DOL200` DOLLAR TREE STORES INC **CAN** (0.70) | **`DTM500` DOLLAR TREE MERCHANDISING** (Chesapeake VA, US) |
 
-### 2.6 Likely-good merges (still confirm before executing)
+**Any re-run must report top-N candidates (N≥3) with country/city, not top-1.** Name similarity
+alone also cannot see that `HOM020 HOME GOODS` and `MAR020 MARSHALLS` are both Framingham MA —
+i.e. TJX entities. Address is a stronger signal than the name for this data set.
+
+### 2.7 STILL NEEDS CLARIFICATION (blocking)
+
+**Loose ends inside the families decided in §2.5:**
+
+| # | Item | Question |
+|---|---|---|
+| A | `WAL070` — a **second** row named `WAL-MART STORES INC`, identical name/address to `WAL010` | You named WAL010/060/080 but not this. What is it? Currently merged into WAL010. |
+| B | `WAL020` WAL-MART CANADA | Active or inactive? (Country is not a consistent rule for you: Big Lots Canada → inactive, but TJX Canada → active.) |
+| C | `TAR081` TARGET S.A (**Panama**) | Not covered by the Target ruling. Status? |
+| D | Which row **is** "TJX"? | No Coldlion row is named TJX. Candidates: `NEW010`+`NEW349` TJ MAXX, `MAR020` MARSHALLS. Is "TJX Active" = TJ Maxx only, or the whole US group? |
+| E | `NEW010` vs `NEW349` | Two identical `TJ MAXX` rows (both Framingham MA), currently merged. One customer? |
+| F | `MAR020` MARSHALLS (Framingham MA) | Part of the active TJX, or its own customer? |
+| G | TJX Canada members | I find `WIN030` WINNERS DISTRIBUTION CENTER, `HOM030` Winners Merchants International LP, `CMA030` CM/MARSHALLS DISTRIBUTION — all Mississauga ON. **There is no "HomeSense" row.** Is Marshalls Canada (`CMA030`) part of TJX Canada too? |
+| H | `HOM020` HOME GOODS | Merge into `Homegoods` per §2.5 #18, but **active or inactive not stated**. Note its address is Framingham MA = TJX HQ, so it may belong to the TJX question. |
+| I | Dollar Tree | `DTM500` (US), `DOL800` DOLLAR TREE MERCHANDISING C (Burnaby BC), `DOL200` DOLLAR TREE STORES INC CAN (Burnaby BC). US active? Both Canada rows one customer, inactive? |
+| J | Big Lots | `BIG226` BIG LOTS STORES INC (US) is the active one — but `WIS030` has the **same name**, is flagged inactive in Coldlion, and was never promoted. Confirm BIG226 is "Big Lots". |
+| K | `MOD010` vs `MOD011` | Two identical BURLINGTON STORES rows. One customer? Status not stated. |
+
+**CRITICAL — a merge already made that contradicts a ruling:**
+`AMA030` and `AMA3P` are **both named `AMAZON.COM.INDC LLCQ`**, so the import merged them into a
+single canonical customer. The code `AMA3P` plainly means 3P. Ruling #11 requires 1P **Active** and
+3P **Inactive** — **impossible while they are one row.** This merge must be undone. There is also a
+third row, `UCI` named `Amazon 3P`. Proposed: `AMA030` = 1P (Active); `AMA3P` + `UCI` = 3P (Inactive)
+— **confirm**.
+
+**The other 14 multi-code groups from §2.2, still unruled:** Barnes & Noble (BNB184, BNN001) ·
+BOB BAY & SON (BBS050, BOB121) · CLOSE OUT CENTER (CLO006/007) · DOLLAR VILLAGE (DOL012, DOLL012) ·
+DUAV CHILDRENS WEAR (DUA003/005) · HUDSON GROUP (HUD300, HUD500) · III NYC 99 (III099, III570) ·
+MINIMAX STORES (MIN006/007) · NEBRASKA FURNITURE MART (NFM020, NFM345) · NEXUS (NEX118, NEX203) ·
+OFFICE 1 SUPERSTORES (OFF010, PRE900) · TOYS 4 U (TOY001, TOY232) · WEST END EXPRESS (WEE001, WES285) ·
+P&P STORES (PPS006/007 — inactive per #16, but confirm the two codes are one customer).
+
+**And the 81 with no Coldlion counterpart** (§2.9) — default to Potential, or inactivate?
+
+### 2.8 Likely-good merges (still confirm before executing)
 
 `Dollarama L.P.`→`DOL580` (1.00) · `Diamond Comic Distributors, Inc`→`DCD101` ·
 `Nebraska Furniture Mart`→`NFM020` · `Ollie's Bargain Outlet`→`OLL629` ·
@@ -159,13 +231,13 @@ banner). Merging them would be wrong if they are billed separately. **Albert to 
 `Danawares`→`DAN001` · `Cook Brothers Corp`→`COO174` · `Giant Tiger`→`GAI222` ·
 plus the §2.4 false-negatives (Bed Bath, Homegoods, BoxLunch, Spencer's, Shoppers World).
 
-### 2.7 The 81 with no Coldlion counterpart
+### 2.9 The 81 with no Coldlion counterpart
 
 Per the §1 rule these become **Potential** or **Inactive** — they are not ERP customers. Albert to
 decide the default (recommend: Potential, since they came from CRM/PM where they were tracked as
 real prospects; then inactivate the dead ones).
 
-### 2.8 Merging is destructive — plan required
+### 2.10 Merging is destructive — plan required
 
 `core.customer.id` is referenced by CRM opportunities/contacts, `plm.style_tracker_item_bridge`,
 and PM records. A merge = repoint every FK to the surviving id, move the source refs, then delete
