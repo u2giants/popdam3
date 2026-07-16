@@ -1,6 +1,9 @@
 # Coldlion ERP customers + vendors → canonical hubs (2026-07-15)
 
-**Migration:** `supabase/migrations/20260715234500_erp_coldlion_customer_vendor_import.sql`
+**Migrations:**
+- `supabase/migrations/20260715234500_erp_coldlion_customer_vendor_import.sql` — the import machinery + one-time backfill.
+- `supabase/migrations/20260716140000_erp_coldlion_status_app_owned.sql` — makes `status` app-owned so manual inactivation survives re-pulls (see "Status is app-owned" below).
+
 **DB:** shared Supabase `qsllyeztdwjgirsysgai` · **Source:** Coldlion "CLAPIServerEhp" API
 (`/customers`, `/vendors`, `companyCode=EDGEHOME`) · see
 [`../coldlion-erp-api-reference.md`](../coldlion-erp-api-reference.md).
@@ -48,9 +51,54 @@ guard, or backfill by name).
 `core.factory`: 6 → 529. `core.company_source_ref` gained 834 `coldlion` rows;
 `core.factory_source_ref` gained 531 (was empty).
 
-**One benign data-quality note:** one *active* vendor has a blank `vendorDesc` in Coldlion, so
-it is kept in `plm.erp_vendor` (active) but intentionally **not** promoted to `core.factory`
-(no real name to key on). Not an error; fix the name in Coldlion and re-pull to promote it.
+**One benign data-quality note:** one *active* vendor (**`vendorCode = CNWAH`**) has a blank
+`vendorDesc` in Coldlion, so it is kept in `plm.erp_vendor` (active) but intentionally **not**
+promoted to `core.factory` (no real name to key on). Not an error; fix the name in Coldlion and
+re-pull to promote it.
+
+## Status is app-owned — how to inactivate accounts
+
+**Everything promoted landed as `status = 'active'`** (we only promoted `active='Y'` records, and
+each got `status='active'`). So the canonical hubs contain **929 active customers and 529 active
+factories, 0 inactive** — the inactive ERP accounts never entered `core.*`; they live only in the
+admin-only `plm.erp_customer` / `plm.erp_vendor` mirror.
+
+**Reality check:** Coldlion's own `active` Y/N flag is unreliable — roughly 90% of the accounts it
+reports active are dormant. So on our side, **`core.customer.status` / `core.factory.status` is the
+authoritative, human-curated visibility signal**, not Coldlion's flag (which stays preserved in the
+`plm.erp_*` mirror + `ingest.raw_record` for reference).
+
+`20260716140000_erp_coldlion_status_app_owned.sql` makes this safe: the importers set `status`
+**on insert only** and **never reset it on a re-pull** (verified: a manually-inactivated customer
+and vendor both survive a re-pull). `is_potential` is still forced false on match (a matched ERP
+account is a confirmed real customer, independent of active/inactive).
+
+**To inactivate accounts** (durable — a later re-pull will not undo it):
+
+```sql
+-- one-off:
+update core.customer set status = 'inactive' where id = '<uuid>';
+update core.factory  set status = 'inactive' where id = '<uuid>';
+
+-- bulk by a list of Coldlion codes (customers):
+update core.customer c set status = 'inactive'
+from core.company_source_ref r
+where r.company_id = c.id and r.source_system = 'coldlion'
+  and r.source_id = any (array['CODE1','CODE2', ...]);
+
+-- bulk by a list of Coldlion vendor codes:
+update core.factory f set status = 'inactive'
+from core.factory_source_ref r
+where r.factory_id = f.id and r.source_system = 'coldlion'
+  and r.source_id = any (array['V1','V2', ...]);
+```
+
+**Dropdown / app visibility caveat (open follow-up):** the serving views
+(`api.crm_customer_list`, `api.crm_account_list`) and the direct `core.factory` reads currently
+return **all rows regardless of status** — setting `status='inactive'` records the curation but
+does **not** yet hide the row from app pickers. To actually hide inactive accounts, the serving
+contract must filter status (e.g. `where status = 'active'`) — a shared-db + app-repo change to
+scope per app. See Follow-ups.
 
 ## Field mapping (highlights)
 
@@ -83,6 +131,15 @@ Both endpoints accept `modifiedFrom`/`modifiedTo` for nightly deltas instead of 
 
 ## Follow-ups (not done here)
 
+- **Hide inactive from app pickers.** `status='inactive'` is now durable but not yet enforced in
+  the serving layer. Decide the desired UX per app (hide entirely vs. show under a filter/tab),
+  then filter status in `api.crm_customer_list` / `api.crm_account_list` (shared-db) and in the
+  factory read path (there is no `api` factory view today — apps read `core.factory` directly, so
+  either add `api.plm_vendor_list`/`api.factory_list` with a status filter, or filter client-side).
+- **Bulk inactivation source.** Coldlion's `active` flag is unreliable, so a better "is this really
+  active?" signal is transaction recency (`/pickticket`, `/receiving`, order history). A one-time
+  pass could set `status='inactive'` for every account with no shipment/order in the last N years,
+  leaving a small active shortlist to hand-curate. Not built yet — pick the method first.
 - No `api.*` serving view was added for these yet — the CRM already reads customers/factories
   through `core.*` / existing `api.crm_customer_list`. Add `api.plm_vendor_list` if an app needs
   the typed Coldlion vendor columns directly.

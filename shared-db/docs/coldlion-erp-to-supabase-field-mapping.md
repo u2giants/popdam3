@@ -7,7 +7,8 @@ Coldlion item data onto the existing Supabase mirror (`public.erp_items_current`
 > **Customers & vendors are already imported** (2026-07-15) — Coldlion `/customers` (836) and
 > `/vendors` (539) now flow into `ingest.raw_record` → `plm.erp_customer`/`plm.erp_vendor` →
 > `core.customer`/`core.factory` via `plm.import_coldlion_customers()` /
-> `plm.import_coldlion_vendors()`. See
+> `plm.import_coldlion_vendors()`. Active-only promotion; `core.*.status` is **app-owned**
+> (Coldlion's unreliable `active` flag does not overwrite it on re-pull). See
 > [`app-migration-notes/coldlion-customers-vendors-20260715.md`](app-migration-notes/coldlion-customers-vendors-20260715.md).
 > This document covers the **item** mirror only.
 
