@@ -8,6 +8,15 @@
 (`/customers`, `/vendors`, `companyCode=EDGEHOME`) · see
 [`../coldlion-erp-api-reference.md`](../coldlion-erp-api-reference.md).
 
+> **OPEN follow-up work — read this first:**
+> [`../coldlion-customer-dedupe-review.md`](../coldlion-customer-dedupe-review.md) records two
+> decisions taken 2026-07-16 that are **not yet implemented**: (1) add a third status value
+> **`potential`** and collapse the `status`/`customer_status`/`is_potential` sprawl into it, and
+> (2) de-duplicate the Directus/DesignFlow customers against `plm.erp_customer`. It also lists
+> defects this import introduced (a `GORDON BROTHER'S`/`GORDON BROTHERS` apostrophe split, an ERP
+> junk row named "DO NOT USE" promoted as a live customer) and the blocking question of whether one
+> customer may own many Coldlion codes.
+
 ## What / why
 
 Pulled the Coldlion customer master (836 rows) and vendor master (539 rows) into the
