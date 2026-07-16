@@ -246,6 +246,7 @@ before running preview dry-runs or pushes.
 - Schema ownership map: [`docs/unified-supabase-schema-map.md`](docs/unified-supabase-schema-map.md)
 - Migration risks: [`docs/unified-supabase-migration-gaps.md`](docs/unified-supabase-migration-gaps.md)
 - CRM production cutover (migrations promoted, Azure OAuth, auto-provision, data import): [`docs/app-migration-notes/popcrm-web-production-cutover-20260621.md`](docs/app-migration-notes/popcrm-web-production-cutover-20260621.md)
+- CRM crm.* direct-write DML grants (fixes Triage 42501 on department create; RLS ≠ grant): [`docs/app-migration-notes/popcrm-web-20260716.md`](docs/app-migration-notes/popcrm-web-20260716.md)
 
 ## 11. Hosted-Supabase gotchas (do not relearn these the hard way)
 
@@ -289,3 +290,14 @@ These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones
   may report "no relationship found" because the schema cache does not auto-detect
   cross-schema FKs. The constraint is still there — verify with `pg_constraint`,
   not with a failed embed.
+- **An RLS policy is NOT a table GRANT.** A `for all`/`crm_write`-style policy lets
+  a role write *rows it is allowed to*, but Postgres still checks the table-level
+  privilege first. The baseline only ran `grant select on all tables in schema crm
+  to authenticated` (reads), and `grant ... on all tables` does not cover tables
+  created later. So a browser `insert`/`update`/`delete` against a `crm.*` table that
+  has `crm_write` but no DML grant fails with `permission denied for table ... (42501)`
+  — distinct from an RLS rejection (`new row violates row-level security policy`).
+  Every directly-written `crm.*` table needs an explicit `grant insert, update, delete
+  ... to authenticated` alongside its policy; see
+  `20260715220500_grant_crm_write_dml_to_authenticated.sql` and
+  `docs/app-migration-notes/popcrm-web-20260716.md`.
