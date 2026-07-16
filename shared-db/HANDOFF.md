@@ -64,6 +64,23 @@ sourcing through dflow (free merch-group → licensor/property enrichment) or pu
 the `source_system` label choice. Analysis:
 [`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md).
 
+**DECIDED 2026-07-15 — Option B (direct Coldlion).** The full build plan, the item→taxonomy
+wiring, and the taxonomy-table de-duplication analysis are in
+**[`docs/coldlion-direct-sync-and-taxonomy-plan.md`](docs/coldlion-direct-sync-and-taxonomy-plan.md)**.
+Highlights the next session must know:
+- Sync becomes a Supabase **Edge Function in shared-db + `pg_cron`** (no Google Cloud), key in
+  **Vault**, **data-only (no images — DesignFlow owns images)**, plus a new **weekly full
+  reconciliation** to stop silent incremental drift.
+- The strict parent-child **taxonomy already exists** in `core.*` (sourced from DesignFlow);
+  the real work is wiring items to it with **FKs** (Coldlion `merchGroup05`=licensor,
+  `merchGroup06`=property — confirmed). Coldlion does **not** expose the hierarchy.
+- ⚠️ **Taxonomy "empty duplicate" cleanup is NOT a blind delete.** The empty snake_case tables
+  (`core.merch_group`, `core.product_category/type/subtype`) are the *planned canonical target*
+  per [`docs/unified-supabase-schema-map.md`](docs/unified-supabase-schema-map.md), not strays.
+  The genuinely-redundant set is the `dflow.*` taxonomy island (0 external FKs), pending a
+  Sequelize-model check in the 6 `designflow-*` repos. **Open decisions block build — see
+  Part F of the plan.**
+
 ---
 
 ## How to ship a shared-db schema change (the sanctioned flow, proven this session)
