@@ -175,6 +175,20 @@ Production project ref: qsllyeztdwjgirsysgai
 
 Never commit anon keys, service-role keys, database passwords, or `.env` files.
 
+### 8.1 API-exposed schemas (PostgREST) — `dam` is NOT exposed (2026-07-15)
+
+`pgrst.db_schemas` on prod = `public, graphql_public, api, crm, pim, core, app`.
+An app schema is exposed only when that app queries it from the browser (`crm`,
+`pim`, `core`). **`dam` is intentionally absent** — it holds PopDAM worker-internal
+tables (`dam.sku_human_description`, `dam.pdf_rich_extraction`) that the DAM
+frontend never touches (DAM queries `public`). Any PostgREST call to `dam.*` —
+even with `service_role` — fails with **`Invalid schema: dam`**. Reach `dam.*`
+from workers/edge through **`public` `SECURITY DEFINER` functions granted to
+`service_role`** (e.g. `public.get_pdf_rich_extraction_hashes`,
+`public.upsert_pdf_rich_extraction`, `public.refresh_style_group_rich_metadata`).
+Do **not** add `dam` to `pgrst.db_schemas` to "fix" this — it broadens the shared
+API surface for every app and would require RLS on every `dam` table.
+
 ## 9. Supabase CLI and database credential runbook
 
 Use the canonical credentials in 1Password. Do not work around auth failures with
