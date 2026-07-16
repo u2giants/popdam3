@@ -17,7 +17,7 @@ import {
 import { getPendingJobs } from "./uploadQueue";
 import { fetchConfig, discoverSupabaseConfig } from "./damClient";
 import { validateRoot } from "./rootValidator";
-import { getSeafileHealth, testSeafileMapping } from "./seafileAdapter";
+import { getSeafileHealthAsync, testSeafileMapping } from "./seafileAdapter";
 import { startMicrosoftOAuth } from "./oauth";
 import { shell } from "electron";
 import { log } from "./logger";
@@ -246,9 +246,9 @@ export function registerIpcHandlers(): void {
   });
 
   // ── Seafile / SeaDrive ───────────────────────────────────────────────────────
-  ipcMain.handle("get-storage-health", () => {
+  ipcMain.handle("get-storage-health", async () => {
     try {
-      return { ok: true, data: getSeafileHealth(getConfig()) };
+      return { ok: true, data: await getSeafileHealthAsync(getConfig()) };
     } catch (e: unknown) {
       return { ok: false, error: String(e) };
     }

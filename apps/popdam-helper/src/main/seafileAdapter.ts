@@ -16,6 +16,7 @@
  */
 
 import { existsSync, statSync, openSync, closeSync, readSync, readdirSync } from "fs";
+import { readdir, stat } from "fs/promises";
 import { basename, join, normalize, isAbsolute, sep } from "path";
 import { homedir } from "os";
 import { execFileSync } from "child_process";
@@ -62,6 +63,29 @@ function subDirs(p: string): string[] {
   }
 }
 
+async function safeIsDirAsync(p: string): Promise<boolean> {
+  try {
+    return (await stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Async directory listing for health checks, which must never block Electron's UI thread. */
+async function subDirsAsync(p: string): Promise<string[]> {
+  try {
+    const entries = await readdir(p, { withFileTypes: true });
+    const dirs: string[] = [];
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      if (entry.isDirectory() || await safeIsDirAsync(join(p, entry.name))) dirs.push(entry.name);
+    }
+    return dirs;
+  } catch {
+    return [];
+  }
+}
+
 /** SeaDrive category folders a library may live under, relative to a base mount. */
 const SEADRIVE_CATEGORY_DIRS = ["My Libraries", "Shared with all", "Shared with me"];
 const SEADRIVE_ALL_CATEGORY_DIRS = [...SEADRIVE_CATEGORY_DIRS, "Shared with groups"];
@@ -89,6 +113,27 @@ export function seaDriveBaseRoots(config: LocalConfig): string[] {
   for (const parent of parents) {
     add(parent);
     for (const acct of subDirs(parent)) add(join(parent, acct));
+  }
+  return out;
+}
+
+async function seaDriveBaseRootsAsync(config: LocalConfig): Promise<string[]> {
+  const out: string[] = [];
+  const add = async (p?: string | null) => {
+    if (p && await safeIsDirAsync(p) && !out.includes(p)) out.push(p);
+  };
+
+  await add(config.seaDriveRoot);
+  for (const acct of await subDirsAsync(config.seaDriveRoot ?? "")) {
+    await add(join(config.seaDriveRoot ?? "", acct));
+  }
+
+  const parents = process.platform === "win32"
+    ? ["C:\\seadrive", join(homedir(), "seadrive"), join(homedir(), "SeaDrive")]
+    : [join(homedir(), "SeaDrive"), join(homedir(), "seadrive")];
+  for (const parent of parents) {
+    await add(parent);
+    for (const acct of await subDirsAsync(parent)) await add(join(parent, acct));
   }
   return out;
 }
@@ -173,6 +218,64 @@ export function discoverSeaDriveLibraries(config: LocalConfig): string[] {
   }
 
   return found.sort((a, b) => a.localeCompare(b));
+}
+
+async function discoverSeaDriveLibrariesAsync(config: LocalConfig): Promise<string[]> {
+  const found: string[] = [];
+  const categoryNames = new Set(SEADRIVE_ALL_CATEGORY_DIRS.map((d) => d.toLowerCase()));
+  for (const base of await seaDriveBaseRootsAsync(config)) {
+    if (categoryNames.has(basename(base).toLowerCase())) {
+      for (const lib of await subDirsAsync(base)) addUnique(found, lib);
+    }
+    for (const category of SEADRIVE_ALL_CATEGORY_DIRS) {
+      const categoryDir = join(base, category);
+      if (!await safeIsDirAsync(categoryDir)) continue;
+      for (const child of await subDirsAsync(categoryDir)) {
+        addUnique(found, child);
+        if (category === "Shared with groups") {
+          for (const nested of await subDirsAsync(join(categoryDir, child))) addUnique(found, nested);
+        }
+      }
+    }
+  }
+  return found.sort((a, b) => a.localeCompare(b));
+}
+
+async function bfsFindDirAsync(base: string, target: string): Promise<string | null> {
+  const queue: Array<{ dir: string; depth: number }> = [{ dir: base, depth: 0 }];
+  let visited = 0;
+  while (queue.length) {
+    const { dir, depth } = queue.shift()!;
+    if (visited++ > 400) break;
+    for (const name of await subDirsAsync(dir)) {
+      const child = join(dir, name);
+      if (name.toLowerCase() === target.toLowerCase()) return child;
+      if (depth + 1 < 3) queue.push({ dir: child, depth: depth + 1 });
+    }
+  }
+  return null;
+}
+
+async function findLibraryDirAsync(seaDriveFolder: string, config: LocalConfig): Promise<string | null> {
+  const cached = config.seafileLibraryPaths?.[seaDriveFolder];
+  if (cached && await safeIsDirAsync(cached)) return cached;
+  for (const base of await seaDriveBaseRootsAsync(config)) {
+    const candidates = [
+      join(base, seaDriveFolder),
+      ...SEADRIVE_CATEGORY_DIRS.map((category) => join(base, category, seaDriveFolder)),
+    ];
+    for (const candidate of candidates) if (await safeIsDirAsync(candidate)) return candidate;
+    const groups = join(base, "Shared with groups");
+    if (await safeIsDirAsync(groups)) {
+      for (const group of await subDirsAsync(groups)) {
+        const candidate = join(groups, group, seaDriveFolder);
+        if (await safeIsDirAsync(candidate)) return candidate;
+      }
+    }
+    const found = await bfsFindDirAsync(base, seaDriveFolder);
+    if (found) return found;
+  }
+  return null;
 }
 
 /**
@@ -393,6 +496,42 @@ export function getSeafileHealth(config: LocalConfig): SeafileHealth {
     librariesConfigured: configured,
     librariesMounted: mounted,
     librariesMissing: missing,
+    detail,
+  };
+}
+
+/** Health polling uses async filesystem calls so a slow macOS SeaDrive mount cannot freeze Electron. */
+export async function getSeafileHealthAsync(config: LocalConfig): Promise<SeafileHealth> {
+  const running = isSeaDriveRunning();
+  const roots = await seaDriveBaseRootsAsync(config);
+  const root = roots[0] ?? null;
+  const appPaths = process.platform === "darwin"
+    ? ["/Applications/SeaDrive.app", join(homedir(), "Applications/SeaDrive.app")]
+    : ["C:\\Program Files\\SeaDrive\\seadrive.exe", "C:\\Program Files (x86)\\SeaDrive\\seadrive.exe"];
+  const installed = running || !!root || appPaths.some((path) => existsSync(path));
+  const discovered = await discoverSeaDriveLibrariesAsync(config);
+  const mappings = config.seafileLibraries ?? [];
+  const configured = mappings.map((library) => library.seaDriveFolder);
+  const mountedChecks = await Promise.all(mappings.map(async (library) => ({
+    folder: library.seaDriveFolder,
+    mounted: await findLibraryDirAsync(library.seaDriveFolder, config) !== null,
+  })));
+  const librariesMounted = mountedChecks.filter((library) => library.mounted).map((library) => library.folder);
+  const librariesMissing = mountedChecks.filter((library) => !library.mounted).map((library) => library.folder);
+  let detail: string | undefined;
+  if (!installed) detail = "SeaDrive client not detected.";
+  else if (!root) detail = "SeaDrive mount root not found.";
+  else if (!running) detail = "SeaDrive client is not running.";
+  return {
+    provider: "seafile",
+    available: installed && running && !!root && librariesMissing.length === 0,
+    installed,
+    running,
+    root,
+    librariesMounted,
+    librariesMissing,
+    discoveredLibraries: discovered,
+    librariesConfigured: configured,
     detail,
   };
 }

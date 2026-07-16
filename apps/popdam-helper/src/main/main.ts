@@ -17,7 +17,7 @@ import { registerProtocol } from "./protocol";
 import { initQueue, setProgressCallback, setVerifyingCallback, setFailedCallback, processQueue } from "./uploadQueue";
 import { loadActiveCheckouts, onCheckoutsChanged, updateUploadProgress, markVerifying, markUploadFailed, reconcileVerifyingCheckouts, getActiveCheckouts, findCheckoutByWorkspacePath, checkin } from "./checkoutManager";
 import { heartbeat } from "./damClient";
-import { seaDriveBaseRoots, findLibraryDir } from "./seafileAdapter";
+import { getSeafileHealthAsync } from "./seafileAdapter";
 import { loadConfig, getConfig } from "./config";
 import { log } from "./logger";
 import { startLocalServer, setEditorEventCallback } from "./localServer";
@@ -76,13 +76,14 @@ function remindStaleCheckouts(): void {
 }
 
 // ── Proactive SeaDrive library warning (#4) ───────────────────────────────────
-function warnIfSeaDriveLibrariesMissing(): void {
+async function warnIfSeaDriveLibrariesMissing(): Promise<void> {
   const cfg = getConfig();
   if (cfg.preferredProvider && cfg.preferredProvider !== "seafile") return;
   const libs = cfg.seafileLibraries ?? [];
   if (libs.length === 0) return;
 
-  if (seaDriveBaseRoots(cfg).length === 0) {
+  const health = await getSeafileHealthAsync(cfg);
+  if (!health.root) {
     showNotification(
       "SeaDrive not detected",
       "POP DAM Helper can't find SeaDrive. Install it and sign in — otherwise checking out work-from-home files won't work.",
@@ -92,7 +93,7 @@ function warnIfSeaDriveLibrariesMissing(): void {
   // Only warn when NONE are found: a user may legitimately have access to just
   // some libraries, so a per-library nag would be a false alarm. The Settings
   // panel shows the per-library mounted/missing breakdown.
-  const missing = libs.filter((l) => findLibraryDir(l.seaDriveFolder, cfg) === null);
+  const missing = libs.filter((library) => health.librariesMissing.includes(library.seaDriveFolder));
   if (missing.length === libs.length) {
     showNotification(
       "PopDAM libraries not found in SeaDrive",
@@ -195,7 +196,9 @@ app.whenReady().then(async () => {
   // Proactive startup check: if the user is on the Seafile/WFH path but SeaDrive
   // (or all of their PopDAM libraries) can't be found, tell them now — don't
   // wait for a checkout to fail.
-  warnIfSeaDriveLibrariesMissing();
+  void warnIfSeaDriveLibrariesMissing().catch((error) => {
+    log.warn("SeaDrive startup health check failed:", error);
+  });
 
   // Periodic reminder: a file checked out and edited but never checked in is the
   // classic "worked for hours, never saved to the server" trap. Nudge hourly.

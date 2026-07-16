@@ -14,7 +14,7 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { readdirSync, statSync } from "fs";
 import { join } from "path";
 import { getConfig } from "./config";
-import { getSeafileHealth } from "./seafileAdapter";
+import { getSeafileHealthAsync } from "./seafileAdapter";
 import { completeMicrosoftOAuthCallback } from "./oauth";
 import { log } from "./logger";
 import { HELPER_VERSION, LOCAL_SERVER_PORT } from "@shared/constants";
@@ -224,7 +224,7 @@ export function startLocalServer(): void {
 
       if (url.pathname === "/status") {
         const config = getConfig();
-        const seafile = getSeafileHealth(config);
+        const seafile = await getSeafileHealthAsync(config);
         const synologyAvailable = config.rootMappings.some((r) => !!r.local_path);
         send(res, 200, {
           ok: true,
