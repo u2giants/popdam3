@@ -1,11 +1,57 @@
 # HANDOFF — shared-db current state
 
-Date: 2026-07-15
+Date: 2026-07-17
 Repo: `u2giants/shared-db`
 Branch: `main` (matches `origin/main`, clean tree)
 
 This file is the top-level "where are we" pointer for the next session. It is written
 for a developer with **zero** prior context. Read it, then read the linked plan.
+
+---
+
+## Active workstream — DesignFlow local database connection-pool remediation
+
+### What this is
+
+DesignFlow developers connecting from India can authenticate successfully but then receive
+`SequelizeConnectionAcquireTimeoutError: Operation timeout` on the first database-backed
+request after a cold local startup. The measured new-connection handshake to the shared
+Supabase pooler in AWS `us-east-1` is roughly 11–12 seconds. This is an application connection
+lifecycle and local configuration problem, not a schema defect or a reason to terminate shared
+database sessions.
+
+### Current state
+
+Planning is complete; application implementation has not started. The comprehensive,
+street-newcomer-ready implementation plan is
+**[`fix_connection_pool.md`](fix_connection_pool.md)**. It records the verified configuration
+differences across all six DesignFlow repositories, rejected approaches, target values,
+file-by-file changes, unit and cold-start acceptance tests, rollout/rollback, access, risks, and
+completion gates.
+
+Critical decisions already made:
+
+- Do not run broad `pg_terminate_backend` cleanup. It can kill unrelated CRM, DAM, PM/PIM,
+  Supabase, or developer sessions and forces more cold connections.
+- Do not create a shared-db migration or change any schema/data/Supabase setting.
+- Keep `pool.min=0`, short idle eviction, and TCP keep-alive to preserve the existing
+  stale-socket protection.
+- Keep the normal BFF timeout at 30 seconds.
+- Standardize startup readiness/retry, connection labels, safe pool budgets, local timeout
+  headroom, and graceful shutdown across the four Sequelize services.
+
+### Exact next action
+
+Start at Phase 0 of `fix_connection_pool.md`: sync all six DesignFlow `sandbox-albert`
+branches from `develop`, record five sanitized cold/warm baselines from the affected India
+workstation, identify the existing Supavisor endpoint/mode and measured client allowance, then
+implement the four service PRs in the documented order. Uma reviews and merges DesignFlow PRs;
+the AI must not self-merge them.
+
+**Verification gate:** implementation is complete only after 10/10 cold logins pass on the first
+attempt, no acquire timeout/connection-limit/BFF error occurs, connection counts stay within the
+measured budget, graceful shutdown removes only the owning service's labeled sessions, and the
+final PR/SHA/timing evidence is added to the shared-db verification note.
 
 ---
 
