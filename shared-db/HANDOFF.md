@@ -22,12 +22,14 @@ database sessions.
 
 ### Current state
 
-Planning is complete; application implementation has not started. The comprehensive,
+Planning is complete and its implementation gaps were closed with verified request-path,
+environment, Supavisor, and Cloud Run evidence on 2026-07-17; application implementation has
+not started. The comprehensive,
 street-newcomer-ready implementation plan is
 **[`fix_connection_pool.md`](fix_connection_pool.md)**. It records the verified configuration
 differences across all six DesignFlow repositories, rejected approaches, target values,
-file-by-file changes, unit and cold-start acceptance tests, rollout/rollback, access, risks, and
-completion gates.
+file-by-file changes, exact helper contracts and test filenames, exact local launch procedure,
+unit and cold-start acceptance tests, rollout/rollback, access, risks, and completion gates.
 
 Critical decisions already made:
 
@@ -44,7 +46,8 @@ Critical decisions already made:
 
 Start at Phase 0 of `fix_connection_pool.md`: sync all six DesignFlow `sandbox-albert`
 branches from `develop`, record five sanitized cold/warm baselines from the affected India
-workstation, identify the existing Supavisor endpoint/mode and measured client allowance, then
+workstation, re-confirm the platform-managed session allowance (the endpoint is already verified
+as shared Supavisor session mode `:5432`), then
 implement the four service PRs in the documented order. Uma reviews and merges DesignFlow PRs;
 the AI must not self-merge them.
 

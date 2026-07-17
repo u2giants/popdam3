@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-17
 
-**Status:** Proposed implementation plan; application changes not yet started
+**Status:** Implementation-ready plan; application changes not yet started
 
 **Incident scope:** Local DesignFlow development against the shared hosted Supabase database
 
@@ -93,9 +93,63 @@ Relevant source locations:
 - `designflow-bff/routes/api.js`
 
 The BFF currently allows 30,000 ms for ordinary proxied requests. Its separate long timeout
-for AI chat is unrelated and must not be changed for this incident.
+for AI chat is unrelated and must not be changed for this incident. None of the four database
+services reads `BFF_PROXY_TIMEOUT_MS`; the implementation therefore validates its database
+timeouts against a documented 30,000 ms normal-route contract in its own configuration module.
 
-### 3.3 Incident evidence supplied by the developer
+### 3.3 Exact failing request path
+
+The affected local password-login path is now mapped. It does **not** traverse the BFF:
+
+```text
+designflow-frontend/src/app/pages/auth/login/login.component.ts
+  -> ItemService.getUserLoginInfo()
+  -> MainService POST http://localhost:5000/findUserLoginInfo
+  -> designflow-backend/routes/lib.router.js
+  -> controllers/main.controller.js
+  -> models/lib.model.js Customer.getUserLoginInfo()
+  -> sql.users.findOne(...)
+```
+
+The key source locations on `sandbox-albert` are:
+
+- frontend `src/app/pages/auth/login/login.component.ts:82`;
+- frontend `src/app/helpers/services/main.service.ts:199-200`;
+- backend `routes/lib.router.js:81`;
+- backend `controllers/main.controller.js:267-270`; and
+- backend `models/lib.model.js:1344` and the following `sql.users.findOne` call.
+
+The frontend's local environment uses direct ports: Backend `5000`, Data Syncing `5001`,
+Tracking `5002`, and Item Master `5003`. In deployed environments the analogous core call is
+proxied through BFF `/api/core`, so the BFF's 30-second normal-route timeout remains a deployment
+safety ceiling even though it is not part of the local reproduction path.
+
+### 3.4 Verified endpoint and deployed pool budget facts
+
+The following were verified from the active Google Cloud and Supabase configurations on
+2026-07-17, without recording credentials:
+
+- all four sandbox database services use the same Supabase endpoint, database, and role;
+- that endpoint is Supavisor **session mode on port 5432**, so per-service/per-instance maxima
+  are additive against one session allowance;
+- Supabase's Management API reports the separate transaction endpoint on port `6543`, but its
+  `default_pool_size` and `max_client_conn` fields are currently unset/platform-managed;
+- the last observed effective session-mode ceiling was `15`, from the verified
+  `EMAXCONNSESSION` incident on 2026-07-09; treat 15 as a safety warning, not an assurance that
+  the present limit is unchanged;
+- Backend and Item Master deploy with `DB_POOL_MAX=5` and `DB_AUTH_RETRIES=5`;
+- Tracking and Data Syncing do not deploy pool overrides and currently inherit the unsafe code
+  default of `22`;
+- Cloud Run concurrency is `100` for each database service; sandbox maximum instances are `10`;
+  Core and Item Master have minimum instances `1`, while Tracking and Data Syncing have `0`.
+
+This proves why a deployment connection budget cannot be calculated from one process alone.
+The implementing agent must not raise a pool maximum or Cloud Run instance ceiling in this
+work. Official references: [Supabase connection methods](https://supabase.com/docs/guides/database/connecting-to-postgres),
+[Supabase connection management](https://supabase.com/docs/guides/database/connection-management),
+and the [Supabase Management API](https://supabase.com/docs/reference/api/introduction).
+
+### 3.5 Incident evidence supplied by the developer
 
 - Credentials were accepted and a manual connection succeeded.
 - `pg_stat_activity` did not show leaked or blocked DesignFlow sessions.
@@ -215,7 +269,7 @@ The common target values are:
 | `DB_CONNECT_TIMEOUT` | 15,000 ms | 20,000 ms | Local override gives measured 12s handshakes safe headroom |
 | `DB_POOL_ACQUIRE` | 20,000 ms | 25,000 ms | Must remain below normal BFF timeout |
 | `DB_AUTH_RETRIES` | 3 | 5 | Retry only transient connection errors, with bounded backoff |
-| `DB_APPLICATION_NAME` | service-specific default | same | Must identify service and environment without secrets |
+| `DB_APPLICATION_NAME` | service-specific default | `designflow-<service>-localhost` | Must identify service and environment without secrets |
 
 The local override is deliberately not the production default. It is bounded under the
 30-second BFF limit and is paired with readiness, reduced local concurrency, and measurement.
@@ -239,23 +293,45 @@ statements and requires explicit compatibility testing. Current reference:
 1. Sync all six DesignFlow repositories according to the DesignFlow session-start procedure:
    merge current `origin/develop` into `sandbox-albert`, push, then pull locally. Stop if any
    repo contains unrelated uncommitted work.
-2. Confirm which four services are running for the failing local flow. Record service name,
-   Git SHA, Node version, start command, `NODE_ENV`, and whether it is one process or multiple
-   workers. Do not record secret values.
-3. Record only the database endpoint category: direct, Supavisor session `:5432`, or
-   Supavisor transaction `:6543`. Do not copy the connection string or password into evidence.
-4. Determine the current Supavisor client/session limit and current baseline usage from the
-   Supabase dashboard/Management API and read-only `pg_stat_activity`. Keep at least 20% of the
-   measured allowance free for Supabase and non-DesignFlow clients.
-5. Reproduce from a fully stopped state five times:
+2. Record the SHA and `node --version` for Backend, Item Master, Tracking, and Data Syncing.
+   Local `npm start` sets `NODE_ENV=localhost`; each service loads the repository-root
+   `.env.localhost`. There is no checked-in multi-service launcher and this fix must not invent
+   one. Run one Node process per service in four PowerShell terminals.
+3. Record the already-verified endpoint category as Supavisor session `:5432`, shared role, and
+   shared database. Never record the endpoint, username, URL, or password itself.
+4. Re-confirm the session allowance in Supabase Observability or with a controlled connection
+   test. The Management API did not expose it on 2026-07-17; record that result and the last
+   observed `EMAXCONNSESSION` ceiling of 15 if the dashboard also does not display a current
+   value. Never treat an unknown limit as permission to consume it. Keep at least 20% free and
+   use the more conservative of the current value and 15 until Supabase proves otherwise.
+   Separately record `pool.max × max Cloud Run instances` for each deployed service. The current
+   max-instance ceiling of 10 means the theoretical session envelope does not fit the last
+   observed ceiling of 15; lazy pools make actual usage lower but do not make that envelope a
+   valid capacity guarantee. Do not change scaling in this local incident. If observed sandbox
+   peak breaches the 80% budget, block rollout and run the Phase 7 transaction-mode comparison;
+   that is the permanent serverless architecture path, not a timeout increase.
+5. Before labels exist, establish baseline usage with the shared role plus the four local
+   process start/stop timestamps; do not terminate or claim ownership of anonymous sessions.
+   After Phase 1 adds labels, repeat the count using `application_name LIKE 'designflow-%'`.
+6. Reproduce from a fully stopped state five times:
    - stop all local DesignFlow Node processes cleanly;
-   - confirm no old connections remain for the developer's future application labels;
-   - start the required services together using the normal developer command;
-   - submit one login immediately after the frontend becomes available;
-   - record per-service database-ready time, login response status, BFF duration, acquire
-     timeout count, and total DesignFlow sessions;
+   - wait 15 seconds (longer than the configured 10-second idle eviction), then record rather
+     than terminate any remaining sessions;
+   - in four terminals run `$env:NODE_ENV='localhost'; node index.js` from each service root;
+   - run the frontend separately with `npm start`, submit one login immediately after Angular
+     becomes available, and record the direct Backend request duration;
+   - record per-service database-ready time where available, login status,
+     `/findUserLoginInfo` duration, acquire-timeout count, and session count;
    - repeat the same request while warm.
-6. Save sanitized evidence in the implementing DesignFlow repo's `qa-artifacts` or docs area.
+7. Use one row per run with these exact columns: UTC timestamp, four repo SHAs, Node version,
+   cold/warm, service-start times, database-ready times, login HTTP status, login duration ms,
+   `findUserLoginInfo` status, `findUserLoginInfo` duration ms, handshake/authenticate duration
+   ms, acquire timeout count, retry count, peak labeled sessions, and redacted error category.
+   Save it as `qa-artifacts/connection-pool/baseline-YYYYMMDD.md` in Backend.
+8. Calculate handshake p95 after at least 20 cold `authenticate()` samples from the affected
+   India workstation. The proposed 20-second connect timeout is acceptable only when p95 is at
+   most 15 seconds, leaving at least 5 seconds of headroom. If p95 is higher, stop before rollout
+   and execute Phase 7; do not improvise a larger timeout.
 
 **Verification gate:** five cold runs and five warm runs are recorded, the failure is reproduced
 at least once or the original logs provide equivalent timing evidence, and no backend was
@@ -272,23 +348,38 @@ For each `models/db.js`:
    expected range. Never log connection strings, usernames, or passwords.
 2. Standardize the code defaults from the target table above. Specifically change Tracking
    and Data Syncing `DB_POOL_MAX` from 22 to 5.
-3. Enforce configuration relationships:
+3. Create `config/database-pool.js` in each service and make it the only place that parses these
+   variables. Export the parser and constants so tests do not need to open a real connection.
+   Enforce these relationships:
    - `DB_POOL_MIN` must be 0;
    - `DB_POOL_MAX >= 1`;
    - `DB_POOL_EVICT > 0` and `DB_POOL_EVICT <= DB_POOL_IDLE`;
-   - `DB_CONNECT_TIMEOUT < BFF_PROXY_TIMEOUT_MS`; and
-   - `DB_POOL_ACQUIRE < BFF_PROXY_TIMEOUT_MS`.
+   - `DB_CONNECT_TIMEOUT < NORMAL_PROXY_TIMEOUT_MS`; and
+   - `DB_POOL_ACQUIRE < NORMAL_PROXY_TIMEOUT_MS`.
+
+   Set exported `NORMAL_PROXY_TIMEOUT_MS = 30000` and document that it mirrors the BFF normal
+   route default. Do not read `BFF_PROXY_TIMEOUT_MS` in database services, because that variable
+   is not present there. A BFF unit test must protect its own 30-second default; the four service
+   tests protect the inequalities.
 4. Add `DB_APPLICATION_NAME` to the PostgreSQL dialect options with these safe defaults:
    - `designflow-backend-${NODE_ENV}`;
    - `designflow-item-master-${NODE_ENV}`;
    - `designflow-tracking-${NODE_ENV}`; and
    - `designflow-data-syncing-${NODE_ENV}`.
-   Sanitize the value to a short service/environment label. Do not put user email, hostname,
-   token, or credential data into it.
+   Accept only lowercase letters, digits, and hyphens (`^[a-z0-9-]{1,63}$`) and fail startup on
+   any other value. Use `designflow-backend-localhost`,
+   `designflow-item-master-localhost`, `designflow-tracking-localhost`, and
+   `designflow-data-syncing-localhost` on the affected workstation. Do not put user email,
+   hostname, token, or credential data into it.
 5. Keep SSL and existing UTF-8 settings unchanged.
-6. Add the complete variable set, descriptions, and local recommended values to each repo's
-   `.env.example` and relevant `docs/configuration.md` or README. Commit names only, never
-   values from a real `.env` file.
+6. Use this exact environment-template inventory:
+   - update existing `.env.example` in Backend and Data Syncing;
+   - create committed placeholder-only `.env.example` in Item Master and Tracking;
+   - update Backend and Tracking `docs/configuration.md`;
+   - add a `Database connection pool` section to Item Master and Data Syncing `README.md` because
+     those repos do not currently have `docs/configuration.md`.
+   Real `.env.localhost` files stay ignored and uncommitted. Templates contain variable names,
+   safe defaults, ranges, and comments only—never copied values from a real environment.
 
 Do not extract a new cross-repo npm package during this incident. Four small, matching modules
 are easier to review and roll back than a new package/release dependency. A shared package may
@@ -316,11 +407,18 @@ implementation and may receive only consistency/test cleanup.
    following Item Master's existing pattern. Preserve the required boot order:
    register models and assign `db.sequelize` before the first `await`.
 2. Use one consistent `authenticateWithRetry()` implementation across the four services.
-   It must retry only transient connection conditions such as acquire/connect timeout,
-   `EAUTHTIMEOUT`, `ECONNRESET`, connection termination, PostgreSQL class `08` connection
-   failures, and `EMAXCONNSESSION`. Invalid credentials, invalid SSL configuration, or schema
-   programming errors must fail immediately.
-3. Use bounded backoff, for example 1s, 2s, 3s, 4s, 5s, with no unbounded loop.
+   Implement and export `isTransientConnectionError(error)`. It returns true only for Sequelize
+   names `SequelizeConnectionAcquireTimeoutError`, `SequelizeConnectionTimedOutError`,
+   `SequelizeConnectionRefusedError`, and `SequelizeHostNotReachableError`; an `error.code`,
+   `error.parent.code`, or `error.original.code` of `EAUTHTIMEOUT`, `ETIMEDOUT`, `ECONNRESET`,
+   `ECONNREFUSED`, `EPIPE`, `ENETUNREACH`, `EHOSTUNREACH`, or `EMAXCONNSESSION`; or a five-character
+   PostgreSQL code beginning `08`. Match the known Supavisor text `max clients reached in session
+   mode` only as a fallback when no code is present. Everything else—including PostgreSQL
+   `28P01` invalid credentials, SSL/configuration errors, and schema/programming errors—fails
+   immediately.
+3. `DB_AUTH_RETRIES` means retries after the initial attempt. With five retries, use exactly
+   1s, 2s, 3s, 4s, then 5s delays. With three, use 1s, 2s, then 3s. Inject the sleep function in
+   unit tests; never create an unbounded loop.
 4. Log attempt number, elapsed milliseconds, safe error code/category, and final outcome.
    Never log the password or connection URL.
 5. In each `index.js`, await `db.ready` before `app.listen()`.
@@ -351,29 +449,38 @@ or refactored in this pool incident.
 - exhausted transient retries exit/fail clearly; and
 - Tracking cache queries run only after readiness.
 
-**Verification gate:** with an intentionally unreachable safe test host, every service fails
-before listening; with valid local configuration, every service logs database readiness before
-its HTTP-listening message.
+**Verification gate:** with test-only `DB_HOST=127.0.0.1` and `DB_PORT=1`, every service exhausts
+the configured transient retries and fails before listening; with valid local configuration,
+every service logs database readiness before its HTTP-listening message. Never place real
+credentials in that negative test.
 
 ### Phase 3 — add graceful shutdown
 
 **Repositories changed:** Backend, Item Master, Tracking, Data Syncing.
 
-1. Keep the `http.Server` returned by `app.listen()`.
-2. Install one idempotent shutdown handler for `SIGINT` and `SIGTERM`.
-3. On shutdown:
-   - stop accepting HTTP requests;
-   - allow a short bounded period for in-flight requests;
-   - call `db.sequelize.close()` exactly once;
-   - log success or a loud bounded-timeout warning; and
-   - exit with an appropriate status.
-4. Ensure nodemon/local Ctrl+C and Cloud Run termination use the same path.
+1. Add the same small `helpers/graceful-shutdown.js` module to each service. Export
+   `installGracefulShutdown({ server, sequelize, logger, exit, timeoutMs })`; inject `exit` and
+   timers in tests rather than terminating Jest.
+2. Keep the `http.Server` returned by `app.listen()` and install one handler for both `SIGINT`
+   and `SIGTERM`. Guard it with one shared promise so repeated signals cannot run it twice.
+3. On the first signal, in this exact order:
+   - call `server.close()` to stop accepting requests;
+   - call `server.closeIdleConnections?.()` when available;
+   - await the close callback so in-flight requests receive a bounded drain period;
+   - call `db.sequelize.close()` exactly once; and
+   - log sanitized duration and exit `0`.
+4. Set the default hard deadline to 10,000 ms. If drain or Sequelize close exceeds it, log
+   `db_shutdown_timeout`, call `server.closeAllConnections?.()`, and exit `1`. If close rejects,
+   log `db_shutdown_failed` and exit `1`.
+5. Register handlers only after a server exists. Nodemon/local Ctrl+C and Cloud Run SIGTERM use
+   this identical path.
 
 Do not query or terminate `pg_stat_activity` during shutdown. Each process owns its Sequelize
 pool and can close its own sessions safely.
 
-**Unit tests:** repeated signals do not double-close, HTTP closes before Sequelize, a close
-failure is reported, and the process does not hang indefinitely.
+**Unit tests:** repeated signals do not double-close, HTTP closes before Sequelize, successful
+drain exits `0`, close rejection exits `1`, the 10-second deadline forces exit `1`, and no real
+signal handler or process exit leaks between tests.
 
 **Verification gate:** after Ctrl+C, labeled sessions for that one local service disappear
 without affecting other service labels; restarting does not temporarily double the expected
@@ -395,18 +502,21 @@ DB_POOL_ACQUIRE=25000
 DB_POOL_IDLE=10000
 DB_POOL_EVICT=5000
 DB_AUTH_RETRIES=5
-DB_APPLICATION_NAME=<the documented service-specific local label>
+DB_APPLICATION_NAME=designflow-<service>-localhost
 ```
 
-`DB_POOL_MAX=2` is the initial local recommendation, not a universal production value. Four
-services at two connections each produce a theoretical local ceiling of eight clients. Confirm
-that this ceiling plus all deployed services and Supabase's baseline stays within the measured
-allowance from Phase 0. If the actual allowance cannot safely fit eight, lower per-service
-values or run only the services required for the task. Do not raise Supabase limits blindly.
+`DB_POOL_MAX=2` is the initial local recommendation, not a universal production value. Calculate
+`safe_client_slots = floor(current_session_allowance * 0.80) - observed_nonlocal_peak` from the
+Phase 0 evidence. Four local services require eight slots at max 2. If `safe_client_slots >= 8`,
+use max 2 for all four. If it is 4–7, use max 1 for all four. If it is below 4, do not start all
+four together: run the Backend-only login acceptance plus one other database service at a time,
+and escalate the insufficient shared allowance as an environment capacity risk. Never set max
+below 1, silently exceed the formula, or raise a Supabase/Cloud Run limit in this work.
 
-Start the database services first and wait for their explicit ready messages before opening the
-frontend/login flow. If a developer launcher starts all services, update it to wait for child
-readiness and print a summary instead of treating "process spawned" as "service ready."
+There is no checked-in developer launcher. Start the four database services in separate
+PowerShell terminals with `$env:NODE_ENV='localhost'; node index.js`, wait for each explicit
+database-ready and HTTP-listening message, then start the frontend with `npm start`. The BFF is
+not needed for the verified local password-login path. Do not add a launcher in this fix.
 
 **Verification gate:** configuration logs show only safe, non-secret setting summaries; all
 required services reach ready; and the measured session ceiling stays within budget.
@@ -415,18 +525,34 @@ required services reach ready; and the measured session ceiling stays within bud
 
 **Repositories changed:** the four database services.
 
-Use Sequelize's connection/pool hooks or an equivalent small wrapper to record:
+Add `helpers/db-pool-observability.js` in each service. Its exported
+`installPoolObservability(sequelize, { serviceName, logger, slowAcquireMs = 1000 })` must use
+Sequelize v6 `beforePoolAcquire(options)` and `afterPoolAcquire(connection, options)` hooks plus
+a `WeakMap` keyed by `options`. Use `process.hrtime.bigint()` for elapsed time. Register it once,
+immediately after Sequelize construction. See the official
+[Sequelize v6 hook API](https://sequelize.org/docs/v6/other-topics/hooks/).
+
+Emit structured, single-line events with only these fields:
 
 - service/application name;
 - startup authentication elapsed time;
-- successful pool-acquire elapsed time in coarse milliseconds;
-- acquire timeout count;
+- successful pool-acquire elapsed time in integer milliseconds, logged only at or above 1,000 ms;
 - transient startup retry count; and
-- graceful shutdown duration.
+- graceful shutdown duration;
+- pool snapshot counts (`size`, `available`, `using`, `waiting`) when the installed pool exposes
+  them, otherwise omit those fields rather than reaching into unsupported internals.
 
-Do not log SQL text, bound values, connection strings, passwords, JWTs, or user identity. Log
-normal successful acquisition only when it exceeds a useful threshold (for example 1 second)
-to avoid noisy logs. Always log timeouts and exhausted retries.
+The startup retry wrapper owns `db_auth_retry` and `db_auth_failed` events; the shutdown helper
+owns `db_shutdown_complete`, `db_shutdown_timeout`, and `db_shutdown_failed`. Do not add an
+automatic retry at the HTTP layer.
+
+Do not log SQL text, bound values, connection strings, passwords, JWTs, or user identity. The
+1,000 ms threshold above is fixed for this implementation. Always log exhausted startup retries.
+For request-time acquire failures, do not patch Sequelize or `sequelize-pool` internals: the
+verified Backend `sendError` path already logs the error class. The acceptance evidence counts
+`SequelizeConnectionAcquireTimeoutError` occurrences from service logs, and the unit test proves
+that the classifier recognizes that exact name. Other unrelated error-handling consolidation is
+outside this incident.
 
 Use this read-only diagnostic after application labels exist:
 
@@ -512,8 +638,9 @@ to solve one workstation's latency.
 - `index.js`: await readiness before listening and add graceful shutdown.
 - `.env.example`, `docs/configuration.md`, `docs/development.md`: document variables and the
   India-local profile.
-- Tests: add focused pool configuration/readiness/shutdown tests. Existing migration tests must
-  remain green.
+- Tests: add `tests/unit/db.pool.config.test.js`, `tests/unit/db.observability.test.js`,
+  `tests/unit/db.startup.test.js`, and `tests/unit/graceful.shutdown.test.js`; extend
+  `tests/unit/db.migration.test.js` only for its existing source-order safeguards.
 - Deployment: preserve committed `DB_POOL_MAX=5` and `DB_AUTH_RETRIES=5` in `cloudbuild.yaml`.
 
 ### `designflow-item-master`
@@ -521,7 +648,8 @@ to solve one workstation's latency.
 - Keep the existing `db.ready`/retry/listen ordering as the reference.
 - Add bounded configuration validation, application labeling, observability, and graceful
   shutdown.
-- Extend tests and documentation; preserve Cloud Build values of 5 retries and max pool 5.
+- Add the same four named unit-test files listed for Backend. Preserve Cloud Build values of 5
+  retries and max pool 5.
 
 ### `designflow-tracking`
 
@@ -529,21 +657,25 @@ to solve one workstation's latency.
 - Add retry and `db.ready`.
 - Await readiness before all startup cache queries.
 - Preserve the existing boot-order and connection-resilience regression tests.
-- Add shutdown, labeling, observability, and local profile docs/tests.
+- Add the same four named unit-test files; extend `tests/unit/db.migration.test.js` for cache
+  ordering. Add shutdown, labeling, observability, and local profile documentation.
 
 ### `designflow-data-syncing`
 
 - Reduce the code default from 22 to 5.
 - Add retry and `db.ready`; wait before listening.
-- Add shutdown, labeling, observability, and local profile docs/tests.
+- Add the same four named unit-test files. Add shutdown, labeling, observability, and local
+  profile documentation.
 - Do not mix this work with Coldlion synchronization or schema relocation changes.
 
 ### `designflow-bff`
 
 - No database code changes.
 - Keep normal `BFF_PROXY_TIMEOUT_MS=30000`.
-- Add or retain a unit assertion that ordinary routes remain at 30 seconds.
-- Use the BFF only as the end-to-end observation point for status and duration.
+- Retain and extend `tests/unit/proxyTimeout.test.js` so ordinary routes remain at 30 seconds
+  while the separate AI route remains independent.
+- Use the BFF only for deployed sandbox/production verification; it is not part of the local
+  direct-port reproduction.
 
 ### `designflow-frontend`
 
@@ -625,20 +757,24 @@ new relevant 5xx or connection-limit errors appear.
 - Branches: `sandbox-albert` in all DesignFlow repos; PR base `develop`.
 - Shared DB project: production `qsllyeztdwjgirsysgai`; no database apply is part of this work.
 
-## 13. Open questions and risks
+## 13. Remaining measured gates and risks
 
-These must be answered with measurements during Phase 0; they do not block writing the code
-plan.
+The architecture questions are closed: local login uses the Backend direct port, all four
+services use one session-mode endpoint/role/database, there is no launcher, and local starts use
+one Node process per service. Cloud Run's instance ceilings and current per-service overrides
+are recorded in §3.4.
 
-1. Which pooler endpoint/mode is the affected workstation currently using?
-2. What is the current Supavisor client/session allowance for the shared role/database?
-3. Do all four local services use the same database role, making their session ceilings additive?
-4. Is 11–12 seconds stable, or does cold handshake p95 exceed the proposed 20-second connect
-   timeout?
-5. Does the developer's launcher start services concurrently and declare them ready merely when
-   their processes spawn?
-6. Are any services run with multiple Node workers locally or multiple Cloud Run instances in an
-   environment where the total pool budget must be recalculated?
+Two values are intentionally runtime gates, not missing design decisions:
+
+1. The affected India workstation must supply at least 20 cold samples and prove handshake p95
+   is at most 15 seconds before the 20-second connect timeout is accepted.
+2. Supabase currently does not expose the platform-managed session allowance through the
+   Management API. Re-confirm it in Observability or by a controlled test; until then, budget
+   against the last observed effective ceiling of 15, reserve at least 20%, and never raise pool
+   or instance maxima.
+
+If either gate fails, stop the initial rollout and follow Phase 7. No implementing-agent choice
+or owner decision is required to begin Phases 1–5.
 
 Risk decisions made on 2026-07-17:
 

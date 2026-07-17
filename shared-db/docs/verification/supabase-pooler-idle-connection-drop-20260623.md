@@ -80,6 +80,32 @@ Shared-db governance conclusion:
   because the observed failure was pooler session exhaustion and startup behavior against the
   existing shared Supabase database.
 
+## Follow-up source and runtime audit (2026-07-17)
+
+The July 9 entries above describe the mitigation that was applied then; they are not a claim
+that all four services now share one complete lifecycle. A fresh `sandbox-albert` source audit
+and live Albert sandbox configuration audit found:
+
+| Service | Source default `pool.max` | Retried auth | `db.ready` + listen gate | Live sandbox override |
+|---|---:|---|---|---|
+| Backend | 5 | Yes | No | max 5, retries 5 |
+| Item Master | 5 | Yes | Yes | max 5, retries 5 |
+| Tracking | 22 | No | No | none; inherits source |
+| Data Syncing | 22 | No | No | none; inherits source |
+
+All four live sandbox services use the same Supavisor session-mode endpoint (`:5432`), role,
+and database, so their per-instance maxima are additive. The Supabase Management API exposes
+the separate transaction endpoint (`:6543`) but currently returns no explicit
+`default_pool_size` or `max_client_conn` for this platform-managed project. The last observed
+effective session ceiling remains the July 9 `EMAXCONNSESSION` value of 15 and must be
+re-confirmed before any pool or instance maximum is increased.
+
+The local password-login failure is frontend-direct: the Angular local environment posts
+`/findUserLoginInfo` to Backend on port 5000. It does not traverse the BFF locally. The BFF's
+30-second normal-route timeout remains relevant to deployed verification, not the local timing
+measurement. The complete corrective implementation and evidence gates are in the repository
+root [`fix_connection_pool.md`](../../fix_connection_pool.md).
+
 ## Affected apps
 - Confirmed: **designflow-tracking** (PM/PIM tracking service). Implementation:
   `models/db.js`; guarded by `tests/unit/db.migration.test.js`; app commit `6d22d93` on
