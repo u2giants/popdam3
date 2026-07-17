@@ -190,6 +190,40 @@ Highlights the next session must know:
 
 ---
 
+## Active workstream — Coldlion customer/vendor hub cleanup + extension-table design (2026-07-17)
+
+### What this is
+The Coldlion ERP customers (836) and vendors (539) were imported into the shared hubs, then the
+**customer** side was de-duplicated and status-curated. `core.customer` is now 859 rows
+(**140 active / 12 potential / 707 inactive**) with short `display_name`s, a `core.customer_alias`
+table, and `core.merge_customer()`. Status is app-owned (survives Coldlion re-pulls). CRM pickers
+now show `display_name` and hide inactive customers.
+
+### Reference docs (read these before continuing)
+- **[`docs/coldlion-customer-dedupe-review.md`](docs/coldlion-customer-dedupe-review.md)** — the
+  full customer dedup ruling ledger + final state (what merged, statuses, aliases, the Amazon
+  1P/3P split, defects found).
+- **[`docs/coldlion-customers-vendors-20260715.md`](docs/app-migration-notes/coldlion-customers-vendors-20260715.md)**
+  — the import/pipeline app-migration note.
+- **[`fix_vendor_review.md`](fix_vendor_review.md)** (repo root) — detailed cold-start handoff to do
+  the **vendor** (`core.factory`) equivalent (NOT STARTED: 529 rows, all active, no
+  alias/merge_factory/display_name yet).
+- **[`docs/per-app-extension-tables-plan.md`](docs/per-app-extension-tables-plan.md)** —
+  implementation plan for per-app extension tables (`crm/pim/dam/plm.customer_ext` etc.) so
+  app-specific attributes never bloat the shared `core.*` tables. Decision made 2026-07-17,
+  reviewed by Kimi K3.
+
+### Status
+- **Customers: DONE + merged** (shared-db PRs #83, #84, #85, #86, #88, #91, #94, #96; all applied
+  to prod). CRM picker frontend in **popcrm-web PR #3** (open, unmerged, awaiting review — merging
+  deploys the live CRM).
+- **Vendors: NOT STARTED** — follow `fix_vendor_review.md`.
+- **Extension tables: PLAN ONLY** — `docs/per-app-extension-tables-plan.md`; no migration written.
+- Frontend "hide inactive" for **poppim-web / popdam3** pickers: not started (same pattern as
+  popcrm-web PR #3).
+
+---
+
 ## How to ship a shared-db schema change (the sanctioned flow, proven this session)
 
 Full rules in [`AGENTS.md`](AGENTS.md) §4–§9. The mechanics that worked on 2026-07-15:
