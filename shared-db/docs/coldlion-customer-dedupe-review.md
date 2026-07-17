@@ -17,9 +17,27 @@
 >   its codes is still active. Result: **271 active / 658 inactive** (was 929 active). This is the
 >   big dropdown reduction. Reversible.
 >
-> **REMAINING (§3):** apply the per-row rulings below — merges, deletes, display_names, and the
-> active/inactive/**potential** overrides — then wire `status`/`display_name` into the serving
-> views so apps hide inactive and show `coalesce(display_name, name)`.
+> **DONE 2026-07-17 (part 2 — the destructive pass, §4 rulings applied):**
+> - `core.merge_customer` fixed for the CRM department/company consistency triggers (20260717125626).
+> - Applied all §4 rulings: **51 merges + 92 status sets + 3 deletes** (West End Express, New
+>   Development, DO NOT USE), plus the Amazon 1P/3P split and the duplicate-TJX collapse. Merges
+>   preserved every losing name as a `core.customer_alias` (73 aliases).
+> - `is_potential` synced to `status='potential'`.
+> - Autocomplete indexes added for customer `display_name` + factory `name` (20260717124807);
+>   `display_name` exposed in `api.crm_customer_list` / `api.crm_account_list` (20260717125909).
+>
+> **Final customer counts:** 929 → **859** total — **140 active · 12 potential · 707 inactive**.
+>
+> **STILL OPEN:**
+> - **Hiding inactive from app pickers is a FRONTEND change** (per-app: popcrm-web, poppim-web,
+>   popdam3, dflow). The DB now supports it — views expose `status` + `display_name`, and there are
+>   trigram indexes for type-ahead. Each app's customer + vendor picker must filter `status='active'`
+>   (or active+potential) and search server-side.
+> - **Dollarama** landed **inactive** (from the fresh Coldlion flag; no explicit ruling given) —
+>   confirm if it should be active.
+> - **Vendors (`core.factory`)** were NOT part of this dedup/status pass — still 529 rows, mostly
+>   Coldlion-active-seeded. A vendor review + display_name pass is future work.
+> - Collapse `customer_status` + `is_potential` into `status` and drop them (needs the app repos).
 
 Context: the Coldlion ERP import (2026-07-15) added 790 new canonical customers on top of the
 139 that already existed from Directus + DesignFlow. This document covers (1) the planned
