@@ -107,7 +107,7 @@ The local password-login failure is frontend-direct: the Angular local environme
 measurement. The complete corrective implementation and evidence gates are in the repository
 root [`fix_connection_pool.md`](../../fix_connection_pool.md).
 
-## Slice-A implementation and sandbox verification (2026-07-17)
+## Initial Slice-A implementation and sandbox verification (2026-07-17)
 
 The shared schema contract was reconciled before removing Backend's legacy startup mutation.
 Migration `20260717163500_reconcile_dflow_backend_startup_contract.sql` asserts every expected
@@ -144,12 +144,43 @@ its HTTP-listening message. Log review found zero `SequelizeConnectionAcquireTim
 `EMAXCONNSESSION`, session-ceiling message, `db_startup_fatal`, or
 `application_startup_fatal` matches; the latest sampled pools had zero waiters.
 
-This is deployment evidence, not completion of the incident. The affected India workstation
-must still supply A0/A5, including ≥50 cold factory connects with p99, a classified current
-Supavisor allowance, the DNS/TCP/TLS/pooler timing breakdown, and 10/10 cold login plus first-page
-successes. Tracking/Data Syncing production `DB_POOL_MAX` must remain unchanged until their new
-instrumentation is deployed to production and real usage is measured. Uma reviews/merges the
-DesignFlow PRs; the AI does not self-merge them. Slice B remains deferred until A5 passes.
+The initial session-mode checkpoint above is retained as history. It was superseded later the
+same day by the platform-architecture rollout below.
+
+## Final transaction-pooler architecture and verification (2026-07-17)
+
+Albert explicitly chose a platform/database architecture rather than a workstation-specific
+profile. The final implementation uses Supavisor transaction mode (`:6543`) for all four
+auto-scaling Cloud Run services. A cross-repo audit found no named prepared statements,
+temporary tables, session `SET` state, advisory locks, LISTEN/NOTIFY, server cursors, or
+cross-request connection affinity. Preview checks proved authentication, queries, and a real
+Sequelize transaction on port 6543.
+
+Every service now has the same validated contract: max 5, min 0, acquire 20s, idle 10s,
+evict 5s, connect 15s, five auth attempts, application-name labels, readiness before listen,
+bounded jittered retry, safe pool telemetry, and graceful owned-pool shutdown. Invalid or unsafe
+configuration fails startup. Tracking/Data Syncing's old max-22 defaults are gone.
+
+GCP Secret Manager `DB_PORT` version 2 is `6543`. Retaining the existing secret binding was the
+only atomic Cloud Run transition: two attempts to replace the binding with a literal were
+rejected because Cloud Run cannot change one variable's source type in the same revision.
+Healthy prior revisions remained live; no partial configuration deployed.
+
+| Service | Head | Tests | Successful build | Ready transaction-mode revision | `db_ready` |
+|---|---|---:|---|---|---:|
+| Item Master | `bca5f16` | 71 | `9197d6a4-5c22-48d1-87db-892c80a114da` | `popcre-albert-item-sandbox-00044-mhw` | 2,897 ms |
+| Tracking | `a14afc1` | 144 | `d10b77b8-abdd-48e3-83ea-f608d04ee17e` | `popcre-albert-tracking-sandbox-00039-r28` | 1,551 ms |
+| Data Syncing | `509c010` | 71 | `c612ec1e-1744-4cfe-aa05-1b9158293423` | `popcre-albert-sync-sandbox-00036-hdd` | 1,052 ms |
+| Core Backend | `b4a015a` | 407 | `804e1c4b-9bed-4445-b4d4-e1113b8c7ab0` | `popcre-albert-core-sandbox-00075-2b6` | 2,463 ms |
+
+Total unit tests: 693. Authenticated sandbox smoke returned 200 for login (455 ms), token
+verification (127 ms), Item Library first page (991 ms), and Tracking first page (969 ms).
+Every revision logged its validated application name and database readiness before HTTP listen.
+Log review found zero acquire-timeout, session-ceiling, or startup-fatal matches.
+
+The architecture is sandbox-complete. Uma reviews/merges the four DesignFlow PRs; the AI does
+not self-merge them. Completion after merge is production revision readiness plus the same
+login/token/first-page and error-log checks—no geographic workstation benchmark is a gate.
 
 ## Affected apps
 - Confirmed: **designflow-tracking** (PM/PIM tracking service). Implementation:

@@ -9,7 +9,7 @@ for a developer with **zero** prior context. Read it, then read the linked plan.
 
 ---
 
-## Active workstream — DesignFlow local database connection-pool remediation
+## Active workstream — DesignFlow database connection architecture
 
 ### What this is
 
@@ -20,42 +20,38 @@ to Google Cloud Run. The app repos are the six `popcre/designflow-*` repositorie
 `C:/repos/dflow`; their sandbox branches serve `https://sandbox-albert.designflow.app`. All four
 services share the hosted Supabase PostgreSQL project governed by this `u2giants/shared-db` repo.
 
-DesignFlow developers connecting from India can authenticate successfully but then receive
-`SequelizeConnectionAcquireTimeoutError: Operation timeout` on the first database-backed
-request after a cold local startup. The measured new-connection handshake to the shared
-Supabase pooler in AWS `us-east-1` is roughly 11–12 seconds. This is an application connection
-lifecycle and local configuration problem, not a schema defect or a reason to terminate shared
-database sessions.
+The durable design now separates schema control from runtime connections: shared-db migrations
+own all DDL, while auto-scaling Cloud Run services use Supavisor transaction mode and small,
+validated per-process pools. The architecture is based on the deployed platform, not any one
+developer workstation or network path.
 
 ### What we set out to do, and why
 
-Implement [`fix_connection_pool.md`](fix_connection_pool.md) v2.1 without masking the failure
-with arbitrary larger timeouts or killing shared sessions. Slice A moves Core's legacy startup
-DDL under shared-db ownership, gates traffic on database readiness, makes retries safe under a
-hard session ceiling, and adds sanitized telemetry for the remaining runtime budgets. Slice B
-hardening is intentionally later.
+Implement [`fix_connection_pool.md`](fix_connection_pool.md) v3.0: move Core's legacy startup
+DDL under shared-db ownership, use transaction pooling for Cloud Run, bound and validate every
+client pool, gate traffic on readiness, label connections, and drain owned connections cleanly.
 
 ### Current state
 
-Workstream S and the code portion of Slice A are complete; runtime acceptance is not.
+Schema, code, automated tests, transaction-mode compatibility, and sandbox acceptance are
+complete. Uma's normal PR review/merge and post-merge production verification remain.
 
 - Migration `20260717163500_reconcile_dflow_backend_startup_contract.sql` was checked,
   dry-run/applied to preview, proven compatible with the old Core boot, merged in shared-db PR
   [#97](https://github.com/u2giants/shared-db/pull/97), applied to production by successful run
   `29611459054`, and audited live. Merge SHA: `293fd90697bb0a0024e196d6b4a2da2e298dbd15`.
-- App commits are pushed on `sandbox-albert`: Item Master `142f88a`
-  ([PR #37](https://github.com/popcre/designflow-item-master/pull/37)), Tracking `d8a1ac8`
-  ([PR #25](https://github.com/popcre/designflow-tracking/pull/25)), Data Syncing `12a4d60`
-  ([PR #16](https://github.com/popcre/designflow-data-syncing/pull/16)), and Core `ae86ffa`
+- App heads are pushed on `sandbox-albert`: Item Master `bca5f16`
+  ([PR #37](https://github.com/popcre/designflow-item-master/pull/37)), Tracking `a14afc1`
+  ([PR #25](https://github.com/popcre/designflow-tracking/pull/25)), Data Syncing `509c010`
+  ([PR #16](https://github.com/popcre/designflow-data-syncing/pull/16)), and Core `b4a015a`
   ([PR #62](https://github.com/popcre/designflow-backend/pull/62)). Uma has not merged them;
   the AI must not merge DesignFlow PRs.
-- All four full unit suites passed: 645 tests total. A concurrent preview boot also passed on
-  first attempt; its sanitized, explicitly non-A0 evidence is in Backend
-  `qa-artifacts/connection-pool/baseline-20260717.md`.
-- All four sandbox Cloud Builds succeeded and deployed ready revisions. Each emitted `db_ready`
-  before HTTP listen. Deployed BFF checks returned 200 for login, token verification, Item
-  Library first page, and Tracking first page. New-revision logs had zero acquire-timeout,
-  session-ceiling, or startup-fatal matches and the latest snapshots had zero pool waiters.
+- All four full unit suites passed: 693 tests. Preview port-6543 checks passed for all four
+  services, including a real Sequelize transaction.
+- GCP Secret Manager `DB_PORT` version 2 is 6543. The four new sandbox builds succeeded and
+  deployed ready transaction-mode revisions. Each emitted a validated application name and
+  `db_ready` before HTTP listen. Login, token, Item Library, and Tracking checks returned 200;
+  logs had zero acquire-timeout, ceiling, or startup-fatal matches.
 - Exact builds, revisions, and timings are in
   [`docs/verification/supabase-pooler-idle-connection-drop-20260623.md`](docs/verification/supabase-pooler-idle-connection-drop-20260623.md).
 
@@ -67,50 +63,41 @@ Workstream S and the code portion of Slice A are complete; runtime acceptance is
 - A local preview `supabase db push --dry-run` listed ten migrations because preview lagged
   production. The GitHub preview workflow applied the backlog plus reconciliation cleanly. No
   applied migration was edited.
-- This US workstation cannot reproduce or certify the India 11–12 second cold path. Its fast
-  timings are implementation evidence only and must not substitute for A0/A5.
-- Production Tracking/Data Syncing pool use is unknown. Their code default remains 22 and no
-  Cloud Build override was guessed; changing it without G4 would violate v2.1.
+- Cloud Run rejected two attempts to change `DB_PORT` from a secret reference to a literal in
+  the same revision. A two-revision removal would temporarily omit a required setting, so the
+  final atomic path retained the binding and added secret version 2 with value 6543. Healthy old
+  revisions remained live throughout.
 
 ### Root causes and key findings
 
 - Core boot previously launched `sequelize.sync()` plus 43 unawaited DDL/data statements against
   its max-5 pool. That block is gone and a regression test prevents its return.
-- Slow resource creation and cross-service/session contention can both consume Sequelize's
-  acquire clock; an acquire timeout alone does not distinguish them. India A0 must classify it.
+- Session-mode clients unnecessarily reserved database backends across idle Cloud Run sessions.
+  Transaction mode now shares backends only while queries/transactions are active.
 - Live preview/production audit found every expected Core model table, column, and index already
   present, no lowercase orphan, and no pending factory-country backfill. The migration therefore
   reconciles/asserts canonical state without a destructive drop.
-- All four services use shared Supavisor session mode. The last observed ceiling is 15, but its
-  exact meaning/current value remain unclassified. Pool maxima are per instance, so the aggregate
-  max-instances envelope can exceed the limit even when idle pools are empty.
+- All services now use validated max-5/min-0 pools, bounded deadlines, application labels,
+  readiness gates, ceiling-aware retry, and graceful owned-pool shutdown. The code audit found no
+  prepared statements or session-local features that would require session affinity.
 
 ### Exact next steps
 
-1. On the affected India workstation, check out the four commits above and append the A0 matrix
-   to Backend `qa-artifacts/connection-pool/baseline-20260717.md`: ≥5 cold and ≥5 warm runs plus
-   ≥50 cold factory connects. **Pass when** p99, error classification, peak pool state, and the
-   DNS/TCP/TLS/pooler breakdown are recorded without secrets.
-2. Classify the current Supavisor allowance using pooler-client observability or a controlled
-   connection test; reserve at least 20%. **Pass when** G2 has a value and type, not merely 15.
-3. Apply the untracked India `.env.localhost` profile only if G1 permits it, using A3's exact
-   budget formula. **Pass when** it stays below the shared slot budget and is not committed.
-4. Run A5 from India: ten fully cold login-plus-first-page cycles. **Pass when** 10/10 succeed on
-   first attempt with zero acquire timeout, `EMAXCONNSESSION`, relevant 5xx, or BFF timeout.
-5. Give Uma the four PRs and evidence for review/merge. **Pass when** Uma merges each to
-   `develop` and its normal deployment is healthy; the AI does not merge them.
-6. Measure real production Tracking/Data Syncing usage from the new pool snapshots, then add
-   explicit measured `DB_POOL_MAX` Cloud Build substitutions in A4 follow-ups. **Pass when** G4
-   and the service×instance envelope are documented and sandbox concurrency has no waits.
-7. Only after A5 passes, implement Slice B as separate PRs and update this handoff. **Pass when**
-   every §13 completion condition in v2.1 is true.
+1. Give Uma the four PRs and the v3 evidence for normal review. **Pass when** Uma merges each to
+   `develop`; the AI does not merge them.
+2. Watch each normal production deployment. **Pass when** the latest revision is ready, carries
+   its production application name, and logs `db_ready` before HTTP listen.
+3. Run production login, token, Item Library, and Tracking smoke checks. **Pass when** all return
+   200 and logs contain no acquire timeout, ceiling, startup fatal, forced shutdown, or relevant
+   5xx.
+4. Review Supabase/Cloud Run connection telemetry after real traffic. **Pass when** backend/client
+   pressure stays within platform capacity and pool snapshots show no sustained waiters.
 
 ### Constraints and gotchas
 
-Keep `pool.min=0`, idle 10s, evict 5s, keep-alive, and the BFF normal timeout at 30s. Never use
-`pg_terminate_backend`, raise timeouts without G1, add app-repo DDL, guess production pool sizes,
-or switch pooler mode without the plan's compatibility/approval gate. Slice B must not precede
-A5.
+Keep transaction mode for auto-scaling application traffic, pool max 5/min 0, idle 10s, evict
+5s, keep-alive, and BFF normal timeout 30s. Never add app-repo/startup DDL, broad session
+termination, unbounded pools, or session-local features without an architecture review.
 
 ### Access and environment
 
@@ -122,10 +109,10 @@ committed. shared-db is on `main`; DesignFlow repos are on `sandbox-albert`. Pre
 
 ### Open questions and risks
 
-G1/G2/G3/G4/G7/G8 remain open exactly as listed in v2.1. The principal risk is approving pool
-or timeout values from fast US/sandbox evidence when the incident is on a slow India path. The
-second risk is the instance×pool envelope exceeding a platform limit that is still unclassified.
-No schema rollback is needed: the reconciliation migration is additive/assertive.
+The only delivery risk is a future feature silently depending on session affinity (prepared
+statements, temp tables, session `SET`, advisory locks, LISTEN/NOTIFY, or cross-request state).
+Such a feature must trigger an explicit connection-architecture review. No schema rollback is
+needed: the reconciliation migration is additive/assertive.
 
 ---
 
