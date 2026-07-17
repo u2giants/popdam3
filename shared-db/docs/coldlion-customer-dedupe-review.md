@@ -1,10 +1,25 @@
 # Coldlion customer dedupe + status model — review & PENDING decisions
 
-> **STATUS: OPEN — nothing in this document has been implemented.** It records decisions taken
-> and analysis done on 2026-07-16, and the questions that still block execution.
-> **Delete each section marked `PENDING` once it is actually implemented**, and fold the
-> permanent facts into
+> **STATUS: PARTIALLY IMPLEMENTED (2026-07-17).** Schema + the reversible bulk are DONE;
+> the destructive per-row merges/deletes are the remaining step (§3 below). Delete each
+> section once its work lands, and fold permanent facts into
 > [`app-migration-notes/coldlion-customers-vendors-20260715.md`](app-migration-notes/coldlion-customers-vendors-20260715.md).
+>
+> **DONE 2026-07-17:**
+> - Re-pulled Coldlion customers — they reclassified hard: **153 active / 683 inactive** now
+>   (was 834 active at first import).
+> - `app.entity_status` gained **`potential`** (migration 20260717122237).
+> - `core.customer` gained **`display_name`**; unused **`legal_name` dropped**; `normalized_name`
+>   rebuilt from `name` alone (20260717122317).
+> - `core.customer_alias` table (20260716143231) + **`core.merge_customer(loser,survivor)`**
+>   (20260717123020), rehearsed.
+> - **Status seeded from fresh Coldlion flags:** a Coldlion-mapped customer is active iff ≥1 of
+>   its codes is still active. Result: **271 active / 658 inactive** (was 929 active). This is the
+>   big dropdown reduction. Reversible.
+>
+> **REMAINING (§3):** apply the per-row rulings below — merges, deletes, display_names, and the
+> active/inactive/**potential** overrides — then wire `status`/`display_name` into the serving
+> views so apps hide inactive and show `coalesce(display_name, name)`.
 
 Context: the Coldlion ERP import (2026-07-15) added 790 new canonical customers on top of the
 139 that already existed from Directus + DesignFlow. This document covers (1) the planned
@@ -271,3 +286,90 @@ select c.name, string_agg(r.source_id, ', ' order by r.source_id), count(*)
 from core.company_source_ref r join core.customer c on c.id=r.company_id
 where r.source_system='coldlion' group by c.id, c.name having count(*)>1 order by 3 desc;
 ```
+
+---
+
+## 4. FINAL RULINGS (Albert, 2026-07-17) — execution ledger for the REMAINING work
+
+Status seeding (done) already set most rows to the right active/inactive from the fresh Coldlion
+flags. What remains is the per-row **merges, deletes, display_names, and `potential` overrides**.
+"Merge X→Y" = `core.merge_customer(X_id, Y_id)`; the loser's name is auto-kept as an alias.
+
+### 4.1 Clarifications to the family rulings
+- **Amazon (SPLIT, not merge):** `AMA030` + `AMA3P` share the name `AMAZON.COM.INDC LLCQ` and were
+  wrongly merged into ONE row. SPLIT: `AMA030` = Amazon 1P, display **"Amazon"**, **active**. Move
+  `AMA3P` + `UCI` onto one **"Amazon 3P"** row, **inactive**. Directus/DesignFlow "Amazon" → 1P row.
+- **Walmart:** `WAL010` B&M **active**, display "Walmart"; `WAL070` (dup) → merge into WAL010; `WAL060`
+  (.com/1P), `WAL080` (seller/3P), `WAL020` (Canada) separate **inactive**; directus "Walmart" → WAL010.
+- **Target:** `TAR010` B&M + `TAR020` .COM separate, **both inactive**; `TAR081` (Panama) diff co, **inactive**.
+- **Nordstrom:** directus Nordstrom + `NOR020` Rack → **merge**, **inactive**.
+- **Big Lots:** `BIG226` (US) **active**, display "Big Lots"; `BIG225` (Canada) **inactive**; `WIS030`
+  (same name, Coldlion-inactive, unpromoted) = Big Lots, inactive.
+- **TJX (US):** merge `NEW010`+`NEW349` (TJ Maxx) + `MAR020` (Marshalls) + directus "The TJX Companies,
+  Inc." → **"TJX" active**; aliases TJ Maxx, Marshalls, The TJX Companies Inc.
+- **TJX UK:** `TKM300` **inactive**; directus "Tjxeurope" → alias.
+- **TJX Canada:** merge `WIN030` + `HOM030` + `CMA030` + directus "Tjxcanada" → **"TJX Canada" active**;
+  aliases Winners, HomeSense, Marshalls Canada (no literal HomeSense row exists in Coldlion).
+- **Dollarama:** merge `Dollarama L.P.` + `Dollarama` + `DOL580` → name **"Dollarama"**.
+- **Burlington:** merge `Burlington Stores, Inc.` + `Burlington` + `MOD010` + `MOD011` → name
+  **"Burlington"**, **active**; alias **"Modecraft"** (legacy_name).
+- **Gordon Brothers:** merge `GORDON BROTHER'S GROUP` (GBG802-807) + `GORDON BROTHERS GROUP` (GBG800-801)
+  + directus `Gordon Brothers` → one, **inactive**.
+- **Dollar Tree:** `DTM500` (US) **active**; merge `DOL800` + `DOL200` (Canada) → **inactive**.
+- **General → Dollar General** (`DOL900`) **active**; `GED080` GENERAL DISCOUNT separate **inactive**.
+- **DO NOT USE** (`DOL060`,`OUA115`): ERP junk. **Delete** the canonical row (like West End Express).
+
+### 4.2 Sheet 1 — multi-code groups (all confirmed one customer)
+`potential`: Barnes & Noble.
+`inactive`: BOB BAY & SON, CLOSE OUT CENTER, DOLLAR VILLAGE, DUAV CHILDRENS WEAR, HUDSON GROUP,
+III NYC 99, MINIMAX STORES, NEBRASKA FURNITURE MART, NEXUS, OFFICE 1 SUPERSTORES, TOYS 4 U.
+**DELETE (not a customer):** WEST END EXPRESS — remove canonical row, keep only in the ERP mirror.
+
+### 4.3 Sheet 2 — pre-existing Directus/DesignFlow customers (110 rows)
+
+**A**=active **I**=inactive **P**=potential. "→X" = merge into X. "=alias of X" = keep X, add string as
+alias. "2 diff" = two different companies, NOT merged.
+
+**Own company (no merge):** POP MART (P) · Rooms to Go (A) · Shoppers Drug Mart (I) · Spencer's (A) ·
+Toys"R"Us (I) · Tree Shops (I) · Lowe's Foundation (I) · Albertson Corp (I) · Claire's (P) · Faire (I) ·
+Forman Mills (A) · GameStop (P) · H-E-B (I) · Hilco Global (I) · Hmv (I) · J C Pennys (I) · Mardel (I) ·
+Marine Corps Community Services (I) · Mazelcompany (I) · Me Salve (I) · Menard's (A) · Miniso (A) ·
+Nonfoods (I) · Ocean State (P, display "Ocean State") · Onceuponachildrockhill (I) · Osjl (I) ·
+Overstock (I) · Sam's Club (P) · Spirit Halloween (A) · STORY at Macy's - NYC (I) · The Home Depot
+Exteriors (I) · Toynk (I) · Tractor Supply (P) · Urban Outfitters (P) · Urban Outfitters Europe (I) ·
+Vwhlsl (I) · Yankee Toy Box (I) · pOpshelf (A) · Gabes (A) · AAFES (A).
+
+**Merge into a Coldlion row (loser name kept as alias; display = short label):**
+4 Seasons → **4SGM** (A) [+ Four Seasons General Merchandise + FSG090 here; FSG242 FOUR SEASONS GIFTS is
+SEPARATE, I] · 99 Only → 99 Cents Only Stores LLC (99C100 = 99C400) I · At Home → AT HOME STORES (ATH160)
+P · At Home Group Inc. = alias of AT HOME STORES · Bealls, Inc. → **Bealls Outlet** (BEA020) A · Books A
+Million (A) [BOOKS & BOOKS Cayman = 2 diff, I] · BoxLunch (BOX030) A · Christianbook (I) · Citi Trends
+(ALL020) I · Cook Brothers Corp → COOK BROTHERS INC. (COO174) I · Danawares (DAN001) A · DD's Discounts
+(DDS100) A · DESPERATE ENTERPRISES → **Desperate Enterprises** (DES001) A · Diamond Comic Distributors
+(DCD101) I · Ebapparel → E B APPAREL INC (EBA090) I · Four Seasons General Merchandise → **4SGM** (FSG090)
+A · FYE → **FYE** (TRA020 Transworld) P · General → **Dollar General** (DOL900) A · Giant Tiger (GAI222) I
+· Hobby Lobby (HLL770) A · Hot Topic (HOT030) A · Hy-Vee (I) · Kirkland's (KIR500) I · Kohl's (KOH010) P ·
+Kroger (KROG001) P · Lidl (LIDL) A · Nebraska Furniture Mart (NFM020/NFM345) I · Ollie's Bargain Outlet →
+**Ollies** (OLL629) A · Spencer's (SPE682) A · Variety Stores, Inc. → display **VW** = "Variety
+Wholesalers", A [EXCELLENT VARIETY STORE INC EVS171 = 2 diff, I; **VW ≠ Vwhlsl**] · Zulily (ZUL308) I.
+
+**Two-different-companies, BOTH inactive (no merge):** Bargain Hunt · Beacon Products Inc (+GNI250) ·
+Boscov's (+BOL006) · C&S Wholesale (+SJL2) · DII Enterprises (+JAX278) · MAC Wholesale (+MEG552) ·
+Mid-States Distributing (+MID120) · Midwest Marketing (+ALI291) · Midwest Trading (+MID100) · National
+Wholesale Liquidators (+LIQ150) · Petra Industries (+HMS720) · Regent Products (+REG899) · Sunrise Records
+(+REC127) · Super Value Market (+LTS126) · Wakefern (+ATL006) · Weis Markets (+IMI667).
+
+**Internal alias merges (same company twice; keep decided one, other becomes alias):**
+Aldi's + ALDI USA → **Aldi** (A) · B&N + Bn → Barnes & Noble · BAM → Books A Million · Bealls → Bealls
+Outlet · DDs → DD's Discounts · Dii → DII Enterprises LLC (I) · Gabe's → Gabes (A) · Menard Inc → Menard's
+· Miniso-us → Miniso · Ollies (df) → Ollies · Pop Shelf → pOpshelf (A) · United Pacific Designs Inc. →
+**UPD** · Shoppers World + Shopperworld → alias of **Forman Mills** · Telcostores (I) · The TJX Companies →
+TJX · Tjxcanada → TJX Canada · Tjxeurope → TJX UK.
+
+### 4.4 OPEN conflicts to confirm before executing 4.3
+1. **Homegoods** status never given (merge Homegoods + HOM020 → "Homegoods"; A or I? and is it part of
+   TJX US — HOM020 is at Framingham MA = TJX HQ — or its own customer?).
+2. **UPD**: "United Pacific Designs Inc." → merge_into UPD, but the "UPD" row is marked inactive. One
+   customer, display "UPD" — active or inactive?
+3. **DO NOT USE**: delete (like West End Express) or inactivate?
+4. **New Development**: DesignFlow-only placeholder — leave as-is in the shared hub, or delete?
