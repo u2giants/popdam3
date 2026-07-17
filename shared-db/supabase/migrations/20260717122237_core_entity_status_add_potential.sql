@@ -1,0 +1,12 @@
+-- Add 'potential' to app.entity_status so core.customer.status can carry the
+-- three business states our apps go by: active, inactive, potential.
+--
+-- Background: Albert's model is that OUR status is app-owned and NOT identical to
+-- Coldlion's active flag. 'potential' means a real prospect (in the ERP or not)
+-- that we are not actively selling yet. This deprecates the old parallel signals
+-- (core.customer.customer_status text, is_potential boolean), which will be
+-- collapsed into status and dropped in a later, app-coordinated change.
+--
+-- Must be its own migration: Postgres forbids using a newly added enum value in
+-- the same transaction that adds it, so no row is set to 'potential' here.
+alter type app.entity_status add value if not exists 'potential';
