@@ -114,6 +114,32 @@ four rules below are non-negotiable for any database change.
    `YYYYMMDDHHMMSS_*.sql` file. Never edit a migration that has already been
    applied anywhere — that is how two sessions silently clobber each other.
 
+## 4.1 App-specific attributes go in per-app extension tables (decided 2026-07-17)
+
+When an app needs a field on a shared canonical entity (`core.customer`,
+`core.factory`, etc.) that other apps don't care about, **do NOT add a column to
+the shared `core.*` table.** Put it in a per-app **extension table** in that app's
+own schema: `crm.customer_ext`, `dam.customer_ext`, `pim.factory_ext`, etc.
+
+- **Shape:** 1:1 with the core row — `customer_id uuid primary key references
+  core.customer(id) on delete cascade` (no surrogate id). A missing ext row means
+  "all defaults"; consumers LEFT JOIN it.
+- **RLS/grants:** the ext table lives in the app's schema and follows that app's
+  existing policy pattern. Remember: an RLS policy is **not** a GRANT — a
+  browser-writable app table needs both.
+- **Views:** each app's own `api.*` view joins core + *its* ext table. Never one
+  mega-view joining every app's ext tables.
+- **A column stays on `core.*` only if** two+ apps need it, or it's
+  identity/classification (name, status, domain, address), or it feeds cross-app
+  joins/shared pickers. Provenance/sync bookkeeping stays in `core.*_source_ref`.
+  No jsonb bags for structured fields; **no EAV, ever.**
+- The grandfathered CRM-ish columns already on `core.customer`
+  (`customer_status`, `chain_type`, `routing_aliases`, `so_patterns`, …) are left
+  as-is — do not migrate them out now; just don't add more.
+
+Full implementation guide (DDL template, per-app sections, rollout order):
+[`docs/per-app-extension-tables-plan.md`](docs/per-app-extension-tables-plan.md).
+
 ## 5. The `shared-db` merge protocol (the checklist the AI runs)
 
 Merge a `shared-db` PR **only when every item is true**:
