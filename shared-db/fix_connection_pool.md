@@ -2,7 +2,8 @@
 
 **Date:** 2026-07-17
 
-**Status:** Plan only; supersedes the original 2026-07-17 version. Implementation not started.
+**Status:** Slice A implemented through sandbox verification on 2026-07-17; A0/A3/A4/A5
+runtime gates remain open. Slice B must not start until A5 passes.
 
 **Provenance:** Root cause re-ranked and scope corrected after critique, then independently
 reviewed by two separate engines (Kimi K2 and GPT-5.6/Codex at medium effort). v2.1 folds in
@@ -16,6 +17,23 @@ Run services, all against the shared hosted Supabase project `qsllyeztdwjgirsysg
 **Schema impact:** Exactly one sanctioned schema workstream: relocating `designflow-backend`'s
 inline startup DDL into `u2giants/shared-db` migrations (Workstream S, §4). No other database
 object, data, role, policy, or Supabase setting may change.
+
+### Implementation checkpoint — 2026-07-17
+
+- Workstream S is complete: migration
+  `20260717163500_reconcile_dflow_backend_startup_contract.sql` was preview-tested, merged in
+  shared-db PR #97, applied to production, and verified live.
+- Slice-A code is pushed to the four `sandbox-albert` branches: Item Master `142f88a`
+  (PR #37), Tracking `d8a1ac8` (PR #25), Data Syncing `12a4d60` (PR #16), and Backend
+  `ae86ffa` (PR #62). Uma has not merged these PRs.
+- All four sandbox builds and revisions are healthy. Readiness precedes HTTP listen; deployed
+  login, token verification, Item Library first-page, and Tracking first-page checks returned
+  200; the new revisions had zero connection-pool/startup-fatal matches at verification time.
+- A US implementation-machine concurrent preview boot is recorded in Backend
+  `qa-artifacts/connection-pool/baseline-20260717.md`. It is not A0/A5 evidence.
+- Still open: India-workstation cold/warm matrix and ≥50-connect p99 (G1/G3/G7), classified
+  Supavisor allowance (G2), production Tracking/Data Syncing pool usage and explicit Cloud Build
+  limits (G4/G8), A3 local profile, and 10/10 cold end-to-end acceptance (A5).
 
 ## 1. Incident summary
 

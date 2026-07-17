@@ -17,9 +17,10 @@ staleness, not the query.
 ## Required client pool settings (verified fix)
 For any app backend connecting to the shared Supabase over TCP with a persistent pool:
 
-- `pool.max` must be sized against the Supabase pooler's configured session limit. For the
-  Designflow sandbox services using the shared Supabase pooler, keep app defaults at `5` unless
-  the pooler plan/config is changed and a cross-service connection budget is recalculated.
+- `pool.max` must be sized against measured use and the Supabase pooler's configured session
+  limit. Backend and Item Master use `5`; Tracking and Data Syncing retain their historical
+  `22` only until committed instrumentation supplies the production evidence needed to choose
+  and pin lower explicit limits. Never guess the latter values in the dark.
 - `pool.min = 0` — never hold an idle connection that can go stale.
 - short `pool.idle` (~10s) + a `pool.evict` sweep (~5s) — close idle connections before the
   pooler does.
@@ -105,6 +106,50 @@ The local password-login failure is frontend-direct: the Angular local environme
 30-second normal-route timeout remains relevant to deployed verification, not the local timing
 measurement. The complete corrective implementation and evidence gates are in the repository
 root [`fix_connection_pool.md`](../../fix_connection_pool.md).
+
+## Slice-A implementation and sandbox verification (2026-07-17)
+
+The shared schema contract was reconciled before removing Backend's legacy startup mutation.
+Migration `20260717163500_reconcile_dflow_backend_startup_contract.sql` asserts every expected
+table/column/index, performs the restart-safe factory-country backfill and buyer-margin seed,
+and fails loudly if the lowercase orphan column exists. It was applied to preview, proven
+compatible with the old Backend boot path, merged in shared-db PR
+[#97](https://github.com/u2giants/shared-db/pull/97), then applied and audited in production.
+Production apply run `29611459054` succeeded; migration history and all asserted objects were
+verified live.
+
+Slice-A application commits and review PRs:
+
+| Service | Commit | PR | Sandbox build | Ready revision | `db_ready` |
+|---|---|---|---|---|---:|
+| Item Master | `142f88a` | [#37](https://github.com/popcre/designflow-item-master/pull/37) | `2d809d9d-7012-45e4-aec8-48134ffebb3c` | `popcre-albert-item-sandbox-00043-rpn` | 3,992 ms |
+| Tracking | `d8a1ac8` | [#25](https://github.com/popcre/designflow-tracking/pull/25) | `81cd727b-76f5-4f9e-8f19-e7f20f9784d1` | `popcre-albert-tracking-sandbox-00038-mfh` | 1,526 ms |
+| Data Syncing | `12a4d60` | [#16](https://github.com/popcre/designflow-data-syncing/pull/16) | `a0a519e8-84b2-43d2-8226-6a9fbebc7d39` | `popcre-albert-sync-sandbox-00035-rqg` | 968 ms |
+| Core Backend | `ae86ffa` | [#62](https://github.com/popcre/designflow-backend/pull/62) | `22ce12a4-bc6f-4021-8cfe-e2a910ba70bf` | `popcre-albert-core-sandbox-00074-7v7` | 2,462 ms |
+
+Implemented behavior:
+
+- Core no longer runs `sequelize.sync()` or 43 fire-and-forget DDL/data statements at boot.
+- Core, Tracking, and Data Syncing now wait for database readiness before listening; Tracking
+  also waits before its four startup cache query groups. Item Master keeps its existing gate.
+- All four services classify session-ceiling errors separately, retry transient failures with
+  bounded full jitter, fail fast for credentials/config/programming failures, and emit sanitized
+  connection creation/acquire/pool snapshots without SQL or secrets.
+- Unit verification passed: Core 395, Item Master 59, Tracking 132, Data Syncing 59 (645 total).
+
+Deployment verification through the public sandbox BFF Cloud Run URL returned HTTP 200 for
+password login (381 ms), token verification (130 ms), Item Library's first-page request
+(4,435 ms), and Tracking's first-page request (991 ms). Each revision logged `db_ready` before
+its HTTP-listening message. Log review found zero `SequelizeConnectionAcquireTimeoutError`,
+`EMAXCONNSESSION`, session-ceiling message, `db_startup_fatal`, or
+`application_startup_fatal` matches; the latest sampled pools had zero waiters.
+
+This is deployment evidence, not completion of the incident. The affected India workstation
+must still supply A0/A5, including ≥50 cold factory connects with p99, a classified current
+Supavisor allowance, the DNS/TCP/TLS/pooler timing breakdown, and 10/10 cold login plus first-page
+successes. Tracking/Data Syncing production `DB_POOL_MAX` must remain unchanged until their new
+instrumentation is deployed to production and real usage is measured. Uma reviews/merges the
+DesignFlow PRs; the AI does not self-merge them. Slice B remains deferred until A5 passes.
 
 ## Affected apps
 - Confirmed: **designflow-tracking** (PM/PIM tracking service). Implementation:
