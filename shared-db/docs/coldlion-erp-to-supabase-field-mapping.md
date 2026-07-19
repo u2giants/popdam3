@@ -58,8 +58,8 @@ dflow dependency, but we'd re-implement the merch-group → licensor/property en
 | `mg02_code` | `Product Sub-Type (Construction)` | `merchGroup02` |
 | `mg03_code` | `Product Sub-Sub-Type (feature)` | `merchGroup03` |
 | `mg04_code`–`mg06_code` | (further dflow merch fields) | `merchGroup04`–`merchGroup06` |
-| `licensor_code` | `licensor` (enriched label) | ⚠️ **gap** — Coldlion has no explicit licensor; it lives in a `merchGroupNN`/`royaltyCode`. Needs a code→label map |
-| `property_code` | `property` (enriched label) | ⚠️ **gap** — same as licensor |
+| `licensor_code` | `licensor` (enriched label) | `merchGroup05` **in divisions CW001/SP001 only** — see [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md). Coldlion *does* have explicit licensors (22 in CW001, `mgTypeCode='05'`); what it lacks is the licensor→property **relationship** |
+| `property_code` | `property` (enriched label) | `merchGroup06` **in divisions CW001/SP001 only** (258 values). In EH001 the same slot is "Little Theme"; in EP001 it is "Product Type" — **never map by number alone** |
 | `size_code` | `size` | `sizeRangeCode` (header) / `sizeCode` (detail) |
 | `division_code` | *(null in dflow path)* | `divisionCode` ✅ (direct pull would populate this) |
 | `prepack_code` | `prepackCode` | `prePackCode` (itemDetails) |

@@ -14,6 +14,18 @@ live OpenAPI spec plus real calls made 2026-07-15.
 - **Company scope:** `companyCode=EDGEHOME` is the tenant. `divisionCode` (e.g. `EP001`,
   `SP001`) narrows further.
 
+> ### ⚠️ Merch groups: read the taxonomy doc first
+> `mgTypeCode` has **no fixed meaning** — `05` is Licensor in CW001/SP001 but "Big Theme" in
+> EH001 and "Product Line" in EP001. Coldlion has **no licensor→property relationship** and
+> **no active/inactive flag** anywhere in the merch-group payload. Codes are unique only
+> within `(division, mgTypeCode)`. Full detail, with live counts and the known defects:
+> [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md).
+
+> ### Known outage (2026-07-19)
+> **`GET /items` returns HTTP 500 `java.lang.NullPointerException`** on every parameter
+> combination tried. Server-side; it was working 2026-07-15. All other read endpoints verified
+> healthy the same day. `/salespersons` returns 400 without additional params.
+
 ## Paging & incremental-sync conventions
 List endpoints are Spring-paged:
 - `page` (0-based, default 0), `size` (default 50), `sort=property,asc|desc`
@@ -33,8 +45,8 @@ Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,
 | `/itemDetails` | Item **detail** (SKU level: dims, costs, UPC/EAN/GTIN, prices A–H). **PUT** to update | companyCode, divisionCode, itemNo, itemPkey |
 | `/itemImages` | Item image content (base64 + thumbnail128). **PUT** to update | itemNo *(req)*, companyCode, divisionCode |
 | `/inventory` | On-hand qty by SKU/warehouse | itemNo, warehouseSku, paging |
-| `/merchGroupHeaders` | Merch group headers | companyCode, divisionCode, mgTypeCode |
-| `/merchGroupDetails` | Merch group values | companyCode, divisionCode, mgTypeCode, mgCode |
+| `/merchGroupHeaders` | Merch group headers — **the dictionary of what each `mgTypeCode` means, per division** | companyCode, divisionCode, mgTypeCode |
+| `/merchGroupDetails` | Merch group values (returns a **plain array**, not a paged envelope) | companyCode, divisionCode, mgTypeCode, mgCode |
 | `/prepackDetail` | Prepack breakdowns | prepackCode *(req)*, companyCode |
 | `/salespersons` | Sales reps | companyCode, salesPersonCode, lastName |
 | `/seasons` | Season codes | companyCode, divisionCode, seasonCode |

@@ -185,6 +185,22 @@ dflow** for free enrichment vs. pull **Coldlion directly**) documented in
 [`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md);
 it affects Phase 3.
 
+### 6.1 Merch groups / licensors / properties — read this before touching them
+
+Anything involving licensor, property, big theme, little theme, style guide, art type,
+art source, artist, age group, or `mgTypeCode` must start at
+[`docs/merch-group-taxonomy-architecture.md`](docs/merch-group-taxonomy-architecture.md).
+
+The three rules that cause the most damage when ignored:
+
+1. **`mgTypeCode` has no fixed meaning.** `05` is Licensor in CW001/SP001 but "Big Theme" in
+   EH001 and "Product Line" in EP001. Always resolve through
+   `(divisionCode, mgTypeCode) → mgTypeDesc`. Keying on the number alone corrupts the taxonomy.
+2. **Coldlion has no licensor→property relationship and no active/inactive flag.** Both are
+   DesignFlow-owned. A direct Coldlion sync cannot reproduce either.
+3. **Merch-group codes are unique only within `(division, mgTypeCode)`.** `FR` is a licensor
+   in our DB and a *property* in Coldlion. Never look up by `mg_code` alone.
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
