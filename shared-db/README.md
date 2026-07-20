@@ -1,6 +1,6 @@
 > ⚠️ **Auto-synced — do not hand-edit the copies.**
 >
-> [`u2giants/shared-db`](https://github.com/u2giants/shared-db) is the **single source of truth**. Its entire contents are automatically mirrored into the **`shared-db/` folder** of every consumer repo (CRM, DAM, PM, Directus, and the `popcre/designflow-*` repos) on each push to `main`, via [`.github/workflows/sync.yml`](https://github.com/u2giants/shared-db/blob/main/.github/workflows/sync.yml).
+> [`u2giants/shared-db`](https://github.com/u2giants/shared-db) is the **single source of truth**. Its entire contents are automatically mirrored into the **`shared-db/` folder** of every active consumer repo (CRM, DAM, PM/PIM, and the `popcre/designflow-*` repos) on each push to `main`, via [`.github/workflows/sync.yml`](https://github.com/u2giants/shared-db/blob/main/.github/workflows/sync.yml).
 >
 > **Reading this inside a consumer repo's `shared-db/` folder?** These files are a read-only copy — any edits here are **overwritten on the next sync**. Make changes in the canonical repo instead.
 >
@@ -46,19 +46,19 @@ the rule even before reading app-specific docs.
 ## Current Documents
 
 - [Cross-app coordination playbook](AGENTS.md) - **read first.** The operating contract for every AI session: which repos use `main` vs DesignFlow PR workflow vs shared-db PR workflow, the four rules that stop dependent apps from breaking each other through the shared database, and the merge protocol the AI runs.
+- [DesignFlow production DB-port incident](docs/incidents/20260717-designflow-production-db-port.md) - why a sandbox pooler port reached production and the controls required before the held connection-pool PRs can merge.
 - [AI tagging keyset timeout remediation](docs/app-migration-notes/ai-tagging-keyset-timeout-20260714.md) - service-only candidate RPC, query-shaped indexes, rollout evidence, and the cross-app list/search optimization standard.
 - [Merch-group taxonomy architecture](docs/merch-group-taxonomy-architecture.md) - how licensors, properties, themes, style guides and artists actually flow from Coldlion ERP through DesignFlow PLM into `core.*`. **Read before touching any of those.**
 - [Unified Supabase schema map](docs/unified-supabase-schema-map.md) - canonical entity/table ownership map across DAM, CRM, PM, and PLM.
 - [Shared database vision](docs/shared-database-vision.md) - the grander intention: one shared Supabase database for DAM, CRM, PM/PIM, and PLM.
 - [Unified Supabase relationships](docs/unified-supabase-relationships.md) - crossover relationships, join strategy, realtime boundaries, and browser-facing API contracts.
 - [Unified Supabase migration gaps](docs/unified-supabase-migration-gaps.md) - duplicates, conflicts, risky tables, missing links, and migration-order risks.
-- [Supabase migration preparation](docs/supabase-migration-prep.md) - rehearsal plan for moving the current Directus-owned Postgres data into Supabase.
 - [Schema implementation notes](docs/implementation/schema-implementation-notes.md) - what the migration package implements and what remains intentionally unresolved.
-- [AI session instructions](docs/ai-session-instructions/README.md) - handoff guides for CRM and PM rewrite sessions using the shared preview branch.
+- [AI session instructions](docs/ai-session-instructions/README.md) - the current shared preview and production-promotion workflow.
 
 ## Host PLM Import
 
-The active Designflow PLM master-data sync is owned here, not in Directus:
+The active Designflow PLM master-data sync is owned here:
 
 - Import tool: `tools/sync-plm-master-data.mjs`
 - Host wrapper: `tools/run-plm-master-data-sync.sh`
@@ -66,8 +66,8 @@ The active Designflow PLM master-data sync is owned here, not in Directus:
 - Secrets: mode-600 `/home/ai/.plm-sync.env`
 
 The host service runs the import into the linked production Supabase project via
-`plm.import_master_data(...)`. It must not point at `/worksp/directus` or the old
-Directus Postgres container. The env file must provide `PLM_API_KEY` (or
+`plm.import_master_data(...)`. It must use the shared Supabase connection and
+must not point at any retired backend database. The env file must provide `PLM_API_KEY` (or
 `DESIGNFLOW_API_KEY`) and `SUPABASE_DB_URL`; systemd must not depend on an
 interactive Supabase CLI login.
 

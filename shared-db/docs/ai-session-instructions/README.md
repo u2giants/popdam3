@@ -1,17 +1,14 @@
 # AI Session Instructions
 
-Use these instructions when separate AI sessions are rewriting app frontends from Directus to the shared Supabase project.
+Use these instructions for work against the shared Supabase preview branch and
+for controlled promotion to production. The CRM and PM/PIM cutovers are complete;
+obsolete backend-migration playbooks were removed from the current tree and remain
+available only through Git history.
 
 Start with:
 
 - [Shared database vision](../shared-database-vision.md)
 - [Shared Supabase branch workflow](shared-supabase-branch-workflow.md)
-
-Then use the app-specific guide:
-
-- [CRM / `popcrm-web`](popcrm-web-supabase-migration.md)
-- [PM/PIM / `poppim-web`](poppim-web-supabase-migration.md)
-  - Full execution plan (phased, standalone): [poppim-web-supabase-migration-plan.md](poppim-web-supabase-migration-plan.md)
 
 The shared preview branch is:
 

@@ -157,7 +157,16 @@ because MG05 there means "Big Theme," not "Licensor." Decide before importing EH
 
 ---
 
-## Active workstream — DesignFlow database connection architecture
+## RETRACTED workstream — DesignFlow database connection architecture
+
+> **STOP — the remainder of this section is an incident artifact, not a current
+> implementation guide.** It incorrectly generalized the sandbox hosted-Supabase
+> connection to production, which remains on Cloud SQL. A Codex session then
+> changed the unsuffixed production `DB_PORT` from `5432` to `6543` and broke the
+> live site. Do not merge the four listed application PRs, do not follow the
+> production steps below, and do not mutate unsuffixed GCP DB secrets. The work
+> must be revalidated against a provider-by-environment inventory and the
+> fail-closed controls described in the new incident-remediation plan.
 
 ### What this is
 

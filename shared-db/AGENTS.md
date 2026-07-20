@@ -345,12 +345,12 @@ These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones
   feed picker lists for, or otherwise associate with `core.customer`. The
   corrective migration `20260629034500_remove_ingested_domain_customer_association.sql`
   removed `api.customer_list`, `crm.promote_ingested_domain(...)`,
-  `crm.ingested_domain.promoted_customer_id`, and all `directus/ingested_domains`
+  `crm.ingested_domain.promoted_customer_id`, and all legacy-ingest source refs
   customer source refs after 3,741 polluted refs were found in production.
 - **`unique nulls not distinct (external_source, external_id)`** on `crm.*` and
   `core.*` tables means you cannot bulk-insert many rows with both columns NULL —
   the second NULL/NULL row collides. Importers must set a real
-  `external_source` (e.g. `'directus'`) and a unique `external_id` per row.
+  `external_source` and a unique `external_id` per row.
 - **Cross-schema FKs (e.g. `crm.department.company_id → core.company`) are real and
   enforced**, but PostgREST embed syntax (`select=...,company:company_id(...)`)
   may report "no relationship found" because the schema cache does not auto-detect

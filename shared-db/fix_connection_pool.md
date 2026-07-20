@@ -1,4 +1,20 @@
-# DesignFlow database connection architecture (v3.0)
+# RETRACTED — DesignFlow database connection architecture (v3.0)
+
+> **Do not implement or use this document as current architecture.** It was
+> written from sandbox assumptions without first inventorying the production
+> database provider and connection contract. On 2026-07-17, following this plan
+> led an AI session to change the unsuffixed production `DB_PORT` secret from
+> Cloud SQL port `5432` to hosted-Supabase pooler port `6543`, which broke the
+> live DesignFlow site. The four open application PRs are on hold pending a
+> provider-by-environment inventory and fail-closed deployment controls.
+>
+> Production DesignFlow remains on Cloud SQL. No part of this document authorizes
+> a production database-provider change or any production secret mutation.
+> Unsuffixed GCP DB secrets are production-only and must not be read or changed
+> without Albert's explicit production approval. Current remediation belongs in
+> `popcre/infrastructure`, the four affected service repositories, and the
+> incident record maintained for this outage.
+> See [`docs/incidents/20260717-designflow-production-db-port.md`](docs/incidents/20260717-designflow-production-db-port.md).
 
 **Date:** 2026-07-17
 **Status:** Architecture implemented and verified in the Albert sandbox; four DesignFlow PRs
