@@ -692,7 +692,7 @@ SQL, or editing the vendored `shared-db/` copies in application repositories.
 ### 10.1 What every application receives automatically
 
 When a shared-db migration is merged to `main`, the repository is automatically
-mirrored into the consumer repos, including CRM, DAM, PM/PIM, Directus, and the
+mirrored into the active consumer repos, including CRM, DAM, PM/PIM, and the
 DesignFlow repositories. All applications on project `qsllyeztdwjgirsysgai`
 share the same PostgreSQL compute, cache, connection limits, extensions, and
 schema objects.
@@ -877,7 +877,7 @@ Actions:
 
 Actions:
 
-- Audit Supabase `.range()` hooks, Directus-era pagination assumptions, product
+- Audit Supabase `.range()` hooks, legacy pagination assumptions, product
   grids, project/order lists, and any exact total fetched on each filter change.
 - Move expensive cross-domain joins to shared `api.*` views/RPCs with explicit
   columns and RLS rather than N+1 browser calls.

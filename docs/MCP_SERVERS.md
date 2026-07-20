@@ -40,7 +40,7 @@ All in **1Password, vault `vibe_coding`** (the only vault an AI session here can
   the vault.
 - Other infra secrets centralized here too (each with notes): `github-pat`,
   `ai-provider-api-keys`, `devops-mcp-client-tokens`, `nas-monitor-secrets`,
-  `contextforge-secrets`, `cloudflare-tunnel-tokens`, `coolify-secrets`, `directus-secrets`.
+  `contextforge-secrets`, `cloudflare-tunnel-tokens`, and `coolify-secrets`.
 
 There is **no 1Password MCP** wired into a VPS Claude Code session — use the `op` CLI (the
 SA token is in `/root/.bashrc` and `/home/ai/.bashrc`). The user's *Windows Desktop app* has
