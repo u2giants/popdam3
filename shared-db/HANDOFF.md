@@ -374,7 +374,12 @@ now show `display_name` and hide inactive customers.
 - **Customers: DONE + merged** (shared-db PRs #83, #84, #85, #86, #88, #91, #94, #96; all applied
   to prod). CRM picker frontend in **popcrm-web PR #3** (open, unmerged, awaiting review — merging
   deploys the live CRM).
-- **Vendors: NOT STARTED** — follow `fix_vendor_review.md`.
+- **Vendors: PREP DONE (Codex, 2026-07-17), awaiting Albert's rulings.** Fresh Coldlion re-pull
+  done (mirror 97 active / 442 inactive); additive schema (`factory.display_name`,
+  `core.factory_alias`, `core.merge_factory`) drafted + rehearsed → **shared-db PR #102 (OPEN, not
+  merged, not applied)**; dedup CSVs in [`docs/vendor-review/`](docs/vendor-review/). **No canonical
+  vendor data changed** — `core.factory` is still 529 rows, all active. Next: Albert marks up the
+  CSVs, then apply. Full spec + status: [`fix_vendor_review.md`](fix_vendor_review.md).
 - **Extension tables: PLAN ONLY** — `docs/per-app-extension-tables-plan.md`; no migration written.
 - Frontend "hide inactive" for **poppim-web / popdam3** pickers: not started (same pattern as
   popcrm-web PR #3).

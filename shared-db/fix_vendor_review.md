@@ -2,8 +2,41 @@
 
 **Written:** 2026-07-17 · **Repo:** `u2giants/shared-db` · **DB:** shared Supabase `qsllyeztdwjgirsysgai`
 **Scope:** do for **vendors** (`core.factory`) what was just completed for **customers**
-(`core.customer`). The customer work is DONE and merged; the vendor work is NOT STARTED. This file
-is the complete brief to execute the vendor pass from a cold start.
+(`core.customer`). The customer work is DONE and merged.
+
+> ## ⚡ STATUS UPDATE 2026-07-17 — prep steps 1–4 are DONE (by Codex); start at step 5
+>
+> Codex executed the safe "line up" portion. **No canonical vendor data was changed** (verified
+> independently: `core.factory` is still 529 rows, all `active`; the new schema objects are NOT
+> applied). What exists now:
+>
+> | Prep item | State |
+> |---|---|
+> | Fresh Coldlion vendor re-pull | ✅ done — `plm.erp_vendor` = **97 active / 442 inactive**; `ingest.sync_run` `coldlion_vendors_api` succeeded, 539 rows |
+> | Additive schema migration (`core.factory.display_name` + trgm, `core.factory_alias`, `core.merge_factory`) | ✅ drafted + **rehearsed rolled-back against prod (passed)** → **[PR #102](https://github.com/u2giants/shared-db/pull/102), OPEN, NOT merged, NOT applied.** Review + merge + apply this first. |
+> | Dedup review CSVs for Albert | ✅ in **[`docs/vendor-review/`](docs/vendor-review/)** — `vendor_multicode.csv` (8 groups), `vendor_directus.csv` (6 rows), `vendor_coldlion_dupes.csv` (0 rows — none found) |
+> | Status-seeding preview (not applied) | ✅ seeding from the fresh flag would give **96 active / 431 inactive** (vs 529 all-active today) |
+>
+> **Codex's FK enumeration for `core.factory`** (its `merge_factory` repoints all of these):
+> `core.factory_source_ref`, `core.vendor_contact`, `crm.opportunity`, `pim.product`,
+> `pim.product_sample`, `plm.erp_vendor`, `plm.production_order`, `plm.rfq_vendor`,
+> `plm.style_tracker_item_bridge`.
+>
+> **Observations from the CSVs (for Albert's rulings):**
+> - Several multi-code groups are plainly one factory under an old numeric code + a new alpha code
+>   (`XIANJU SHAOFENG` 457/CNSHAO, `XIANJU YINTAI` 472/CNXJY, `MIRAE N CULTURE` 147/SKSMB,
+>   `ANTHONY'S WAREHOUSE` 458/ANT001, `Action Printing` AP/USACT).
+> - Some "vendors" are **not vendors**: `ABF FREIGHT SYSTEM INC` (freight carrier), `WALMART`
+>   (a customer!), `DIGITAL PHOTOGRAPHIC` — same junk-row pattern as the customer pass's
+>   "DO NOT USE"/"West End Express". Expect to inactivate or delete these.
+> - The 6 pre-existing directus factories are **people names** (`Bill`, `Chloe`, `Jerome`, `Lucy`,
+>   `Tom`, `Wendy Sunway`) with near-zero similarity to any Coldlion vendor — almost certainly
+>   test/placeholder data. Only `Wendy Sunway` plausibly maps to a real factory
+>   (`XIANJU SUNWAY ARTWARE`, 0.20). Confirm delete vs. map.
+>
+> **Remaining work = §6 steps 5–7** (get Albert's CSV rulings → apply status seeding + rulings via
+> the rehearse-then-commit harness → serving/exposure decision → docs). Everything below is still
+> the authoritative spec.
 
 ---
 
