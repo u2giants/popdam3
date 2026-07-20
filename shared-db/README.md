@@ -47,6 +47,7 @@ the rule even before reading app-specific docs.
 
 - [Cross-app coordination playbook](AGENTS.md) - **read first.** The operating contract for every AI session: which repos use `main` vs DesignFlow PR workflow vs shared-db PR workflow, the four rules that stop dependent apps from breaking each other through the shared database, and the merge protocol the AI runs.
 - [AI tagging keyset timeout remediation](docs/app-migration-notes/ai-tagging-keyset-timeout-20260714.md) - service-only candidate RPC, query-shaped indexes, rollout evidence, and the cross-app list/search optimization standard.
+- [Merch-group taxonomy architecture](docs/merch-group-taxonomy-architecture.md) - how licensors, properties, themes, style guides and artists actually flow from Coldlion ERP through DesignFlow PLM into `core.*`. **Read before touching any of those.**
 - [Unified Supabase schema map](docs/unified-supabase-schema-map.md) - canonical entity/table ownership map across DAM, CRM, PM, and PLM.
 - [Shared database vision](docs/shared-database-vision.md) - the grander intention: one shared Supabase database for DAM, CRM, PM/PIM, and PLM.
 - [Unified Supabase relationships](docs/unified-supabase-relationships.md) - crossover relationships, join strategy, realtime boundaries, and browser-facing API contracts.

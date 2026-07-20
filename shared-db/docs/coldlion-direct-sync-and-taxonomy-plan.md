@@ -13,7 +13,22 @@ It is the concrete follow-on to the **Phase 3 "open decision"** in
 [`../fix_schema_for_api.md`](../fix_schema_for_api.md) / [`../HANDOFF.md`](../HANDOFF.md):
 Albert chose **Option B (direct Coldlion)** on 2026-07-15.
 
+> **⚠️ Read [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md)
+> before implementing any of this.** Verified live 2026-07-19, it supersedes the taxonomy
+> assumptions below in three ways that would otherwise corrupt data:
+> 1. `mgTypeCode` has **no fixed meaning** — `05` is Licensor in CW001/SP001 but "Big Theme"
+>    in EH001 and "Product Line" in EP001. Keying on the number alone is a data-corruption bug.
+> 2. Coldlion **does** have explicit licensors and properties (22 and 258 in CW001). What it
+>    lacks is the relationship between them **and any active/inactive flag** — so a direct
+>    Coldlion sync would resurrect lapsed licenses (NASA, ZAG, FRIDA KAHLO) unless `is_active`
+>    keeps coming from DesignFlow or becomes ours to own.
+> 3. Merch-group codes are unique only within `(division, mgTypeCode)`. `FR` is a licensor in
+>    our DB and a *property* in Coldlion.
+>
+> See §10 of that doc for the non-negotiable rules for this sync.
+
 Companion references:
+[`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md) (**taxonomy — read first**),
 [`coldlion-erp-api-reference.md`](coldlion-erp-api-reference.md) (API map),
 [`coldlion-erp-to-supabase-field-mapping.md`](coldlion-erp-to-supabase-field-mapping.md) (field mapping),
 [`unified-supabase-schema-map.md`](unified-supabase-schema-map.md) (canonical schema plan).

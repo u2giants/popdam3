@@ -1,11 +1,159 @@
 # HANDOFF — shared-db current state
 
-Date: 2026-07-17
+Date: 2026-07-19
 Repo: `u2giants/shared-db`
 Branch: `main` (matches `origin/main`, clean tree)
 
 This file is the top-level "where are we" pointer for the next session. It is written
 for a developer with **zero** prior context. Read it, then read the linked plan.
+
+---
+
+## 🔴 URGENT — two live outages found 2026-07-19, neither fixed
+
+Both were discovered while answering a documentation question. **Neither has been repaired,
+and neither is alerting.** They are the highest-priority items in this file.
+
+### Outage 1 — the PLM master-data sync has been dead since 2026-07-08
+
+**What is broken.** `tools/sync-plm-master-data.mjs` runs nightly at 03:30 via
+`systemd/plm-sync.timer` on the `hetz` VPS. It pulls licensor/property master data from
+DesignFlow PLM and loads it through `plm.import_master_data()` into `core.licensor` /
+`core.property`. Its last successful run was **2026-07-08**. As of 2026-07-19 that is
+**11 days stale**.
+
+**Why it is broken.** The upstream endpoint is down:
+
+```
+GET https://api.designflow.app/api/item_master/lib/getLicensorsWithProperties
+→ HTTP 502 after ~31 seconds  (retried; consistent)
+```
+
+The ~31s latency before the 502 looks like the origin timing out rather than a bad key or a
+gateway rejection. The API key at
+`op://vibe_coding/DesignFlow PLM Canonical Master Data API/api_key` was used and is not
+implicated — a bad key returns a fast 401/403, not a slow 502.
+
+**Why nobody noticed — this is the more serious bug.** `ingest.sync_run` holds 15 runs for
+`source_system='designflow_plm'` and **every single one has `status='succeeded'`**. There
+are zero failure rows. The sync did not record an error; it simply stopped appearing.
+Verify with:
+
+```sql
+select now()::date as today, max(started_at)::date as last_sync,
+       (now()::date - max(started_at)::date) as days_since,
+       count(*) filter (where status <> 'succeeded') as non_success_runs
+from ingest.sync_run where source_system='designflow_plm';
+```
+
+This violates the house "no silent failures" rule. **A failed run must write a row with
+`status <> 'succeeded'` and a populated `error` column, and must alert.** Fixing the
+alerting matters more than fixing the outage — the outage is visible once alerting exists.
+
+**A second thing to look at while you are in there.** Every historical run recorded
+`rows_seen=560, rows_inserted=560, rows_updated=0`. A daily reconciling sync that has
+*never once* recorded an update strongly suggests wholesale re-insert rather than
+reconciliation. Worth understanding before trusting the loader.
+
+**Where to start.** Check whether `api.designflow.app` is up at all, then the Cloud Run
+service behind it. Note DesignFlow runs on **Cloud SQL, not Supabase** — do not go looking
+for this in the Supabase dashboard.
+
+### Outage 2 — Coldlion `GET /items` returns a server-side 500
+
+```
+GET http://x5.coldlion.com/EhpApi/items?companyCode=EDGEHOME&divisionCode=CW001&size=5
+→ 500  {"exception":"java.lang.NullPointerException","path":"/EhpApi/items"}
+```
+
+Reproduced with and without `divisionCode`, with `modifiedFrom`, with `merchGroup05`, and at
+several page sizes. **It is server-side and unconditional.** It was working 2026-07-15 per
+`docs/coldlion-erp-api-reference.md`, so it broke within four days.
+
+Every other read endpoint was verified healthy the same day — `/customers`, `/vendors`,
+`/inventory`, `/merchGroupHeaders`, `/merchGroupDetails`, `/seasons`, `/itemDetails` all
+200. (`/salespersons` returns 400 without extra params; that is a parameter issue, not an
+outage.)
+
+**Impact.** `/items` is the only endpoint carrying `hasImage` and the `merchGroup01–14`
+pointers on each item. It also blocks the co-occurrence approach described in
+`docs/merch-group-taxonomy-architecture.md` §10.2. **This is Coldlion's server, not ours —
+it likely needs to be raised with them rather than fixed here.**
+
+---
+
+## Merch-group taxonomy — now fully documented (2026-07-19)
+
+**Read [`docs/merch-group-taxonomy-architecture.md`](docs/merch-group-taxonomy-architecture.md)
+before touching anything named licensor, property, big theme, little theme, style guide, art
+type, art source, artist, age group, or `mgTypeCode`.** It was written from live Coldlion API
+calls, live Supabase queries, and a full read of all six `popcre/designflow-*` repos.
+Shipped in [PR #103](https://github.com/u2giants/shared-db/pull/103).
+
+**The short version.** Coldlion owns the *vocabulary*, DesignFlow owns the *relationships*,
+Supabase is a downstream mirror of both. Coldlion does have explicit licensors and properties
+(22 and 258 in CW001) — what it lacks is any link between them and any active/inactive flag.
+
+**Three rules that cause real damage when ignored:**
+
+1. `mgTypeCode` has **no fixed meaning**. `05` is Licensor in CW001/SP001 but "Big Theme" in
+   EH001 and "Product Line" in EP001. Resolve through `(divisionCode, mgTypeCode) → mgTypeDesc`.
+2. Coldlion has **no hierarchy and no active flag**. Both are DesignFlow-owned. A direct
+   Coldlion sync cannot reproduce either, and would resurrect dead licenses.
+3. Codes are unique **only within `(division, mgTypeCode)`**. `FR` is a licensor in our DB and
+   a *property* in Coldlion. Never look up by `mg_code` alone.
+
+### Corrections this made to earlier docs
+
+Prior documentation was wrong on two points, both now fixed in-place:
+
+- `coldlion-erp-to-supabase-field-mapping.md` said "Coldlion has no explicit licensor." It
+  does. The gap is the relationship, not the entity.
+- Several docs stated `merchGroup05 = licensor` / `merchGroup06 = property` flatly. True for
+  two of four divisions only.
+- The "partial licensor import (37 PLM vs 20 core)" was **not** partial. 37 staging rows hold
+  20 distinct codes; `core.licensor`'s `unique nulls not distinct (code)` deliberately
+  collapses the division dimension. Nothing is dropped.
+
+### Open decision that needs a human — `FR` / FRIENDS TV
+
+`core.licensor` carries `FR` = FRIENDS TV (1 property), from `plm.licensor_import` id 199,
+division 1. **Coldlion has no `FR` licensor** in either licensed division — there, `FR` is a
+*property* meaning "1ST ORDER TROOPER."
+
+Because the ETL has no delete or tombstone path, either it was created directly in PLM or it
+was removed from Coldlion after an earlier sync. **The data cannot distinguish these.** It is
+the only licensor in our canonical table with no upstream ERP anchor. Someone who knows the
+licensing history needs to decide whether it stays.
+
+### Open design question — the division collapse
+
+`core.licensor` merges POP Lic and Spruce Lic into one row per code. That is correct if a
+licensor is a company (Disney is Disney). It is **wrong the moment division 9 is imported**,
+because MG05 there means "Big Theme," not "Licensor." Decide before importing EH001.
+
+### What was NOT done
+
+- Neither outage fixed (see above).
+- **15 defects catalogued in §9 of the taxonomy doc are documented, not fixed.** Notable:
+  a `vendor`-role authorization gap letting external vendors create/soft-delete taxonomy;
+  a dedup key including `mg_desc` so renames create duplicate rows; the merch-group *header*
+  sync hard-coded to `divisionCode=EH001` so the CW001/SP001 definitions are never fetched.
+- The co-occurrence approach for deriving the hierarchy from Coldlion alone is **untested** —
+  `/items` was down.
+
+### Gotchas that cost time this session
+
+- **The six `designflow-*` repos are at `C:\repos\dflow\designflow-*`**, not siblings of
+  `shared-db`. All on branch `sandbox-albert`.
+- **Do not route Coldlion calls through `bash` on Windows.** A bare `bash` resolves to WSL,
+  which does not inherit injected env, so the API key arrives empty and Coldlion answers
+  `400 Missing request header 'X-API-Key'` — which looks like a broken tool but is not. Use
+  `op_run` with `shell: powershell` and `$env:VAR`.
+- **`cmd.exe` cannot expand `%%VAR%%` loops** outside a batch file. Use PowerShell for any
+  loop over divisions or type codes.
+- `/merchGroupDetails` returns a **plain JSON array**, not the paged `{content:[...]}`
+  envelope most Coldlion endpoints use. Parsers written for the envelope will break.
 
 ---
 
