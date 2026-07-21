@@ -124,6 +124,89 @@ The FK ids are added; the legacy text codes stay in the view during a deprecatio
    or Node-side resolution? Proposal: SQL function fed JSONB, for parity + testability.
 5. **`plm.item` scope** — items only, or items + production orders in the same pass? Proposal: items first.
 
+## 7b. LOCKED DECISIONS — Kimi K3 adversarial review + live DB verification (2026-07-20)
+
+The plan was reviewed adversarially by Kimi K3 (23-point critique) and debated to convergence,
+then the open questions were settled against the **live** shared DB. These decisions supersede
+§7 and harden §§3–5. Codex implements to THIS section.
+
+### 7b.1 Verify-first results (run live 2026-07-20)
+- `core.product_type` = **0 rows**, `core.merch_group` = **0 rows**, `core.character` = **0 rows**.
+  `core.licensor` = 20, `core.property` = 256. `taxonomy_source_ref`: 468 property refs, 37 licensor refs.
+- **Consequence:** the resolver populates **only `plm.item.licensor_id` and `plm.item.property_id`**.
+  `product_type_id` and `merch_group_id` are **explicitly out of scope** until their target tables are
+  populated from `designflow_plm` (a separate upstream job). Do not resolve FKs to empty tables.
+
+### 7b.2 The join key (THE critical determination)
+- The item's merch-group codes are **short codes**, and they join to `core.*.code` directly —
+  **NOT** to the numeric `taxonomy_source_ref.source_id` ids.
+  - `merchGroup05` → `core.licensor.code` (e.g. item `MV` → licensor MARVEL).
+  - `merchGroup06` → `core.property.code` **scoped to the resolved `licensor_id`**.
+- **Property MUST resolve within its licensor.** Codes collide across types: `SM` is licensor
+  SESAME STREET *and* property SUPERMAN (under DC); `WW` is licensor WWE *and* property WONDER
+  WOMAN (under DC). Resolving property by code alone is wrong. Resolve licensor first (from the
+  licensor slot), then `property = (licensor_id, code)` — matches `core.property unique(licensor_id, code)`.
+- `licensor_id` is taken from the **resolved property's parent FK** when a property resolves
+  (property parent wins, per debate). The licensor slot (`merchGroup05`) is used to resolve the
+  licensor and to **flag disagreements** to a review table when property.licensor_id ≠ slot licensor —
+  those mismatches are the only signal for a stale parent or a mis-keyed item; never silently drop them.
+
+### 7b.3 Division scoping (the mgTypeCode trap)
+- The `merchGroup05=licensor / merchGroup06=property` mapping holds for the **licensed divisions**
+  (CW001, SP001 confirmed). For **EH001** (`05`=Big Theme) and **EP001** (Product Line) those slots
+  are NOT licensor/property. The resolver must derive slot meaning per division from a **fresh
+  `/merchGroupHeaders` pull for ALL divisions** (stored as a dictionary table; hard Phase-2a
+  prerequisite — the existing header sync only ever fetched EH001, so the dictionary is missing).
+- Unknown `(division, mgTypeCode)` pairs and non-licensed divisions → route to **unresolved**,
+  never defaulted. EP001 has no taxonomy in `core.*` at all (expected 100% unresolved there) — state
+  the expected unresolved rate up front; unresolved items still keep their legacy text codes in the view.
+- **Division 9 (EH001) taxonomy import is OUT of scope** for this plan; the licensor-collapse
+  division-9 policy is deferred to the taxonomy pipeline roadmap. The resolver treats EH001 slots as
+  merch-group/NULL, so it is safe against today's data.
+
+### 7b.4 Resolver is READ-ONLY on `core.*`
+Hard rule (stronger than "don't flip active"): the resolver **never writes `core.*`**. Lapsed
+licenses (NASA/ZAG/FRIDA KAHLO) were filtered out upstream (`is_active:true`) and simply won't
+resolve → their items go to unresolved and keep legacy codes. No resurrection is even possible.
+
+### 7b.5 Outcomes are {resolved, partially-resolved, ambiguous, unresolved} — all first-class
+- **ambiguous** (a code matching >1 candidate) is a distinct quarantine outcome with a stated
+  tiebreak, not a silent pick. (Live check: no property code currently sits under >1 licensor, but
+  the rename-creates-duplicate defect can introduce it — model it anyway.)
+- `plm.item_import_unresolved` is upserted by `(item, slot)` and **auto-cleared** when a later run
+  resolves, so the unresolved count stays truthful.
+
+### 7b.6 Ingest = full sweep + staging swap (no cursor resume)
+- Dedicated item sync (do NOT hook the PLM master-data sync). Full sweep, ~96 pages at size=200.
+- Pull all pages into a **staging holding table**; promote to silver (`plm.item_import`) **only on a
+  completeness assertion** — but assert "reached terminal/empty page", NOT `pages==totalPages` exactly
+  (a live insert mid-sweep shifts the count and would spuriously block forever → the §8 invisible outage).
+- **Sanity-band guard before swap:** promoted row count within an agreed % of current silver, and
+  per-division counts non-zero — else a partial upstream response would delete most of silver.
+- **Alert on ≥2 consecutive non-promotions.** Keep last-good silver; the resolver never runs on a
+  partial pull. Natural/upsert key everywhere: `(companyCode, divisionCode, itemNo)`.
+- Durable `ingest.sync_run` accounting (learn from PR #107): status survives failure, and record
+  **per-division/per-type** breakdowns + honest `rows_updated`, not just green totals.
+
+### 7b.7 Cutover (Phases 4–5) hardening
+- **Bridge FK repoint is deferred to Phase 5** (not Phase 4). Requirement: `public.erp_items_current`
+  stays **refreshed** (legacy pull keeps running — dual pipeline) through the window, NOT frozen —
+  otherwise new items can't get style-tracker bridge rows. The window needs a **hard end date**;
+  Phase 5's orphan policy must cover bridge rows whose item never resolved into `plm.item`.
+- **Phase 4 view repoint is `security_invoker` on `plm.*`:** every new table (`plm.item`,
+  `plm.item_import`, `plm.item_import_unresolved`, the headers dictionary, staging) needs explicit
+  **grants + RLS policies** in Phase 2a, or every reader gets 403/42501 at cutover (RLS ≠ grant).
+- **Cutover gate = row parity, not just column shape:** compare the repointed view's *output* (row
+  count keyed by item, unresolved-inclusive) against today's, plus the app-repo grep pass
+  (`erp_items_current`, `licensor_code`, `property_code`, name-based lookups). No cutover on faith.
+
+### 7b.8 Scope for the FIRST Codex handoff
+Codex implements **Phase 2a + 2b ONLY** (additive, no live-data cutover): the ingest/staging path,
+the `/merchGroupHeaders` all-division dictionary table, `plm.item_import` + `plm.item_import_unresolved`,
+the `plm.import_item_master_data()` resolver (licensor_id + property_id only), grants/RLS, and the
+full §6 test matrix (add EH001-routes-to-merch-group, EP001-unresolved, ambiguous, and re-run/idempotency
+cases). Phases 3–5 (backfill, cutover, retire) are separate, gated handoffs.
+
 ## 8. References
 - `fix_schema_for_api.md` (umbrella 5-phase plan; this file details Phases 2–4).
 - `docs/merch-group-taxonomy-architecture.md` (§ ownership rules, the `mgTypeCode`/composite-key traps).
