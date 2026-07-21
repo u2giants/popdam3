@@ -322,6 +322,7 @@ function valueFor(row: StyleRow | undefined, column: SheetColumn) {
 function displayValueFor(row: StyleRow | undefined, column: SheetColumn) {
   if (!row) return "";
   if (column.optionKind === "customer") return row.canonical_customer_name ?? row.customer ?? "";
+  if (column.optionKind === "designer") return row.canonical_designer_name ?? row.designer ?? "";
   return valueFor(row, column);
 }
 
@@ -1454,8 +1455,13 @@ export default function StylesPage() {
         filter: true,
         sortable: true,
         resizable: true,
-        valueGetter: (params) => (column.optionKind === "customer" ? params.data?.customer_id ?? null : valueFor(params.data, column)),
-        filterValueGetter: column.optionKind === "customer" ? (params) => displayValueFor(params.data, column) : undefined,
+        valueGetter: (params) =>
+          column.optionKind === "customer"
+            ? params.data?.customer_id ?? null
+            : column.optionKind === "designer"
+              ? displayValueFor(params.data, column)
+              : valueFor(params.data, column),
+        filterValueGetter: column.optionKind === "customer" || column.optionKind === "designer" ? (params) => displayValueFor(params.data, column) : undefined,
         cellRenderer: column.linkKind
           ? (params: { data?: StyleRow }) => {
               const status = statusFor(params.data, column);
@@ -1509,6 +1515,7 @@ export default function StylesPage() {
             params.data.canonical_customer_name = payload.customer_id ? customerOptionById.get(payload.customer_id) ?? null : null;
           }
           if (column.typedField) (params.data[column.typedField] as unknown) = payload[column.typedField];
+          if (column.optionKind === "designer") params.data.canonical_designer_name = payload.designer ?? null;
           return true;
         },
       })),
