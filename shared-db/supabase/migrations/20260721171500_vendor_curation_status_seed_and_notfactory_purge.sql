@@ -38,7 +38,7 @@ set status = case
         where v.factory_id = f.id and v.active
       ) then 'active'
       else 'inactive'
-    end,
+    end::app.entity_status,
     updated_at = now()
 where exists (
   select 1 from core.factory_source_ref r
