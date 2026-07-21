@@ -6,9 +6,11 @@ The first principle is boring on purpose: treat the Directus database as the sou
 
 ## Current Source
 
-- Production API/Data Studio: `https://data.designflow.app`
-- Source database: Postgres 16 container `directus-db-nzli85mk3luzb6u7cnq5fidu`
-- Runtime owner: Coolify service `nzli85mk3luzb6u7cnq5fidu`
+- Retired source: the legacy API/Data Studio and its public hostname have been
+  removed. This document is historical migration evidence, not a runnable
+  production procedure.
+- Historical source database: Postgres 16 container (retired)
+- Historical runtime owner: Coolify service (retired)
 - Product images and ClickUp attachments: mostly DigitalOcean Spaces URLs stored in `product.cover_url` and `product_file.stored_url` / `thumbnail_url`
 - Directus system metadata: roles, policies, permissions, Flows, presets, users, collections, fields, and relations live in the same database but are not Supabase-native behavior
 
@@ -43,8 +45,7 @@ Either path needs the same schema/data rehearsal and RLS design.
 Run the read-only audit:
 
 ```bash
-POPPIM_ENV_FILE=/home/ai/.directus-deploy.env \
-DX_URL=https://data.designflow.app \
+# Historical only. The source service and hostname have been retired; do not run.
 node pm-system/migration/supabase-readiness-audit.mjs
 ```
 

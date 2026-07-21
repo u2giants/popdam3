@@ -15,11 +15,21 @@
 > `popcre/infrastructure`, the four affected service repositories, and the
 > incident record maintained for this outage.
 > See [`docs/incidents/20260717-designflow-production-db-port.md`](docs/incidents/20260717-designflow-production-db-port.md).
+>
+> **Remediation update, 2026-07-20:** production is healthy on Cloud SQL/`5432`
+> with numeric secret-version pins; all four automatic production triggers are
+> disabled; infrastructure validation and application startup guards reject the
+> incident combination; 109 suites / 741 tests passed; scoped writer identities
+> and two critical alerts are live. The four corrected PRs are green and assigned
+> to Uma (`devopswithkube`) for review. The final hard IAM Deny + PAM approval
+> gate remains blocked because GCP project `lithe-breaker-323913` has no Google
+> Cloud organization parent. Do not follow this document's old production
+> rollout, rollback, or `DB_PORT` instructions.
 
 **Date:** 2026-07-17
-**Status:** Architecture implemented and verified in the Albert sandbox; four DesignFlow PRs
-await Uma's normal review/merge to `develop`. The shared-db migration is already live in
-preview and production.
+**Status:** Historical/retracted architecture artifact. The schema migration is
+live, but the production-provider portions below are invalid. Corrected guarded
+application PRs await Uma's review; production remains Cloud SQL/`5432`.
 
 This document supersedes v2.1. The solution is deliberately based on database ownership,
 Cloud Run's auto-scaling execution model, and Supabase connection semantics. It has no
@@ -28,8 +38,9 @@ workstation- or geography-specific acceptance gate.
 ## 1. What this fixes
 
 The four Node.js/Express/Sequelize services—Core Backend, Item Master, Tracking, and Data
-Syncing—share one hosted Supabase PostgreSQL database. The old design combined several
-problems:
+Syncing—share application data, but their connection provider is environment-specific:
+sandbox/develop/staging use hosted Supabase and production uses Cloud SQL. The old design
+combined several problems:
 
 - Core application startup ran `sequelize.sync()` plus 43 unawaited DDL/data statements.
 - Backend schema evolution therefore depended on application boot order and runtime permissions.
@@ -65,12 +76,14 @@ Shared-db PR [#97](https://github.com/u2giants/shared-db/pull/97) merged as
 `293fd90697bb0a0024e196d6b4a2da2e298dbd15`. Production apply run
 `29611459054` succeeded and the live contract was re-audited.
 
-### 2.2 Runtime data plane: Supavisor transaction mode
+### 2.2 Sandbox runtime data plane: Supavisor transaction mode
 
-Cloud Run resolves `DB_PORT=6543` from GCP Secret Manager and connects through the shared
-Supavisor transaction pooler. Transaction mode assigns a database backend only while a query or
-transaction is active, so auto-scaling service clients do not reserve backends for entire idle
-sessions.
+Sandbox Cloud Run resolves its `_SANDBOX` port as `6543` and connects through
+the hosted-Supabase transaction pooler. Transaction mode assigns a database
+backend only while a query or transaction is active, so auto-scaling sandbox
+clients do not reserve backends for entire idle sessions. **This is not the
+production connection contract. Production remains Cloud SQL on `5432`, private
+VPC, SSL off, and the complete unsuffixed tuple.**
 
 This matches Supabase's documented guidance for serverless/auto-scaling workloads:
 
@@ -150,9 +163,11 @@ one-to-one idle database backends. Supavisor's backend pool and PostgreSQL
 
 Total: 693 passing unit tests.
 
-The GCP `DB_PORT` secret has version 2 with value 6543. Existing old revisions retained their
-resolved 5432 value; new revisions atomically resolved 6543 at startup. No production revision
-changed before the normal PR merge/deploy flow.
+Historical warning: an unsuffixed GCP `DB_PORT` version containing `6543` was
+created while following this plan. Unsuffixed means production; that mutation
+was wrong and caused the outage. Current production revisions are pinned to the
+known-good numeric version `1` and resolve Cloud SQL port `5432`. Sandbox uses
+the separate `_SANDBOX` tuple.
 
 ## 4. Verification evidence
 
@@ -201,16 +216,22 @@ Log review across the four new revisions found zero matches for
    Cloud Run still could not atomically replace the variable's source type while creating the
    revision. A two-revision removal would temporarily omit a required setting and was rejected
    as unsafe.
-3. **Final path.** Add Secret Manager `DB_PORT` version 2 containing 6543 and retain the
-   existing binding. New revisions resolve the new value atomically; old revisions are unchanged.
+3. **Unsafe historical path—do not repeat.** An unsuffixed Secret Manager
+   `DB_PORT` version containing `6543` was added while retaining the existing
+   binding. New production revisions then resolved the wrong port. The correct
+   sandbox route is the complete `_SANDBOX` tuple; production remains the
+   unsuffixed Cloud SQL/`5432` tuple pinned to numeric versions.
 4. **Custom sandbox API hostname.** `api.sandbox-albert.designflow.app` did not resolve from
    this machine. Verification used the canonical public Cloud Run BFF URL. Application checks
    passed, so this was unrelated DNS configuration, not a database failure.
 
-## 6. Production rollout
+## 6. Corrected production rollout
 
-Uma reviews and merges the four DesignFlow PRs to `develop`; the AI does not self-merge them.
-The normal production pipelines then deploy the same tested images/configuration pattern.
+Uma reviews and merges the four corrected DesignFlow PRs to `develop`; the AI
+does not self-merge them. These PRs may bring bounded pools, readiness, retry,
+lifecycle, and provider-aware validation to production. They do **not** migrate
+production to hosted Supabase. Production must remain Cloud SQL/`5432` with
+private VPC, SSL off, the complete unsuffixed tuple, and numeric secret versions.
 
 After each production rollout:
 
@@ -230,8 +251,8 @@ Each service is independently reversible:
 
 1. Capture sanitized connection/readiness/error logs from the failed revision.
 2. Route traffic to the prior known-good Cloud Run revision or deploy the prior commit.
-3. Restore Secret Manager `DB_PORT` to 5432 only if transaction-mode compatibility itself is
-   proven to be the failure; doing so creates a new secret version and affects only new revisions.
+3. Roll back by routing to the prior known-good Cloud SQL revision. Do not
+   create a production secret version as an application rollback shortcut.
 4. Keep the shared-db migration and keep application startup DDL removed. Reintroducing runtime
    schema mutation is not a valid rollback.
 5. Never compensate by increasing pool maxima, setting `min>0`, raising the BFF timeout, or
@@ -250,6 +271,9 @@ Each service is independently reversible:
 
 ## 9. Completion state
 
-Schema reconciliation, application implementation, automated tests, preview compatibility, and
-sandbox deployment verification are complete. The only remaining delivery step is Uma's normal
-review/merge followed by the production checks in §6.
+Schema reconciliation, corrected application implementation, automated tests,
+preview compatibility, sandbox deployment verification, infrastructure
+containment, production numeric pinning, scoped IAM foundations, and alerting
+are complete. Remaining work is Uma's review/merge plus organization onboarding
+for the final IAM Deny + PAM gate. See the incident record for exact evidence
+and acceptance criteria.

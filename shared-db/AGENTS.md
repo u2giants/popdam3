@@ -52,6 +52,35 @@ Historical warning: older DesignFlow docs and code may still mention
 `models/db.js` inline migrations. Treat those as legacy implementation history,
 not permission to add new schema changes in app repos.
 
+## 0.1 Database schema ownership is not deployment-secret ownership
+
+`shared-db` is authoritative for shared Supabase schema and cross-app data
+contracts. It is **not** the source of truth for GCP Secret Manager IAM, Cloud
+Build substitutions/triggers, Cloud Run database bindings, VPC routing, or
+production secret-version pins. Those belong to
+[`popcre/infrastructure`](https://github.com/popcre/infrastructure).
+
+The 2026-07-17 DesignFlow outage proved why this boundary matters. A sandbox
+Supabase pooler assumption (`6543`) was generalized to production, where the
+application actually uses Cloud SQL (`5432`). Before any database connection or
+secret-related work, classify the environment and validate the complete tuple:
+
+| Environment | Provider/port | Secret IDs |
+|---|---|---|
+| Develop | hosted Supabase pooler / `6543` | complete `_DEV` tuple |
+| Staging | hosted Supabase pooler / `6543` | complete `_STAGING` tuple |
+| Sandbox | hosted Supabase pooler / `6543` | complete `_SANDBOX` tuple |
+| Production | Cloud SQL / `5432` | complete unsuffixed tuple |
+
+Unsuffixed DB secrets are production-only. Never read, version, enable,
+disable, destroy, rebind, or repoint them unless Albert clearly asks for that
+specific production change. A request about connection pooling, sandbox,
+staging, schema, or application code is not production-secret authorization.
+For current safeguards, incident evidence, the Uma approval boundary, and the
+remaining Google Cloud organization blocker, read
+[`docs/incidents/20260717-designflow-production-db-port.md`](docs/incidents/20260717-designflow-production-db-port.md)
+and then the canonical infrastructure runbook it links.
+
 ## Session wrap-up convention
 
 When the user says **"wrap up"**, that means finish the session safely: update

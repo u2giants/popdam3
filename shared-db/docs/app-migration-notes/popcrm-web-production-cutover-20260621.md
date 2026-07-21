@@ -4,10 +4,9 @@ This records the **production** cutover of POP CRM (`u2giants/popcrm-web`) from
 Directus to the shared Supabase backend. It supersedes the "preview-complete /
 nothing touches production" framing in
 [`popcrm-web-20260621.md`](popcrm-web-20260621.md): the schema is now applied to
-production, Microsoft SSO is live, Directus CRM data is imported, and
-`crm.designflow.app` serves Supabase. Directus (`data.designflow.app`) remains
-running as the import source and rollback-only — no CRM screen or worker talks to
-it anymore.
+production, Microsoft SSO is live, the legacy CRM data is imported, and
+`crm.designflow.app` serves Supabase. The retired legacy backend is no longer a
+runtime, import, or rollback dependency.
 
 Production project ref: **`qsllyeztdwjgirsysgai`**.
 

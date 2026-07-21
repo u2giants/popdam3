@@ -1,11 +1,120 @@
 # HANDOFF — shared-db current state
 
-Date: 2026-07-19
+Date: 2026-07-20
 Repo: `u2giants/shared-db`
-Branch: `main` (matches `origin/main`, clean tree)
+Branch: `main`; this docs-only update is intentionally uncommitted/unpushed
+until the user separately requests the git/closeout workflow.
 
 This file is the top-level "where are we" pointer for the next session. It is written
 for a developer with **zero** prior context. Read it, then read the linked plan.
+
+---
+
+## 🔴 DesignFlow production DB-port incident — remediation state 2026-07-20
+
+**Read the comprehensive incident record first:**
+[`docs/incidents/20260717-designflow-production-db-port.md`](docs/incidents/20260717-designflow-production-db-port.md).
+Detailed GCP source-of-truth and operations live in `popcre/infrastructure`:
+`popcre/gcp/live/production-database-safety-plan.md` and
+`popcre/gcp/live/production-db-secret-break-glass.md`.
+
+### What happened and why
+
+`fix_connection_pool.md` generalized a sandbox hosted-Supabase pooler design to
+production without first inventorying each environment. A later Codex session
+changed unsuffixed production `DB_PORT` from Cloud SQL port `5432` to Supabase
+pooler port `6543`. Production used the correct Cloud SQL host with the wrong
+port and failed. The plan-writing failure mattered as much as the later command:
+no provider-by-environment inventory, complete-tuple comparison, production
+approval gate, numeric version pin, negative build fixture, startup rejection,
+or zero-traffic connection proof stopped the error.
+
+### Correct contract and ownership
+
+- Develop/staging/sandbox: hosted Supabase pooler, `6543`, SSL on, complete
+  `_DEV`/`_STAGING`/`_SANDBOX` tuple.
+- Production: Cloud SQL, `5432`, SSL off under the current contract, private VPC,
+  complete unsuffixed tuple, numeric versions only.
+- `shared-db` owns schema/migrations/data contracts. `popcre/infrastructure`
+  owns GCP Secret Manager IAM, Cloud Build triggers, Cloud Run bindings, VPC
+  routing, and version pins. App repos own startup validation/readiness/tests.
+  `ai-devops` owns universal external-state rules and pointers.
+
+### What is complete and live
+
+- Infrastructure PRs #12–#14: machine-readable connection contract; nine
+  passing positive/negative fixtures; explicit five-secret substitutions;
+  numeric production version pins; four production triggers disabled; sandbox
+  secret boundary repaired; critical secret-version alert enabled.
+- A deliberate Cloud SQL + `6543` build
+  (`c266a112-eaea-4dd9-997a-a7f66ac3d310`) failed in step 0 before image or
+  deploy.
+- Corrected application commits: Backend `1a28265` PR #62, Item Master
+  `1afb25b` PR #37, Tracking `ed2ff6d` PR #25, Data Syncing `a48b8a7` PR #16.
+  Combined proof: 109 suites / 741 tests. All four PRs are green, open, and now
+  request review from Uma's GitHub user `devopswithkube`.
+- Production reused its known images in zero-traffic candidates, proved Cloud
+  SQL `10.75.208.4:5432`, SSL off, private VPC, and numeric DB secret version
+  `1`, then moved 100% traffic to `core-00010-bof`, `item-00010-ben`,
+  `tracking-00010-riv`, and `sync-00007-suh`. `https://designflow.app` returned
+  HTTP 200.
+- Infrastructure PRs #15–#17 culminated in `9ad06f1`. Terraform applied 24
+  additions, zero changes, zero destroys: scoped nonproduction and reserved
+  production writers, 20 secret IAM bindings, one nonproduction impersonation
+  binding, and critical access-control alert `10443910794556794963`. Final plan:
+  no changes.
+- Read-only IAM tests prove the nonproduction writer can version `DB_PORT_DEV`
+  but not production `DB_PORT`; the production writer has no impersonator.
+- 1Password vault `vibe_coding` contains a non-secret recovery note titled
+  `DesignFlow production DB secret approval gate`, ID
+  `iwmlvzmx3acqknbktnwuu5x5bi`. Runtime values remain in GCP Secret Manager;
+  recovery values/notes belong in 1Password, never Git or chat.
+
+### What failed and why
+
+The first hard-gate design planned a project deny policy plus a one-hour PAM
+entitlement. Google rejected the temporary `roles/iam.denyAdmin` bootstrap
+binding before Terraform apply because Deny Admin can be granted only at
+organization level. The project has no parent and the authenticated account
+sees no Google Cloud organization. PAM also requires an organization-level
+service agent. No temporary role remained, no partial deny/PAM resource was
+created, and no secret or workload changed. PR #16 removed the undeployable
+resources before safely applying the 24 foundations.
+
+The first acceptance-script run also exposed a PowerShell representation issue:
+an empty denied permission response arrived as `null`, not an empty array. PR
+#17 fixed null/empty handling. The script now proves the scoped identities, then
+intentionally returns `BLOCKED` because Albert's project Owner role still grants
+direct secret-version mutation.
+
+### Exact remaining steps and verification gates
+
+1. Create/select the company-controlled Google Cloud organization and move
+   `lithe-breaker-323913` beneath it without changing project ID, billing,
+   services, data, or secret values. **Pass:** project parent is the intended
+   organization and production remains HTTP 200 on the same revisions.
+2. Configure organization Deny Admin and Google's PAM service agent through
+   infrastructure Terraform. **Pass:** plan contains only intended IAM/PAM
+   additions, zero unrelated changes/destroys.
+3. Restore the deny policy and one-hour entitlement: Albert requester, Uma
+   (`devopswithkube@gmail.com`) sole approver, mandatory reasons, Token Creator
+   restricted to the exact production break-glass writer. **Pass:**
+   `Test-DbSecretGuardrails.ps1` reports every check passed instead of the
+   intentional Owner blocker.
+4. Conduct a no-secret-change request/approve/expire exercise. **Pass:** Albert
+   cannot impersonate before/after; can during the approved window; both alerts
+   identify the actors; no secret version is added.
+5. Uma reviews the four application PRs. **Pass:** Uma—not an AI—merges approved
+   changes to `develop`. Production continues using Cloud SQL/`5432`; these PRs
+   add safe pool/readiness behavior, not a provider migration.
+
+### Non-negotiable constraints
+
+Do not self-approve, make Albert a deny exception, create a service-account key,
+grant standing production impersonation, put database values in GitHub inputs,
+re-enable production triggers early, or follow the historical production steps
+inside `fix_connection_pool.md`. Unsuffixed secrets are production-only and no
+schema task or sandbox task implicitly authorizes touching them.
 
 ---
 
@@ -180,10 +289,11 @@ because MG05 there means "Big Theme," not "Licensor." Decide before importing EH
 > implementation guide.** It incorrectly generalized the sandbox hosted-Supabase
 > connection to production, which remains on Cloud SQL. A Codex session then
 > changed the unsuffixed production `DB_PORT` from `5432` to `6543` and broke the
-> live site. Do not merge the four listed application PRs, do not follow the
-> production steps below, and do not mutate unsuffixed GCP DB secrets. The work
-> must be revalidated against a provider-by-environment inventory and the
-> fail-closed controls described in the new incident-remediation plan.
+> live site. Do not merge any historical PR head based on this section's old
+> evidence, do not follow the production steps below, and do not mutate
+> unsuffixed GCP DB secrets. The current PR heads have since been revalidated and
+> are assigned to Uma; the authoritative current state is at the top of this
+> handoff and in the incident record.
 
 ### What this is
 
@@ -192,12 +302,14 @@ items, licensing/tracking, and ERP synchronization. Its Angular frontend and BFF
 / Express / Sequelize services (Core Backend, Item Master, Tracking, and Data Syncing), deployed
 to Google Cloud Run. The app repos are the six `popcre/designflow-*` repositories under
 `C:/repos/dflow`; their sandbox branches serve `https://sandbox-albert.designflow.app`. All four
-services share the hosted Supabase PostgreSQL project governed by this `u2giants/shared-db` repo.
+services share application data governed by this `u2giants/shared-db` repo, but
+their database provider is environment-specific: sandbox/develop/staging use
+hosted Supabase while production uses Cloud SQL.
 
-The durable design now separates schema control from runtime connections: shared-db migrations
-own all DDL, while auto-scaling Cloud Run services use Supavisor transaction mode and small,
-validated per-process pools. The architecture is based on the deployed platform, not any one
-developer workstation or network path.
+The durable portion separates schema control from runtime connections:
+shared-db migrations own all DDL, and applications use small validated
+per-process pools. Supavisor transaction mode applies to hosted-Supabase
+nonproduction environments; production remains Cloud SQL.
 
 ### What we set out to do, and why
 
@@ -222,8 +334,10 @@ complete. Uma's normal PR review/merge and post-merge production verification re
   the AI must not merge DesignFlow PRs.
 - All four full unit suites passed: 693 tests. Preview port-6543 checks passed for all four
   services, including a real Sequelize transaction.
-- GCP Secret Manager `DB_PORT` version 2 is 6543. The four new sandbox builds succeeded and
-  deployed ready transaction-mode revisions. Each emitted a validated application name and
+- Historical incident evidence includes an unsafe unsuffixed `DB_PORT` version
+  containing `6543`; do not use it. Production is pinned to numeric version `1`
+  and Cloud SQL/`5432`. The four corrected sandbox builds use the complete
+  `_SANDBOX` tuple and deployed ready transaction-mode revisions. Each emitted a validated application name and
   `db_ready` before HTTP listen. Login, token, Item Library, and Tracking checks returned 200;
   logs had zero acquire-timeout, ceiling, or startup-fatal matches.
 - Exact builds, revisions, and timings are in
@@ -237,10 +351,11 @@ complete. Uma's normal PR review/merge and post-merge production verification re
 - A local preview `supabase db push --dry-run` listed ten migrations because preview lagged
   production. The GitHub preview workflow applied the backlog plus reconciliation cleanly. No
   applied migration was edited.
-- Cloud Run rejected two attempts to change `DB_PORT` from a secret reference to a literal in
-  the same revision. A two-revision removal would temporarily omit a required setting, so the
-  final atomic path retained the binding and added secret version 2 with value 6543. Healthy old
-  revisions remained live throughout.
+- Cloud Run rejected two attempts to change `DB_PORT` from a secret reference to
+  a literal in the same revision. The later unsuffixed secret-version approach
+  was not a safe atomic solution—it crossed the environment boundary and caused
+  the production outage. The corrected route uses `_SANDBOX` outside production
+  and keeps production on its pinned unsuffixed Cloud SQL tuple.
 
 ### Root causes and key findings
 
@@ -257,21 +372,28 @@ complete. Uma's normal PR review/merge and post-merge production verification re
 
 ### Exact next steps
 
-1. Give Uma the four PRs and the v3 evidence for normal review. **Pass when** Uma merges each to
-   `develop`; the AI does not merge them.
+1. Uma (`devopswithkube`) reviews the four corrected PRs already assigned to
+   her. **Pass when** Uma merges each to `develop`; the AI does not merge them.
 2. Watch each normal production deployment. **Pass when** the latest revision is ready, carries
    its production application name, and logs `db_ready` before HTTP listen.
 3. Run production login, token, Item Library, and Tracking smoke checks. **Pass when** all return
    200 and logs contain no acquire timeout, ceiling, startup fatal, forced shutdown, or relevant
    5xx.
-4. Review Supabase/Cloud Run connection telemetry after real traffic. **Pass when** backend/client
-   pressure stays within platform capacity and pool snapshots show no sustained waiters.
+4. Review Cloud SQL/Cloud Run connection telemetry after real production
+   traffic. **Pass when** backend/client pressure stays within platform capacity
+   and pool snapshots show no sustained waiters.
+5. Complete the organization-backed IAM Deny + PAM gate described at the top of
+   this handoff. **Pass when** the read-only acceptance script fully passes and
+   an approval/expiry exercise changes no secret value.
 
 ### Constraints and gotchas
 
-Keep transaction mode for auto-scaling application traffic, pool max 5/min 0, idle 10s, evict
-5s, keep-alive, and BFF normal timeout 30s. Never add app-repo/startup DDL, broad session
-termination, unbounded pools, or session-local features without an architecture review.
+Keep transaction mode for hosted-Supabase nonproduction traffic, and keep the
+current Cloud SQL production provider unless a separate migration is explicitly
+approved. Pool max 5/min 0, idle 10s, evict 5s, keep-alive, and BFF normal
+timeout 30s remain the guarded application settings. Never add app-repo/startup
+DDL, broad session termination, unbounded pools, or session-local features
+without an architecture review.
 
 ### Access and environment
 
@@ -283,10 +405,12 @@ committed. shared-db is on `main`; DesignFlow repos are on `sandbox-albert`. Pre
 
 ### Open questions and risks
 
-The only delivery risk is a future feature silently depending on session affinity (prepared
-statements, temp tables, session `SET`, advisory locks, LISTEN/NOTIFY, or cross-request state).
-Such a feature must trigger an explicit connection-architecture review. No schema rollback is
-needed: the reconciliation migration is additive/assertive.
+Open risks are (1) Albert's project Owner role retains direct secret-version
+mutation until organization-backed Deny/PAM is active, and (2) a future feature
+could silently depend on session affinity (prepared statements, temp tables,
+session `SET`, advisory locks, LISTEN/NOTIFY, or cross-request state). Such a
+feature must trigger an explicit connection-architecture review. No schema
+rollback is needed: the reconciliation migration is additive/assertive.
 
 ---
 
@@ -458,3 +582,39 @@ committed). It was flagged for rotation. **Status unverified as of 2026-07-15.**
 the 1Password item `Supabase DB Password - shared POP database` (vault `vibe_coding`)
 last-changed date; if it predates 2026-07-10, rotate it and update the item. If already rotated
 after 2026-07-10, delete this section. Do not rotate the 1Password service-account token.
+
+---
+
+## Documentation completeness self-audit — 2026-07-20
+
+### 1. Could a brand-new developer with no project or session context continue without questions?
+
+**Yes.** The incident section at the top explains the business impact, the exact
+Cloud SQL/`5432` versus Supabase/`6543` boundary, why the planning process failed,
+which repo owns each layer, every live safeguard, every relevant PR/commit/build/
+revision/alert identifier, Uma's two identities, the still-open Owner risk, and
+five ordered next steps with explicit pass conditions. It routes to the full
+incident record and the two canonical infrastructure documents rather than
+requiring chat history.
+
+### 2. Could that developer continue as effectively as the current session?
+
+**Yes.** They have the implementation evidence (9 infrastructure fixtures; 109
+suites / 741 tests; deliberate failed build; zero-traffic production revisions;
+24-resource IAM apply; zero-drift plan; HTTP 200), the exact identities and
+scopes of both writer service accounts, the 1Password note identifier, the
+current PR-review owner, and the precise organization/PAM/Deny acceptance test.
+They also know which tempting shortcuts are forbidden and why the hard gate was
+not forced through a standalone project.
+
+### 3. Is every relevant detail needed for flawless execution present?
+
+**Yes, after revision.** The first audit found and corrected four gaps: the
+handoff still described all environments as hosted Supabase, still treated the
+unsafe unsuffixed version as a valid atomic transition, omitted the 24 live IAM
+resources and alert evidence, and did not explain the Deny Admin/PAM
+organization constraint. The current top section and linked incident/runbook now
+include background, goal, intended outcome, current live state, failed attempts,
+root causes, ownership, constraints, risks, access boundaries, exact next
+actions, and a verification gate for every remaining action. No secret value is
+present.

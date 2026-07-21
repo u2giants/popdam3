@@ -46,7 +46,7 @@ the rule even before reading app-specific docs.
 ## Current Documents
 
 - [Cross-app coordination playbook](AGENTS.md) - **read first.** The operating contract for every AI session: which repos use `main` vs DesignFlow PR workflow vs shared-db PR workflow, the four rules that stop dependent apps from breaking each other through the shared database, and the merge protocol the AI runs.
-- [DesignFlow production DB-port incident](docs/incidents/20260717-designflow-production-db-port.md) - why a sandbox pooler port reached production and the controls required before the held connection-pool PRs can merge.
+- [DesignFlow production DB-port incident](docs/incidents/20260717-designflow-production-db-port.md) - full postmortem, correct environment contract, infrastructure/application/IAM remediation, PRs and revision evidence, failed hard-gate bootstrap, Uma approval boundary, 1Password handling, and the exact Google Cloud organization prerequisite still blocking final enforcement.
 - [AI tagging keyset timeout remediation](docs/app-migration-notes/ai-tagging-keyset-timeout-20260714.md) - service-only candidate RPC, query-shaped indexes, rollout evidence, and the cross-app list/search optimization standard.
 - [Merch-group taxonomy architecture](docs/merch-group-taxonomy-architecture.md) - how licensors, properties, themes, style guides and artists actually flow from Coldlion ERP through DesignFlow PLM into `core.*`. **Read before touching any of those.**
 - [Unified Supabase schema map](docs/unified-supabase-schema-map.md) - canonical entity/table ownership map across DAM, CRM, PM, and PLM.
