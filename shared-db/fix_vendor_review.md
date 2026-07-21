@@ -4,22 +4,27 @@
 **Scope:** do for **vendors** (`core.factory`) what was just completed for **customers**
 (`core.customer`). The customer work is DONE and merged.
 
-> ## ✅ STATUS UPDATE 2026-07-21 — curation applied to PROD (part 1 of 2); ONE decision left
+> ## ✅ STATUS UPDATE 2026-07-21 — vendor curation + dedup COMPLETE on PROD
 >
-> Albert's CSV rulings were applied to production (migration
-> `20260721171500_vendor_curation_status_seed_and_notfactory_purge.sql`, merged + applied +
-> verified). Result on prod: **525 factories = 100 active / 425 inactive**; the 4 not-a-factory
-> records (ABF Freight, Anthony's Warehouse, Digital Photographic, Walmart) were **deleted**;
-> status seeded from the Coldlion active flag; the 4 multi-code rulings applied (Action Printing
-> inactive, MIRAE active, XIANJU SHAOFENG inactive, XIANJU YINTAI active). PR #102 (schema) was
-> merged + deployed to prod earlier the same day.
+> Applied to production in two migrations (both merged + applied + verified):
+> - `20260721171500_vendor_curation_status_seed_and_notfactory_purge.sql` — deleted the 4
+>   not-a-factory records (ABF Freight, Anthony's Warehouse, Digital Photographic, Walmart),
+>   seeded status from the Coldlion active flag, applied the 4 multi-code rulings.
+> - `20260721190000_vendor_curation_directus_reassign_and_dedup.sql` — via `core.merge_factory`,
+>   reassigned the 6 "directus" factories to their real vendors (Tom→Jinhua CTR, Chloe→China
+>   Zhejiang [renamed Hangzhou Fun Goods Trading], Bill→Xiamen Tengfei, Jerome→Ningbo Home Decor,
+>   Lucy→Yiwu TaoYe CNNTY, Wendy→Xianju Sunway CNDWG — moving 33 products + 20 style bridges,
+>   0 orphans), and merged 9 duplicate factory rows into canonical survivors (Xianju Sunway,
+>   Ali Racking, Dong-A, Ningbo Home Decor, Pharos, Taizhou Meihua, Yiwu TaoYe, China Zhejiang).
 >
-> **STILL OPEN — needs Albert:** the 6 legacy "directus" factories (Bill, Chloe, Jerome, Lucy,
-> Tom, Wendy Sunway) were flagged garbage but are **referenced by 33 `pim.product` rows + 20
-> `plm.style_tracker_item_bridge` rows** (Tom 12, Chloe 7, Bill 6+20 bridges, Jerome 4, Lucy 2,
-> Wendy Sunway 2). They were NOT deleted. Decision needed: delete-and-null those product links,
-> reassign the products to real vendors first, or just mark the 6 inactive. Then finish steps 6–7
-> (serving/exposure + docs) and delete this file.
+> **Final prod state: 510 factories = 91 active / 419 inactive.** PR #102 (schema:
+> display_name/factory_alias/merge_factory) was also deployed to prod the same day.
+>
+> **Remaining (not blocking):** step 6 serving/exposure is now folded into `DB_Data_Admin.md`
+> (the standalone admin app). A broader FUZZY-duplicate sweep (beyond exact-normalized name
+> matches) was not run — e.g. abbreviations/translations that don't normalize identically —
+> and would need human review like the customer dedup. This file can be retired once the admin
+> app's vendor screen ships.
 >
 > ## ⚡ STATUS UPDATE 2026-07-17 — prep steps 1–4 are DONE (by Codex); start at step 5
 >
