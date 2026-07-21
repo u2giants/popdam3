@@ -44,14 +44,16 @@ or PopPIM-only page. The historical PopCRM location in
 
 ### Repository-mirror decision
 
-This repo's `.github/workflows/sync.yml` currently mirrors the entire repository root—except
-`.git` and `.github`—into the `shared-db/` folder of nine consumer repositories. A frontend
-under `apps/db-data-admin/` must not be copied into those consumers.
+This repo's `.github/workflows/sync.yml` mirrors the shareable repository root into the
+`shared-db/` folder of nine consumer repositories. On 2026-07-21, the workflow was changed
+to exclude the top-level `apps/` workspace while continuing to mirror database contracts,
+migrations, documentation, and operating rules. It uses `--delete-excluded`, so a previously
+mirrored `apps/` directory is removed rather than merely ignored on later runs.
 
-Before the application scaffold is added, change the mirror workflow to exclude `apps/`
-and prove on a test/sync PR that migrations and documentation still mirror while
-`apps/db-data-admin/` does not. The frontend remains owned here; only its replication into
-consumer repos is disabled. This mirror exclusion is a blocking prerequisite, not cleanup.
+Every sync injects a temporary `apps/.sync-exclusion-probe`, proves no `apps/` directory reaches
+the consumer, and compares the mirrored `AGENTS.md` byte-for-byte with the canonical source.
+The frontend remains owned here; only its replication into consumer repos is disabled. No
+per-machine configuration is required.
 
 ---
 
@@ -489,8 +491,9 @@ cleanup task.
 1. **Inventory and ownership catalogue.** List all displayed/editable fields, source
    systems, current API objects, consumers, permissions, and authority. Pass when every
    field has one owner and every old object name in §6 has been verified or rejected.
-2. **Mirror and stack prerequisite.** Add and verify the `apps/` exclusion in
-   `.github/workflows/sync.yml`. Record the frontend framework, build tool, unit runner,
+2. **Mirror prerequisite completed; record the stack.** The centralized
+   `.github/workflows/sync.yml` excludes top-level `apps/`, removes previously mirrored copies,
+   and verifies the boundary on every consumer sync. Record the frontend framework, build tool, unit runner,
    Playwright/browser setup, and exact RevoGrid version. Recommended baseline is React +
    TypeScript + Vite to align with the non-DesignFlow apps, subject to repository inspection.
    Pass when a sync test proves `apps/` is absent from consumers while canonical shared-db
@@ -583,7 +586,7 @@ defines it.
 
 - [ ] DB Data Admin is implemented in `shared-db/apps/db-data-admin/` and available at
       `https://data.designflow.app`.
-- [ ] `.github/workflows/sync.yml` excludes `apps/`, and a sync test proves the frontend is
+- [x] `.github/workflows/sync.yml` excludes `apps/`, and a sync test proves the frontend is
       not mirrored into consumer repositories while canonical shared-db content still is.
 - [ ] Only authorized administrators can enter or call its database operations.
 - [ ] Authorization uses both the existing administrator role and `admin` app access; no

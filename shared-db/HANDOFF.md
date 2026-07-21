@@ -628,8 +628,9 @@ current PR-review owner, and the precise organization/PAM/Deny acceptance test.
 They also know which tempting shortcuts are forbidden and why the hard gate was
 not forced through a standalone project.
 
-For DB Data Admin, they also have the decisions reviewed by Kimi K3, the exact
-first prerequisite (exclude `apps/` from the repository mirror workflow), and
+For DB Data Admin, they also have the decisions reviewed by Kimi K3, the completed
+first prerequisite (the centralized mirror excludes and purges top-level `apps/`,
+with an automated boundary check on every consumer sync), and
 an ordered implementation sequence that distinguishes completed schema work
 from planned work.
 
