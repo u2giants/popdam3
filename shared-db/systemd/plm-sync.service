@@ -2,6 +2,8 @@
 Description=Sync Designflow PLM master data into shared Supabase
 Wants=network-online.target
 After=network-online.target
+# Loud alert when the sync exits non-zero (see systemd/plm-sync-alert.service).
+OnFailure=plm-sync-alert.service
 
 [Service]
 Type=oneshot

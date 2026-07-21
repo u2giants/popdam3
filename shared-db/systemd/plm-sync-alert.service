@@ -1,0 +1,11 @@
+[Unit]
+# Fired via OnFailure= from plm-sync.service whenever the daily sync exits
+# non-zero. Provides a loud, human-visible signal even if the wrapper could not
+# reach the database to record a failed ingest.sync_run row. See
+# systemd/plm-sync.service and tools/sync-plm-master-data.mjs.
+Description=Alert that the PLM master-data sync failed
+
+[Service]
+Type=oneshot
+User=ai
+ExecStart=/usr/bin/bash -c 'printf "PLM master-data sync FAILED at %s\n" "$(date -Is)" | tee -a /home/ai/plm-sync-failures.log | systemd-cat -t plm-sync -p err'
