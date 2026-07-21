@@ -33,8 +33,8 @@ Preview branch for CRM/PM rewrite work:
 
 ```text
 Branch name: shared-db-schema-rehearsal
-Preview project ref: xjcyeuvzkhtzsheknaiu
-URL: https://xjcyeuvzkhtzsheknaiu.supabase.co
+Preview project ref: rjyboqwcdzcocqgmsyel
+URL: https://rjyboqwcdzcocqgmsyel.supabase.co
 Created with data: true
 Persistent: true
 Purpose: shared integration target for schema/app rewrite testing.
@@ -80,7 +80,7 @@ Baseline result:
 
    ```bash
    PREVIEW_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)/password')"
-   supabase link --project-ref xjcyeuvzkhtzsheknaiu --password "$PREVIEW_DB_PASSWORD"
+   supabase link --project-ref rjyboqwcdzcocqgmsyel --password "$PREVIEW_DB_PASSWORD"
    ```
 
 4. Create new migration files in `supabase/migrations`.
@@ -112,7 +112,7 @@ to manual SQL or dashboard edits:
 
 ```bash
 PREVIEW_DB_PASSWORD="$(op read 'op://vibe_coding/Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)/password')"
-supabase link --project-ref xjcyeuvzkhtzsheknaiu --password "$PREVIEW_DB_PASSWORD"
+supabase link --project-ref rjyboqwcdzcocqgmsyel --password "$PREVIEW_DB_PASSWORD"
 supabase db push --dry-run
 ```
 
@@ -178,7 +178,7 @@ Do not copy objects manually from the preview branch in the Supabase dashboard.
 
 The promotion path is migration-file based:
 
-1. Confirm the app rewrite works against preview project `xjcyeuvzkhtzsheknaiu`.
+1. Confirm the app rewrite works against preview project `rjyboqwcdzcocqgmsyel`.
 2. Commit and push the migration files to `u2giants/shared-db`.
 3. Review schema diff, RLS exposure, and frontend behavior.
 4. Authenticate the installed Supabase CLI with the canonical 1Password PAT:
@@ -242,5 +242,5 @@ Each app migration session must leave:
 
 - Migration files committed in `shared-db`.
 - A short doc under `docs/app-migration-notes/` describing frontend env vars, tested screens, table/view/RPC usage, and remaining gaps.
-- Confirmation that the app was tested against `https://xjcyeuvzkhtzsheknaiu.supabase.co`.
+- Confirmation that the app was tested against `https://rjyboqwcdzcocqgmsyel.supabase.co`.
 - A production promotion checklist naming exactly which migrations should be applied.

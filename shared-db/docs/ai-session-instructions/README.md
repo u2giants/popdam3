@@ -14,7 +14,7 @@ The shared preview branch is:
 
 ```text
 Parent project: qsllyeztdwjgirsysgai
-Preview project ref: xjcyeuvzkhtzsheknaiu
+Preview project ref: rjyboqwcdzcocqgmsyel
 Branch name: shared-db-schema-rehearsal
 ```
 

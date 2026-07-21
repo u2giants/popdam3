@@ -133,7 +133,7 @@ four rules below are non-negotiable for any database change.
    land that one first, or coordinate with the owner. Two simultaneous schema
    edits are the number-one cause of a broken shared database.
 2. **Preview database first. Production never receives untested schema.** Apply
-   every migration to the preview branch (`xjcyeuvzkhtzsheknaiu`), prove it
+   every migration to the preview branch (`rjyboqwcdzcocqgmsyel`), prove it
    works, *then* promote to production (`qsllyeztdwjgirsysgai`).
 3. **Additive by default (expand, then contract).** Adding a column or table
    cannot break another app. **Renaming or dropping** one that another app reads
@@ -250,7 +250,7 @@ to the owner in plain English and let them choose order.
 ## 8. Project references
 
 ```text
-Preview project ref:  xjcyeuvzkhtzsheknaiu   (Supabase branch "shared-db-schema-rehearsal")
+Preview project ref:  rjyboqwcdzcocqgmsyel   (Supabase branch "shared-db-schema-rehearsal")
 Production project ref: qsllyeztdwjgirsysgai
 ```
 
@@ -341,7 +341,7 @@ Gotchas added 2026-07-16 (each cost real time; all verified):
 Preview branch credentials live in 1Password item
 `Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)`.
 Use the same pattern: authenticate the CLI with the Supabase PAT, then link to
-preview project `xjcyeuvzkhtzsheknaiu` with that branch's database password
+preview project `rjyboqwcdzcocqgmsyel` with that branch's database password
 before running preview dry-runs or pushes.
 
 ## 10. Where to read more
