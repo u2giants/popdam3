@@ -4,6 +4,23 @@
 **Scope:** do for **vendors** (`core.factory`) what was just completed for **customers**
 (`core.customer`). The customer work is DONE and merged.
 
+> ## ✅ STATUS UPDATE 2026-07-21 — curation applied to PROD (part 1 of 2); ONE decision left
+>
+> Albert's CSV rulings were applied to production (migration
+> `20260721171500_vendor_curation_status_seed_and_notfactory_purge.sql`, merged + applied +
+> verified). Result on prod: **525 factories = 100 active / 425 inactive**; the 4 not-a-factory
+> records (ABF Freight, Anthony's Warehouse, Digital Photographic, Walmart) were **deleted**;
+> status seeded from the Coldlion active flag; the 4 multi-code rulings applied (Action Printing
+> inactive, MIRAE active, XIANJU SHAOFENG inactive, XIANJU YINTAI active). PR #102 (schema) was
+> merged + deployed to prod earlier the same day.
+>
+> **STILL OPEN — needs Albert:** the 6 legacy "directus" factories (Bill, Chloe, Jerome, Lucy,
+> Tom, Wendy Sunway) were flagged garbage but are **referenced by 33 `pim.product` rows + 20
+> `plm.style_tracker_item_bridge` rows** (Tom 12, Chloe 7, Bill 6+20 bridges, Jerome 4, Lucy 2,
+> Wendy Sunway 2). They were NOT deleted. Decision needed: delete-and-null those product links,
+> reassign the products to real vendors first, or just mark the 6 inactive. Then finish steps 6–7
+> (serving/exposure + docs) and delete this file.
+>
 > ## ⚡ STATUS UPDATE 2026-07-17 — prep steps 1–4 are DONE (by Codex); start at step 5
 >
 > Codex executed the safe "line up" portion. **No canonical vendor data was changed** (verified
