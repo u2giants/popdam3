@@ -36,11 +36,33 @@ List endpoints are Spring-paged:
 Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,711**
 (items table is large too).
 
+> ## ⚠️ OPEN QUESTION 2026-07-21 — `/vendors` may be the WRONG table (mixes service-providers with factories)
+>
+> The 539 rows from `/vendors` are **not** all merchandise vendors (factories). They include
+> large numbers of **general/AP-style vendors**: freight & logistics carriers (ABF Freight, DHL
+> Express, JTS Express, ECHO/ARIES Global Logistics), government agencies (U.S. Department of
+> State, NYC Department of Finance, NJ Division of Taxation), financial services (Chase / FIA /
+> Discover Card Services), a photo studio (Digital Photographic), a retailer (WALMART — actually
+> a customer), and real-estate LLCs. These surfaced during the 2026-07-20/21 vendor curation as
+> "not a factory" purges and dominate the fuzzy-duplicate noise (see `fix_vendor_review.md`,
+> `docs/vendor-review/vendor_fuzzy_dupes.csv`).
+>
+> **Hypothesis (Albert, 2026-07-21):** Coldlion may have attached the wrong ERP table to
+> `/vendors`, returning the *general vendor / accounts-payable* master (service providers) rather
+> than — or merged with — the *merchandise vendor / factory* master. **Albert has asked Coldlion
+> to confirm.**
+>
+> **Implication for shared-db:** `core.factory` is meant to hold **merchandise vendors
+> (factories)** only. Until Coldlion confirms, treat `/vendors` as a mixed population. If
+> confirmed wrong, the fix is upstream (correct endpoint/table) or a `vendor_type` classification
+> + filter before mapping into `core.factory`. **Do not build more curation on top of the current
+> `/vendors` set until this is resolved** — a corrected feed could change which rows belong.
+
 ## Endpoint map (all GET unless noted)
 | Endpoint | Purpose | Key params |
 |---|---|---|
 | `/customers` | Customer master | companyCode, customerCode, modifiedFrom/To, paging |
-| `/vendors` | Vendor master | companyCode, vendorCode, modifiedFrom/To, paging |
+| `/vendors` | Vendor master — **⚠️ see warning below** | companyCode, vendorCode, modifiedFrom/To, paging |
 | `/items` | Item **header** master (carries `hasImage` Y/N) | companyCode, divisionCode, itemNo, merchGroup01–06, created/modifiedFrom/To, paging |
 | `/itemDetails` | Item **detail** (SKU level: dims, costs, UPC/EAN/GTIN, prices A–H). **PUT** to update | companyCode, divisionCode, itemNo, itemPkey |
 | `/itemImages` | Item image content (base64 + thumbnail128). **PUT** to update | itemNo *(req)*, companyCode, divisionCode |

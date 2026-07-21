@@ -21,10 +21,23 @@
 > display_name/factory_alias/merge_factory) was also deployed to prod the same day.
 >
 > **Remaining (not blocking):** step 6 serving/exposure is now folded into `DB_Data_Admin.md`
-> (the standalone admin app). A broader FUZZY-duplicate sweep (beyond exact-normalized name
-> matches) was not run — e.g. abbreviations/translations that don't normalize identically —
-> and would need human review like the customer dedup. This file can be retired once the admin
-> app's vendor screen ships.
+> (the standalone admin app). A broader FUZZY-duplicate sweep was generated for human review:
+> [`docs/vendor-review/vendor_fuzzy_dupes.csv`](docs/vendor-review/vendor_fuzzy_dupes.csv) — 69
+> trigram candidate pairs, tiered LIKELY/MAYBE/UNLIKELY with a `claude_hint`, blank decision
+> columns awaiting Albert's rulings. This file can be retired once the admin app's vendor screen
+> ships.
+>
+> ## 🔴 ROOT-CAUSE HYPOTHESIS 2026-07-21 — `/vendors` may be the wrong Coldlion table
+>
+> The "not a factory" purges (ABF Freight, Anthony's Warehouse, Digital Photographic, Walmart)
+> and most of the fuzzy-dup noise (freight/logistics, government agencies, banks/card services,
+> couriers, real-estate LLCs) are almost certainly **service-provider / AP vendors**, not
+> factories. **Albert suspects Coldlion attached the wrong table to `/vendors`** (returning the
+> general vendor master mixed with, or instead of, the merchandise-vendor/factory master) and has
+> asked Coldlion to confirm. `core.factory` should hold factories only. **Do not run the fuzzy
+> merges or any further `/vendors`-based curation until Coldlion confirms** — a corrected feed
+> could re-scope which rows belong. See `docs/coldlion-erp-api-reference.md` (⚠️ box) and
+> `AGENTS.md §6.2`.
 >
 > ## ⚡ STATUS UPDATE 2026-07-17 — prep steps 1–4 are DONE (by Codex); start at step 5
 >

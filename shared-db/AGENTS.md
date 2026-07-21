@@ -230,6 +230,16 @@ The three rules that cause the most damage when ignored:
 3. **Merch-group codes are unique only within `(division, mgTypeCode)`.** `FR` is a licensor
    in our DB and a *property* in Coldlion. Never look up by `mg_code` alone.
 
+### 6.2 Coldlion `/vendors` may be the wrong table (OPEN, 2026-07-21)
+
+`core.factory` = **merchandise vendors (factories)**. But Coldlion's `/vendors` endpoint returns
+a mixed population — real factories PLUS general/AP vendors (freight, government, banks, couriers,
+real estate). Albert suspects Coldlion attached the wrong ERP table and has asked them to confirm.
+**Until resolved, do not run further vendor curation/dedup or wire anything new to `core.factory`
+from `/vendors`** — a corrected feed could change which rows belong. Full detail:
+[`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md) (⚠️ box) and
+[`fix_vendor_review.md`](fix_vendor_review.md).
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start

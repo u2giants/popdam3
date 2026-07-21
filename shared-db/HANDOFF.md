@@ -10,6 +10,31 @@ for a developer with **zero** prior context. Read it, then read the linked plan.
 
 ---
 
+## 📌 Session 2026-07-21 — data/schema work (full record linked)
+
+Full account: [`docs/app-migration-notes/session-2026-07-21.md`](docs/app-migration-notes/session-2026-07-21.md).
+Deployed to prod: PLM sync failure-logging (PR #107), the vendor/factory schema (PR #102,
+previously merged-but-unapplied), the **item→taxonomy Phase 2a/2b foundation** (PRs #110/#115 —
+`plm.item`/resolver live but **0 rows**, gated for Phase 3 backfill), and the **vendor curation**
+(PRs #113/#115/#118 — `core.factory` now **510 rows, 91 active / 419 inactive**, directus factories
+reassigned to real vendors with 0 orphans, exact-name duplicates merged). Docs: DB Data Admin plan is
+authoritative (PR #112, [`DB_Data_Admin.md`](DB_Data_Admin.md)); fuzzy-dup review sheet generated
+(PR #120, [`docs/vendor-review/vendor_fuzzy_dupes.csv`](docs/vendor-review/vendor_fuzzy_dupes.csv)).
+
+**🔴 Highest-priority OPEN finding — Coldlion `/vendors` may be the WRONG table.** It returns
+service-provider/AP vendors (freight, government, banks, couriers, real estate) mixed with real
+factories — the source of the "not a factory" purges and most fuzzy-dup noise. Albert has asked
+Coldlion to confirm. **Do not run the fuzzy merges or further `/vendors`-based curation until
+resolved** — a corrected feed could re-scope which rows belong. See `AGENTS.md §6.2` +
+`docs/coldlion-erp-api-reference.md` (⚠️ box).
+
+Other open items from this session: fuzzy-dup sheet awaiting Albert's rulings; item-taxonomy Phase 3+
+(backfill `plm.item` from `/items`, then cutover behind the app-repo grep gate — see
+`fix_item_taxonomy_wiring.md`); PLM sync upstream 502 still down + PR #107 needs deploying on the hetz
+box (`cd /worksp/shared-db && git pull && sudo systemctl daemon-reload`); DB Data Admin app not started.
+
+---
+
 ## 🔴 DesignFlow production DB-port incident — remediation state 2026-07-20
 
 **Read the comprehensive incident record first:**
@@ -118,7 +143,7 @@ schema task or sandbox task implicitly authorizes touching them.
 
 ---
 
-## 🔴 URGENT — two live outages found 2026-07-19, neither fixed
+## 🟠 Two live outages found 2026-07-19 — `/items` + alerting FIXED; PLM upstream 502 still open
 
 Both were discovered while answering a documentation question. **Neither has been repaired,
 and neither is alerting.** They are the highest-priority items in this file.
