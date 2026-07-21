@@ -50,6 +50,18 @@ This violates the house "no silent failures" rule. **A failed run must write a r
 `status <> 'succeeded'` and a populated `error` column, and must alert.** Fixing the
 alerting matters more than fixing the outage — the outage is visible once alerting exists.
 
+> **UPDATE 2026-07-20 — the alerting half is FIXED (PR #107, merged).** Root cause found:
+> `plm.import_master_data()` set `status='failed'` then re-raised, so the aborted
+> transaction rolled the failed row back; and the 502 fails in `fetchJson()` before the
+> import transaction even starts — so failed runs left **no** row (not a false success).
+> The host wrapper (`tools/sync-plm-master-data.mjs`) now writes a **committed**
+> `status='failed'` row (separate transaction) capturing error + stage, and
+> `systemd/plm-sync.service` gained `OnFailure=plm-sync-alert.service` (journal +
+> `/home/ai/plm-sync-failures.log`). Unit tests in `tools/sync-plm-master-data.test.mjs`.
+> **Remaining:** (a) the upstream 502 itself is still unfixed — the sync still cannot pull;
+> (b) the fix must be deployed on the `hetz` sync box (`cd /worksp/shared-db && git pull &&
+> sudo systemctl daemon-reload`) before it takes effect there.
+
 **A second thing to look at while you are in there.** Every historical run recorded
 `rows_seen=560, rows_inserted=560, rows_updated=0`. A daily reconciling sync that has
 *never once* recorded an update strongly suggests wholesale re-insert rather than
@@ -69,6 +81,11 @@ GET http://x5.coldlion.com/EhpApi/items?companyCode=EDGEHOME&divisionCode=CW001&
 Reproduced with and without `divisionCode`, with `modifiedFrom`, with `merchGroup05`, and at
 several page sizes. **It is server-side and unconditional.** It was working 2026-07-15 per
 `docs/coldlion-erp-api-reference.md`, so it broke within four days.
+
+> **UPDATE 2026-07-20 — FIXED upstream.** `GET /items` now returns **HTTP 200** (verified
+> live: 19,066 items across 9,533 pages, `size=2&page=0`). The NullPointerException is gone.
+> This **unblocks the item→taxonomy wiring** (Phase 2+ of `fix_schema_for_api.md`), which is
+> now the active build (see the new item→taxonomy plan referenced below).
 
 Every other read endpoint was verified healthy the same day — `/customers`, `/vendors`,
 `/inventory`, `/merchGroupHeaders`, `/merchGroupDetails`, `/seasons`, `/itemDetails` all
@@ -289,6 +306,13 @@ dependency), what is correct vs. incorrect about the current design, the target 
 why, and the phase-by-phase migration with reversibility and risk notes. **Do not start ERP
 schema work without reading it, and continue the phases in order.**
 
+**The drill-down for the item→taxonomy resolver (Phases 2–4) is
+[`fix_item_taxonomy_wiring.md`](fix_item_taxonomy_wiring.md) (repo root).** This is the "items
+aren't joined to the taxonomy" fix: `erp_items_current` stores `licensor_code`/`property_code`
+as text with no FK, while the correct FK table `plm.item` exists but is empty. The plan is under
+Kimi-K3 review → Codex implementation as of 2026-07-20 (now unblocked because `/items` returns 200
+again). It carries the `(division, mg_type, code)` composite-key rule and the lapsed-license guard.
+
 ### Status
 | Phase | State |
 |---|---|
@@ -363,8 +387,14 @@ now show `display_name` and hide inactive customers.
 - **[`docs/coldlion-customers-vendors-20260715.md`](docs/app-migration-notes/coldlion-customers-vendors-20260715.md)**
   — the import/pipeline app-migration note.
 - **[`fix_vendor_review.md`](fix_vendor_review.md)** (repo root) — detailed cold-start handoff to do
-  the **vendor** (`core.factory`) equivalent (NOT STARTED: 529 rows, all active, no
-  alias/merge_factory/display_name yet).
+  the **vendor** (`core.factory`) equivalent (schema merged; curation pass pending, see Status below).
+- **[`fix_impl_visual_admin_page.md`](fix_impl_visual_admin_page.md)** (repo root) — **cold-start
+  spec for a popcrm-web session** to build the visual **Admin page** that presents & curates the
+  four canonical entity sets (Customers, Vendors/Factories) and the **Licensors → Properties
+  relationship tree**. Includes the exact DB surface (views/RPCs) and the §5 cutover-safety grep
+  gate (the honest answer to "are you sure switching to the api-fed tables won't break anything?").
+  This work happens in **popcrm-web on the hetz server**, not here; any new `api.*`/`core.*` object
+  it needs must be authored in shared-db first.
 - **[`docs/per-app-extension-tables-plan.md`](docs/per-app-extension-tables-plan.md)** —
   implementation plan for per-app extension tables (`crm/pim/dam/plm.customer_ext` etc.) so
   app-specific attributes never bloat the shared `core.*` tables. Decision made 2026-07-17,
@@ -372,14 +402,21 @@ now show `display_name` and hide inactive customers.
 
 ### Status
 - **Customers: DONE + merged** (shared-db PRs #83, #84, #85, #86, #88, #91, #94, #96; all applied
-  to prod). CRM picker frontend in **popcrm-web PR #3** (open, unmerged, awaiting review — merging
-  deploys the live CRM).
-- **Vendors: PREP DONE (Codex, 2026-07-17), awaiting Albert's rulings.** Fresh Coldlion re-pull
-  done (mirror 97 active / 442 inactive); additive schema (`factory.display_name`,
-  `core.factory_alias`, `core.merge_factory`) drafted + rehearsed → **shared-db PR #102 (OPEN, not
-  merged, not applied)**; dedup CSVs in [`docs/vendor-review/`](docs/vendor-review/). **No canonical
-  vendor data changed** — `core.factory` is still 529 rows, all active. Next: Albert marks up the
-  CSVs, then apply. Full spec + status: [`fix_vendor_review.md`](fix_vendor_review.md).
+  to prod). CRM picker frontend (`picker-autocomplete-display-name`) is **MERGED** — there is no
+  open popcrm-web PR (an earlier note here referencing "popcrm-web PR #3, open" was stale).
+- **Vendors: SCHEMA MERGED, curation pending.** **shared-db PR #102 is MERGED** (commit `14da5c5`)
+  — `factory.display_name`, `core.factory_alias`, `core.merge_factory` are all live. What remains
+  is the **curation pass** (`fix_vendor_review.md` §6 steps 5–7): apply Albert's CSV rulings.
+  Rulings received 2026-07-20:
+    - `docs/vendor-review/vendor_multicode.csv` — statuses set (Action Printing INACTIVE, MIRAE
+      ACTIVE, XIANJU SHAOFENG INACTIVE, XIANJU YINTAI ACTIVE, all "one vendor Y").
+    - **"Not a factory" rows → PURGE from `core.factory` entirely:** ABF FREIGHT SYSTEM (205, 206),
+      DIGITAL PHOTOGRAPHIC (16, 207), ANTHONY'S WAREHOUSE & DISTRIBUTION (458, ANT001), WALMART
+      (369, 459 — actually a customer).
+    - `docs/vendor-review/vendor_directus.csv` — **all 6 rows are garbage** (Directus test data:
+      Bill, Chloe, Jerome, Lucy, Tom, Wendy Sunway); exclude all from `core.factory`.
+  Next action: author one migration doing status-seed + purge, apply preview-first, merge.
+  Full spec: [`fix_vendor_review.md`](fix_vendor_review.md).
 - **Extension tables: PLAN ONLY** — `docs/per-app-extension-tables-plan.md`; no migration written.
 - Frontend "hide inactive" for **poppim-web / popdam3** pickers: not started (same pattern as
   popcrm-web PR #3).
