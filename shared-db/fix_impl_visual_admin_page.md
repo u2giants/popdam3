@@ -1,3 +1,13 @@
+> **⚠️ SUPERSEDED 2026-07-21 — read [`DB_Data_Admin.md`](DB_Data_Admin.md) instead.**
+> The approved direction is a **standalone** admin application, **DB Data Admin**, owned in
+> this repo (`apps/db-data-admin/`) and served at `https://data.designflow.app`, built on
+> **RevoGrid Core (MIT)** — NOT a page inside popcrm-web. `DB_Data_Admin.md` is authoritative
+> for product ownership, URL, grid engine, architecture, screens, the admin-only serving-API
+> contract, and the delivery plan. **Do NOT implement the popcrm-web ownership/location below.**
+> What in this file remains useful: the database-surface inventory (exact `core.*` / `api.*`
+> object names, the merge/alias RPCs, the Licensor→Property FK), and the §5 cutover-safety grep
+> gate. Treat everything about *where the page lives* as history.
+
 # fix_impl_visual_admin_page.md — Build the canonical-data Admin page in popcrm-web
 
 **Repo to work in:** `popcrm-web` (already cloned on the `hetz` Ubuntu server that runs the app).

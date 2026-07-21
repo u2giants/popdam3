@@ -505,6 +505,15 @@ table, and `core.merge_customer()`. Status is app-owned (survives Coldlion re-pu
 now show `display_name` and hide inactive customers.
 
 ### Reference docs (read these before continuing)
+- **[`DB_Data_Admin.md`](DB_Data_Admin.md)** — **approved 2026-07-21 product and
+  implementation plan** for the shared administrator application at
+  `https://data.designflow.app`. The application is owned and developed in this repo
+  (planned frontend: `apps/db-data-admin/`) and initially manages Customers, Vendors,
+  Licensors, and Properties. It standardizes DB Data Admin on MIT RevoGrid Core with our
+  own always-visible header filtering. DesignFlow keeps AG Grid; PopCRM's custom DataTable
+  is legacy and should not become a third shared grid platform. **This plan supersedes the
+  older direction below that placed the admin page in PopCRM. Implementation has not
+  started; the URL has not yet been provisioned.**
 - **[`docs/coldlion-customer-dedupe-review.md`](docs/coldlion-customer-dedupe-review.md)** — the
   full customer dedup ruling ledger + final state (what merged, statuses, aliases, the Amazon
   1P/3P split, defects found).
@@ -512,13 +521,11 @@ now show `display_name` and hide inactive customers.
   — the import/pipeline app-migration note.
 - **[`fix_vendor_review.md`](fix_vendor_review.md)** (repo root) — detailed cold-start handoff to do
   the **vendor** (`core.factory`) equivalent (schema merged; curation pass pending, see Status below).
-- **[`fix_impl_visual_admin_page.md`](fix_impl_visual_admin_page.md)** (repo root) — **cold-start
-  spec for a popcrm-web session** to build the visual **Admin page** that presents & curates the
-  four canonical entity sets (Customers, Vendors/Factories) and the **Licensors → Properties
-  relationship tree**. Includes the exact DB surface (views/RPCs) and the §5 cutover-safety grep
-  gate (the honest answer to "are you sure switching to the api-fed tables won't break anything?").
-  This work happens in **popcrm-web on the hetz server**, not here; any new `api.*`/`core.*` object
-  it needs must be authored in shared-db first.
+- **[`fix_impl_visual_admin_page.md`](fix_impl_visual_admin_page.md)** (repo root) — historical
+  PopCRM-hosted admin-page proposal. **Do not implement its PopCRM ownership/location.** Its
+  database-surface and cutover-safety research may still be useful, but
+  [`DB_Data_Admin.md`](DB_Data_Admin.md) is now authoritative for product ownership, URL, grid,
+  architecture, and delivery.
 - **[`docs/per-app-extension-tables-plan.md`](docs/per-app-extension-tables-plan.md)** —
   implementation plan for per-app extension tables (`crm/pim/dam/plm.customer_ext` etc.) so
   app-specific attributes never bloat the shared `core.*` tables. Decision made 2026-07-17,
@@ -542,6 +549,9 @@ now show `display_name` and hide inactive customers.
   Next action: author one migration doing status-seed + purge, apply preview-first, merge.
   Full spec: [`fix_vendor_review.md`](fix_vendor_review.md).
 - **Extension tables: PLAN ONLY** — `docs/per-app-extension-tables-plan.md`; no migration written.
+- **DB Data Admin: PLAN ONLY** — `DB_Data_Admin.md`; no frontend scaffold, schema migration,
+  DNS, hosting, Supabase Auth allowlist, or deployment has been created. Target URL:
+  `https://data.designflow.app`.
 - Frontend "hide inactive" for **poppim-web / popdam3** pickers: not started (same pattern as
   popcrm-web PR #3).
 
