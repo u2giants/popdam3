@@ -12,6 +12,17 @@
 - [Unified schema map](../unified-supabase-schema-map.md) — target schema purposes
 - [Shared database vision](../shared-database-vision.md) — canonical ownership rules
 
+> **⚠️ Runtime gotcha — the app still runs on `dflow`.** Every DesignFlow Cloud Run
+> service is pinned to a single `SCHEMA=dflow` (the landing/staging copy). Moving a table
+> to its target schema (`plm`/`core`/`app`) via `ALTER TABLE … SET SCHEMA` **removes it
+> from `dflow` and breaks the live app** with `relation "dflow.<table>" does not exist` —
+> until the app is switched to a multi-schema `search_path` (not yet done). This bit the
+> sample-tracking tables on 2026-07-21 (they'd been moved to `plm`; the app failed on
+> sample creation); restored by migration
+> `20260721201500_restore_dflow_sample_tracking_tables.sql`. **Do not `SET SCHEMA` a table
+> the app reads until the app's schema switch lands.** Sequence tables to move only after
+> the runtime search_path change, or land copies in both schemas during the transition.
+
 ---
 
 ## 1. Purpose
