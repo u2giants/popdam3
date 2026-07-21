@@ -82,7 +82,7 @@ type SheetColumn = {
   typedField?: keyof StyleRow;
   legacyKey?: string;
   linkKind?: FieldKey;
-  optionKind?: "customer" | "licensor" | "designer" | "factory";
+  optionKind?: "customer" | "licensor" | "designer" | "factory" | "packagingType";
 };
 
 type ReviewItem = {
@@ -205,6 +205,7 @@ const SIZE_AT_END_RE = /(?:^|\s)(\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?(?:\s*(?:"
 const licensedColumns: SheetColumn[] = [
   { letter: "A", header: "Print Fair Row#", width: 118, hide: true, legacyKey: "print_fair_row" },
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
+  { letter: "PKG", header: "Packaging Type", width: 175, legacyKey: "packaging_type", optionKind: "packagingType" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Originally Designed For", width: 190, typedField: "customer", legacyKey: "originally_designed_for", linkKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
@@ -249,6 +250,7 @@ const licensedColumns: SheetColumn[] = [
 const genericColumns: SheetColumn[] = [
   { letter: "A", header: "A", width: 130 },
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
+  { letter: "PKG", header: "Packaging Type", width: 175, legacyKey: "packaging_type", optionKind: "packagingType" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
   { letter: "E", header: "Special Customer", width: 170, typedField: "customer", legacyKey: "special_customer", linkKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
@@ -649,6 +651,18 @@ async function fetchFactoryOptions() {
   return compactPickerOptions(data);
 }
 
+async function fetchPackagingTypeOptions() {
+  const { data, error } = await (supabase as any)
+    .schema("core")
+    .from("packaging_type")
+    .select("id, name")
+    .eq("status", "active")
+    .order("name", { ascending: true })
+    .limit(1000);
+  if (error) throw error;
+  return compactPickerOptions(data);
+}
+
 function designerCandidateScore(rawValue: string, candidateName: string) {
   const raw = normalized(rawValue);
   const candidate = normalized(candidateName);
@@ -1025,6 +1039,7 @@ export default function StylesPage() {
   const sizeOptionsQuery = useQuery({ queryKey: ["style-tracker-size-options"], queryFn: fetchSizeOptions });
   const designerOptionsQuery = useQuery({ queryKey: ["style-tracker-designer-options"], queryFn: fetchDesignerOptions });
   const factoryOptionsQuery = useQuery({ queryKey: ["style-tracker-factory-options"], queryFn: fetchFactoryOptions });
+  const packagingTypeOptionsQuery = useQuery({ queryKey: ["style-tracker-packaging-type-options"], queryFn: fetchPackagingTypeOptions });
   const savedViewsQuery = useQuery({
     queryKey: ["style-tracker-views", user?.id, active.name],
     queryFn: () => fetchSavedViews(user?.id, active.name),
@@ -1034,6 +1049,7 @@ export default function StylesPage() {
   const activeView = savedViews.find((view) => view.id === activeViewId) ?? null;
   const rows = rowsQuery.data ?? [];
   const designerOptionKeys = useMemo(() => new Set((designerOptionsQuery.data ?? []).map((name) => normalized(name))), [designerOptionsQuery.data]);
+  const packagingTypeOptionKeys = useMemo(() => new Set((packagingTypeOptionsQuery.data ?? []).map((name) => normalized(name))), [packagingTypeOptionsQuery.data]);
   const descriptionOptions = useMemo<DescriptionEditorOptions>(() => {
     const parsedSizes = rows
       .map((row) => {
@@ -1096,6 +1112,12 @@ export default function StylesPage() {
         const nextValue = String(value ?? "").trim();
         if (nextValue && !designerOptionKeys.has(normalized(nextValue))) {
           throw new Error("Choose a designer from the creative designer list.");
+        }
+      }
+      if (column.optionKind === "packagingType") {
+        const nextValue = String(value ?? "").trim();
+        if (nextValue && !packagingTypeOptionKeys.has(normalized(nextValue))) {
+          throw new Error("Choose a packaging type from the shared Packaging Types list.");
         }
       }
       const { error } = await (supabase as any).from("style_tracker_rows").update(buildUpdate(row, column, value)).eq("id", row.id);
@@ -1401,6 +1423,8 @@ export default function StylesPage() {
                       ? licensorOptionsQuery.data ?? []
                       : (column.optionKind ?? column.typedField) === "factory"
                         ? factoryOptionsQuery.data ?? []
+                        : (column.optionKind ?? column.typedField) === "packagingType"
+                          ? packagingTypeOptionsQuery.data ?? []
                         : designerOptionsQuery.data ?? [],
                 allowTyping: (column.optionKind ?? column.typedField) !== "designer",
                 filterList: true,
@@ -1449,6 +1473,14 @@ export default function StylesPage() {
               return false;
             }
           }
+          if (column.optionKind === "packagingType") {
+            const oldValue = String(params.oldValue ?? "").trim();
+            const newValue = String(params.newValue ?? "").trim();
+            if (newValue && normalized(newValue) !== normalized(oldValue) && !packagingTypeOptionKeys.has(normalized(newValue))) {
+              toast.error("Choose a packaging type from the shared Packaging Types list");
+              return false;
+            }
+          }
           const payload = buildUpdate(params.data, column, params.newValue);
           params.data.row_data = payload.row_data;
           if (column.typedField) (params.data[column.typedField] as unknown) = payload[column.typedField];
@@ -1456,7 +1488,7 @@ export default function StylesPage() {
         },
       })),
     ],
-    [active, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data],
+    [active, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data, packagingTypeOptionKeys, packagingTypeOptionsQuery.data],
   );
 
   const totalRows = countQuery.data ?? rows.length;

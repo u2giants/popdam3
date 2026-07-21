@@ -41,11 +41,16 @@ The import script is `scripts/import-style-tracker-xlsx.py`.
 
 The Google Sheet contains formula/default-only tail rows. Those are not real records. A populated row must contain at least one business field such as style/SKU, group, description, customer, designer, commissioned, UPC, licensor, status, vendor, or notes. Formula-only values such as `0`/`false` in trailing status columns must not cause import.
 
-Verified populated counts from the 2026-06-24 import:
+Verified populated counts from the 2026-07-20 authoritative replacement:
 
-- `License.Style`: 12,317 rows
-- `Generic.Style`: 3,027 rows
-- Total: 15,344 rows
+- `License.Style`: 12,400 rows
+- `Generic.Style`: 3,133 rows
+- Total: 15,533 rows
+
+The replacement clears prior imported rows, audit history, and manual value
+resolutions for these tabs in one transaction, inserts both tabs, and rebuilds
+`plm.style_tracker_item_bridge`. Saved user views are preferences and are not
+part of the imported workbook data, so they are preserved.
 
 ## UI Behavior
 
@@ -57,6 +62,7 @@ Verified populated counts from the 2026-06-24 import:
 - `Legacy BA#` is hidden by default.
 - `Match` column is the row-level Master Data cross-reference status.
 - `Sample Vendor` uses the active `core.factory` list as its cell picker in both Licensed and Generic tabs.
+- `Packaging Type` appears in both Licensed and Generic tabs and uses the active `core.packaging_type` list as its cell picker. The selected display name is stored in each row's flexible `row_data.packaging_type` field; this does not duplicate or modify the shared lookup table.
 - Double-clicking the `Description` cell opens the SKU-description builder. It still saves one string to `public.style_tracker_rows.description` / column `D`, but users compose that string from four visual sections:
   `Product Type + Material`, `Licensor + Property`, `Art Description`, and `Size`.
 - The controlled description sections are picker/autocomplete driven. `Product Type + Material` reads `core.product_material` with local convention examples as a fallback; `Licensor + Property` reads `core.property` joined to `core.licensor` and displays values as `Licensor Property`; `Size` tries `core.product_size` when present, then existing DAM `style_groups.size_name`, then convention examples. `Art Description` is the only free-text section.
