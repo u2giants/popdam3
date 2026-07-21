@@ -222,26 +222,30 @@ contracts; do not recreate it.
 There are two independent controls:
 
 - **Global inactive:** `core.customer.status` / `core.factory.status`; hides the record in
-  every application.
+  every application. Administrator-editable global values are `active`, `potential`, and
+  `inactive`. Existing `archived` and `deleted` values are visible but remain system/legacy
+  states, not ordinary DB Data Admin choices.
 - **Application inactive:** stored in the relevant application extension row; hides the
   record only in that application.
 
 No extension row means enabled for that application. Effective visibility is:
 
 ```text
-core status is active
+core status is active or potential
 AND
-application status is not inactive
+application status is active (a missing extension row defaults to active)
 ```
 
 Store the reason, actor, and timestamp for curated inactivation and reactivation. Coldlion
 source status is read-only context and must never overwrite global or application-curated
 status during a later pull.
 
-Per-app status, `status_reason`, `status_changed_at`, and `status_changed_by` live as typed
-columns in that application's extension row. Every change also writes the central audit
-event described in §7. Reactivation sets status active and clears the current
-`status_reason`; the immutable audit history retains the former reason and actor.
+Per-app status is deliberately binary (`active` or `inactive`). It and `status_reason`,
+`status_changed_at`, and `status_changed_by` live as typed columns in that application's
+extension row. Every committed change also writes the central audit event described in §7.
+Reactivation defaults to active and clears the current `status_reason`; when changing the
+global status, an administrator may instead choose `potential`. The immutable audit history
+retains the former reason and actor.
 
 DB Data Admin must not release status editing until all affected application pickers enforce
 the same effective-visibility rule. Inactive records are hidden by default in DB Data Admin,
@@ -329,8 +333,13 @@ api.db_data_admin_grid_state_upsert(...)
 ### Authorization mechanism
 
 Reuse the live authorization system; do not invent a second admin model. Access requires
-both `app.has_role('administrator')` and `app.has_app_access('admin')`. The `app.app_name`
-enum already contains `admin`. Grant DB Data Admin app access through the existing
+both `app.has_role('administrator')` and a new explicit-grant helper,
+`app.has_explicit_app_access('admin')`. Do not use `app.has_app_access('admin')` for this
+boundary: that existing helper deliberately returns true for every administrator, so combining
+it with the role check would not restrict the application to specifically approved people.
+`app.has_explicit_app_access(...)` checks a non-revoked `app.app_access` row directly and has
+no administrator short-circuit. The `app.app_name` enum already contains `admin`. Grant DB
+Data Admin app access through the existing
 `app.app_access` mechanism to specifically approved administrator profiles—never through
 hard-coded email addresses. `api.crm_admin_user_list()` is the security-definer precedent
 for pinned search path, internal role check, revocation from `public`, and an authenticated
@@ -339,6 +348,8 @@ grant.
 All `api.db_data_admin_*` functions are owned by a controlled database-owner role with only
 the cross-schema rights required to read/write the approved `core`, `crm`, `dam`, `pim`,
 `plm`, and `app` objects. Browser callers receive no direct cross-schema privilege.
+Because `app` is PostgREST-exposed, both DB Data Admin storage tables require RLS and zero
+direct `authenticated` table grants; browser access is only through the protected functions.
 
 ### Audit storage
 
@@ -348,8 +359,11 @@ approved business fields, reason, actor profile/user, timestamp, merge survivor/
 applicable, success/failure, and error detail. Only the protected operations write it; only
 authorized DB Data Admin users read it through `api.db_data_admin_audit_list(...)`.
 Retain audit events indefinitely unless a later written retention policy is approved.
-Denied calls should emit a security audit event when it can be done without weakening the
-authorization boundary.
+Denied calls raise `insufficient_privilege` and are evidenced in Supabase/Postgres security
+logs; an audit insert in the same transaction would roll back with the denial. Expected
+authorized business failures (validation, stale concurrency token, or stale merge preview)
+return a structured `success=false` result so the failure audit row can commit. Unexpected
+exceptions raise, roll back the whole operation, and are evidenced in platform logs.
 
 Names are finalized during schema design. List functions must accept filter, sort,
 cursor/page-size, and inactive-inclusion parameters from their first version, even while
@@ -417,6 +431,14 @@ Use the same pattern as Customers while displaying **Vendor**, never Factory. In
 optional related Customer when present. Support curated display name, global/per-app status,
 aliases, source references, reactivation, and protected duplicate merge.
 
+The inventory must determine which applications have a real Vendor picker before creating
+extension tables merely for visual symmetry. CRM and PM/PIM are known Vendor consumers, so
+v1 requires `crm.factory_ext` and `pim.factory_ext`. Add `dam.factory_ext` only if the audit
+finds a DAM Vendor picker rather than a read-only display. PLM status remains in the required
+product scope, but its authority and production Cloud SQL delivery path must be resolved by
+the inventory gate described in §10; do not create an editable Supabase value that production
+DesignFlow cannot consume.
+
 ### 8.3 Duplicate merge workflow
 
 Customer and Vendor merge is powerful and potentially destructive. The UI must:
@@ -446,14 +468,15 @@ This is the centerpiece of the taxonomy screen. Provide a master/detail or expan
     • Frozen
 ```
 
-Each Licensor shows display name, status, Property count, divisions/source codes, and source
+Each Licensor shows name, status, Property count, divisions/source codes, and source
 context. Each Property shows name, Licensor breadcrumb, status, division/type-qualified
 source identity, source context, and optionally Character count.
 
 The relationship is **read-only in v1** because DesignFlow owns Licensor → Property edges.
 Do not infer hierarchy from Coldlion or edit the edge unless the owner separately approves a
-new authority model. Because `core.property.licensor_id` is a strict FK, orphan count should
-be zero; surface any unexpected orphan loudly rather than silently hiding it.
+new authority model. `core.property.licensor_id` is nullable and its FK uses
+`ON DELETE SET NULL`, so orphan rows are structurally possible. The expected orphan count is
+zero; surface any orphan loudly rather than silently hiding it.
 
 V1 is fully read-only for Licensors and Properties: no relationship, status, display-name,
 or source-reference edits.
@@ -484,68 +507,120 @@ Record findings and the exact fix/verification for every hit. Fix unsafe referen
 relying on the new behavior in production. This audit is a release gate, not an optional
 cleanup task.
 
+### Dated inventory evidence and repeatable searches
+
+Historical acceptance evidence from the superseded implementation research remains useful
+when labeled as a snapshot rather than a timeless row-count promise. As of 2026-07-17, the
+Customer baseline was 859 rows: 140 active, 12 potential, and 707 inactive. The same research
+counted 20 Licensors and 256 Properties. Re-run and date these counts during implementation;
+the timeless gates are that every Property appears under exactly one Licensor, unexpected
+orphans are zero, and every count names the database/source and observation date.
+
+At minimum, adapt and run these searches in each consumer source tree, then record every hit:
+
+```bash
+rg -n "erp_items_current|erp_customer|erp_vendor|prod_order_" src
+rg -n "customer.*name|vendor.*name|factory.*name" src
+```
+
+The second search is deliberately broad: classify each hit as display-only, a stable-code or
+UUID lookup, or unsafe mutable-name identity. `core.factory_source_ref` has no `source_name`
+column; Vendor source badges must use its actual source-system/code fields. Useful immutable
+migration anchors for the inventory include `20260621150815`, `20260716143231`,
+`20260717123020`, `20260717125909`, and `20260717192922`; verify current replacement bodies
+where later migrations use `create or replace`.
+
 ---
 
 ## 10. Delivery sequence
 
-1. **Inventory and ownership catalogue.** List all displayed/editable fields, source
-   systems, current API objects, consumers, permissions, and authority. Pass when every
-   field has one owner and every old object name in §6 has been verified or rejected.
+0. **Specification errata and review gate.** Correct this document in place before coding;
+   do not create a second authoritative ledger. Preserve the full PLM-status promise unless
+   the owner explicitly approves a later scope change. Keep
+   `fix_impl_visual_admin_page.md` byte-for-byte untouched. Pass when the docs-only PR is
+   reviewed, SQL checks pass, and the AI merges it under this repo's normal protocol.
+1. **Inventory and ownership catalogue.** List all displayed/editable fields, source systems,
+   current API objects, consumers, permissions, authority, and every FK to
+   `core.customer`/`core.factory`. Verify or reject every old object name in §6 and inventory
+   each real Customer/Vendor picker. Trace production DesignFlow Customer/Vendor status from
+   UI through Cloud SQL and choose one single-writer PLM design: either Supabase-owned curated
+   state delivered through a transactional outbox/idempotent DesignFlow consumer, or
+   PLM-owned state changed through a protected DesignFlow API and mirrored read-only back to
+   Supabase. Never dual-write. If neither is safe, stop and ask the owner rather than silently
+   removing PLM from scope. Also identify the Cloudflare zone owner, named non-production
+   host, Supabase Auth allowlist executor, and stale taxonomy-branch disposition. Pass when
+   every field and delivery path has one owner and the PLM mechanism is documented.
 2. **Mirror prerequisite completed; record the stack.** The centralized
    `.github/workflows/sync.yml` excludes top-level `apps/`, removes previously mirrored copies,
-   and verifies the boundary on every consumer sync. Record the frontend framework, build tool, unit runner,
-   Playwright/browser setup, and exact RevoGrid version. Recommended baseline is React +
-   TypeScript + Vite to align with the non-DesignFlow apps, subject to repository inspection.
-   Pass when a sync test proves `apps/` is absent from consumers while canonical shared-db
-   content still mirrors.
-3. **Application scaffold and infrastructure kickoff.** Create `apps/db-data-admin/`,
-   authenticated shell, local setup, unit/browser test harness, container build,
-   build-SHA exposure, and CI. In parallel, open the required infrastructure work:
-   GitHub Actions builds/publishes to GHCR; Coolify owns the runtime deployment;
-   host-level changes route through `u2giants/ansible`; DNS/Cloudflare and deployment
-   configuration follow their canonical owning repos. Configure Microsoft SSO like the
-   other POP applications and add exact development plus `https://data.designflow.app`
-   redirect origins to the Supabase Auth allowlist. Pass when the read-only shell runs
-   locally and in a non-production environment and the production delivery path is named,
-   owned, and tracked.
-4. **Missing extension and shared-classification schema.** Keep the verified DAM extension
-   migration intact. Add preview-first typed Customer extension/status tables for CRM,
-   PM/PIM, and PLM, including reason/actor/timestamp, plus the controlled Channel and
-   Customer-to-Channel tables. Add `app.db_data_admin_audit_event` and
-   `app.db_data_admin_grid_state`. Pass when the intended additive objects exist on preview,
-   authorization/grants pass, and no existing consumer behavior changes.
-5. **Database read contracts.** Add administrator-only Customer, Vendor, and
-   Licensor/Property reads through a new migration. Preview first. Pass when an administrator
-   with `admin` app access can read required fields, non-admin/no-access users are denied,
-   and filter/sort/cursor/page-size parameters are proven.
-6. **Read-only RevoGrid prototype.** Build Customers and Vendors first with persistent
-   header filtering, detail panels, aliases, and source references. Pass visual, keyboard,
-   accessibility, focus-retention-under-debounce, virtualization-state, saved-view, and
-   large synthetic-data tests.
-7. **Single-record edits and audit.** Add whitelisted updates, status reason/actor/time,
-   concurrency protection, and audit display. Pass when edit, conflict, reactivation, and
-   failure paths work on preview. Status editing remains preview-only and must not be
-   activated in production before the consumer-enforcement step passes.
-8. **Merge preview and execution.** Add protected Customer and Vendor merge wrappers and the
-   UI in §8.3. Pass when transferred references and old-identifier resolution are verified.
-9. **Licensor/Property tree.** Add the fully read-only v1 hierarchy with source context, counts,
-   and loud orphan handling. Pass when every canonical Property appears under exactly one
-   Licensor and counts reconcile.
-10. **Consumer enforcement and safety audit.** Complete §9 and update every picker for global
+   and verifies the boundary on every consumer sync. Record the frontend framework, build
+   tool, unit runner, Playwright/browser setup, and exact RevoGrid version. Recommended
+   baseline is React + TypeScript + Vite. Pass when the sync test proves `apps/` is absent
+   from consumers while canonical shared-db content still mirrors.
+3. **Application scaffold and infrastructure kickoff.** Create `apps/db-data-admin/`, an
+   authenticated shell, local setup, unit/browser and database test harnesses, container
+   build, build-SHA exposure, and CI. GitHub Actions builds/publishes to GHCR; Coolify owns
+   runtime deployment; host changes route through `u2giants/ansible`; Cloudflare routing is
+   remote and current Coolify tunnels must be inspected rather than assumed. Reuse the live
+   Microsoft/Entra registration and add exact development plus
+   `https://data.designflow.app` origins to both preview and production Supabase Auth
+   allowlists. Pass when the read-only shell runs locally and in the named non-production
+   environment and every production-delivery owner is tracked.
+4. **Foundation and extension schema, serialized.** Keep the verified DAM extension intact.
+   First add `app.has_explicit_app_access`, `app.db_data_admin_audit_event`, and
+   `app.db_data_admin_grid_state` with RLS and no direct authenticated table grants. Then add
+   typed `crm.customer_ext`, `pim.customer_ext`, `crm.factory_ext`, and `pim.factory_ext`,
+   plus controlled Channel and Customer-to-Channel tables. Add DAM Vendor or PLM extension
+   objects only as established by Step 1; the PLM write path must match the chosen authority.
+   Before each migration, repeat the §6 in-flight check. Pass when every additive object is
+   applied and tested on preview, grants/RLS pass, and no consumer behavior changes.
+5. **Merge-engine repair and FK coverage.** Before exposing merge previews, extend
+   `core.merge_customer` and `core.merge_factory` for every new or previously missed dependent
+   relationship, including `public.style_tracker_rows.customer_id` and extension rows. Add a
+   `pg_constraint` coverage test that fails for every unhandled FK. Call the loser/survivor
+   parameters by name. Pass when preview fixture merges preserve all intended links and old
+   identifiers continue resolving.
+6. **Per-app serving and administrator read contracts.** Add an additive status-aware CRM
+   contract, PM Customer/Vendor contracts, the PLM contract chosen in Step 1, and protected
+   `api.db_data_admin_*` Customer, Vendor, Licensor/Property, audit, and grid-state reads.
+   Pass when the full authorization matrix includes denial of an administrator without an
+   explicit `admin` grant and filter/sort/cursor/page-size parameters are proven.
+7. **Read-only RevoGrid prototype.** Build Customers and Vendors first with persistent header
+   filtering, detail panels, aliases, and source references. Pass visual, keyboard,
+   accessibility, focus-retention-under-debounce, virtualization-state, saved-view, and both
+   client/server large-data mode tests.
+8. **Single-record edits and audit.** Add whitelisted updates, status reason/actor/time,
+   concurrency protection, structured expected-failure results, and audit display. Pass when
+   edit, conflict, reactivation, and failure paths work on preview. Status writes remain
+   database-gated off in production until consumer enforcement passes.
+9. **Merge preview and execution.** Add protected Customer and Vendor merge wrappers and the
+   UI in §8.3. Pass when transferred references, idempotent retry, extension conflict
+   resolutions, and old-identifier resolution are verified.
+10. **Licensor/Property tree.** Add the fully read-only v1 hierarchy with source context,
+    counts, and loud orphan handling. Pass when every canonical Property appears under exactly
+    one Licensor and internal invariants reconcile against a dated snapshot. Do not claim live
+    source reconciliation while the upstream DesignFlow feeder is unavailable.
+11. **Consumer enforcement and safety audit.** Complete §9 and update every picker for global
     plus app-specific status. Non-DesignFlow repos (`u2giants/popcrm-web`,
-    `u2giants/poppim-web`, `u2giants/popdam3`) follow their normal main-only workflow.
-    The six `popcre/designflow-*` repos stay on Albert's sandbox branch, use PRs to
-    `develop`, and are reviewed/merged by Uma—not the AI. Pass only when inactive records
-    disappear in exactly the intended applications and every repository's tests/CI pass.
-11. **Bulk operations.** Add preview/count/confirm, reason, per-record audit, partial-failure
-   reporting, and recovery/reactivation.
-12. **Production delivery.** Complete the GitHub Actions → GHCR → Coolify path initiated in
-    step 3; verify DNS/TLS, Microsoft SSO redirects, administrator and denied-user behavior,
-    HTTP health, and deployed build SHA. The URL decision does not mean infrastructure
-    already exists.
-13. **Gradual grid consolidation.** Do not expand PopCRM DataTable as a shared platform.
+    `u2giants/poppim-web`, `u2giants/popdam3`) follow their normal main-only workflow. The six
+    `popcre/designflow-*` repos stay on Albert's sandbox branch, use PRs to `develop`, and are
+    reviewed/merged by Uma—not the AI. Pass only when inactive records disappear in exactly
+    the intended applications, PLM production consumes the chosen single-writer status path,
+    the audit ledger is closed, and every repository's tests/CI pass.
+12. **Bulk operations.** Add preview/count/confirm, reason, per-record audit, partial-failure
+    reporting, and recovery/reactivation.
+13. **Production delivery.** Promote migrations only in an approved window and complete the
+    GitHub Actions → GHCR → Coolify path. Verify DNS/TLS, Microsoft SSO redirects,
+    administrator and denied-user behavior, HTTP health, and deployed build SHA. Enable the
+    production status-write gate only after Step 11 passes or the owner explicitly approves a
+    phased release.
+14. **Gradual grid consolidation.** Do not expand PopCRM DataTable as a shared platform.
     Migrate an existing non-DesignFlow screen only for a real product reason and after parity
     tests pass.
+15. **Final superseded-plan removal.** Only after every requirement above is implemented and
+    verified, confirm the tri-state status behavior, concrete cutover searches, dated inventory
+    snapshots, `core.factory_source_ref` shape, and historical migration anchors from
+    `fix_impl_visual_admin_page.md` are incorporated. Then delete that file and every inbound
+    reference in the same final completion PR.
 
 ---
 
@@ -589,8 +664,9 @@ defines it.
 - [x] `.github/workflows/sync.yml` excludes `apps/`, and a sync test proves the frontend is
       not mirrored into consumer repositories while canonical shared-db content still is.
 - [ ] Only authorized administrators can enter or call its database operations.
-- [ ] Authorization uses both the existing administrator role and `admin` app access; no
-      identity is hard-coded by email.
+- [ ] Authorization uses both the existing administrator role and an explicit non-revoked
+      `admin` app-access row via `app.has_explicit_app_access`; no identity is hard-coded by
+      email.
 - [ ] RevoGrid Core provides the required persistent header-filter experience without Pro
       source or undocumented internals.
 - [ ] Customer grid supports display name, Channel, global/per-app status, aliases, source
@@ -608,6 +684,8 @@ defines it.
       checks, applied/tested on preview first, merged, and promoted in an approved window.
 - [ ] The cross-application safety audit has recorded and resolved every relevant hit.
 - [ ] All consumer pickers enforce global and application-specific status correctly.
+- [ ] PLM production uses the single-writer status path selected during inventory; DesignFlow
+      changes were reviewed and merged by Uma through the sandbox-to-`develop` workflow.
 - [ ] Unit, database, integration, browser, accessibility, and cross-app tests pass.
 - [ ] Required screenshots are attached to the implementation evidence.
 - [ ] GitHub CI is green and the live build SHA is verified.
