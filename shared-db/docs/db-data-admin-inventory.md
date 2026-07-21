@@ -3,6 +3,9 @@
 Date: 2026-07-21
 Authoritative product specification: [`../DB_Data_Admin.md`](../DB_Data_Admin.md)
 
+Deployment identifiers and the immutable-image release path are recorded in
+[`db-data-admin-deployment.md`](db-data-admin-deployment.md).
+
 This is the evidence catalogue required by delivery Step 1. It records current objects,
 owners, consumers, and release blockers; it is not a second product specification.
 
@@ -17,12 +20,14 @@ owners, consumers, and release blockers; it is not a second product specificatio
   (MIT). The always-visible header filter remains a Core-only custom adapter.
 - Unit/browser: Vitest + Testing Library + Playwright. Database contract tests run against a
   disposable/preview database, not production.
-- Runtime: GitHub Actions builds GHCR; Coolify deploys on the Hetzner host. Existing evidence:
-  PopCRM, PopPIM, and PopDAM are Coolify-managed containers using Traefik and Let's Encrypt.
-  Planned domains are `data-dev.designflow.app` (non-production) and
-  `data.designflow.app` (production). Final Cloudflare zone access remains to be confirmed.
-- Microsoft SSO reuses the existing Supabase/Entra registration. Preview and production
-  Supabase Auth allowlists both need the exact new origins before browser acceptance.
+- Runtime: GitHub Actions builds GHCR; Coolify deploys on the Hetzner host. The development
+  application and `data-dev.designflow.app` binding were created through the Coolify API on
+  2026-07-21. GitHub now stores the orchestration token and non-secret application identifiers.
+  Production remains reserved for `data.designflow.app` after the later production gate.
+- Microsoft SSO reuses the existing Supabase/Entra registration. On 2026-07-21, the development
+  and production origins were added additively to both Supabase Auth allowlists, the Azure
+  provider configuration was copied to preview, and the new preview callback URI was added to
+  the Entra application without removing the production callback.
 
 ## Live canonical baseline
 
