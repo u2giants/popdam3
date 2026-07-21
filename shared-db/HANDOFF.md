@@ -1,9 +1,9 @@
 # HANDOFF — shared-db current state
 
-Date: 2026-07-20
+Date: 2026-07-21
 Repo: `u2giants/shared-db`
-Branch: `main`; this docs-only update is intentionally uncommitted/unpushed
-until the user separately requests the git/closeout workflow.
+Target branch: `main`; the DB Data Admin planning update is being shipped through
+the required docs-only branch and pull-request workflow during session closeout.
 
 This file is the top-level "where are we" pointer for the next session. It is written
 for a developer with **zero** prior context. Read it, then read the linked plan.
@@ -548,7 +548,11 @@ now show `display_name` and hide inactive customers.
       Bill, Chloe, Jerome, Lucy, Tom, Wendy Sunway); exclude all from `core.factory`.
   Next action: author one migration doing status-seed + purge, apply preview-first, merge.
   Full spec: [`fix_vendor_review.md`](fix_vendor_review.md).
-- **Extension tables: PLAN ONLY** — `docs/per-app-extension-tables-plan.md`; no migration written.
+- **Extension tables: DAM IMPLEMENTED; CRM/PM/PLM pending.** Migration
+  `20260721143000_dam_master_data_customer_id.sql` creates `dam.customer_ext`,
+  `api.dam_customer_list`, the `/styles` “Originally Designed For” canonical Customer FK,
+  safe backfill, and audit coverage. CRM, PM/PIM, and PLM Customer extensions remain planned
+  in `docs/per-app-extension-tables-plan.md` and `DB_Data_Admin.md`.
 - **DB Data Admin: PLAN ONLY** — `DB_Data_Admin.md`; no frontend scaffold, schema migration,
   DNS, hosting, Supabase Auth allowlist, or deployment has been created. Target URL:
   `https://data.designflow.app`.
@@ -595,7 +599,7 @@ after 2026-07-10, delete this section. Do not rotate the 1Password service-accou
 
 ---
 
-## Documentation completeness self-audit — 2026-07-20
+## Documentation completeness self-audit — 2026-07-21
 
 ### 1. Could a brand-new developer with no project or session context continue without questions?
 
@@ -607,6 +611,13 @@ five ordered next steps with explicit pass conditions. It routes to the full
 incident record and the two canonical infrastructure documents rather than
 requiring chat history.
 
+The customer/vendor section also records the completed DAM customer-reference
+migration, the still-pending app extension work, and routes the developer to the
+authoritative `DB_Data_Admin.md` implementation plan. That plan contains the
+product scope, data ownership rules, security model, audit/merge semantics,
+delivery order, verification gates, repository boundaries, and the required
+eventual deletion of the superseded visual-admin planning file.
+
 ### 2. Could that developer continue as effectively as the current session?
 
 **Yes.** They have the implementation evidence (9 infrastructure fixtures; 109
@@ -616,6 +627,11 @@ scopes of both writer service accounts, the 1Password note identifier, the
 current PR-review owner, and the precise organization/PAM/Deny acceptance test.
 They also know which tempting shortcuts are forbidden and why the hard gate was
 not forced through a standalone project.
+
+For DB Data Admin, they also have the decisions reviewed by Kimi K3, the exact
+first prerequisite (exclude `apps/` from the repository mirror workflow), and
+an ordered implementation sequence that distinguishes completed schema work
+from planned work.
 
 ### 3. Is every relevant detail needed for flawless execution present?
 
