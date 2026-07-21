@@ -62,6 +62,7 @@ part of the imported workbook data, so they are preserved.
 - `Legacy BA#` is hidden by default.
 - `Match` column is the row-level Master Data cross-reference status.
 - `Sample Vendor` uses the active `core.factory` list as its cell picker in both Licensed and Generic tabs.
+- `Originally Designed For` (Licensed) and `Special Customer` (Generic) are canonical Customer relationships. Their dropdown reads `api.dam_customer_list`, displays `display_name` with `name` as the fallback, and saves `public.style_tracker_rows.customer_id` (`core.customer.id`). Customer names are not copied on selection, so later renames do not break or stale the relationship. Legacy imported customer text remains only on rows that could not be backfilled unambiguously and disappears when a user selects a canonical Customer.
 - `Packaging Type` appears in both Licensed and Generic tabs and uses the active `core.packaging_type` list as its cell picker. The selected display name is stored in each row's flexible `row_data.packaging_type` field; this does not duplicate or modify the shared lookup table.
 - Double-clicking the `Description` cell opens the SKU-description builder. It still saves one string to `public.style_tracker_rows.description` / column `D`, but users compose that string from four visual sections:
   `Product Type + Material`, `Licensor + Property`, `Art Description`, and `Size`.

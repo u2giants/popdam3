@@ -46,6 +46,7 @@ type StyleRow = {
   group_id: string | null;
   description: string | null;
   customer: string | null;
+  customer_id: string | null;
   designer: string | null;
   commissioned: string | null;
   upc: string | null;
@@ -69,6 +70,7 @@ type StyleRow = {
   core_licensor_id?: string | null;
   creative_designer_id?: string | null;
   canonical_designer_name?: string | null;
+  canonical_customer_name?: string | null;
   factory_id?: string | null;
   plm_item_id?: string | null;
 };
@@ -207,7 +209,7 @@ const licensedColumns: SheetColumn[] = [
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
   { letter: "PKG", header: "Packaging Type", width: 175, legacyKey: "packaging_type", optionKind: "packagingType" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
-  { letter: "E", header: "Originally Designed For", width: 190, typedField: "customer", legacyKey: "originally_designed_for", linkKind: "customer" },
+  { letter: "E", header: "Originally Designed For", width: 190, typedField: "customer_id", legacyKey: "originally_designed_for", linkKind: "customer", optionKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
   { letter: "G", header: "New BA# commissioned", width: 170, typedField: "commissioned", legacyKey: "commissioned" },
   { letter: "H", header: "RFQ Code", width: 130, legacyKey: "rfq_code" },
@@ -252,7 +254,7 @@ const genericColumns: SheetColumn[] = [
   { letter: "B", header: "Style # / SKU", width: 150, pinned: "left", typedField: "sku", legacyKey: "style_sku", linkKind: "sku" },
   { letter: "PKG", header: "Packaging Type", width: 175, legacyKey: "packaging_type", optionKind: "packagingType" },
   { letter: "D", header: "Description", width: 270, typedField: "description", legacyKey: "description" },
-  { letter: "E", header: "Special Customer", width: 170, typedField: "customer", legacyKey: "special_customer", linkKind: "customer" },
+  { letter: "E", header: "Special Customer", width: 170, typedField: "customer_id", legacyKey: "special_customer", linkKind: "customer", optionKind: "customer" },
   { letter: "F", header: "Designer", width: 135, typedField: "designer", legacyKey: "designer", linkKind: "designer" },
   { letter: "G", header: "commissioned", width: 140, typedField: "commissioned", legacyKey: "commissioned" },
   { letter: "H", header: "UPC", width: 150, typedField: "upc", legacyKey: "upc" },
@@ -317,6 +319,12 @@ function valueFor(row: StyleRow | undefined, column: SheetColumn) {
   return typed ?? row.row_data?.[column.letter] ?? (column.legacyKey ? row.row_data?.[column.legacyKey] : "") ?? "";
 }
 
+function displayValueFor(row: StyleRow | undefined, column: SheetColumn) {
+  if (!row) return "";
+  if (column.optionKind === "customer") return row.canonical_customer_name ?? row.customer ?? "";
+  return valueFor(row, column);
+}
+
 function normalized(value: string) {
   return normalizeStyleTrackerValue(value);
 }
@@ -339,7 +347,7 @@ function fieldLabel(field: FieldKey) {
 
 function hasFieldMatch(row: StyleRow, field: FieldKey) {
   if (field === "sku") return Boolean(row.erp_item_id || row.style_group_id || row.plm_item_id);
-  if (field === "customer") return Boolean(row.company_id);
+  if (field === "customer") return Boolean(row.customer_id || row.company_id);
   if (field === "licensor") return Boolean(row.public_licensor_id || row.core_licensor_id);
   if (field === "designer") return Boolean(row.creative_designer_id);
   return Boolean(row.factory_id);
@@ -375,6 +383,12 @@ function statusFor(row: StyleRow | undefined, column: SheetColumn) {
 
 function buildUpdate(row: StyleRow, column: SheetColumn, value: unknown) {
   const nextValue = value === "" ? null : column.typedField === "discontinued" ? ["true", "yes", "1"].includes(String(value).toLowerCase()) : String(value);
+  if (column.optionKind === "customer") {
+    const rowData = { ...(row.row_data ?? {}) };
+    delete rowData[column.letter];
+    if (column.legacyKey) delete rowData[column.legacyKey];
+    return { row_data: rowData, customer_id: nextValue, customer: null };
+  }
   const rowData = { ...(row.row_data ?? {}), [column.letter]: nextValue };
   if (column.legacyKey) rowData[column.legacyKey] = nextValue;
   const payload: Partial<StyleRow> & { row_data: RowData } = { row_data: rowData };
@@ -597,13 +611,16 @@ async function fetchCandidateTableRows(fieldKey: FieldKey, query: string, showAl
 }
 
 async function fetchCustomerOptions() {
-  const { data, error } = await (supabase as any).rpc("get_path_facets");
+  const { data, error } = await (supabase as any)
+    .schema("api")
+    .from("dam_customer_list")
+    .select("id, name, display_name")
+    .order("display_name", { ascending: true, nullsFirst: false })
+    .order("name", { ascending: true });
   if (error) throw error;
-  const customers = ((data?.customers ?? []) as { name?: string | null }[]).map((customer) => ({
-    id: customer.name ?? "",
-    name: customer.name ?? "",
-  }));
-  return compactPickerOptions(customers);
+  return ((data ?? []) as { id: string; name: string; display_name: string | null }[])
+    .map((customer) => ({ id: customer.id, name: customer.display_name?.trim() || customer.name.trim() }))
+    .filter((customer) => customer.id && customer.name);
 }
 
 async function fetchLicensorOptions() {
@@ -1048,6 +1065,7 @@ export default function StylesPage() {
   const savedViews = savedViewsQuery.data ?? [];
   const activeView = savedViews.find((view) => view.id === activeViewId) ?? null;
   const rows = rowsQuery.data ?? [];
+  const customerOptionById = useMemo(() => new Map((customerOptionsQuery.data ?? []).map((option) => [option.id, option.name])), [customerOptionsQuery.data]);
   const designerOptionKeys = useMemo(() => new Set((designerOptionsQuery.data ?? []).map((name) => normalized(name))), [designerOptionsQuery.data]);
   const packagingTypeOptionKeys = useMemo(() => new Set((packagingTypeOptionsQuery.data ?? []).map((name) => normalized(name))), [packagingTypeOptionsQuery.data]);
   const descriptionOptions = useMemo<DescriptionEditorOptions>(() => {
@@ -1418,7 +1436,7 @@ export default function StylesPage() {
             ? {
                 values:
                   (column.optionKind ?? column.typedField) === "customer"
-                    ? customerOptionsQuery.data ?? []
+                    ? (customerOptionsQuery.data ?? []).map((option) => option.id)
                     : (column.optionKind ?? column.typedField) === "licensor"
                       ? licensorOptionsQuery.data ?? []
                       : (column.optionKind ?? column.typedField) === "factory"
@@ -1430,18 +1448,20 @@ export default function StylesPage() {
                 filterList: true,
                 highlightMatch: true,
                 searchType: "matchAny",
+                formatValue: column.optionKind === "customer" ? (customerId: string) => customerOptionById.get(customerId) ?? customerId : undefined,
               }
             : undefined,
         filter: true,
         sortable: true,
         resizable: true,
-        valueGetter: (params) => valueFor(params.data, column),
+        valueGetter: (params) => (column.optionKind === "customer" ? params.data?.customer_id ?? null : valueFor(params.data, column)),
+        filterValueGetter: column.optionKind === "customer" ? (params) => displayValueFor(params.data, column) : undefined,
         cellRenderer: column.linkKind
           ? (params: { data?: StyleRow }) => {
               const status = statusFor(params.data, column);
               return (
                 <div className="flex h-full min-w-0 items-center gap-1.5">
-                  <span className="min-w-0 truncate">{String(valueFor(params.data, column) ?? "")}</span>
+                  <span className="min-w-0 truncate">{String(displayValueFor(params.data, column) ?? "")}</span>
                   {status && (
                     <span
                       className={cn(
@@ -1483,12 +1503,17 @@ export default function StylesPage() {
           }
           const payload = buildUpdate(params.data, column, params.newValue);
           params.data.row_data = payload.row_data;
+          if (column.optionKind === "customer") {
+            params.data.customer_id = payload.customer_id ?? null;
+            params.data.customer = null;
+            params.data.canonical_customer_name = payload.customer_id ? customerOptionById.get(payload.customer_id) ?? null : null;
+          }
           if (column.typedField) (params.data[column.typedField] as unknown) = payload[column.typedField];
           return true;
         },
       })),
     ],
-    [active, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data, packagingTypeOptionKeys, packagingTypeOptionsQuery.data],
+    [active, customerOptionById, customerOptionsQuery.data, descriptionOptions, designerOptionKeys, designerOptionsQuery.data, factoryOptionsQuery.data, licensorOptionsQuery.data, packagingTypeOptionKeys, packagingTypeOptionsQuery.data],
   );
 
   const totalRows = countQuery.data ?? rows.length;
