@@ -417,11 +417,18 @@ Full narrative: [`docs/app-migration-notes/session-2026-07-21.md`](docs/app-migr
 - ⚠️ **Twin bug (record so it's not lost):** `plm.import_coldlion_customers` has the SAME status-clobbering
   flaw (`status='active'`, `is_potential=false` on matched rows). Customers are marked "done" but run on
   this flawed importer — open a twin fix when the guarded vendor importer lands.
-- *Not yet built:* the importer/tables/Edge Function. `fix_vendor_sync.md` §8 splits it into **Phase A**
-  (guarded importer + tables + `public`/`api` wrappers — provable now via a one-off Node/`pg` dry-run;
-  needs the 418-code seed + Albert's ruling on the 6 borderline vendors) and **Phase B** (scheduled Edge
-  Function + alerting — first verify pg_net/Vault are actually available; build the overdue/failed-run
-  alert BEFORE enabling the schedule).
+- ✅ **Phase A DONE + PROD-VERIFIED 2026-07-22** (migration `20260722213000`, PR #160): `plm.vendor_exclusion`
+  (seeded 435 = 434 purged + ANT001), `plm.vendor_quarantine`, guarded `plm.sync_coldlion_vendors` (M1/M2/
+  S7/S8 fixes), `public.sync_coldlion_vendors` + `public.record_failed_sync_run` wrappers,
+  `api.vendor_{quarantine,exclusion,sync_run}_list`, grants; old `plm.import_coldlion_vendors` dropped.
+  `tools/sync-coldlion-vendors.mjs` (+tests). Validated on preview (rolled-back txn: full §7 gate +
+  removal-safety). First prod run: `seen=97, inserted=0, updated=95, failed=1 (CNWAH quarantined),
+  skipped=1 (ANT001), deleted=0`; `core.factory` unchanged 93 (91/2). The 6 borderline vendors are VALID
+  factories (Albert), NOT excluded. **Bounded prod apply** (only 20260722213000; did NOT sweep the
+  unrelated `194000`–`210000` migrations, which remain preview/other-workstream).
+- 📋 **Phase B NOT built:** the scheduled Edge Function + alerting. First **verify pg_net/Vault are
+  actually available** (they are unused in this project); build the overdue/failed-run alert BEFORE
+  enabling the schedule. Full spec: `fix_vendor_sync.md` §6/§8.
 
 **OPEN #3 — Item→taxonomy Phase 3+ (backfill then cutover).**
 - *What/why:* `plm.item` is built but empty; items are still served from `public.erp_items_current`

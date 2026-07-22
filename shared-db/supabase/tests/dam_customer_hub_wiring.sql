@@ -1,4 +1,4 @@
--- Verification for migration 20260722210000_dam_customer_hub_wiring.
+-- Verification for migration 20260722210100_dam_customer_hub_wiring.
 -- Run only after that migration is applied. All assertions are read-only; the
 -- transaction rolls back so no fixture state persists.
 --

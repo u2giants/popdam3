@@ -1,9 +1,9 @@
 # fix_vendor_sync.md — Plan for a RECURRING Coldlion vendor → `core.factory` sync
 
 **Written:** 2026-07-22 · **Repo:** `u2giants/shared-db` · **DB:** shared Supabase `qsllyeztdwjgirsysgai`
-**Status:** 📋 PLAN (not yet built). Implemented as (Phase A) an additive shared-db migration for the
-guarded importer + tables, then (Phase B) a scheduled Supabase Edge Function. Read top to bottom before
-writing any code.
+**Status:** ✅ **Phase A DONE + prod-verified 2026-07-22** (migration `20260722213000`, PR #160) —
+guarded importer + tables + wrappers live; first real sync run executed. 📋 **Phase B (scheduled Edge
+Function + alerting) not built** — see §6/§8. Read top to bottom before writing any Phase B code.
 **Prereq done:** OPEN #1 (mirror `plm.erp_vendor` reconciled to the corrected 97, applied to prod) —
 migration `20260722171500_refresh_erp_vendor_mirror_to_corrected_vendors.sql`.
 **Independently reviewed** by GLM (glm-5.2) 2026-07-22; findings incorporated below. Full review:
@@ -110,9 +110,9 @@ table the importer consults on **every** run, so a re-pull can **never** reactiv
      `'purged 2026-07-22: service-provider, not a factory'`) in the same migration. The exact 418 codes
      are recoverable from `ingest.raw_record` (coldlion/vendors source_ids) minus the corrected 97.
   2. **The curated not-a-factory rulings.** `ANT001` ANTHONY'S WAREHOUSE & DISTRIBUTION — excluded /
-     inactive (warehouse, not a manufacturer). **Re-review before first recurring run** (decide factory
-     vs not-a-factory, record the ruling): Buildasign LLC, May Group USA Deco Sign, Floor Gardens
-     (`FLGDS`), TUFKO INTERNATIONAL (`INTUF`), Royal Packers, Royal Union.
+     inactive (warehouse, not a manufacturer). The six borderline vendors (Buildasign LLC, May Group
+     USA Deco Sign, Floor Gardens `FLGDS`, TUFKO INTERNATIONAL `INTUF`, Royal Packers, Royal Union) were
+     **ruled VALID FACTORIES by Albert 2026-07-22 — NOT excluded.**
 
 ---
 
@@ -334,17 +334,16 @@ and confirm:
 
 ## 8. Ordered build steps — split into two shippable phases (GLM verdict)
 
-**Phase A — the guarded importer + tables (safe, high-value, provable NOW; no serverless needed):**
-1. Recover the 418 purged Coldlion vendorCodes (raw_record coldlion/vendors source_ids minus the
-   corrected 97) and get Albert's ruling on the 6 borderline vendors (§2).
-2. Author ONE additive migration: `plm.vendor_exclusion` (seeded with the 418 + ANT001 + rulings),
-   `plm.vendor_quarantine`, `plm.sync_coldlion_vendors(jsonb)` with the M1/M2/S7/S8 fixes,
-   `public.sync_coldlion_vendors` + `public.record_failed_sync_run` + the `api.*` read views, grants;
-   and drop/deprecate `plm.import_coldlion_vendors`. `check-sql.sh` clean; PR to `main`; apply to
-   **preview**; prove it there.
-3. Run the §7 dry-run gate against **production data** using the **exact proven one-off Node/`pg`
-   invocation** the reconcile already used (no Edge Function / pg_net / Vault required). Apply the first
-   real run only after Albert approves (it can write `core.factory`). Merge; apply migration to prod.
+**Phase A — the guarded importer + tables. ✅ DONE + PROD-VERIFIED 2026-07-22.**
+Migration `20260722213000_vendor_sync_guarded_importer.sql` (PR #160, merged) +
+`tools/sync-coldlion-vendors.mjs` (+ tests). `plm.vendor_exclusion` seeded with **435** codes (434
+purged 2026-07-22, computed from `raw_record`; + ANT001), `plm.vendor_quarantine`,
+`plm.sync_coldlion_vendors(jsonb)` (M1/M2/S7/S8 fixes), `public.sync_coldlion_vendors` +
+`public.record_failed_sync_run` + `api.vendor_{quarantine,exclusion,sync_run}_list`, grants; old
+`plm.import_coldlion_vendors` dropped. Validated on preview inside a rolled-back transaction (full §7
+gate + upstream-removal safety, all pass). Applied to prod (bounded, only this migration) and a first
+real sync run executed: `seen=97, inserted=0, updated=95, failed=1 (CNWAH quarantined), skipped=1
+(ANT001), deleted=0`; `core.factory` unchanged at 93 (91/2). Evidence: PR #160 comment.
 
 **Phase B — scheduled serverless execution + alerting (separate, after Phase A is proven):**
 4. Spike-verify the mechanism: is **pg_net** enabled? If not, use native scheduled Edge Functions.
