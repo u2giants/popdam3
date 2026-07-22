@@ -1,7 +1,7 @@
 # Per-app extension tables — implementation plan
 
 Status: **decision made 2026-07-17 (owner + Kimi K3 review); this document is the implementation guide.**
-Scope: shared Supabase Postgres (`qsllyeztdwjgirsysgai`, preview branch `xjcyeuvzkhtzsheknaiu`) and the four apps that share it — CRM (`popcrm-web`), PM/PIM (`poppim-web`), DAM (`popdam3`), PLM (DesignFlow, mirrors in).
+Scope: shared Supabase Postgres (`qsllyeztdwjgirsysgai`, preview branch `rjyboqwcdzcocqgmsyel`) and the four apps that share it — CRM (`popcrm-web`), PM/PIM (`poppim-web`), DAM (`popdam3`), PLM (DesignFlow, mirrors in).
 
 ---
 
@@ -154,7 +154,7 @@ All candidate column lists below are **ILLUSTRATIVE — inferred from each app's
 
 1. **One ext table per migration file**, new timestamped `supabase/migrations/YYYYMMDDHHMMSS_<appschema>_<entity>_ext.sql`; never edit an applied migration. The matching `create or replace view` may ride in the same file.
 2. **Additive only.** New table + appended view columns. Nothing existing is renamed, dropped, or retyped, so §4.3 of the merge protocol (additive-by-default) is satisfied by construction.
-3. **Preview first, every time:** branch → PR → `scripts/check-sql.sh` → `supabase db push --dry-run` against preview (`xjcyeuvzkhtzsheknaiu`) → apply to preview → point the app at preview and verify → author merges → promote to production in an approved window (full checklist: AGENTS.md §5).
+3. **Preview first, every time:** branch → PR → `scripts/check-sql.sh` → `supabase db push --dry-run` against preview (`rjyboqwcdzcocqgmsyel`) → apply to preview → point the app at preview and verify → author merges → promote to production in an approved window (full checklist: AGENTS.md §5).
 4. **No backfill.** Ext rows are created lazily — the first time a user (or sync job) saves an app-specific field for that customer/vendor, upsert the ext row. A missing row means "all defaults", which is exactly what the LEFT JOIN's NULLs express.
 5. **Existing app code is untouched by the schema change itself.** Because consumers LEFT JOIN, old code keeps working; apps adopt the new view columns whenever convenient, in their own repos, on their own schedule. The `shared-db` PR does not need a coordinated app deploy.
 6. **Serialize with other in-flight schema work** (AGENTS.md §4 rule 1, §6): before starting each ext migration, run the §6 checks (`gh pr list`, branch list, `ls supabase/migrations`, `git status`) and don't overlap with the ERP relocation phases.

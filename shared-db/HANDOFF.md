@@ -10,6 +10,94 @@ for a developer with **zero** prior context. Read it, then read the linked plan.
 
 ---
 
+## HTS RAG rulings table — preview complete, production promotion awaiting approval
+
+### What this application and change are
+
+`u2giants/shared-db` is the migration source of truth for the hosted Supabase database
+shared by POP Creations applications. DesignFlow's backend is adding an AI-assisted HTS
+classification workflow. When a CBP customs ruling is a useful match, the backend will cache
+the public ruling text and classification metadata so later classifications can reuse a fast,
+grounded result.
+
+The additive migration
+`supabase/migrations/20260721203000_hts_rag_rulings.sql` creates
+`public.hts_rag_rulings`. It was merged through
+[PR #128](https://github.com/u2giants/shared-db/pull/128) in commit
+`be0162221fa3f952118abd6e13142f965fffc50e`. Production has **not** received this migration.
+
+### Current verified state
+
+- Preview is project `rjyboqwcdzcocqgmsyel`, Supabase branch
+  `shared-db-schema-rehearsal`. This persistent preview was rebuilt as a production data clone
+  because legacy DAM objects predate replayable repository migration history.
+- Preview now reports latest migration `20260721203000`; the table exists there.
+- The 1Password `vibe_coding` item
+  `Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)`
+  contains the working preview pooler tuple. Use `DB_HOST`, `DB_USER`, `DB_PASSWORD`,
+  `DB_NAME`, and `DB_PORT`; SSL is required. Never copy the password into Git or chat.
+- The preview database password was deliberately reset on 2026-07-21 and the matching
+  GitHub Actions secret `SUPABASE_DB_PASSWORD_PREVIEW` was updated.
+- A Node `pg` connection using the exact 1Password pooler tuple completed transactional
+  INSERT, UPDATE, SELECT, and DELETE against `public.hts_rag_rulings`, then rolled back.
+  The connected `postgres` role owns the table, has direct CRUD privilege, has
+  `BYPASSRLS`, and saw RLS inactive for that session. No test row persisted.
+- The deployed DesignFlow services `popcre-albert-core-sandbox` and
+  `popcre-albert-core-sandbox2` deliberately remain connected through the canonical
+  `*_SANDBOX` GCP secret tuple to shared production Supabase project
+  `qsllyeztdwjgirsysgai`. **Do not repoint those secrets to preview.** Preview is only for
+  local model/upsert testing and may be rebuilt or reset.
+
+### What failed and why
+
+1. The old preview project had irreconcilable migration history, so it was replaced with
+   `rjyboqwcdzcocqgmsyel`. A data clone was required because a schema-only replay could not
+   reproduce legacy objects absent from repository migrations.
+2. `supabase branches get` displays database passwords as the literal masked value `******`.
+   An initial credential refresh mistakenly persisted that placeholder, making pooler login
+   fail with PostgreSQL error `28P01`. The preview password was reset through the Supabase
+   Management API, then the real value was written directly to 1Password and GitHub Actions
+   without printing it.
+3. After valid pooler authentication was restored, a direct query showed preview stopped at
+   migration `20260717163500` and lacked `hts_rag_rulings`. Running preview dry-run exposed
+   eight pending migrations; all eight were applied in repository order. The final migration
+   is now `20260721203000`, and the CRUD proof passes.
+4. Investigation confirmed deployed sandbox points to production, not preview. This is the
+   intended architecture, not a defect: local tests use preview; approved migrations then
+   move to production, where deployed sandbox sees them with zero secret changes.
+
+### Exact next steps and verification gates
+
+1. In `popcre/designflow-backend`, test the Sequelize model and upsert locally using the five
+   preview fields in the 1Password item above. **Pass when:** create/update/read behavior works
+   against preview and the intended automated tests pass without committing credentials.
+2. Obtain Albert's explicit go-ahead after that local test passes. Do not infer approval from
+   the merged PR or successful preview migration.
+3. From clean `main`, run the production migration workflow for project
+   `qsllyeztdwjgirsysgai`, promoting the already-merged migration
+   `20260721203000_hts_rag_rulings.sql`. **Pass when:** the production workflow is green,
+   `supabase_migrations.schema_migrations` includes `20260721203000`, and the table shape,
+   indexes, grants, and RLS match preview.
+4. Verify the deployed sandbox backend can access the table through its unchanged production
+   connection. **Pass when:** a backend-level non-destructive smoke test succeeds; do not
+   change any `*_SANDBOX` secret.
+
+### Constraints, access, questions, and risks
+
+- Production promotion remains the only unfinished part of this shared-db task and requires
+  explicit approval after local backend testing.
+- This is additive; do not edit the applied migration. Any correction must be a new timestamped
+  migration and must follow preview-first workflow.
+- `service_role` grants cover API/JWT access. Direct Sequelize pooler access uses the database
+  `postgres` role, which was verified to own the table and bypass RLS.
+- Authenticated tools exercised this session: `gh`, `gcloud`, `supabase`, and 1Password.
+  Runtime secrets remain in 1Password vault `vibe_coding` and GCP Secret Manager; no secret
+  value belongs in repository files.
+- The open question is only whether the backend model/upsert passes local preview testing.
+  Once confirmed, the production promotion procedure above is ready.
+
+---
+
 ## 📌 Session 2026-07-21 — data/schema work (full record linked)
 
 Full account: [`docs/app-migration-notes/session-2026-07-21.md`](docs/app-migration-notes/session-2026-07-21.md).
