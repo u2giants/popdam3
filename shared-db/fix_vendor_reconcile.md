@@ -1,7 +1,13 @@
 # fix_vendor_reconcile.md — Reconcile `core.factory` to the corrected Coldlion `/vendors` table
 
 **Written:** 2026-07-22 · **Repo:** `u2giants/shared-db` · **DB:** shared Supabase `qsllyeztdwjgirsysgai`
-**Status:** PLAN — not executed. Needs one Albert decision (Anthony's) before the destructive step.
+**Status:** ✅ EXECUTED 2026-07-22 (migration `20260722140000_vendor_reconcile_to_corrected_vendors_table.sql`,
+applied + verified on prod). Anthony's ruling: **inactivate** (Albert). Result: `core.factory` **510 → 93
+rows (91 active / 2 inactive)**, factories only; 418 stale old-feed rows purged; Anthony's re-added
+inactive with its mirror relinked; CNWAH skipped. Remaining: mirror `plm.erp_vendor` still holds the old
+539-row set (silver layer, not app-facing) — refresh it when the vendor importer next runs. Steps 3–4
+(persist "not a factory" exclusions for future syncs; confirm importer keys on source id) apply when a
+recurring vendor sync is built.
 
 ## 1. What changed (the trigger)
 
