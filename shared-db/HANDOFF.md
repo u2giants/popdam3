@@ -224,29 +224,96 @@ uses the production table through the unchanged `*_SANDBOX` connection tuple.
 
 ---
 
-## 📌 Session 2026-07-21 — data/schema work (full record linked)
+## 📌 Session 2026-07-20/22 — data/schema work (COMPLETED + OPEN ITEMS)
 
-Full account: [`docs/app-migration-notes/session-2026-07-21.md`](docs/app-migration-notes/session-2026-07-21.md).
-Deployed to prod: PLM sync failure-logging (PR #107), the vendor/factory schema (PR #102,
-previously merged-but-unapplied), the **item→taxonomy Phase 2a/2b foundation** (PRs #110/#115 —
-`plm.item`/resolver live but **0 rows**, gated for Phase 3 backfill), and the **vendor curation**
-(PRs #113/#115/#118 — `core.factory` now **510 rows, 91 active / 419 inactive**, directus factories
-reassigned to real vendors with 0 orphans, exact-name duplicates merged). Docs: DB Data Admin plan is
-authoritative (PR #112, [`DB_Data_Admin.md`](DB_Data_Admin.md)); fuzzy-dup review sheet generated
-(PR #120, [`docs/vendor-review/vendor_fuzzy_dupes.csv`](docs/vendor-review/vendor_fuzzy_dupes.csv)).
+Full narrative: [`docs/app-migration-notes/session-2026-07-21.md`](docs/app-migration-notes/session-2026-07-21.md).
 
-**✅ Coldlion `/vendors` wrong-table — RESOLVED 2026-07-22.** Coldlion swapped `/vendors` to the
-correct factory-only table: **97 records, all active** (was 539 mixed with service-providers).
-`core.factory` (510 rows, curated from the old feed) now needs reconciling down to the corrected 97 —
-plan in **[`fix_vendor_reconcile.md`](fix_vendor_reconcile.md)**: 92 already match, 418 stale old-feed
-rows (inactive, 0 downstream references — safe to purge), 2 "new" codes (Anthony's Warehouse [needs an
-exclude/keep ruling] + a blank placeholder record). The fuzzy-dup sheet is now largely moot (its noise
-was the removed service-providers). See `AGENTS.md §6.2` + `docs/coldlion-erp-api-reference.md` (✅ box).
+### Completed + deployed to prod this session (all verified)
+- **PLM sync failure-logging** (PR #107) — the host wrapper now writes a committed `status='failed'`
+  `ingest.sync_run` row + `systemd OnFailure` alert. **Merged to repo but NOT yet deployed on the hetz
+  box** (see OPEN #4).
+- **Vendor/factory schema** (PR #102) — `core.factory.display_name`, `core.factory_alias`,
+  `core.merge_factory(p_loser, p_survivor, p_alias_loser_name)`. Was merged-but-unapplied; deployed.
+- **Item→taxonomy Phase 2a/2b foundation** (PRs #110/#115) — `plm.merch_group_header`,
+  `plm.item_import`, `plm.item_import_staging`, `plm.item_import_unresolved`,
+  `plm.item_taxonomy_disagreement`, `plm.import_item_master_data(jsonb)`,
+  `plm.import_merch_group_headers(jsonb)` + tooling. **`plm.item` is LIVE but 0 rows** — Phase 3 not run.
+- **Vendor curation + dedup** (PRs #113/#115/#118) — status seed, 4 not-a-factory purges, directus
+  reassignment (33 products + 20 style bridges, 0 orphans), 9 exact-name dup merges.
+- **Coldlion `/vendors` wrong-table — RESOLVED.** Coldlion fixed it 2026-07-22: `/vendors` now serves
+  **97 factory-only records** (was 539 mixed with freight/gov/bank/courier service-providers).
+- **Vendor reconcile EXECUTED** (PRs #140/#141, migration `20260722140000_...`). **`core.factory` is now
+  93 rows (91 active / 2 inactive)** — factories only. 418 stale old-feed rows purged; Anthony's
+  Warehouse (`ANT001`) re-added **inactive** per Albert (kept, not excluded), mirror relinked; the blank
+  `CNWAH` record skipped. Plan: [`fix_vendor_reconcile.md`](fix_vendor_reconcile.md) (marked executed).
 
-Other open items from this session: fuzzy-dup sheet awaiting Albert's rulings; item-taxonomy Phase 3+
-(backfill `plm.item` from `/items`, then cutover behind the app-repo grep gate — see
-`fix_item_taxonomy_wiring.md`); PLM sync upstream 502 still down + PR #107 needs deploying on the hetz
-box (`cd /worksp/shared-db && git pull && sudo systemctl daemon-reload`); DB Data Admin app not started.
+### 🔵 OPEN ITEMS — exact next actions (data/schema side)
+
+**OPEN #1 — Refresh the `plm.erp_vendor` mirror to the corrected 97.**
+- *What/why:* the silver mirror `plm.erp_vendor` still holds the OLD 539-row set (97 active + 442
+  inactive service-providers). `core.factory` (gold) is already reconciled to 93, but the mirror is
+  stale. Apps read `core.factory`, not `plm.erp_vendor`, so this is not user-facing — but the layers
+  are inconsistent and any future importer that reads the mirror would be wrong.
+- *Next step:* re-pull the corrected `/vendors` (97 rows, all active) into `plm.erp_vendor`, replacing
+  the 539. Coldlion base `http://x5.coldlion.com/EhpApi/vendors?companyCode=EDGEHOME&size=2000&page=0`,
+  key `op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential` (use `op run`, cmd/pwsh — NOT
+  bare bash on Windows). Delete mirror rows whose `vendor_code` is not in the 97; keep the ANT001 row
+  (already relinked). Record an `ingest.sync_run`.
+- *Verify:* `select count(*) from plm.erp_vendor` = 97 (or 97 + any still-referenced legacy row);
+  every `core.factory` coldlion code has a matching mirror row.
+
+**OPEN #2 — Write a plan for a RECURRING vendor sync (with two mandatory guards).**
+- *What/why:* there is currently NO scheduled vendor sync — the 2026-07-15 load and this session's
+  work were one-offs. A recurring sync must not silently undo this session's curation.
+- *Deliverable:* a plan doc (e.g. `fix_vendor_sync.md`) covering cadence, endpoint, `ingest.sync_run`
+  accounting with durable-failure recording (the PR #107 pattern), and upsert-by-`(source_system,
+  source_table, source_id)` so it updates existing `core.factory` rows rather than inserting dups.
+- *THE TWO GUARDS (non-negotiable, Albert 2026-07-22):*
+  1. **Reject blank/nameless records** — a vendor with empty `vendorDesc` (e.g. `CNWAH`) must NEVER be
+     inserted into `core.factory`; log/quarantine it loudly, don't silently drop.
+  2. **Persist "not a factory" exclusions** — the human decisions that a record is not a merchandise
+     vendor (e.g. Anthony's Warehouse `ANT001` = inactive; and re-review Buildasign LLC, May Group USA
+     Deco Sign, Floor Gardens `FLGDS`, TUFKO `INTUF`, Royal Packers, Royal Union) must be stored
+     durably (a flag or exclusion list the importer consults) so a re-pull can never reactivate or
+     re-add them. Status is app-owned — the importer must set status on INSERT only, never overwrite a
+     curated status on re-pull.
+- *Also fold in:* the importer must not re-split already-merged duplicate factories (survivors carry
+  multiple source-ref codes) and must not re-create purged rows.
+- *Verify:* dry-run the sync against the live 97 and confirm 0 new rows, 0 status flips, 0 blank inserts.
+
+**OPEN #3 — Item→taxonomy Phase 3+ (backfill then cutover).**
+- *What/why:* `plm.item` is built but empty; items are still served from `public.erp_items_current`
+  with text licensor/property codes (no FK). Coldlion `/items` is back to HTTP 200 (19,066 items /
+  9,533 pages), so Phase 3 is unblocked.
+- *Next step:* Phase 3 — run the item sync to backfill `plm.item` via `plm.import_item_master_data`
+  (pull `/merchGroupHeaders` for ALL divisions first — the resolver needs the per-division dictionary).
+  Then Phase 4 cutover: repoint `api.plm_item_list` from `public.erp_items_current` → `plm.item`, keep
+  the legacy pull refreshed through the deprecation window, defer the style-bridge FK repoint to Phase 5.
+- *Gate before Phase 4:* row-parity check + grants/RLS on the new `plm.*` tables + an **app-repo grep**
+  (`erp_items_current`, `licensor_code`, `property_code`, name-based lookups) in popdam/popcrm/dflow/
+  poppim. Full spec + locked decisions: [`fix_item_taxonomy_wiring.md`](fix_item_taxonomy_wiring.md) §7b.
+
+**OPEN #4 — Deploy PR #107 on the hetz box + the upstream PLM 502.**
+- *What/why:* the PLM master-data sync (`getLicensorsWithProperties`) has returned HTTP 502 since
+  2026-07-08 — licensors/properties can't refresh. PR #107 fixes the silent-failure logging but must be
+  deployed where the sync runs.
+- *Next step:* on hetz — `cd /worksp/shared-db && git pull && sudo systemctl daemon-reload` (deploys the
+  wrapper + `plm-sync-alert.service`). Separately, the upstream 502 is a DesignFlow/Cloud Run problem
+  (api.designflow.app), not ours — raise it. *Verify:* force a failed run and confirm a `status='failed'`
+  `ingest.sync_run` row + the alert fire.
+
+**OPEN #5 — Residual fuzzy vendor duplicates (low priority).**
+- The fuzzy-dup sheet (`docs/vendor-review/vendor_fuzzy_dupes.csv`) is mostly MOOT now — most of its 69
+  pairs were the service-providers Coldlion removed. But a few genuine Chinese-factory dups may remain
+  among the clean 93 (Taizhou Meihua / Xianju Fenda variants etc.). Optional: re-run exact + fuzzy
+  detection on the 93 and merge any confirmed pairs via `core.merge_factory`.
+
+**OPEN #6 — Carried-forward security item.** Production DB password possibly exposed 2026-07-10; rotation
+status unverified. Confirm and close.
+
+> **Cross-workstream note:** the **DB Data Admin** app (its own workstream at the top of this file) is the
+> serving/UI layer for these curated Customers/Vendors/Licensors/Properties. The **DesignFlow production
+> DB-port incident** (its own section) is a separate infra workstream with its own open steps.
 
 ---
 
