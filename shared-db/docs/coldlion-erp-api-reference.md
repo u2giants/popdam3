@@ -36,9 +36,18 @@ List endpoints are Spring-paged:
 Live row counts (2026-07-15): customers **836**, vendors **539**, inventory **8,711**
 (items table is large too).
 
-> ## ⚠️ OPEN QUESTION 2026-07-21 — `/vendors` may be the WRONG table (mixes service-providers with factories)
+> ## ✅ RESOLVED 2026-07-22 — Coldlion swapped `/vendors` to the correct (factory) table
 >
-> The 539 rows from `/vendors` are **not** all merchandise vendors (factories). They include
+> `/vendors` now serves **97 records, all active** (verified live 2026-07-22) — the service-providers
+> are gone; the set is now merchandise vendors (factories) only. This confirms the wrong-table
+> hypothesis below and resolves it upstream. Reconciling `core.factory` (curated from the old 539-row
+> feed) down to the corrected 97 is planned in [`fix_vendor_reconcile.md`](../fix_vendor_reconcile.md)
+> (repo root). Live row counts to use going forward: **vendors 97** (not 539). The history below is
+> kept for context.
+>
+> ## ⚠️ (HISTORICAL) OPEN QUESTION 2026-07-21 — `/vendors` was the WRONG table (mixed service-providers with factories)
+>
+> The 539 rows from `/vendors` were **not** all merchandise vendors (factories). They included
 > large numbers of **general/AP-style vendors**: freight & logistics carriers (ABF Freight, DHL
 > Express, JTS Express, ECHO/ARIES Global Logistics), government agencies (U.S. Department of
 > State, NYC Department of Finance, NJ Division of Taxation), financial services (Chase / FIA /

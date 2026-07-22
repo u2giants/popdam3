@@ -230,15 +230,14 @@ The three rules that cause the most damage when ignored:
 3. **Merch-group codes are unique only within `(division, mgTypeCode)`.** `FR` is a licensor
    in our DB and a *property* in Coldlion. Never look up by `mg_code` alone.
 
-### 6.2 Coldlion `/vendors` may be the wrong table (OPEN, 2026-07-21)
+### 6.2 Coldlion `/vendors` — wrong table, now FIXED upstream (2026-07-22)
 
-`core.factory` = **merchandise vendors (factories)**. But Coldlion's `/vendors` endpoint returns
-a mixed population — real factories PLUS general/AP vendors (freight, government, banks, couriers,
-real estate). Albert suspects Coldlion attached the wrong ERP table and has asked them to confirm.
-**Until resolved, do not run further vendor curation/dedup or wire anything new to `core.factory`
-from `/vendors`** — a corrected feed could change which rows belong. Full detail:
-[`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md) (⚠️ box) and
-[`fix_vendor_review.md`](fix_vendor_review.md).
+`core.factory` = **merchandise vendors (factories)**. Coldlion's `/vendors` endpoint was returning a
+mixed population (factories PLUS freight/government/banks/couriers/real-estate). **Coldlion corrected
+it 2026-07-22 — `/vendors` now serves 97 factory-only records.** `core.factory` (510 rows, curated from
+the old 539-row mixed feed) still needs reconciling down to the corrected 97; plan (with the one open
+Anthony's decision) is in [`fix_vendor_reconcile.md`](fix_vendor_reconcile.md). Detail:
+[`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md) (✅ box).
 
 ## 7. When two apps need conflicting database changes
 

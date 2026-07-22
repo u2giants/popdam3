@@ -217,12 +217,13 @@ reassigned to real vendors with 0 orphans, exact-name duplicates merged). Docs: 
 authoritative (PR #112, [`DB_Data_Admin.md`](DB_Data_Admin.md)); fuzzy-dup review sheet generated
 (PR #120, [`docs/vendor-review/vendor_fuzzy_dupes.csv`](docs/vendor-review/vendor_fuzzy_dupes.csv)).
 
-**🔴 Highest-priority OPEN finding — Coldlion `/vendors` may be the WRONG table.** It returns
-service-provider/AP vendors (freight, government, banks, couriers, real estate) mixed with real
-factories — the source of the "not a factory" purges and most fuzzy-dup noise. Albert has asked
-Coldlion to confirm. **Do not run the fuzzy merges or further `/vendors`-based curation until
-resolved** — a corrected feed could re-scope which rows belong. See `AGENTS.md §6.2` +
-`docs/coldlion-erp-api-reference.md` (⚠️ box).
+**✅ Coldlion `/vendors` wrong-table — RESOLVED 2026-07-22.** Coldlion swapped `/vendors` to the
+correct factory-only table: **97 records, all active** (was 539 mixed with service-providers).
+`core.factory` (510 rows, curated from the old feed) now needs reconciling down to the corrected 97 —
+plan in **[`fix_vendor_reconcile.md`](fix_vendor_reconcile.md)**: 92 already match, 418 stale old-feed
+rows (inactive, 0 downstream references — safe to purge), 2 "new" codes (Anthony's Warehouse [needs an
+exclude/keep ruling] + a blank placeholder record). The fuzzy-dup sheet is now largely moot (its noise
+was the removed service-providers). See `AGENTS.md §6.2` + `docs/coldlion-erp-api-reference.md` (✅ box).
 
 Other open items from this session: fuzzy-dup sheet awaiting Albert's rulings; item-taxonomy Phase 3+
 (backfill `plm.item` from `/items`, then cutover behind the app-repo grep gate — see

@@ -27,17 +27,16 @@
 > columns awaiting Albert's rulings. This file can be retired once the admin app's vendor screen
 > ships.
 >
-> ## 🔴 ROOT-CAUSE HYPOTHESIS 2026-07-21 — `/vendors` may be the wrong Coldlion table
+> ## ✅ ROOT CAUSE CONFIRMED + FIXED 2026-07-22 — `/vendors` was the wrong Coldlion table
 >
-> The "not a factory" purges (ABF Freight, Anthony's Warehouse, Digital Photographic, Walmart)
-> and most of the fuzzy-dup noise (freight/logistics, government agencies, banks/card services,
-> couriers, real-estate LLCs) are almost certainly **service-provider / AP vendors**, not
-> factories. **Albert suspects Coldlion attached the wrong table to `/vendors`** (returning the
-> general vendor master mixed with, or instead of, the merchandise-vendor/factory master) and has
-> asked Coldlion to confirm. `core.factory` should hold factories only. **Do not run the fuzzy
-> merges or any further `/vendors`-based curation until Coldlion confirms** — a corrected feed
-> could re-scope which rows belong. See `docs/coldlion-erp-api-reference.md` (⚠️ box) and
-> `AGENTS.md §6.2`.
+> Confirmed: `/vendors` was returning general/AP vendors (freight, government, banks, couriers,
+> real-estate) mixed with factories — the source of the "not a factory" purges and the fuzzy-dup
+> noise. **Coldlion corrected it 2026-07-22: `/vendors` now serves 97 factory-only records (all
+> active).** The fuzzy-dup sheet (`docs/vendor-review/vendor_fuzzy_dupes.csv`) is now largely moot
+> — most of its noisy pairs were the service-providers that no longer exist in the feed. Next step
+> is a reconcile of `core.factory` (curated from the old 539-row feed) down to the corrected 97:
+> see **[`fix_vendor_reconcile.md`](fix_vendor_reconcile.md)** (repo root), which needs one Albert
+> decision (Anthony's Warehouse) before its one destructive step.
 >
 > ## ⚡ STATUS UPDATE 2026-07-17 — prep steps 1–4 are DONE (by Codex); start at step 5
 >
