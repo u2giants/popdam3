@@ -25,10 +25,10 @@ specification, and `docs/db-data-admin-inventory.md` is the verified implementat
 
 The project replaces scattered SQL/manual maintenance with one guarded interface while
 preserving shared Core identities, per-application status overrides, immutable audit history,
-and safe merges. Delivery Steps 1–8 now establish the repository/runtime foundation,
+and safe merges. Delivery Steps 1–9 now establish the repository/runtime foundation,
 authorization/storage schema, merge coverage, protected reads, extension tables, controlled
-Customer Channels, read-only Customer/Vendor grids, and guarded single-record editing with
-immutable audit history. Production writes remain off.
+Customer Channels, read-only Customer/Vendor grids, guarded single-record editing, and
+protected duplicate merges with immutable audit history. Production writes remain off.
 
 ### 3. Current state
 
@@ -37,8 +37,8 @@ immutable audit history. Production writes remain off.
 - PR #127 scaffolded React 19 + TypeScript 6 + Vite 8.1.5, pinned RevoGrid Core 4.23.22,
   Vitest, Playwright, Docker, and CI in `apps/db-data-admin/`.
 - PR #129 configured the immutable GitHub Actions → GHCR → Coolify development path.
-  `https://data-dev.designflow.app/` returned HTTP 200 and live HTML reported Step 8 merge
-  build `046f5c92b253a0aea31e301a37730cf64daddeb0` on 2026-07-22.
+  `https://data-dev.designflow.app/` returned HTTP 200 and live HTML reported Step 9 merge
+  build `a6b4f175264293f9b7dbebf9ef030e8b1bad7659` on 2026-07-22.
 - Microsoft SSO on development was repaired on 2026-07-22. Azure already contained the
   preview callback URI, but preview Supabase could not exchange the returned Microsoft
   code because its Azure credential value was invalid. A dedicated additive Azure
@@ -72,11 +72,23 @@ immutable audit history. Production writes remain off.
   `docs/verification/db-data-admin-step8-*`.
 - The `single_record_write` feature gate is enabled only on preview. The Step 8 migration and
   gate were not promoted to production.
+- PR #150 delivered the Step 9 database workflow in migrations `20260722194000` and
+  `20260722194100`: protected Customer/Vendor previews, exact FK counts, field-level extension
+  conflicts, SHA-256 stale-preview protection, ordered advisory locks, explicit resolutions,
+  operation-id idempotency, and immutable success/failure audit evidence. All eight rollback-
+  safe DB Data Admin suites passed on preview; the final preview dry-run reported no drift.
+- PR #151 delivered the merge dialog. It fixes the selected detail record as survivor, requires
+  a duplicate, shows the direction and affected counts, requires every conflict choice plus a
+  reason and irreversible confirmation, and refreshes the survivor/audit after success. Main
+  CI passed 15 unit tests, 4 Chromium tests, lint, build, image publication, and Coolify deploy.
+  Visual evidence is `docs/verification/db-data-admin-step9-merge-preview.png`.
+- The `merge_execute` feature gate is enabled only on preview. Neither Step 9 migration nor
+  merge execution was promoted to production.
 - Albert's active preview profile had the Administrator role and now has one explicit,
   non-revoked **preview-only** `admin` access row. It was added only after verifying the
   profile and role. No production grant or production database change was made.
-- Merge UI, Licensor/Property tree, consumer enforcement, bulk operations, and production
-  delivery remain Steps 9–13 and are not started.
+- Licensor/Property tree, consumer enforcement, bulk operations, and production delivery
+  remain Steps 10–13 and are not started.
 
 ### 4. What did not work
 
@@ -103,6 +115,11 @@ immutable audit history. Production writes remain off.
   as timestamp `20260722170000` despite the prompt requesting no database mutation. Preview
   history was reconciled to the checked-in canonical file, the dry-run then reported no drift,
   and production was never linked or changed. Do not rename or edit that applied migration.
+- Kimi's CLI remained blocked by its billing-cycle quota when Step 9 began, so its new read-only
+  design check could not run. Codex proceeded from the previously Kimi-reviewed delivery plan.
+- The first Step 9 preview test failed because hosted Supabase exposes pgcrypto under the
+  `extensions` schema. The applied migration was not edited; corrective migration
+  `20260722194100` qualified `extensions.digest`, after which all suites passed.
 
 ### 5. Root causes and key findings
 
@@ -112,17 +129,18 @@ immutable audit history. Production writes remain off.
 - Production DesignFlow uses Cloud SQL for PLM Customer/Vendor status. DB Data Admin must use a
   protected DesignFlow operation and mirror the result back; it must not create a competing
   editable Supabase PLM status. See `docs/db-data-admin-inventory.md`.
-- Merge engine coverage is repaired, but merge UI remains disabled until Step 9's protected
-  preview/execution contracts and UI pass their separate gates.
+- Merge engine coverage and the protected Step 9 workflow are complete. Production remains
+  protected by the off-by-default database gates and the unpopulated production admin grant.
 
 ### 6. Exact next steps
 
-1. Refresh `https://data-dev.designflow.app`, use Microsoft SSO, edit one disposable preview
-   Customer field with a reason, and reopen the detail. **Pass when** the saved value and audit
-   event both appear; do not perform this check against production.
-2. Start Step 9 on a new serialized branch. **Pass when** preview proves transferred references,
-   explicit extension conflicts, idempotent retry, and old-identifier resolution.
-3. Continue Steps 10–13 in order. Do not promote migrations or enable production status
+1. Refresh `https://data-dev.designflow.app`, use Microsoft SSO, and preview a known disposable
+   duplicate pair without confirming the merge. **Pass when** the dialog shows direction,
+   affected counts, and any conflicts. Only merge preview fixtures whose loss is acceptable.
+2. Start Step 10 on a new serialized branch: the fully read-only Licensor → Property hierarchy
+   with counts, source context, and loud orphan handling. **Pass when** every canonical Property
+   appears under exactly one Licensor and a dated snapshot reconciles.
+3. Continue Steps 11–13 in order. Do not promote migrations or enable production status/merge
    writes before consumer enforcement and an approved production window.
 
 ### 7. Constraints and gotchas
