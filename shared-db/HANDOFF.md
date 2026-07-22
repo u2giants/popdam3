@@ -10,6 +10,68 @@ for a developer with **zero** prior context. Read it, then read the linked plan.
 
 ---
 
+## Active workstream — DesignFlow Sample Tracking schema (plan only, 2026-07-22)
+
+The authoritative database implementation plan is
+[`fix_sample_tracking_schema.md`](fix_sample_tracking_schema.md). Read it completely before touching
+any Sample Tracking table, migration, constraint, view, RLS policy, grant, or legacy data.
+
+### What this work is and why it exists
+
+DesignFlow tracks physical product samples through factories, Ningbo, New York, and customers. One
+sample batch may split: a factory can make four pieces; Ningbo can retain one and send three to New
+York; New York can retain two and send one to the customer. The legacy scalar quantity/status/office/
+box model cannot account for all four pieces simultaneously. The planned design uses immutable
+positive movements between normalized typed locations, derived balances, durable box ownership,
+explicit shipment intent, local-stop closeout distinct from global completion, and durable import
+records.
+
+### Current exact state
+
+- **Documentation only:** no Sample Tracking migration, preview apply, production apply, backfill, or
+  database mutation was performed for this workstream on 2026-07-22.
+- The existing restore migration
+  `supabase/migrations/20260721201500_restore_dflow_sample_tracking_tables.sql` recreated six legacy
+  tables in runtime schema `dflow` but omitted the seventh listed table,
+  `sample_shipment_item`. The application has observed
+  `relation "dflow.sample_shipment_item" does not exist`.
+- The DesignFlow tracking application now performs an application transaction/existence check for
+  ordinary repeated box membership, but two concurrent inserts can still race. The database must
+  eventually enforce `UNIQUE(sample_id_fk, box_id_fk)` after a read-only duplicate/anomaly audit and
+  approved reconciliation.
+- The larger quantity model, ownership, closeout, import, and read-view work has not started.
+
+### What failed before this plan was published
+
+The originating session first attempted to publish through GitHub CLI from a managed environment;
+that environment could not read the CLI authentication configuration. Its signed-in browser also
+had an explicit policy blocking `github.com`. It correctly did not bypass those controls or treat a
+DesignFlow-local database sketch as canonical. Closeout later obtained a normal authenticated GitHub
+CLI path and created this shared-db documentation branch from a clean clone, without touching the
+unrelated local shared-db checkout or any database.
+
+### Exact next action and verification gate
+
+Start with Sections 10 and 14 of `fix_sample_tracking_schema.md`: serialize with all other shared-db
+work, then perform read-only catalog and data inventories in preview and production for all seven
+sample tables. Do not write a migration until the `sample_shipment_item` existence/shape, duplicate
+memberships, cross-box inconsistencies, and legacy row counts are documented. You will know the
+first gate passed when the PR contains an environment-by-environment catalog/count report and every
+anomaly is categorized without any data mutation.
+
+### Constraints, access, and risks
+
+- All DDL belongs here; consumer repositories receive model/service changes only after shared-db.
+- Preview project is `rjyboqwcdzcocqgmsyel`; production is `qsllyeztdwjgirsysgai`. Reconfirm in
+  `AGENTS.md` before linking.
+- Credentials live in 1Password vault `vibe_coding` under the item names documented in `AGENTS.md`;
+  never copy values into files or chat.
+- Never assume an unknown legacy sample has quantity one, and never delete duplicate memberships
+  with a blind row-number cleanup.
+- A docs-only merge authorizes planning, not production DDL or data reconciliation.
+
+---
+
 ## Active workstream — DB Data Admin implementation (2026-07-22)
 
 ### 1. What this application is
@@ -1021,3 +1083,20 @@ include background, goal, intended outcome, current live state, failed attempts,
 root causes, ownership, constraints, risks, access boundaries, exact next
 actions, and a verification gate for every remaining action. No secret value is
 present.
+
+### Sample Tracking workstream self-audit (2026-07-22)
+
+1. **Is this handoff comprehensive enough for a brand-new developer with no project knowledge or
+   chat context? Yes.** The active Sample Tracking section explains the application and four-piece
+   split scenario, names the authoritative plan, states the exact plan-only status, identifies the
+   omitted table and concurrent-insert defect, and gives the first verification gate. The linked
+   plan's Sections 1–4 provide complete background and decisions.
+2. **Could that developer continue as effectively as the originating session? Yes.** The handoff
+   preserves both failed publication paths and the eventual clean GitHub path; the plan's Sections
+   5–13 preserve the data contract, conservation rules, tenancy, legacy policy, migration sequence,
+   preview procedure, tests, rollback, and observability knowledge.
+3. **Is every relevant detail needed for flawless execution present? Yes.** The plan's Section 14
+   gives ordered next steps with a success gate for each; Sections 15–16 preserve open decisions and
+   definition of done; the handoff names environments, the exact restore migration and runtime
+   error, access location without secret values, and explicitly distinguishes a merged plan from
+   authorization to mutate preview or production.
