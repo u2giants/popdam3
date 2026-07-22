@@ -4,10 +4,11 @@
 **Status:** ✅ EXECUTED 2026-07-22 (migration `20260722140000_vendor_reconcile_to_corrected_vendors_table.sql`,
 applied + verified on prod). Anthony's ruling: **inactivate** (Albert). Result: `core.factory` **510 → 93
 rows (91 active / 2 inactive)**, factories only; 418 stale old-feed rows purged; Anthony's re-added
-inactive with its mirror relinked; CNWAH skipped. Remaining: mirror `plm.erp_vendor` still holds the old
-539-row set (silver layer, not app-facing) — refresh it when the vendor importer next runs. Steps 3–4
-(persist "not a factory" exclusions for future syncs; confirm importer keys on source id) apply when a
-recurring vendor sync is built.
+inactive with its mirror relinked; CNWAH skipped. **Mirror refresh DONE 2026-07-22** — migration
+`20260722171500_refresh_erp_vendor_mirror_to_corrected_vendors.sql` (PR #145) reconciled the silver
+`plm.erp_vendor` from 539 → **97** on preview + prod (deleted 442 stale inactive rows; live feed verified
+= 97). Steps 3–4 (persist "not a factory" exclusions; confirm importer keys on source id) are now
+specified in [`fix_vendor_sync.md`](fix_vendor_sync.md) (HANDOFF OPEN #2), the recurring-sync plan.
 
 ## 1. What changed (the trigger)
 

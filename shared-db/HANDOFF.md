@@ -249,37 +249,39 @@ Full narrative: [`docs/app-migration-notes/session-2026-07-21.md`](docs/app-migr
 
 ### 🔵 OPEN ITEMS — exact next actions (data/schema side)
 
-**OPEN #1 — Refresh the `plm.erp_vendor` mirror to the corrected 97.**
-- *What/why:* the silver mirror `plm.erp_vendor` still holds the OLD 539-row set (97 active + 442
-  inactive service-providers). `core.factory` (gold) is already reconciled to 93, but the mirror is
-  stale. Apps read `core.factory`, not `plm.erp_vendor`, so this is not user-facing — but the layers
-  are inconsistent and any future importer that reads the mirror would be wrong.
-- *Next step:* re-pull the corrected `/vendors` (97 rows, all active) into `plm.erp_vendor`, replacing
-  the 539. Coldlion base `http://x5.coldlion.com/EhpApi/vendors?companyCode=EDGEHOME&size=2000&page=0`,
-  key `op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential` (use `op run`, cmd/pwsh — NOT
-  bare bash on Windows). Delete mirror rows whose `vendor_code` is not in the 97; keep the ANT001 row
-  (already relinked). Record an `ingest.sync_run`.
-- *Verify:* `select count(*) from plm.erp_vendor` = 97 (or 97 + any still-referenced legacy row);
-  every `core.factory` coldlion code has a matching mirror row.
+**OPEN #1 — Refresh the `plm.erp_vendor` mirror to the corrected 97. ✅ DONE 2026-07-22.**
+- *Done:* migration `20260722171500_refresh_erp_vendor_mirror_to_corrected_vendors.sql` (PR #145,
+  merged, applied to preview then **production**). The live `/vendors` feed was pulled and verified = 97
+  (all active) before authoring; the mirror's own 97 *active* rows were already exactly those codes, so
+  rather than a risky ad-hoc service-role re-pull, the migration deterministically **deletes the 442
+  stale inactive service-provider rows** (guarded: asserts the allowlist = 97 and **aborts if any active
+  mirror row falls outside it**) and records a completed `ingest.sync_run` (`mode=mirror_reconcile`).
+  `core.factory` and bronze `ingest.raw_record` were untouched.
+- *Prod verified:* `plm.erp_vendor` = **97**; `core.factory` unchanged at **93 (91/2)**; ANT001 still
+  inactive; 0 factories lost mirror representation; prod sync_run `05d09a73-...` succeeded (before=539,
+  deleted=442, after=97).
+- *Known benign leftover (small follow-up, folded into OPEN #5):* **8 `core.factory_source_ref` rows**
+  are mislabeled `source_system='coldlion'` with **numeric legacy IDs** (415, 99, 147, 403, 244, 457,
+  476, 472) that were never real Coldlion vendorCodes. Their old mirror rows were correctly deleted, so
+  these refs now point at no mirror row — but every one of the 8 factories still carries its **real**
+  Coldlion code (CNJAM, SKPHL, CNHDL, CNRPH, CNDWG, …), which IS mirrored. Harmless; cleanup = either
+  delete these duplicate numeric refs or relabel them `source_system='directus'`/`legacy`.
 
-**OPEN #2 — Write a plan for a RECURRING vendor sync (with two mandatory guards).**
-- *What/why:* there is currently NO scheduled vendor sync — the 2026-07-15 load and this session's
-  work were one-offs. A recurring sync must not silently undo this session's curation.
-- *Deliverable:* a plan doc (e.g. `fix_vendor_sync.md`) covering cadence, endpoint, `ingest.sync_run`
-  accounting with durable-failure recording (the PR #107 pattern), and upsert-by-`(source_system,
-  source_table, source_id)` so it updates existing `core.factory` rows rather than inserting dups.
-- *THE TWO GUARDS (non-negotiable, Albert 2026-07-22):*
-  1. **Reject blank/nameless records** — a vendor with empty `vendorDesc` (e.g. `CNWAH`) must NEVER be
-     inserted into `core.factory`; log/quarantine it loudly, don't silently drop.
-  2. **Persist "not a factory" exclusions** — the human decisions that a record is not a merchandise
-     vendor (e.g. Anthony's Warehouse `ANT001` = inactive; and re-review Buildasign LLC, May Group USA
-     Deco Sign, Floor Gardens `FLGDS`, TUFKO `INTUF`, Royal Packers, Royal Union) must be stored
-     durably (a flag or exclusion list the importer consults) so a re-pull can never reactivate or
-     re-add them. Status is app-owned — the importer must set status on INSERT only, never overwrite a
-     curated status on re-pull.
-- *Also fold in:* the importer must not re-split already-merged duplicate factories (survivors carry
-  multiple source-ref codes) and must not re-create purged rows.
-- *Verify:* dry-run the sync against the live 97 and confirm 0 new rows, 0 status flips, 0 blank inserts.
+**OPEN #2 — Plan for a RECURRING vendor sync (two mandatory guards). ✅ DONE 2026-07-22 (plan written).**
+- *Done:* [`fix_vendor_sync.md`](fix_vendor_sync.md) (PR #145, merged). Full design for the scheduled
+  vendor sync: weekly cadence on the proven systemd host pattern, endpoint, `ingest.sync_run` accounting
+  with the **PR #107 durable-failure** pattern + empty/short-pull guard, **upsert by
+  `(source_system, source_table, source_id)`** (prevents re-splitting merged dups / re-adding purged
+  rows), and both mandatory guards:
+  1. **Reject blank/nameless** (`CNWAH`, live-confirmed still blank) → loud `plm.vendor_quarantine`
+     table + `rows_failed`; never into `core.factory`.
+  2. **Persist "not a factory" exclusions** in a durable `plm.vendor_exclusion` table the importer
+     consults every run (seed ANT001; re-review Buildasign, May Group Deco Sign, `FLGDS`, `INTUF`, Royal
+     Packers, Royal Union). **Status is app-owned — set on INSERT only, never overwritten on re-pull.**
+  The plan also **flags that the existing `plm.import_coldlion_vendors` VIOLATES guard 2** (it force-sets
+  `status='active'` on matched rows) and must be superseded/dropped when the guarded importer is built.
+- *Not yet built:* the importer/tables/host job — that is the implementation follow-up in
+  `fix_vendor_sync.md` §8, and needs Albert's ruling on the 6 re-review borderline vendors first.
 
 **OPEN #3 — Item→taxonomy Phase 3+ (backfill then cutover).**
 - *What/why:* `plm.item` is built but empty; items are still served from `public.erp_items_current`
@@ -302,11 +304,15 @@ Full narrative: [`docs/app-migration-notes/session-2026-07-21.md`](docs/app-migr
   (api.designflow.app), not ours — raise it. *Verify:* force a failed run and confirm a `status='failed'`
   `ingest.sync_run` row + the alert fire.
 
-**OPEN #5 — Residual fuzzy vendor duplicates (low priority).**
+**OPEN #5 — Residual fuzzy vendor duplicates + mislabeled source-refs (low priority).**
 - The fuzzy-dup sheet (`docs/vendor-review/vendor_fuzzy_dupes.csv`) is mostly MOOT now — most of its 69
   pairs were the service-providers Coldlion removed. But a few genuine Chinese-factory dups may remain
   among the clean 93 (Taizhou Meihua / Xianju Fenda variants etc.). Optional: re-run exact + fuzzy
   detection on the 93 and merge any confirmed pairs via `core.merge_factory`.
+- *Added 2026-07-22 (from OPEN #1):* clean up the **8 mislabeled `core.factory_source_ref` rows** with
+  numeric legacy IDs (415, 99, 147, 403, 244, 457, 476, 472) recorded as `source_system='coldlion'` but
+  which were never real Coldlion vendorCodes. Either delete them (each factory keeps its real Coldlion
+  code) or relabel `source_system='directus'`/`legacy`. Benign — no factory lost mirror representation.
 
 **OPEN #6 — Carried-forward security item.** Production DB password possibly exposed 2026-07-10; rotation
 status unverified. Confirm and close.
