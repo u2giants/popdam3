@@ -10,7 +10,7 @@ for a developer with **zero** prior context. Read it, then read the linked plan.
 
 ---
 
-## HTS RAG rulings table — preview complete, production promotion awaiting approval
+## HTS RAG rulings table — complete in preview and production
 
 ### What this application and change are
 
@@ -24,7 +24,8 @@ The additive migration
 `supabase/migrations/20260721203000_hts_rag_rulings.sql` creates
 `public.hts_rag_rulings`. It was merged through
 [PR #128](https://github.com/u2giants/shared-db/pull/128) in commit
-`be0162221fa3f952118abd6e13142f965fffc50e`. Production has **not** received this migration.
+`be0162221fa3f952118abd6e13142f965fffc50e`. It was promoted to production on
+2026-07-21 after the DesignFlow Sequelize model and upsert passed local preview testing.
 
 ### Current verified state
 
@@ -32,6 +33,10 @@ The additive migration
   `shared-db-schema-rehearsal`. This persistent preview was rebuilt as a production data clone
   because legacy DAM objects predate replayable repository migration history.
 - Preview now reports latest migration `20260721203000`; the table exists there.
+- Production project `qsllyeztdwjgirsysgai` reports migration `20260721203000`; the table
+  exists there. The production push was bounded to this migration only. Seven newer DB Data
+  Admin migrations remained unpromoted by using a clean temporary checkout ending at the
+  approved migration.
 - The 1Password `vibe_coding` item
   `Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)`
   contains the working preview pooler tuple. Use `DB_HOST`, `DB_USER`, `DB_PASSWORD`,
@@ -46,7 +51,13 @@ The additive migration
   `popcre-albert-core-sandbox2` deliberately remain connected through the canonical
   `*_SANDBOX` GCP secret tuple to shared production Supabase project
   `qsllyeztdwjgirsysgai`. **Do not repoint those secrets to preview.** Preview is only for
-  local model/upsert testing and may be rebuilt or reset.
+  local model/upsert testing and may be rebuilt or reset. The production verification used
+  this unchanged GCP sandbox connection tuple and successfully reached the new table.
+- Production verification confirmed the expected primary/unique/date/revocation indexes,
+  `service_role` CRUD privilege, revoked `anon`/`authenticated` access, enabled non-forced
+  RLS, table ownership by `postgres`, JSONB arrays, unique enforcement, and direct CRUD.
+  The `set_updated_at` trigger advanced the timestamp across separate committed statements.
+  All verification rows were deleted; none remain.
 
 ### What failed and why
 
@@ -68,24 +79,14 @@ The additive migration
 
 ### Exact next steps and verification gates
 
-1. In `popcre/designflow-backend`, test the Sequelize model and upsert locally using the five
-   preview fields in the 1Password item above. **Pass when:** create/update/read behavior works
-   against preview and the intended automated tests pass without committing credentials.
-2. Obtain Albert's explicit go-ahead after that local test passes. Do not infer approval from
-   the merged PR or successful preview migration.
-3. From clean `main`, run the production migration workflow for project
-   `qsllyeztdwjgirsysgai`, promoting the already-merged migration
-   `20260721203000_hts_rag_rulings.sql`. **Pass when:** the production workflow is green,
-   `supabase_migrations.schema_migrations` includes `20260721203000`, and the table shape,
-   indexes, grants, and RLS match preview.
-4. Verify the deployed sandbox backend can access the table through its unchanged production
-   connection. **Pass when:** a backend-level non-destructive smoke test succeeds; do not
-   change any `*_SANDBOX` secret.
+The shared-db portion is complete. Continue in `popcre/designflow-backend` under its normal
+DesignFlow sandbox/Uma-review workflow. **Pass when:** the already preview-tested model and
+upsert service are committed, pushed, reviewed, and deployed, then a backend-level smoke test
+uses the production table through the unchanged `*_SANDBOX` connection tuple.
 
 ### Constraints, access, questions, and risks
 
-- Production promotion remains the only unfinished part of this shared-db task and requires
-  explicit approval after local backend testing.
+- No shared-db production promotion remains for this HTS table.
 - This is additive; do not edit the applied migration. Any correction must be a new timestamped
   migration and must follow preview-first workflow.
 - `service_role` grants cover API/JWT access. Direct Sequelize pooler access uses the database
@@ -93,8 +94,8 @@ The additive migration
 - Authenticated tools exercised this session: `gh`, `gcloud`, `supabase`, and 1Password.
   Runtime secrets remain in 1Password vault `vibe_coding` and GCP Secret Manager; no secret
   value belongs in repository files.
-- The open question is only whether the backend model/upsert passes local preview testing.
-  Once confirmed, the production promotion procedure above is ready.
+- No open shared-db question remains. Application deployment belongs to the DesignFlow backend
+  workflow and must not introduce startup DDL or change database secrets.
 
 ---
 
