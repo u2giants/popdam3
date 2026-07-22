@@ -25,10 +25,11 @@ specification, and `docs/db-data-admin-inventory.md` is the verified implementat
 
 The project replaces scattered SQL/manual maintenance with one guarded interface while
 preserving shared Core identities, per-application status overrides, immutable audit history,
-and safe merges. Delivery Steps 1–9 now establish the repository/runtime foundation,
+and safe merges. Delivery Steps 1–10 now establish the repository/runtime foundation,
 authorization/storage schema, merge coverage, protected reads, extension tables, controlled
 Customer Channels, read-only Customer/Vendor grids, guarded single-record editing, and
-protected duplicate merges with immutable audit history. Production writes remain off.
+protected duplicate merges with immutable audit history, and a read-only Licensor → Property
+hierarchy with dated reconciliation and loud orphan handling. Production writes remain off.
 
 ### 3. Current state
 
@@ -37,8 +38,8 @@ protected duplicate merges with immutable audit history. Production writes remai
 - PR #127 scaffolded React 19 + TypeScript 6 + Vite 8.1.5, pinned RevoGrid Core 4.23.22,
   Vitest, Playwright, Docker, and CI in `apps/db-data-admin/`.
 - PR #129 configured the immutable GitHub Actions → GHCR → Coolify development path.
-  `https://data-dev.designflow.app/` returned HTTP 200 and live HTML reported Step 9 merge
-  build `a6b4f175264293f9b7dbebf9ef030e8b1bad7659` on 2026-07-22.
+  `https://data-dev.designflow.app/` returned HTTP 200 and live HTML reported Step 10 merge
+  build `39c2af6c704c41c5361fbbe33bcc71a3fe6b1348` on 2026-07-22.
 - Microsoft SSO on development was repaired on 2026-07-22. Azure already contained the
   preview callback URI, but preview Supabase could not exchange the returned Microsoft
   code because its Azure credential value was invalid. A dedicated additive Azure
@@ -84,11 +85,20 @@ protected duplicate merges with immutable audit history. Production writes remai
   Visual evidence is `docs/verification/db-data-admin-step9-merge-preview.png`.
 - The `merge_execute` feature gate is enabled only on preview. Neither Step 9 migration nor
   merge execution was promoted to production.
+- GLM 5.2 implemented Step 10 under Codex supervision. PR #153 added the protected read-only
+  hierarchy RPC in migrations `20260722203000` and corrective `20260722203100`; PR #154 added
+  the accessible Licensors tab. The contract reads the edge only from
+  `core.property.licensor_id`, shows division/type-qualified PLM context, returns every orphan
+  separately, and always states that live upstream reconciliation is not claimed. All nine
+  rollback-safe DB Data Admin suites passed on preview. Main CI passed 22 unit tests,
+  5 Chromium tests, lint, build, container publication, and Coolify deployment. Evidence is
+  under `docs/verification/db-data-admin-step10-*` and
+  `docs/verification/db-data-admin-licensor-property-tree-20260722.md`.
 - Albert's active preview profile had the Administrator role and now has one explicit,
   non-revoked **preview-only** `admin` access row. It was added only after verifying the
   profile and role. No production grant or production database change was made.
-- Licensor/Property tree, consumer enforcement, bulk operations, and production delivery
-  remain Steps 10–13 and are not started.
+- Consumer enforcement, bulk operations, and production delivery remain Steps 11–13 and are
+  not started.
 
 ### 4. What did not work
 
@@ -120,6 +130,10 @@ protected duplicate merges with immutable audit history. Production writes remai
 - The first Step 9 preview test failed because hosted Supabase exposes pgcrypto under the
   `extensions` schema. The applied migration was not edited; corrective migration
   `20260722194100` qualified `extensions.digest`, after which all suites passed.
+- GLM's first Step 10 preview execution used unsupported `max(uuid)` cursor aggregation. The
+  applied migration was not edited; GLM added `20260722203100` using a deterministic text-cast
+  UUID aggregate. The next run found a test-only nonexistent `jsonb_object_field_exists`
+  helper; GLM corrected it to the native JSONB `?` operator. All nine suites then passed.
 
 ### 5. Root causes and key findings
 
@@ -134,13 +148,13 @@ protected duplicate merges with immutable audit history. Production writes remai
 
 ### 6. Exact next steps
 
-1. Refresh `https://data-dev.designflow.app`, use Microsoft SSO, and preview a known disposable
-   duplicate pair without confirming the merge. **Pass when** the dialog shows direction,
-   affected counts, and any conflicts. Only merge preview fixtures whose loss is acceptable.
-2. Start Step 10 on a new serialized branch: the fully read-only Licensor → Property hierarchy
-   with counts, source context, and loud orphan handling. **Pass when** every canonical Property
-   appears under exactly one Licensor and a dated snapshot reconciles.
-3. Continue Steps 11–13 in order. Do not promote migrations or enable production status/merge
+1. Refresh `https://data-dev.designflow.app`, use Microsoft SSO, open Licensors, and expand a
+   row. **Pass when** nested Properties, dated counts, source context, and the explicit live-
+   reconciliation disclaimer appear. Any real orphan must appear in the red alert.
+2. Start Step 11: consumer enforcement and safety audit across CRM, PM/PIM, DAM, and the six
+   DesignFlow repos. Follow each repo's branch/review rules. **Pass when** inactive records
+   disappear from exactly the intended pickers and no direct extension-table bypass remains.
+3. Continue Steps 12–13 in order. Do not promote migrations or enable production status/merge
    writes before consumer enforcement and an approved production window.
 
 ### 7. Constraints and gotchas
