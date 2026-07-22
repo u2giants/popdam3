@@ -65,6 +65,56 @@ export async function fetchSearchIds(
   return fetchKeywordIds();
 }
 
+let synonymsPromise: Promise<Array<{ term: string; expansion: string }>> | null = null;
+
+/** Load the active synonym vocabulary (cached). Same source the RPC uses. */
+function getSearchSynonyms(): Promise<Array<{ term: string; expansion: string }>> {
+  if (!synonymsPromise) {
+    synonymsPromise = (async () => {
+      const { data, error } = await supabase
+        .from("dam_search_synonyms")
+        .select("search_term, expansion")
+        .eq("is_active", true);
+      if (error || !data) {
+        synonymsPromise = null; // allow retry on next call
+        return [];
+      }
+      return data.map((row) => ({
+        term: String((row as { search_term: string }).search_term).toLowerCase(),
+        expansion: String((row as { expansion: string }).expansion).toLowerCase(),
+      }));
+    })();
+  }
+  return synonymsPromise;
+}
+
+/**
+ * Expand a raw search term into the set of phrases the ILIKE fallback should
+ * match. Mirrors the RPC's synonym expansion (e.g. "spiderman" → "spider man")
+ * and adds hyphen/space separator variants so a one-word query still matches
+ * stored values like "SPIDER MAN" or "Spider-Man". Without this, the timeout
+ * fallback silently returns 0 results for hyphenated/spaced brand names.
+ */
+export async function expandFallbackTerms(rawTerm: string): Promise<string[]> {
+  const term = rawTerm.replace(/[(),]/g, " ").trim();
+  if (!term) return [];
+  const lower = term.toLowerCase();
+  const variants = new Set<string>();
+  const add = (value: string) => {
+    const v = value.trim();
+    if (!v) return;
+    variants.add(v);
+    if (v.includes("-")) variants.add(v.replace(/-/g, " "));
+    if (/\s/.test(v)) variants.add(v.replace(/\s+/g, "-"));
+  };
+  add(lower);
+  for (const { term: st, expansion } of await getSearchSynonyms()) {
+    if (lower === st || lower.includes(st)) add(expansion);
+    if (lower === expansion || lower.includes(expansion)) add(st);
+  }
+  return [...variants];
+}
+
 export function sortByRank<T>(rows: T[], rankedIds: string[], getId: (row: T) => string): T[] {
   const rank = new Map(rankedIds.map((id, index) => [id, index]));
   return [...rows].sort(

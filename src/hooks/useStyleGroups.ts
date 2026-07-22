@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { buildProductCategoryOrFilter } from "@/lib/product-category-filters";
-import { fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
+import { expandFallbackTerms, fetchSearchIds, getSearchMode, sortByRank } from "@/lib/dam-search";
 
 type WorkflowStatus = Database["public"]["Enums"]["workflow_status"];
 import type { AssetFilters } from "@/types/assets";
@@ -60,20 +60,53 @@ type SearchIdCacheEntry = {
 
 const styleGroupSearchIdCache = new Map<string, SearchIdCacheEntry>();
 
-export function buildStyleGroupSearchFilter(search: string) {
-  const term = search.replace(/[(),]/g, " ").trim();
-  if (!term) return null;
+const STYLE_GROUP_SEARCH_COLUMNS = [
+  "sku",
+  "cover_description",
+  "folder_path",
+  "licensor_name",
+  "property_name",
+  "product_category",
+  "customer",
+  "program",
+] as const;
 
-  return (
-    `sku.ilike.%${term}%,` +
-    `cover_description.ilike.%${term}%,` +
-    `folder_path.ilike.%${term}%,` +
-    `licensor_name.ilike.%${term}%,` +
-    `property_name.ilike.%${term}%,` +
-    `product_category.ilike.%${term}%,` +
-    `customer.ilike.%${term}%,` +
-    `program.ilike.%${term}%`
-  );
+/**
+ * Build the ILIKE fallback OR filter across every searchable column for every
+ * expanded term. `terms` should come from `expandFallbackTerms` so a query like
+ * "spiderman" also matches stored "SPIDER MAN" / "Spider-Man".
+ */
+export function buildStyleGroupSearchFilter(terms: string[] | string) {
+  const list = Array.isArray(terms)
+    ? terms
+    : (terms.replace(/[(),]/g, " ").trim() ? [terms.replace(/[(),]/g, " ").trim()] : []);
+  if (list.length === 0) return null;
+  const clauses: string[] = [];
+  for (const term of list) {
+    const safe = term.replace(/[(),]/g, " ").trim();
+    if (!safe) continue;
+    for (const col of STYLE_GROUP_SEARCH_COLUMNS) clauses.push(`${col}.ilike.%${safe}%`);
+  }
+  return clauses.length > 0 ? clauses.join(",") : null;
+}
+
+/** Precompute the synonym-aware ILIKE fallback filter (only used on RPC failure). */
+async function buildStyleGroupFallbackFilter(search: string) {
+  return buildStyleGroupSearchFilter(await expandFallbackTerms(search));
+}
+
+/**
+ * Resolve a search term to indexed IDs, plus a synonym-aware ILIKE fallback
+ * filter that is only populated (and thus only used) when the full-text RPC
+ * failed. `ids === undefined` means the RPC errored → the fallback applies.
+ */
+async function resolveStyleGroupSearch(
+  search?: string,
+): Promise<{ ids: string[] | null | undefined; fallback: string | null }> {
+  if (!search) return { ids: null, fallback: null };
+  const ids = await fetchStyleGroupFullTextIds(search);
+  const fallback = ids === undefined ? await buildStyleGroupFallbackFilter(search) : null;
+  return { ids, fallback };
 }
 
 function shouldFallbackFromFullTextRpc(error: unknown) {
@@ -98,15 +131,21 @@ async function fetchStyleGroupFullTextIds(search: string) {
 
   const promise = (async () => {
     return fetchSearchIds(searchMode, term, "style_group", FULL_TEXT_SEARCH_LIMIT, async () => {
-      const { data, error } = await (supabase.rpc as any)("search_style_groups_full_text", {
-        p_query: term,
-        p_limit: FULL_TEXT_SEARCH_LIMIT,
-      });
-      if (error) {
-        if (shouldFallbackFromFullTextRpc(error)) return undefined;
-        throw error;
+      // Retry once on a transient failure (e.g. statement timeout under load)
+      // before degrading to the ILIKE fallback, which cannot match synonyms.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { data, error } = await (supabase.rpc as any)("search_style_groups_full_text", {
+          p_query: term,
+          p_limit: FULL_TEXT_SEARCH_LIMIT,
+        });
+        if (!error) {
+          return ((data ?? []) as { style_group_id: string }[]).map((row) => row.style_group_id);
+        }
+        if (!shouldFallbackFromFullTextRpc(error)) throw error;
+        if (attempt === 0) continue;
+        return undefined; // both attempts hit a fallback-worthy error
       }
-      return ((data ?? []) as { style_group_id: string }[]).map((row) => row.style_group_id);
+      return undefined;
     });
   })();
 
@@ -116,19 +155,28 @@ async function fetchStyleGroupFullTextIds(search: string) {
   });
 
   try {
-    return await promise;
+    const result = await promise;
+    // Don't cache a failed lookup: a transient timeout must not pin the UI to
+    // the degraded ILIKE fallback for the full cache TTL.
+    if (result === undefined) styleGroupSearchIdCache.delete(cacheKey);
+    return result;
   } catch (error) {
     styleGroupSearchIdCache.delete(cacheKey);
     throw error;
   }
 }
 
-function applyStyleGroupFilters(query: any, filters: AssetFilters, fullTextGroupIds?: string[] | null) {
+function applyStyleGroupFilters(
+  query: any,
+  filters: AssetFilters,
+  fullTextGroupIds?: string[] | null,
+  fallbackFilter?: string | null,
+) {
   if (filters.search) {
     if (fullTextGroupIds) {
       query = query.in("id", fullTextGroupIds.length > 0 ? fullTextGroupIds : [NO_MATCH_UUID]);
     } else {
-      const searchFilter = buildStyleGroupSearchFilter(filters.search);
+      const searchFilter = fallbackFilter ?? buildStyleGroupSearchFilter(filters.search);
       if (searchFilter) query = query.or(searchFilter);
     }
   }
@@ -188,7 +236,7 @@ export function useStyleGroups(
     queryFn: async () => {
       const from = page * effectivePageSize;
       const to = from + effectivePageSize - 1;
-      const fullTextGroupIds = filters.search ? await fetchStyleGroupFullTextIds(filters.search) : null;
+      const { ids: fullTextGroupIds, fallback: fallbackSearchFilter } = await resolveStyleGroupSearch(filters.search);
 
       let query = supabase
         .from("style_groups")
@@ -202,7 +250,7 @@ export function useStyleGroups(
       query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
 
       // Filters
-      query = applyStyleGroupFilters(query, filters, fullTextGroupIds);
+      query = applyStyleGroupFilters(query, filters, fullTextGroupIds, fallbackSearchFilter);
 
       const useRelevance = Boolean(filters.search?.trim() && fullTextGroupIds);
       if (!useRelevance) {
@@ -250,12 +298,12 @@ export function useStyleGroupCount(filters: AssetFilters, visibilityDate?: strin
       let query = supabase
         .from("style_groups")
         .select("*", { count: "exact", head: true });
-      const fullTextGroupIds = filters.search ? await fetchStyleGroupFullTextIds(filters.search) : null;
+      const { ids: fullTextGroupIds, fallback: fallbackSearchFilter } = await resolveStyleGroupSearch(filters.search);
 
       const minDate = visibilityDate ?? "2020-01-01";
       query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
 
-      query = applyStyleGroupFilters(query, filters, fullTextGroupIds);
+      query = applyStyleGroupFilters(query, filters, fullTextGroupIds, fallbackSearchFilter);
 
       const { count, error } = await query;
       if (error) throw error;
@@ -273,7 +321,7 @@ export function useStyleGroupAssetCount(filters: AssetFilters, visibilityDate?: 
       const minDate = visibilityDate ?? "2020-01-01";
       let from = 0;
       let total = 0;
-      const fullTextGroupIds = filters.search ? await fetchStyleGroupFullTextIds(filters.search) : null;
+      const { ids: fullTextGroupIds, fallback: fallbackSearchFilter } = await resolveStyleGroupSearch(filters.search);
 
       while (true) {
         let query = supabase
@@ -283,7 +331,7 @@ export function useStyleGroupAssetCount(filters: AssetFilters, visibilityDate?: 
           .range(from, from + pageSize - 1);
 
         query = query.or(`latest_file_date.gte.${minDate},and(latest_file_date.is.null,asset_count.gt.0)`);
-        query = applyStyleGroupFilters(query, filters, fullTextGroupIds);
+        query = applyStyleGroupFilters(query, filters, fullTextGroupIds, fallbackSearchFilter);
 
         const { data, error } = await query;
         if (error) throw error;

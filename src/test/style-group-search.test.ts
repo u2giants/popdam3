@@ -17,4 +17,18 @@ describe("buildStyleGroupSearchFilter", () => {
   it("ignores blank search text after sanitizing reserved OR characters", () => {
     expect(buildStyleGroupSearchFilter(" (,) ")).toBeNull();
   });
+
+  it("ORs every expanded term across every column (synonym-aware fallback)", () => {
+    // Mirrors what expandFallbackTerms produces for "spiderman": the raw term
+    // plus the "spider man"/"spider-man" synonym+separator variants. The stored
+    // property_name is "SPIDER MAN", which a bare '%spiderman%' can never match.
+    const filter = buildStyleGroupSearchFilter(["spiderman", "spider man", "spider-man"]);
+    expect(filter).toContain("property_name.ilike.%spider man%");
+    expect(filter).toContain("property_name.ilike.%spider-man%");
+    expect(filter).toContain("sku.ilike.%spiderman%");
+  });
+
+  it("returns null when the expanded term list is empty", () => {
+    expect(buildStyleGroupSearchFilter([])).toBeNull();
+  });
 });
