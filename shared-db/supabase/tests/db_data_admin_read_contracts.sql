@@ -68,7 +68,7 @@ begin
   -- ------------------------------------------------------------------
   foreach v_sig in array array[
     'api.db_data_admin_channel_list()',
-    'api.db_data_admin_customer_list(text,text,text,text,boolean,text,text,text,integer)',
+    'api.db_data_admin_customer_list(text,text,text,text,boolean,text,text,text,integer,uuid)',
     'api.db_data_admin_vendor_list(text,text,text,text,boolean,text,text,text,integer)',
     'api.db_data_admin_licensor_property_list(text,boolean,text,integer)',
     'api.db_data_admin_audit_list(text,uuid,text,uuid,timestamptz,timestamptz,text,integer)',
