@@ -39,6 +39,12 @@ controlled Customer Channels without enabling production writes prematurely.
   `https://data-dev.designflow.app/health` returned HTTP 200 and live HTML reported build
   `6e1b2cd902676c165eaa11201455c596169807a9` on 2026-07-22. The development-shell screenshot
   is `docs/verification/db-data-admin-development.png`.
+- Microsoft SSO on development was repaired on 2026-07-22. Azure already contained the
+  preview callback URI, but preview Supabase could not exchange the returned Microsoft
+  code because its Azure credential value was invalid. A dedicated additive Azure
+  credential named `supabase-preview-data-admin` now supplies preview Supabase only;
+  production authentication was not changed. The frontend now displays OAuth callback
+  failures and uses a short commit plus build date instead of the full SHA in the header.
 - PR #130 added migrations `20260722002500` through `20260722003500` for explicit admin access,
   immutable audit events, per-profile grid state, CRM/PM/DAM extensions, and controlled
   Customer Channels. All seven are applied and contract-tested on preview
