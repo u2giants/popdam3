@@ -1,12 +1,113 @@
 # HANDOFF — shared-db current state
 
-Date: 2026-07-21
+Date: 2026-07-22
 Repo: `u2giants/shared-db`
-Target branch: `main`; the DB Data Admin planning update is being shipped through
-the required docs-only branch and pull-request workflow during session closeout.
+Target branch: `main`; all completed work described here is merged and synchronized unless
+a section explicitly says it remains preview-only or pending.
 
 This file is the top-level "where are we" pointer for the next session. It is written
 for a developer with **zero** prior context. Read it, then read the linked plan.
+
+---
+
+## Active workstream — DB Data Admin implementation (2026-07-22)
+
+### 1. What this application is
+
+DB Data Admin is POP Creations' administrator-only control room for shared Customers,
+Vendors, Licensors, and Properties. Its canonical code and database migrations live in this
+repo. The React/TypeScript frontend is in `apps/db-data-admin/`; the development deployment is
+`https://data-dev.designflow.app`; the reserved production URL is
+`https://data.designflow.app`. `DB_Data_Admin.md` is the authoritative product and delivery
+specification, and `docs/db-data-admin-inventory.md` is the verified implementation inventory.
+
+### 2. What this work set out to do, and why
+
+The project replaces scattered SQL/manual maintenance with one guarded interface while
+preserving shared Core identities, per-application status overrides, immutable audit history,
+and safe merges. The first implementation tranche established the repository boundary,
+application/runtime foundation, authorization/storage schema, per-app extension tables, and
+controlled Customer Channels without enabling production writes prematurely.
+
+### 3. Current state
+
+- Repository mirroring excludes top-level `apps/` centrally; all nine consumer sync jobs test
+  that boundary. No workstation-specific setup is required.
+- PR #127 scaffolded React 19 + TypeScript 6 + Vite 8.1.5, pinned RevoGrid Core 4.23.22,
+  Vitest, Playwright, Docker, and CI in `apps/db-data-admin/`.
+- PR #129 configured the immutable GitHub Actions → GHCR → Coolify development path.
+  `https://data-dev.designflow.app/health` returned HTTP 200 and live HTML reported build
+  `6e1b2cd902676c165eaa11201455c596169807a9` on 2026-07-22. The development-shell screenshot
+  is `docs/verification/db-data-admin-development.png`.
+- PR #130 added migrations `20260722002500` through `20260722003500` for explicit admin access,
+  immutable audit events, per-profile grid state, CRM/PM/DAM extensions, and controlled
+  Customer Channels. All seven are applied and contract-tested on preview
+  `rjyboqwcdzcocqgmsyel`; they are intentionally not applied to production.
+- The full grid, protected read/write APIs, merge repair/UI, consumer picker enforcement,
+  bulk operations, production deployment, and final visual evidence are not started.
+
+### 4. What did not work
+
+- The local Windows closeout could not run an `rsync` probe because `rsync` is not installed.
+  The permanent answer is the real Ubuntu GitHub matrix test, which passed in all nine consumer
+  repositories; do not add workstation setup for this.
+- Playwright MCP left `.playwright-mcp/` logs in the repository root. They are generated
+  scratch output, now ignored globally; durable screenshots belong under `docs/verification/`.
+- The first closeout `npm` verification was mistakenly invoked from the repository root,
+  which intentionally has no `package.json`, and returned `ENOENT`. Run frontend commands from
+  `apps/db-data-admin/`; this was a working-directory error, not an application defect.
+- Earlier handoff text said “PLAN ONLY” after PRs #127/#129/#130 had landed. This section
+  supersedes that stale statement and records the actual verified state.
+
+### 5. Root causes and key findings
+
+- `shared-db` is both the canonical shared schema repo and the correct home for this app, but
+  application source must never be mirrored into consumers. The checked-in sync exclusion is
+  the automatic boundary.
+- Production DesignFlow uses Cloud SQL for PLM Customer/Vendor status. DB Data Admin must use a
+  protected DesignFlow operation and mirror the result back; it must not create a competing
+  editable Supabase PLM status. See `docs/db-data-admin-inventory.md`.
+- The existing merge functions do not yet cover every new extension and the DAM Styles Customer
+  reference. Merge UI must remain disabled until Step 5 of `DB_Data_Admin.md` passes its FK
+  coverage tests.
+
+### 6. Exact next steps
+
+1. Start Step 5 of `DB_Data_Admin.md`: inventory every FK to `core.customer` and
+   `core.factory`, repair both merge engines additively, and add the fail-closed coverage test.
+   It is complete when preview fixture merges preserve every intended relationship and old
+   identifiers resolve as specified.
+2. Implement Step 6 protected administrator read contracts and per-app serving views. It is
+   complete when the authorization matrix denies an administrator without an explicit `admin`
+   grant and proves filtering/sorting/pagination.
+3. Build the read-only Customer and Vendor RevoGrids with the custom persistent header filters.
+   It is complete only after the keyboard, focus, virtualization, saved-state, accessibility,
+   and required screenshot gates pass.
+4. Continue Steps 8–13 in order. Do not promote the foundation migrations or enable production
+   status writes until the documented consumer-enforcement and approved-window gates pass.
+
+### 7. Constraints and gotchas
+
+Use a new shared-db branch and PR for each serialized schema tranche; preview first, additive
+by default. Do not touch the separate ERP relocation objects. Do not seed a production admin
+grantee without Albert's approval. Do not expose the `dam` schema through PostgREST. Keep
+Licensor/Property read-only in v1. Do not delete `fix_impl_visual_admin_page.md` until every
+final completion condition in `DB_Data_Admin.md` has passed.
+
+### 8. Access and environment
+
+GitHub CLI, Supabase CLI, Coolify orchestration, and Microsoft/Entra configuration paths have
+been exercised. Database and deployment credentials belong only in the 1Password
+`vibe_coding` vault or the documented GitHub/Coolify secret stores; no secret value belongs in
+the repo. Preview is `rjyboqwcdzcocqgmsyel`; production is `qsllyeztdwjgirsysgai`.
+
+### 9. Open questions and risks
+
+The production admin-grantee list remains deliberately empty. Vendor PLM status cannot ship
+until DesignFlow exposes stable Factory identifiers and a reviewed mapping populates
+`core.factory_source_ref`. The Coldlion `/vendors` feed may include non-factories, so the open
+vendor-feed decision in AGENTS.md §6.2 still blocks further vendor curation. Production
+promotion requires an approved window and completed consumer enforcement.
 
 ---
 
@@ -622,12 +723,12 @@ now show `display_name` and hide inactive customers.
 - **[`DB_Data_Admin.md`](DB_Data_Admin.md)** — **approved 2026-07-21 product and
   implementation plan** for the shared administrator application at
   `https://data.designflow.app`. The application is owned and developed in this repo
-  (planned frontend: `apps/db-data-admin/`) and initially manages Customers, Vendors,
+  (frontend: `apps/db-data-admin/`) and initially manages Customers, Vendors,
   Licensors, and Properties. It standardizes DB Data Admin on MIT RevoGrid Core with our
   own always-visible header filtering. DesignFlow keeps AG Grid; PopCRM's custom DataTable
   is legacy and should not become a third shared grid platform. **This plan supersedes the
-  older direction below that placed the admin page in PopCRM. Implementation has not
-  started; the URL has not yet been provisioned.**
+  older direction below that placed the admin page in PopCRM. Implementation is underway;
+  development is live at `https://data-dev.designflow.app`, while production remains gated.**
 - **[`docs/coldlion-customer-dedupe-review.md`](docs/coldlion-customer-dedupe-review.md)** — the
   full customer dedup ruling ledger + final state (what merged, statuses, aliases, the Amazon
   1P/3P split, defects found).
@@ -662,14 +763,15 @@ now show `display_name` and hide inactive customers.
       Bill, Chloe, Jerome, Lucy, Tom, Wendy Sunway); exclude all from `core.factory`.
   Next action: author one migration doing status-seed + purge, apply preview-first, merge.
   Full spec: [`fix_vendor_review.md`](fix_vendor_review.md).
-- **Extension tables: DAM IMPLEMENTED; CRM/PM/PLM pending.** Migration
+- **Extension tables: DAM/CRM/PM implemented on preview; PLM uses a separate single-writer path.** Migration
   `20260721143000_dam_master_data_customer_id.sql` creates `dam.customer_ext`,
   `api.dam_customer_list`, the `/styles` “Originally Designed For” canonical Customer FK,
-  safe backfill, and audit coverage. CRM, PM/PIM, and PLM Customer extensions remain planned
-  in `docs/per-app-extension-tables-plan.md` and `DB_Data_Admin.md`.
-- **DB Data Admin: PLAN ONLY** — `DB_Data_Admin.md`; no frontend scaffold, schema migration,
-  DNS, hosting, Supabase Auth allowlist, or deployment has been created. Target URL:
-  `https://data.designflow.app`.
+  safe backfill, and audit coverage. Migrations `20260722003000` through `20260722003400`
+  add CRM/PM Customer and Vendor extensions plus DAM Vendor on preview. PLM stays Cloud-SQL-owned
+  and must use the protected single-writer integration in `docs/db-data-admin-inventory.md`.
+- **DB Data Admin: FOUNDATION IMPLEMENTED, FEATURE WORK PENDING.** The scaffold, development
+  deployment, SSO routing, and preview-only foundation schema are complete as recorded in the
+  dedicated active-workstream section above. Target production URL: `https://data.designflow.app`.
 - Frontend "hide inactive" for **poppim-web / popdam3** pickers: not started (same pattern as
   popcrm-web PR #3).
 
@@ -713,7 +815,7 @@ after 2026-07-10, delete this section. Do not rotate the 1Password service-accou
 
 ---
 
-## Documentation completeness self-audit — 2026-07-21
+## Documentation completeness self-audit — 2026-07-22
 
 ### 1. Could a brand-new developer with no project or session context continue without questions?
 
@@ -731,6 +833,11 @@ authoritative `DB_Data_Admin.md` implementation plan. That plan contains the
 product scope, data ownership rules, security model, audit/merge semantics,
 delivery order, verification gates, repository boundaries, and the required
 eventual deletion of the superseded visual-admin planning file.
+
+The dedicated DB Data Admin workstream now records the actual post-implementation state:
+merged PRs, preview-only migrations, live development SHA, failed attempts, exact next steps,
+security/deployment boundaries, and remaining production risks. It replaces the stale
+“plan only” statement that would otherwise send a fresh developer backward.
 
 ### 2. Could that developer continue as effectively as the current session?
 

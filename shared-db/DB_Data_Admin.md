@@ -556,7 +556,13 @@ where later migrations use `create or replace`.
    tool, unit runner, Playwright/browser setup, and exact RevoGrid version. Recommended
    baseline is React + TypeScript + Vite. Pass when the sync test proves `apps/` is absent
    from consumers while canonical shared-db content still mirrors.
-3. **Application scaffold and infrastructure kickoff.** Create `apps/db-data-admin/`, an
+3. **Application scaffold and development infrastructure — completed 2026-07-21.**
+   `apps/db-data-admin/` now contains the authenticated shell, local setup, unit/browser
+   harnesses, container build, build-SHA exposure, and CI. GitHub Actions publishes an
+   immutable GHCR image and deploys development through Coolify at
+   `https://data-dev.designflow.app`; health and the deployed SHA were verified. The
+   Supabase/Entra development routing is configured. Production remains gated. The original
+   requirement was to create an
    authenticated shell, local setup, unit/browser and database test harnesses, container
    build, build-SHA exposure, and CI. GitHub Actions builds/publishes to GHCR; Coolify owns
    runtime deployment; host changes route through `u2giants/ansible`; Cloudflare routing is
@@ -565,7 +571,11 @@ where later migrations use `create or replace`.
    `https://data.designflow.app` origins to both preview and production Supabase Auth
    allowlists. Pass when the read-only shell runs locally and in the named non-production
    environment and every production-delivery owner is tracked.
-4. **Foundation and extension schema, serialized.** Keep the verified DAM extension intact.
+4. **Foundation and extension schema — completed on preview 2026-07-22; production gated.**
+   The migrations and contract tests described below were merged and applied successfully
+   to preview only; see
+   [`docs/verification/db-data-admin-foundation-20260722.md`](docs/verification/db-data-admin-foundation-20260722.md).
+   Keep the verified DAM extension intact.
    First add `app.has_explicit_app_access`, `app.db_data_admin_audit_event`, and
    `app.db_data_admin_grid_state` with RLS and no direct authenticated table grants. Then add
    typed `crm.customer_ext`, `pim.customer_ext`, `crm.factory_ext`, and `pim.factory_ext`,
@@ -650,6 +660,11 @@ Before UI work is reported done, serve the application and capture screenshots o
 - Licensor → Property tree;
 - narrow and wide viewport behavior;
 - clear unauthorized/failed-operation state where applicable.
+
+The first development-shell visual check is retained at
+[`docs/verification/db-data-admin-development.png`](docs/verification/db-data-admin-development.png).
+It proves the deployed shell renders, but it does not satisfy the later grid/detail/merge/tree
+screenshots listed above.
 
 Develop and test against the preview Supabase project, not production. Never embed or commit
 keys. Use the repository's sanctioned configuration path once the application scaffold
