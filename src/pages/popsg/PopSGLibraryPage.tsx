@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { formatDate } from "@/lib/format-date";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { expandFallbackTerms } from "@/lib/dam-search";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -625,8 +626,15 @@ export default function PopSGLibraryPage() {
       if (filters.licensor !== "all") q = q.eq("licensor_name", filters.licensor);
       if (filters.property !== "all") q = q.eq("property_folder", filters.property);
       if (filters.nameSearch) {
-        const escaped = filters.nameSearch.replace(/[%_]/g, "\\$&");
-        q = q.or(`style_guide_name.ilike.%${escaped}%,directory_path.ilike.%${escaped}%`);
+        // Expand synonyms + hyphen/space variants so "spiderman" matches the
+        // stored "Spider-Man" folder/path (raw ILIKE alone cannot bridge the
+        // hyphen). See expandFallbackTerms.
+        const terms = await expandFallbackTerms(filters.nameSearch);
+        const clauses = terms.flatMap((t) => {
+          const escaped = t.replace(/[%_]/g, "\\$&");
+          return [`style_guide_name.ilike.%${escaped}%`, `directory_path.ilike.%${escaped}%`];
+        });
+        if (clauses.length > 0) q = q.or(clauses.join(","));
       }
       if (filters.thumbStatus === "has") q = q.not("sample_thumbnail_url", "is", null);
       if (filters.thumbStatus === "missing") q = q.is("sample_thumbnail_url", null);
@@ -661,7 +669,11 @@ export default function PopSGLibraryPage() {
 
       if (filters.licensor !== "all") q = q.eq("licensor_name", filters.licensor);
       if (filters.property !== "all") q = q.eq("property_folder", filters.property);
-      if (filters.nameSearch) q = q.ilike("filename", `%${filters.nameSearch}%`);
+      if (filters.nameSearch) {
+        const terms = await expandFallbackTerms(filters.nameSearch);
+        const clauses = terms.map((t) => `filename.ilike.%${t.replace(/[%_]/g, "\\$&")}%`);
+        if (clauses.length > 0) q = q.or(clauses.join(","));
+      }
       if (filters.fileTypes.length > 0) q = q.in("file_extension", filters.fileTypes);
       if (filters.thumbStatus === "has") q = q.not("thumbnail_url", "is", null);
       if (filters.thumbStatus === "missing") q = q.is("thumbnail_url", null);
