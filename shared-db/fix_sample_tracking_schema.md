@@ -1,8 +1,48 @@
 # DesignFlow Sample Tracking — Shared Database Implementation Plan
 
-**Status:** Authoritative shared-db plan; implementation has not started
+**Status:** Foundational tranche authored + preview-proven (PR open on branch
+`claude/sample-tracking-shipment-item-repair`); movement/ownership/import/read-model
+tranches not started (several gated on §15 product answers).
 
 **Created:** 2026-07-22
+
+> ### Progress log — 2026-07-22
+>
+> **Gates 1–3 (§14) complete — read-only inventory, no data mutated.** Full
+> catalog + count + membership audit of all seven sample tables on **both**
+> preview (`rjyboqwcdzcocqgmsyel`) and production (`qsllyeztdwjgirsysgai`):
+> [`docs/verification/sample-tracking-inventory-20260722.md`](docs/verification/sample-tracking-inventory-20260722.md).
+> Confirmed: `dflow.sample_shipment_item` is **absent in both** environments;
+> `plm` retains all seven; tiny legacy footprint; **zero memberships and zero
+> duplicate `(sample_id_fk, box_id_fk)` groups anywhere**.
+>
+> **Migration steps 1 & 4 (the missing-table repair + membership uniqueness)
+> authored and proven on preview:**
+> - `supabase/migrations/20260722220000_restore_dflow_sample_shipment_item.sql`
+>   — recreates `dflow.sample_shipment_item` from the `plm` template (identity PK,
+>   the two intra-cluster FKs with plm's ON DELETE rules, plus FK-supporting
+>   indexes). Idempotent/defensive per §5.1. Directly fixes the live
+>   `relation "dflow.sample_shipment_item" does not exist` failure and the
+>   tracking service's fail-closed factory→NYC path.
+> - `supabase/migrations/20260722220100_dflow_sample_shipment_item_membership_uniqueness.sql`
+>   — adds `UNIQUE(sample_id_fk, box_id_fk)` (the safeguard the tracking service
+>   itself anticipates), with a **loud abort-guard** that refuses to add the
+>   constraint if any duplicate memberships exist (no silent failure / no blind
+>   row-number delete).
+> - `supabase/tests/dflow_sample_shipment_item_restore.sql` — transactional,
+>   rolled-back verification of structure, FKs, indexes, the unique constraint,
+>   concurrent-duplicate rejection, NULL-box distinctness, and ON DELETE CASCADE.
+>
+> Proven by a rolled-back transactional rehearsal against the **live preview
+> schema** (all assertions passed; nothing persisted). Committed preview/prod
+> application is sequenced with the pre-existing vendor-sync/DB-Data-Admin preview
+> migration drift (see inventory doc §6) and, for production, an approved window.
+>
+> **Still to do (subsequent serialized PRs):** §5.2 box ownership (needs §15 Q2),
+> §5.3–5.8 normalized locations + `sample_movement` authority + shipment intent +
+> stop closeout + import durability + read models, plus RLS/grants and consumer
+> coordination — several gated on the §15 product questions. Do NOT start these
+> until those answers exist; do not fabricate legacy quantities.
 
 **Repository:** [`u2giants/shared-db`](https://github.com/u2giants/shared-db)
 

@@ -28,18 +28,30 @@ records.
 
 ### Current exact state
 
-- **Documentation only:** no Sample Tracking migration, preview apply, production apply, backfill, or
-  database mutation was performed for this workstream on 2026-07-22.
-- The existing restore migration
-  `supabase/migrations/20260721201500_restore_dflow_sample_tracking_tables.sql` recreated six legacy
-  tables in runtime schema `dflow` but omitted the seventh listed table,
-  `sample_shipment_item`. The application has observed
-  `relation "dflow.sample_shipment_item" does not exist`.
-- The DesignFlow tracking application now performs an application transaction/existence check for
-  ordinary repeated box membership, but two concurrent inserts can still race. The database must
-  eventually enforce `UNIQUE(sample_id_fk, box_id_fk)` after a read-only duplicate/anomaly audit and
-  approved reconciliation.
-- The larger quantity model, ownership, closeout, import, and read-view work has not started.
+- **Foundational tranche authored + preview-proven (2026-07-22).** Branch
+  `claude/sample-tracking-shipment-item-repair`, PR open. Read-only inventory gates 1–3 done on
+  both preview and production with **no data mutated**
+  ([`docs/verification/sample-tracking-inventory-20260722.md`](docs/verification/sample-tracking-inventory-20260722.md)).
+- The read-only inventory **confirmed** the §3.2 defect: the restore migration
+  `20260721201500_restore_dflow_sample_tracking_tables.sql` recreated six tables in `dflow` but
+  omitted the seventh, `sample_shipment_item` — **absent in both preview and production**; `plm`
+  retains all seven. Legacy footprint is tiny (prod: sample=3, attachment=1, event=3; rest 0) and
+  there are **zero memberships and zero duplicate `(sample_id_fk, box_id_fk)` groups anywhere**.
+- Two additive migrations now exist and are **proven on the live preview schema by a rolled-back
+  transactional rehearsal** (all assertions passed; nothing persisted):
+  `20260722220000_restore_dflow_sample_shipment_item.sql` (recreates the table from the `plm`
+  template + FK indexes, fixing the live `relation … does not exist` failure) and
+  `20260722220100_dflow_sample_shipment_item_membership_uniqueness.sql` (adds
+  `UNIQUE(sample_id_fk, box_id_fk)` — which the tracking service itself anticipates — with a loud
+  abort-guard against duplicates). Test: `supabase/tests/dflow_sample_shipment_item_restore.sql`.
+- Answered §15 Q1 from the running app: `designflow-tracking` uses `sample_shipment_item` as
+  **current box membership** (fails closed 409 when absent), so the uniqueness constraint is the
+  app's own intended design.
+- **NOT yet applied (committed) to preview or production.** Committed preview apply is blocked only
+  by pre-existing vendor-sync/DB-Data-Admin preview migration drift (inventory doc §6); production
+  needs an approved window.
+- The larger quantity model, ownership, closeout, import, and read-view work (§5.2–5.8) has not
+  started; several parts are gated on the §15 product questions.
 
 ### What failed before this plan was published
 
@@ -52,12 +64,21 @@ unrelated local shared-db checkout or any database.
 
 ### Exact next action and verification gate
 
-Start with Sections 10 and 14 of `fix_sample_tracking_schema.md`: serialize with all other shared-db
-work, then perform read-only catalog and data inventories in preview and production for all seven
-sample tables. Do not write a migration until the `sample_shipment_item` existence/shape, duplicate
-memberships, cross-box inconsistencies, and legacy row counts are documented. You will know the
-first gate passed when the PR contains an environment-by-environment catalog/count report and every
-anomaly is categorized without any data mutation.
+Gates 1–3 (read-only inventory) and migration steps 1 & 4 (restore + uniqueness) are done and
+preview-proven on branch `claude/sample-tracking-shipment-item-repair`. The next actions are:
+
+1. **Get the two foundational migrations committed to preview then production.** They cannot be
+   applied via `supabase db push` in isolation because preview is behind repo `main` and carries
+   vendor-sync/DB-Data-Admin drift (inventory doc §6). Sequence with those owners: bring preview to
+   `main`'s migration head, then apply. Production promotion needs Albert's approved window. **Pass
+   when** `dflow.sample_shipment_item` exists in each environment, the tracking service no longer
+   returns "relation does not exist", and the uniqueness constraint is present.
+2. **Answer the §15 product questions before the movement/ownership tranche** (esp. Q2 factory
+   identity for `sample_box.owner_factory_id_fk`, Q3 Ningbo/NY location authorization, Q4 which
+   dispositions are globally complete, Q6 which legacy rows have trustworthy quantity). Do NOT
+   author §5.2–5.8 (box ownership, normalized locations, `sample_movement` authority, shipment
+   intent, stop closeout, import durability, read models) until these exist; never fabricate legacy
+   quantities.
 
 ### Constraints, access, and risks
 
