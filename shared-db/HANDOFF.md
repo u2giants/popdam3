@@ -170,6 +170,13 @@ hierarchy with dated reconciliation and loud orphan handling. Production writes 
   Production is unchanged, no previously applied migration was edited, and
   `fix_impl_visual_admin_page.md` remains untouched.
   Full evidence: `docs/verification/db-data-admin-steps8-10-corrections-20260722.md`.
+- A same-timestamp collision was discovered immediately after PR #161 merged: the concurrently
+  merged DAM migration and the DB Data Admin correction were both named `20260722210000_*`.
+  Preview history proved the DB Data Admin migration owned `20260722210000`; the unapplied DAM
+  migration was renamed to `20260722210100_dam_customer_hub_wiring.sql`. Preview then exposed and
+  corrected generated-column writes, invalid/duplicate alias seeds, and a slow row-by-row asset
+  backfill. The optimized distinct-name backfill applied successfully; both DAM and DB Data Admin
+  rollback suites pass and the final preview dry-run is clean. Production remains untouched.
 - Albert's active preview profile had the Administrator role and now has one explicit,
   non-revoked **preview-only** `admin` access row. It was added only after verifying the
   profile and role. No production grant or production database change was made.

@@ -19,6 +19,11 @@
 --
 -- Customer identity is never guessed: only exact/alias/explicit-prefix matches
 -- link; everything else stays null and visibly free text for manual selection.
+--
+-- The assets backfill updates a large existing table; keep the longer allowance
+-- local to this migration transaction rather than changing a database-wide
+-- statement timeout.
+set local statement_timeout = '10min';
 
 -- 1. Durable FK columns -------------------------------------------------------
 alter table public.style_groups
@@ -37,9 +42,8 @@ create index if not exists assets_customer_id_idx
   on public.assets (customer_id) where customer_id is not null;
 
 -- 2. Add the real retailers missing from the hub (Albert: "potential") --------
-insert into core.customer (name, display_name, status, is_potential, normalized_name)
-select v.name, v.name, 'potential'::app.entity_status, true,
-       lower(regexp_replace(trim(v.name), '\s+', ' ', 'g'))
+insert into core.customer (name, display_name, status, is_potential)
+select v.name, v.name, 'potential'::app.entity_status, true
 from (values ('CVS'), ('Costco'), ('Meijer')) as v(name)
 where not exists (
   select 1 from core.customer c
@@ -83,15 +87,18 @@ with seed(alias, target) as (
     ('Stock, HomeGoods',     'TJX')
 ),
 resolved as (
-  select s.alias, c.id as customer_id
+  select distinct on (
+    c.id,
+    lower(regexp_replace(trim(s.alias), '\s+', ' ', 'g'))
+  ) s.alias, c.id as customer_id
   from seed s
   join core.customer c
     on lower(regexp_replace(trim(c.name), '\s+', ' ', 'g')) = lower(regexp_replace(trim(s.target), '\s+', ' ', 'g'))
+  order by c.id, lower(regexp_replace(trim(s.alias), '\s+', ' ', 'g')), s.alias
 )
-insert into core.customer_alias (customer_id, alias, normalized_alias, alias_type, source_system, notes)
+insert into core.customer_alias (customer_id, alias, alias_type, source_system, notes)
 select r.customer_id, r.alias,
-       lower(regexp_replace(trim(r.alias), '\s+', ' ', 'g')),
-       'dam_freetext', 'popdam3',
+       'other', 'popdam3',
        'Seeded 2026-07-22 to link legacy DAM free-text customer values to the hub.'
 from resolved r
 where not exists (
@@ -167,21 +174,45 @@ $function$;
 comment on function public.dam_resolve_customer(text) is
   'Best-effort map of a legacy free-text DAM customer string to core.customer.id. Exact name/display/alias match, else longest explicit-prefix match; comma (multi-customer) values are never prefix-matched. Returns null when no confident match.';
 
-update public.style_groups
-  set customer_id = public.dam_resolve_customer(customer)
-  where customer_id is null and nullif(trim(customer), '') is not null;
+with customer_map as materialized (
+  select d.customer, public.dam_resolve_customer(d.customer) as customer_id
+  from (
+    select distinct customer from public.style_groups
+    where customer_id is null and nullif(trim(customer), '') is not null
+  ) d
+)
+update public.style_groups s
+  set customer_id = m.customer_id
+  from customer_map m
+  where s.customer_id is null and s.customer = m.customer and m.customer_id is not null;
 
-update public.assets
-  set customer_id = public.dam_resolve_customer(customer)
-  where customer_id is null and nullif(trim(customer), '') is not null;
+with customer_map as materialized (
+  select d.customer, public.dam_resolve_customer(d.customer) as customer_id
+  from (
+    select distinct customer from public.assets
+    where customer_id is null and nullif(trim(customer), '') is not null
+  ) d
+)
+update public.assets a
+  set customer_id = m.customer_id
+  from customer_map m
+  where a.customer_id is null and a.customer = m.customer and m.customer_id is not null;
 
 -- Extend style_tracker_rows coverage using the new aliases. Suspend the audit
 -- trigger so this backfill does not generate a customer-change event per row
 -- (matches how the original 20260721143000 backfill ran before the trigger).
 alter table public.style_tracker_rows disable trigger trg_style_tracker_row_audit;
-update public.style_tracker_rows
-  set customer_id = public.dam_resolve_customer(customer)
-  where customer_id is null and nullif(trim(customer), '') is not null;
+with customer_map as materialized (
+  select d.customer, public.dam_resolve_customer(d.customer) as customer_id
+  from (
+    select distinct customer from public.style_tracker_rows
+    where customer_id is null and nullif(trim(customer), '') is not null
+  ) d
+)
+update public.style_tracker_rows s
+  set customer_id = m.customer_id
+  from customer_map m
+  where s.customer_id is null and s.customer = m.customer and m.customer_id is not null;
 alter table public.style_tracker_rows enable trigger trg_style_tracker_row_audit;
 
 -- 6. Curated Library filter facet — only hub customers that have DAM assets ----
