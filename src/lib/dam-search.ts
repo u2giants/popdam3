@@ -65,54 +65,49 @@ export async function fetchSearchIds(
   return fetchKeywordIds();
 }
 
-let synonymsPromise: Promise<Array<{ term: string; expansion: string }>> | null = null;
-
-/** Load the active synonym vocabulary (cached). Same source the RPC uses. */
-function getSearchSynonyms(): Promise<Array<{ term: string; expansion: string }>> {
-  if (!synonymsPromise) {
-    synonymsPromise = (async () => {
-      const { data, error } = await supabase
-        .from("dam_search_synonyms")
-        .select("search_term, expansion")
-        .eq("is_active", true);
-      if (error || !data) {
-        synonymsPromise = null; // allow retry on next call
-        return [];
-      }
-      return data.map((row) => ({
-        term: String((row as { search_term: string }).search_term).toLowerCase(),
-        expansion: String((row as { expansion: string }).expansion).toLowerCase(),
-      }));
-    })();
-  }
-  return synonymsPromise;
-}
+const expandTermsCache = new Map<string, Promise<string[]>>();
 
 /**
- * Expand a raw search term into the set of phrases the ILIKE fallback should
- * match. Mirrors the RPC's synonym expansion (e.g. "spiderman" → "spider man")
- * and adds hyphen/space separator variants so a one-word query still matches
- * stored values like "SPIDER MAN" or "Spider-Man". Without this, the timeout
- * fallback silently returns 0 results for hyphenated/spaced brand names.
+ * Expand a raw search term into the set of phrases an ILIKE search should
+ * match. Uses the SECURITY-DEFINER RPC `expand_dam_search_queries` for synonym
+ * expansion (e.g. "spiderman" → "spider man") — the `dam_search_synonyms` table
+ * itself is RLS-blocked for anon/authenticated, so it can't be read directly.
+ * Adds hyphen/space separator variants on top so a one-word query also matches
+ * stored values like "Spider-Man" / "SPIDER MAN". Without this, a raw substring
+ * search returns 0 results for hyphenated/spaced brand names.
  */
-export async function expandFallbackTerms(rawTerm: string): Promise<string[]> {
-  const term = rawTerm.replace(/[(),]/g, " ").trim();
-  if (!term) return [];
-  const lower = term.toLowerCase();
-  const variants = new Set<string>();
-  const add = (value: string) => {
-    const v = value.trim();
-    if (!v) return;
-    variants.add(v);
-    if (v.includes("-")) variants.add(v.replace(/-/g, " "));
-    if (/\s/.test(v)) variants.add(v.replace(/\s+/g, "-"));
-  };
-  add(lower);
-  for (const { term: st, expansion } of await getSearchSynonyms()) {
-    if (lower === st || lower.includes(st)) add(expansion);
-    if (lower === expansion || lower.includes(expansion)) add(st);
+export function expandFallbackTerms(rawTerm: string): Promise<string[]> {
+  const term = rawTerm.replace(/[(),]/g, " ").replace(/\s+/g, " ").trim();
+  if (!term) return Promise.resolve([]);
+  const key = term.toLowerCase();
+  let cached = expandTermsCache.get(key);
+  if (!cached) {
+    cached = (async () => {
+      const variants = new Set<string>();
+      const add = (value: string) => {
+        const v = value.trim().toLowerCase();
+        if (!v) return;
+        variants.add(v);
+        if (v.includes("-")) variants.add(v.replace(/-/g, " "));
+        if (/\s/.test(v)) variants.add(v.replace(/\s+/g, "-"));
+      };
+      add(key);
+      try {
+        const { data, error } = await (supabase.rpc as any)("expand_dam_search_queries", {
+          p_query: term,
+        });
+        if (error) throw error;
+        for (const row of (data ?? []) as Array<{ query_text?: string }>) {
+          if (row?.query_text) add(row.query_text);
+        }
+      } catch {
+        expandTermsCache.delete(key); // transient failure: allow a later retry
+      }
+      return [...variants];
+    })();
+    expandTermsCache.set(key, cached);
   }
-  return [...variants];
+  return cached;
 }
 
 export function sortByRank<T>(rows: T[], rankedIds: string[], getId: (row: T) => string): T[] {
