@@ -2,7 +2,8 @@
 
 **Written:** 2026-07-22 · **Repo:** `u2giants/shared-db` · **DB:** shared Supabase `qsllyeztdwjgirsysgai`
 **Status:** 📋 PLAN (not yet built). This is the design a future session implements as one or more
-additive shared-db migrations plus a host sync job. Read it top to bottom before writing any code.
+additive shared-db migrations plus a Supabase **Edge Function + `pg_cron`** sync (§6). Read it top to
+bottom before writing any code.
 **Prereq done:** OPEN #1 (mirror `plm.erp_vendor` reconciled to the corrected 97) —
 migration `20260722170000_refresh_erp_vendor_mirror_to_corrected_vendors.sql`.
 
@@ -126,7 +127,7 @@ The new importer `plm.sync_coldlion_vendors(vendors_payload jsonb)` does, per ro
 
 Grants/RLS: mirror the existing `plm.erp_*` pattern (admin-read, `service_role` write; `execute` on
 the function to `service_role` only, revoke from `public`). `plm` is **not** PostgREST-exposed, so the
-host job calls the function over a direct pooler connection as the `postgres` role (see AGENTS §9).
+Edge Function (§6) calls it over a direct service-role DB connection, not a PostgREST RPC (see AGENTS §9).
 
 ---
 
@@ -134,47 +135,59 @@ host job calls the function over a direct pooler connection as the `postgres` ro
 
 A `raise` inside the importer aborts its transaction, rolling back the `status='running'` sync_run row
 — so a failure would leave **no trace**, violating the house "no silent failures" rule. Therefore the
-**host wrapper** (not the DB function) records failures, exactly like
-`tools/sync-plm-master-data.mjs` / `buildFailedSyncRunSql`:
+**caller** (the Edge Function, §6) — not the DB function — records failures. This is the PR #107
+pattern (`tools/sync-plm-master-data.mjs` / `buildFailedSyncRunSql`), relocated from the old host
+wrapper into the Edge Function:
 
-- The wrapper pulls `/vendors`, then calls `plm.sync_coldlion_vendors(payload)`.
+- The function pulls `/vendors`, then calls `plm.sync_coldlion_vendors(payload)` over a service-role
+  **direct DB connection** (`plm` is not PostgREST-exposed, so this cannot be a PostgREST RPC).
 - On ANY error (fetch error, HTTP non-200, DB error), it opens a **separate** connection/transaction
   and INSERTs a committed `ingest.sync_run` with `status='failed'`, `error=<message>`, and metadata
-  `{recorded_by, stage: 'fetch'|'apply'}`. This survives the aborted import transaction.
-- `systemd` `OnFailure=` fires a loud alert (journal + `/home/ai/…-failures.log`) even if the DB was
-  unreachable — same as `systemd/plm-sync-alert.service`.
-- **Empty-payload guard:** if the pull returns 0 rows (or fewer than a sane floor, e.g. < 50 when we
-  expect ~97), the wrapper treats it as a **failure** and does NOT call the importer — a zero/short
-  pull must never be interpreted as "delete everything from the mirror".
+  `{recorded_by:'coldlion-vendor-sync edge fn', stage:'fetch'|'apply'}`. This survives the aborted
+  import transaction, and the function returns non-2xx so the invocation itself is marked failed.
+- **Empty-payload guard:** if the pull returns 0 rows (or fewer than a sane floor, e.g. `< 50` when we
+  expect ~97), treat it as a **failure** and do NOT call the importer — a zero/short pull must never be
+  interpreted as "delete everything from the mirror".
 
 ---
 
-## 6. Cadence & wiring (mirror the existing plm-sync host pattern)
+## 6. Cadence & wiring — Supabase Edge Function + `pg_cron` (the standard Coldlion mechanism)
 
-Vendors change rarely, so a **weekly** pull is enough (daily is fine too — it is idempotent). Reuse the
-proven hetz host pattern rather than inventing a new one:
+**Decision:** run this as a standalone **Supabase Edge Function** in the shared project, scheduled by
+**`pg_cron`**, with the Coldlion `X-API-Key` in **Supabase Vault** — the *same* mechanism the item sync
+already committed to (`docs/coldlion-direct-sync-and-taxonomy-plan.md`, Option B, 2026-07-15). This is
+what Edge Functions are designed for: a scheduled outbound API pull that writes to the DB, serverless,
+with the secret in Vault and scheduling inside the database. Do **not** put this on the hetz host/systemd
+path — it would add load and a single point of failure to the very box whose PLM sync is currently
+broken and undeployed (HANDOFF OPEN #4), and would diverge from the item-sync architecture.
 
-- `tools/sync-coldlion-vendors.mjs` — Node wrapper (pull + call importer + PR #107 failure record),
-  with unit tests in `tools/sync-coldlion-vendors.test.mjs` (per house rule 13).
-- `systemd/coldlion-vendor-sync.service` (`Type=oneshot`, `OnFailure=coldlion-vendor-sync-alert.service`)
-  + `.timer` (`OnCalendar=Sun *-*-* 04:00:00`, `Persistent=true`) + `-alert.service`.
-- Secrets stay in `/home/ai/.coldlion-vendor-sync.env` (Coldlion API key), never in git; on the dev
-  boxes use `op run` (PowerShell/cmd, **never** bare bash on Windows — it is WSL and drops the env).
-- Deploy the same way as OPEN #4: `cd /worksp/shared-db && git pull && sudo systemctl daemon-reload`.
-  Host/unit deployment itself is owned by the Ansible repo (AGENTS §2.1) — route the durable unit files
-  through an `u2giants/ansible` PR; `shared-db` owns the templates + Node tool + migrations.
+- **Function:** `supabase/functions/coldlion-vendor-sync/` — reads the key from Vault, pulls `/vendors`,
+  runs the §5 empty-pull guard, opens a service-role DB connection, calls
+  `plm.sync_coldlion_vendors(payload)`, and records a committed failed `ingest.sync_run` on error.
+- **Schedule:** a `pg_cron` job (this project already runs ~9 nightly jobs) invoking the function via
+  `net.http_post` (pg_net) — **weekly** is enough (vendors change rarely; the importer is idempotent so
+  daily is safe too). e.g. `cron.schedule('coldlion-vendor-sync-weekly','0 9 * * 0', $$ select
+  net.http_post(<fn-url>, headers, body) $$)`. Function URL + invoke secret come from Vault, never git.
+- **Secret:** Coldlion `X-API-Key` in Supabase **Vault**, read at runtime. Never hard-coded, never in
+  git. Reuse/agree the Vault secret name with the item-sync function.
+- **Alerting (replaces `systemd OnFailure=`):** serverless has no `OnFailure` hook, so alerting is its
+  own **scheduled check**, not an afterthought — a small `pg_cron` job (or a second tiny Edge Function)
+  that fires a loud signal when the latest `coldlion_vendors_api` run is `status='failed'` **or older
+  than the expected cadence**. A stale/missing run matters as much as a failed one — that overdue-run
+  blind spot is exactly what hid the 2026-07-08 PLM outage for 11 days. Channel (webhook / email / an
+  alerts-table row an ops view surfaces) to be agreed with Albert; the non-negotiable is that a failed
+  **or** overdue run cannot pass silently.
 
-> **Alternative considered:** the item pipeline (`docs/coldlion-direct-sync-and-taxonomy-plan.md`)
-> decided on a Supabase **Edge Function + `pg_cron`** (no Google Cloud, key in Vault). Vendors could
-> use the same mechanism for consistency and to drop the hetz dependency. Recommendation: keep vendors
-> on the existing host/systemd pattern for now (it already works and is one fewer moving part), and
-> revisit unifying onto Edge Function + pg_cron when the item sync ships.
+> **Local/dev testing:** `supabase functions serve` against the live feed; on Windows read the Coldlion
+> key with `op run` (PowerShell/cmd, **never** bare bash — it is WSL and drops the injected env).
+> Unit-test the pure helpers (guards, payload shaping, failed-run SQL) per house rule 13.
 
 ---
 
 ## 7. Verification gate (dry-run must prove the guards hold)
 
-Before enabling the timer, run the wrapper in a **dry-run** mode against the **live 97** and confirm:
+Before enabling the `pg_cron` schedule, run the Edge Function in a **dry-run** mode against the
+**live 97** and confirm:
 1. **0 new `core.factory` rows** (`rows_inserted = 0`) — every code resolves to an existing survivor.
 2. **0 status flips** — snapshot `core.factory (id,status)` before/after; must be identical
    (ANT001 stays `inactive`; the 91 active stay active).
@@ -193,11 +206,12 @@ Before enabling the timer, run the wrapper in a **dry-run** mode against the **l
 2. Author ONE additive migration: `plm.vendor_exclusion`, `plm.vendor_quarantine`,
    `plm.sync_coldlion_vendors(jsonb)`, grants/RLS; and drop/deprecate `plm.import_coldlion_vendors`.
    `check-sql.sh` clean; PR to `main`; apply to **preview**; prove it there.
-3. Build `tools/sync-coldlion-vendors.mjs` + tests + the three systemd unit templates.
+3. Build the Edge Function `supabase/functions/coldlion-vendor-sync/` (pull + guards + call importer +
+   PR #107 failed-run record) + unit tests for its pure helpers. Store the Coldlion key in Vault.
 4. Run the §7 dry-run gate against production data (read-only pull; apply only after Albert approves
    the first real run, since it can write `core.factory`).
-5. Merge; apply migration to prod; route unit files through an Ansible PR; deploy on hetz; force a
-   failure to confirm alerting; enable the timer.
+5. Merge; apply migration to prod; deploy the Edge Function; create the `pg_cron` schedule + the
+   overdue/failed-run alert check; force a failure to confirm alerting fires; then enable the schedule.
 6. Update `docs/app-migration-notes/coldlion-customers-vendors-20260715.md` and the HANDOFF; retire
    `fix_vendor_reconcile.md` / `fix_vendor_review.md` once fully done.
 
