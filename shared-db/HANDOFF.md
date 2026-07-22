@@ -316,20 +316,29 @@ Full narrative: [`docs/app-migration-notes/session-2026-07-21.md`](docs/app-migr
   delete these duplicate numeric refs or relabel them `source_system='directus'`/`legacy`.
 
 **OPEN #2 — Plan for a RECURRING vendor sync (two mandatory guards). ✅ DONE 2026-07-22 (plan written).**
-- *Done:* [`fix_vendor_sync.md`](fix_vendor_sync.md) (PR #145, merged). Full design for the scheduled
-  vendor sync: weekly cadence on the proven systemd host pattern, endpoint, `ingest.sync_run` accounting
-  with the **PR #107 durable-failure** pattern + empty/short-pull guard, **upsert by
-  `(source_system, source_table, source_id)`** (prevents re-splitting merged dups / re-adding purged
-  rows), and both mandatory guards:
+- *Done:* [`fix_vendor_sync.md`](fix_vendor_sync.md) (PRs #145/#156/#157, merged; GLM-reviewed, review at
+  `.ai/reviews/vendor-sync-plan-glm-2026-07-22.md`). Full design for the scheduled vendor sync: **weekly
+  cadence on a Supabase Edge Function + scheduled invocation** (NOT the hetz systemd host — that box's PLM
+  sync is broken/undeployed, OPEN #4), `ingest.sync_run` accounting with the **PR #107 durable-failure**
+  pattern + empty/short-pull guard, **upsert by `(source_system, source_table, source_id)`** (prevents
+  re-splitting merged dups / re-adding purged rows), and both mandatory guards:
   1. **Reject blank/nameless** (`CNWAH`, live-confirmed still blank) → loud `plm.vendor_quarantine`
      table + `rows_failed`; never into `core.factory`.
   2. **Persist "not a factory" exclusions** in a durable `plm.vendor_exclusion` table the importer
-     consults every run (seed ANT001; re-review Buildasign, May Group Deco Sign, `FLGDS`, `INTUF`, Royal
-     Packers, Royal Union). **Status is app-owned — set on INSERT only, never overwritten on re-pull.**
+     consults every run — **seed the 418 purged service-provider codes too** (GLM S1: otherwise "no
+     re-add" is only true because today's feed omits them), plus ANT001 and the re-review rulings
+     (Buildasign, May Group Deco Sign, `FLGDS`, `INTUF`, Royal Packers, Royal Union). **Status is
+     app-owned — set on INSERT only, never overwritten on re-pull.**
   The plan also **flags that the existing `plm.import_coldlion_vendors` VIOLATES guard 2** (it force-sets
   `status='active'` on matched rows) and must be superseded/dropped when the guarded importer is built.
-- *Not yet built:* the importer/tables/host job — that is the implementation follow-up in
-  `fix_vendor_sync.md` §8, and needs Albert's ruling on the 6 re-review borderline vendors first.
+- ⚠️ **Twin bug (record so it's not lost):** `plm.import_coldlion_customers` has the SAME status-clobbering
+  flaw (`status='active'`, `is_potential=false` on matched rows). Customers are marked "done" but run on
+  this flawed importer — open a twin fix when the guarded vendor importer lands.
+- *Not yet built:* the importer/tables/Edge Function. `fix_vendor_sync.md` §8 splits it into **Phase A**
+  (guarded importer + tables + `public`/`api` wrappers — provable now via a one-off Node/`pg` dry-run;
+  needs the 418-code seed + Albert's ruling on the 6 borderline vendors) and **Phase B** (scheduled Edge
+  Function + alerting — first verify pg_net/Vault are actually available; build the overdue/failed-run
+  alert BEFORE enabling the schedule).
 
 **OPEN #3 — Item→taxonomy Phase 3+ (backfill then cutover).**
 - *What/why:* `plm.item` is built but empty; items are still served from `public.erp_items_current`
