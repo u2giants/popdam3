@@ -36,3 +36,6 @@ rendered. Database behavior is independently proven against preview by
 - [Whitelisted Customer editor](db-data-admin-step8-editor.png)
 
 Production writes remain disabled. `fix_impl_visual_admin_page.md` remains untouched.
+
+
+> **Correction 2026-07-22:** gaps in this step were subsequently closed. See [db-data-admin-steps8-10-corrections-20260722.md](db-data-admin-steps8-10-corrections-20260722.md) for the authoritative corrected evidence (29 unit + 6 Chromium tests, new preview-first migration `20260722210000`). The test counts above reflect the pre-correction state.

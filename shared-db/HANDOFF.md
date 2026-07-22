@@ -156,6 +156,20 @@ hierarchy with dated reconciliation and loud orphan handling. Production writes 
   5 Chromium tests, lint, build, container publication, and Coolify deployment. Evidence is
   under `docs/verification/db-data-admin-step10-*` and
   `docs/verification/db-data-admin-licensor-property-tree-20260722.md`.
+- A corrective pass over Steps 8–10 (2026-07-22, branch
+  `claude/db-data-admin-steps8-10-perfect`) closed gaps against `DB_Data_Admin.md`: the merge
+  preview now shows the exact token-covered aliases/source references that move (additive
+  preview-first migration `20260722210000`, applied and verified on preview only); the merge dialog shows an accessible
+  success receipt with the final survivor and audit/operation ID; merge candidates can be found
+  beyond the loaded grid page; the Licensor tree makes every property reachable past the old
+  24-item cap via a count-disclosing "show all"; the editor reflects an application's current
+  status instead of defaulting to Active; and the stale concurrency-token save failure gained a
+  one-click "Reload record" recovery. Dead CSS was removed and class mismatches reconciled.
+  Local gates: lint, 29 unit tests, build, 6 Chromium tests, and `scripts/check-sql.sh` all pass;
+  all nine rollback-safe DB Data Admin suites pass on preview and its final dry-run is clean.
+  Production is unchanged, no previously applied migration was edited, and
+  `fix_impl_visual_admin_page.md` remains untouched.
+  Full evidence: `docs/verification/db-data-admin-steps8-10-corrections-20260722.md`.
 - Albert's active preview profile had the Administrator role and now has one explicit,
   non-revoked **preview-only** `admin` access row. It was added only after verifying the
   profile and role. No production grant or production database change was made.

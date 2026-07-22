@@ -84,3 +84,6 @@ corrected a PostgreSQL `max(uuid)` cursor incompatibility through additive migra
   were not overwritten (the Step 10 capture is a new file).
 - Steps 11–13 (consumer enforcement, bulk operations, production delivery) are out of
   scope. Production remains untouched.
+
+
+> **Correction 2026-07-22:** gaps in this step were subsequently closed. See [db-data-admin-steps8-10-corrections-20260722.md](db-data-admin-steps8-10-corrections-20260722.md) for the authoritative corrected evidence (29 unit + 6 Chromium tests, new preview-first migration `20260722210000`). The test counts above reflect the pre-correction state.

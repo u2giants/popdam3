@@ -22,3 +22,6 @@ Verification from `apps/db-data-admin/`:
 
 Production remains untouched. The database `merge_execute` gate is enabled only on preview
 after the schema PR merges so this development UI can be exercised through Microsoft SSO.
+
+
+> **Correction 2026-07-22:** gaps in this step were subsequently closed. See [db-data-admin-steps8-10-corrections-20260722.md](db-data-admin-steps8-10-corrections-20260722.md) and the corrected preview [db-data-admin-step9-moving-detail-preview.png](db-data-admin-step9-moving-detail-preview.png) for the authoritative evidence (29 unit + 6 Chromium tests, preview-verified migration `20260722210000`). The test counts above reflect the pre-correction state.
