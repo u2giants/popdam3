@@ -25,9 +25,9 @@ specification, and `docs/db-data-admin-inventory.md` is the verified implementat
 
 The project replaces scattered SQL/manual maintenance with one guarded interface while
 preserving shared Core identities, per-application status overrides, immutable audit history,
-and safe merges. The first implementation tranche established the repository boundary,
-application/runtime foundation, authorization/storage schema, per-app extension tables, and
-controlled Customer Channels without enabling production writes prematurely.
+and safe merges. Delivery Steps 1–7 now establish the repository/runtime foundation,
+authorization/storage schema, merge coverage, protected reads, extension tables, controlled
+Customer Channels, and the read-only Customer/Vendor grids. Production writes remain off.
 
 ### 3. Current state
 
@@ -36,9 +36,8 @@ controlled Customer Channels without enabling production writes prematurely.
 - PR #127 scaffolded React 19 + TypeScript 6 + Vite 8.1.5, pinned RevoGrid Core 4.23.22,
   Vitest, Playwright, Docker, and CI in `apps/db-data-admin/`.
 - PR #129 configured the immutable GitHub Actions → GHCR → Coolify development path.
-  `https://data-dev.designflow.app/health` returned HTTP 200 and live HTML reported build
-  `6e1b2cd902676c165eaa11201455c596169807a9` on 2026-07-22. The development-shell screenshot
-  is `docs/verification/db-data-admin-development.png`.
+  `https://data-dev.designflow.app/` returned HTTP 200 and live HTML reported corrected build
+  `30c57e35dc6c3a7d7fcd2146a4503460184bbaaa` on 2026-07-22.
 - Microsoft SSO on development was repaired on 2026-07-22. Azure already contained the
   preview callback URI, but preview Supabase could not exchange the returned Microsoft
   code because its Azure credential value was invalid. A dedicated additive Azure
@@ -49,8 +48,21 @@ controlled Customer Channels without enabling production writes prematurely.
   immutable audit events, per-profile grid state, CRM/PM/DAM extensions, and controlled
   Customer Channels. All seven are applied and contract-tested on preview
   `rjyboqwcdzcocqgmsyel`; they are intentionally not applied to production.
-- The full grid, protected read/write APIs, merge repair/UI, consumer picker enforcement,
-  bulk operations, production deployment, and final visual evidence are not started.
+- Steps 5 and 6 are merged and tested on preview. PR #138 corrected deterministic PLM
+  tri-state behavior, protected detail reads, and the Customer list signature; six database
+  suites passed. Production stayed unchanged.
+- Kimi K3 reviewed the complete plan/repository context and debated the implementation with
+  Codex until both explicitly reached consensus: serialized schema/UI PRs, read-only Step 7,
+  public RevoGrid templates, explicit cursor loading, lazy details, and no Step 8+ leakage.
+- PR #139 delivered Step 7 Customer/Vendor RevoGrid Core views. PR #142 corrected the exact
+  saved-view RPC contract and loud optimistic-conflict handling. Main CI passed lint, 10 unit
+  tests, build, 3 Chromium tests, image publication, and Coolify deployment. Visual evidence
+  is under `docs/verification/db-data-admin-step7-*`.
+- Albert's active preview profile had the Administrator role and now has one explicit,
+  non-revoked **preview-only** `admin` access row. It was added only after verifying the
+  profile and role. No production grant or production database change was made.
+- Editing/audit UI, merge UI, Licensor/Property tree, consumer enforcement, bulk operations,
+  and production delivery remain Steps 8–13 and are not started.
 
 ### 4. What did not work
 
@@ -64,6 +76,15 @@ controlled Customer Channels without enabling production writes prematurely.
   `apps/db-data-admin/`; this was a working-directory error, not an application defect.
 - Earlier handoff text said “PLAN ONLY” after PRs #127/#129/#130 had landed. This section
   supersedes that stale statement and records the actual verified state.
+- The first Step 7 browser capture exposed a Customer column filter visually carrying into
+  Vendors. Draft/applied filter state is now tab-isolated, and the final Vendor capture proves
+  the input is cleared while rows remain visible.
+- Mocked browser transport initially hid a saved-view RPC naming mismatch (`p_grid_key` versus
+  real `p_entity_type`). Source-contract comparison caught it; PR #142 fixes it with a
+  regression test and explicit version-conflict error.
+- A synthetic HS256 user JWT made from the stored legacy JWT secret was rejected by current
+  Supabase signing (`PGRST301`). Do not repeat that auth test; use real Microsoft SSO or
+  current asymmetric signing tooling. The explicit preview grant itself was verified.
 
 ### 5. Root causes and key findings
 
@@ -73,24 +94,20 @@ controlled Customer Channels without enabling production writes prematurely.
 - Production DesignFlow uses Cloud SQL for PLM Customer/Vendor status. DB Data Admin must use a
   protected DesignFlow operation and mirror the result back; it must not create a competing
   editable Supabase PLM status. See `docs/db-data-admin-inventory.md`.
-- The existing merge functions do not yet cover every new extension and the DAM Styles Customer
-  reference. Merge UI must remain disabled until Step 5 of `DB_Data_Admin.md` passes its FK
-  coverage tests.
+- Merge engine coverage is repaired, but merge UI remains disabled until Step 9's protected
+  preview/execution contracts and UI pass their separate gates.
 
 ### 6. Exact next steps
 
-1. Start Step 5 of `DB_Data_Admin.md`: inventory every FK to `core.customer` and
-   `core.factory`, repair both merge engines additively, and add the fail-closed coverage test.
-   It is complete when preview fixture merges preserve every intended relationship and old
-   identifiers resolve as specified.
-2. Implement Step 6 protected administrator read contracts and per-app serving views. It is
-   complete when the authorization matrix denies an administrator without an explicit `admin`
-   grant and proves filtering/sorting/pagination.
-3. Build the read-only Customer and Vendor RevoGrids with the custom persistent header filters.
-   It is complete only after the keyboard, focus, virtualization, saved-state, accessibility,
-   and required screenshot gates pass.
-4. Continue Steps 8–13 in order. Do not promote the foundation migrations or enable production
-   status writes until the documented consumer-enforcement and approved-window gates pass.
+1. Refresh `https://data-dev.designflow.app` and use Microsoft SSO if needed. **Pass when**
+   Customers and Vendors both show preview rows and clicking a row opens aliases/source refs.
+2. Start Step 8 on a new serialized branch: whitelisted single-record updates, status
+   reason/actor/time, concurrency, structured expected failures, and audit display. **Pass
+   when** edit, conflict, reactivation, and failure paths work and audit on preview.
+3. Start Step 9 only after Step 8 passes. **Pass when** preview proves transferred references,
+   explicit extension conflicts, idempotent retry, and old-identifier resolution.
+4. Continue Steps 10–13 in order. Do not promote migrations or enable production status
+   writes before consumer enforcement and an approved production window.
 
 ### 7. Constraints and gotchas
 
@@ -109,7 +126,8 @@ the repo. Preview is `rjyboqwcdzcocqgmsyel`; production is `qsllyeztdwjgirsysgai
 
 ### 9. Open questions and risks
 
-The production admin-grantee list remains deliberately empty. Vendor PLM status cannot ship
+The production admin-grantee list remains deliberately empty; Albert's explicit grant exists
+only on preview. Vendor PLM status cannot ship
 until DesignFlow exposes stable Factory identifiers and a reviewed mapping populates
 `core.factory_source_ref`. The Coldlion `/vendors` feed may include non-factories, so the open
 vendor-feed decision in AGENTS.md §6.2 still blocks further vendor curation. Production
