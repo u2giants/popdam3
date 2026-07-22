@@ -25,9 +25,10 @@ specification, and `docs/db-data-admin-inventory.md` is the verified implementat
 
 The project replaces scattered SQL/manual maintenance with one guarded interface while
 preserving shared Core identities, per-application status overrides, immutable audit history,
-and safe merges. Delivery Steps 1–7 now establish the repository/runtime foundation,
+and safe merges. Delivery Steps 1–8 now establish the repository/runtime foundation,
 authorization/storage schema, merge coverage, protected reads, extension tables, controlled
-Customer Channels, and the read-only Customer/Vendor grids. Production writes remain off.
+Customer Channels, read-only Customer/Vendor grids, and guarded single-record editing with
+immutable audit history. Production writes remain off.
 
 ### 3. Current state
 
@@ -36,8 +37,8 @@ Customer Channels, and the read-only Customer/Vendor grids. Production writes re
 - PR #127 scaffolded React 19 + TypeScript 6 + Vite 8.1.5, pinned RevoGrid Core 4.23.22,
   Vitest, Playwright, Docker, and CI in `apps/db-data-admin/`.
 - PR #129 configured the immutable GitHub Actions → GHCR → Coolify development path.
-  `https://data-dev.designflow.app/` returned HTTP 200 and live HTML reported corrected build
-  `30c57e35dc6c3a7d7fcd2146a4503460184bbaaa` on 2026-07-22.
+  `https://data-dev.designflow.app/` returned HTTP 200 and live HTML reported Step 8 merge
+  build `046f5c92b253a0aea31e301a37730cf64daddeb0` on 2026-07-22.
 - Microsoft SSO on development was repaired on 2026-07-22. Azure already contained the
   preview callback URI, but preview Supabase could not exchange the returned Microsoft
   code because its Azure credential value was invalid. A dedicated additive Azure
@@ -58,11 +59,24 @@ Customer Channels, and the read-only Customer/Vendor grids. Production writes re
   saved-view RPC contract and loud optimistic-conflict handling. Main CI passed lint, 10 unit
   tests, build, 3 Chromium tests, image publication, and Coolify deployment. Visual evidence
   is under `docs/verification/db-data-admin-step7-*`.
+- Kimi K3 implemented the Step 8 schema/API migration and database contract suite. PR #147
+  merged migration `20260722170000_db_data_admin_single_record_updates.sql`: protected
+  Customer/Vendor update RPCs, an off-by-default write gate, optimistic concurrency,
+  operation-id idempotency, structured expected failures, and immutable audit projections.
+  The full preview database suite passed. Kimi's paid CLI quota was exhausted while correcting
+  its final test fixture, so Codex completed that correction and the companion frontend.
+- PR #148 delivered the Step 8 editor and audit timeline. It permits only curated display name,
+  global status, CRM/PM/DAM status, and Customer Channels; every save requires a reason and
+  stale records fail loudly. Main CI passed 13 unit tests, 3 Chromium tests, lint, build,
+  container publication, and Coolify deployment. Visual evidence is under
+  `docs/verification/db-data-admin-step8-*`.
+- The `single_record_write` feature gate is enabled only on preview. The Step 8 migration and
+  gate were not promoted to production.
 - Albert's active preview profile had the Administrator role and now has one explicit,
   non-revoked **preview-only** `admin` access row. It was added only after verifying the
   profile and role. No production grant or production database change was made.
-- Editing/audit UI, merge UI, Licensor/Property tree, consumer enforcement, bulk operations,
-  and production delivery remain Steps 8–13 and are not started.
+- Merge UI, Licensor/Property tree, consumer enforcement, bulk operations, and production
+  delivery remain Steps 9–13 and are not started.
 
 ### 4. What did not work
 
@@ -85,6 +99,10 @@ Customer Channels, and the read-only Customer/Vendor grids. Production writes re
 - A synthetic HS256 user JWT made from the stored legacy JWT secret was rejected by current
   Supabase signing (`PGRST301`). Do not repeat that auth test; use real Microsoft SSO or
   current asymmetric signing tooling. The explicit preview grant itself was verified.
+- During Kimi's non-interactive run, the Step 8 migration was unexpectedly applied to preview
+  as timestamp `20260722170000` despite the prompt requesting no database mutation. Preview
+  history was reconciled to the checked-in canonical file, the dry-run then reported no drift,
+  and production was never linked or changed. Do not rename or edit that applied migration.
 
 ### 5. Root causes and key findings
 
@@ -99,14 +117,12 @@ Customer Channels, and the read-only Customer/Vendor grids. Production writes re
 
 ### 6. Exact next steps
 
-1. Refresh `https://data-dev.designflow.app` and use Microsoft SSO if needed. **Pass when**
-   Customers and Vendors both show preview rows and clicking a row opens aliases/source refs.
-2. Start Step 8 on a new serialized branch: whitelisted single-record updates, status
-   reason/actor/time, concurrency, structured expected failures, and audit display. **Pass
-   when** edit, conflict, reactivation, and failure paths work and audit on preview.
-3. Start Step 9 only after Step 8 passes. **Pass when** preview proves transferred references,
+1. Refresh `https://data-dev.designflow.app`, use Microsoft SSO, edit one disposable preview
+   Customer field with a reason, and reopen the detail. **Pass when** the saved value and audit
+   event both appear; do not perform this check against production.
+2. Start Step 9 on a new serialized branch. **Pass when** preview proves transferred references,
    explicit extension conflicts, idempotent retry, and old-identifier resolution.
-4. Continue Steps 10–13 in order. Do not promote migrations or enable production status
+3. Continue Steps 10–13 in order. Do not promote migrations or enable production status
    writes before consumer enforcement and an approved production window.
 
 ### 7. Constraints and gotchas
