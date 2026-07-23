@@ -43,26 +43,58 @@ after the completion-semantics PR merges. Do not hand-edit the mirror.
 
 ---
 
-## Shared completion-semantics dependency (plan §15 Q4)
+## Shared completion-semantics dependency (plan §15 Q4 — CONFIRMED 2026-07-23)
 
-Shared-db ships this conservative interpretation (open product question Q4):
+Product confirmed the completion rule on **2026-07-23**. Shared-db migration
+`20260723230000` implements it. This is no longer an open question and is not
+the earlier conservative "customer blocks complete" interpretation.
 
-| Balance location | Global effect under shipped interpretation |
+| Balance location | Global effect |
 |---|---|
-| `terminal` | resolved |
-| `in_transit` | `in_transit` status |
+| `terminal` (incl. `*_office_inventory`) | **resolved** |
+| `customer` | **resolved** (delivered / out of tracking flow) |
 | `factory` / `office` | blocks complete → `outstanding` |
-| `customer` | blocks complete → `outstanding` (single flip point in the view) |
+| `in_transit` | `in_transit` status |
 
-Office-retained pieces and customer-held pieces therefore keep
-`dflow.sample_global_status.derived_status = 'outstanding'`. Local stop
-closeout does **not** make a sample globally complete while pieces remain at
-non-terminal locations.
+### Automatic office inventory (database-enforced)
 
-App retain behavior that posts to `terminal:retained` (item 13) interacts with
-this decision: moving retain into `terminal` *would* allow global complete
-under the shipped view. Prefer plan §5.4 (retain stays at the physical office
-location + local closeout) unless product explicitly re-opens Q4.
+Each office has its **own** inventory bucket:
+
+- Ningbo leftovers → `terminal` / `ningbo_office_inventory` (label e.g. "Ningbo Ofc Inventory")
+- New York leftovers → `terminal` / `nyc_office_inventory` (label e.g. "NY Ofc Inventory")
+
+**Automatically, with no extra user step:** the moment some pieces ship **onward**
+out of an office (to `in_transit` heading elsewhere, or directly to `customer`),
+whatever quantity **remains** at that office is moved into that office's inventory
+bucket and **exits** the main tracking flow. Pieces stay fully conserved and
+auditable in the ledger — inventory is a **terminal disposition**, not a deletion.
+
+This is implemented as an `AFTER INSERT` trigger on `dflow.sample_movement`
+(`sample_movement_auto_office_inventory_trigger`) so **every** caller is covered.
+The consumer app must **not** re-implement or skip this step.
+
+### Canonical four-piece end state
+
+Factory makes 4 → Ningbo receives 4, keeps 1, ships 3 → NY receives 3, keeps 2,
+ships 1 to customer:
+
+```text
+terminal/ningbo_office_inventory = 1
+terminal/nyc_office_inventory    = 2
+customer                         = 1
+in_transit = 0, office balances = 0
+derived_status = complete
+```
+
+Local stop closeout still does **not** make a sample globally complete while
+pieces remain at unresolved `factory` / `office` locations (Defect B fix).
+
+### Frontend display note (office inventory buckets)
+
+Surface `*_office_inventory` terminal buckets (e.g. "Ningbo Ofc Inventory",
+"NY Ofc Inventory") as **out-of-flow / resolved locations** — not as outstanding
+work. They should appear in history and conservation views as terminal
+dispositions, similar to delivered/disposed, not as open office handling.
 
 ---
 
@@ -173,13 +205,13 @@ location + local closeout) unless product explicitly re-opens Q4.
 | **Anchors** | `models/sample.model.js` ~:43; `models/sampleGroup.model.js` ~:456–461 |
 | **Change** | Catch Postgres `23505` on that constraint and return HTTP 409 with body meaning "already in this box" (idempotent-friendly for retries). |
 
-#### 13. Retain semantics vs completion Q4
+#### 13. Retain / office-inventory semantics (do NOT hand-roll terminal retain)
 
 | | |
 |---|---|
-| **Why** | App moves retained pieces to `terminal:retained` (`sampleMovement.model.js` ~:288–300). Plan §5.4 says retention is a balance at the physical location + local closeout, not a fake terminal movement, unless product classifies retain as terminal. |
+| **Why** | App currently moves retained pieces to `terminal:retained` (`sampleMovement.model.js` ~:288–300). That fights the confirmed 2026-07-23 rule: the **database** automatically moves an office's remaining pieces into that office's inventory bucket (`terminal/{office_id}_office_inventory`, lifecycle `retain`) the moment some pieces ship **onward** out of the office. Hand-rolling `terminal:retained` would invent a competing disposition and double-count or skip conservation. |
 | **Anchors** | `models/sampleMovement.model.js` ~:288–300 |
-| **Change** | Prefer: leave retained quantity at `office`/`factory` and record closeout when handling is done. Only post to `terminal:*` for true terminal dispositions (deliver/dispose/loss/return). Coordinate with shared-db Q4 (this SPEC's completion table). |
+| **Change** | **Do not** post retain-as-`terminal:retained` from the app for office remainders. Let the DB auto-inventory trigger handle office remainders on onward ship/deliver. The app should post genuine terminal dispositions only for true exit events (`deliver` / `dispose` / `loss` / `return`). Surface auto-generated office-inventory movements **read-only** in UI/history (idempotency keys like `auto-ofc-inv-{source_movement_id}`). Do not invent a second retain write path. |
 
 #### 14. `Sample.remove` vs RESTRICT FKs
 
@@ -213,7 +245,8 @@ the corrected vocabulary and required fields.
 | Stop treating grid Qty as editable authority | `sample.tracking.config.ts` ~:81–84 — demote Qty/status/office/box to read-only compatibility or derived display |
 | Expose pack → ship → receive as the main custody path | Tracking service already has `packShipmentLines` / `shipShipmentLine` but **no component calls them**; movement ship requires `shipment_line_id` |
 | Show derived global status from `sample_global_status` (or a tracking BFF field that reads it) instead of legacy `sample.status` | status column / filters / badges |
-| Retain UI must match the Q4 decision (physical office balance vs terminal:retained) | retain action handlers |
+| Display `*_office_inventory` terminal buckets as out-of-flow resolved locations (e.g. "Ningbo Ofc Inventory", "NY Ofc Inventory"), not as outstanding work; show auto-generated retain movements read-only in history | inventory / location / history UI |
+| Do **not** hand-roll retain-to-`terminal:retained`; rely on DB auto-inventory on onward ship | retain action handlers |
 
 ---
 
@@ -225,6 +258,7 @@ the corrected vocabulary and required fields.
   from the shared-db worktree.
 - Raw audit report files (filed separately by the calling engineer).
 - Production promotion windows, Coolify/Cloud Build, or secret changes.
+- Opening / merging shared-db PRs or applying migrations (calling engineer).
 
 ---
 
@@ -233,12 +267,14 @@ the corrected vocabulary and required fields.
 1. **tracking-p0-contract** — items 1–7 only; unit tests assert CHECK-safe
    payloads; no UI redesign.
 2. **tracking-p1-ledger-adoption** — items 8–14; integration tests for create
-   movement, check-in/out movements, 409 already-in-box.
+   movement, check-in/out movements, 409 already-in-box; **no** hand-rolled
+   `terminal:retained` for office remainders.
 3. **frontend-vocab-and-closeout** — vocab + watermark + error surfacing.
 4. **frontend-custody-ux** — pack/ship/receive path, derived global status,
-   demoted Qty column.
+   demoted Qty column, office-inventory buckets as out-of-flow locations.
 
 Each PR targets `develop` from `sandbox-albert` (or the active sandbox branch)
 and waits for Uma review. shared-db completion-semantics should be merged and
 visible on the environment those PRs test against before relying on
-`uninitialized` / fixed Defect B behavior.
+`uninitialized` / fixed Defect B / auto office-inventory / customer-resolved
+complete behavior.

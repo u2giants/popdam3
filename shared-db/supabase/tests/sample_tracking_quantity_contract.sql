@@ -1,11 +1,21 @@
 -- Run on preview inside a transaction; proves conservation, idempotency,
 -- discrepancies, immutability, closeout distinction, and unknown legacy state.
+--
+-- Updated 2026-07-23 for the CONFIRMED office-inventory rule (migration
+-- 20260723230000): when pieces ship onward out of an office, the remainder at
+-- that office is automatically moved to that office's terminal inventory
+-- bucket ({office}_office_inventory) and leaves the tracking flow. Pieces stay
+-- conserved. Customer-delivered is also resolved. The canonical four-piece end
+-- state is therefore ningbo_office_inventory=1, nyc_office_inventory=2,
+-- customer=1, offices=0, and the batch derives 'complete' (previously this
+-- suite expected office balances 1/2 and 'outstanding').
 BEGIN;
 
 DO $$
 DECLARE
   v_sample integer; v_box integer; v_line bigint; v_first bigint; v_replay bigint;
   v_ny bigint; v_nb bigint; v_customer bigint; v_transit bigint;
+  v_nb_inv bigint; v_ny_inv bigint; v_total bigint;
 BEGIN
   INSERT INTO dflow.sample(origin,direction,sample_name,status,quantity_migration_state)
   VALUES('factory','inbound','quantity-contract-test','created','known') RETURNING sample_id_pk INTO v_sample;
@@ -32,8 +42,21 @@ BEGIN
   SELECT COALESCE(max(quantity),0) INTO v_ny FROM dflow.sample_balance_by_location WHERE sample_id_fk=v_sample AND location_type='office' AND location_id='nyc';
   SELECT COALESCE(max(quantity),0) INTO v_customer FROM dflow.sample_balance_by_location WHERE sample_id_fk=v_sample AND location_type='customer';
   SELECT COALESCE(sum(quantity),0) INTO v_transit FROM dflow.sample_balance_by_location WHERE sample_id_fk=v_sample AND location_type='in_transit';
-  IF v_nb<>1 OR v_ny<>2 OR v_customer<>1 OR v_transit<>0 THEN
-    RAISE EXCEPTION 'four-piece conservation failed: ningbo %, nyc %, customer %, transit %',v_nb,v_ny,v_customer,v_transit;
+  SELECT COALESCE(max(quantity),0) INTO v_nb_inv FROM dflow.sample_balance_by_location WHERE sample_id_fk=v_sample AND location_type='terminal' AND location_id='ningbo_office_inventory';
+  SELECT COALESCE(max(quantity),0) INTO v_ny_inv FROM dflow.sample_balance_by_location WHERE sample_id_fk=v_sample AND location_type='terminal' AND location_id='nyc_office_inventory';
+
+  -- Office remainders were auto-moved into each office's inventory bucket.
+  IF v_nb<>0 OR v_ny<>0 OR v_customer<>1 OR v_transit<>0 THEN
+    RAISE EXCEPTION 'four-piece conservation failed: ningbo %, nyc %, customer %, transit % (offices must be 0 after auto office-inventory)',v_nb,v_ny,v_customer,v_transit;
+  END IF;
+  IF v_nb_inv<>1 OR v_ny_inv<>2 THEN
+    RAISE EXCEPTION 'auto office-inventory failed: ningbo_office_inventory %, nyc_office_inventory % (expected 1 and 2)',v_nb_inv,v_ny_inv;
+  END IF;
+
+  -- All four pieces remain conserved across every location.
+  SELECT COALESCE(sum(quantity),0) INTO v_total FROM dflow.sample_balance_by_location WHERE sample_id_fk=v_sample AND quantity>0;
+  IF v_total<>4 THEN
+    RAISE EXCEPTION 'four-piece total conservation failed: total % (expected 4)',v_total;
   END IF;
 
   BEGIN
@@ -46,8 +69,12 @@ BEGIN
     RAISE EXCEPTION 'posted movement was mutable';
   EXCEPTION WHEN object_not_in_prerequisite_state THEN NULL; END;
 
-  IF (SELECT derived_status FROM dflow.sample_global_status WHERE sample_id_pk=v_sample) <> 'outstanding' THEN
-    RAISE EXCEPTION 'retained balances must remain globally outstanding';
+  -- CONFIRMED 2026-07-23: office remainders left the tracking flow into their
+  -- office inventory buckets and the delivered piece is resolved, so the batch
+  -- is globally complete with all four pieces still conserved.
+  IF (SELECT derived_status FROM dflow.sample_global_status WHERE sample_id_pk=v_sample) <> 'complete' THEN
+    RAISE EXCEPTION 'four-piece end state must be globally complete once office remainders moved to office inventory (got %)',
+      (SELECT derived_status FROM dflow.sample_global_status WHERE sample_id_pk=v_sample);
   END IF;
 
   RAISE NOTICE 'sample tracking quantity contract: all checks passed';

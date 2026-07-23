@@ -1,17 +1,59 @@
 # HANDOFF — shared-db current state
 
-## DB Data Admin — non-SSO tester login (BLOCKED — awaiting owner decision, 2026-07-23)
+## DB Data Admin — non-SSO tester login (DONE — 2026-07-23)
 
-Status: **blocked / not started.** No code, auth config, or user was created.
+Status: **done.** Owner approved "gate to data-dev only" on 2026-07-23. Shipped in
+PR #195 (`3d3c434`); tester user created; flag live on data-dev; credential stored in
+1Password as **"DB Data Admin AI tester login (data-dev.designflow.app) - non-SSO"**.
 
-### Goal
+### What exists now
+
+| Piece | State |
+|---|---|
+| `allowPasswordLogin` flag (`config.ts`, `nginx.conf`, `App.tsx`) | Merged in #195. Strict opt-in: only `true` / `"true"` enables it. |
+| Coolify env `DB_DATA_ADMIN_ALLOW_PASSWORD_LOGIN=true` | Set on app `v6z1sveur7e32dub1dp3ao4v` (`db-data-admin-development`) **only**. |
+| Tester auth user | `ai-tester@data-dev.designflow.app`, auth id `0a55652c-260e-41ac-aa8a-18636bcfab6b`, profile `098e5791-101b-4cf3-8a9e-8efccc2040d7`, Administrator granted. |
+| Invitation row | `public.invitations` id `f9b1301f-c1af-421e-8ad0-5c7c896c067e` (required — see gate below). |
+| Credential | 1Password vault `vibe_coding`, item `agk4gstcwazitt76evs5r2agvi`. |
+
+Verified: `https://data-dev.designflow.app/config.js` shows `allowPasswordLogin: 'true'`;
+the login page renders "Internal testing sign-in" **alongside** (not replacing) the
+Microsoft button on build `3d3c434`; password grant returns an access token.
+Production `data.designflow.app` has no server running and never received the flag.
+
+### The invitation gate — READ THIS BEFORE RECREATING THE USER
+
+`public.handle_new_user` (trigger on `auth.users`) makes **email/password signup
+invitation-only**; only provider `azure` / `authentik` bypasses it. Creating an
+email/password user without an invitation row fails with HTTP 500
+`{"code":"P0001","message":"Access denied: no valid invitation found for …"}`.
+**This is a deliberate guardrail — do not disable or edit the trigger.** Insert an
+invitation first:
+
+```sql
+insert into public.invitations (email, role, apps)
+values ('<email>', 'user', array['popdam']::public.app_name[]);
+```
+
+then create the user via the Auth Admin API with `email_confirm: true`, then insert the
+`app.user_role` administrator row (the trigger only auto-grants admin to
+`u2giants@gmail.com` / `albert@popcre.com`).
+
+### Known limitation
+
+An AI session still cannot *type* the password into the login form — Claude's operating
+rules prohibit entering passwords into fields. The credential is usable by a human, or
+programmatically via the Supabase password-grant endpoint. Plan browser verification
+accordingly.
+
+### Original goal (kept for context)
 
 Albert asked for "internal (non-SSO) credentials to `https://data-dev.designflow.app`
 for testing purposes," stored in 1Password, so an AI session can log in and drive the UI
 (the Multi Filter work shipped this session could not be visually verified for exactly
 this reason).
 
-### Why it is blocked — read before implementing
+### Why it had to be gated — read before changing it
 
 1. **The app is Microsoft-SSO only.** `apps/db-data-admin/src/App.tsx` offers a single
    auth path: `supabase.auth.signInWithOAuth({ provider: 'azure' })`. There is **no**
@@ -30,7 +72,7 @@ this reason).
    **"production-sensitive."** DB Data Admin can edit and **merge** records. A password
    credential with an Administrator grant there is effectively production-grade access.
 
-### Recommended design (needs owner approval before building)
+### The design that was built (owner-approved)
 
 - Add an email/password sign-in form **gated behind an explicit runtime flag**
   (e.g. `DB_DATA_ADMIN_ALLOW_PASSWORD_LOGIN`, surfaced through `/config.js` and
@@ -82,11 +124,11 @@ Access is **available** — no new credentials need to be requested:
   `GET https://api.supabase.com/v1/projects`. Do not conclude the token is wrong —
   list branches instead.
 
-### Exact next action
+### If you need to change this
 
-Get the owner's yes/no on the gated-password-form design above. If yes, implement the
-three bullets in "Recommended design", then update this section. If no, record the
-alternative chosen and delete this section.
+Never set `DB_DATA_ADMIN_ALLOW_PASSWORD_LOGIN` on the production Coolify app. To revoke
+the tester instead of deleting it, set `revoked_at` on its `app.user_role` row, or unset
+the Coolify variable and redeploy to remove the form entirely.
 
 ## Stage 0 — Safe DAM core licensor/property cutover (ACTIVE — local revision in worktree; not committed/applied)
 
