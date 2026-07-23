@@ -73,6 +73,10 @@ const LICENSOR_ALIASES: ReadonlyArray<{ alias: string; canonical: string }> = [
   { alias: "One Piece", canonical: "TOEI - ONE PIECE" },
   { alias: "Peanuts", canonical: "Peanuts Worldwide" },
   { alias: "Sesame Workshop", canonical: "Sesame Street" },
+  // Paramount / Nickelodeon / Viacom are the same licensor family in core.
+  { alias: "Paramount", canonical: "Viacom Multi" },
+  { alias: "Nickelodeon", canonical: "Viacom Multi" },
+  { alias: "Viacom", canonical: "Viacom Multi" },
 ];
 const PROPERTY_ALIASES: ReadonlyArray<{ alias: string; canonical: string }> = [];
 
