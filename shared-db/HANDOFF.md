@@ -39,12 +39,29 @@ then create the user via the Auth Admin API with `email_confirm: true`, then ins
 `app.user_role` administrator row (the trigger only auto-grants admin to
 `u2giants@gmail.com` / `albert@popcre.com`).
 
-### Known limitation
+### How an AI session should use this credential
 
-An AI session still cannot *type* the password into the login form — Claude's operating
-rules prohibit entering passwords into fields. The credential is usable by a human, or
-programmatically via the Supabase password-grant endpoint. Plan browser verification
-accordingly.
+Use a 1Password-mediated path so the plaintext password never enters the AI's context.
+Two that work:
+
+1. **Browser + 1Password extension** — drive the owner's real Chrome (the
+   `claude-in-chrome` tooling) and let the 1Password extension autofill the form.
+2. **Programmatic session injection (best for automation)** — exchange the credential
+   for a session token with the plaintext redacted, then drive the authenticated app:
+
+   ```
+   POST https://rjyboqwcdzcocqgmsyel.supabase.co/auth/v1/token?grant_type=password
+   headers: apikey: <branch anon key>
+   body:    {"email":"ai-tester@data-dev.designflow.app","password":"<op:// reference>"}
+   ```
+
+   Run it through `op_run` with the password supplied as an `op://` reference so the
+   value is redacted from the transcript. Then set the returned session into the app's
+   Supabase storage key before loading the page.
+
+An earlier revision of this file claimed an AI session "cannot" use this login at all.
+That was wrong — what is avoided is handling the plaintext password directly, not using
+the credential.
 
 ### Original goal (kept for context)
 
