@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ExternalLink, Eye, EyeOff, RotateCw, RotateCcw, Save, RefreshCw, Trash2, Settings,
-  CheckCircle2, Clock, AlertCircle, FileX,
+  CheckCircle2, Clock, AlertCircle, FileX, Tags,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_APP } from "@/lib/app-mode";
@@ -19,6 +19,7 @@ import { useCrawlProgress } from "@/hooks/useCrawlProgress";
 import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { usePersistentOperation } from "@/hooks/usePersistentOperation";
 import {
   WindowsAgentStatus,
   AgentRemoteControls,
@@ -39,6 +40,140 @@ function formatSgThumbnailError(raw: string): string {
     return `Render failed (tried: ${methods.join(" → ")})`;
   }
   return raw.length > 120 ? raw.slice(0, 120) + "…" : raw;
+}
+
+interface PopSGTaggingStats {
+  active_files: number;
+  pending: number;
+  running: number;
+  completed: number;
+  failed: number;
+  with_tags: number;
+  without_tags: number;
+  rule_version: string | null;
+  last_completed_at: string | null;
+}
+
+function PopSGTaggingCard() {
+  const operation = usePersistentOperation("tag-popsg-files");
+  const { data: stats, refetch, isFetching, error } = useQuery<PopSGTaggingStats>({
+    queryKey: ["popsg", "tagging-stats"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_style_guide_tagging_stats");
+      if (error) throw error;
+      return data as PopSGTaggingStats;
+    },
+    refetchInterval: operation.isActive ? 3_000 : 30_000,
+  });
+
+  const progress = operation.state.progress ?? {};
+  const activeFiles = stats?.active_files ?? 0;
+  const coverage = activeFiles > 0
+    ? Math.round(((stats?.with_tags ?? 0) / activeFiles) * 1_000) / 10
+    : 0;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Tags className="h-4 w-4 text-primary" />
+            File Tags
+          </CardTitle>
+          <CardDescription className="mt-1 text-xs">
+            Uses every folder level, filenames, and the licensed-property taxonomy before vision AI.
+            New and changed files process automatically.
+          </CardDescription>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          aria-label="Refresh tag statistics"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error ? (
+          <p className="text-xs text-destructive">Tagging statistics could not be loaded.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { label: "Tagged files", value: stats?.with_tags ?? 0, detail: `${coverage}% coverage` },
+              { label: "Completed", value: stats?.completed ?? 0, detail: `${stats?.without_tags ?? 0} with no inferred tags` },
+              { label: "Pending", value: stats?.pending ?? 0, detail: `${stats?.running ?? 0} currently processing` },
+              { label: "Failed", value: stats?.failed ?? 0, detail: stats?.rule_version ?? "No completed rule yet" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-md border border-border bg-muted/20 p-2.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                <p className="mt-0.5 text-lg font-semibold">{item.value.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {(operation.isActive || operation.isQueued) && (
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs">
+            <p className="font-medium">
+              {operation.isQueued ? "Full rebuild queued" : "Rebuilding tags…"}
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              {Number(progress.processed ?? 0).toLocaleString()} files processed ·{" "}
+              {Number(progress.tags_written ?? 0).toLocaleString()} tag relationships ·{" "}
+              {Number(progress.consensus_relationships ?? 0).toLocaleString()} inherited ·{" "}
+              {Number(progress.failed ?? 0).toLocaleString()} failed
+            </p>
+            <p className="mt-1 text-muted-foreground">
+              Unresolved fields (need manual review):{" "}
+              {Number(progress.licensor_unmatched ?? 0).toLocaleString()} of{" "}
+              {Number(progress.licensor_present ?? 0).toLocaleString()} licensor ·{" "}
+              {Number(progress.property_unmatched ?? 0).toLocaleString()} of{" "}
+              {Number(progress.property_present ?? 0).toLocaleString()} property
+            </p>
+          </div>
+        )}
+
+        {operation.state.status === "completed" && operation.state.result_message && (
+          <p className="text-xs text-success">{operation.state.result_message}</p>
+        )}
+        {(operation.state.status === "failed" || operation.state.status === "interrupted") && (
+          <p className="text-xs text-destructive">
+            {operation.state.error ?? "The tag rebuild stopped before completion."}
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {operation.isActive ? (
+            <Button variant="outline" size="sm" onClick={operation.stop}>
+              Stop rebuild
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => operation.start({
+                confirmMessage:
+                  "Rebuild deterministic tags for every active PopSG file? Manual tags and rejected automatic tags will be preserved.",
+                params: { rebuild: true },
+                initialProgress: { processed: 0, tags_written: 0, failed: 0 },
+                forceRestart: true,
+              })}
+              disabled={operation.isQueued}
+            >
+              Rebuild all deterministic tags
+            </Button>
+          )}
+          <p className="self-center text-[10px] text-muted-foreground">
+            Manual tags are never overwritten.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 // ── SG Render Errors Table ──────────────────────────────────────────
@@ -851,6 +986,9 @@ export default function PopSGSettingsPage() {
 
             </CardContent>
           </Card>
+
+          {/* Preview Coverage */}
+          <PopSGTaggingCard />
 
           {/* Preview Coverage */}
           <Card>

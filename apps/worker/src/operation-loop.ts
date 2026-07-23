@@ -22,6 +22,7 @@ import { handleRelinkOrphanedAssets } from "./handlers/relink-orphaned.js";
 import { handlePropagateGroupTags } from "./handlers/tag-propagation.js";
 import { handleApplyErpEnrichment, handleClassifyErpCategories } from "./handlers/erp.js";
 import { handleRichPdfExtract } from "./handlers/rich-pdf.js";
+import { handlePopSGFileTags, processPendingPopSGTags } from "./handlers/popsg-tags.js";
 import { maybeMirrorSeaDrive } from "./handlers/seadrive-mirror.js";
 import {
   getNextAutoResumeAt,
@@ -54,6 +55,7 @@ const OP_LANES: Record<string, string> = {
   "propagate-group-tags": "style-groups",
   "cleanup-mega-group-tags": "style-groups",
   "relink-orphaned-assets": "style-groups",
+  "tag-popsg-files": "popsg-tags",
 };
 
 // Cross-lane conflicts — operations in DIFFERENT lanes that still cannot run simultaneously.
@@ -172,6 +174,22 @@ function mergeProgress(opKey: string, prev: Record<string, unknown>, batch: Batc
         relinked: ((prev.relinked as number) || 0) + ((batch.relinked as number) || 0),
         errors: ((prev.errors as number) || 0) + ((batch.errors as number) || 0),
       };
+    case "tag-popsg-files":
+      return {
+        processed: ((prev.processed as number) || 0) + ((batch.processed as number) || 0),
+        tags_written: ((prev.tags_written as number) || 0) + ((batch.tags_written as number) || 0),
+        failed: ((prev.failed as number) || 0) + ((batch.failed as number) || 0),
+        licensor_present: ((prev.licensor_present as number) || 0) + ((batch.licensor_present as number) || 0),
+        licensor_unmatched: ((prev.licensor_unmatched as number) || 0) + ((batch.licensor_unmatched as number) || 0),
+        property_present: ((prev.property_present as number) || 0) + ((batch.property_present as number) || 0),
+        property_unmatched: ((prev.property_unmatched as number) || 0) + ((batch.property_unmatched as number) || 0),
+        consensus_folders: ((prev.consensus_folders as number) || 0) + ((batch.consensus_folders as number) || 0),
+        consensus_relationships: ((prev.consensus_relationships as number) || 0) + ((batch.consensus_relationships as number) || 0),
+        failure_samples: [
+          ...(Array.isArray(prev.failure_samples) ? prev.failure_samples : []),
+          ...(Array.isArray(batch.failure_samples) ? batch.failure_samples : []),
+        ].slice(-100),
+      };
     default:
       return { ...prev, ...batch };
   }
@@ -274,6 +292,8 @@ function buildResultMessage(opKey: string, progress: Record<string, unknown>): s
       return `Cleaned ${progress.groups_processed || 0} mega-groups: ${progress.tags_deleted || 0} tags deleted, ${progress.characters_deleted || 0} characters removed, ${progress.metadata_cleared || 0} assets metadata cleared`;
     case "relink-orphaned-assets":
       return `Relinked ${progress.relinked || 0} orphaned assets${progress.errors ? `, ${progress.errors} errors` : ""}`;
+    case "tag-popsg-files":
+      return `Tagged ${progress.processed || 0} PopSG files with ${progress.tags_written || 0} direct relationships and ${progress.consensus_relationships || 0} folder-consensus relationships. ${progress.failed || 0} failed.`;
     default:
       return "Operation completed";
   }
@@ -311,6 +331,8 @@ async function dispatch(opKey: string, opState: OpState): Promise<BatchResult> {
       return handleClassifyErpCategories(opState);
     case "rich-pdf-extract":
       return handleRichPdfExtract(opState);
+    case "tag-popsg-files":
+      return handlePopSGFileTags(opState);
     default:
       return { ok: false, done: false, error: `Unknown operation: ${opKey}` };
   }
@@ -348,6 +370,7 @@ export async function tick(): Promise<void> {
 
   // Best-effort, self-throttled (weekly) — never blocks or breaks the op loop.
   await maybeMirrorSeaDrive();
+  await processPendingPopSGTags();
 
   // Load all operations
   const { data: configRow, error: configErr } = await client
