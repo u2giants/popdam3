@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStyleGroups, useStyleGroupAssetCount, useStyleGroupCount, useUngroupedCount, useTotalAssetCount, type StyleGroup } from "@/hooks/useStyleGroups";
 import { useAssets, useFilterOptions, useFilterCounts, useVisibilityDate, usePathFacets, useProductMaterials } from "@/hooks/useAssets";
+import { useDamCustomerFacets } from "@/hooks/useDamCustomers";
 import { defaultFilters, countActiveFilters, hasActiveFilters, type AssetFilters, type SortField, type SortDirection, type ViewMode, type LibraryMode } from "@/types/assets";
 import type { Asset, CardStyle } from "@/types/assets";
 import LibraryTopBar from "@/components/library/LibraryTopBar";
@@ -78,6 +79,7 @@ export default function LibraryPage() {
   const { data: facetCounts } = useFilterCounts(filters);
   const { data: pathFacets } = usePathFacets(filters.customer);
   const { data: materialOptions } = useProductMaterials();
+  const { data: damCustomerFacets } = useDamCustomerFacets();
 
   const groups = sgData?.groups ?? [];
   const assets = assetData?.assets ?? [];
@@ -213,7 +215,7 @@ export default function LibraryPage() {
             licensors={licensors}
             properties={properties}
             facetCounts={facetCounts ?? null}
-            customerOptions={pathFacets?.customers ?? []}
+            customerOptions={damCustomerFacets ?? []}
             programOptions={pathFacets?.programs ?? []}
             materialOptions={materialOptions ?? []}
             mode={libraryMode === "assets" ? "assets" : "groups"}

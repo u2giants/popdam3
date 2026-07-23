@@ -2966,7 +2966,10 @@ export type Database = {
         }[]
       }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
-      get_path_facets: { Args: { p_customer?: string }; Returns: Json }
+      get_path_facets: {
+        Args: { p_customer_id?: string }
+        Returns: Json
+      }
       get_pdf_rich_extraction_hashes: {
         Args: { p_asset_ids: string[] }
         Returns: {

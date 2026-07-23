@@ -162,7 +162,9 @@ function applyFilters(
     query = query.in("stage", filters.stage);
   }
   if (filters.customer) {
-    query = query.eq("customer", filters.customer);
+    // filters.customer holds a canonical core.customer id (from api.dam_customer_list),
+    // matched against the durable customer_id FK — no longer the legacy free text.
+    query = query.eq("customer_id", filters.customer);
   }
   if (filters.program) {
     query = query.eq("program", filters.program);
@@ -346,9 +348,11 @@ export interface PathFacet {
 }
 
 /**
- * Distinct customers + programs for the path-attribute filter combos.
- * Programs are scoped to the selected customer when one is provided.
- * Sourced from style_groups (the natural per-SKU unit) via the get_path_facets RPC.
+ * Program facets for the path-attribute filter combo, scoped to the selected
+ * customer. The customer is now a canonical core.customer id (from
+ * api.dam_customer_list), so scoping is by the style_groups.customer_id FK via
+ * get_path_facets(p_customer_id). Customer options come from useDamCustomerFacets,
+ * not from this RPC's legacy free-text customers list.
  */
 /** Distinct product_material values (rich-PDF facet) for the library Material filter. */
 export function useProductMaterials() {
@@ -366,18 +370,17 @@ export function useProductMaterials() {
   });
 }
 
-export function usePathFacets(customer?: string | null) {
+export function usePathFacets(customerId?: string | null) {
   return useQuery({
-    queryKey: ["path-facets", customer ?? "all"],
+    queryKey: ["path-facets", customerId ?? "all"],
     queryFn: async () => {
       // Cast: get_path_facets is added by migration; generated types may lag the frontend build.
       const { data, error } = await (supabase.rpc as any)("get_path_facets", {
-        p_customer: customer ?? undefined,
+        p_customer_id: customerId ?? undefined,
       });
       if (error) throw error;
-      const obj = (data ?? {}) as { customers?: PathFacet[]; programs?: PathFacet[] };
+      const obj = (data ?? {}) as { programs?: PathFacet[] };
       return {
-        customers: obj.customers ?? [],
         programs: obj.programs ?? [],
       };
     },

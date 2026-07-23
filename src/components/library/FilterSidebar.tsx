@@ -16,7 +16,7 @@ interface FilterSidebarProps {
   licensors: { id: string; name: string; asset_count: number }[];
   properties: { id: string; name: string; licensor_id: string; asset_count: number }[];
   facetCounts: FacetCounts | null;
-  customerOptions?: { name: string; count: number }[];
+  customerOptions?: { id: string; label: string; count: number }[];
   programOptions?: { name: string; count: number }[];
   /** Distinct product-material values for the Material facet (rich-PDF extraction). */
   materialOptions?: string[];
@@ -450,8 +450,8 @@ export default function FilterSidebar({
   }));
 
   const customerComboOptions: ComboOption[] = customerOptions.map((c) => ({
-    id: c.name,
-    name: c.name,
+    id: c.id,
+    name: c.label,
     count: c.count,
   }));
 

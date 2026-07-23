@@ -184,7 +184,8 @@ function applyStyleGroupFilters(
     query = query.in("stage", filters.stage);
   }
   if (filters.customer) {
-    query = query.eq("customer", filters.customer);
+    // Canonical core.customer id (api.dam_customer_list) against the FK, not free text.
+    query = query.eq("customer_id", filters.customer);
   }
   if (filters.program) {
     query = query.eq("program", filters.program);
