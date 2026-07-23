@@ -1,5 +1,92 @@
 # HANDOFF — shared-db current state
 
+## PopSG outage during DAM taxonomy migration — 2026-07-23 (production cutover still pending)
+
+### What the application is
+
+PopDAM is the internal digital-asset library; PopSG is its licensor style-guide
+mode at `https://sg.designflow.app`. Both use shared Supabase production project
+`qsllyeztdwjgirsysgai`. PopSG reads the `style_guide_folders` and
+`style_guide_file_groups` views through PostgREST.
+
+### Goal and trigger
+
+Migration `20260723113000_dam_core_licensor_property_cutover.sql` was intended
+to move PopDAM asset/style-group licensor and property foreign keys from legacy
+`public.*` taxonomy tables to canonical `core.*` rows. During its production
+attempt, PopSG showed “Style guides could not load,” which triggered this
+incident investigation.
+
+### Current state
+
+- PopSG recovered and was browser-verified on 2026-07-23: folders returned HTTP
+  200, the paginated guide query returned HTTP 206, and live guide cards
+  rendered.
+- The production cutover **is not applied**. The 10-minute timeout rolled back
+  `20260723113000`; production ledger has only its preceding timeout guard
+  `20260723112900`, not `113000` or reset migration `113100`.
+- The database answers direct read-only inspection normally. No outage repair
+  changed application data or schema.
+- PopDAM local commit `920f64c` contains dependent taxonomy code but was not
+  pushed by this incident session; do not deploy it before the database cutover
+  is safely completed.
+
+### What failed
+
+The unchanged preview-proven migration was attempted in production. Its
+single-transaction batched update remained active for 10 minutes and held the
+DDL/asset transaction open. PostgREST could not rebuild its schema cache, so
+all browser database reads returned HTTP 503/PGRST002. The timeout correctly
+rolled the migration back, but PostgREST did not recover by itself. Waiting
+after rollback and retrying the browser did not help. The documented PostgREST
+config/schema reload signals restored service once the transaction was gone.
+
+### Root cause and key findings
+
+- The production asset rewrite exceeded the 10-minute guard despite preview
+  completing in 6m48s.
+- The transaction's availability impact was broader than PopSG; even
+  `user_roles` and `admin_config` returned 503.
+- Auth remained healthy, and Supabase's public status page showed the region
+  operational; this was project-specific.
+- All configured PostgREST schemas still existed. Missing-schema configuration
+  was ruled out.
+- Exact evidence and the recovery commands are in
+  `docs/app-migration-notes/popdam-core-licensor-property-20260723.md`.
+
+### Exact next steps
+
+1. Redesign the production backfill so the large asset rewrite does not share
+   one long transaction with PostgREST-affecting DDL. It passes only when a
+   preview rehearsal keeps representative REST queries healthy throughout.
+2. Run the shared-db SQL checks and a production dry-run. It passes only when
+   the output shows the intended pending sequence beginning at `20260723113000`
+   and no surprise migrations.
+3. Apply in an approved production window while probing a simple REST table,
+   `style_guide_folders`, and `style_guide_file_groups`. Abort on any 503.
+4. Verify the five target FKs, canonical link counts, migration ledger, and live
+   PopSG cards. Only then push/deploy dependent PopDAM taxonomy code.
+
+### Constraints and gotchas
+
+Do not edit an already-applied migration, do not mark the timed-out migration
+as applied, and do not retry it unchanged. Schema changes remain preview-first
+and use shared-db branch + PR. PostgREST reload signals are recovery after a
+failed transaction, not a substitute for fixing the migration's locking model.
+
+### Access and environment
+
+The authenticated Supabase CLI works against production and was used for
+read-only query/lock/migration inspection. Credentials remain in 1Password
+vault `vibe_coding`; no secret value was read into chat or added this session.
+Repo target is `u2giants/shared-db`; normal schema work uses a branch + PR.
+
+### Open questions and risks
+
+The safe backfill shape and acceptable production maintenance window are not
+yet decided. The largest risk is repeating a long DDL/backfill transaction and
+causing another shared Data API outage across PopDAM, PopSG, CRM, and PM/PIM.
+
 ## Sample Tracking schema — 2026-07-22 update (APPLIED to preview AND production)
 
 The full Sample Tracking schema is merged to `main` and **live on both preview
