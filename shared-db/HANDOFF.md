@@ -348,7 +348,7 @@ the original collision.
 
 ---
 
-## Active workstream — DB Data Admin implementation (2026-07-22)
+## Active workstream — DB Data Admin implementation (updated 2026-07-23)
 
 ### 1. What this application is
 
@@ -456,8 +456,45 @@ hierarchy with dated reconciliation and loud orphan handling. Production writes 
 - Albert's active preview profile had the Administrator role and now has one explicit,
   non-revoked **preview-only** `admin` access row. It was added only after verifying the
   profile and role. No production grant or production database change was made.
-- Consumer enforcement, bulk operations, and production delivery remain Steps 11–13 and are
-  not started.
+- **Step 11 consumer enforcement is implementation-complete.** PM/PIM, CRM, and DAM picker
+  changes are committed, deployed, and visually verified. Shared-db PR #188 (merge
+  `437b69a`) added protected, explicit-app-access CRM/PM serving views and closed the two
+  newly introduced DAM Customer merge FKs. PR #189 (merge `ade1b17`) records the complete
+  evidence in
+  `docs/verification/step11-enforcement-ledger-20260723.md`.
+- Migrations `20260723223000_protect_app_picker_serving_contracts.sql` and
+  `20260723223100_cover_dam_customer_fk_merges.sql` were applied preview-first, then promoted
+  through a physically bounded production runner. `app_serving_status_contracts.sql` and
+  `db_data_admin_merge_coverage.sql` pass on preview and production. The historical fixture
+  assigns an inactive Customer UUID to `public.style_tracker_rows.customer_id` and
+  `pim.product.company_id`; the merge fixture proves assignments repoint to the survivor and
+  the loser identity remains through `core.company_source_ref` plus `core.customer_alias`.
+- PM production visual acceptance passed in `TaskDetailModal`: the Retailer picker is
+  populated and contains active-only labels. Evidence:
+  `C:\Users\ahazan2\AppData\Local\Temp\codex-step11-browser\pm-task-detail-retailer-picker-final.png`.
+  Production had no real inactive Customer assigned to `pim.product`, so no durable business
+  row was fabricated merely for a screenshot; rollback-safe SQL proves that path.
+- CRM production visual acceptance passed after app commit `66a2ed2`: active `Burlington`
+  appears in Command Search, globally inactive `Midwest Marketing Associates, LLC` does not
+  appear as a Customer, and a slow email-search group can no longer blank valid Customer
+  results. CI built, published, deployed, and verified the commit. Evidence:
+  `C:\Users\ahazan2\AppData\Local\Temp\codex-step11-browser\crm-search-active.png` and
+  `crm-search-inactive.png`.
+- DAM production acceptance passed for Licensed Originally Designed For, Licensed Sample
+  Vendor, and Generic Special Customer. The final read contracts accept canonical DAM access
+  or the live legacy PopDAM authority while exposing only picker-safe columns. Evidence and
+  the failed attempts are in the Step 11 ledger.
+- DesignFlow backend PR
+  `https://github.com/popcre/designflow-backend/pull/64` is green and production-disabled,
+  but remains open with no review. Its two commits add stable Customer/Factory master-data
+  exports and an idempotent admin PLM-status operation. **Uma must review and merge it; the AI
+  must not merge it.** This is the only formal Step 11 closure gate outside the AI's
+  authority.
+- Production remains safely read-only for DB Data Admin: `app.db_data_admin_feature_gate`
+  is absent, no production `admin` grantee exists, and all six Step 8–10 write/merge/tree
+  migration versions remain absent. Bulk operations (Step 12), production delivery
+  (Step 13), optional grid consolidation (Step 14), and final superseded-plan removal
+  (Step 15) remain.
 
 ### 4. What did not work
 
@@ -493,6 +530,23 @@ hierarchy with dated reconciliation and loud orphan handling. Production writes 
   applied migration was not edited; GLM added `20260722203100` using a deterministic text-cast
   UUID aggregate. The next run found a test-only nonexistent `jsonb_object_field_exists`
   helper; GLM corrected it to the native JSONB `?` operator. All nine suites then passed.
+- A normal production `supabase db push --dry-run` from the full repository correctly refused
+  because many older gated migrations sit before the production head. Do not respond with an
+  unbounded `--include-all`. The successful Step 11 promotion used
+  `C:\repos\shared-db-step11-promotion-runner`, whose migration directory physically contained
+  the production ledger plus only `20260723223000` and `20260723223100`; its dry-run listed
+  exactly those two files.
+- The original CRM `crm_customer_picker_list` was `security_invoker=true`. In production this
+  both excluded a valid PM/CRM test profile that had explicit app access but no shared role,
+  and made bounded CRM `ilike` search exceed PostgREST's statement timeout. The protected
+  security-barrier serving views in `20260723223000` fix both without exposing base tables.
+- CRM Command Search initially remained stuck on “Searching…” even after the Customer view was
+  repaired because `crm_email_routing_queue` independently timed out and `searchCrm` treated
+  all four groups as one failure. Commit `66a2ed2` makes groups independent and reports each
+  failed group loudly. Do not restore all-or-nothing search loading.
+- The production dataset contained no inactive PM Customer assignment suitable for a
+  historical-label screenshot. Creating fake durable production business data was rejected;
+  preview and production rollback fixtures provide the required proof without persistence.
 
 ### 5. Root causes and key findings
 
@@ -504,17 +558,43 @@ hierarchy with dated reconciliation and loud orphan handling. Production writes 
   editable Supabase PLM status. See `docs/db-data-admin-inventory.md`.
 - Merge engine coverage and the protected Step 9 workflow are complete. Production remains
   protected by the off-by-default database gates and the unpopulated production admin grant.
+- App access and shared roles are separate concepts. Picker-safe serving contracts must check
+  `app.has_explicit_app_access(<app>)` at the protected view boundary rather than accidentally
+  inheriting broad base-table role policies.
+- Stable DAM Customer UUIDs added to `public.assets` and `public.style_groups` created two new
+  FKs after the earlier merge inventory. Migration `20260723223100` and the coverage suite now
+  force `core.merge_customer` to repoint both before deleting a loser.
 
 ### 6. Exact next steps
 
-1. Refresh `https://data-dev.designflow.app`, use Microsoft SSO, open Licensors, and expand a
-   row. **Pass when** nested Properties, dated counts, source context, and the explicit live-
-   reconciliation disclaimer appear. Any real orphan must appear in the red alert.
-2. Start Step 11: consumer enforcement and safety audit across CRM, PM/PIM, DAM, and the six
-   DesignFlow repos. Follow each repo's branch/review rules. **Pass when** inactive records
-   disappear from exactly the intended pickers and no direct extension-table bypass remains.
-3. Continue Steps 12–13 in order. Do not promote migrations or enable production status/merge
-   writes before consumer enforcement and an approved production window.
+1. Have Uma review and merge DesignFlow backend PR #64 into `develop`; do not self-merge.
+   Re-run/confirm `forbid-shared-db-bypass` and the sandbox Cloud Build check after the merge.
+   **Pass when** the PR is merged by the authorized reviewer and the sandbox endpoints still
+   return stable IDs while production status writes remain disabled.
+2. Implement Step 12 from `DB_Data_Admin.md`: bulk preview/count/confirm, mandatory reason,
+   per-record audit, partial-failure reporting, and recovery/reactivation. Use a new
+   shared-db branch, new migrations, preview dry-run/apply, database tests, frontend unit
+   tests, and browser evidence. **Pass when** bulk success, partial failure, retry, audit, and
+   reactivation all work on preview without changing production.
+3. Prepare Step 13's explicit production manifest. Include only the reviewed DB Data Admin
+   write/merge/tree/bulk migrations in a physically bounded runner; never run unrestricted
+   `--include-all`. **Pass when** the production dry-run lists exactly the approved versions.
+4. In Albert's approved production window, promote the bounded manifest, create only the
+   approved explicit `admin` app-access grants, enable the production feature gates, and
+   enable the reviewed DesignFlow Customer status path. Vendor PLM writes remain disabled
+   until the stable `Factory.id` → `core.factory_source_ref` mapping is reviewed and
+   populated. **Pass when** administrator writes/merges/bulk operations audit correctly,
+   denied users remain denied, and every consumer picker still passes.
+5. Complete the GitHub Actions → GHCR → Coolify production deployment at
+   `https://data.designflow.app`. Verify Cloudflare DNS/TLS, Supabase Auth allowlist,
+   Microsoft/Entra redirect URI, SSO callback, `/health`, administrator and denied-user
+   behavior, and the live build SHA. **Pass when** the production URL serves the approved SHA
+   and the full database/application/browser suite passes.
+6. Treat Step 14 grid consolidation as optional post-launch product work; migrate an existing
+   non-DesignFlow screen only for a real product reason and after parity tests.
+7. Execute Step 15 only after every Definition-of-Done item is checked. Reconfirm every unique
+   requirement in `fix_impl_visual_admin_page.md`, then delete that file and all inbound
+   references in one final PR. **Pass when** the final audit proves nothing unique was lost.
 
 ### 7. Constraints and gotchas
 
@@ -534,11 +614,42 @@ the repo. Preview is `rjyboqwcdzcocqgmsyel`; production is `qsllyeztdwjgirsysgai
 ### 9. Open questions and risks
 
 The production admin-grantee list remains deliberately empty; Albert's explicit grant exists
-only on preview. Vendor PLM status cannot ship
-until DesignFlow exposes stable Factory identifiers and a reviewed mapping populates
-`core.factory_source_ref`. The Coldlion `/vendors` feed may include non-factories, so the open
-vendor-feed decision in AGENTS.md §6.2 still blocks further vendor curation. Production
-promotion requires an approved window and completed consumer enforcement.
+only on preview. Vendor PLM status cannot ship until PR #64 is reviewed and a one-time stable
+Factory-ID mapping populates `core.factory_source_ref`. Coldlion corrected `/vendors` to 97
+factory-only records on 2026-07-22, but `core.factory` still requires the separate reconciliation
+described in `fix_vendor_reconcile.md`. Production promotion requires an approved window,
+formal Step 11 closure, completed Step 12, and an exact bounded manifest.
+
+### DB Data Admin handoff self-audit — 2026-07-23
+
+1. **Could a street-new developer continue without questions? Yes.** Sections 1–3 define the
+   application, repositories, URLs, completed delivery steps, exact migration/commit/PR
+   evidence, and the one external review gate. Sections 6–9 provide ordered actions,
+   verification gates, constraints, access locations, and risks.
+2. **Could they continue as effectively as this session? Yes.** Sections 3–5 preserve the
+   production/preview boundary, bounded-runner method, live browser findings, failed
+   approaches, CRM/PM authorization root cause, and no-fabricated-production-fixture decision.
+3. **Are failed attempts and their causes present? Yes.** Section 4 includes the earlier
+   implementation failures plus the full-directory production dry-run refusal, CRM view
+   timeout, all-or-nothing Command Search failure, and absent historical production fixture.
+4. **Is every next step executable and verifiable? Yes.** Every numbered item in Section 6
+   identifies the target, authority boundary, action, and an explicit “Pass when” condition.
+5. **Are newcomer terms, paths, URLs, and identifiers explained? Yes.** Sections 1, 3, 7, and
+   8 define the app, environments, project refs, repositories, migration paths, secret
+   locations, production runner, and deployment route.
+
+Final synthesis:
+
+1. **Is `HANDOFF.md` comprehensive enough for a brand-new developer to continue without
+   skipping a beat? Yes.** Supported by Sections 1–9 and the dated Step 11 ledger linked in
+   Section 3; no gap remains.
+2. **Could they continue as well as the current session with all relevant background? Yes.**
+   Sections 2–5 contain the goals, history, failures, root causes, and evidence; Sections 6–9
+   contain the operational continuation path.
+3. **Is every relevant background, goal, outcome, state, failure, decision, constraint, risk,
+   next action, and verification fact present? Yes.** Those categories map directly to
+   Sections 1–9. The only unfinished external action—Uma's PR #64 review—is explicit rather
+   than hidden or treated as AI-authorized.
 
 ---
 
