@@ -8,9 +8,10 @@ Migrations occupy the clean contiguous range `20260722221000`–`20260722221700`
 after the `220000` collision was fixed (PRs #164, #166, #168, #170 — all merged).
 Production ledger `221000`–`221700` and every object verified present 2026-07-22
 (read-only). Evidence: `docs/verification/sample-tracking-quantity-schema-20260722.md`.
-One cosmetic open item: production records the PopSG trigram migration at old
-version `220000` while on disk it is `220800` (idempotent `CREATE INDEX IF NOT
-EXISTS`; ledger-only drift, no functional impact).
+Trigram-ledger drift RESOLVED 2026-07-23: production had recorded the PopSG
+trigram migration at old version `220000` vs on-disk `220800`; that ledger row
+was reconciled to `220800` (no schema objects touched), so production's ledger
+now matches the on-disk filenames exactly.
 
 **Created:** 2026-07-22
 
@@ -601,8 +602,9 @@ production edits.
     verify catalog, constraints, views, and app health. **Gate:** production migration versions and
     consumer deployed SHAs are recorded; no unexplained variance exists. **✅ DONE (2026-07-22):**
     production carries ledger `221000`–`221700` and all objects (tables, functions,
-    five views) verified present read-only. One known cosmetic variance: the PopSG trigram file is
-    recorded at old version `220000` on production vs on-disk `220800` (idempotent index; ledger-only).
+    five views) verified present read-only. The one prior variance — the PopSG trigram file recorded
+    at old version `220000` vs on-disk `220800` — was reconciled to `220800` on 2026-07-23 (ledger
+    row only), so production's ledger now matches the on-disk filenames with no remaining variance.
 
 ---
 

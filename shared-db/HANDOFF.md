@@ -106,14 +106,15 @@ are all present, and every object exists — tables (`sample_shipment_item`,
 functions (`post_sample_movement`, `sample_movement_guard`, …), and the five read
 views. Evidence: `docs/verification/sample-tracking-quantity-schema-20260722.md`.
 
-**One open cleanup item (cosmetic, non-blocking):** production's migration ledger
-records the PopSG trigram migration under its **old** version `20260722220000`
-(name `sgf_path_trgm_indexes`), while on disk the file is `20260722220800`. The file
-is `CREATE INDEX IF NOT EXISTS` (fully idempotent), so a future `supabase db push`
-from `main` would re-run it harmlessly but leave the ledger carrying both `220000`
-and `220800` for the same file. No functional impact. (The git-integrated `main`
-preview branch also reports status `MIGRATIONS_FAILED` — a stale artifact of the
-original collision; all objects did land.)
+**Trigram-ledger drift — RESOLVED 2026-07-23.** Production's ledger had recorded the
+PopSG trigram migration under its **old** version `20260722220000` while on disk the
+file is `20260722220800`. That single ledger row was reconciled (`220000` → `220800`,
+name unchanged) with Albert's explicit approval; production's ledger now matches the
+on-disk filenames exactly (`220800` + `221000`–`221700`, every version equal to its
+file prefix), so a future `supabase db push` from `main` sees them all as applied and
+re-runs nothing. No schema objects were touched. (The git-integrated `main` preview
+branch may still report status `MIGRATIONS_FAILED` — a stale artifact of the original
+collision; all objects did land.)
 
 Date: 2026-07-22
 Repo: `u2giants/shared-db`
@@ -169,15 +170,17 @@ that wording is now **stale**. As of 2026-07-22 production carries the full `221
 No session log in this repo documents exactly when/how it was pushed, but the objects and ledger are
 present and consistent. This section supersedes the earlier "not yet applied" claims.
 
-### One open cleanup item (cosmetic, non-blocking)
+### Trigram-ledger drift — RESOLVED 2026-07-23
 
-Production's ledger records the PopSG trigram migration under its **old** version
-`20260722220000` (name `sgf_path_trgm_indexes`), while the on-disk file is `20260722220800`.
-Production has `220000`, not `220800`. The file is `CREATE INDEX IF NOT EXISTS` (idempotent), so a
-future `supabase db push` from `main` would re-run it harmlessly and leave the ledger holding both
-versions for the same file. No functional impact; reconcile the ledger only with Albert's explicit
-go for a prod-ledger write. The git-integrated `main` preview branch also shows status
-`MIGRATIONS_FAILED` — a stale artifact of the original collision.
+Production's ledger had recorded the PopSG trigram migration under its **old** version
+`20260722220000` (name `sgf_path_trgm_indexes`) while the on-disk file is `20260722220800`. With
+Albert's explicit approval, that single ledger row was reconciled (`UPDATE … set version =
+'20260722220800' where version = '20260722220000' and name = 'sgf_path_trgm_indexes'`). Production's
+ledger now matches the on-disk filenames exactly (`220800` + `221000`–`221700`, every version equal
+to its file prefix), so a future `supabase db push` from `main` sees them all as applied and re-runs
+nothing. No schema objects were touched — this was a ledger-row reconciliation only. The
+git-integrated `main` preview branch may still show status `MIGRATIONS_FAILED`, a stale artifact of
+the original collision.
 
 ### Constraints, access, and risks
 
