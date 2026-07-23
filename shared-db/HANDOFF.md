@@ -1,5 +1,18 @@
 # HANDOFF — shared-db current state
 
+## Sample Tracking quantity schema — 2026-07-22 update
+
+The canonical quantity tranche is implemented on branch
+`codex/sample-tracking-quantity-schema` in migrations `20260722220200` through
+`20260722220700` and applied to preview `rjyboqwcdzcocqgmsyel`. It covers durable
+box ownership, shipment intent, immutable/concurrency-safe quantity movements,
+local closeouts, durable import audit records, permissions, and five derived read
+views. The rollback-safe SQL contract test passed, the two-connection race test
+produced one success and one rejection, and the tracking consumer suite passed
+35/35 suites (323 tests). Full evidence and production-promotion notes are in
+`docs/verification/sample-tracking-quantity-schema-20260722.md`. Existing legacy
+samples remain explicitly `unknown`; none were backfilled as quantity one.
+
 Date: 2026-07-22
 Repo: `u2giants/shared-db`
 Target branch: `main`; all completed work described here is merged and synchronized unless

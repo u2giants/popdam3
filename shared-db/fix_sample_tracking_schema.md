@@ -1,8 +1,9 @@
 # DesignFlow Sample Tracking — Shared Database Implementation Plan
 
-**Status:** Foundational tranche authored + preview-proven (PR open on branch
-`claude/sample-tracking-shipment-item-repair`); movement/ownership/import/read-model
-tranches not started (several gated on §15 product answers).
+**Status:** Foundational tranche merged and preview-proven. Quantity movements,
+ownership, shipment intent, closeouts, durable imports, permissions, and read
+models implemented and preview-verified on 2026-07-22; evidence is in
+`docs/verification/sample-tracking-quantity-schema-20260722.md`.
 
 **Created:** 2026-07-22
 
@@ -38,11 +39,12 @@ tranches not started (several gated on §15 product answers).
 > application is sequenced with the pre-existing vendor-sync/DB-Data-Admin preview
 > migration drift (see inventory doc §6) and, for production, an approved window.
 >
-> **Still to do (subsequent serialized PRs):** §5.2 box ownership (needs §15 Q2),
-> §5.3–5.8 normalized locations + `sample_movement` authority + shipment intent +
-> stop closeout + import durability + read models, plus RLS/grants and consumer
-> coordination — several gated on the §15 product questions. Do NOT start these
-> until those answers exist; do not fabricate legacy quantities.
+> **Quantity tranche completed on preview:** migrations `20260722220200` through
+> `20260722220700` add durable ownership, normalized immutable movements,
+> shipment intent, stop closeouts, durable imports, read models, and fail-closed
+> browser grants. Inventory-based decisions and acceptance evidence are recorded
+> in `docs/verification/sample-tracking-quantity-schema-20260722.md`. Consumer
+> service wiring remains separate; legacy quantities were not fabricated.
 
 **Repository:** [`u2giants/shared-db`](https://github.com/u2giants/shared-db)
 
