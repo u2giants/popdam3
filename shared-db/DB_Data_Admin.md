@@ -236,6 +236,27 @@ AND
 application status is active (a missing extension row defaults to active)
 ```
 
+The exact per-application picker visibility that results from one inactivation decision is
+the contract every consumer must implement in Step 11:
+
+| Record state | CRM picker | PM/PIM picker | DAM picker | DesignFlow PLM |
+|---|---|---|---|---|
+| Global `active` (or `potential`), no app override | visible | visible | visible | visible |
+| **Global `inactive`** | hidden | hidden | hidden | hidden |
+| Global `active`, **CRM** extension inactive | **hidden in CRM only** | visible | visible | visible |
+| Global `active`, **PM** extension inactive | visible | **hidden in PM only** | visible | visible |
+| Global `active`, **DAM** extension inactive | visible | visible | **hidden in DAM only** | visible |
+| Already assigned by UUID (historical) | label still resolves | label still resolves | label still resolves | resolves |
+| Merged-loser UUID/code | resolves via alias / source-ref | resolves | resolves | resolves |
+
+Two consequences follow directly and are non-negotiable for Step 11. First, a record already
+stored by UUID on a parent row (for example `public.style_tracker_rows.customer_id`,
+`pim.product.company_id`, an opportunity `factory_id`) must keep rendering its label after it
+is inactivated — inactivation must never 404 an assigned reference. Second, a merged loser's
+old UUID or source code must keep resolving through `core.customer_alias` /
+`core.factory_alias` and the matching `*_source_ref`, so any application still holding the
+old identifier continues to work.
+
 Store the reason, actor, and timestamp for curated inactivation and reactivation. Coldlion
 source status is read-only context and must never overwrite global or application-curated
 status during a later pull.
@@ -259,6 +280,30 @@ The following objects were identified in the historical implementation research.
 leads, not permission to assume current existence or browser safety. Verify every object
 against current migrations and preview before designing the final API. In particular, do
 not assume the historical `api.customer_list` still exists.
+
+### Serving contracts the Step 11 pickers depend on
+
+Step 11 repoints every CRM/PM/DAM picker onto five status-aware serving views that already
+exist in **canonical** shared-db, authored and preview-verified in Step 6
+(`20260722005100_app_serving_status_contracts.sql`):
+
+- `api.crm_customer_picker_list` and `api.crm_factory_picker_list`
+- `api.pm_customer_list` and `api.pm_factory_list`
+- `api.dam_factory_list`
+
+`api.dam_customer_list` (the DAM Customer picker source, `20260721143000`) is the precedent
+all five follow: `security_invoker`, core table LEFT JOIN to only that app's extension row,
+and the effective-visibility WHERE clause from §5. Each view joins the extension tables from
+`20260722003000`–`20260722003400`.
+
+Treat these as **present in canonical shared-db and verified on preview**. The 2026-07-23
+repository review did not query production, so their production presence is unknown and must
+be **live-verified** before any consumer calls them in a production-targeted build. Also never
+trust a consumer repo's mirrored `shared-db/` folder for current object existence: the
+inspected `popdam3` mirror had zero `2026072*` migrations, which caused a false "view does not
+exist" conclusion. Canonical shared-db is the source of truth for authored objects. Consumer
+mirrors refresh from the canonical repository on pushes to shared-db `main`; that repository
+sync is separate from applying migrations to a database.
 
 ### Customers
 
@@ -530,9 +575,190 @@ migration anchors for the inventory include `20260621150815`, `20260716143231`,
 `20260717123020`, `20260717125909`, and `20260717192922`; verify current replacement bodies
 where later migrations use `create or replace`.
 
+### Step 11 repository-derived audit findings (2026-07-23)
+
+The findings below are **repository-derived**: they come from read-only inspection of the
+consumer source trees and the checked-in shared-db migrations, not from querying a live
+database or exercising a deployed app. Live runtime behavior is not verified here; any claim
+of production impact is phrased from the repository state. Re-confirm each one against
+current code before acting, because these repos move on `main`.
+
+**PopCRM (`u2giants/popcrm-web`).** Global picker filtering already exists — all Customer
+pickers route through `src/features/crm/pages/_shared.ts`, where `isSelectableCustomer`
+(`_shared.ts:26-28`) and `PICKER_ENTITY_STATUSES = {'active','potential'}` (`:24`) filter the
+**global hub `status`** client-side, and `withCurrentCustomer` (`:51-59`) deliberately
+re-adds the assigned (possibly inactive) row so a historical value still renders. The
+feeders pull `crm_customer_segment_list('all')` via `useCustomerSegmentQuery('all', -1)`
+(`src/features/crm/queries.ts:140-148`). Four gaps remain for Step 11:
+
+1. **CRM-specific status is not consistently enforced.** The pickers filter the global hub
+   `status`, but the `CustomersPage.tsx:45-48,121-130` tabs and the overview/stats reads
+   (`api.ts:150-154,426-429`) filter the **legacy CRM `customer_status`**
+   (`ACTIVE_CUSTOMER`/`POTENTIAL_CUSTOMER`/`OTHER`/`UNASSIGNED`), a different axis. Treat
+   the canonical hub `status` (`core.customer.status`) as authoritative and distinguish it
+   from legacy `customer_status`; a globally inactive row that still carries a legacy
+   `ACTIVE_CUSTOMER` value will appear in those tabs/stats. Moving pickers to
+   `api.crm_customer_picker_list` fixes the picker axis server-side; aligning the tab/stats
+   axis to hub status is a separate cleanup.
+2. **The global CRM search lacks the effective-status filter.** `searchCrm`
+   (`api.ts:837-841`) does an `.or(ilike name|display_name|domain|routing_aliases)` with no
+   status gate, so the global CommandSearch (`CommandSearch.tsx:46-48`) returns inactive and
+   post-merge rows. Add the global+app status gate (or route through a status-aware search).
+3. **Already-assigned inactive UUIDs must remain historically resolvable.** Preserve the
+   `withCurrentCustomer` behavior when repointing the feeder so a stored inactive Customer
+   still shows its label instead of disappearing.
+4. **Cached option lists must not resurrect inactive rows.** The
+   `useCustomerSegmentQuery('all', -1)` feed (and per-page `retailerById` memos) is cached
+   (`staleTime 2min`). Once the picker reads `api.crm_customer_picker_list` server-side the
+   view itself excludes inactive rows, but invalidate or re-query the view on status change
+   so a stale cache cannot surface a just-hidden row.
+
+CRM has **no Vendor picker today**; `factory` appears only as display via
+`crm_opportunity_list` (`api.ts:246`) and `factory_id` is written on opportunity update
+(`api.ts:390-391`). `api.crm_factory_picker_list` is therefore for a future picker, not a
+migration of an existing one. There are **no** direct `core.*`/`plm.*`/`erp_*` browser reads
+and **no** name-based Customer/Vendor identity in CRM (identity is UUID-based throughout).
+
+**PM/PIM (`u2giants/poppim-web`).** Three callers still use the removed `api.customer_list`
+and must be replaced with `api.pm_customer_list` (the view enforces global+PM status
+server-side, so this is a relation swap, not new filtering code):
+
+| File | Caller | Note |
+|---|---|---|
+| `src/domain/reference/api.ts:10` | `fetchRetailers()` | No importers — dead code, but still compiles against the dropped relation. Delete or migrate. |
+| `src/features/accounts/api.ts:18` | `fetchAccountRows()` | Accounts page. |
+| `src/features/board/collab.ts:314` | `fetchCustomers()` → `TaskDetailModal` Retailer picker (`src/components/TaskDetailModal.tsx:162,487-498`) | The AGENTS.md "canonical fetch." |
+
+The Task Detail path **swallows errors** — the call is followed by `.catch(() => {})`
+(`TaskDetailModal.tsx:162`), so a failed/empty fetch leaves the picker silently empty rather
+than surfacing an error. All three callers `select customer_status`/`is_potential` but apply
+**no** status filter, so the picker maps every returned row into options.
+
+Repository-derived production-impact note (live behavior **not** separately verified here):
+`api.customer_list` was removed in `20260629034600`, which is in production, so these three
+callers reference a relation that no longer resolves there. Whether the deployed PM/PIM app
+currently renders an empty or erroring Task Detail Retailer picker should be confirmed live
+before claiming user-visible breakage; the repository evidence is that the calls cannot
+resolve against current production schema. Identity is sound — Customer picks persist the
+UUID `company_id` (`collab.ts:282`), and there is no name-based Customer/Vendor identity.
+PM/PIM has **no Vendor picker**; `api.pm_factory_list` is for a future picker.
+
+**PopDAM (`u2giants/popdam3`).** Customer selection is already correct and is the model to
+copy for Vendor: `useDamCustomers()` reads `api.dam_customer_list` (server-filtered
+active+potential, `src/hooks/useDamCustomers.ts:22-38`), the `/styles` "Originally Designed
+For" and "Special Customer" pickers write the canonical UUID, and `buildUpdate`
+(`src/pages/.../StylesPage.tsx:392-396`) sets `payload.customer_id` through
+`customerNameToId`. Vendor selection is the gap:
+
+- "Sample Vendor" (`StylesPage.tsx:229,263`) and "Default Vendor(Sales)" (`:237,269`) source
+  from `fetchFactoryOptions()`, which reads **`core.factory` directly**
+  (`StylesPage.tsx:647-657`, `.eq('status','active')`, `.limit(1000)`, cached under
+  `["style-tracker-factory-options"]` `:1040`) — a global-only filter, no per-app (DAM)
+  status, and an unrestricted `core.` read.
+- Vendor picks **persist a free-text name, not a UUID**: `buildUpdate` (`:383-397`) has a
+  `customer` branch writing `customer_id` but no `factory` branch, so a renamed or inactive
+  factory breaks the reference with no FK to repair.
+
+Required: replace the `fetchFactoryOptions()` direct read with `api.dam_factory_list`, and
+define **stable `factory_id` persistence** as the durable target (mirror the Customer
+branch — write a UUID, not a name). That durable target likely needs a
+`public.style_tracker_rows.factory_id` column, which does **not** exist today (only
+`customer_id` was added, in `20260721143000`; `factory_id` lives on the bridge
+`plm.style_tracker_item_bridge`). If so, author it as a **new additive shared-db migration,
+preview first** — never an app-repo migration. The vendor-picker visibility fix (hide
+inactive via the view) does not require that column and can land independently; the
+`factory_id` write path is optional hardening so renamed/inactive factories keep a
+repairable FK instead of a stale free-text label.
+
+**DesignFlow (the six `popcre/designflow-*` repos).** DesignFlow pickers already enforce
+`ACTIVE`/`Active` and store stable ids, so Step 11 here is **integration plumbing, not a
+picker rewrite**: Customer reads use `where customers_status='ACTIVE'`
+(`designflow-backend/models/lib.model.js:239`, `services/customer.service.js:18`); Vendor
+reads use `factory_status:'Active'` (`lib.model.js:832-858`); server-side guards reject
+saves on inactive entities (`helpers/rfqCustomerGuard.js:34`,
+`designflow-item-master/helpers/itemReferenceGuard.js:53`,
+`designflow-tracking/models/sample.model.js:319,328`); and the Angular pickers store
+`{id: customers_id}` / `{id: Factory.id}` (stable id, no name persistence). No DesignFlow
+picker change is required for enforcement; leave the active-only endpoints and `{id}`
+persistence as-is.
+
+DesignFlow must remain the **single writer** of PLM application status, and Supabase
+`core.*` stays downstream. The reusable assets already exist — do not reinvent them:
+
+- **Protected API-key bridge:** `designflow-bff/src/apiKeyAuth.js` validates `x-api-key`
+  against `DESIGNFLOW_API_KEYS` (Secret Manager; SHA-256 + `timingSafeEqual`), mints an
+  RS256 JWT (`auth_type:'api_key'`, `api_key_name`, role claims), and is mounted on
+  `/api/*` (`routes/api.js:51`). A DB Data Admin PLM operation is a new/tightened
+  `authRole(['admin'])` endpoint reached via a new `admin`-claim API-key entry — no new auth
+  mechanism. (`tools/sync-plm-master-data.mjs` already uses this bridge.)
+- **Customer mirror-back already exists:** `tools/sync-plm-master-data.mjs` pulls
+  `getCustomers` and runs `plm.import_master_data()`, mapping
+  `customers_status='ACTIVE'` → `core.customer.status='active'` and writing
+  `designflow_plm/customers` source refs. The Step 1 inventory recorded 54 refs / 50
+  Customers; re-query the target environment before using those counts as current evidence.
+- **Vendor PLM is blocked** on three concrete prerequisites: a canonical Factory export
+  endpoint (no `getFactoriesForMasterData` exists; current factory endpoints are
+  active-only/search-style), a stable Factory identifier (there is no `factory_code`, only
+  the stable integer `Factory.id`, `models/db/Factory.js:4-10`), and a reviewed one-time
+  match that populates `core.factory_source_ref` with `designflow_plm/Factory/<id>` rows
+  (the Step 1 inventory recorded 523 Coldlion Vendor refs / 510 Vendors and zero DesignFlow
+  Factory refs; re-query before treating those counts as current). Names may propose matches
+  but must never be the runtime key. Vendor PLM status is explicitly **deferred** behind this
+  prerequisite — documented, not silently dropped.
+- **Resolve the `dflow` location discrepancy before status integration.** shared-db
+  `AGENTS.md` §0.1 says production DesignFlow runs on Cloud SQL / `5432`; the DesignFlow
+  repos' own `AGENTS.md` files describe the services running against the shared Supabase
+  database with `dflow` as "the legacy Cloud SQL copy on Supabase." These cannot both be
+  literally true for production. Resolve it from
+  [`popcre/infrastructure`](https://github.com/popcre/infrastructure) (production DB
+  bindings) first — it determines whether the mirror-back is one intra-Supabase SQL hop or
+  the cross-system master-data sync. Either way, DesignFlow stays sole writer of
+  `customers_status`/`factory_status` and DB Data Admin must never create a competing
+  editable Supabase PLM status.
+
+**Serving-contract presence (all apps).** The CRM/PM/DAM serving contracts the pickers need
+exist in canonical shared-db but must not be assumed present in production without a live
+verification (see §6). Consumer mirrors can be stale; canonical shared-db wins. This is the
+dominant sequencing risk for Step 11 and is handled in §10.
+
 ---
 
 ## 10. Delivery sequence
+
+### Deployment-order dependency (read before Steps 11–13)
+
+The consumer pickers cannot call a serving view until that view exists in **their target
+environment**. This creates one hard ordering rule that governs all of Step 11:
+
+- The three non-DesignFlow apps (`popcrm-web`, `poppim-web`, `popdam3`) deploy
+  **automatically on merge to `main`** against **production** Supabase. A `main` merge that
+  calls, for example, `api.pm_customer_list` will break in production (PostgREST schema-miss)
+  if that view is not present in production.
+- Therefore consumer picker changes that depend on a Step 6 serving view can be **authored
+  and preview-tested**, but they **cannot be merged into the auto-deploying `main` branches**
+  until the additive serving views are present in production.
+- The six `popcre/designflow-*` repos are different: they deploy via Cloud Run only after
+  Uma merges to `develop`, and their pickers already enforce status, so their Step 11 work is
+  not blocked by view promotion.
+- Any production promotion of the serving views is a **separate, explicitly approved gate**.
+  It is **additive and read-only**: the smallest bounded apply covers the extension tables
+  (`20260722003000`–`20260722003400`), Channels (`20260722003500`), merge-engine FK coverage
+  (`20260722004500`), the admin read/list RPCs (`20260722005000`/`05100`/`05200`), and the
+  contract errata (`20260722163000`). It must **exclude** every production write gate and
+  admin grant — specifically `20260722170000` (single-record write gate),
+  `20260722194000`/`20260722194100` (merge execution), and `20260722203000`/`203100`
+  (Licensor tree), plus any production `admin` app-access grantee. Verify after apply that
+  `app.db_data_admin_feature_gate` is **absent** from production (proof no write gate slipped
+  in) and that no existing consumer-facing definition (`api.crm_customer_list`,
+  `api.crm_account_list`, `api.dam_customer_list`) changed.
+- This bounded read-only promotion is **not approved by this document**. It remains
+  explicitly contingent on an owner-approved production window and the normal shared-db
+  preview/PR checks (`scripts/check-sql.sh`, clean preview dry-run, additive confirmation).
+  **If no production window is approved**, complete the audit and test design but defer the
+  non-DesignFlow code changes; those repositories are main-only, so do not create feature
+  branches or merge production-targeted callers before their serving views exist. This is
+  distinct from — and must never be conflated with — enabling any status-write gate, which
+  stays off until Step 13.
 
 0. **Specification errata and review gate.** Correct this document in place before coding;
    do not create a second authoritative ledger. Preserve the full PLM-status promise unless
@@ -610,12 +836,50 @@ where later migrations use `create or replace`.
     one Licensor and internal invariants reconcile against a dated snapshot. Do not claim live
     source reconciliation while the upstream DesignFlow feeder is unavailable.
 11. **Consumer enforcement and safety audit.** Complete §9 and update every picker for global
-    plus app-specific status. Non-DesignFlow repos (`u2giants/popcrm-web`,
-    `u2giants/poppim-web`, `u2giants/popdam3`) follow their normal main-only workflow. The six
-    `popcre/designflow-*` repos stay on Albert's sandbox branch, use PRs to `develop`, and are
-    reviewed/merged by Uma—not the AI. Pass only when inactive records disappear in exactly
-    the intended applications, PLM production consumes the chosen single-writer status path,
-    the audit ledger is closed, and every repository's tests/CI pass.
+    plus app-specific status. This is a serialized step; do the sub-steps in order. Non-
+    DesignFlow repos (`u2giants/popcrm-web`, `u2giants/poppim-web`, `u2giants/popdam3`)
+    follow their normal main-only workflow. The six `popcre/designflow-*` repos stay on
+    Albert's sandbox branch, use PRs to `develop`, and are reviewed/merged by Uma — **not**
+    the AI. Pass only when inactive records disappear in exactly the intended applications,
+    PLM production consumes the chosen single-writer status path, the audit ledger is closed,
+    and every repository's tests/CI pass.
+
+    Serialized sub-order (honor the §10 deployment-order dependency throughout):
+
+    1. **Run the §9 audit in all nine repos** (read-only grep/read; record every hit with
+       `file:line` and its fix). **No merges yet.** Confirm one shared-db schema change is
+       not already in flight (`gh pr list`, branches, `git status --short`).
+    2. **Resolve the DesignFlow `dflow` location question** from `popcre/infrastructure`
+       before any PLM write/mirror change (it decides one SQL hop vs. the master-data sync).
+    3. **Promote the additive read-serving views to production**, but only in an
+       owner-approved window and only the bounded, read-only set described in the §10
+       deployment-order dependency. Re-verify production: each view `\d` exists with
+       `grant select to authenticated`, extension tables are RLS-on,
+       `app.db_data_admin_feature_gate` is absent, and counts are unchanged. Write gates
+       stay off. (If no window is approved, stop here after the audit and test design;
+       sub-steps 4–6 cannot begin in the main-only repos until this lands.)
+    4. **`popdam3` (DAM)** — Customer code already uses `api.dam_customer_list`; live-verify
+       that contract in the target environment. Add the Vendor selectors on
+       `api.dam_factory_list` and persist `factory_id` (additive migration preview-first if a
+       column is missing). Commit to `main`; CI deploys.
+    5. **`popcrm-web` (CRM)** — repoint the Customer picker feeder to
+       `api.crm_customer_picker_list`, preserve `withCurrentCustomer`, gate `searchCrm`, and
+       align the tab/stats axis off legacy `customer_status`. Commit to `main`.
+    6. **`poppim-web` (PM/PIM)** — replace the three removed `api.customer_list` callers with
+       `api.pm_customer_list` (`domain/reference/api.ts:10`, `features/accounts/api.ts:18`,
+       `features/board/collab.ts:314`), and stop the Task Detail path from swallowing the
+       fetch error. Commit to `main`. (Highest blast radius — the repository evidence says
+       these callers cannot resolve against current production schema.)
+    7. **DesignFlow (six repos)** — Customer PLM: add the idempotent protected DB Data Admin
+       RPC through the `apiKeyAuth.js` bridge to the existing customer write endpoint, with
+       the mirror-back that already exists; decide whether to tighten the broad role gate on
+       `customer.router.js:7`. Vendor PLM: build the Factory export + mapping, which unblocks
+       `core.factory_source_ref` — do **not** ship Vendor PLM status writes until that match
+       is reviewed. Work on `sandbox-albert`, PR to `develop`, **Uma reviews/merges**. No
+       production PLM writes in Step 11.
+    8. **Verify cross-app picker visibility** against the §5 matrix on preview (and on
+       production after sub-step 3), then **close the audit ledger** by recording every §9
+       hit and its resolution under `docs/verification/`.
 12. **Bulk operations.** Add preview/count/confirm, reason, per-record audit, partial-failure
     reporting, and recovery/reactivation.
 13. **Production delivery.** Promote migrations only in an approved window and complete the
@@ -661,6 +925,65 @@ Before UI work is reported done, serve the application and capture screenshots o
 - narrow and wide viewport behavior;
 - clear unauthorized/failed-operation state where applicable.
 
+### Step 11 enforcement and audit verification gates
+
+These repository-specific gates are mandatory for Step 11; they make "inactive records
+disappear in exactly the intended applications, and nothing else breaks" a checkable claim.
+
+**Grep gates (must pass in each consumer repo):**
+
+- No picker path reads `core.*`, `plm.*`, `ingest.*`, `public.erp_*`, or
+  `erp_items_current`/`erp_customer`/`erp_vendor`/`prod_order_*` directly.
+  `rg -n "from\\s+core\\.|from\\s+plm\\.|erp_items_current|erp_customer|erp_vendor|prod_order_" src`
+- No active code path holds Customer/Vendor identity by mutable name string (UUID or stable
+  source code only). `rg -n "customer.*name|vendor.*name|factory.*name" src` — classify each
+  hit as display-only, stable-code/UUID lookup, or unsafe name identity.
+- `poppim-web`: **zero** `api.customer_list` / `customer_list` relation references in `src/`.
+  `rg -n "customer_list" src`
+- `popdam3`: no direct `core.factory` read in the vendor-picker path.
+- `popcrm-web`: no **new** `core.`/`plm.`/`erp_*` reads introduced by the repoint.
+
+**Unit tests (per repo):**
+
+- `popcrm-web`: `customerPickerOptions` sourced from `api.crm_customer_picker_list` hides
+  global-inactive and CRM-inactive while keeping the assigned current id
+  (`withCurrentCustomer`); `searchCrm` excludes inactive/merged rows; a promoted ingested
+  domain lands hub `status='potential'`.
+- `poppim-web`: the three former `api.customer_list` callers
+  (`domain/reference/api.ts:10`, `features/accounts/api.ts:18`, `features/board/collab.ts:314`)
+  now read `api.pm_customer_list`; the `TaskDetailModal` picker is non-empty and active-only;
+  UUID `company_id` persistence is unchanged.
+- `popdam3`: `fetchFactoryOptions` sourced from `api.dam_factory_list` hides DAM-inactive and
+  global-inactive; if the `factory_id` write path is added, assert it persists a UUID (not
+  free-text) and survives a factory rename.
+
+**Contract test (shared-db backbone, re-run after promotion):**
+`supabase/tests/app_serving_status_contracts.sql` proves, as real authenticated CRM/PM/DAM
+users, that per-app-inactive rows vanish from that app's picker, globally-inactive rows never
+appear, and visible rows report `<app>_status='active'` — for both Customer and Vendor
+fixtures. This single rollback-safe suite is the inactive-filter/authorization proof for every
+CRM/PM/DAM picker. The PLM read side is covered by `db_data_admin_read_contracts.sql`
+(Customer `plm_linked`/`plm_status`; Vendor `p_app=>'plm'` rejected until Factory mapping
+exists).
+
+**Browser/visual:** capture per app — active picker list, an inactive record hidden in the
+intended app only, an assigned-historical UUID still rendering its label, and a post-merge
+loser id still resolving. For `poppim-web` specifically, regression-capture the
+`TaskDetailModal` Retailer picker populating instead of silently empty.
+
+**Historical-ID verification (load-bearing):** for each entity, prove an already-assigned UUID
+and a merged-loser UUID still resolve after the source row is inactivated or merged. Reuse the
+`app_serving_status_contracts.sql` fixtures and add assigned-historical + merged-loser
+fixtures: a `public.style_tracker_rows.customer_id` (DAM), a `pim.product.company_id` (PM),
+and a `core.customer_alias`/`core.factory_alias` loser row — then assert each still resolves
+its label. A merged loser must resolve through alias / `*_source_ref`, never through a name
+string.
+
+**CI:** every repo's existing unit + browser suites stay green with the new tests added;
+shared-db PR CI runs `scripts/check-sql.sh` and a clean preview dry-run; the bounded
+production apply is verified by the absence of `app.db_data_admin_feature_gate` and unchanged
+counts.
+
 The first development-shell visual check is retained at
 [`docs/verification/db-data-admin-development.png`](docs/verification/db-data-admin-development.png).
 It proves the deployed shell renders, but it does not satisfy the later grid/detail/merge/tree
@@ -699,6 +1022,20 @@ defines it.
       checks, applied/tested on preview first, merged, and promoted in an approved window.
 - [ ] The cross-application safety audit has recorded and resolved every relevant hit.
 - [ ] All consumer pickers enforce global and application-specific status correctly.
+- [ ] `poppim-web` no longer references the removed `api.customer_list` (grep gate clean) and
+      the Task Detail Retailer picker is non-empty instead of silently empty.
+- [ ] `popdam3` Vendor selectors read `api.dam_factory_list` and persist a stable `factory_id`
+      (not a free-text name); no direct `core.factory` read remains in the vendor-picker path.
+- [ ] `popcrm-web` Customer pickers read `api.crm_customer_picker_list`, `searchCrm` excludes
+      inactive/merged rows, and the legacy `customer_status` axis is reconciled with hub
+      `status`.
+- [ ] The additive read-serving views are promoted to production only in an owner-approved
+      window (bounded), and verified present; **no** production write gate or `admin` grant is
+      enabled.
+- [ ] Assigned historical UUIDs and merged-loser UUIDs still resolve in every app.
+- [ ] DesignFlow Vendor PLM status is explicitly deferred behind the documented Factory-export
+      prerequisite (not silently dropped), and the `dflow` Cloud-SQL-vs-Supabase location
+      discrepancy is resolved from `popcre/infrastructure` before status integration.
 - [ ] PLM production uses the single-writer status path selected during inventory; DesignFlow
       changes were reviewed and merged by Uma through the sandbox-to-`develop` workflow.
 - [ ] Unit, database, integration, browser, accessibility, and cross-app tests pass.
@@ -735,6 +1072,34 @@ defines it.
   sync/API failures must be visible.
 - **Grid proliferation:** do not build new shared features on the legacy PopCRM DataTable or
   rewrite functioning AG Grid screens solely for standardization.
+- **Trusting a consumer `shared-db/` mirror for object existence:** those mirrors are stale
+  (the `popdam3` mirror has zero `2026072*` migrations) and already caused a false "view does
+  not exist" conclusion. Canonical shared-db is the source of truth for authored objects;
+  mirrors refresh on pushes to canonical shared-db `main`, independently of database
+  promotion.
+- **Confusing canonical existence with production existence:** the Step 6 serving views exist
+  in canonical shared-db but are preview-only. Live-verify a view in production before any
+  production-targeted consumer build calls it; a `main` merge that calls a missing view breaks
+  the deployed app.
+- **Cached option lists resurrecting inactive rows:** a cached Customer/Vendor dropdown
+  (`useCustomerSegmentQuery`, `["style-tracker-factory-options"]`, etc.) can surface a
+  just-hidden row. Invalidate on status change, or re-query the serving view each open.
+- **Swallowed fetch errors masking an empty picker:** the `poppim-web` Task Detail fetch is
+  followed by `.catch(() => {})`, so a broken/empty result leaves the picker silently empty.
+  Do not replicate this pattern; surface picker-fetch failures.
+- **Persisting a Vendor by free-text name:** `popdam3` writes `sample_vendor`/`default_vendor`
+  as free text, so a renamed/inactive factory breaks the reference with no FK to repair.
+  Persist the UUID (`factory_id`), as the Customer path already does.
+- **Conflating the bounded read-only promotion with write-gate enablement:** promoting the
+  additive serving views is read-only and excludes every write gate; it is never permission
+  to enable `single_record_write`/`merge_execute` or to seed a production `admin` grant.
+- **DesignFlow `dflow` location assumption:** shared-db `AGENTS.md` §0.1 (Cloud SQL/`5432`)
+  and the DesignFlow repo `AGENTS.md` files (shared Supabase `dflow` schema) disagree. Resolve
+  it from `popcre/infrastructure` before any PLM write/mirror change.
+- **Two PopCRM status axes:** the canonical hub `status` (`core.customer.status`) and the
+  legacy CRM `customer_status` are different columns. A globally inactive row can still carry
+  a legacy `ACTIVE_CUSTOMER` value and show in CRM tabs/stats. Treat hub `status` as
+  authoritative.
 
 ---
 
@@ -769,3 +1134,7 @@ defines it.
 - [`fix_vendor_review.md`](fix_vendor_review.md): Vendor cleanup state.
 - [`fix_schema_for_api.md`](fix_schema_for_api.md): ERP mirror relocation and related cutover
   dependencies.
+- [`docs/verification/db-data-admin-read-contracts-20260721.md`](docs/verification/db-data-admin-read-contracts-20260721.md):
+  authoritative record of the Step 6 serving views (`api.crm_customer_picker_list`,
+  `api.pm_customer_list`, `api.crm_factory_picker_list`, `api.pm_factory_list`,
+  `api.dam_factory_list`) and their effective-visibility enforcement.
