@@ -151,5 +151,5 @@ shared infrastructure that PM/PIM will also depend on when it exposes `pim`.
   case-insensitive staff identifier when linking pre-seeded profiles. If identity
   imports ever allow duplicate or placeholder emails, revisit the trigger before
   changing profile uniqueness.
-- Directus stays up as rollback/import source; do not delete it until the cutover
-  has soaked.
+- The retired source is not a rollback or import dependency. Do not recreate,
+  reconnect, or route traffic to it.

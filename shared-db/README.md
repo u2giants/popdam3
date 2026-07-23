@@ -14,6 +14,15 @@ Planning and migration repo for the unified POP shared database on Supabase.
 
 This repo holds schema mapping, relationship design, migration gaps, Supabase migrations, branch verification notes, and cutover preparation for consolidating DAM, CRM, PM, and the operational PLM data needed by those apps into one Supabase project.
 
+## DB Data Admin hostname
+
+`https://data.designflow.app` belongs exclusively to **DB Data Admin**, whose
+source is [`apps/db-data-admin/`](apps/db-data-admin/). Although a retired
+application used the same DNS name historically, it has no live, rollback,
+credential, data-connection, or deployment relationship to the current
+application. The permanent ownership contract and AI guardrails are in
+[`docs/db-data-admin-domain-ownership.md`](docs/db-data-admin-domain-ownership.md).
+
 ## Shared-db Gatekeeper
 
 All database schema changes for the shared Supabase project start in this repo.

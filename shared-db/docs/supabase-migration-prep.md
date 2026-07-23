@@ -1,4 +1,10 @@
-# Supabase Migration Preparation
+# Historical Supabase Migration Preparation
+
+> **Completed historical record.** The migration source described below is
+> retired and has no live, read-only, import, rollback, credential, or runtime
+> role. Its former public DNS name has been permanently reassigned to **DB Data
+> Admin**; see
+> [`db-data-admin-domain-ownership.md`](db-data-admin-domain-ownership.md).
 
 This is the working plan for moving the shared POP backend from the current Directus-owned Postgres database to either Supabase Cloud or a self-hosted Supabase stack.
 
@@ -133,10 +139,9 @@ The current Directus Designer policy hides pricing fields. In Supabase, do not e
 9. Verify Spaces URLs and any `directus_files` references.
 10. Run a final delta/import strategy or schedule a write freeze before production cutover.
 
-## Open Questions
+## Historical questions
 
-- Will Supabase expose tables directly to the PM/CRM/DAM frontends, or will there be a compatibility API layer?
-- Should Directus remain available read-only as an admin/reference tool for a short period after cutover?
-- Will product and attachment objects stay in DigitalOcean Spaces long-term, or should Supabase Storage mirror them?
-- How should Entra group membership become Supabase Auth claims without making the browser trusted for authorization?
-- What is the acceptable write-freeze window for final cutover?
+These questions were part of the migration decision. They are not current
+permission to reconnect or restore the retired source. Current architecture is
+defined by `AGENTS.md`, `DB_Data_Admin.md`, and the active application-specific
+documentation.

@@ -122,7 +122,8 @@ first Supabase service-role port. Current runtime path:
 port (outlook-ingest, reroute, fireflies-server, contact-sync, summarize,
 apply-ignore-rules); endpoints `/health`, `/s/fireflies-webhook`,
 `/s/opportunity-chat` preserved (chat now verifies a Supabase JWT Bearer token).
-The original Directus `crm-worker.mjs` is legacy rollback/reference context only.
+The original worker is retired historical context only and must not be restored
+or used as a reference implementation.
 Worker runtime needs
 `npm i @supabase/supabase-js` and `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
 
@@ -166,7 +167,8 @@ no-op marker files for those legacy versions so Supabase CLI can run future
 - **Data import + reconciliation** (Phase 7) and **role-based RLS tests** (Phase 6) still to run against preview.
 - `crm.note.opportunity_id` is `on delete cascade` (baseline) and `crm.note` has no `factory`; meeting attendees have no shared table (stored in `meeting_note.metadata`).
 - RPC `coalesce` semantics mean passing `null` does not clear a contact field (edge case).
-- No CRM screen or worker command still depends on Directus; the Directus worker/backend remain only as read-only rollback.
+- No CRM screen or worker command depends on the retired backend. It has no
+  read-only, rollback, import, or recovery role.
 
 ## Verification checklist for contact segments
 

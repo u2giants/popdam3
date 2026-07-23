@@ -8,6 +8,12 @@ Planned frontend location: **`apps/db-data-admin/`**
 
 Production URL: **`https://data.designflow.app`**
 
+> **Domain identity is non-negotiable:** this hostname now means DB Data Admin
+> exclusively. A retired application previously used the DNS name, but it has
+> no runtime, credential, API, database-connection, import, rollback, proxy, or
+> deployment relationship to this application. See
+> [`docs/db-data-admin-domain-ownership.md`](docs/db-data-admin-domain-ownership.md).
+
 This is the cold-start specification for a developer with no prior context. It incorporates
 the useful database inventory, curation workflows, safety checks, traps, and acceptance
 criteria from [`fix_impl_visual_admin_page.md`](fix_impl_visual_admin_page.md), while replacing

@@ -50,7 +50,7 @@ This document lists conflicts, missing links, risky tables, and decisions requir
 | CRM company to PLM customer | Customer status and production/order history need one account graph. | `core.company_source_ref` with PLM customer ids. |
 | DAM PO snapshot to PLM PO | DAM current PO rows are snapshots. | `dam.prod_order_headers_current.plm_order_line_id` during transition. |
 | Licensor approval to PM submission/revision | CRM approval threads and PM workflow can duplicate approvals. | Link approval thread to `pim.product_submission`/`pim.revision_request` when specific. |
-| Directus/ClickUp external ids | Needed for dedupe and rollback. | Preserve all `external_id`, `external_source`, ClickUp task ids in source-ref tables. |
+| Retired-source/ClickUp external ids | Needed for dedupe and audit provenance. | Preserve all `external_id`, `external_source`, ClickUp task ids in source-ref tables; these labels do not represent a live connection or rollback system. |
 
 ## Tables To Keep Out Of Browser Contracts
 

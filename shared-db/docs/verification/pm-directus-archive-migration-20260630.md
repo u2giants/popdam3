@@ -84,5 +84,6 @@ ClickUp payloads archived in `ingest.raw_record` with
 ## Notes
 
 - Temporary schema `legacy_pm_import` was dropped after migration.
-- Directus remains retired; it was used only as an archive source.
+- A one-time archive supplied the migrated rows. The source is retired and has
+  no live, read-only, import, or rollback role.
 - Current PM runtime reads the shared Supabase backend.

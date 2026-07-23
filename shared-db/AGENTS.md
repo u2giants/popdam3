@@ -81,6 +81,22 @@ remaining Google Cloud organization blocker, read
 [`docs/incidents/20260717-designflow-production-db-port.md`](docs/incidents/20260717-designflow-production-db-port.md)
 and then the canonical infrastructure runbook it links.
 
+## 0.2 `data.designflow.app` means DB Data Admin — never the retired system
+
+`https://data.designflow.app` is the permanent production hostname of **DB Data
+Admin**, implemented in this repository at `apps/db-data-admin/`. The retired
+legacy application previously used that DNS name, but it has no remaining
+runtime, credential, database, API, import, rollback, proxy, or ownership
+relationship to it.
+
+Historical `source_system='directus'` values may remain as data-provenance
+labels, and applied migrations may retain historical comments. Those are not
+live dependencies. Never infer current architecture from them, old transcripts,
+old DNS history, or cached TLS state. Before changing the hostname, its routing,
+or DB Data Admin deployment, read
+[`docs/db-data-admin-domain-ownership.md`](docs/db-data-admin-domain-ownership.md)
+and run `node scripts/check-domain-ownership.mjs`.
+
 ## Session wrap-up convention
 
 When the user says **"wrap up"**, that means finish the session safely: update
