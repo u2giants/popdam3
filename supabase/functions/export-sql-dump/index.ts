@@ -58,6 +58,18 @@ const TABLES_IN_ORDER = [
 const DEFAULT_CHUNK = 5000;
 const POSTGREST_PAGE = 1000; // PostgREST max per request
 
+function tableSource(db: ReturnType<typeof createClient>, table: string) {
+  if (table === "licensors") return db.schema("core").from("licensor");
+  if (table === "properties") return db.schema("core").from("property");
+  return db.from(table);
+}
+
+function sqlTarget(table: string): string {
+  if (table === "licensors") return "core.licensor";
+  if (table === "properties") return "core.property";
+  return `public.${table}`;
+}
+
 // ── SQL escaping ────────────────────────────────────────────────────
 
 function escapeSQL(val: unknown): string {
@@ -132,7 +144,7 @@ corsServe(async (req) => {
       const tables: { table: string; rows: number; chunks: number }[] = [];
 
       for (const table of TABLES_IN_ORDER) {
-        const { count } = await db.from(table).select("*", { count: "exact", head: true });
+        const { count } = await tableSource(db, table).select("*", { count: "exact", head: true });
         const rows = count ?? 0;
         tables.push({ table, rows, chunks: rows === 0 ? 0 : Math.ceil(rows / chunkSize) });
       }
@@ -162,8 +174,7 @@ corsServe(async (req) => {
     const rows: Record<string, unknown>[] = [];
     let pgOffset = offset;
     while (rows.length < chunkSize) {
-      const { data: page, error } = await db
-        .from(table)
+      const { data: page, error } = await tableSource(db, table)
         .select("*")
         .range(pgOffset, pgOffset + POSTGREST_PAGE - 1);
 
@@ -190,7 +201,7 @@ corsServe(async (req) => {
     lines.push("");
 
     if (includeTruncate) {
-      lines.push(`TRUNCATE TABLE public.${table} CASCADE;`);
+      lines.push(`TRUNCATE TABLE ${sqlTarget(table)} CASCADE;`);
       lines.push("");
     }
 
@@ -202,7 +213,7 @@ corsServe(async (req) => {
 
       for (const row of rows) {
         const values = columns.map((col) => escapeSQL(row[col]));
-        lines.push(`INSERT INTO public.${table} (${colList}) VALUES (${values.join(", ")});`);
+        lines.push(`INSERT INTO ${sqlTarget(table)} (${colList}) VALUES (${values.join(", ")});`);
       }
     }
 

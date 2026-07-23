@@ -113,7 +113,8 @@ export async function deriveMetadataFromPath(
       licensor_id = licensorMap.get(licensor_name.toLowerCase()) ?? null;
     } else {
       const { data: lic } = await db
-        .from("licensors")
+        .schema("core")
+        .from("licensor")
         .select("id")
         .ilike("name", licensor_name)
         .maybeSingle();
@@ -126,7 +127,8 @@ export async function deriveMetadataFromPath(
       property_id = propertyMap.get(`${licensor_id}:${property_name.toLowerCase()}`) ?? null;
     } else {
       const { data: prop } = await db
-        .from("properties")
+        .schema("core")
+        .from("property")
         .select("id")
         .eq("licensor_id", licensor_id)
         .ilike("name", property_name)

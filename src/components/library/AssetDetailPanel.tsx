@@ -229,7 +229,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
     queryKey: ["licensor-name", asset.licensor_id],
     queryFn: async () => {
       if (!asset.licensor_id) return null;
-      const { data } = await supabase.from("licensors").select("name").eq("id", asset.licensor_id).single();
+      const { data } = await (supabase as any).schema("core").from("licensor").select("name").eq("id", asset.licensor_id).single();
       return data?.name ?? null;
     },
     enabled: !!asset.licensor_id,
@@ -239,7 +239,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
     queryKey: ["property-name", asset.property_id],
     queryFn: async () => {
       if (!asset.property_id) return null;
-      const { data } = await supabase.from("properties").select("name").eq("id", asset.property_id).single();
+      const { data } = await (supabase as any).schema("core").from("property").select("name").eq("id", asset.property_id).single();
       return data?.name ?? null;
     },
     enabled: !!asset.property_id,
@@ -265,7 +265,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
     queryKey: ["licensor-name", styleGroup?.licensor_id],
     queryFn: async () => {
       if (!styleGroup?.licensor_id) return null;
-      const { data } = await supabase.from("licensors").select("name").eq("id", styleGroup.licensor_id).single();
+      const { data } = await (supabase as any).schema("core").from("licensor").select("name").eq("id", styleGroup.licensor_id).single();
       return data?.name ?? null;
     },
     enabled: !!styleGroup?.licensor_id,
@@ -275,7 +275,7 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
     queryKey: ["property-name", styleGroup?.property_id],
     queryFn: async () => {
       if (!styleGroup?.property_id) return null;
-      const { data } = await supabase.from("properties").select("name").eq("id", styleGroup.property_id).single();
+      const { data } = await (supabase as any).schema("core").from("property").select("name").eq("id", styleGroup.property_id).single();
       return data?.name ?? null;
     },
     enabled: !!styleGroup?.property_id,

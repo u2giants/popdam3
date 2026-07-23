@@ -29,10 +29,12 @@ export async function handleReprocessAssetMetadata(body: Record<string, unknown>
   }
 
   const { data: allLicensors } = await db
-    .from("licensors")
+    .schema("core")
+    .from("licensor")
     .select("id, name");
   const { data: allProperties } = await db
-    .from("properties")
+    .schema("core")
+    .from("property")
     .select("id, name, licensor_id");
 
   const licensorMap = new Map(

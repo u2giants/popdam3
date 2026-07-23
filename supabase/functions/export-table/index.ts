@@ -39,6 +39,12 @@ const ALLOWED_TABLES = [
   "agent_pairings",
 ];
 
+function tableSource(db: ReturnType<typeof createClient>, table: string) {
+  if (table === "licensors") return db.schema("core").from("licensor");
+  if (table === "properties") return db.schema("core").from("property");
+  return db.from(table);
+}
+
 corsServe(async (req) => {
   try {
     const authHeader = req.headers.get("authorization") ?? "";
@@ -90,7 +96,7 @@ corsServe(async (req) => {
 
     const db = createClient(supabaseUrl, serviceKey);
 
-    const { count: totalCount } = await db.from(table).select("*", { count: "exact", head: true });
+    const { count: totalCount } = await tableSource(db, table).select("*", { count: "exact", head: true });
 
     // PostgREST caps at 1000 rows per request, so we paginate internally
     const CHUNK = 1000;
@@ -101,7 +107,7 @@ corsServe(async (req) => {
     let offset = from;
     while (rows.length < targetRows) {
       const chunkEnd = offset + CHUNK - 1;
-      const { data: chunk, error: chunkErr } = await db.from(table).select("*").range(offset, chunkEnd);
+      const { data: chunk, error: chunkErr } = await tableSource(db, table).select("*").range(offset, chunkEnd);
       if (chunkErr) {
         return new Response(JSON.stringify({ error: chunkErr.message }), {
           status: 500,

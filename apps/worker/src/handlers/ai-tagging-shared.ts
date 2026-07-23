@@ -178,8 +178,8 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
   const customInstructions = typeof instrRow?.value === "string" ? instrRow.value.trim() : null;
 
   const [licensorsRes, propertiesRes] = await Promise.all([
-    client.from("licensors").select("id, name").limit(50),
-    client.from("properties").select("id, name, licensor_id").limit(200),
+    client.schema("core").from("licensor").select("id, name").limit(50),
+    client.schema("core").from("property").select("id, name, licensor_id").limit(200),
   ]);
   const licensors = licensorsRes.data ?? [];
   const properties = propertiesRes.data ?? [];
@@ -189,9 +189,9 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
 
   if (asset.property_id) {
     const { data: priorityChars } = await client
-      .from("characters")
+      .from("dam_character_catalog")
       .select("id, name")
-      .eq("property_id", asset.property_id)
+      .eq("core_property_id", asset.property_id)
       .eq("is_priority", true)
       .order("usage_count", { ascending: false });
 
@@ -200,24 +200,25 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
       usingPriorityOnly = true;
     } else {
       const { data: allChars } = await client
-        .from("characters")
+        .from("dam_character_catalog")
         .select("id, name")
-        .eq("property_id", asset.property_id)
+        .eq("core_property_id", asset.property_id)
         .order("name");
       characters = allChars ?? [];
     }
   } else if (asset.licensor_id) {
     const { data: propIds } = await client
-      .from("properties")
+      .schema("core")
+      .from("property")
       .select("id")
       .eq("licensor_id", asset.licensor_id);
     const ids = (propIds ?? []).map((p: { id: string }) => p.id);
 
     if (ids.length > 0) {
       const { data: priorityChars } = await client
-        .from("characters")
+        .from("dam_character_catalog")
         .select("id, name")
-        .in("property_id", ids)
+        .in("core_property_id", ids)
         .eq("is_priority", true)
         .order("usage_count", { ascending: false })
         .limit(200);
@@ -227,16 +228,16 @@ export async function buildImageTaggingPrompt(asset: TaggingPromptAsset): Promis
         usingPriorityOnly = true;
       } else {
         const { data: allChars } = await client
-          .from("characters")
+          .from("dam_character_catalog")
           .select("id, name")
-          .in("property_id", ids)
+          .in("core_property_id", ids)
           .limit(300);
         characters = allChars ?? [];
       }
     }
   } else {
     const { data: priorityChars } = await client
-      .from("characters")
+      .from("dam_character_catalog")
       .select("id, name")
       .eq("is_priority", true)
       .order("usage_count", { ascending: false })

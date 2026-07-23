@@ -33,19 +33,18 @@ If a timestamp mutation incident occurs, record it in a `worker_incidents` table
 
 ## 2) Core Tables
 
-### 2.1 licensors
-- `id uuid PK`
-- `name text NOT NULL`
-- `external_id text UNIQUE NULL`
-- `created_at timestamptz DEFAULT now()`
-- `updated_at timestamptz DEFAULT now()`
+### 2.1 `core.licensor`
+- Shared canonical licensor identity; DesignFlow owns the feed.
+- `id uuid PK`, `name text`, `code text`, `status app.entity_status`, `metadata jsonb`, timestamps.
+- `assets.licensor_id` and `style_groups.licensor_id` reference this table.
+- Legacy `public.licensors` is deprecated compatibility storage and is not a PopDAM list/source.
 
-### 2.2 properties
-- `id uuid PK`
-- `licensor_id uuid FK NOT NULL`
-- `name text NOT NULL`
-- `external_id text UNIQUE NULL`
-- timestamps
+### 2.2 `core.property`
+- Shared canonical property identity.
+- `licensor_id uuid FK → core.licensor(id)`, plus `name`, `code`, `status`, `metadata`, timestamps.
+- `assets.property_id`, `style_groups.property_id`, and AI bake-off property IDs reference this table.
+- Legacy `public.properties` remains only because the legacy character catalog still references it.
+- `public.dam_character_catalog` is the read-only compatibility view mapping legacy character IDs to canonical property IDs. Do not use it as a property list.
 
 ### 2.3 characters
 - `id uuid PK`
@@ -61,6 +60,11 @@ If a timestamp mutation incident occurs, record it in a `worker_incidents` table
 non-deleted `asset_characters` links, then marks characters whose count meets
 the threshold as priority. Rare/new characters can be real taxonomy rows while
 still having `is_priority=false`.
+
+Character identity was deliberately not migrated with the 2026-07-23
+licensor/property cutover: `core.character` was empty while PopDAM had 9,622
+characters and 117,012 asset-character links. A separate approved migration is
+required before retiring the compatibility view.
 
 ### 2.4 product_categories / product_types / product_subtypes
 As in the build spec (taxonomy tables with optional external_id).

@@ -625,21 +625,13 @@ async function fetchCustomerOptions() {
 }
 
 async function fetchLicensorOptions() {
-  const coreQuery = await (supabase as any)
+  const { data, error } = await (supabase as any)
     .schema("core")
     .from("licensor")
     .select("id, name")
     .order("name", { ascending: true });
-
-  if (!coreQuery.error) return compactPickerOptions(coreQuery.data);
-
-  const publicQuery = await (supabase as any)
-    .from("licensors")
-    .select("id, name")
-    .order("name", { ascending: true });
-
-  if (publicQuery.error) throw coreQuery.error;
-  return compactPickerOptions(publicQuery.data);
+  if (error) throw error;
+  return compactPickerOptions(data);
 }
 
 async function fetchDesignerRecords() {

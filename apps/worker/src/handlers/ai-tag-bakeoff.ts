@@ -160,10 +160,10 @@ async function resolveNames(characterIds: string[], propertyId: string | null): 
   const client = db();
   const [charsRes, propRes] = await Promise.all([
     characterIds.length > 0
-      ? client.from("characters").select("id, name").in("id", characterIds)
+      ? client.from("dam_character_catalog").select("id, name").in("id", characterIds)
       : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
     propertyId
-      ? client.from("properties").select("name").eq("id", propertyId).maybeSingle()
+      ? client.schema("core").from("property").select("name").eq("id", propertyId).maybeSingle()
       : Promise.resolve({ data: null as { name: string } | null }),
   ]);
   return {
@@ -175,7 +175,8 @@ async function resolveNames(characterIds: string[], propertyId: string | null): 
 async function loadProperty(propertyId: string | null): Promise<{ id: string; name: string } | null> {
   if (!propertyId) return null;
   const { data } = await db()
-    .from("properties")
+    .schema("core")
+    .from("property")
     .select("id, name")
     .eq("id", propertyId)
     .maybeSingle();
@@ -185,8 +186,8 @@ async function loadProperty(propertyId: string | null): Promise<{ id: string; na
 async function loadCharactersByIds(characterIds: string[]): Promise<CharacterRow[]> {
   if (characterIds.length === 0) return [];
   const { data } = await db()
-    .from("characters")
-    .select("id, name, property_id, is_priority, usage_count")
+    .from("dam_character_catalog")
+    .select("id, name, property_id:core_property_id, is_priority, usage_count")
     .in("id", characterIds);
   return (data ?? []) as CharacterRow[];
 }
@@ -205,8 +206,8 @@ async function resolveCharacterNameCandidates(names: string[], preferredProperty
     if (!trimmed || normalizeName(trimmed).length < 3) continue;
 
     const { data } = await client
-      .from("characters")
-      .select("id, name, property_id, is_priority, usage_count")
+      .from("dam_character_catalog")
+      .select("id, name, property_id:core_property_id, is_priority, usage_count")
       .ilike("name", trimmed)
       .limit(25);
 

@@ -257,13 +257,14 @@ function TaxonomyApiSection() {
   const { data: taxonomyData, isLoading } = useQuery({
     queryKey: ["taxonomy-data"],
     queryFn: async () => {
-      async function fetchAll(table: string, select: string, orderCol: string) {
+      async function fetchAll(schema: "core" | "public", table: string, select: string, orderCol: string) {
         const PAGE = 1000;
         const all: Record<string, unknown>[] = [];
         let from = 0;
         while (true) {
-          const { data, error } = await supabase
-            .from(table as "licensors")
+          const client = schema === "core" ? (supabase as any).schema("core") : (supabase as any);
+          const { data, error } = await client
+            .from(table)
             .select(select)
             .order(orderCol)
             .range(from, from + PAGE - 1);
@@ -277,9 +278,9 @@ function TaxonomyApiSection() {
       }
 
       const [licensors, properties, characters] = await Promise.all([
-        fetchAll("licensors", "id, name, external_id", "name"),
-        fetchAll("properties", "id, name, external_id, licensor_id", "name"),
-        fetchAll("characters", "id, name, property_id", "name"),
+        fetchAll("core", "licensor", "id, name, external_id:code", "name"),
+        fetchAll("core", "property", "id, name, external_id:code, licensor_id", "name"),
+        fetchAll("public", "dam_character_catalog", "id, name, property_id:core_property_id", "name"),
       ]);
 
       const charsByProp = new Map<string, { id: string; name: string }[]>();
@@ -307,51 +308,16 @@ function TaxonomyApiSection() {
     },
   });
 
-  const syncAllMutation = useMutation({
-    mutationFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const url = `${CURRENT_APP.supabaseUrl}/functions/v1/sync-external`;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          apikey: CURRENT_APP.supabaseAnonKey,
-        },
-        body: JSON.stringify({ action: "sync-all" }),
-      });
-      if (!resp.ok) throw new Error(await resp.text());
-      return resp.json();
-    },
-    onSuccess: (data) => {
-      const summary = data.summary;
-      toast.success(`Sync complete: ${summary?.totalProperties ?? 0} properties, ${summary?.totalCharacters ?? 0} characters`);
-      queryClient.invalidateQueries({ queryKey: ["taxonomy-data"] });
-    },
-    onError: (e) => toast.error(`Sync failed: ${e.message}`),
-  });
-
   const licensors = taxonomyData || [];
   const totalProps = licensors.reduce((s, l) => s + l.properties.length, 0);
   const totalChars = licensors.reduce((s, l) => s + l.properties.reduce((ps, p) => ps + p.characters.length, 0), 0);
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
+      <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <Globe className="h-4 w-4" /> Taxonomy APIs (Licensors / Properties / Characters)
+          <Globe className="h-4 w-4" /> Shared Taxonomy (Licensors / Properties / Characters)
         </CardTitle>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => syncAllMutation.mutate()}
-          disabled={syncAllMutation.isPending} title={syncAllMutation.isPending ? "Sync in progress…" : undefined}
-          className="gap-1.5"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${syncAllMutation.isPending ? "animate-spin" : ""}`} />
-          {syncAllMutation.isPending ? "Syncing..." : "Sync All"}
-        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-3 text-xs">
@@ -360,15 +326,17 @@ function TaxonomyApiSection() {
           <Badge variant="secondary" className="font-mono">{totalChars} Characters</Badge>
         </div>
 
-        <TaxonomySourceEditor />
+        <p className="text-xs text-muted-foreground">
+          Licensors and properties are read-only shared master data from <code>core.licensor</code> and <code>core.property</code>. DesignFlow owns the canonical feed.
+        </p>
 
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading taxonomy data...</p>
         ) : licensors.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">No taxonomy data yet. Click "Sync All" to fetch from APIs.</p>
+          <p className="text-sm text-muted-foreground italic">No canonical taxonomy data is available.</p>
         ) : (
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fetched Data</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Canonical Data</p>
             {licensors.map((lic) => {
               const licExpanded = expandedLicensor === lic.id;
               const charCount = lic.properties.reduce((s, p) => s + p.characters.length, 0);

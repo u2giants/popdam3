@@ -1351,7 +1351,8 @@ export async function handleGetFilterOptions(body: Record<string, unknown>) {
 
   // Fetch licensors with asset counts
   const { data: licensors, error: licErr } = await db
-    .from("licensors")
+    .schema("core")
+    .from("licensor")
     .select("id, name");
 
   if (licErr) return err(licErr.message, 500);
@@ -1368,7 +1369,7 @@ export async function handleGetFilterOptions(body: Record<string, unknown>) {
   }
 
   // Fetch properties (optionally filtered by licensor)
-  let propQuery = db.from("properties").select("id, name, licensor_id");
+  let propQuery = db.schema("core").from("property").select("id, name, licensor_id");
   if (licensorId) {
     propQuery = propQuery.eq("licensor_id", licensorId);
   }
