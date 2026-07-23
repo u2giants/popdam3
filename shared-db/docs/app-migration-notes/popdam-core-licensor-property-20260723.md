@@ -35,6 +35,30 @@ The preview backfill took 6m48s. Migrations `20260723112900` and
 `20260723113100` bracket production application with a session-only 10-minute
 statement timeout and restore the normal setting afterward.
 
+## Production promotion and application rollout
+
+Promoted to production `qsllyeztdwjgirsysgai` on 2026-07-23 after explicit
+owner approval. The Sample Tracking block had already been promoted by its
+own session. Eight unrelated DB Admin/customer-hub migrations remained
+intentionally unapplied; the DAM release used a temporary checkout containing
+only the three approved taxonomy migrations, and its dry-run named exactly
+`20260723112900`, `20260723113000`, and `20260723113100` before application.
+
+Production verification after the 12m19s backfill:
+
+- all five replacement foreign keys are validated and target `core.licensor`
+  or `core.property` as designed;
+- 85,482 asset licensor links and 42,701 asset property links remain canonical;
+- 36 style-group licensor links and 24 style-group property links remain canonical;
+- `public.dam_character_catalog` returns 161 compatible legacy-character rows;
+- no unrelated pending shared-db migration was applied by this rollout.
+
+PopDAM application commit `5712f22165e0b0bfce51e776ca24bde71505b069`
+was pushed to `main`. CI, edge-function deployment, and the successor frontend
+and Railway deployments passed. Live `dam.designflow.app` and
+`sg.designflow.app` served descendant commit `b061de2` (confirmed inside the
+deployed JavaScript bundle), so the canonical taxonomy readers are live.
+
 ## Production attempt and outage — 2026-07-23
 
 Production migration `20260723113000` was attempted at approximately 14:45 UTC
