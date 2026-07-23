@@ -670,8 +670,20 @@ export default function PopSGLibraryPage() {
       if (filters.licensor !== "all") q = q.eq("licensor_name", filters.licensor);
       if (filters.property !== "all") q = q.eq("property_folder", filters.property);
       if (filters.nameSearch) {
+        // Match the filename AND the folder path, so a franchise query like
+        // "spiderman" returns every file living under a "Marvel Style Guide/
+        // Spider-Man/…" path — not just files whose own name contains it (the
+        // files themselves are named with SKU codes). Synonym/separator-expanded
+        // so "spiderman" reaches the stored "Spider-Man" path.
         const terms = await expandFallbackTerms(filters.nameSearch);
-        const clauses = terms.map((t) => `filename.ilike.%${t.replace(/[%_]/g, "\\$&")}%`);
+        const clauses = terms.flatMap((t) => {
+          const escaped = t.replace(/[%_]/g, "\\$&");
+          return [
+            `filename.ilike.%${escaped}%`,
+            `directory_path.ilike.%${escaped}%`,
+            `relative_path.ilike.%${escaped}%`,
+          ];
+        });
         if (clauses.length > 0) q = q.or(clauses.join(","));
       }
       if (filters.fileTypes.length > 0) q = q.in("file_extension", filters.fileTypes);
