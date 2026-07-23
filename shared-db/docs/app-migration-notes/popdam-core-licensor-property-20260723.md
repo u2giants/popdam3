@@ -1,114 +1,150 @@
 # PopDAM canonical licensor/property cutover — 2026-07-23
 
 PopDAM formerly kept separate `public.licensors` and `public.properties` tables.
-Migration `20260723113000` moves live DAM foreign keys to the shared canonical
+The intended end-state moves live DAM foreign keys to shared canonical
 `core.licensor` and `core.property` identities.
 
 ## Contract
 
 - `public.assets.{licensor_id,property_id}` and
-  `public.style_groups.{licensor_id,property_id}` now reference `core.*`.
+  `public.style_groups.{licensor_id,property_id}` reference `core.*`.
 - `public.ai_tag_bakeoff_results.property_id` references `core.property`.
 - Canonical matching prefers the record's ERP property code, then a unique
   normalized property name scoped to its canonical licensor. Missing/ambiguous
-  properties become `NULL`; their durable `property_code`/`property_name` text
-  is preserved. The migration never guesses an FK.
+  properties become `NULL`; durable `property_code`/`property_name` text is
+  preserved. Never guess an FK.
+- Licensor mapping hard-fails on unmapped **or ambiguous** legacy licensors.
+- Partial resume: `COALESCE(existing valid core licensor, mapped legacy licensor)`
+  (and the same idea for already-valid core properties).
 - `public.licensors` / `public.properties` remain deprecated only because
-  PopDAM's 9,622-row character catalog still references legacy properties.
-- `public.dam_character_catalog` is the explicit read-only compatibility view;
-  it exposes legacy character IDs with `core_property_id`. Character migration
-  is separate scope because `core.character` was empty and PopDAM had 117,012
-  asset-character links.
+  PopDAM's character catalog still references legacy properties.
+- `public.dam_character_catalog` is the explicit read-only compatibility view.
 
 ## Preview verification
 
-Applied to preview `rjyboqwcdzcocqgmsyel` on 2026-07-22 EDT. Verified:
+Applied to preview `rjyboqwcdzcocqgmsyel` via migration `20260723113000` on
+2026-07-22 EDT. Verified:
 
 - zero asset licensor IDs outside `core.licensor`;
 - zero asset property IDs outside `core.property`;
 - all five replacement FKs target the correct `core` table;
-- 85,481 asset licensor links and 42,700 asset property links survived canonical resolution in preview;
-- 5,726 style-group licensor links and 3,803 style-group property links survived in preview;
-- `public.dam_character_catalog` is queryable (161 currently compatible character rows).
+- 85,481 asset licensor links and 42,700 asset property links in preview;
+- `public.dam_character_catalog` queryable.
 
-The preview backfill took 6m48s. Migrations `20260723112900` and
-`20260723113100` bracket production application with a session-only 10-minute
-statement timeout and restore the normal setting afterward.
+The preview backfill took 6m48s. That single-file migration is **applied on
+preview and must not be edited, renamed, or deleted.**
 
-## Production promotion and application rollout
+## Production status (verified 2026-07-23)
 
-Promoted to production `qsllyeztdwjgirsysgai` on 2026-07-23 after explicit
-owner approval. The Sample Tracking block had already been promoted by its
-own session. Eight unrelated DB Admin/customer-hub migrations remained
-intentionally unapplied; the DAM release used a temporary checkout containing
-only the three approved taxonomy migrations, and its dry-run named exactly
-`20260723112900`, `20260723113000`, and `20260723113100` before application.
+**Production cutover is NOT applied.** An earlier doc paragraph that described a
+successful production promotion is **withdrawn**.
 
-Production verification after the 12m19s backfill:
+- production ledger contains `20260723112900` only among the taxonomy trio;
+- `20260723113000` and `20260723113100` are absent;
+- the long-running production attempt timed out at 10 minutes and rolled back;
+- PostgREST returned HTTP 503 / PGRST002 for the duration of that transaction.
 
-- all five replacement foreign keys are validated and target `core.licensor`
-  or `core.property` as designed;
-- 85,482 asset licensor links and 42,701 asset property links remain canonical;
-- 36 style-group licensor links and 24 style-group property links remain canonical;
-- `public.dam_character_catalog` returns 161 compatible legacy-character rows;
-- no unrelated pending shared-db migration was applied by this rollout.
-
-PopDAM application commit `5712f22165e0b0bfce51e776ca24bde71505b069`
-was pushed to `main`. CI, edge-function deployment, and the successor frontend
-and Railway deployments passed. Live `dam.designflow.app` and
-`sg.designflow.app` served descendant commit `b061de2` (confirmed inside the
-deployed JavaScript bundle), so the canonical taxonomy readers are live.
+Do not deploy dependent PopDAM taxonomy app code until the safe path below
+succeeds and is verified.
 
 ## Production attempt and outage — 2026-07-23
 
 Production migration `20260723113000` was attempted at approximately 14:45 UTC
-and **did not apply**. Its asset-update transaction ran for 10 minutes, reached
-the safety timeout, and rolled back. The production migration ledger contains
-`20260723112900` but not `20260723113000` or `20260723113100`; the canonical
-licensor/property cutover therefore remains pending in production.
-
-While the transaction was running, its DDL and asset rewrite prevented
-PostgREST from rebuilding its schema cache. PopSG and the other browser clients
-received HTTP 503 responses with:
-
-```text
-PGRST002: Could not query the database for the schema cache. Retrying.
-```
-
-PopSG displayed “Style guides could not load.” The failure was not specific to
-the style-guide views: `user_roles`, `admin_config`, `style_guide_folders`, and
-`style_guide_file_groups` all returned 503. Supabase Auth continued to work.
-
-After the timeout, read-only inspection confirmed that the long-running query
-was gone, the migration had rolled back, and every PostgREST-exposed schema
-(`public`, `graphql_public`, `api`, `crm`, `pim`, `core`, and `app`) still
-existed. PostgREST remained stuck until it received its documented in-place
-reload signals:
+and **did not apply**. Its transaction ran for 10 minutes, hit the safety
+timeout, and rolled back. While open, DDL + asset rewrite prevented PostgREST
+from rebuilding its schema cache (PopSG “Style guides could not load,” plus
+other Data API 503s). Recovery required:
 
 ```sql
 notify pgrst, 'reload config';
 notify pgrst, 'reload schema';
 ```
 
-Those signals changed no data or schema. Browser verification then returned
-HTTP 200 for `style_guide_folders`, HTTP 206 for the paginated
-`style_guide_file_groups` request, and rendered live style-guide cards.
-
 ### Do not retry the production migration unchanged
 
-The preview runtime of 6m48s did not predict the production runtime or the
-availability impact of holding the DDL transaction open. Before another
-production attempt:
+**Do not** re-run `20260723113000` via `supabase db push`. **Do not** edit that
+file. **Do not** mark it applied until the safe path has produced the same
+end-state **and** the owner approves a migration-metadata repair.
 
-1. Redesign the asset rewrite so it does not hold one transaction and
-   PostgREST-affecting locks across the full backfill. The success gate is a
-   preview rehearsal that keeps representative Data API reads available while
-   the rewrite runs.
-2. Re-run `supabase db push --dry-run` and confirm the intended pending sequence
-   starts at `20260723113000`; do not mark the timed-out migration as applied.
-3. Use an approved production window with live REST probes for a simple public
-   table and the PopSG folder/group views.
-4. If any probe returns `PGRST002`, stop the attempt, confirm rollback/query
-   state, then reload PostgREST only after the database transaction is gone.
-5. Verify the five replacement foreign keys and the canonical row counts before
-   deploying dependent PopDAM code.
+## Stage 0 safe path (revised — migration DDL + DML-only tool)
+
+### Ownership split
+
+| Concern | Owner |
+|---|---|
+| Schema DDL + gates | Migrations `20260723112910`–`20260723112940` |
+| Residual DML backfill | `tools/dam-core-taxonomy-safe-cutover.mjs` only |
+| Unsafe mono cutover | `20260723113000` — preview only; never re-run on prod |
+
+The Node tool **must not** execute schema DDL (`ALTER`/`CREATE`/`DROP`/`VALIDATE`
+for FKs/views). AGENTS.md requires all DDL as timestamped shared-db migrations.
+
+### Bridge migration order (between 112900 and 113000)
+
+| Version | Role |
+|---|---|
+| `20260723112910` | Drop only legacy-targeted five FKs (no-op if core/absent) |
+| `20260723112920` | Backfill-completion gate — raises while residuals remain |
+| `20260723112930` | Finalize five core FKs + `dam_character_catalog` (no bulk DML) |
+| `20260723112940` | Ledger barrier — raises until `113000` is in `schema_migrations` |
+| `20260723113000` | Unsafe original (preview applied) |
+| `20260723113100` | Reset statement_timeout |
+
+### Production three-pass workflow
+
+1. **Pass 1 `db push`:** applies `112910`; stops at `112920` gate.
+   **DML:** `node tools/dam-core-taxonomy-safe-cutover.mjs --apply` until residuals = 0.
+2. **Pass 2 `db push`:** applies `112920` + `112930`; stops at `112940` barrier.
+   **Verify** five core FKs + zero residuals + view.
+   **Only then**, owner-approved:
+   `supabase migration repair --status applied 20260723113000`
+   (**Forbidden before end-state exists.**)
+3. **Pass 3 `db push`:** barrier passes; applies `113100`.
+
+### Preview / `--include-all`
+
+Preview already has `113000` applied. Landing `112910`–`112940` requires
+out-of-order apply (`db push --include-all` or equivalent). Each bridge file is
+idempotent; barrier passes because `113000` is already recorded.
+
+### Tool behavior
+
+- Offline dry-run: SQL/architecture only; `operationalCounts: null`.
+- Live dry-run (`DATABASE_URL`): queries real preflight.
+- Apply: advisory lock, per-txn timeouts, residual-scoped batches, reports
+  `updated=` + residual deltas, aborts if nonzero residual does not decrease.
+- Hard-fail unmapped/ambiguous licensors; refuse DML while legacy FKs remain
+  (run `112910` first).
+
+### Files
+
+| Path | Role |
+|---|---|
+| `supabase/migrations/2026072311291*_*.sql` | Bridge DDL/gates |
+| `tools/dam-core-taxonomy-safe-cutover.mjs` | DML-only tool |
+| `tools/dam-core-taxonomy-safe-cutover.test.mjs` | Unit/contract tests |
+| `scripts/dam-core-taxonomy-safe-cutover/README.md` | Operator runbook |
+
+### Verification gates
+
+| Gate | Pass criteria |
+|---|---|
+| Unit tests | `node --test tools/dam-core-taxonomy-safe-cutover.test.mjs` |
+| SQL static | `scripts/check-sql.sh` |
+| Preview bridge | `--include-all` applies 112910–112940; tool noop; five core FKs remain |
+| Production DML | residual non-core ids → 0 with progress evidence |
+| Production finalize | `core_fk_count=5`, view exists, PopSG 200/206 |
+| Ledger | repair **after** end-state only; barrier then pass |
+
+### Remaining owner approval (ledger only)
+
+Safe end-state does **not** insert `20260723113000` into the ledger. After
+validation proof:
+
+```bash
+# ONLY after verified end-state + owner approval for THIS repair:
+supabase migration repair --status applied 20260723113000
+supabase db push --dry-run   # must not list 113000 as work to execute
+```
+
+Repository Stage 0 does not cheat the ledger from SQL.

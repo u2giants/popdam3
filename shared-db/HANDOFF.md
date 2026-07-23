@@ -1,91 +1,245 @@
 # HANDOFF — shared-db current state
 
-## PopSG outage during DAM taxonomy migration — 2026-07-23 (production cutover still pending)
+## Stage 0 — Safe DAM core licensor/property cutover (ACTIVE — local revision in worktree; not committed/applied)
 
-### What the application is
+Date: 2026-07-23 (revised implementation)
+Repo: `u2giants/shared-db`
+Worktree: `C:\repos\shared-db-worktrees\dam-core-taxonomy-safe-cutover-stage0`
+Branch: `fix/dam-core-taxonomy-safe-cutover-stage0` (one commit behind main `a90846c` DB Data Admin domain reservation — do not overwrite that commit; port accepted changes onto a fresh `codex/*` branch after review)
 
-PopDAM is the internal digital-asset library; PopSG is its licensor style-guide
-mode at `https://sg.designflow.app`. Both use shared Supabase production project
-`qsllyeztdwjgirsysgai`. PopSG reads the `style_guide_folders` and
-`style_guide_file_groups` views through PostgREST.
+**Stage 0 is NOT “repo-side done for production” until unit tests pass and a
+later session lands the branch.** This coding pass revises an unacceptable
+first draft: DDL must be migration-authored; the Node tool is DML-only.
 
-### Goal and trigger
+### 1. What this application is
 
-Migration `20260723113000_dam_core_licensor_property_cutover.sql` was intended
-to move PopDAM asset/style-group licensor and property foreign keys from legacy
-`public.*` taxonomy tables to canonical `core.*` rows. During its production
-attempt, PopSG showed “Style guides could not load,” which triggered this
-incident investigation.
+PopDAM is POP Creations’ internal digital-asset library (`dam.designflow.app`).
+PopSG is its licensor style-guide mode (`sg.designflow.app`). Both apps, plus
+CRM and PM/PIM, share one hosted Supabase Postgres project:
 
-### Current state
+| Env | Project ref |
+|---|---|
+| Production | `qsllyeztdwjgirsysgai` |
+| Preview (`shared-db-schema-rehearsal`) | `rjyboqwcdzcocqgmsyel` |
 
-- PopSG recovered and was browser-verified on 2026-07-23: folders returned HTTP
-  200, the paginated guide query returned HTTP 206, and live guide cards
-  rendered.
-- The production cutover **is not applied**. The 10-minute timeout rolled back
-  `20260723113000`; production ledger has only its preceding timeout guard
-  `20260723112900`, not `113000` or reset migration `113100`.
-- The database answers direct read-only inspection normally. No outage repair
-  changed application data or schema.
-- PopDAM local commit `920f64c` contains dependent taxonomy code but was not
-  pushed by this incident session; do not deploy it before the database cutover
-  is safely completed.
+PopSG reads `style_guide_folders` and `style_guide_file_groups` through
+PostgREST. Canonical taxonomy identity lives in `core.licensor` /
+`core.property`. Legacy DAM tables `public.licensors` / `public.properties`
+still exist for the character catalog only.
 
-### What failed
+This repository (`u2giants/shared-db`) is the **only** place schema/DDL for
+that shared database may be authored. Consumer apps must not invent migrations.
+AGENTS.md: every DDL change is a new timestamped file under
+`supabase/migrations/` — never ad-hoc Node-executed ALTER/CREATE/DROP/VALIDATE.
 
-The unchanged preview-proven migration was attempted in production. Its
-single-transaction batched update remained active for 10 minutes and held the
-DDL/asset transaction open. PostgREST could not rebuild its schema cache, so
-all browser database reads returned HTTP 503/PGRST002. The timeout correctly
-rolled the migration back, but PostgREST did not recover by itself. Waiting
-after rollback and retrying the browser did not help. The documented PostgREST
-config/schema reload signals restored service once the transaction was gone.
+### 2. What we set out to do this session, and why
 
-### Root cause and key findings
+**Business goal:** finish moving PopDAM asset/style-group licensor+property
+foreign keys onto the shared canonical `core.*` rows so every app agrees on
+identity — without taking the Data API down again.
 
-- The production asset rewrite exceeded the 10-minute guard despite preview
-  completing in 6m48s.
-- The transaction's availability impact was broader than PopSG; even
-  `user_roles` and `admin_config` returned 503.
-- Auth remained healthy, and Supabase's public status page showed the region
-  operational; this was project-specific.
-- All configured PostgREST schemas still existed. Missing-schema configuration
-  was ruled out.
-- Exact evidence and the recovery commands are in
-  `docs/app-migration-notes/popdam-core-licensor-property-20260723.md`.
+**Trigger:** production application of
+`supabase/migrations/20260723113000_dam_core_licensor_property_cutover.sql`
+timed out after 10 minutes, rolled back, and caused project-wide PostgREST
+503 / `PGRST002` while the long transaction was open.
 
-### Exact next steps
+**Stage 0 technical objective (revised):**
 
-1. Redesign the production backfill so the large asset rewrite does not share
-   one long transaction with PostgREST-affecting DDL. It passes only when a
-   preview rehearsal keeps representative REST queries healthy throughout.
-2. Run the shared-db SQL checks and a production dry-run. It passes only when
-   the output shows the intended pending sequence beginning at `20260723113000`
-   and no surprise migrations.
-3. Apply in an approved production window while probing a simple REST table,
-   `style_guide_folders`, and `style_guide_file_groups`. Abort on any 503.
-4. Verify the five target FKs, canonical link counts, migration ledger, and live
-   PopSG cards. Only then push/deploy dependent PopDAM taxonomy code.
+- **DDL in migrations only** — bridge versions between `112900` and unsafe
+  `113000`: drop legacy FKs → residual gate → finalize core FKs/view → ledger
+  barrier.
+- **Node tool = DML only** — read-only preflight/evidence + bounded residual
+  batches; no schema DDL phases on the apply path.
+- **Honest ledger order** — do not edit/rename/delete applied `113000`; do not
+  repair `113000` before the equivalent end-state exists; barrier blocks linear
+  push into re-running unsafe `113000` until that version is already in the
+  ledger (preview already has it; production uses owner-approved repair
+  **after** verification).
+- Partial-resume fix: `COALESCE(existing valid core licensor, mapped legacy)`.
+- Hard-fail unmapped **and** ambiguous licensors; property missing/ambiguous →
+  NULL; durable text untouched.
+- Lock safety: `lock_timeout` + `statement_timeout` per DML txn; advisory lock;
+  forward-progress abort; transaction-safe trigger disable/enable.
+- Dry-run: live query when `DATABASE_URL` set; offline never pretends counts are
+  operational proof.
 
-### Constraints and gotchas
+Later Licensor→Property authority stages remain **out of scope**.
 
-Do not edit an already-applied migration, do not mark the timed-out migration
-as applied, and do not retry it unchanged. Schema changes remain preview-first
-and use shared-db branch + PR. PostgREST reload signals are recovery after a
-failed transaction, not a substitute for fixing the migration's locking model.
+### 3. Current state — what is true right now
 
-### Access and environment
+**Production database**
 
-The authenticated Supabase CLI works against production and was used for
-read-only query/lock/migration inspection. Credentials remain in 1Password
-vault `vibe_coding`; no secret value was read into chat or added this session.
-Repo target is `u2giants/shared-db`; normal schema work uses a branch + PR.
+- Ledger has `20260723112900` only among the taxonomy trio.
+- Ledger does **not** have `20260723113000` or `20260723113100`.
+- Canonical FK cutover is **not** applied (legacy targets after rollback).
+- PopSG recovered after `notify pgrst` reload on 2026-07-23.
 
-### Open questions and risks
+**Preview database**
 
-The safe backfill shape and acceptable production maintenance window are not
-yet decided. The largest risk is repeating a long DDL/backfill transaction and
-causing another shared Data API outage across PopDAM, PopSG, CRM, and PM/PIM.
+- `20260723113000` **is** applied and verified (85,481 / 42,700 links, five
+  core FKs, `dam_character_catalog`). File must not be edited/renamed/deleted.
+- New bridge migrations `112910`–`112940` are **not yet applied** on preview
+  (local worktree only). When landed, use out-of-order / `--include-all` so
+  versions between already-applied ones can run; each is idempotent and the
+  barrier passes because `113000` is already in the ledger.
+
+**Repository (this worktree — uncommitted local revision)**
+
+| Path | Status |
+|---|---|
+| `supabase/migrations/20260723112910_dam_core_taxonomy_drop_legacy_fks.sql` | **New** — idempotent drop of legacy-targeted FKs only |
+| `supabase/migrations/20260723112920_dam_core_taxonomy_backfill_gate.sql` | **New** — refuses while residual non-core ids remain |
+| `supabase/migrations/20260723112930_dam_core_taxonomy_finalize_core_fks.sql` | **New** — five core FKs + view; no bulk DML |
+| `supabase/migrations/20260723112940_dam_core_taxonomy_ledger_barrier.sql` | **New** — refuses until `113000` is in ledger |
+| `tools/dam-core-taxonomy-safe-cutover.mjs` | **Revised** — DML-only apply path |
+| `tools/dam-core-taxonomy-safe-cutover.test.mjs` | **Revised** — DDL absence, partial-resume, gate/barrier, locks, progress |
+| `scripts/dam-core-taxonomy-safe-cutover/README.md` | **Revised** — multi-pass db push + ownership split |
+| `docs/app-migration-notes/popdam-core-licensor-property-20260723.md` | **Revised** |
+| `supabase/migrations/20260723113000_*.sql` | **Unchanged** |
+| Commit / push / PR / remote DB | **Not done** (explicit session boundary) |
+
+**Dependent PopDAM app code:** must not deploy until production cutover +
+verification + honest ledger.
+
+### 4. Everything we tried that did NOT work
+
+1. **Re-run unchanged `20260723113000` on production** — timed out, rolled
+   back, PostgREST 503/PGRST002. **Do not retry.**
+
+2. **Wait for PostgREST to self-heal** — required explicit `notify pgrst`
+   reload. Recovery only, not a migration strategy.
+
+3. **Edit / replace / empty-out `20260723113000`** — illegal (applied on
+   preview).
+
+4. **Silent `migration repair --status applied 20260723113000` before
+   end-state** — **Forbidden.** Repair only after verified equivalent end-state
+   + explicit owner approval for that metadata action.
+
+5. **First-draft Node tool executing DDL (drop FKs / finalize) on apply** —
+   violates AGENTS.md migration discipline. **Rejected.** DDL moved into
+   `112910` / `112920` / `112930` / `112940`; tool is DML-only.
+
+6. **Partial-resume mapping joining licensor map only on `row.licensor_id`** —
+   if licensor was already a valid `core.licensor` UUID and property still
+   legacy, map miss nulled **both**. Fixed with COALESCE in pure functions and
+   every asset/style_group DML query.
+
+7. **Illustrative dry-run residual counts presented as operational proof** —
+   offline dry-run now prints architecture/SQL only with
+   `operationalCounts: null`. Live evidence requires `DATABASE_URL`.
+
+8. **Trust withdrawn “production promotion succeeded” docs** — superseded.
+
+### 5. Root causes and key findings
+
+- **Outage root cause:** one migration held DDL + ~85k rewrites long enough that
+  PostgREST could not rebuild its schema cache globally.
+- **Safe architecture (revised):**
+  - Migrations own short DDL and gates (`112910`–`112940`).
+  - Node tool owns residual DML only, with advisory lock, timeouts, and
+    forward-progress checks.
+  - Barrier owns honest refusal to reach unsafe `113000` until that version is
+    already recorded applied (never via SQL writes to the ledger).
+- **Mapping:** code aliases `DS→DY` / `WWE→WW`; hard-fail unmapped/ambiguous
+  licensors; property code-then-name; missing/ambiguous property → NULL;
+  durable text untouched; COALESCE preserves partial core ids.
+- **Multi-pass production workflow:** push `112910` → DML tool → push
+  `112920`+`112930` → barrier refuses → verify → owner repair `113000` → push
+  barrier + `113100`. Preview uses `--include-all` for out-of-order bridge
+  inserts; barrier passes immediately because `113000` is already applied.
+
+### 6. Exact next steps
+
+1. **Local gates (this worktree, before claiming Stage 0 repo-side complete):**
+   ```bash
+   node --test tools/dam-core-taxonomy-safe-cutover.test.mjs
+   bash scripts/check-sql.sh
+   ```
+   Gate: all node tests pass; check-sql static pass.
+
+2. **Land on a fresh branch after review** (later session): do not clobber main’s
+   `a90846c`. Commit Stage 0 files only → PR → merge. No remote DB from the
+   coding-only session.
+
+3. **Preview out-of-order apply** of `112910`–`112940` (`db push --include-all`
+   or platform equivalent). Gate: all four apply; barrier passes; tool `--apply`
+   is `noop` or residual-clear; five core FKs still present.
+
+4. **Production window (owner-approved):**
+   - Pass 1: `db push` applies `112910`; stops at gate `112920`.
+   - DML: `node tools/dam-core-taxonomy-safe-cutover.mjs --apply --batch-size=2000`
+     with REST probes; abort on PGRST002.
+   - Pass 2: `db push` applies `112920`+`112930`; stops at barrier `112940`.
+   - Validate: zero residuals, `core_fk_count=5`, view exists; browser PopSG.
+   - **Only then**, owner-approved:
+     `supabase migration repair --status applied 20260723113000`
+   - Pass 3: `db push` applies `112940` + `113100`. Dry-run must not treat
+     `113000` as pending work to execute.
+
+5. **Only then** deploy dependent PopDAM taxonomy app code.
+
+6. **Do not start** later authority migrations until steps 3–4 are done.
+
+### 7. Constraints and gotchas in force
+
+- Shared-db branch + PR; AI merges after checklist; preview-first for schema.
+- **Never edit applied migrations** (`113000` on preview).
+- **Never repair `113000` before equivalent end-state exists.**
+- **Never retry `113000` unchanged** on production.
+- **Never Node-execute schema DDL** for this cutover.
+- **Never write `schema_migrations` from SQL.**
+- No consumer-repo DDL; `dam` not in `pgrst.db_schemas`.
+- Windows: no `psql` — use Node + `pg` + pooler for apply.
+- This coding session: no secrets, no remote DB, no commit/push/PR.
+
+### 8. Access and environment
+
+| Need | Where |
+|---|---|
+| Supabase CLI PAT | 1Password `vibe_coding` → “Supabase CLI Personal Access Token” |
+| Production DB password | 1Password `vibe_coding` → “Supabase DB Password - shared POP database” |
+| Preview DB password | 1Password `vibe_coding` → “Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)” |
+| Pooler | `aws-1-us-east-1.pooler.supabase.com:6543` |
+| CLIs on t16 | `gh`, `gcloud`, `supabase`, `op` (when toggled) |
+
+Stage 0 revision session: **did not** open Supabase or read secrets.
+
+### 9. Open questions and risks
+
+| Item | Notes (dated 2026-07-23) |
+|---|---|
+| Production maintenance window | Owner-scheduled; not auto-booked. |
+| Batch size default 2000 | Override with `--batch-size=`. |
+| Repair approval | Only after verified end-state; barrier enforces sequencing. |
+| Concurrent main commit `a90846c` | Port Stage 0 onto fresh branch; do not overwrite. |
+| Window after `112910` before finalize | FKs briefly absent; resume DML ASAP; never run `113000`. |
+| Concurrent DML operators | Advisory lock refuses second apply. |
+
+### Self-audit (Stage 0 handoff)
+
+1. Comprehensive for a brand-new developer? **Yes** — §§1–9 cover app, goal,
+   dual-env ledger state, failed approaches (including first-draft DDL tool and
+   partial-resume bug), architecture, ordered multi-pass gates, constraints,
+   access, risks.
+2. Detailed enough to continue without this chat? **Yes** — exact migration
+   versions, tool commands, repair timing, preview `--include-all`, and
+   `scripts/dam-core-taxonomy-safe-cutover/README.md`.
+3. Execution honesty? **Yes** — no remote apply, no commit, no claim that
+   production or preview bridge is applied; tests are the local completion gate
+   for this revision.
+
+---
+
+## PopSG outage during DAM taxonomy migration — 2026-07-23 (historical incident summary)
+
+The incident narrative that triggered Stage 0 is retained in condensed form.
+Prefer the Stage 0 section above for execution.
+
+- PopSG recovered (200/206 + cards) after PostgREST reload signals.
+- Production cutover **not** applied; ledger has `112900` only among the trio.
+- Unchanged single-transaction migration must not be retried.
+- Detail + safe path: `docs/app-migration-notes/popdam-core-licensor-property-20260723.md`.
 
 ## Sample Tracking schema — 2026-07-22 update (APPLIED to preview AND production)
 

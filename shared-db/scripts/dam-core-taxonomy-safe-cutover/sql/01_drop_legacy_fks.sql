@@ -1,0 +1,2 @@
+-- DDL moved to migration 20260723112910_dam_core_taxonomy_drop_legacy_fks.sql
+-- Node tool must not execute this.
