@@ -255,6 +255,18 @@ Anything involving licensor, property, big theme, little theme, style guide, art
 art source, artist, age group, or `mgTypeCode` must start at
 [`docs/merch-group-taxonomy-architecture.md`](docs/merch-group-taxonomy-architecture.md).
 
+**If your work touches characters, style guides, or royalty rates, read
+[`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
+FIRST.** It documents a layer the merch-group doc does not cover: real licensing data is
+**Property → Style guide (sub-style guide) → Character**, and the legacy table
+`dflow.properties_and_characters` is misleadingly named — its `type='PROPERTY'` rows are
+**style guides**, not properties, and its `type='CHARACTER'` rows are character *appearances*
+(one per style guide), not distinct characters. Batman is one character appearing in 15 style
+guides, each with its own external id. That doc also records the Marvel-only +2% talent-likeness
+royalty rule and the fact that likeness attaches to a **style guide asset (file)**, never to a
+character. Two AI sessions have already corrupted their understanding by reading those column
+names literally — do not be the third.
+
 The three rules that cause the most damage when ignored:
 
 1. **`mgTypeCode` has no fixed meaning.** `05` is Licensor in CW001/SP001 but "Big Theme" in
