@@ -64,7 +64,16 @@ interface TaxonomyEntry {
 // it appears in the licensors / properties tables. An alias only ever resolves
 // when its canonical row actually exists in the taxonomy, so a bad entry here
 // can never invent a licensor/property link — it just does nothing.
-const LICENSOR_ALIASES: ReadonlyArray<{ alias: string; canonical: string }> = [];
+// Bucket A: folder short-forms/nicknames whose canonical licensor DOES exist in
+// core.licensor. `canonical` must match a core.licensor name (case/punct-insensitive);
+// an alias whose canonical is absent is silently ignored, so these can't fabricate links.
+const LICENSOR_ALIASES: ReadonlyArray<{ alias: string; canonical: string }> = [
+  { alias: "NBC Universal", canonical: "NBC" },
+  { alias: "Marvel Style Guide", canonical: "Marvel" },
+  { alias: "One Piece", canonical: "TOEI - ONE PIECE" },
+  { alias: "Peanuts", canonical: "Peanuts Worldwide" },
+  { alias: "Sesame Workshop", canonical: "Sesame Street" },
+];
 const PROPERTY_ALIASES: ReadonlyArray<{ alias: string; canonical: string }> = [];
 
 interface FieldMatch {
