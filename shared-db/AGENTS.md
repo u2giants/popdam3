@@ -249,6 +249,14 @@ dflow** for free enrichment vs. pull **Coldlion directly**) documented in
 [`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md);
 it affects Phase 3.
 
+**Which entities are on ColdLion vs. still on DesignFlow?** Do not re-derive this by
+querying — it has cost multiple sessions already. The answer, with row counts, blockers,
+and the `plm.*_import` vs `plm.erp_*` naming rule, is in
+[`docs/master-data-cutover-scoreboard.md`](docs/master-data-cutover-scoreboard.md).
+Short version: **customer and vendor are cut over to ColdLion; licensor and property are
+not** (and `plm.licensor_import` / `plm.property_import` are DesignFlow staging, *not* a
+ColdLion mirror — a previous session got this wrong).
+
 ### 6.1 Merch groups / licensors / properties — read this before touching them
 
 Anything involving licensor, property, big theme, little theme, style guide, art type,
