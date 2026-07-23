@@ -185,7 +185,9 @@ async function* scanDirectory(
     const ext = extname(entry.name).toLowerCase();
     if (!SUPPORTED_EXTENSIONS.has(ext)) {
       const name = entry.name;
-      const JUNK_FILENAMES = new Set([".DS_Store", ".localized", "Thumbs.db", "desktop.ini"]);
+      const JUNK_FILENAMES = new Set([".DS_Store", ".localized", "Thumbs.db", "desktop.ini",
+        // PERMANENT — DO NOT REMOVE: canary file owned by another application.
+        "seafile-ignore.txt"]);
       if (
         name.startsWith("._") ||
         name.startsWith("~") ||

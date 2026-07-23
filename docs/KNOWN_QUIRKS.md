@@ -830,3 +830,125 @@ pin today; ERP classification and PDF extraction do not (add a sibling
 **Why**: Migration ordering is global across all apps sharing `qsllyeztdwjgirsysgai`, but each app authors on its own branch/timeline, so out-of-order is expected, not a mistake. `--include-all` is safe **only** when your change is additive and independent of the concurrently-applied ones (verify via the dry-run showing just your migration).
 
 **Future sessions should**: Dry-run before every prod push; use `--include-all` for a legitimately out-of-order additive migration; never renumber a migration that is already merged to `shared-db` `main` to "fix" ordering (that desyncs the ledger). See §8 project refs and the `shared-db-change` skill.
+
+## 66. SeaDrive Folder Selection Must Not Scan Synchronously on Electron's Main Thread (2026-07-16)
+
+**Files**: `apps/popdam-helper/src/main/seafileAdapter.ts`, `ipc.ts`, `main.ts`,
+and `localServer.ts`. Fixed in Helper v1.4.13, commit `4301a34`.
+
+**Looks like**: On macOS, the user chooses the SeaDrive mount folder in Helper
+Settings and the Helper immediately beachballs; macOS then says **Application
+Not Responding**. It can look like the user selected the wrong directory or the
+SeaDrive installation is corrupt.
+
+**Actually**: Saving the folder immediately refreshes storage health. Through
+v1.4.12, that refresh called synchronous `readdirSync()` / `statSync()` scans
+from Electron's main process. SeaDrive is a cloud-backed virtual filesystem, so
+directory metadata calls can pause while its provider responds. Blocking the
+main process blocks window painting and event handling, which is exactly what
+macOS detects as a non-responsive application. Startup library warnings and the
+Helper's local `GET /status` route used the same synchronous health path.
+
+**Why the fix has two discovery paths**: Checkout resolution still has a
+synchronous compatibility path used inside the existing checkout flow, while
+UI/status health polling uses `getSeafileHealthAsync()`. The async path mirrors
+the supported layouts and bounded fallback search, including account/category
+folders and `Shared with groups/<group>/<library>`. It returns the same
+`SeafileHealth` contract, but slow filesystem operations yield instead of
+blocking Electron's event loop.
+
+**Do not change because**: Do not “simplify” the async health path back to the
+synchronous discovery helpers, and do not remove nested/group discovery just to
+make scans fast. Either change reintroduces a known failure: the former freezes
+Macs; the latter falsely reports valid shared libraries as missing. If checkout
+resolution itself is later observed freezing on a slow mount, migrate that
+caller to the same async discovery model rather than adding a timeout around a
+synchronous filesystem call (a timeout cannot interrupt a blocked sync call).
+
+**Verification**: `npm run typecheck` and `npm run build` passed in
+`apps/popdam-helper`; GitHub Actions run `29508527851` built and published the
+v1.4.13 Apple Silicon, Intel Mac, and Windows installers successfully. Final
+device verification is: select the SeaDrive folder on a physical Mac and confirm
+the status may take time but the window remains interactive.
+
+## 67. A Mounted SeaDrive Library Can Still Miss a File, and Synology Fallback Can Hide Why (2026-07-16)
+
+**Files**: `apps/popdam-helper/src/main/checkoutManager.ts`
+(`resolveCopyAndOpen`), `seafileAdapter.ts` (`resolveSeafileTarget`,
+`ensureHydrated`).
+
+**Looks like**: Helper Settings shows SeaDrive installed/running, a valid macOS
+File Provider root, and `Character Licensed` under both discovered and
+configured libraries. Checkout still reports `File not found locally:` followed
+by a `Character Licensed/____New Structure/...` path. It looks like the mount is
+wrong or SeaDrive needs hours to build a local file database.
+
+**Actually**: The status proves that the mount and library folder are visible,
+not that the requested deep path exists in the Mac's File Provider listing or
+on the Seafile server. SeaDrive exposes placeholders and hydrates contents on
+demand. After 20 minutes, stop treating this as normal initial-list latency and
+compare the exact path in Finder and Seafile web.
+
+There is also an error-reporting defect. When Seafile is preferred,
+`resolveCopyAndOpen()` stores its failure in `seafileIssue` and, when allowed,
+falls back to Synology. If `resolveAssetPath()` returns a Synology path but
+`existsSync(sourcePath)` is false, the final generic error includes only that
+fallback path. It omits `seafileIssue`, hiding the primary provider's real
+failure and potentially showing a relative-looking fallback path.
+
+**Diagnostic decision tree**:
+
+1. Missing in Finder and Seafile web → investigate the NAS-to-Seafile mirror or
+   account permissions; local waiting cannot create server content.
+2. Present on the web but absent in Finder → restart/activate SeaDrive's macOS
+   File Provider and verify account/category selection.
+3. Present as a Finder placeholder → click its cloud icon/open it, then retry
+   after hydration.
+4. Openable in Finder but Helper still fails → inspect the Helper log and compare
+   the resolved library root plus `pathInLib` with the Finder path.
+
+**Future sessions should**: Fix the final dual-provider error so it reports both
+attempts: the SeaDrive path/reason and Synology fallback path/reason. Do not
+remove fallback, and do not tell users to wait indefinitely without checking
+server-side existence. No code fix was made in the docs-only follow-up.
+
+## 68. `seafile-ignore.txt` Is Another Application's Canary — Never Crawl or Touch It (2026-07-23)
+
+`seafile-ignore.txt` is a **canary file owned by a different application**. PopDAM/PopSG
+must never crawl, record, process, render, open, or modify it. This is permanent — do not
+"clean up" the skip entries.
+
+It is filtered in four places, which must stay in sync:
+
+- `supabase/functions/_shared/path-filters.ts` → `JUNK_FILENAMES` (canonical)
+- `apps/bridge-agent/src/style-guide-crawler.ts` → `SKIP_NAMES`
+- `apps/bridge-agent/src/scanner.ts` → `JUNK_FILENAMES`
+- `supabase/functions/_shared/admin-handlers/agent-handlers.ts` → `JUNK_FILENAMES`
+
+**Why it was noticed:** it sat at the root of the `styleguides` share and surfaced as a
+*licensor* in PopSG tag reconciliation. That is because
+`style_guide_files.licensor_name` is a **generated column**:
+
+```sql
+licensor_name GENERATED ALWAYS AS (split_part(relative_path, '/', 1))
+```
+
+It is only ever "the first path segment" — it is not validated against any licensor table.
+A root-level file therefore contributes its own filename as a licensor. See quirk #69.
+
+## 69. `style_guide_files.licensor_name` Is Not a Licensor — It Is `split_part(relative_path,'/',1)` (2026-07-23)
+
+`licensor_name` is a generated column equal to the **first folder of the path**. Nothing
+validates it against `core.licensor`. The same applies to `property_folder` /
+`style_guide_folder`, which the bridge crawler fills from `segments[1]` / `segments[2]`.
+
+Consequences seen in production:
+
+- Top-level folders that are **not licensors** appear as licensors: `Spirit Halloween`
+  (a customer), `CAA` (a talent agency — its files are actually `CAA/Ford/*`, i.e. Ford),
+  `____New Structure`, `seafile-ignore.txt`.
+- Folder depth is **not** a reliable indicator of licensor/property. The tree layout varies.
+
+Therefore PopSG tagging (`apps/worker/src/handlers/popsg-tags.ts`) must resolve licensor and
+property **by value** against `core.licensor` (name + merch-group `code`) and `core.property`
+— never by folder position — and only emits those facets on an exact match or curated alias.

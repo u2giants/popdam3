@@ -17,6 +17,9 @@ export const JUNK_FILENAMES = new Set<string>([
   "Thumbs.db",
   "desktop.ini",
   "~$*", // Office temp files
+  // PERMANENT — DO NOT REMOVE: canary file owned by ANOTHER application.
+  // PopDAM/PopSG must never crawl, record, process, render, open, or modify it.
+  "seafile-ignore.txt",
 ]);
 
 /**

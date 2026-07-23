@@ -37,6 +37,12 @@ export function normalizeName(input: string): string {
 
 const SKIP_NAMES = new Set([
   ".ds_store", "thumbs.db", "desktop.ini", ".localized",
+  // PERMANENT: `seafile-ignore.txt` is a canary file owned by ANOTHER application.
+  // It must never be crawled, recorded, processed, rendered, opened, or modified
+  // by PopDAM/PopSG. Do not remove this entry. Because style_guide_files.licensor_name
+  // is a generated column (split_part(relative_path,'/',1)), a root-level file like
+  // this one also pollutes the licensor list with its own filename.
+  "seafile-ignore.txt",
 ]);
 
 const SKIP_PREFIXES = [".", "@", "#", "$"];
