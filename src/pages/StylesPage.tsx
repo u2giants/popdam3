@@ -649,16 +649,27 @@ async function fetchDesignerOptions() {
   return compactPickerOptions(await fetchDesignerRecords());
 }
 
+/**
+ * Vendor picker options from api.dam_factory_list (global active/potential AND
+ * DAM extension active). Do not read core.factory directly from the browser.
+ * Labels prefer curated display_name. Values remain free-text names until the
+ * separate additive factory_id FK tranche lands (not part of this Step 11 change).
+ */
 async function fetchFactoryOptions() {
   const { data, error } = await (supabase as any)
-    .schema("core")
-    .from("factory")
-    .select("id, name")
-    .eq("status", "active")
+    .schema("api")
+    .from("dam_factory_list")
+    .select("id, name, display_name")
+    .order("display_name", { ascending: true, nullsFirst: false })
     .order("name", { ascending: true })
     .limit(1000);
   if (error) throw error;
-  return compactPickerOptions(data);
+  return compactPickerOptions(
+    ((data ?? []) as { id: string; name: string | null; display_name: string | null }[]).map((row) => ({
+      id: row.id,
+      name: row.display_name?.trim() || row.name?.trim() || "",
+    })),
+  );
 }
 
 async function fetchPackagingTypeOptions() {
