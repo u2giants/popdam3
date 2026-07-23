@@ -390,6 +390,40 @@ Prefer the Stage 0 section above for execution.
 
 ## Sample Tracking schema — 2026-07-22 update (APPLIED to preview AND production)
 
+> ### 2026-07-23 follow-up — completion semantics + office inventory (APPLIED to production)
+>
+> Two further migrations are merged and **applied to preview AND production on 2026-07-23**:
+> - `20260723230000_sample_tracking_completion_semantics.sql` — fixes two verified defects:
+>   a sample with **zero movements** used to derive `complete` (now `uninitialized`), and a
+>   stop closeout could **mask a remaining balance** and show `complete` while pieces
+>   physically remained. Adds the **automatic office-inventory trigger**.
+> - `20260723233000_sample_shipment_line_allow_inventory_origin.sql` — lets a shipment line
+>   originate from an `*_office_inventory` bucket so parked stock can be **added to a new box**.
+>
+> **Business rule (confirmed by Albert 2026-07-23):** when pieces ship onward out of an office,
+> the remainder is automatically moved into that office's own inventory bucket
+> (`terminal/ningbo_office_inventory`, `terminal/nyc_office_inventory`) and leaves the tracking
+> flow — pieces stay conserved. Delivered-to-customer is resolved. Inventory stock can be
+> withdrawn into a new box (balance-checked). Canonical four-piece end state is now `complete`.
+>
+> Production apply was **deliberately bounded** to these two migrations using a clean temporary
+> checkout, because production is missing **16 unrelated migrations** from other workstreams
+> (DB Data Admin write paths, DAM taxonomy cutover, PopSG) — several deliberately unpromoted.
+> `supabase db push` refuses to run while those gaps exist; **never** use `--include-all` to
+> force it, or you will promote all 16. See "Production migration backlog" below.
+>
+> Tests: `sample_tracking_completion_semantics.sql`, `sample_tracking_quantity_contract.sql`
+> (updated for the new rule), `sample_tracking_office_inventory_withdrawal.sql` — all pass
+> against the applied schema.
+>
+> **Consumer work is NOT done.** The DesignFlow apps still run daily on the legacy scalar model
+> and several of their endpoints hard-fail against the live constraints. The adoption plan lives
+> in the tracking repo: `popcre/designflow-tracking` →
+> [`fix_sample_tracking.md`](https://github.com/popcre/designflow-tracking/blob/sandbox-albert/fix_sample_tracking.md)
+> (PR [#26](https://github.com/popcre/designflow-tracking/pull/26), Uma reviews). Shared-db
+> copy of the same analysis:
+> [`docs/verification/designflow-sample-tracking-consumer-fix-spec-20260723.md`](docs/verification/designflow-sample-tracking-consumer-fix-spec-20260723.md).
+
 The full Sample Tracking schema is merged to `main` and **live on both preview
 (`rjyboqwcdzcocqgmsyel`) and production (`qsllyeztdwjgirsysgai`)**. After the
 `220000`-timestamp collision was found (PR #168), the whole block was re-timestamped
@@ -426,6 +460,39 @@ This file is the top-level "where are we" pointer for the next session. It is wr
 for a developer with **zero** prior context. Read it, then read the linked plan.
 
 ---
+
+## 🚧 Production migration backlog — READ BEFORE ANY PRODUCTION APPLY (2026-07-23)
+
+**Production is missing 16 migrations that sit *before* its last applied migration.**
+Because of that, `supabase db push` **refuses to run** against production and exits 1 with
+*"Found local migration files to be inserted before the last migration on remote database.
+Rerun the command with --include-all flag."*
+
+**Do NOT rerun with `--include-all`.** That would promote all 16 at once, and several are
+**deliberately unpromoted** — the DB Data Admin write paths (`20260722170000` single-record
+updates, `20260722194000`/`194100` merge workflow, `20260722203000`/`203100` licensor tree),
+plus the DAM taxonomy cutover (`20260723112910`–`112940`), `dam_customer_hub_wiring`,
+`dam_path_facets_by_customer_id`, `plm_import_master_data_preserve_customer_status`, and the
+three PopSG migrations. Promoting those is each workstream's decision, in its own window.
+
+**How to apply only your own migration (the bounded technique, used successfully 2026-07-23):**
+
+1. `git worktree add --detach <tmp> origin/main`
+2. In that temp checkout, **delete the migration files you are not promoting** (they stay in
+   the repo; you are only shrinking the local set the CLI compares against).
+3. `supabase link --project-ref qsllyeztdwjgirsysgai --password "$PROD_DB_PASSWORD"`
+4. `supabase db push --dry-run` → **confirm it lists only your migrations**, then
+   `supabase db push`.
+5. Verify the real objects in the database (not just `supabase_migrations.schema_migrations`).
+6. Remove the temp worktree.
+
+**Gotcha found the same day:** comparing filenames "greater than the remote's highest version"
+is **not** a valid way to compute what is pending — production had gaps far below its maximum.
+Always diff the full local file list against every row in `supabase_migrations.schema_migrations`.
+
+**Second gotcha — the ledger can lie.** Preview recorded `20260723233000` as applied while the
+constraint it creates was **absent**. Always verify the actual object, and reconcile drift by
+re-running the committed migration's (idempotent) SQL.
 
 ## Sample Tracking schema — DesignFlow (APPLIED preview + production, 2026-07-22)
 
