@@ -670,14 +670,16 @@ export default function PopSGLibraryPage() {
       if (filters.licensor !== "all") q = q.eq("licensor_name", filters.licensor);
       if (filters.property !== "all") q = q.eq("property_folder", filters.property);
       if (filters.nameSearch) {
-        // Synonym/separator-expanded match on filename (trigram-indexed → fast).
-        // NOTE: path/franchise matching (directory_path, relative_path) is
-        // intentionally NOT included here yet — those columns lack trigram GIN
-        // indexes, so an ILIKE across 200k+ rows seq-scans and hits the 8s
-        // statement timeout (500). Re-enable path columns once the shared-db
-        // trigram indexes on lower(directory_path)/lower(relative_path) land.
+        // Search the full relative path (which includes the directory path AND
+        // the filename), so a franchise query like "spiderman" returns every
+        // file living under a "Marvel Style Guide/Spider-Man/…" path — not just
+        // files whose SKU-coded name happens to contain it. Synonym/separator-
+        // expanded so "spiderman" reaches the stored "Spider-Man".
+        // Uses the raw-column trigram GIN index idx_sgf_relative_path_trgm
+        // (gin (relative_path gin_trgm_ops)) — a lower()-expression index would
+        // NOT serve PostgREST's `ilike`, so ILIKE must hit a raw-column index.
         const terms = await expandFallbackTerms(filters.nameSearch);
-        const clauses = terms.map((t) => `filename.ilike.%${t.replace(/[%_]/g, "\\$&")}%`);
+        const clauses = terms.map((t) => `relative_path.ilike.%${t.replace(/[%_]/g, "\\$&")}%`);
         if (clauses.length > 0) q = q.or(clauses.join(","));
       }
       if (filters.fileTypes.length > 0) q = q.in("file_extension", filters.fileTypes);
