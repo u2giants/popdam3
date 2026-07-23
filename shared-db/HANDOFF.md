@@ -37,9 +37,40 @@ this reason).
   `readConfig()`), set **only** on the data-dev Coolify application. Production stays
   SSO-only and the form never renders there.
 - Enable the email provider on branch `rjyboqwcdzcocqgmsyel` only.
-- Create one tester user with a long generated password, grant it the Administrator
-  grant the `db_data_admin_*` RPCs require, and store it in 1Password vault
-  `vibe_coding` with full usage notes.
+- Create one tester user with a long generated password, grant it Administrator, and
+  store it in 1Password vault `vibe_coding` with full usage notes.
+
+#### Exact Administrator grant chain (verified against migrations, 2026-07-23)
+
+A Supabase auth user alone is **not** enough — every `db_data_admin_*` RPC ultimately
+calls `app.has_role('administrator')`, which resolves through three tables. All of these
+rows must exist or the app renders its "Access denied" screen:
+
+1. `auth.users` — the tester user (created via the Admin API with the branch
+   service-role key, `email_confirm: true`).
+2. `app.profile` — a row with `auth_user_id = <that user's id>` **and
+   `status = 'active'`**. `app.current_profile_id()` (`20260621150815_app_core.sql:351`)
+   returns nothing without both, and every role check then fails.
+3. `app.user_role` — a row joining that `profile_id` to `app.role` where
+   `slug = 'administrator'`, with **`revoked_at is null`**
+   (`app.has_role`, `20260621150815_app_core.sql:365`).
+
+Definitions: `app.profile` and `app.user_role` in
+`supabase/migrations/20260621150815_app_core.sql:12`; the `administrator` role is seeded
+at `:340`; the `app.app_role` enum is in `20260621150714_foundation.sql:19`.
+
+Per the shared-db rule, any DDL stays migration-authored — but this is **row data on a
+preview branch**, so insert it directly there; do **not** add a migration that seeds a
+tester account, and never create this user on production `qsllyeztdwjgirsysgai`.
+
+#### Verification gate (do not report done without these)
+
+1. `GET /config.js` on data-dev shows the password-login flag enabled, and production's
+   `/config.js` does **not**.
+2. Sign in at `https://data-dev.designflow.app` with the stored credentials and confirm
+   the Customers grid renders — not the "Access denied" panel.
+3. Confirm the same build on `data.designflow.app` still shows **only** the
+   "Sign in with Microsoft" button.
 
 ### Access status
 
