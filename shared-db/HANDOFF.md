@@ -1,17 +1,32 @@
 # HANDOFF — shared-db current state
 
-## Sample Tracking quantity schema — 2026-07-22 update
+## Sample Tracking schema — 2026-07-22 update (APPLIED to preview AND production)
 
-The canonical quantity tranche is implemented on branch
-`codex/sample-tracking-quantity-schema` in migrations `20260722220200` through
-`20260722220700` and applied to preview `rjyboqwcdzcocqgmsyel`. It covers durable
-box ownership, shipment intent, immutable/concurrency-safe quantity movements,
-local closeouts, durable import audit records, permissions, and five derived read
-views. The rollback-safe SQL contract test passed, the two-connection race test
-produced one success and one rejection, and the tracking consumer suite passed
-35/35 suites (323 tests). Full evidence and production-promotion notes are in
-`docs/verification/sample-tracking-quantity-schema-20260722.md`. Existing legacy
-samples remain explicitly `unknown`; none were backfilled as quantity one.
+The full Sample Tracking schema is merged to `main` and **live on both preview
+(`rjyboqwcdzcocqgmsyel`) and production (`qsllyeztdwjgirsysgai`)**. After the
+`220000`-timestamp collision was found (PR #168), the whole block was re-timestamped
+to a clean contiguous range **`20260722221000`–`20260722221700`** (PRs #168 and #170;
+`221700` contract-hardening now sorts last because it ALTERs the tables created at
+`221400`/`221500`). It covers the restored `sample_shipment_item` current-membership
+table + uniqueness, durable box ownership, shipment intent, immutable/concurrency-safe
+quantity movements, local closeouts, durable import audit records, permissions, and
+five derived read views. Legacy samples remain explicitly `unknown`; none were
+backfilled as quantity one.
+
+**Verified on production 2026-07-22 (read-only):** ledger entries `221000`–`221700`
+are all present, and every object exists — tables (`sample_shipment_item`,
+`sample_movement`, `sample_import_row`, `sample_box`, `sample_stop_closeout`, …),
+functions (`post_sample_movement`, `sample_movement_guard`, …), and the five read
+views. Evidence: `docs/verification/sample-tracking-quantity-schema-20260722.md`.
+
+**One open cleanup item (cosmetic, non-blocking):** production's migration ledger
+records the PopSG trigram migration under its **old** version `20260722220000`
+(name `sgf_path_trgm_indexes`), while on disk the file is `20260722220800`. The file
+is `CREATE INDEX IF NOT EXISTS` (fully idempotent), so a future `supabase db push`
+from `main` would re-run it harmlessly but leave the ledger carrying both `220000`
+and `220800` for the same file. No functional impact. (The git-integrated `main`
+preview branch also reports status `MIGRATIONS_FAILED` — a stale artifact of the
+original collision; all objects did land.)
 
 Date: 2026-07-22
 Repo: `u2giants/shared-db`
@@ -23,7 +38,7 @@ for a developer with **zero** prior context. Read it, then read the linked plan.
 
 ---
 
-## Active workstream — DesignFlow Sample Tracking schema (plan only, 2026-07-22)
+## Sample Tracking schema — DesignFlow (APPLIED preview + production, 2026-07-22)
 
 The authoritative database implementation plan is
 [`fix_sample_tracking_schema.md`](fix_sample_tracking_schema.md). Read it completely before touching
@@ -39,59 +54,43 @@ positive movements between normalized typed locations, derived balances, durable
 explicit shipment intent, local-stop closeout distinct from global completion, and durable import
 records.
 
-### Current exact state
+### Current exact state (2026-07-22 — SCHEMA APPLIED to preview AND production)
 
-- **Foundational tranche authored + preview-proven (2026-07-22).** Branch
-  `claude/sample-tracking-shipment-item-repair`, PR open. Read-only inventory gates 1–3 done on
-  both preview and production with **no data mutated**
+- **Whole schema is merged to `main` and live on both preview (`rjyboqwcdzcocqgmsyel`) and
+  production (`qsllyeztdwjgirsysgai`).** PRs #164, #166, #168, #170 are all merged. Migrations are
+  re-timestamped to the clean contiguous range **`20260722221000`–`20260722221700`** (`221700`
+  contract-hardening last, since it ALTERs the `221400`/`221500` tables).
+- The originating read-only inventory (gates 1–3) confirmed the §3.2 defect: the restore migration
+  `20260721201500_restore_dflow_sample_tracking_tables.sql` had recreated six tables in `dflow` but
+  omitted the seventh, `sample_shipment_item`
   ([`docs/verification/sample-tracking-inventory-20260722.md`](docs/verification/sample-tracking-inventory-20260722.md)).
-- The read-only inventory **confirmed** the §3.2 defect: the restore migration
-  `20260721201500_restore_dflow_sample_tracking_tables.sql` recreated six tables in `dflow` but
-  omitted the seventh, `sample_shipment_item` — **absent in both preview and production**; `plm`
-  retains all seven. Legacy footprint is tiny (prod: sample=3, attachment=1, event=3; rest 0) and
-  there are **zero memberships and zero duplicate `(sample_id_fk, box_id_fk)` groups anywhere**.
-- Two additive migrations now exist and are **proven on the live preview schema by a rolled-back
-  transactional rehearsal** (all assertions passed; nothing persisted):
-  `20260722220000_restore_dflow_sample_shipment_item.sql` (recreates the table from the `plm`
-  template + FK indexes, fixing the live `relation … does not exist` failure) and
-  `20260722220100_dflow_sample_shipment_item_membership_uniqueness.sql` (adds
-  `UNIQUE(sample_id_fk, box_id_fk)` — which the tracking service itself anticipates — with a loud
-  abort-guard against duplicates). Test: `supabase/tests/dflow_sample_shipment_item_restore.sql`.
-- Answered §15 Q1 from the running app: `designflow-tracking` uses `sample_shipment_item` as
-  **current box membership** (fails closed 409 when absent), so the uniqueness constraint is the
-  app's own intended design.
-- **NOT yet applied (committed) to preview or production.** Committed preview apply is blocked only
-  by pre-existing vendor-sync/DB-Data-Admin preview migration drift (inventory doc §6); production
-  needs an approved window.
-- The larger quantity model, ownership, closeout, import, and read-view work (§5.2–5.8) has not
-  started; several parts are gated on the §15 product questions.
+  That table has since been restored (`221000`) with `UNIQUE(sample_id_fk, box_id_fk)` (`221100`),
+  which the tracking service itself anticipates (§15 Q1: it uses the table as current box membership,
+  failing closed 409 when absent).
+- **Production verification, read-only, 2026-07-22:** ledger entries `221000`–`221700` are all
+  present and every object exists — tables (`sample_shipment_item`, `sample_movement`,
+  `sample_import_row`, `sample_box`, `sample_stop_closeout`, …), functions (`post_sample_movement`,
+  `sample_movement_guard`, …), and the five read views. Preview was proven earlier by rolled-back
+  transactional rehearsal + the two-connection race test (evidence:
+  `docs/verification/sample-tracking-quantity-schema-20260722.md`).
+- Legacy samples remain explicitly `unknown`; none were backfilled as quantity one.
 
-### What failed before this plan was published
+### How production got applied (note for the record)
 
-The originating session first attempted to publish through GitHub CLI from a managed environment;
-that environment could not read the CLI authentication configuration. Its signed-in browser also
-had an explicit policy blocking `github.com`. It correctly did not bypass those controls or treat a
-DesignFlow-local database sketch as canonical. Closeout later obtained a normal authenticated GitHub
-CLI path and created this shared-db documentation branch from a clean clone, without touching the
-unrelated local shared-db checkout or any database.
+The PR bodies (#164/#166/#168) were written before promotion and say "production still pending";
+that wording is now **stale**. As of 2026-07-22 production carries the full `221000`–`221700` block.
+No session log in this repo documents exactly when/how it was pushed, but the objects and ledger are
+present and consistent. This section supersedes the earlier "not yet applied" claims.
 
-### Exact next action and verification gate
+### One open cleanup item (cosmetic, non-blocking)
 
-Gates 1–3 (read-only inventory) and migration steps 1 & 4 (restore + uniqueness) are done and
-preview-proven on branch `claude/sample-tracking-shipment-item-repair`. The next actions are:
-
-1. **Get the two foundational migrations committed to preview then production.** They cannot be
-   applied via `supabase db push` in isolation because preview is behind repo `main` and carries
-   vendor-sync/DB-Data-Admin drift (inventory doc §6). Sequence with those owners: bring preview to
-   `main`'s migration head, then apply. Production promotion needs Albert's approved window. **Pass
-   when** `dflow.sample_shipment_item` exists in each environment, the tracking service no longer
-   returns "relation does not exist", and the uniqueness constraint is present.
-2. **Answer the §15 product questions before the movement/ownership tranche** (esp. Q2 factory
-   identity for `sample_box.owner_factory_id_fk`, Q3 Ningbo/NY location authorization, Q4 which
-   dispositions are globally complete, Q6 which legacy rows have trustworthy quantity). Do NOT
-   author §5.2–5.8 (box ownership, normalized locations, `sample_movement` authority, shipment
-   intent, stop closeout, import durability, read models) until these exist; never fabricate legacy
-   quantities.
+Production's ledger records the PopSG trigram migration under its **old** version
+`20260722220000` (name `sgf_path_trgm_indexes`), while the on-disk file is `20260722220800`.
+Production has `220000`, not `220800`. The file is `CREATE INDEX IF NOT EXISTS` (idempotent), so a
+future `supabase db push` from `main` would re-run it harmlessly and leave the ledger holding both
+versions for the same file. No functional impact; reconcile the ledger only with Albert's explicit
+go for a prod-ledger write. The git-integrated `main` preview branch also shows status
+`MIGRATIONS_FAILED` — a stale artifact of the original collision.
 
 ### Constraints, access, and risks
 
@@ -102,7 +101,6 @@ preview-proven on branch `claude/sample-tracking-shipment-item-repair`. The next
   never copy values into files or chat.
 - Never assume an unknown legacy sample has quantity one, and never delete duplicate memberships
   with a blind row-number cleanup.
-- A docs-only merge authorizes planning, not production DDL or data reconciliation.
 
 ---
 

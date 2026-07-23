@@ -1,9 +1,16 @@
 # DesignFlow Sample Tracking — Shared Database Implementation Plan
 
-**Status:** Foundational tranche merged and preview-proven. Quantity movements,
-ownership, shipment intent, closeouts, durable imports, permissions, and read
-models implemented and preview-verified on 2026-07-22; evidence is in
-`docs/verification/sample-tracking-quantity-schema-20260722.md`.
+**Status:** APPLIED to preview **and production**. The full schema (restore +
+uniqueness, quantity movements, ownership, shipment intent, closeouts, durable
+imports, permissions, and read models) is merged to `main` and live on both
+preview (`rjyboqwcdzcocqgmsyel`) and production (`qsllyeztdwjgirsysgai`).
+Migrations occupy the clean contiguous range `20260722221000`–`20260722221700`
+after the `220000` collision was fixed (PRs #164, #166, #168, #170 — all merged).
+Production ledger `221000`–`221700` and every object verified present 2026-07-22
+(read-only). Evidence: `docs/verification/sample-tracking-quantity-schema-20260722.md`.
+One cosmetic open item: production records the PopSG trigram migration at old
+version `220000` while on disk it is `220800` (idempotent `CREATE INDEX IF NOT
+EXISTS`; ledger-only drift, no functional impact).
 
 **Created:** 2026-07-22
 
@@ -17,15 +24,16 @@ models implemented and preview-verified on 2026-07-22; evidence is in
 > `plm` retains all seven; tiny legacy footprint; **zero memberships and zero
 > duplicate `(sample_id_fk, box_id_fk)` groups anywhere**.
 >
-> **Migration steps 1 & 4 (the missing-table repair + membership uniqueness)
-> authored and proven on preview:**
-> - `supabase/migrations/20260722220000_restore_dflow_sample_shipment_item.sql`
+> **Migration steps 1 & 4 (the missing-table repair + membership uniqueness)** —
+> now live at the re-timestamped versions below (originally authored at
+> `220000/220100`, moved past the PopSG-trigram `220000` collision by PR #168):
+> - `supabase/migrations/20260722221000_restore_dflow_sample_shipment_item.sql`
 >   — recreates `dflow.sample_shipment_item` from the `plm` template (identity PK,
 >   the two intra-cluster FKs with plm's ON DELETE rules, plus FK-supporting
->   indexes). Idempotent/defensive per §5.1. Directly fixes the live
+>   indexes). Idempotent/defensive per §5.1. Fixed the live
 >   `relation "dflow.sample_shipment_item" does not exist` failure and the
 >   tracking service's fail-closed factory→NYC path.
-> - `supabase/migrations/20260722220100_dflow_sample_shipment_item_membership_uniqueness.sql`
+> - `supabase/migrations/20260722221100_dflow_sample_shipment_item_membership_uniqueness.sql`
 >   — adds `UNIQUE(sample_id_fk, box_id_fk)` (the safeguard the tracking service
 >   itself anticipates), with a **loud abort-guard** that refuses to add the
 >   constraint if any duplicate memberships exist (no silent failure / no blind
@@ -34,17 +42,19 @@ models implemented and preview-verified on 2026-07-22; evidence is in
 >   rolled-back verification of structure, FKs, indexes, the unique constraint,
 >   concurrent-duplicate rejection, NULL-box distinctness, and ON DELETE CASCADE.
 >
-> Proven by a rolled-back transactional rehearsal against the **live preview
-> schema** (all assertions passed; nothing persisted). Committed preview/prod
-> application is sequenced with the pre-existing vendor-sync/DB-Data-Admin preview
-> migration drift (see inventory doc §6) and, for production, an approved window.
+> **Quantity tranche:** migrations `20260722221200` through `20260722221700`
+> (ownership + legacy state, shipment intent, movements + closeouts, durable
+> imports, read models, contract hardening) add durable ownership, normalized
+> immutable movements, shipment intent, stop closeouts, durable imports, read
+> models, and fail-closed browser grants. `221700` (contract hardening) sorts
+> last because it ALTERs the tables created at `221400`/`221500` (PR #170).
+> Inventory-based decisions and acceptance evidence:
+> `docs/verification/sample-tracking-quantity-schema-20260722.md`.
 >
-> **Quantity tranche completed on preview:** migrations `20260722220200` through
-> `20260722220700` add durable ownership, normalized immutable movements,
-> shipment intent, stop closeouts, durable imports, read models, and fail-closed
-> browser grants. Inventory-based decisions and acceptance evidence are recorded
-> in `docs/verification/sample-tracking-quantity-schema-20260722.md`. Consumer
-> service wiring remains separate; legacy quantities were not fabricated.
+> **Applied state:** the whole `221000`–`221700` block is merged to `main` and
+> live on **both preview and production**. Production ledger and objects verified
+> present 2026-07-22 (read-only). Consumer service wiring remains separate; legacy
+> quantities were not fabricated.
 
 **Repository:** [`u2giants/shared-db`](https://github.com/u2giants/shared-db)
 
@@ -468,7 +478,8 @@ Before any migration:
 10. Merge the shared-db PR only after repo checks, preview evidence, app compatibility, and review
     gates pass.
 11. Production promotion requires the repo's approved window and current authorization; this plan is
-    not blanket approval.
+    not blanket approval. **✅ DONE (2026-07-22):** the `221000`–`221700` block is applied to
+    production `qsllyeztdwjgirsysgai` (ledger + objects verified read-only).
 
 `main` merge synchronizes shared-db content into consumers; it does not itself prove the migration was
 applied. Record PR, merge SHA, preview application evidence, production migration status, and consumer
@@ -588,7 +599,10 @@ production edits.
    items are satisfied; merge the PR.
 10. **Promote only when authorized.** Apply through the approved production workflow/window and
     verify catalog, constraints, views, and app health. **Gate:** production migration versions and
-    consumer deployed SHAs are recorded; no unexplained variance exists.
+    consumer deployed SHAs are recorded; no unexplained variance exists. **✅ DONE (2026-07-22):**
+    production carries ledger `221000`–`221700` and all objects (tables, functions,
+    five views) verified present read-only. One known cosmetic variance: the PopSG trigram file is
+    recorded at old version `220000` on production vs on-disk `220800` (idempotent index; ledger-only).
 
 ---
 
