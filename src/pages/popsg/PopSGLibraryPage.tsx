@@ -992,6 +992,25 @@ export default function PopSGLibraryPage() {
             <EmptyState hasFilters={hasFilters || hasAnyData} />
           ) : (
             <div className="space-y-4">
+              {/* Result count — prominent, at the top of the results */}
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-semibold text-foreground">
+                  {total.toLocaleString()}{" "}
+                  {displayMode === "guides" ? `style guide${total === 1 ? "" : "s"}` : `file${total === 1 ? "" : "s"}`}
+                </span>
+                {(() => {
+                  const shown = displayMode === "guides" ? groups.length : rows.length;
+                  if (total <= shown) return null;
+                  const from = page * pageSize + 1;
+                  const to = page * pageSize + shown;
+                  return (
+                    <span className="text-xs text-muted-foreground">
+                      showing {from.toLocaleString()}–{to.toLocaleString()}
+                    </span>
+                  );
+                })()}
+              </div>
+
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                 {displayMode === "guides"
                   ? groups.map((group) => (
@@ -1002,11 +1021,7 @@ export default function PopSGLibraryPage() {
                   ))}
               </div>
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  {(displayMode === "guides" ? groups.length : rows.length)} of {total.toLocaleString()}{" "}
-                  {displayMode === "guides" ? `style guide${total === 1 ? "" : "s"}` : `file${total === 1 ? "" : "s"}`}
-                </span>
+              <div className="flex items-center justify-end text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Select
                     value={String(pageSize)}
