@@ -32,7 +32,7 @@ Evidence: [`step11-consumer-audit-20260723.md`](step11-consumer-audit-20260723.m
 | Contract | NOTICE OK suffix `924f112c25e6` |
 | PR | https://github.com/u2giants/shared-db/pull/175 |
 | Merge SHA | `c777d74351dff8e331dcc568952e5d44c5cf83b5` |
-| Production | **not promoted** (Step 11 boundary) |
+| Production | promoted only through bounded forward migration `20260723183000`; official CLI ledger and clean post-apply dry-run verified |
 | Detail | [`step11-plm-import-status-preserve-20260723.md`](step11-plm-import-status-preserve-20260723.md) |
 
 ## 3. poppim-web (main)
@@ -50,12 +50,17 @@ Evidence: [`step11-consumer-audit-20260723.md`](step11-consumer-audit-20260723.m
 
 | Item | Evidence |
 |---|---|
-| Commit | `b061de29f825134d1bf6e4cf946aa73ba3e70b74` |
+| Commits | vendor picker `b061de29f825134d1bf6e4cf946aa73ba3e70b74`; Library customer hub `23f9335e0f39af2980cc0693456edb8bc8fc55e5` |
 | Vendor picker | `fetchFactoryOptions` → `api.dam_factory_list` |
 | Customer Styles | already on main via `api.dam_customer_list` + `customer_id` |
-| Branch reconcile | `dam-customer-hub-picker` library half **deferred** until production can apply `20260722222000` (after prod head `20260722221700`) under bounded migration protocol |
+| Library customer hub | deployed: curated `get_dam_customer_facets()`, `customer_id` filtering, and UUID-scoped `get_path_facets(uuid)` |
+| Bounded production migration | `20260723183000_step11_bounded_production_forward.sql`; preview contract passed; production CLI dry-run listed only this migration; applied and post-apply dry-run clean |
+| Picker read-contract repairs | `20260723211500_fix_dam_picker_read_contracts.sql` (PR #184, merge `bb369e1`) and `20260723212500_bridge_legacy_popdam_picker_access.sql` (PR #186, merge `0a7d230`) |
+| Read-contract root cause | `security_invoker` inherited staff-only core RLS; first repair still checked canonical `app.app_access('dam')`, while live PopDAM authorization is `public.app_access('popdam')`. Final views accept either authority while exposing only picker-safe columns. |
 | factory_id FK | **not** done (separate additive tranche) |
-| Tests | `src/test/dam-factory-picker.test.ts` 2 passed |
+| Tests | PopDAM 62 tests passed; preview rollback contract `DAM_PICKER_READ_CONTRACTS_OK` with canonical DAM access removed and legacy PopDAM access alone |
+| Production visual acceptance | **PASS** by Grok through read-only Playwright: Licensed Originally Designed For, Licensed Sample Vendor, and Generic Special Customer all displayed curated labels; both list endpoints returned HTTP 200; all editors canceled with Escape |
+| Visual evidence | `C:\Users\ahazan2\AppData\Local\Temp\grok-step11-final\step11-licensed-originally-designed-for-dropdown.png`, `step11-licensed-sample-vendor-dropdown.png`, `step11-generic-special-customer-dropdown.png`, `step11-styles-grid-loaded.png` |
 | Detail | [`../../popdam3 docs`](../../../popdam3/docs/verification/step11-dam-factory-picker-20260723.md) (in popdam3 repo) |
 
 ## 5. popcrm-web (main)
@@ -97,14 +102,26 @@ Evidence: [`step11-consumer-audit-20260723.md`](step11-consumer-audit-20260723.m
 
 - Live screenshot of PM TaskDetailModal Retailer picker populated
 - Live CRM CommandSearch excluding inactive
-- Live DAM Styles vendor dropdown from dam_factory_list
 - Assigned-historical + merged-loser UUID resolution fixtures in SQL suite
+
+### DAM visual attempts that failed before final acceptance
+
+1. The first Grok browser was accidentally allowlisted only for the app origins,
+   so Supabase requests were blocked by the browser inspector. No product verdict
+   was taken from that run.
+2. With Supabase allowed, Library behavior passed, but Styles customer/vendor
+   lists returned `[]`. Migration `20260723211500` removed inherited staff-role
+   RLS at the picker-safe view boundary, but the first production recheck still
+   returned `[]`.
+3. A production read-only authorization probe showed the tester had legacy
+   `popdam`/`styleguides` access and canonical `crm` access—not canonical `dam`.
+   Migration `20260723212500` bridged the live PopDAM authority. The subsequent
+   hard-refresh visual pass showed populated curated lists and closed the gate.
 
 ## Production approval boundary (stop here)
 
 Do **not** without Albert's explicit production window:
 
-- promote `20260723140000` to production
 - promote pending DB Data Admin write/merge/tree migrations
 - enable production status/merge gates
 - run PLM status writes against production DesignFlow
