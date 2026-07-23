@@ -20,3 +20,9 @@ designer_artist_record_values_long.csv
 designer_record_containers.csv
 designer_record_values_long.csv
 tools/clean-designer-artist-records.mjs
+
+# Local Step 11 session scratch (never commit)
+.tmp-step11-pg/
+.grok-step11-*.md
+.grok-step11-*.log
+
