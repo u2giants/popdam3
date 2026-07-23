@@ -97,6 +97,25 @@ or DB Data Admin deployment, read
 [`docs/db-data-admin-domain-ownership.md`](docs/db-data-admin-domain-ownership.md)
 and run `node scripts/check-domain-ownership.mjs`.
 
+## 0.3 The grid column Multi Filter already exists — reuse it, don't rebuild it
+
+DB Data Admin's grid headers already implement the **AG Grid Multi Filter
+equivalent (Text Filter + Set Filter with a searchable checkbox list of distinct
+values)**. The reusable, framework-free logic is
+`apps/db-data-admin/src/lib/grid-filters.ts`; the React header UI is
+`FilterHeader` in `apps/db-data-admin/src/DataAdmin.tsx`.
+
+Before building any column-filter UI in ANY POP app, read
+[`docs/db-data-admin-column-multi-filter.md`](docs/db-data-admin-column-multi-filter.md).
+A 2026-07-23 audit of the Markdown in all 28 `u2giants` repos confirmed this is the
+org's **first and only** reusable Text+Set filter logic — PopCRM's `DataTable` is
+bespoke and legacy, and PopDAM's `filterable-table-head.tsx` is text-only. If a
+second app needs this, promote `grid-filters.ts` into a shared package instead of
+copy-pasting it a third time.
+
+Do not "add set filters later" — they shipped. Older text in `DB_Data_Admin.md`
+that described set filters as future work refers to the pre-2026-07-23 design.
+
 ## Session wrap-up convention
 
 When the user says **"wrap up"**, that means finish the session safely: update

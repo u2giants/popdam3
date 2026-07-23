@@ -1,5 +1,62 @@
 # HANDOFF — shared-db current state
 
+## DB Data Admin — non-SSO tester login (BLOCKED — awaiting owner decision, 2026-07-23)
+
+Status: **blocked / not started.** No code, auth config, or user was created.
+
+### Goal
+
+Albert asked for "internal (non-SSO) credentials to `https://data-dev.designflow.app`
+for testing purposes," stored in 1Password, so an AI session can log in and drive the UI
+(the Multi Filter work shipped this session could not be visually verified for exactly
+this reason).
+
+### Why it is blocked — read before implementing
+
+1. **The app is Microsoft-SSO only.** `apps/db-data-admin/src/App.tsx` offers a single
+   auth path: `supabase.auth.signInWithOAuth({ provider: 'azure' })`. There is **no**
+   email/password form. A password user therefore cannot log in through the UI until the
+   app gains a `signInWithPassword` form — this is an app **code** change, not just a
+   user record.
+2. **That code change would also reach production.** `data.designflow.app` (production)
+   and `data-dev.designflow.app` (development) are built from the **same** codebase and
+   the same GHCR image; only the injected `/config.js` differs (see `nginx.conf` →
+   `DB_DATA_ADMIN_*` env). Adding a password form without an explicit environment gate
+   would open a non-SSO door on **production** DB Data Admin.
+3. **data-dev is NOT a throwaway sandbox.** It points at Supabase preview branch
+   `rjyboqwcdzcocqgmsyel` (`shared-db-schema-rehearsal`), which the 1Password item
+   "Supabase Preview Branch Credentials - shared POP database" documents as a
+   *persistent production clone (`with_data=true`)* whose data is
+   **"production-sensitive."** DB Data Admin can edit and **merge** records. A password
+   credential with an Administrator grant there is effectively production-grade access.
+
+### Recommended design (needs owner approval before building)
+
+- Add an email/password sign-in form **gated behind an explicit runtime flag**
+  (e.g. `DB_DATA_ADMIN_ALLOW_PASSWORD_LOGIN`, surfaced through `/config.js` and
+  `readConfig()`), set **only** on the data-dev Coolify application. Production stays
+  SSO-only and the form never renders there.
+- Enable the email provider on branch `rjyboqwcdzcocqgmsyel` only.
+- Create one tester user with a long generated password, grant it the Administrator
+  grant the `db_data_admin_*` RPCs require, and store it in 1Password vault
+  `vibe_coding` with full usage notes.
+
+### Access status
+
+Access is **available** — no new credentials need to be requested:
+- Preview branch service-role key + Postgres URL: 1Password →
+  *"Supabase Preview Branch Credentials - shared POP database (shared-db-schema-rehearsal)"*.
+- Supabase management PAT: 1Password → *"Supabase CLI Personal Access Token"*.
+- Note: `rjyboqwcdzcocqgmsyel` is a **branch**, so it does **not** appear in
+  `GET https://api.supabase.com/v1/projects`. Do not conclude the token is wrong —
+  list branches instead.
+
+### Exact next action
+
+Get the owner's yes/no on the gated-password-form design above. If yes, implement the
+three bullets in "Recommended design", then update this section. If no, record the
+alternative chosen and delete this section.
+
 ## Stage 0 — Safe DAM core licensor/property cutover (ACTIVE — local revision in worktree; not committed/applied)
 
 Date: 2026-07-23 (revised implementation)
@@ -1357,7 +1414,9 @@ now show `display_name` and hide inactive customers.
   `https://data.designflow.app`. The application is owned and developed in this repo
   (frontend: `apps/db-data-admin/`) and initially manages Customers, Vendors,
   Licensors, and Properties. It standardizes DB Data Admin on MIT RevoGrid Core with our
-  own always-visible header filtering. DesignFlow keeps AG Grid; PopCRM's custom DataTable
+  own header filtering — since 2026-07-23 a per-column **Multi Filter (Text + Set)**, see
+  [`docs/db-data-admin-column-multi-filter.md`](docs/db-data-admin-column-multi-filter.md).
+  DesignFlow keeps AG Grid; PopCRM's custom DataTable
   is legacy and should not become a third shared grid platform. **This plan supersedes the
   older direction below that placed the admin page in PopCRM. Implementation is underway;
   development is live at `https://data-dev.designflow.app`, while production remains gated.**

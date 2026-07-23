@@ -160,10 +160,16 @@ Per-user grid state is database-backed, not browser-only. Add
 read/upsert operations for filters, sort, order, widths, and visibility. Local storage may
 cache the last state for startup speed but is not the durable source of truth.
 
-Start with text, boolean, and status filters. Add numeric/date operators and set filters
-after the Core adapter is proven. Default to server-side filtering/pagination above 5,000
+Start with text, boolean, and status filters. Numeric/date operators are still future work.
+Default to server-side filtering/pagination above 5,000
 rows, while keeping the same API parameters available below that threshold so switching
 modes does not require a contract rewrite.
+
+**Set filters are no longer deferred — they shipped on 2026-07-23.** Each column header is
+now a Multi Filter (Text + Set), the equivalent of AG Grid's Multi Filter configured as a
+Text Filter plus a Set Filter. See
+[docs/db-data-admin-column-multi-filter.md](docs/db-data-admin-column-multi-filter.md) for
+the component contract, the reusable helper module, and how to lift it into another app.
 
 ---
 

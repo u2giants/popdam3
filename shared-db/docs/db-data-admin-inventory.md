@@ -17,7 +17,9 @@ owners, consumers, and release blockers; it is not a second product specificatio
 - Chosen baseline: React 19 + TypeScript 6 + Vite 8.1.5, matching current PopCRM and PopPIM
   while avoiding the Windows path-disclosure advisories affecting Vite through 8.0.15.
 - Grid: exact pinned `@revolist/revogrid` and `@revolist/react-datagrid` version `4.23.22`
-  (MIT). The always-visible header filter remains a Core-only custom adapter.
+  (MIT). The header filter remains a Core-only custom adapter: since 2026-07-23 it is a
+  Multi Filter (always-visible Text input + Set Filter checkbox popover) — see
+  [db-data-admin-column-multi-filter.md](db-data-admin-column-multi-filter.md).
 - Unit/browser: Vitest + Testing Library + Playwright. Database contract tests run against a
   disposable/preview database, not production.
 - Runtime: GitHub Actions builds GHCR; Coolify deploys on the Hetzner host. The development
