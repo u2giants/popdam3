@@ -45,6 +45,8 @@ Evidence: [`step11-consumer-audit-20260723.md`](step11-consumer-audit-20260723.m
 | Grep gate | zero `.from('customer_list')` in `src/` |
 | Tests | Vitest `pmCustomerList.test.ts` 3 passed |
 | Build | `npm run build` OK |
+| Production acceptance | PASS: `TaskDetailModal` Retailer field entered edit mode and displayed the populated active-only `api.pm_customer_list` result; no picker request failure |
+| Visual evidence | `C:\Users\ahazan2\AppData\Local\Temp\codex-step11-browser\pm-task-detail-retailer-picker-final.png` |
 
 ## 4. popdam3 (main)
 
@@ -67,14 +69,16 @@ Evidence: [`step11-consumer-audit-20260723.md`](step11-consumer-audit-20260723.m
 
 | Item | Evidence |
 |---|---|
-| Commit | `4a2db95aa15768a5ab43576de6d69bc4a49a6fb1` |
+| Commits | picker enforcement `4a2db95aa15768a5ab43576de6d69bc4a49a6fb1`; independent search-group resilience `66a2ed23fe43070cdc474e8b31750f215599335c` |
 | Picker feed | `useCustomerPickerQuery` → `api.crm_customer_picker_list` |
 | Historical | `withCurrentCustomer` + `buildRetailerById` keep inactive assigned labels |
 | Search | `searchCrm` uses picker list (status-gated) |
 | Promote | retired loudly; no `crm.promote_ingested_domain` call |
 | Customers tab | hides global hub inactive even if legacy `customer_status` looks active |
-| Tests | Vitest `_shared.test.ts` 3 passed |
+| Tests | Vitest `_shared.test.ts` 3 passed; `searchResults.test.ts` 2 passed |
 | Build | `npm run build` OK |
+| Production acceptance | PASS: `Burlington` returned the active Customer; globally inactive `Midwest Marketing Associates, LLC` did not appear as a Customer; the known email-search timeout was reported but no longer blanked Customer results |
+| Visual evidence | `C:\Users\ahazan2\AppData\Local\Temp\codex-step11-browser\crm-search-active.png`, `crm-search-inactive.png` |
 
 ## 6. DesignFlow (sandbox-albert → develop)
 
@@ -98,11 +102,33 @@ Evidence: [`step11-consumer-audit-20260723.md`](step11-consumer-audit-20260723.m
 | Historical assigned | preserved | UUID company_id | customer_id UUID | id-based pickers |
 | Merged loser | aliases/source-ref (shared-db) | same | same | via source refs when present |
 
-### Remaining browser evidence (not completed this session)
+## 8. Shared contract and historical-identity closure
 
-- Live screenshot of PM TaskDetailModal Retailer picker populated
-- Live CRM CommandSearch excluding inactive
-- Assigned-historical + merged-loser UUID resolution fixtures in SQL suite
+| Item | Evidence |
+|---|---|
+| Picker serving repair | `20260723223000_protect_app_picker_serving_contracts.sql`; explicit CRM/PM access; protected security-barrier views |
+| DAM merge-FK repair | `20260723223100_cover_dam_customer_fk_merges.sql`; `public.assets.customer_id` and `public.style_groups.customer_id` now repoint during canonical merge |
+| Historical fixture | `app_serving_status_contracts.sql` assigns one inactive Customer UUID to both `public.style_tracker_rows.customer_id` and `pim.product.company_id` and proves both canonical labels remain resolvable |
+| Merged-loser fixture | same suite proves DAM/PM assignments repoint to the survivor and the loser identity survives through `core.company_source_ref` plus `core.customer_alias`, without name-based identity |
+| Full FK inventory | `db_data_admin_merge_coverage.sql` includes the newly added DAM FKs and passes |
+| Preview | official CLI dry-run/apply; both rollback suites PASS |
+| PR / merge | https://github.com/u2giants/shared-db/pull/188; merge `437b69a` |
+| Production | physically bounded runner; dry-run listed only `20260723223000` and `20260723223100`; apply succeeded; both rollback suites PASS |
+| Write gate | `app.db_data_admin_feature_gate` remains absent; all six Step 8–10 production migration versions remain absent |
+
+The production dataset currently contains no `pim.product.company_id` assignment to an
+inactive PM Customer, so fabricating a durable production business row solely for a screenshot
+was rejected. The required assigned-historical behavior is instead proven with the
+rollback-only preview and production SQL fixture above. The live PM screenshot proves the
+same production picker is populated and active-only.
+
+## Step 11 completion status
+
+All shared-db, PM, CRM, and DAM implementation, database, CI, deployment, and browser gates
+are complete. The DesignFlow implementation is green and deliberately production-disabled,
+but PR #64 is still awaiting the required Uma review/merge. Under the documented authority
+boundary, the AI must not merge that PR. Step 11 is therefore **implementation-complete but
+not formally closed** until that external review lands.
 
 ### DAM visual attempts that failed before final acceptance
 
