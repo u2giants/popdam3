@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_config: {
@@ -239,8 +264,8 @@ export type Database = {
             foreignKeyName: "ai_tag_bakeoff_results_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedRelation: "dam_character_catalog"
+            referencedColumns: ["core_property_id"]
           },
           {
             foreignKeyName: "ai_tag_bakeoff_results_run_id_fkey"
@@ -403,6 +428,13 @@ export type Database = {
             columns: ["character_id"]
             isOneToOne: false
             referencedRelation: "characters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_characters_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "dam_character_catalog"
             referencedColumns: ["id"]
           },
         ]
@@ -817,13 +849,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "assets_licensor_id_fkey"
-            columns: ["licensor_id"]
-            isOneToOne: false
-            referencedRelation: "licensors"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "assets_product_subtype_id_fkey"
             columns: ["product_subtype_id"]
             isOneToOne: false
@@ -834,8 +859,8 @@ export type Database = {
             foreignKeyName: "assets_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedRelation: "dam_character_catalog"
+            referencedColumns: ["core_property_id"]
           },
           {
             foreignKeyName: "assets_style_group_id_fkey"
@@ -1256,6 +1281,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      hts_rag_rulings: {
+        Row: {
+          collection: string | null
+          created_at: string
+          fetched_at: string
+          full_text: string
+          full_text_hash: string
+          id: string
+          modified_by: Json
+          operationally_revoked: boolean
+          revoked_by: Json
+          ruling_date: string | null
+          ruling_number: string
+          source_url: string | null
+          subject: string | null
+          tariffs: Json
+          updated_at: string
+        }
+        Insert: {
+          collection?: string | null
+          created_at?: string
+          fetched_at?: string
+          full_text: string
+          full_text_hash: string
+          id?: string
+          modified_by?: Json
+          operationally_revoked?: boolean
+          revoked_by?: Json
+          ruling_date?: string | null
+          ruling_number: string
+          source_url?: string | null
+          subject?: string | null
+          tariffs?: Json
+          updated_at?: string
+        }
+        Update: {
+          collection?: string | null
+          created_at?: string
+          fetched_at?: string
+          full_text?: string
+          full_text_hash?: string
+          id?: string
+          modified_by?: Json
+          operationally_revoked?: boolean
+          revoked_by?: Json
+          ruling_date?: string | null
+          ruling_number?: string
+          source_url?: string | null
+          subject?: string | null
+          tariffs?: Json
+          updated_at?: string
+        }
+        Relationships: []
       }
       hygiene_findings: {
         Row: {
@@ -2063,13 +2142,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "style_groups_licensor_id_fkey"
-            columns: ["licensor_id"]
-            isOneToOne: false
-            referencedRelation: "licensors"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "style_groups_primary_asset_id_fkey"
             columns: ["primary_asset_id"]
             isOneToOne: false
@@ -2080,8 +2152,8 @@ export type Database = {
             foreignKeyName: "style_groups_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
-            referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedRelation: "dam_character_catalog"
+            referencedColumns: ["core_property_id"]
           },
         ]
       }
@@ -2314,6 +2386,7 @@ export type Database = {
           concept_status: string | null
           created_at: string
           customer: string | null
+          customer_id: string | null
           customer_sku: string | null
           default_vendor: string | null
           description: string | null
@@ -2343,6 +2416,7 @@ export type Database = {
           concept_status?: string | null
           created_at?: string
           customer?: string | null
+          customer_id?: string | null
           customer_sku?: string | null
           default_vendor?: string | null
           description?: string | null
@@ -2372,6 +2446,7 @@ export type Database = {
           concept_status?: string | null
           created_at?: string
           customer?: string | null
+          customer_id?: string | null
           customer_sku?: string | null
           default_vendor?: string | null
           description?: string | null
@@ -2523,6 +2598,19 @@ export type Database = {
       }
     }
     Views: {
+      dam_character_catalog: {
+        Row: {
+          core_property_id: string | null
+          created_at: string | null
+          external_id: string | null
+          id: string | null
+          is_priority: boolean | null
+          name: string | null
+          updated_at: string | null
+          usage_count: number | null
+        }
+        Relationships: []
+      }
       sg_archive_usage: {
         Row: {
           active_files: number | null
@@ -2609,6 +2697,7 @@ export type Database = {
           created_at: string | null
           creative_designer_id: string | null
           customer: string | null
+          customer_id: string | null
           customer_sku: string | null
           default_vendor: string | null
           description: string | null
@@ -2659,6 +2748,7 @@ export type Database = {
           concept_status: string | null
           created_at: string
           customer: string | null
+          customer_id: string | null
           customer_sku: string | null
           default_vendor: string | null
           description: string | null
@@ -2950,6 +3040,10 @@ export type Database = {
           sub: string
         }[]
       }
+      record_failed_sync_run: {
+        Args: { p_error: string; p_source_name: string; p_stage: string }
+        Returns: string
+      }
       refresh_dam_search_asset_document: {
         Args: { p_asset_id: string }
         Returns: undefined
@@ -3054,6 +3148,18 @@ export type Database = {
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined
+      }
+      sync_coldlion_vendors: {
+        Args: { vendors_payload: Json }
+        Returns: {
+          rows_deleted: number
+          rows_failed: number
+          rows_inserted: number
+          rows_seen: number
+          rows_skipped: number
+          rows_updated: number
+          sync_run_id: string
+        }[]
       }
       update_bulk_operation: {
         Args: { p_only_if_status?: string; p_op_key: string; p_op_state: Json }
@@ -3270,6 +3376,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_name: ["popdam", "styleguides"],
