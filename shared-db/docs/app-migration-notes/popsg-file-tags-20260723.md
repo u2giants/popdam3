@@ -11,6 +11,8 @@ canonical storage contract.
 Canonical migration:
 
 - `20260723170000_popsg_file_tags.sql`
+- `20260723170100_popsg_tag_consensus_hardening.sql`
+- `20260723170200_popsg_folder_consensus_batch.sql`
 
 Consumer implementation plan:
 
@@ -69,6 +71,20 @@ Verification performed on 2026-07-23:
 7. The source `style_guide_files.tag_names` cache contained the test tag.
 8. The temporary tag/relationship was deleted and the test file's state was
    reset to pending.
+9. The real Railway handler tagged 200 preview files, writing 1,191 direct
+   relationships with zero failures.
+10. A quality review found migration object IDs, numeric ordering prefixes, and
+    overly literal portfolio folder labels. The inference rules were tightened
+    and the same 200 files were rebuilt: 1,121 cleaner direct relationships,
+    zero failures.
+11. The folder-consensus RPC processed preview folder batches successfully and
+    preserved the no-support case without inventing relationships.
+
+`20260723170100` adds a root-aware v2 worker batch contract, a source-scoped
+consensus replacement contract, and administrator-only rejection of automatic
+tags. `20260723170200` adds set-based, resumable folder consensus with strict
+support thresholds, a 500-file contamination ceiling, a facet allowlist, and
+the invariant that consensus output never counts as its own support.
 
 The first preview attempt failed safely and rolled back because this project did
 not expose `extensions.unaccent(text)`. The normalization function was corrected
