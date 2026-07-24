@@ -93,33 +93,55 @@ from core.taxonomy_source_ref group by 1;
 ## 4. What is actually blocking the licensor / property cutover
 
 Not effort, and not a missing sync job. **ColdLion structurally cannot supply what
-`core.licensor` / `core.property` already model.** Three hard blockers, all upstream:
+`core.licensor` / `core.property` already model.** **The data is fully available. Only the
+parent-child relationship is missing.** Verified against the live ColdLion Swagger spec
+(`/EhpApi/v2/api-docs`) and live API responses on 2026-07-23.
 
-1. **There is no ColdLion licensor or property endpoint.** The endpoint map in
-   [`coldlion-erp-api-reference.md`](coldlion-erp-api-reference.md) has `/customers`,
-   `/vendors`, `/items`, `/merchGroupHeaders`, `/merchGroupDetails` — and nothing else.
-   Licensor and property exist only *inside* merch groups, as `merchGroup05` (licensor) and
-   `merchGroup06` (property). Any cutover must be built out of the merch-group feed, which is
-   a materially harder problem than the customer/vendor cutovers were.
+> ⚠️ **Correction — do not repeat this error.** An earlier version of this page claimed
+> "there is no ColdLion licensor or property endpoint," implying the data was unavailable.
+> **That was wrong, and it overstated the blocker.** There is no *dedicated* `/licensors`
+> path, but licensor and property are fully served by `/merchGroupDetails` in exactly the
+> shape a sync needs. The cutover is **not** blocked on data access.
 
-2. **ColdLion has no licensor→property relationship.** `core.property` today has a strict
-   `licensor_id` foreign key into `core.licensor`. ColdLion's merch-group payload carries no
-   such hierarchy. Cutting over naively would **destroy** the licensor→property tree that 11
-   foreign keys and 6 views currently depend on. This is a capability regression, not a
-   migration.
+**What ColdLion DOES supply** (live, verified):
 
-3. **Merch-group codes are not globally unique, and they collide across entity types.** Codes
-   are unique only within `(division, mgTypeCode)`. The documented live example: **`FR` is a
-   licensor in our database and a *property* in ColdLion.** Any key-based reconciliation will
-   silently mismatch rows unless it carries division and `mgTypeCode` through the join.
+| Entity | Endpoint | Live count (CW001) | Ours |
+|---|---|---|---|
+| Licensor | `/merchGroupDetails?companyCode=EDGEHOME&divisionCode=CW001&mgTypeCode=05` | **22** | 20 |
+| Property | `/merchGroupDetails?companyCode=EDGEHOME&divisionCode=CW001&mgTypeCode=06` | **258** | 256 |
 
-Secondary: ColdLion's merch-group payload has **no active/inactive flag** anywhere, so the
-active-only promotion rule used for customers and vendors has no equivalent input here.
+Returns a plain array (not a paged envelope). Fields: `createdTime`, `createdUser`, `modTime`,
+`modUser`, `companyCode`, `divisionCode`, `mgTypeCode`, `mgCode`, `mgDesc`, `itemNoCode`,
+`mgCategory`, `mgCode2`. Live samples — licensor `1P` = "TOEI - ONE PIECE", `CB` = "CARE
+BEARS"; property `55` = "SHREK 5", `75` = "PEANUTS 75TH ANNIVERSARY".
 
-**Sizing note.** ColdLion holds 22 licensors and 258 properties in CW001, against our 20 and
-256 (see [`coldlion-direct-sync-and-taxonomy-plan.md`](coldlion-direct-sync-and-taxonomy-plan.md)).
-The near-match is a trap: two taxonomies that are 90 % identical are harder to reconcile
-safely than two that are obviously different, because the mismatches hide.
+`mgTypeCode` meaning is **per-division** and must be read from `/merchGroupHeaders`, never
+hardcoded. In `CW001` and `SP001`, `05` = Licensor and `06` = Property — but in `EH001` the
+same codes are "Big Theme"/"Little Theme", and in `EP001` "Product Line"/"Product Type".
+
+**The one real blocker:**
+
+1. **ColdLion has no licensor→property relationship.** Confirmed by field inspection: a
+   property row carries no licensor reference of any kind, and `mgCategory` is empty on every
+   row sampled. `core.property` has a strict `licensor_id` FK into `core.licensor` that 11
+   foreign keys and 6 views depend on. **DesignFlow (dflow) is the only place the
+   licensor→property parent-child relationship exists.**
+
+   This does **not** block the cutover — see the sequencing decision in §6. Point the tables
+   at ColdLion first, then carry the relationship over from dflow as a separate step.
+
+**Two traps for whoever builds the sync:**
+
+- **Codes collide across entity types *within the same division*.** Live proof in CW001:
+  `mgCode = "1P"` is **both** a licensor (TOEI - ONE PIECE) *and* a property (ONE PIECE
+  GENERAL ART). The previously documented `FR` case is the same class of problem. Keys must
+  be `(divisionCode, mgTypeCode, mgCode)` — **never `mgCode` alone**.
+- **No active/inactive flag** exists anywhere in the merch-group payload, so the active-only
+  promotion rule used for customers and vendors has no equivalent input here.
+
+**Sizing note.** 22 vs 20 and 258 vs 256 is a near-match, and that is a trap rather than a
+comfort: two taxonomies that are ~99 % identical are harder to reconcile safely than two that
+are obviously different, because the handful of genuine mismatches hide in the noise.
 
 ---
 
@@ -168,15 +190,28 @@ group by 1,2;
 
 ## 6. Recommended order of work
 
-1. **Relocate `logo_url` + `status` off `plm.customer_import`** and repoint
-   `api.crm_customer_list`. Smallest, fully-unblocked win; retires one staging table.
-2. **Resolve the licensor→property hierarchy question** (§4 blocker 2) *before* writing any
-   sync. If ColdLion cannot supply the tree, the decision is whether `core` keeps owning it
-   as curated data — which is a business decision for Albert, not an engineering one.
-3. **Only then** build the merch-group-derived licensor/property feed, keyed on
-   `(division, mgTypeCode, mgCode)` — never on `mgCode` alone, per the `FR` collision.
-4. `plm.licensor_import` / `plm.property_import` can then be dropped with no consumer work at
-   all.
+**Sequencing decision (Albert, 2026-07-23): point at the new tables first, migrate the
+relationships afterwards.** The licensor→property tree does not gate the cutover — it is a
+second, separable step sourced from dflow. Do not hold the sync hostage to it.
+
+1. **Build `plm.erp_licensor` / `plm.erp_property`** from `/merchGroupDetails`, keyed on
+   `(divisionCode, mgTypeCode, mgCode)`. Read `mgTypeCode` semantics from
+   `/merchGroupHeaders` per division — never hardcode `05`/`06`, they mean different things
+   in `EH001` and `EP001`. This follows the proven `plm.erp_customer` / `plm.erp_vendor`
+   pattern exactly, so it is a known shape, not new design.
+2. **Repoint `core.licensor` / `core.property` promotion at the new `erp_*` mirrors,** adding
+   `source_system = 'coldlion'` rows to `core.taxonomy_source_ref` alongside the existing
+   `designflow_plm` ones. Keep `licensor_id` populated as-is during this step — do not clear
+   it, do not enforce it from ColdLion.
+3. **Migrate the licensor→property relationship from dflow** as its own change, since dflow is
+   the sole source of it. Decide at that point whether `core` owns the tree as curated data
+   permanently (likely, given ColdLion will not supply it).
+4. **Then drop `plm.licensor_import` / `plm.property_import`** — zero consumers, no
+   downstream work required.
+
+Independently and in parallel: **relocate `logo_url` + `status` off `plm.customer_import`**
+and repoint `api.crm_customer_list`. Smallest fully-unblocked win in this whole area; retires
+a third staging table and depends on none of the above.
 
 ---
 
