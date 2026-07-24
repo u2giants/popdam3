@@ -359,6 +359,15 @@ Files outside project-owned areas that were intentionally modified:
 | Supabase edge functions | Admin, agent, helper, auth, export, sync APIs | Supabase | Project `qsllyeztdwjgirsysgai` | `supabase/functions/**`, deployed by `.github/workflows/deploy-supabase.yml` |
 | PostgreSQL | PopDAM/PopSG database, auth metadata, pg_cron jobs | Supabase | Project `qsllyeztdwjgirsysgai` | Canonical `u2giants/shared-db/supabase/migrations/**`, applied through shared-db preview-first workflow |
 
+**NAS topology (read this before pointing anything at a NAS):** PopDAM/PopSG use
+**two** Synology units — `edgesynology1` (192.168.3.100) and `edgesynology2`
+(192.168.3.101), both joined to AD `IML.isaacmorris.com`. Sync is **one-way**:
+edge2 pulls from edge1, nothing flows back. **Read on edge2** (crawl/scan/scrape —
+offloads edge1) and **write on edge1** (moves/checkouts — a write to edge2 is
+stranded and lost). The file-scraping agents run against edge2 by design; the
+Linux write-worker targets edge1. Canonical spec:
+[`u2giants/synology-monitor` → `docs/NAS_TOPOLOGY.md`](https://github.com/u2giants/synology-monitor/blob/main/docs/NAS_TOPOLOGY.md).
+
 **Railway deploy note:** Railway watches `main` and rebuilds on every push. Changes to `apps/worker/` do not trigger `deploy-supabase.yml` or `publish-frontend.yml` — only Railway picks them up.
 **GitHub deployment badge gotcha:** the green `popdam / production` deployment shown in GitHub's repository sidebar is emitted by Railway (`railway-app[bot]`). It means the Railway worker deployed that commit; it does **not** prove the frontend at `dam.designflow.app` / `sg.designflow.app` updated. For frontend freshness, check the `Publish Frontend Image` workflow and the live build SHA/header.
 
@@ -721,6 +730,22 @@ Dev note: the frontend connects directly to the production Supabase project. No 
 **Seafile/SeaDrive:** the Helper supervises (does not embed) the SeaDrive virtual-drive client for WFH designers; see `docs/SEAFILE_INTEGRATION.md`.
 **CI caching rule (learned the hard way):** the Windows job caches **only** `~\AppData\Local\electron\Cache` (the immutable Electron binary). **Never** add `~\AppData\Local\electron-builder\Cache` back — that dir is the NSIS toolchain that stamps the (un)installer, and caching it once shipped a corrupted uninstaller that failed 100% with "NSIS Error: Error launching installer" on uninstall (`docs/KNOWN_QUIRKS.md` #54, fixed 2026-06-25 commit `d7a1133`). Re-download the toolchain fresh every run.
 **Microsoft OAuth:** the "Continue with Microsoft" flow must **not** pass its own `state` to `/auth/v1/authorize` — Supabase GoTrue forwards a caller `state` to the provider verbatim and then can't match it on callback, failing with `bad_oauth_state` and dumping the user on the project Site URL (`crm.designflow.app`). GoTrue manages state itself; PKCE binds the flow. Fixed in `apps/popdam-helper/src/main/oauth.ts`, Helper v1.4.2 (2026-06-25).
+
+**Mac SeaDrive health checks:** never traverse a SeaDrive mount synchronously
+from Electron's main thread. SeaDrive metadata calls can block long enough for
+macOS to report **Application Not Responding**, especially immediately after a
+user selects the mount folder. UI/status callers use
+`getSeafileHealthAsync()` (Helper v1.4.13, commit `4301a34`); preserve its nested
+category/group discovery. See `docs/POPDAM_HELPER.md` and
+`docs/KNOWN_QUIRKS.md` #66.
+
+**Mounted does not mean file present:** Helper storage health validates the
+SeaDrive mount/library, not every deep asset placeholder. On macOS,
+`/Users/<user>/Library/CloudStorage/SeaDrive-<account>` is a valid File Provider
+root. After ~20 minutes, compare the exact path in Finder and Seafile web rather
+than waiting longer. Also preserve/report `seafileIssue` when Synology fallback
+fails; the current final `File not found locally` error can hide the primary
+SeaDrive reason. See `docs/KNOWN_QUIRKS.md` #67.
 **Checkout/check-in robustness (v1.4.3–1.4.8):** SeaDrive library location is **auto-discovered** (mounts vary per user/OS — `My Libraries`/`Shared with …`, bounded scan + cache); failures are never silent (failed checkout releases the orphaned lock + notifies; permanent upload failure pops a modal; missing Synology creds open Settings to the field); edits are tracked by an atomic-save-aware directory watcher driving an hourly reminder + a quit guard; a Photoshop UXP plugin (`resources/photoshop-plugin/`, Helper `POST /editor-event`) offers check-in on document close (Illustrator has no close event — intentionally unsupported). Full detail: `docs/POPDAM_HELPER.md`.
 
 ---
