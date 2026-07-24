@@ -1,0 +1,33 @@
+{
+  "environment": "rjyboqwcdzcocqgmsyel",
+  "generated_at": "2026-07-24T23:42:15.811Z",
+  "mirror_counts": {
+    "licensors": 44,
+    "properties": 516
+  },
+  "mirror_hashes": {
+    "licensor_keys": "7170df2831fd3b4ff74f62ef262f8256",
+    "property_keys": "a02670389f7e5b15c12ba667a23e1905",
+    "licensor_source_hashes": "18a03fb0e09c244b7b9699342a966b08",
+    "property_source_hashes": "161212e047a4fe7b2f8cb4e17b9813c2"
+  },
+  "raw_counts_and_hashes": [],
+  "successful_run_ids": [
+    "a7eb9c1b-3868-46bc-8d9a-615c0b8c98e4",
+    "8a18acf5-0ce6-4be1-a522-85ba5478be43"
+  ],
+  "successful_snapshot_hashes": [
+    "a69332e05d9064723ffa1dfbd870506c",
+    "a69332e05d9064723ffa1dfbd870506c"
+  ],
+  "failed_run_ids": [
+    "91f48764-47b9-4f80-8e5f-108eb3658828"
+  ],
+  "category_counts": {
+    "ColdLion-only candidate": 14,
+    "canonical-only curated/legacy record": 10,
+    "entity-type collision": 2,
+    "exact compatible code match": 542,
+    "exact normalized-name match": 2
+  }
+}

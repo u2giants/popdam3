@@ -1,15 +1,17 @@
 # ColdLion licensor/property master-data cutover
 
-**Status:** Phase 2A (mirror-only importer) is implemented and verified on preview.
-Migrations `20260724060000` and `20260724061000` are applied to preview; rolled-back
-contracts pass; preview still has zero mirror rows, zero Phase 2 sync runs, and zero
-schedules. Phase 2A has performed **no importer pull**; the first real preview pull is the
-Phase 2B session. Phase 2A
-writes only Phase 1 mirrors/evidence and seeds cross-entity `conflict` findings; it
-does not link, create, status, re-parent, or source-ref any canonical record. Later
-phases remain gated by this plan; this document does not by itself authorize a
-production data run, schedule, canonical linking, canonical creation, or DesignFlow
-cutover.
+**Status:** Phase 2B completed two full preview `mirror_only` snapshots on 2026-07-24.
+Runs `a7eb9c1b-3868-46bc-8d9a-615c0b8c98e4` and
+`8a18acf5-0ce6-4be1-a522-85ba5478be43` share snapshot hash
+`a69332e05d9064723ffa1dfbd870506c`; the second reported all 560 rows unchanged.
+Canonical UUID, status, parent-edge, and source-reference hashes stayed unchanged, and no
+schedule or canonical link exists. Live execution also exposed a Phase 2 guard defect:
+the second run recorded `metadata.prior_run=null` because the parser expects psql text while
+the installed Supabase CLI returns JSON. A fresh Phase 2 correction is required before
+Phase 3. Evidence:
+[`docs/verification/coldlion-licensor-property-phase2b-20260724/README.md`](docs/verification/coldlion-licensor-property-phase2b-20260724/README.md).
+Later phases remain gated by this plan; this document does not authorize a production data
+run, schedule, canonical linking, canonical creation, or DesignFlow cutover.
 
 **Written:** 2026-07-23  
 **Repository:** `u2giants/shared-db`  
@@ -872,6 +874,23 @@ prove canonical UUID/status/parent immutability.
 - Phase 2B commands/evidence fields are in
   `fix_coldlion_licensor_property_phase2a_handoff.md`.
 
+**Phase 2B evidence and correction gate (2026-07-24):**
+
+- two complete preview snapshots succeeded with the same snapshot hash;
+- run 1 inserted 560 mirror rows; run 2 reported 560 unchanged;
+- canonical/source-reference/link/schedule counts and hashes stayed unchanged;
+- the complete ledger contains 542 compatible-code rows, 2 NASA name-only rows,
+  14 ColdLion-only rows, 10 canonical-only rows, and 2 true unmatched `FK`
+  entity-type collisions;
+- the database conservatively opened 30 findings for 15 cross-entity codes repeated in both
+  divisions; Phase 3 must distinguish typed compatible matches from true unmatched
+  collisions;
+- DesignFlow's latest successful comparison remains 2026-07-08, so Phase 6's clock is not
+  running;
+- before Phase 3, correct the prior-count parser to accept Supabase CLI JSON, prove a new
+  preview run records prior counts 44/516, and update the stale DB Data Admin fixture that
+  still tries to create a parentless Property.
+
 ### Phase 3 — reconciliation and human decisions
 
 Deliver:
@@ -1241,7 +1260,8 @@ Phase 7.
 Per-phase cold-start contracts:
 
 - **Phase 3 — reconciliation and decisions.** Entry: Phase 2B verification
-  artifact with two successful runs and trustworthy DesignFlow baseline.
+  artifact with two successful runs, repaired prior-count evidence showing 44/516,
+  an updated DB Data Admin rollback fixture, and a trustworthy DesignFlow baseline.
   Deliver: a row-level ruling ledger for every source/canonical row, named-case
   dispositions, alias/rename decisions, parent evidence, and zero unexplained
   ambiguity. The starting exception ledger must include the freshly measured FRIDA KAHLO

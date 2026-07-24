@@ -1,12 +1,14 @@
 # HANDOFF — shared-db current state
 
-## CURRENT PRIORITY — ColdLion Licensor/Property Phase 2B preview run (fresh session required)
+## CURRENT PRIORITY — ColdLion Licensor/Property Phase 2 correction (fresh session required)
 
-**As of 2026-07-24, Phase 2A implementation is complete and verified on preview.** The next
-task is Phase 2B: two real preview mirror-only pulls and complete comparison. Start it in a
-new AI session with a fresh context window. Read
-[`fix_coldlion_licensor_property_phase2a_handoff.md`](fix_coldlion_licensor_property_phase2a_handoff.md)
-before running anything.
+**As of 2026-07-24, Phase 2B completed two full preview mirror-only snapshots with identical
+hashes and zero canonical/source-reference mutation.** The next task is a bounded Phase 2
+correction before Phase 3: make the prior-count parser accept the real Supabase CLI JSON
+output, update the stale DB Data Admin orphan fixture, and run one more preview snapshot that
+records prior counts 44/516. Start in a fresh context and read
+[`fix_coldlion_licensor_property_phase2b_handoff.md`](fix_coldlion_licensor_property_phase2b_handoff.md)
+first.
 
 Before writing code, the new agent must read, in order:
 
@@ -45,9 +47,18 @@ Authoritative current evidence:
 - Migration `20260724030000` applied to preview `rjyboqwcdzcocqgmsyel`
   and production `qsllyeztdwjgirsysgai`.
 - Preview Phase 2A migrations `20260724060000` and `20260724061000` are applied.
+- Phase 2B runs `a7eb9c1b-3868-46bc-8d9a-615c0b8c98e4` and
+  `8a18acf5-0ce6-4be1-a522-85ba5478be43` share snapshot hash
+  `a69332e05d9064723ffa1dfbd870506c`.
+- Preview mirrors now contain 44 Licensor and 516 Property rows; run 2 reported all 560
+  unchanged.
 - 256 canonical Properties; 0 null Licensor parents; scalar FK is `NOT NULL`
   and `ON DELETE RESTRICT`.
-- Mirror tables remain at 0 rows; there are 0 Phase 2 sync runs and 0 schedules.
+- Canonical UUID/status/parent and all 505 source-reference hashes are unchanged; there are
+  0 ColdLion source refs, 0 mirror canonical links, and 0 schedules.
+- Run 2 incorrectly recorded `metadata.prior_run=null`; this parser defect blocks Phase 3.
+- Full evidence:
+  [`docs/verification/coldlion-licensor-property-phase2b-20260724/README.md`](docs/verification/coldlion-licensor-property-phase2b-20260724/README.md).
 - DesignFlow remains enabled.
 
 Older workstreams below are retained as historical context. If they contradict
