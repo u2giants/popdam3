@@ -124,6 +124,14 @@ changed the canonical count and demonstrates why the cutover must compare row
 identities rather than use `20/256`, `26/256`, or any source count as a
 hard-coded production assertion. Every operational phase takes a fresh baseline.
 
+The table above was re-measured live against production on 2026-07-24 and matches;
+snapshot with per-status breakdown, the 6 provenance-free `X-` licensors, and the
+current disposition of the named high-risk cases:
+[`docs/verification/licensor-property-cutover-baseline-20260724.md`](docs/verification/licensor-property-cutover-baseline-20260724.md).
+That snapshot covers the measurement rows below but **not** the full Phase-0 artifact
+(it does not yet enumerate all parent edges, per-division ColdLion counts beyond CW001,
+or the complete dependency inventory) — the first implementation PR still owes those.
+
 The first implementation PR must record a dated baseline under
 `docs/verification/`, containing:
 
