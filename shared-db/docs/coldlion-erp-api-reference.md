@@ -2,10 +2,16 @@
 
 **Purpose:** authoritative map of the Coldlion "CLAPIServerEhp" API used to import Edge
 Home ERP data into the shared Supabase backend (`qsllyeztdwjgirsysgai`). Derived from the
-live OpenAPI spec plus real calls made 2026-07-15.
+live OpenAPI spec plus real calls made 2026-07-15. **Endpoint map re-verified against the
+live spec 2026-07-23** — all 19 operations below still match exactly; merch-group endpoints
+re-pulled the same day (see the division matrix below).
 
 - **Base URL:** `http://x5.coldlion.com/EhpApi` (plain HTTP — not HTTPS)
-- **OpenAPI spec (machine-readable):** `http://x5.coldlion.com/EhpApi/v2/api-docs` (Swagger 2.0, API v1.5.1)
+- **OpenAPI spec (machine-readable):** `http://x5.coldlion.com/EhpApi/v2/api-docs` (Swagger 2.0, API v1.5.1).
+  Spec title is `CLAPIServerEhp API`. **Use `v2` — there is no `v3`:**
+  `/v3/api-docs` returns a 121-byte error stub, not a spec (verified 2026-07-23).
+  The `swagger-ui.html` page is a JS shell and is useless to fetch programmatically; pull
+  `v2/api-docs` and parse the JSON instead.
 - **Swagger UI (human):** `http://x5.coldlion.com/EhpApi/swagger-ui.html#/`
 - **Auth:** header `X-API-Key: <key>` on **every** endpoint. Key lives in 1Password →
   vault `vibe_coding` → item *"Coldlion ERP API key x5.coldlion.com"*, field `credential`.
@@ -18,7 +24,11 @@ live OpenAPI spec plus real calls made 2026-07-15.
 > `mgTypeCode` has **no fixed meaning** — `05` is Licensor in CW001/SP001 but "Big Theme" in
 > EH001 and "Product Line" in EP001. Coldlion has **no licensor→property relationship** and
 > **no active/inactive flag** anywhere in the merch-group payload. Codes are unique only
-> within `(division, mgTypeCode)`. Full detail, with live counts and the known defects:
+> within `(division, mgTypeCode)` — and **collide across types inside one division**
+> (`1P` is both a licensor and a property in CW001). The full decoded division matrix and
+> the `/merchGroupDetails` response shape are below under
+> [Merch groups — the complete division matrix](#merch-groups--the-complete-division-matrix-live-2026-07-23).
+> Modelling detail and known defects:
 > [`merch-group-taxonomy-architecture.md`](merch-group-taxonomy-architecture.md).
 
 > ### Known outage (2026-07-19)
@@ -132,6 +142,59 @@ Supabase import. It does **not** sync `items` / `itemDetails` / `inventory` / `i
 — the item catalog and images are the gap our Supabase pipeline fills. Reuse
 `popcre-sync-prod` only as a reference for cadence/endpoint choice, not as our loader.
 
+## Merch groups — the complete division matrix (live, 2026-07-23)
+
+`GET /merchGroupHeaders?companyCode=EDGEHOME` returns **37 rows** (one page, paged envelope)
+and is the **only** authority on what a `mgTypeCode` means. Decoded in full so no session has
+to re-pull it just to orient:
+
+| `mgTypeCode` | CW001 | EH001 | SP001 | EP001 |
+|---|---|---|---|---|
+| `01` | Type | Type | Type | Type |
+| `02` | Sub-Type | Sub-Type | Sub-Type | Sub-Type |
+| `03` | Sub-Sub-Type | Sub-Sub-Type | Sub-Sub-Type | Sub-Sub-Type |
+| `04` | Size | Size | Size | Pages |
+| `05` | **Licensor** | Big Theme | **Licensor** | Product Line |
+| `06` | **Property** | Little Theme | **Property** | Product Type |
+| `07` | Style Guide | Art Type | Style Guide | Character |
+| `08` | Art Source | Art Source | Art Source | — |
+| `09` | Artist | Artist | Artist | — |
+| `10` | Demographic | Demographic | Demographic | — |
+
+**Never hardcode `05` = Licensor.** It is only true in CW001 and SP001. `EP001` has no
+licensor/property concept at all, and `EH001` calls the same slots Big/Little Theme.
+
+### `/merchGroupDetails` — response shape
+
+Returns a **plain JSON array**, *not* a paged `{content:[...]}` envelope. This is the one
+endpoint that breaks the paging convention documented above; code that assumes `.content`
+will silently read `undefined`.
+
+Fields on every row: `createdTime`, `createdUser`, `modTime`, `modUser`, `companyCode`,
+`divisionCode`, `mgTypeCode`, `mgCode`, `mgDesc`, `itemNoCode`, `mgCategory`, `mgCode2`.
+
+Live counts and samples, CW001 (2026-07-23):
+
+| Query | Count | Samples |
+|---|---|---|
+| `mgTypeCode=05` (licensor) | **22** | `1P` = TOEI - ONE PIECE, `AA` = AARDMAN ANIMATIONS, `CB` = CARE BEARS, `CC` = COCA COLA |
+| `mgTypeCode=06` (property) | **258** | `1P` = ONE PIECE GENERAL ART, `3P` = C3PO, `55` = SHREK 5, `75` = PEANUTS 75TH ANNIVERSARY |
+
+Three structural limits, all confirmed by field inspection rather than assumed:
+
+- **No parent-child link.** A property row carries *no* licensor reference of any kind.
+  `mgCategory` was **empty on every row sampled**, and `mgCode2` merely repeats `mgCode`.
+  The licensor→property relationship exists **only in dflow**.
+- **No active/inactive flag** anywhere in the payload — so the active-only promotion rule
+  used for `/customers` and `/vendors` has no equivalent input here.
+- **`mgCode` collides across entity types within a single division.** Live proof in CW001:
+  **`1P` is both a licensor (TOEI - ONE PIECE) and a property (ONE PIECE GENERAL ART).**
+  Any key must be `(divisionCode, mgTypeCode, mgCode)` — **never `mgCode` alone.** This is
+  sharper than the previously documented `FR` case, which at least spanned two systems.
+
+Cutover status and the plan built on this data:
+[`master-data-cutover-scoreboard.md`](master-data-cutover-scoreboard.md).
+
 ## Key object shapes (from the spec)
 - **ItemHeader** (~130 fields): itemNo, itemDesc, divisionCode, seasonCode, merchGroup01–14,
   8 price tiers (itemPriceA–H), retailPrice/sellingPrice/itemCost, dimensions/weight,
@@ -176,6 +239,20 @@ exactly like a broken tool but is not. Use a native child instead:
 op_run  command: 'curl.exe -s -H "X-API-Key: %K%" "http://x5.coldlion.com/EhpApi/customers?companyCode=EDGEHOME&size=1"'
         env:     { K: "op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential" }
 ```
+
+**cmd.exe escaping trap (hit 2026-07-23):** curl's own `%`-placeholders collide with cmd.exe
+variable syntax. `-w "%{http_code}"` gets eaten, and the doubled form `%%{http_code}` prints
+literally rather than expanding. Don't fight it — write the body to a file and check the
+result separately:
+
+```
+op_run  command: 'curl.exe -s -m 40 -H "X-API-Key: %K%" "http://x5.coldlion.com/EhpApi/v2/api-docs" -o "%TEMP%\cl.json"'
+        env:     { K: "op://vibe_coding/Coldlion ERP API key x5.coldlion.com/credential" }
+```
+
+then inspect with a second call (`powershell -c "..."`) — this also keeps large JSON bodies
+out of the transcript, which matters: the spec is ~33 KB and a full `/merchGroupDetails`
+property pull is 258 rows. Parse with PowerShell `ConvertFrom-Json` rather than dumping raw.
 
 (`command` runs via **cmd.exe** → use `%VAR%`; PowerShell → `$env:VAR`. `op_run`'s `argv`
 form is a direct spawn with **no shell**, so `$VAR`/`%VAR%` are not expanded there.
