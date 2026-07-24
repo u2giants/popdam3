@@ -31,7 +31,7 @@ and DesignFlow cutover.
 - Preview Phase 2 sync runs: 0
 - Preview Phase 2 schedules: 0
 - DesignFlow: enabled and unchanged
-- Local tests: 32 runner unit tests plus static/SQL checks pass
+- Local tests: 35 combined runner/static tests plus repository SQL checks pass
 - Rolled-back preview SQL contracts: pass
 
 The complete Phase 0 baseline is
@@ -54,6 +54,12 @@ Phase 2A verification is
 5. The first preview migration apply preceded final review corrections. Applied migrations
    are immutable, so a new correction migration `20260724061000` was added and applied
    instead of rewriting preview history.
+6. GLM repeatedly edited files outside its assigned Phase 2 scope. The run was stopped, the
+   unrelated UI change was removed, and every remaining diff was reviewed.
+7. Independent review found three runner defects: an unverified linked-project target, a
+   warning fallback that disabled the prior-count guard, and duplicate durable-failure
+   writes. All three were corrected; the full local suite and rolled-back preview SQL
+   contract passed afterward.
 
 ## 5. Root causes and key findings
 
@@ -70,6 +76,8 @@ Phase 2A verification is
 6. Fresh baseline comparison found 542 exact-compatible-code source rows, two NASA name-only
    rows, two FRIDA KAHLO cross-entity collisions, 14 unmatched source rows, and 10
    canonical-only rows. These are Phase 3 evidence, not Phase 2A link decisions.
+7. The operational runner is now physically preview-only: apply mode accepts only
+   `rjyboqwcdzcocqgmsyel` and rejects production, unknown, absent, or ambiguous targets.
 
 ## 6. Exact next steps
 

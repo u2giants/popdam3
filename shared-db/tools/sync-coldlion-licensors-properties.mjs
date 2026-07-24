@@ -29,6 +29,7 @@
 // in as permanent "correct" counts.
 
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import {
   COLDLION_BASE_URL,
@@ -45,6 +46,8 @@ import {
 // permanent hard-coded "correct" assertion (fix_coldlion_licensor_property_cutover.md §6.2).
 // =====================================================================================
 export const SOURCE_NAME = "coldlion_licensors_properties_api";
+export const PREVIEW_PROJECT_REF = "rjyboqwcdzcocqgmsyel";
+export const PRODUCTION_PROJECT_REF = "qsllyeztdwjgirsysgai";
 
 export const CONFIG = {
   companyCode: process.env.COLDLION_COMPANY_CODE ?? "EDGEHOME",
@@ -348,6 +351,39 @@ export function resolveRunMode(argv = process.argv.slice(2), env = process.env) 
   };
 }
 
+export function assertPreviewApplyTarget({ apply, linked, connString, linkedProjectRef = null }) {
+  if (!apply) return;
+
+  if (linked && connString) {
+    throw new Error("Refusing --apply with both --linked and DATABASE_URL/SUPABASE_DB_URL; choose one explicit preview target");
+  }
+  if (linked) {
+    if (linkedProjectRef !== PREVIEW_PROJECT_REF) {
+      throw new Error(
+        `Refusing --apply: linked Supabase project is ${linkedProjectRef || "unknown"}, not required preview ${PREVIEW_PROJECT_REF}`,
+      );
+    }
+    return;
+  }
+  if (!connString) {
+    throw new Error("Refusing --apply without a database target; pass --linked to the verified preview project or provide its DATABASE_URL");
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(connString);
+  } catch {
+    throw new Error("Refusing --apply with an unparseable DATABASE_URL");
+  }
+  const identity = `${parsed.username} ${parsed.hostname}`;
+  if (identity.includes(PRODUCTION_PROJECT_REF)) {
+    throw new Error(`Refusing --apply to production project ${PRODUCTION_PROJECT_REF}; Phase 2 is preview-only`);
+  }
+  if (!identity.includes(PREVIEW_PROJECT_REF)) {
+    throw new Error(`Refusing --apply: DATABASE_URL does not identify required preview project ${PREVIEW_PROJECT_REF}`);
+  }
+}
+
 // =====================================================================================
 // Operational functions (network / DB). Importable; not unit-tested for live behavior.
 // =====================================================================================
@@ -399,6 +435,10 @@ export async function collectDetails(apiKey, pairs, fetchImpl = fetch) {
 
 async function main() {
   const { apply, linked, connString, target } = resolveRunMode(process.argv.slice(2), process.env);
+  const linkedProjectRef = linked
+    ? readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim()
+    : null;
+  assertPreviewApplyTarget({ apply, linked, connString, linkedProjectRef });
 
   process.stdout.write(`${JSON.stringify({
     target,
@@ -424,11 +464,8 @@ async function main() {
     // Prior-run counts feed the count-drop guard (only readable when we have a DB target).
     let prior = null;
     if (apply) {
-      try {
-        prior = parsePriorCounts(runSql(buildPriorCountsSql(), { linked }));
-      } catch (priorErr) {
-        process.stderr.write(`WARNING: could not read prior run counts: ${priorErr?.message ?? priorErr}\n`);
-      }
+      stage = "prior-counts";
+      prior = parsePriorCounts(runSql(buildPriorCountsSql(), { linked }));
     }
 
     const snapshot = buildSnapshot({
@@ -451,10 +488,7 @@ async function main() {
     for (const w of decision.warnings) process.stderr.write(`WARNING: ${w}\n`);
     if (!decision.ok) {
       const reason = decision.errors.join("; ");
-      if (apply) {
-        try { runSql(buildFailedSyncRunSql(SOURCE_NAME, "validate", reason), { linked }); }
-        catch (recErr) { process.stderr.write(`WARNING: could not record durable failure: ${recErr?.message ?? recErr}\n`); }
-      }
+      stage = "validate";
       throw new Error(`Refusing to apply: ${reason}`);
     }
 

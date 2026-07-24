@@ -5,7 +5,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   CONFIG,
+  PREVIEW_PROJECT_REF,
+  PRODUCTION_PROJECT_REF,
   SOURCE_NAME,
+  assertPreviewApplyTarget,
   buildImportSql,
   buildPriorCountsSql,
   buildSnapshot,
@@ -371,6 +374,56 @@ test("resolveRunMode: --apply sets willWriteDb; --linked changes the target", ()
   assert.equal(m.willWriteDb, true);
   const linked = resolveRunMode(["--apply", "--linked"], {});
   assert.match(linked.target, /--linked/);
+});
+
+test("assertPreviewApplyTarget: permits only the verified preview target", () => {
+  assert.doesNotThrow(() => assertPreviewApplyTarget({
+    apply: true,
+    linked: true,
+    linkedProjectRef: PREVIEW_PROJECT_REF,
+  }));
+  assert.doesNotThrow(() => assertPreviewApplyTarget({
+    apply: true,
+    linked: false,
+    connString: `postgres://postgres.${PREVIEW_PROJECT_REF}:fixture@pooler.supabase.com:6543/postgres`,
+  }));
+  assert.doesNotThrow(() => assertPreviewApplyTarget({
+    apply: false,
+    linked: false,
+    connString: `postgres://postgres.${PRODUCTION_PROJECT_REF}:fixture@pooler.supabase.com:6543/postgres`,
+  }));
+});
+
+test("assertPreviewApplyTarget: rejects production, unknown, ambiguous, and absent apply targets", () => {
+  assert.throws(
+    () => assertPreviewApplyTarget({ apply: true, linked: true, linkedProjectRef: PRODUCTION_PROJECT_REF }),
+    /not required preview/,
+  );
+  assert.throws(
+    () => assertPreviewApplyTarget({
+      apply: true,
+      linked: false,
+      connString: `postgres://postgres.${PRODUCTION_PROJECT_REF}:fixture@pooler.supabase.com:6543/postgres`,
+    }),
+    /Refusing --apply to production/,
+  );
+  assert.throws(
+    () => assertPreviewApplyTarget({ apply: true, linked: false, connString: "postgres://postgres.unknown:fixture@localhost/postgres" }),
+    /does not identify required preview/,
+  );
+  assert.throws(
+    () => assertPreviewApplyTarget({
+      apply: true,
+      linked: true,
+      linkedProjectRef: PREVIEW_PROJECT_REF,
+      connString: `postgres://postgres.${PREVIEW_PROJECT_REF}:fixture@pooler.supabase.com:6543/postgres`,
+    }),
+    /both --linked and DATABASE_URL/,
+  );
+  assert.throws(
+    () => assertPreviewApplyTarget({ apply: true, linked: false, connString: null }),
+    /without a database target/,
+  );
 });
 
 test("describeTarget: never leaks credentials from a connection string", () => {

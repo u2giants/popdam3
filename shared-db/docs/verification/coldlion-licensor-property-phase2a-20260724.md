@@ -33,6 +33,10 @@ functions with the final guard body.
   configurable absolute floors, and prior-run count-drop threshold;
 - advisory transaction lock serializes overlapping imports;
 - durable runner failures use the existing separate-transaction/two-consecutive-alert path;
+- apply mode is physically limited to preview `rjyboqwcdzcocqgmsyel`; production,
+  unknown, missing, or ambiguous database targets abort before the ColdLion fetch;
+- failure to read prior successful-run counts aborts instead of silently disabling the
+  count-drop guard, and each failed invocation records at most one durable failure row;
 - writes are restricted to raw/mirror/review/run evidence;
 - no `core.*`, source-reference, canonical link, status, UUID, or parent mutation path exists;
 - no scheduler is created.
@@ -51,7 +55,7 @@ git diff --check
 Results:
 
 - SQL static checks: passed
-- runner unit tests: 32/32 passed
+- combined runner/static tests: 35/35 passed
 - Phase 2A static contract: passed
 - diff whitespace check: passed
 
@@ -76,6 +80,21 @@ transaction against the final function. Post-test catalog/data evidence:
 
 Zero mirror rows and zero Phase 2 run rows are required at this boundary. The first real
 preview import belongs to Phase 2B.
+
+## Independent review corrections
+
+The post-GLM review found and fixed three operational safety defects before acceptance:
+
+1. `--apply --linked` trusted whichever project happened to be linked. It now verifies the
+   exact preview ref and rejects the production ref or any unknown target.
+2. A database error while reading prior-run counts previously downgraded to a warning and
+   disabled the count-drop guard. It now aborts and records the failure.
+3. Validation failures were recorded once inside validation and again by the outer failure
+   handler, which could falsely trigger the two-consecutive-failures alert. The inner write
+   was removed so one invocation produces one failure row.
+
+After these corrections, the 35-test suite and the rolled-back preview SQL contract were
+rerun independently and passed.
 
 ## Explicitly not done
 
