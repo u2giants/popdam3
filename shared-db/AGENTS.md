@@ -265,12 +265,16 @@ art source, artist, age group, or `mgTypeCode` must start at
 
 **If your work touches characters, style guides, or royalty rates, read
 [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
-FIRST.** It documents a layer the merch-group doc does not cover: real licensing data is
-**Property → Style guide (sub-style guide) → Character**, and the legacy table
+FIRST.** It documents a layer the merch-group doc does not cover. There are **two axes, and chaining
+them is the classic bug**: ownership is linear — **Licensor → Property → Character** (a
+character has exactly one property) — while style is many-to-many — **a style guide holds many
+characters and a character appears in many style guides**. A style guide is *not* a level
+between property and character. The legacy table
 `dflow.properties_and_characters` is misleadingly named — its `type='PROPERTY'` rows are
 **style guides**, not properties, and its `type='CHARACTER'` rows are character *appearances*
-(one per style guide), not distinct characters. Batman is one character appearing in 15 style
-guides, each with its own external id. That doc also records the Marvel-only +2% talent-likeness
+(one per style guide), not distinct characters — those 9,622 rows are the **style-guide ↔
+character bridge**, not a character list. Batman is one character, under one property, appearing
+in 15 style guides, each with its own external id. That doc also records the Marvel-only +2% talent-likeness
 royalty rule and the fact that likeness attaches to a **style guide asset (file)**, never to a
 character. Two AI sessions have already corrupted their understanding by reading those column
 names literally — do not be the third.

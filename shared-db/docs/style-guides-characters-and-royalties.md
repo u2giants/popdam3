@@ -17,25 +17,55 @@ so nobody repeats them. The owner's corrections are the substance of this docume
 
 ## 1. The layer that was missing: style guides and sub-style guides
 
-The mental model most people arrive with is two levels — **Property → Character**. That is
-wrong. The real model has a **style guide** layer in between, and it is where most of the
-licensing data actually lives.
+There are **two different axes**, and collapsing them into one chain is the mistake everybody
+makes.
+
+### 1.0 The ownership axis is linear. The style axis is not.
+
+> "Property → Style guide → Character is not a linear relationship.
+> Licensor → Property → Character is linear. A style guide can have multiple characters in it.
+> A character can appear in multiple Style Guides." — owner, 2026-07-23
 
 ```
-Licensor            e.g. WB
-   │
-   └── Property     e.g. Batman            ← the franchise / the thing being licensed
-         │
-         └── Style guide  e.g. "Batman Core"                    ← an art style
-             (sub-style     "Batman Returns (1992)"
-              guides)       "Batman: Arkham Knight: Video Game 4"
-                            "Batman: Animated Series (1992)"
-                   │
-                   └── Character artwork appearing in that style guide
-                         e.g. Batman, Joker, Catwoman, Batmobile
+AXIS 1 — OWNERSHIP (strictly linear, one parent each)
+
+   Licensor  ──1:N──▶  Property  ──1:N──▶  Character
+   e.g. WB              Batman              Batman, Joker, Catwoman
+
+   A character belongs to exactly ONE property.
+   A property belongs to exactly ONE licensor.
+
+
+AXIS 2 — STYLE (many-to-many, cross-cutting)
+
+   Style guide  ◀──M:N──▶  Character
+   "Batman Core"            Batman
+   "Batman Returns (1992)"  Joker
+   "Arkham Knight"          Catwoman
+
+   A style guide contains MANY characters.
+   A character appears in MANY style guides.
 ```
 
-**A style guide is a style of art, not a different property and not a different character.**
+**A style guide is a style of art. It is not a property, not a character, and not a level in
+the ownership hierarchy.** It is a separate thing that *references* characters.
+
+So "Batman" is **one** character. It belongs to **one** property (Batman) under **one** licensor
+(WB). It appears in **15** style guides. Those 15 style-guide appearances are edges on axis 2 —
+they never multiply the character on axis 1.
+
+### 1.1 Why this matters more than it sounds
+
+The two axes have opposite cardinality, so any model that chains them produces one of two bugs:
+
+- **Chaining Property → Style guide → Character** duplicates every character once per style
+  guide. That is exactly the shape of the legacy data, and reading it literally yields
+  "9,622 characters" when the real count is far lower.
+- **Hanging a character off a style guide** makes it impossible to answer "which property does
+  this character belong to?" without picking one style guide arbitrarily.
+
+The canonical model must therefore carry **both**: a single `property_id` on the character
+(axis 1) **and** a style-guide ↔ character bridge table (axis 2).
 
 > "Batman Beyond: Animated Series, Batman Core, Batman Forever (1995), Batman Returns (1992):
 > these are not different characters, these are all Batman. They happen to be different
@@ -43,7 +73,7 @@ Licensor            e.g. WB
 > of these, but that doesn't mean it's different characters. It's just a different style of
 > art. That's what a sub-style guide is." — owner, 2026-07-23
 
-### 1.1 The consequences that keep biting people
+### 1.2 The consequences that keep biting people
 
 1. **The same character recurs across many style guides.** Batman is one character. He appears
    in at least 15 style guides. Fifteen rows describing Batman are **fifteen renditions of one
@@ -53,10 +83,14 @@ Licensor            e.g. WB
    identifies a character *appearance*, not a character.** Deduplicating on that id will never
    collapse Batman.
 3. **Counting rows counts artwork entries, not characters.** Any report that says "we have
-   9,622 characters" is counting style-guide entries.
-4. **Style guides are hierarchical in reality even though nothing enforces it.** A sub-style
-   guide belongs under a parent style guide, which belongs under a property. No database
-   constraint expresses this today.
+   9,622 characters" is counting style-guide entries. The 9,622 legacy rows **are the axis-2
+   bridge** — (style guide × character) edges — not a character list.
+4. **A character's parent is its property, never its style guide.** Resolving "which property
+   does this character belong to?" must not go through a style guide.
+5. **Sub-style guides do not create a hierarchy on axis 1.** "Batman Core" and
+   "Batman Returns (1992)" are two style guides in the same style family. That family
+   relationship is style metadata; it is **not** a parent chain that a character inherits
+   ownership through.
 
 ---
 
@@ -162,6 +196,21 @@ Batman: Arkham Knight · Batman: Arkham Origins · Batman: Television Series (19
 The Dark Knight (2008) · DC Super Friends Collection Comics · Green Lantern Core ·
 Injustice: Gods Among Us · Justice League Core · Suicide Squad (2016).
 
+### 4.1a Axis 2 is genuinely many-to-many — measured both directions
+
+Excluding the three royalty sentinels (§2.3), the legacy bridge holds:
+
+| Measurement | Value |
+|---|---:|
+| Bridge edges (style guide × character) | 9,440 |
+| Distinct character names | 8,304 |
+| Style guides represented | 313 |
+| **Character names appearing in more than one style guide** | **653** |
+| **Style guides containing more than one character** | **225** |
+
+Both directions are populated, so the relationship is a true M:N — it cannot be modelled as a
+foreign key in either direction. Note also that the sentinels account for 182 of the 9,622 rows.
+
 ### 4.2 External id shapes differ by licensor
 
 `source_character_id` and `source_licensed_property_id` are **not one id space**:
@@ -193,6 +242,57 @@ The legacy column names are actively misleading and cannot be trusted as documen
 
 ---
 
+## 5A. The canonical target model
+
+This is what the schema must express. It follows directly from §1.0: one linear ownership
+chain, one many-to-many style axis.
+
+```sql
+-- AXIS 1 — ownership. Already correct in the canonical schema today.
+core.licensor  (id, name, code, status, …)
+core.property  (id, licensor_id → core.licensor, name, code, status, …)
+core.character (id, property_id → core.property, name, code, status, …)
+   -- ONE row per character. property_id is its single, real parent.
+
+-- AXIS 2 — style. Does not exist yet; must be added.
+core.style_guide            (id, licensor_id → core.licensor,
+                             property_id → core.property NULL,  -- see open question 3
+                             parent_style_guide_id → core.style_guide NULL,  -- sub-style guides
+                             name, code, status, …)
+
+core.style_guide_character  (style_guide_id → core.style_guide,
+                             character_id   → core.character,
+                             primary key (style_guide_id, character_id))
+   -- the M:N bridge. THIS is what the 9,622 legacy rows become.
+```
+
+Key points:
+
+- **`core.character.property_id` stays a single FK and is correct.** Do not widen it to
+  many-to-many, and do not repoint it at a style guide. Axis 1 is genuinely linear.
+- **`core.style_guide_character` is where multiplicity lives.** Batman = 1 character row +
+  15 bridge rows.
+- **Sub-style guides** are modelled as `parent_style_guide_id` self-reference on the style guide,
+  *not* as a level between property and character.
+- **Talent likeness belongs on the style guide asset (file)**, per §2.2 — not on
+  `core.character`, not on `core.style_guide`, and not on `core.property`. The asset table is not
+  yet traced (open question 5).
+- The legacy 9,622 rows are **bridge edges**, so the loader must resolve each edge's character to
+  a single canonical character identity before inserting — otherwise it recreates the duplication.
+
+### 5A.1 What must be answered before this can be built
+
+The blocker is **not** the shape above — it is the two inputs the legacy data does not contain:
+
+1. **Which property does each character belong to?** (axis 1 parent)
+2. **Which property does each style guide belong to?** (open question 3)
+
+The legacy tables record `licensor` for both, never `property`. Until those are resolved, a
+migration would have to invent the ownership chain, which is exactly the failure mode §6
+describes. **No migration is to be written until these are answered.**
+
+---
+
 ## 6. Two errors made on 2026-07-23 — do not repeat them
 
 **Error 1 — treating the legacy `PROPERTY` rows as properties.**
@@ -208,7 +308,15 @@ carry" a likeness distinction. That is wrong: the likeness split is a **real roy
 (Marvel, +2%), Coldlion does capture it, and it attaches to the **style guide asset**. *Lesson:
 do not reason about why a business distinction "shouldn't" exist — ask.*
 
-Both errors share a root cause: **inferring business meaning from schema shape and row names
+**Error 3 — chaining the two axes into one hierarchy.** The first version of *this document*
+described the model as `Property → Style guide → Character`, a single linear chain. That is also
+wrong, and the owner corrected it the same day (§1.0). Ownership is linear
+(`Licensor → Property → Character`); style is many-to-many (`Style guide ↔ Character`). Chaining
+them duplicates every character once per style guide and makes a character's property
+unanswerable. *Lesson: when a new layer appears, establish its **cardinality** before drawing an
+arrow through it.*
+
+All three errors share a root cause: **inferring business meaning from schema shape and row names
 instead of asking the owner.** The taxonomy in this area is full of words that mean different
 things in different systems (see the merch-group doc's opening warning). Ask first.
 
@@ -227,15 +335,21 @@ things in different systems (see the merch-group doc's opening warning). Ask fir
 3. **How do these style guides attach to properties?** The legacy data links a style guide to a
    **licensor**, not to a property. "Batman Core" is linked to WB, not to a Batman property row.
    The property layer has to be derived or curated — it is not in the data.
+3a. **Which property does each character belong to?** Same gap, on axis 1. Character rows carry
+   a `licensor_id` and a style guide, never a property. This is the single biggest blocker to
+   loading `core.character` (§5A.1).
 4. **What is the true distinct-character count?** At most 8,307 by normalized name, but names
    carry qualifiers (`ROBIN AKA DICK GRAYSON`, `HARLEY QUINN AKA DR. HARLEEN FRANCIS QUINZEL`)
    so real identity resolution needs rules, and probably a human pass.
 5. **Where do style guide assets (files) live**, given that talent likeness attaches to the
    file? Not yet traced.
-6. **`core.character` shape.** It currently has a single `property_id` FK. If characters attach
-   to style guides and recur across them, the canonical model likely needs a character identity
-   table plus a character-appearance bridge. **No migration should be written until §7.2 and
-   §7.3 are answered.**
+6. ~~**`core.character` shape.**~~ **RESOLVED 2026-07-23.** The single `property_id` FK is
+   **correct** — axis 1 is linear (§1.0). Multiplicity belongs in a new
+   `core.style_guide_character` bridge, not in `core.character`. Target model in §5A.
+
+**Blocking status:** questions **3 and 3a** (which property owns each style guide, and each
+character) block any migration. Questions 1, 2, 4, and 5 do not block the schema change but do
+block a correct *backfill*.
 
 ---
 
