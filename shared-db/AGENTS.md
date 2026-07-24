@@ -293,9 +293,15 @@ The three rules that cause the most damage when ignored:
 
 `core.factory` = **merchandise vendors (factories)**. Coldlion's `/vendors` endpoint was returning a
 mixed population (factories PLUS freight/government/banks/couriers/real-estate). **Coldlion corrected
-it 2026-07-22 — `/vendors` now serves 97 factory-only records.** `core.factory` (510 rows, curated from
-the old 539-row mixed feed) still needs reconciling down to the corrected 97; plan (with the one open
-Anthony's decision) is in [`fix_vendor_reconcile.md`](fix_vendor_reconcile.md). Detail:
+it 2026-07-22 — `/vendors` now serves 97 factory-only records.** This is **DONE** (2026-07-22):
+`core.factory` reconciled to **93 rows (91 active / 2 inactive)** (`fix_vendor_reconcile.md`), the silver
+mirror `plm.erp_vendor` refreshed to 97 (migration `20260722171500`), and a **guarded recurring importer**
+is live — `plm.sync_coldlion_vendors` via `public.sync_coldlion_vendors`, with `plm.vendor_exclusion`
+(435 seeded) + `plm.vendor_quarantine`, status app-owned (set on INSERT only), upsert by
+`(source_system,source_table,source_id)` (migration `20260722213000`). **Never re-introduce the old
+`plm.import_coldlion_vendors` pattern** (it clobbered curated status; it was dropped). Recurring
+**scheduling (Phase B — Edge Function + alerting) is NOT built yet**; the importer runs on demand. Full
+design/state: [`fix_vendor_sync.md`](fix_vendor_sync.md). Detail:
 [`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md) (✅ box).
 
 ## 7. When two apps need conflicting database changes
