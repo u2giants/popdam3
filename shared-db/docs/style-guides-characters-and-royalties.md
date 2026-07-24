@@ -280,6 +280,33 @@ Key points:
 - The legacy 9,622 rows are **bridge edges**, so the loader must resolve each edge's character to
   a single canonical character identity before inserting — otherwise it recreates the duplication.
 
+### 5A.0 How a style guide resolves to its property (owner rules, 2026-07-23/24)
+
+The legacy data does not store a style guide's owning **property** (only its licensor, §7.3).
+The owner supplied the rules that resolve it. Apply them in order:
+
+1. **Named property exists in Coldlion MG06 → use it.** Most style guides are named after a
+   property that Coldlion already carries (e.g. every `Batman *` style guide → the `Batman`
+   property). This is the bulk of the mapping.
+2. **Disney Classics → the `CP` bucket property.** Classic Disney titles are **not** separate
+   properties in our catalog. They are grouped under one Coldlion property:
+   **`CP` = "CLASSIC PROPERTIES"** (licensor DISNEY, active; present in both Coldlion MG06 and
+   `core.property`). Confirmed classics that map to `CP`:
+   **Bambi, Lion King, Aristocats, Jungle Book, 101 Dalmatians** (and titles like them).
+   > "Bambi, Lion King, Aristocats, Jungle Book and 101 Dalmatians are considered Classics so
+   > we use the CP MG06." — owner, 2026-07-24
+   Related Coldlion classics buckets, for reference: `MP` "MIXED PROPERTIES (DISNEY CLASSICS)",
+   `CBC` "CARE BEARS CLASSIC", `SC` "SONIC CLASSIC".
+3. **No code exists → do not invent a property.** Some titles have **no property code at all**
+   because POP has never produced against them. Confirmed examples: **Luca, Kim Possible,
+   Inside Out.** Their style guides (and the characters under them) **cannot** be given a real
+   property parent today, and **no placeholder property is to be created** to force a link. They
+   wait until the business assigns a code, or are loaded with a null property and flagged.
+
+**The rule this establishes:** the canonical property list mirrors **Coldlion** (what POP
+produces / holds a code for), with classics folded into `CP`. Being *licensed* for a title is
+not sufficient for it to be a property — see §5A.2.
+
 ### 5A.1 What must be answered before this can be built
 
 The blocker is **not** the shape above — it is the two inputs the legacy data does not contain:
@@ -287,9 +314,28 @@ The blocker is **not** the shape above — it is the two inputs the legacy data 
 1. **Which property does each character belong to?** (axis 1 parent)
 2. **Which property does each style guide belong to?** (open question 3)
 
-The legacy tables record `licensor` for both, never `property`. Until those are resolved, a
-migration would have to invent the ownership chain, which is exactly the failure mode §6
-describes. **No migration is to be written until these are answered.**
+The legacy tables record `licensor` for both, never `property`. §5A.0 now supplies the owner's
+resolution rules for input 2 (style guide → property). Input 1 (character → property) follows
+from it: a character's property is the property of whichever style guide owns it, which is
+well-defined for the 149 name-matched style guides plus the classics that fold into `CP`, and
+undefined for the no-code titles (§5A.0 rule 3).
+
+### 5A.2 "Everything licensed" vs "only what Coldlion produces" — decided
+
+This was the open strategic question. The owner's classics/no-code rules answer it:
+
+**The canonical property list mirrors Coldlion (what POP produces or holds a code for). Being
+licensed for a title is not enough to make it a property.**
+
+- Classic titles do not each become a property; they collapse into the **`CP`** bucket (§5A.0
+  rule 2).
+- Titles with no code (Luca, Kim Possible, Inside Out) are **not** added as properties, even
+  though POP is licensed for them (§5A.0 rule 3).
+
+So the earlier idea of adding ~186 "missing" properties to cover every licensed title is
+**rejected**. Properties are added only when Coldlion carries a code (classics route through the
+existing `CP`). This keeps `core.property` aligned with the ERP and avoids inventing rows the
+ERP will never confirm.
 
 ---
 
@@ -332,12 +378,12 @@ things in different systems (see the merch-group doc's opening warning). Ask fir
    Style Guide rows and the DesignFlow style-guide picker is never populated (merch-group doc
    §9.9), yet 500 style guides exist here. If so, MG07 should be sourced from this spine rather
    than from the ERP.
-3. **How do these style guides attach to properties?** The legacy data links a style guide to a
-   **licensor**, not to a property. "Batman Core" is linked to WB, not to a Batman property row.
-   The property layer has to be derived or curated — it is not in the data.
-3a. **Which property does each character belong to?** Same gap, on axis 1. Character rows carry
-   a `licensor_id` and a style guide, never a property. This is the single biggest blocker to
-   loading `core.character` (§5A.1).
+3. ~~**How do these style guides attach to properties?**~~ **MOSTLY RESOLVED 2026-07-24 (§5A.0).**
+   Rule: name-match to a Coldlion MG06 property; classics → `CP`; no-code titles get no
+   property. Remaining work is a human review of the name-match pass and enumerating which
+   titles are classics vs no-code.
+3a. **Which property does each character belong to?** Follows from §5A.0 via the character's
+   owning style guide. Well-defined except for no-code titles.
 4. **What is the true distinct-character count?** At most 8,307 by normalized name, but names
    carry qualifiers (`ROBIN AKA DICK GRAYSON`, `HARLEY QUINN AKA DR. HARLEEN FRANCIS QUINZEL`)
    so real identity resolution needs rules, and probably a human pass.
@@ -347,9 +393,10 @@ things in different systems (see the merch-group doc's opening warning). Ask fir
    **correct** — axis 1 is linear (§1.0). Multiplicity belongs in a new
    `core.style_guide_character` bridge, not in `core.character`. Target model in §5A.
 
-**Blocking status:** questions **3 and 3a** (which property owns each style guide, and each
-character) block any migration. Questions 1, 2, 4, and 5 do not block the schema change but do
-block a correct *backfill*.
+**Blocking status:** questions 3 and 3a are **resolved in principle** by §5A.0; what remains is
+a curation/review pass, not an unknown. The strategic question (§5A.2) is **decided**: mirror
+Coldlion, classics → `CP`, no-code titles excluded. Questions 1, 2, 4, and 5 do not block the
+schema change but do block a fully correct *backfill*.
 
 ---
 
