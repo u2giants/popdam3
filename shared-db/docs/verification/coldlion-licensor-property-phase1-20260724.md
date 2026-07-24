@@ -3,7 +3,7 @@
 **Date:** 2026-07-24
 **Scope:** additive mirror/review schema + enforced scalar NOT NULL parent FK
 **Preview applied:** `rjyboqwcdzcocqgmsyel`
-**Production:** not applied; separate approval required
+**Production applied:** `qsllyeztdwjgirsysgai`
 
 ## Files
 
@@ -131,6 +131,45 @@ The corrected retry on 2026-07-24:
 
 Zero mirror rows is expected: Phase 1 creates the neutral storage and review
 contract only. It intentionally does not fetch ColdLion data.
+
+## Real production evidence
+
+Albert explicitly approved production promotion on 2026-07-24. Production had
+12 known local-only historical migration versions. They were temporarily
+excluded from a clean detached worktree so the dry-run listed only
+`20260724030000`; none of the 12 was applied or repaired.
+
+Production results:
+
+1. Pre-apply dry-run listed only
+   `20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql`.
+2. Migration preflight reported 0 null property parents.
+3. Migration `20260724030000` applied successfully and was recorded.
+4. Rollback-safe SQL contracts passed against production.
+5. Post-apply dry-run reported `Remote database is up to date`.
+6. DAM and PopSG both returned HTTP 200.
+
+Production catalog evidence matched preview:
+
+| Evidence | Result |
+|---|---:|
+| `core.property` rows | 256 |
+| Null `licensor_id` rows | 0 |
+| `licensor_id` is `NOT NULL` | true |
+| FK delete action | `r` (`RESTRICT`) |
+| Three `plm` tables exist | true |
+| Three `api` reconciliation views exist | true |
+| Authenticated insert/update/delete probes | false |
+| Phase 1 write policies | 0 |
+| Licensor/property mirror rows | 0 / 0 |
+| Migration ledger recorded | true |
+
+The first Node verification connection included `sslmode=require` in the
+connection string. The installed `pg` version treated that as certificate
+verification and rejected the Supabase pooler's self-signed chain before
+running SQL. Retrying with the same encrypted connection and explicit
+pooler-compatible `ssl: { rejectUnauthorized: false }` succeeded. No query ran
+during the failed connection attempt.
 
 ## Object inventory (after apply)
 

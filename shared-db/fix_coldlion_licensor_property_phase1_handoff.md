@@ -44,14 +44,14 @@ preview.
 ### Git and PR
 
 - Repository: `u2giants/shared-db`
-- Branch: `codex/grok-neutral-taxonomy-phase1`
-- PR: https://github.com/u2giants/shared-db/pull/208
+- Implementation PR: https://github.com/u2giants/shared-db/pull/208 (**merged**)
+- Merge commit: `eda80e7e6fd420e53394dc2947c07d45fbadd44a`
 - Commits:
   - `192ae61` — Phase 1 neutral mirror/review foundation
   - `8624a5b` — schema-qualify review-index comments after preview finding
+  - `f430999` — preview evidence and comprehensive handoff
 - GitHub `validate` check: passed
-- Merge state at last verification: clean
-- Production: **not applied**
+- Production: **applied and verified**
 
 ### Preview database
 
@@ -74,6 +74,24 @@ Verified preview state:
 - Rollback-safe SQL contracts: passed
 
 Zero mirror rows is correct for Phase 1 because no ColdLion importer exists yet.
+
+### Production database
+
+Migration `20260724030000` is applied to production project
+`qsllyeztdwjgirsysgai`.
+
+Verified production state matches preview:
+
+- `core.property`: 256 rows
+- Null `core.property.licensor_id`: 0
+- `core.property.licensor_id`: `NOT NULL`
+- `property_licensor_id_fkey`: `ON DELETE RESTRICT`
+- Three Phase 1 `plm` tables and three `api` views: present
+- Authenticated browser mutations: denied
+- Phase 1 write RLS policies: 0
+- Rollback-safe SQL contracts: passed
+- Post-apply dry-run: production up to date
+- DAM and PopSG: HTTP 200
 
 ### Implemented schema
 
@@ -140,6 +158,15 @@ options. The reliable check command is:
 C:\Program Files\Git\bin\bash.exe scripts/check-sql.sh
 ```
 
+### First production verification connection
+
+The first Node verification attempt used a connection string containing
+`sslmode=require`. The installed `pg` stack interpreted that as certificate
+verification and rejected the Supabase pooler's self-signed chain before any
+SQL ran. The retry used the same encrypted connection with explicit
+pooler-compatible `ssl: { rejectUnauthorized: false }`; contracts and catalog
+queries then passed.
+
 ## 5. Root causes and key findings
 
 1. The architecture problem was not merely where code lived. The database
@@ -165,22 +192,20 @@ Primary implementation:
 
 ## 6. Exact next steps
 
-1. Re-run `gh pr checks 208 --repo u2giants/shared-db`.
-   Gate: `validate` is successful and merge state is clean.
-2. Merge PR #208 into `main`.
-   Gate: GitHub reports the PR merged and returns the merge commit SHA.
-3. Do **not** promote migration `20260724030000` to production without Albert's
-   explicit approval for that production window.
-   Gate: the user has clearly approved this exact production migration.
-4. Once approved, isolate the migration from unrelated historical ledger drift,
-   run a production dry-run, confirm the preflight still reports 0 null parents,
-   apply, and rerun the same catalog/contract evidence.
-   Gate: production records `20260724030000`, has 0 null parents, the FK is
-   restrictive, and the SQL contracts pass/rollback.
-5. Start Phase 2 only after Phase 1 production verification. Implement the
-   mirror-only ColdLion fetch/importer with no canonical writes.
+1. Treat Phase 1 migration `20260724030000` as immutable now that it is applied
+   to preview and production. Any correction requires a new timestamped
+   migration.
+   Gate: no future diff modifies the applied migration.
+2. Start Phase 2: implement the mirror-only ColdLion fetch/importer with no
+   canonical writes.
    Gate: parallel-run mirror counts and reconciliation reports are stable while
    canonical UUIDs, statuses, and parent links remain unchanged.
+3. Add sync-run evidence, idempotency, failure alerts, and sanity bands before
+   scheduling the importer.
+   Gate: a failed/incomplete pull cannot replace a successful mirror snapshot.
+4. Keep DesignFlow comparison enabled until the later reconciliation/cutover
+   gates in `fix_coldlion_licensor_property_cutover.md` pass.
+   Gate: no DesignFlow source is disabled merely because Phase 1 exists.
 
 ## 7. Constraints and gotchas
 
@@ -205,11 +230,11 @@ Primary implementation:
 - Local isolated worktree:
   `C:\tmp\shared-db-grok-neutral-taxonomy-phase1`
 - `psql` is not installed. SQL contracts were executed with Node `pg` from the
-  existing Oracle workspace dependency against the preview pooler.
+  existing Oracle workspace dependency against the preview and production
+  poolers.
 
 ## 9. Open questions and risks
 
-- Production promotion is intentionally pending explicit approval.
 - Phase 2 must decide importer batching, failure alerts, and sync-run evidence
   without expanding ColdLion's authority beyond identity/description.
 - DesignFlow cutover is a later phase. It must not be disabled merely because
@@ -219,11 +244,21 @@ Primary implementation:
 
 ## Handoff self-audit
 
-Passed on 2026-07-24:
+Passed on 2026-07-24 after rereading this file without relying on chat context:
 
-1. A fresh developer can identify the apps, repository, branch, PR, database
-   environments, migration, and business rule without prior context.
-2. Current committed, preview, CI, merge, and production states are explicit.
-3. Failed approaches and their causes are recorded.
-4. Every next step has a verification gate.
-5. Terms, paths, project references, and access boundaries are explained.
+1. **Could a brand-new developer continue with no prior project or session
+   knowledge? Yes.** Sections 1–3 define the repository, all consumer apps,
+   canonical tables, business rule, source-authority split, migration, PR,
+   merge commit, preview project, production project, and verified live state.
+2. **Could that developer continue as effectively as the current session can?
+   Yes.** Sections 4–5 preserve every material failed attempt, Grok-review
+   correction, preview error, Windows-shell trap, production TLS trap, root
+   cause, and architecture decision. Section 8 identifies the working CLIs,
+   1Password vault, pooler test method, and local worktree.
+3. **Is every detail required for flawless execution present? Yes.** Section 6
+   gives ordered Phase 2 actions with verification gates; Sections 7 and 9
+   record immutability, ledger-drift, lifecycle, parent-edge, cutover, and delete
+   risks. Production evidence includes counts, permissions, contracts,
+   post-apply dry-run, and application HTTP checks.
+
+No gaps remained after the final reread.
