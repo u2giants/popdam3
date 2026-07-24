@@ -648,6 +648,7 @@ export type Database = {
           cover_description: string | null
           created_at: string
           customer: string | null
+          customer_id: string | null
           design_ref: string | null
           design_style: string | null
           designer_name: string | null
@@ -717,6 +718,7 @@ export type Database = {
           cover_description?: string | null
           created_at?: string
           customer?: string | null
+          customer_id?: string | null
           design_ref?: string | null
           design_style?: string | null
           designer_name?: string | null
@@ -788,6 +790,7 @@ export type Database = {
           cover_description?: string | null
           created_at?: string
           customer?: string | null
+          customer_id?: string | null
           design_ref?: string | null
           design_style?: string | null
           designer_name?: string | null
@@ -2006,6 +2009,7 @@ export type Database = {
           cover_description: string | null
           created_at: string | null
           customer: string | null
+          customer_id: string | null
           designer_conflict: boolean
           designer_name: string | null
           division_code: string | null
@@ -2051,6 +2055,7 @@ export type Database = {
           cover_description?: string | null
           created_at?: string | null
           customer?: string | null
+          customer_id?: string | null
           designer_conflict?: boolean
           designer_name?: string | null
           division_code?: string | null
@@ -2098,6 +2103,7 @@ export type Database = {
           cover_description?: string | null
           created_at?: string | null
           customer?: string | null
+          customer_id?: string | null
           designer_conflict?: boolean
           designer_name?: string | null
           division_code?: string | null
@@ -2905,6 +2911,7 @@ export type Database = {
         }[]
       }
       count_pdf_backfill_remaining: { Args: never; Returns: number }
+      dam_resolve_customer: { Args: { p_text: string }; Returns: string }
       deactivate_stale_sg_files: {
         Args: { p_root_label: string; p_run_id: string }
         Returns: number
@@ -2944,6 +2951,7 @@ export type Database = {
           thumbnail_url: string
         }[]
       }
+      get_dam_customer_facets: { Args: never; Returns: Json }
       get_dam_material_facets: {
         Args: never
         Returns: {
@@ -2966,10 +2974,7 @@ export type Database = {
         }[]
       }
       get_filter_counts: { Args: { p_filters?: Json }; Returns: Json }
-      get_path_facets: {
-        Args: { p_customer_id?: string }
-        Returns: Json
-      }
+      get_path_facets: { Args: { p_customer_id?: string }; Returns: Json }
       get_pdf_rich_extraction_hashes: {
         Args: { p_asset_ids: string[] }
         Returns: {
