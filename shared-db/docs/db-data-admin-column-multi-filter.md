@@ -10,10 +10,16 @@ Every column header in the DB Data Admin RevoGrid exposes two filters at once:
 
 | Half | UI | Behavior |
 |---|---|---|
-| **Text Filter** | Always-visible input under the column name | Case-insensitive substring match, 300 ms debounce |
+| **Text Filter** | Always-visible input under the column name | Case-insensitive substring match, 300 ms debounce. As you type, a **typeahead dropdown** suggests that column's distinct values containing the text (blanks excluded); clicking one sets the filter to that value. |
 | **Set Filter** | Funnel icon → popover | Search box + checkbox list of that column's **distinct values**, `Select all` / `Clear`, `(Blanks)` entry |
 
 A row is visible when it passes **Text AND Set for every column** (AND across columns).
+
+Both the Set Filter popover and the Text Filter autocomplete are **portalled to
+`document.body`** and positioned from their trigger's screen rect, so RevoGrid's
+header `overflow` cannot clip them. This was a real bug caught only by live browser
+testing (unit tests use jsdom, which has no layout/clipping) — see the popover-clipping
+note under "Design decisions". The text input carries `role="combobox"`.
 
 ## Where the code lives
 
@@ -103,3 +109,23 @@ reusable Text+Set header Multi Filter**. Closest relatives, none of them shareab
 
 So this module is the org's **first** reusable Text+Set filter logic. If a second app needs
 it, promote `grid-filters.ts` to a shared package rather than copy-pasting a third time.
+
+### Cross-pollination with PopCRM (2026-07-24) — deliberately NOT a shared package
+
+After reading PopCRM's actual `DataTable.tsx` source (not just docs), the two were found
+to be **too different to share code**: PopCRM uses a hand-rolled DOM `<table>` (no grid
+library), extracts values via per-column callbacks generic over `T`, and models "no
+filter" as an empty array; this app uses RevoGrid, prop-name lookup, and `null` vs empty
+`Set`. Different engines mean **zero shared UI**, and unifying the ~120 lines of shallow
+logic would cost more than it saves. Instead each side borrowed the other's strength:
+
+- **Into this app:** PopCRM's header **autocomplete** (typeahead on the text input).
+  Shipped in PR #219. Not ported: PopCRM's `filterLabel` callback — `getCellDisplayValue`
+  already covers display mapping here.
+- **Into PopCRM** (`popcrm-web`, on `main`): this app's **blank-value handling**. PopCRM's
+  Set Filter dropped blank/empty values entirely, so rows with no value in a column were
+  unfilterable even though its popover already had an unreachable `(blank)` renderer. Fixed
+  by collapsing blanks to one `''` sentinel; logic extracted to
+  `popcrm-web/src/components/app/columnFilters.ts` with unit tests. Not ported: this app's
+  `null` vs empty-`Set` semantics — it would have changed PopCRM's Clear-button behavior in
+  production for marginal benefit.

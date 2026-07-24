@@ -863,7 +863,7 @@ prove canonical UUID/status/parent immutability.
 **Phase 2A completion evidence (2026-07-24):**
 
 - final preview function contract: `20260724061000`, applied after `20260724060000`;
-- 32 runner unit tests, static checks, and rolled-back preview SQL contracts pass;
+- 34 runner unit tests, static checks, and rolled-back preview SQL contracts pass;
 - preview has 0 mirror rows, 0 Phase 2 sync runs, and 0 Phase 2 schedules;
 - raw detail payloads are preserved without a stamped `mgTypeDesc`; pair meaning travels
   separately and runner/database both enforce configured completeness;
