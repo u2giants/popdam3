@@ -207,6 +207,21 @@ Primary implementation:
    gates in `fix_coldlion_licensor_property_cutover.md` pass.
    Gate: no DesignFlow source is disabled merely because Phase 1 exists.
 
+### Required session boundaries
+
+- Start Phase 2A implementation in a new AI session with a fresh context window.
+- Start Phase 2B preview execution/comparison in another fresh session.
+- Start Phase 3 and every later phase in its own fresh session.
+- Before coding Phase 2A, read the entire cutover plan, including Phases 3–8,
+  tests, production checklist, rollback, and operational ownership.
+- Before ending any phase, perform the plan's forward-impact audit. Update the
+  handoff and every affected future phase if code or live findings changed an
+  assumption, schema dependency, mode, test, gate, rollback, schedule, or
+  cross-app dependency. Record an evidence-based no-impact result otherwise.
+
+The detailed entry/exit criteria for Phase 2A, Phase 2B, Phase 3, and later
+phases are in `fix_coldlion_licensor_property_cutover.md` §15.
+
 ## 7. Constraints and gotchas
 
 - One shared schema change in flight at a time.

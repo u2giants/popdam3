@@ -1,5 +1,68 @@
 # HANDOFF — shared-db current state
 
+## CURRENT PRIORITY — ColdLion Licensor/Property Phase 2 (fresh session required)
+
+**As of 2026-07-24, Phase 1 is complete in preview and production.** The next
+implementation task is Phase 2: mirror-only ColdLion ingestion. Start it in a
+new AI session with a fresh context window.
+
+Before writing code, the new agent must read, in order:
+
+1. [`AGENTS.md`](AGENTS.md), especially §§6.1, 8.1, and the shared-db protocol.
+2. [`fix_coldlion_licensor_property_phase1_handoff.md`](fix_coldlion_licensor_property_phase1_handoff.md)
+   for the exact shipped state, failures, evidence, access path, and next gates.
+3. [`fix_coldlion_licensor_property_cutover.md`](fix_coldlion_licensor_property_cutover.md)
+   **in full, including every phase after Phase 2**. Its session protocol and
+   forward-impact audit are mandatory.
+4. [`docs/merch-group-taxonomy-architecture.md`](docs/merch-group-taxonomy-architecture.md)
+   for division/type semantics, lifecycle behavior, and known defects.
+5. [`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md)
+   for endpoint, paging, response-shape, and Windows/1Password behavior.
+6. [`docs/coldlion-direct-sync-and-taxonomy-plan.md`](docs/coldlion-direct-sync-and-taxonomy-plan.md)
+   and [`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md)
+   to prevent duplicate syncs or conflicts with item/taxonomy work.
+7. [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
+   before changing anything involving style guides, characters, likeness, or royalties.
+
+Phase 2 and its preview comparison should be separate fresh sessions. Phase 3
+and every later phase also get separate fresh sessions unless a phase document
+explicitly proves the work is small and inseparable. Every implementing session
+must reread all later phases before coding, then update the plan and handoff if
+its implementation or discoveries change a later phase's assumptions, schema,
+tests, gates, rollback, or sequencing.
+
+Authoritative current evidence:
+
+- Implementation PR [#208](https://github.com/u2giants/shared-db/pull/208),
+  merge `eda80e7e6fd420e53394dc2947c07d45fbadd44a`.
+- Migration `20260724030000` applied to preview `rjyboqwcdzcocqgmsyel`
+  and production `qsllyeztdwjgirsysgai`.
+- 256 canonical Properties; 0 null Licensor parents; scalar FK is `NOT NULL`
+  and `ON DELETE RESTRICT`.
+- Mirror tables exist but intentionally contain 0 rows until Phase 2.
+- DesignFlow remains enabled.
+
+Older workstreams below are retained as historical context. If they contradict
+this section or the two dedicated ColdLion files above, this section and those
+dedicated files win.
+
+### Current-priority handoff completeness audit
+
+After rereading the root routing section, dedicated handoff, full cutover plan,
+Phase 1 migration/contracts, and the related architecture/API routers:
+
+1. **Can a brand-new agent start Phase 2 without this conversation? Yes.** The
+   required reading order above routes to the exact shipped state, environment,
+   authority split, failures, implementation spec, and future phases.
+2. **Can it continue as effectively as the current session? Yes.** The dedicated
+   handoff preserves PR/merge/migration evidence, preview/production results,
+   named risks, access path, failed attempts, and verified commands. The plan
+   supplies Phase 2A/2B entry and exit gates.
+3. **Is every relevant detail for flawless continuation present? Yes.** The plan
+   explicitly covers future-phase impact, tests, rollback, production approval,
+   DesignFlow coexistence, cross-app smoke tests, and Phases 3–8. Stale sections
+   below are explicitly subordinate to this router.
+
 ## DB Data Admin — non-SSO tester login (DONE — 2026-07-23)
 
 Status: **done.** Owner approved "gate to data-dev only" on 2026-07-23. Shipped in
@@ -184,7 +247,12 @@ Never set `DB_DATA_ADMIN_ALLOW_PASSWORD_LOGIN` on the production Coolify app. To
 the tester instead of deleting it, set `revoked_at` on its `app.user_role` row, or unset
 the Coolify variable and redeploy to remove the form entirely.
 
-## Stage 0 — Safe DAM core licensor/property cutover (ACTIVE — local revision in worktree; not committed/applied)
+## Historical Stage 0 — Safe DAM core licensor/property cutover (COMPLETED/SUPERSEDED)
+
+This section preserves the pre-cutover failure history. Its local-worktree and
+"not applied" state is obsolete. The current authoritative state is the
+CURRENT PRIORITY section above plus
+`fix_coldlion_licensor_property_phase1_handoff.md`.
 
 Date: 2026-07-23 (revised implementation)
 Repo: `u2giants/shared-db`

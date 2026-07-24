@@ -1,7 +1,9 @@
 # ColdLion licensor/property master-data cutover
 
-**Status:** implementation plan; no schema, importer, scheduler, or production cutover is
-authorized by this document.
+**Status:** Phase 1 schema is implemented, merged, and applied to preview and
+production. Phase 2 mirror-only ingestion is next. Later phases remain gated by
+this plan; this document does not by itself authorize a production data run,
+schedule, canonical linking, canonical creation, or DesignFlow cutover.
 
 **Written:** 2026-07-23  
 **Repository:** `u2giants/shared-db`  
@@ -34,6 +36,30 @@ licensor/property. **Relationship data** means which licensor owns a property.
 **Lifecycle data** means whether the licensor/property is currently active. The term
 “taxonomy” is deliberately avoided where it would blur these three separate concerns.
 
+### Shipped Phase 1 state — authoritative correction to the original draft
+
+Implementation PR [#208](https://github.com/u2giants/shared-db/pull/208), merge
+`eda80e7e6fd420e53394dc2947c07d45fbadd44a`, shipped migration
+`20260724030000_coldlion_licensor_property_phase1_mirror_schema.sql` to preview
+and production on 2026-07-24.
+
+The shipped model intentionally improves the illustrative §4 draft:
+
+- `core.property.licensor_id` is now `NOT NULL` with `ON DELETE RESTRICT`;
+- mirror rows have semantic FKs to the division-aware header dictionary;
+- review IDs are typed `proposed_licensor_id` / `proposed_property_id` and
+  `resolved_licensor_id` / `resolved_property_id`, not polymorphic UUIDs;
+- canonical-only findings carry no invented ColdLion key;
+- partial unique indexes allow one active finding while preserving terminal history;
+- the status/resolution/resolver matrix is CHECK-enforced;
+- raw mirror payloads are required and have no silent default;
+- authenticated browser roles have SELECT only; service-role workers write;
+- all three reconciliation views are read-only and omit raw payloads.
+
+When this plan's earlier example DDL differs from the applied migration, the
+applied migration and its SQL contracts are authoritative. Never edit the
+applied migration; use a new timestamped migration for any correction.
+
 ---
 
 ## 1. Why this work is needed
@@ -44,11 +70,14 @@ Today:
 - Their records are populated through DesignFlow staging:
   `plm.licensor_import` / `plm.property_import`.
 - `core.taxonomy_source_ref` contains DesignFlow provenance only.
-- There is no direct ColdLion mirror named `plm.erp_licensor` or `plm.erp_property`.
+- Phase 1 created direct ColdLion mirror tables `plm.erp_licensor` and
+  `plm.erp_property`; they are intentionally empty until Phase 2.
 - ColdLion exposes the source records through division-specific merch-group dictionaries,
   not dedicated `/licensors` or `/properties` endpoints.
-- For licensed divisions, the live measured counts are approximately 22 ColdLion licensors
-  and 258 ColdLion properties versus 20 canonical licensors and 256 canonical properties.
+- For licensed divisions, the original live measured counts were approximately
+  22 ColdLion licensors and 258 ColdLion properties. After the merged PopSG
+  manual backfill, Phase 1 production verification found 26 canonical licensors
+  and 256 canonical properties. Counts are dated evidence, never hard-coded guards.
 - ColdLion still returns lapsed licenses such as NASA, ZAG, and FRIDA KAHLO with no inactive
   marker.
 - ColdLion does not transmit property→licensor parent edges.
@@ -80,7 +109,7 @@ These are planning baselines, not permanent truths:
 
 | Fact | Baseline |
 |---|---|
-| Canonical licensors | 20 before the pending PopSG manual-backfill work |
+| Canonical licensors | 26 after merged PopSG manual backfill; reverify before each run |
 | Canonical properties | 256 |
 | DesignFlow licensor staging | 37 rows collapsing to 20 distinct canonical licensors |
 | DesignFlow property staging | 468 rows collapsing to 256 canonical properties |
@@ -90,10 +119,10 @@ These are planning baselines, not permanent truths:
 | ColdLion parent relationship | None |
 | DesignFlow provenance | 505 `core.taxonomy_source_ref` rows, all `designflow_plm` at last verification |
 
-The current branch `feat/popsg-missing-licensors` and PR #198 add manually curated PopSG
-licensors, including NASA. That work changes the canonical count and demonstrates why the
-cutover must compare row identities, not use `20/256` as hard-coded production assertions.
-Before implementation begins, serialize with that PR and take a fresh baseline.
+PR #198 merged the manually curated PopSG licensors, including NASA. This
+changed the canonical count and demonstrates why the cutover must compare row
+identities rather than use `20/256`, `26/256`, or any source count as a
+hard-coded production assertion. Every operational phase takes a fresh baseline.
 
 The first implementation PR must record a dated baseline under
 `docs/verification/`, containing:
@@ -155,8 +184,8 @@ AGENTS.md §6 checks first and serialize the work.
 
 ### 4.1 Faithful ColdLion mirror tables
 
-Add typed mirror tables. They contain source facts and resolution state; they are not
-application master tables.
+Phase 1 added typed mirror tables. They contain source facts and resolution
+state; they are not application master tables.
 
 ```sql
 create table plm.erp_licensor (
@@ -270,32 +299,21 @@ correctness; unnecessary simultaneous refactoring increases production risk.
 
 ### 4.4 Reconciliation and quarantine
 
-Add a durable review table rather than hiding ambiguous rows in logs:
+Phase 1 added the durable `plm.taxonomy_resolution_review` table rather than
+hiding ambiguous rows in logs. Its applied contract is authoritative:
 
-```sql
-create table plm.taxonomy_resolution_review (
-  id                    uuid primary key default gen_random_uuid(),
-  entity_type           text not null,
-  company_code          text not null,
-  division_code         text not null,
-  mg_type_code          text not null,
-  mg_code               text not null,
-  source_name           text not null,
-  proposed_entity_id    uuid,
-  match_method          text,
-  confidence            text not null,
-  reason                text not null,
-  evidence              jsonb not null default '{}'::jsonb,
-  status                text not null default 'open',
-  resolution            text,
-  resolved_entity_id    uuid,
-  resolved_by           text,
-  resolved_at           timestamptz,
-  created_at            timestamptz not null default now(),
-  updated_at            timestamptz not null default now(),
-  unique (entity_type, company_code, division_code, mg_type_code, mg_code)
-);
-```
+- typed proposed/resolved Licensor and Property FKs, never polymorphic UUIDs;
+- `finding_scope='source'` requires the real ColdLion composite key;
+- `finding_scope='canonical_only'` forbids invented source keys;
+- partial unique indexes permit at most one active
+  `open|quarantined|conflict` finding while retaining terminal history;
+- `approved_link` requires the matching typed resolved ID, nonblank resolver,
+  resolution timestamp, and coherent status/resolution pair;
+- non-approved states cannot carry resolved-link fields;
+- browser roles cannot mutate the review queue.
+
+Exact columns and constraints are in migration `20260724030000` and
+`supabase/tests/coldlion_licensor_property_phase1_contracts.sql`.
 
 This table must support at least:
 
@@ -579,8 +597,8 @@ Required behavior:
   inactive/absent state;
 - include regression fixtures proving repeated pulls cannot resurrect them.
 
-NASA has an additional complication: PR #198 proposes a manual PopSG-backed canonical
-licensor. The reconciliation must distinguish:
+NASA has an additional complication: merged PR #198 added a manual
+PopSG-backed canonical licensor. The reconciliation must distinguish:
 
 - existence as a record needed to classify historical/style-guide assets;
 - permission to use it for new licensed work;
@@ -691,6 +709,52 @@ Any difference must be:
 
 ## 10. Implementation phases
 
+### Mandatory fresh-session and forward-impact protocol
+
+Use a new AI session with a fresh context window for:
+
+- Phase 2 implementation;
+- the first real preview pull and comparison;
+- Phase 3 reconciliation/human-decision preparation;
+- each of Phases 4–8;
+- any recovery/correction that changes a previously approved phase.
+
+Do not combine Phase 2 implementation with its first operational preview
+comparison. The implementation session proves code and contracts; the next
+fresh session runs it against preview, investigates the full result set, and
+updates later-phase assumptions without carrying coding tunnel vision.
+
+At the start of **every** phase session, the implementing agent must:
+
+1. Read `AGENTS.md`, the dedicated handoff, and this entire plan—not only the
+   current phase.
+2. Read every later phase, the test plan, production checklist, rollback plan,
+   and operational-ownership sections.
+3. Read the authoritative related documents in §17 that touch its files or data.
+4. Reverify current GitHub, preview, production, API, row-count, and scheduler
+   facts rather than trusting dated counts.
+5. State which current-phase decisions could constrain later phases.
+
+Before ending **every** phase session, the agent must perform a forward-impact
+audit:
+
+- Did the implementation change a table, column, key, status, mode, permission,
+  function signature, source-reference encoding, run-accounting field, or view
+  assumed by a later phase?
+- Did live API/database behavior contradict any future-phase assumption?
+- Did a new ambiguity, source collision, lifecycle case, relationship case,
+  operational limit, access constraint, or failure mode appear?
+- Do later tests, acceptance gates, rollback steps, schedules, smoke tests, or
+  production evidence requirements need revision?
+- Does another workstream—items, style guides/characters/royalties, DB Data
+  Admin, DAM, PM/PIM, CRM, or DesignFlow—now need an explicit dependency?
+
+If any answer is yes, update this plan and the dedicated handoff in the same
+session. Name the affected future phase and the exact change. A session may not
+report complete while knowingly leaving a later phase based on a false
+assumption. If no future phase is affected, record an evidence-based “no
+forward-plan changes” statement in the handoff.
+
 Each schema phase is a separate timestamped migration on a shared-db branch and follows:
 
 ```text
@@ -721,7 +785,7 @@ Deliver:
 
 Gate: no unanswered question can change schema shape or automatic matching behavior.
 
-### Phase 1 — additive mirror and review schema
+### Phase 1 — additive mirror and review schema — COMPLETE
 
 Deliver:
 
@@ -735,6 +799,10 @@ Deliver:
 - SQL fixtures and schema tests.
 
 Gate: preview migration is additive, application behavior is unchanged, and all tests pass.
+
+Completion evidence: PR #208, merge `eda80e7`, migration `20260724030000`,
+preview and production contract tests, and
+`docs/verification/coldlion-licensor-property-phase1-20260724.md`.
 
 ### Phase 2 — mirror-only runner and importer
 
@@ -751,6 +819,20 @@ Deliver:
 
 Gate: preview can pull a complete snapshot twice with identical second-run results and zero
 canonical mutations.
+
+Run Phase 2 as two fresh sessions:
+
+1. **Phase 2A — implementation session:** build and test the runner/importer
+   without performing a production run.
+2. **Phase 2B — preview operation/comparison session:** execute the first two
+   complete preview snapshots, inspect every category and guard, and produce the
+   dated comparison artifact used by Phase 3.
+
+Phase 2A's implementing agent must read Phases 3–8 first and preserve everything
+they will require: deterministic source identity, durable run IDs, immutable raw
+evidence, resolution history, before/after hashes, replayability, modes that can
+later add approved links without rewriting the mirror, and enough accounting to
+prove canonical UUID/status/parent immutability.
 
 ### Phase 3 — reconciliation and human decisions
 
@@ -1026,37 +1108,132 @@ Those mutations require audit history and must not be implemented as raw table e
 
 ---
 
-## 15. Exact first implementation handoff
+## 15. Exact next implementation handoffs
 
-The first coding session must implement **Phase 1 only**:
+### 15.1 Phase 2A — fresh implementation session
 
-1. Re-run in-flight-work checks and stop if another schema PR exists.
-2. Capture the dated baseline.
-3. Confirm/reuse the existing all-division header dictionary.
-4. Add mirror and review tables, constraints, indexes, comments, grants/RLS, and comparison
-   views.
-5. Add SQL fixtures for composite keys, entity-type collisions, curated-field protection,
-   and named lapsed cases.
-6. Run `scripts/check-sql.sh`.
-7. Authenticate Supabase CLI through the canonical 1Password path.
-8. Link to preview `rjyboqwcdzcocqgmsyel`.
-9. Run `supabase db push --dry-run`.
-10. Apply to preview and run all SQL tests.
-11. Prove no application-facing rows or views changed.
-12. Open the shared-db PR and merge only when the docs-only/schema checklist in AGENTS.md is
-    satisfied.
+Implement only the mirror-only runner/importer. Required deliverables:
 
-It must **not**:
+1. Re-run in-flight-work and scheduler/duplicate-sync checks.
+2. Read this full plan, especially Phases 3–8, §11 tests, §12 production
+   checklist, §13 rollback, and §14 operations.
+3. Reuse `tools/coldlion-sync-common.mjs` and the guarded vendor-sync durable
+   failure pattern where their contracts fit; do not fork paging/failure logic
+   casually.
+4. Fetch headers for every enabled division, derive Licensor/Property pairs
+   from normalized descriptions, then fetch all detail pages/array responses.
+5. Build deterministic composite natural keys and source hashes.
+6. Add a `mirror_only` database entry point that can write only Phase 1 mirrors,
+   run accounting, and unresolved/review findings. It must not mutate
+   `core.*`, `core.taxonomy_source_ref`, canonical links, status, or parents.
+7. Enforce completeness independently in runner and database: headers,
+   divisions/types, terminal pagination, nonempty sets, semantic stability,
+   duplicate conflicts, configurable count/sanity bands, and concurrent-run lock.
+8. Record failures durably outside a rolled-back promotion transaction and
+   alert according to the existing two-consecutive-failure pattern.
+9. Add unit and rolled-back SQL contracts covering §11.1–11.2 Phase 2 cases,
+   named lapsed records, `FR`, idempotency, raw audit, no secret output, and
+   zero canonical/source-ref mutations.
+10. Run local/static checks and preview migration rehearsal if Phase 2 needs a
+    new migration. Do not perform the first real external preview pull in this
+    coding session.
+11. Update this plan/handoff using the mandatory forward-impact audit.
 
-- fetch production ColdLion data into canonical tables;
-- add a schedule;
-- create/link canonical records;
-- disable DesignFlow;
-- resolve FRIENDS TV by assumption;
-- promote the migration to production outside an approved window.
+Exit gate: code is merged, CI is green, preview schema/contracts pass, no
+schedule exists, no production data run occurred, and a fresh Phase 2B session
+has exact commands and evidence fields for the operational run.
 
-The second handoff implements Phase 2 mirror-only ingestion. Keeping these separate makes the
-schema reviewable before any external data is introduced.
+### 15.2 Phase 2B — fresh preview run and comparison session
+
+This is deliberately separate from implementation.
+
+1. Re-read the entire plan and the Phase 2A handoff/diff.
+2. Confirm the target is preview `rjyboqwcdzcocqgmsyel`, display it in output,
+   and confirm no production credential/URL is in use.
+3. Capture pre-run canonical counts plus UUID, status, and parent-edge hashes;
+   mirror/review counts; latest successful run; DesignFlow comparison snapshot;
+   and named-case state.
+4. Run one full `mirror_only` snapshot.
+5. Verify paging, type-pair coverage, counts/hashes, run accounting, raw evidence,
+   failures/alerts, review categories, and zero canonical/source-ref mutations.
+6. Run the identical full snapshot again. Prove idempotency: no duplicates,
+   stable source hashes/links, expected last-seen changes only, and no canonical
+   changes.
+7. Categorize every ColdLion and canonical row; inspect NASA, ZAG, FRIDA KAHLO,
+   FRIENDS TV/`FR`, collisions, canonical-only, ColdLion-only, and inactive cases.
+8. Compare with a trustworthy dated DesignFlow snapshot. If DesignFlow is
+   unavailable/stale, record that explicitly and do not start the parallel-run clock.
+9. Exercise DAM, PopSG, PM/PIM, CRM if applicable, DB Data Admin, DesignFlow
+   validation, and item-taxonomy preview smoke checks without changing production.
+10. Write a dated `docs/verification/` artifact containing run UUIDs, commands,
+    counts, hashes, category ledger, unexplained differences, failures, screenshots
+    or HTTP evidence where relevant, and a Phase 3 readiness ruling.
+11. Perform the future-phase impact audit and update Phases 3–8 before handoff.
+
+Exit gate: two complete successful preview runs, identical second-run result,
+zero canonical mutation, 100% categorized rows or explicitly blocking findings,
+and a fresh Phase 3 session can start without this conversation.
+
+### 15.3 Phase 3 and every later phase
+
+Use one fresh session per phase. Each session receives:
+
+- the latest dedicated handoff;
+- this full plan with all forward-impact updates;
+- the preceding phase's dated verification artifact and run UUIDs;
+- exact unresolved decisions and owners;
+- explicit environment/access instructions without secret values;
+- entry criteria, deliverables, tests, exit gate, rollback, and next-phase impact.
+
+Phase 3 must produce the complete human-decision ledger and may not link
+canonical records. Phase 4 alone introduces approved linking. Phase 5 alone
+creates specifically approved new canonical records. Phase 6 is the measured
+parallel run. Phase 7 is the separately approved production source cutover.
+Phase 8 is a later DesignFlow deprecation—not an automatic consequence of
+Phase 7.
+
+Per-phase cold-start contracts:
+
+- **Phase 3 — reconciliation and decisions.** Entry: Phase 2B verification
+  artifact with two successful runs and trustworthy DesignFlow baseline.
+  Deliver: a row-level ruling ledger for every source/canonical row, named-case
+  dispositions, alias/rename decisions, parent evidence, and zero unexplained
+  ambiguity. No canonical link/create is allowed. Exit: 100% categorized,
+  human owners named for every non-automatic decision, and Phase 4's exact
+  approved mapping input frozen and hashed.
+- **Phase 4 — approved linking.** Entry: approved Phase 3 ledger and unchanged
+  baseline hashes. Deliver: `link_approved` mode, deterministic ColdLion source
+  refs, mirror links to existing UUIDs, run accounting, and preview app smoke
+  evidence. No canonical creates. Exit: UUID, row-count, status, parent, and
+  dependent-FK hashes unchanged; rollback of links rehearsed; Phase 5 need
+  explicitly ruled yes/no.
+- **Phase 5 — approved new records, only if needed.** Entry: individually
+  approved ColdLion-only records with explicit status and Property parent.
+  Deliver: conservative canonical creation plus source refs and audit evidence.
+  Exit: every new row traces to approval, no unresolved parent/status, all app
+  visibility reviewed, and recovery defaults to inactive/unexposed—not delete.
+- **Phase 6 — parallel run.** Entry: Phases 3–5 complete or explicitly not
+  needed, schedules/alerts tested, and DesignFlow comparison trustworthy.
+  Deliver: at least 14 consecutive days, two ColdLion full snapshots, two
+  DesignFlow refreshes, daily comparisons, application smoke evidence, and no
+  unexplained failures. Use persistent monitoring plus a fresh evaluation
+  session; do not pretend one chat turn constitutes the observation window.
+  Exit: all §9.4 criteria pass and the production-cutover evidence package is complete.
+- **Phase 7 — production source cutover.** Entry: Phase 6 evidence, rollback
+  rehearsal, secure pre-cutover export/hashes, clean production dry-run, and
+  Albert's explicit production-window approval. Deliver: guarded final snapshot,
+  approved link/promotion only, schedule/monitoring activation, app smoke tests,
+  and watched next scheduled run. Exit: §12 checklist fully evidenced; any
+  failure triggers §13 operational rollback.
+- **Phase 8 — DesignFlow deprecation.** Entry: Phase 7 stable through the agreed
+  observation period and an owned replacement for relationship/status curation.
+  Deliver: stop only superseded master-field writes, prove no consumers/jobs/
+  recovery paths need staging, then use a separate contract migration if
+  retirement is justified. Exit: DesignFlow transport dependency removed
+  without losing parent/lifecycle ownership or rollback capability.
+
+Every one of these sessions must rerun the forward-impact audit and rewrite the
+later cold-start contract when evidence changes it.
 
 ---
 
