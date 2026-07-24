@@ -105,6 +105,25 @@ fixture.
 
 ## Handoff self-audit
 
-Passed: a fresh developer can reproduce the environment, identify every run/artifact, avoid
-production, understand the failed attempt and live guard defect, execute the correction with
-verification gates, and proceed without this conversation.
+Passed on 2026-07-24 after rereading the handoff without relying on chat context:
+
+1. **Could a developer walking in today continue with no questions? Yes.** Sections 1–3
+   explain the repository, shared consumers, authority boundary, exact preview project,
+   run UUIDs, snapshot hash, mirror state, forbidden production actions, and evidence path.
+2. **Could that developer continue as effectively as this session can? Yes.** Sections 4–5
+   preserve the failed credential handoff, unsupported SQL directives, stale column names,
+   stale DB Data Admin fixture, prior-count parser root cause, complete reconciliation
+   totals, DesignFlow staleness, and the 30-versus-2 collision distinction.
+3. **Are everything tried and every failure explained? Yes.** Section 4 records each failed
+   attempt, why it failed, whether it changed preview, and the working replacement. Section 5
+   distinguishes the operational parser defect from expected conservative review findings.
+4. **Is every next step concrete and verifiable? Yes.** Section 6 gives eight ordered actions.
+   The final gate is a new preview run whose `prior_run` is 44/516 while the snapshot,
+   canonical, and source-reference hashes remain unchanged.
+5. **Is every term, path, environment, and constraint explained? Yes.** Sections 1, 3, 7,
+   and 8 define `mirror_only`, the canonical/mirror split, preview identity, 1Password
+   location, Node/Postgres path, phase boundaries, scheduling prohibition, and DesignFlow
+   ownership. Section 9 names the remaining risks.
+
+No gap remained after this audit. This handoff is comprehensive enough for a fresh developer
+to execute the correction safely without this conversation.
