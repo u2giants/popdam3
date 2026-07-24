@@ -12,14 +12,21 @@ PR #195 (`3d3c434`); tester user created; flag live on data-dev; credential stor
 |---|---|
 | `allowPasswordLogin` flag (`config.ts`, `nginx.conf`, `App.tsx`) | Merged in #195. Strict opt-in: only `true` / `"true"` enables it. |
 | Coolify env `DB_DATA_ADMIN_ALLOW_PASSWORD_LOGIN=true` | Set on app `v6z1sveur7e32dub1dp3ao4v` (`db-data-admin-development`) **only**. |
-| Tester auth user | `ai-tester@data-dev.designflow.app`, auth id `0a55652c-260e-41ac-aa8a-18636bcfab6b`, profile `098e5791-101b-4cf3-8a9e-8efccc2040d7`, Administrator granted. |
+| Tester auth user | `ai-tester@data-dev.designflow.app`, auth id `0a55652c-260e-41ac-aa8a-18636bcfab6b`, profile `098e5791-101b-4cf3-8a9e-8efccc2040d7`. Granted BOTH `administrator` role AND explicit `app_access('admin')` — see "two grants" section. |
 | Invitation row | `public.invitations` id `f9b1301f-c1af-421e-8ad0-5c7c896c067e` (required — see gate below). |
 | Credential | 1Password vault `vibe_coding`, item `agk4gstcwazitt76evs5r2agvi`. |
 
-Verified: `https://data-dev.designflow.app/config.js` shows `allowPasswordLogin: 'true'`;
-the login page renders "Internal testing sign-in" **alongside** (not replacing) the
-Microsoft button on build `3d3c434`; password grant returns an access token.
-Production `data.designflow.app` has no server running and never received the flag.
+Verified end-to-end (2026-07-24, build `1fe8ad4`): logged in headlessly via the tester
+credential (1Password-injected, browser automation), loaded **155 real rows**, opened the
+Status Set Filter popover (options `active` / `potential`), confirmed the value-search box
+narrows the list, and confirmed unchecking a value filtered the grid **155 → 15**. The
+text filter also works (`155 → 3` on "a"). Production `data.designflow.app` has no server
+running and never received the flag.
+
+The Set Filter popover was also **clipped by RevoGrid's header overflow** on first live
+test (only the first checkbox showed) — fixed by portalling it to `document.body`
+(PR #211). This class of bug is invisible to the jsdom unit tests; always verify grid
+overlays in a real browser.
 
 ### The invitation gate — READ THIS BEFORE RECREATING THE USER
 
@@ -35,9 +42,39 @@ insert into public.invitations (email, role, apps)
 values ('<email>', 'user', array['popdam']::public.app_name[]);
 ```
 
-then create the user via the Auth Admin API with `email_confirm: true`, then insert the
-`app.user_role` administrator row (the trigger only auto-grants admin to
-`u2giants@gmail.com` / `albert@popcre.com`).
+then create the user via the Auth Admin API with `email_confirm: true`, then grant access
+(next section).
+
+### The full authorization requires TWO grants, not one (learned the hard way)
+
+The DB Data Admin RPCs do **not** gate on the administrator role alone. Every
+`db_data_admin_*` RPC calls `app.require_db_data_admin_access()`
+(`supabase/migrations/20260722005000_db_data_admin_read_contracts.sql:29`), which requires
+**both**:
+
+1. `app.has_role('administrator')` — the `app.user_role` row (trigger only auto-grants
+   this to `u2giants@gmail.com` / `albert@popcre.com`, so insert it manually), **and**
+2. `app.has_explicit_app_access('admin')` — a **non-revoked `app.app_access` row for app
+   `'admin'`**. Note `has_explicit_app_access` (`…20260722002500…:5`) does NOT give
+   administrators an implicit grant — the row must exist.
+
+The signup trigger `app.handle_new_auth_user` only grants `app_access` for `'crm'`, so a
+freshly created admin still gets **HTTP 403 `{"code":"42501","message":"db_data_admin:
+not authorized"}`** and the UI shows "Data could not be loaded." Both grants for the live
+tester:
+
+```sql
+-- role grant
+insert into app.user_role (profile_id, role_id)
+select p.id, r.id from app.profile p, app.role r
+where p.auth_user_id = '<auth uid>' and r.slug = 'administrator'
+on conflict do nothing;
+-- explicit admin app_access — the piece that is easy to miss
+insert into app.app_access (profile_id, app)
+select p.id, 'admin'::app.app_name from app.profile p
+where p.auth_user_id = '<auth uid>'
+on conflict (profile_id, app) do update set revoked_at = null;
+```
 
 ### How an AI session should use this credential
 
