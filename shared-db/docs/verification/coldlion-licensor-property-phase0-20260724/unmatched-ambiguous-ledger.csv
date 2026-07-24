@@ -1,0 +1,29 @@
+scope,entity,company_code,division_code,mg_type_code,source_code,source_name,category,candidate_ids,candidate_codes,candidate_names,notes
+coldlion,licensor,EDGEHOME,CW001,05,FK,FRIDA KAHLO,entity-type-collision,cb26ec58-0edb-4d45-8c0b-ba283ffb23f8,FK,FRIDA KAHLO,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,licensor,EDGEHOME,CW001,05,NA,NASA,exact-normalized-name,9625fce2-25b4-471c-b9d9-0fdb9e07a338,X-NASA,NASA,Candidate only; Phase 2A must not link.
+coldlion,licensor,EDGEHOME,CW001,05,ZG,ZAG,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,licensor,EDGEHOME,SP001,05,FK,FRIDA KAHLO,entity-type-collision,cb26ec58-0edb-4d45-8c0b-ba283ffb23f8,FK,FRIDA KAHLO,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,licensor,EDGEHOME,SP001,05,NA,NASA,exact-normalized-name,9625fce2-25b4-471c-b9d9-0fdb9e07a338,X-NASA,NASA,Candidate only; Phase 2A must not link.
+coldlion,licensor,EDGEHOME,SP001,05,ZG,ZAG,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,SP001,06,55,SHREK 5,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,SP001,06,75,PEANUTS 75TH ANNIVERSARY,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,SP001,06,CHR,CHEERS,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,SP001,06,EX,THE EXORCIST,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,SP001,06,LB,THE LOST BOYS,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,SP001,06,SGT,SUPERGIRL THEATRICAL 2026,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,CW001,06,55,SHREK 5,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,CW001,06,75,PEANUTS 75TH ANNIVERSARY,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,CW001,06,CHR,CHEERS,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,CW001,06,EX,THE EXORCIST,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,CW001,06,LB,THE LOST BOYS,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+coldlion,property,EDGEHOME,CW001,06,SGT,SUPERGIRL THEATRICAL 2026,unmatched,,,,Phase 2A mirrors/reviews only; no canonical mutation.
+canonical,licensor,,,,FR,FRIENDS TV,canonical-only,2b2caddf-4fb0-4fc3-8245-ccd8f8177e48,FR,FRIENDS TV,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,licensor,,,,X-ANHEUSERBUSCH,Anheuser Busch,canonical-only,d5854d24-8477-42ea-a090-18ed3275879a,X-ANHEUSERBUSCH,Anheuser Busch,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,licensor,,,,X-FORD,Ford,canonical-only,78a9fb9a-7bc2-4e5c-9fe4-53adf2253ea2,X-FORD,Ford,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,licensor,,,,X-MILLERCOORS,Miller Coors,canonical-only,86d440d2-2ea8-4b14-add8-ca682a1c9434,X-MILLERCOORS,Miller Coors,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,licensor,,,,X-NCAA,NCAA,canonical-only,50c74323-b494-4b7d-ab7a-5524a7cd2706,X-NCAA,NCAA,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,licensor,,,,X-NFL,NFL,canonical-only,b21801ce-9e2b-49bc-9ef7-b5697d48136d,X-NFL,NFL,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,property,,,,ADT,ADVENTURE TIME,canonical-only,0c1fc67f-9e9c-4811-8d4c-5e5a0abda596,ADT,ADVENTURE TIME,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,property,,,,OGW,OVER THE GARDEN WALL,canonical-only,7bdd3e50-e0bb-470e-9479-28f2ace5fe88,OGW,OVER THE GARDEN WALL,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,property,,,,RS,REGULAR SHOW,canonical-only,9e37d341-ecaf-42ae-b990-788d8c02e72e,RS,REGULAR SHOW,Preserve canonical UUID/status/parent; absence never inactivates or deletes.
+canonical,property,,,,SFS,SMILING FRIENDS,canonical-only,72e026f2-e0ca-4fe8-b96d-4090519e47c6,SFS,SMILING FRIENDS,Preserve canonical UUID/status/parent; absence never inactivates or deletes.

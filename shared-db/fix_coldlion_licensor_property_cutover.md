@@ -1,9 +1,15 @@
 # ColdLion licensor/property master-data cutover
 
-**Status:** Phase 1 schema is implemented, merged, and applied to preview and
-production. Phase 2 mirror-only ingestion is next. Later phases remain gated by
-this plan; this document does not by itself authorize a production data run,
-schedule, canonical linking, canonical creation, or DesignFlow cutover.
+**Status:** Phase 2A (mirror-only importer) is implemented and verified on preview.
+Migrations `20260724060000` and `20260724061000` are applied to preview; rolled-back
+contracts pass; preview still has zero mirror rows, zero Phase 2 sync runs, and zero
+schedules. Phase 2A has performed **no importer pull**; the first real preview pull is the
+Phase 2B session. Phase 2A
+writes only Phase 1 mirrors/evidence and seeds cross-entity `conflict` findings; it
+does not link, create, status, re-parent, or source-ref any canonical record. Later
+phases remain gated by this plan; this document does not by itself authorize a
+production data run, schedule, canonical linking, canonical creation, or DesignFlow
+cutover.
 
 **Written:** 2026-07-23  
 **Repository:** `u2giants/shared-db`  
@@ -307,7 +313,11 @@ entity_id     = stable core UUID
 companyCode / divisionCode / mgTypeCode / mgCode
 ```
 
-It must not be only `mgCode`.
+It must not be only `mgCode`. Phase 2A fixed the concrete encoding as the slash-joined
+`<companyCode>/<divisionCode>/<mgTypeCode>/<mgCode>` used today for
+`ingest.raw_record.source_id` by `plm.sync_coldlion_licensors_properties`; Phase 4
+`link_approved` must write `core.taxonomy_source_ref.source_id` in this same form so a
+source ref resolves back to one mirror row.
 
 Splitting `core.taxonomy_source_ref` into strict per-entity source-ref tables is a separate
 schema-hardening decision. Do not combine it with this cutover unless it is required for
@@ -850,6 +860,18 @@ evidence, resolution history, before/after hashes, replayability, modes that can
 later add approved links without rewriting the mirror, and enough accounting to
 prove canonical UUID/status/parent immutability.
 
+**Phase 2A completion evidence (2026-07-24):**
+
+- final preview function contract: `20260724061000`, applied after `20260724060000`;
+- 32 runner unit tests, static checks, and rolled-back preview SQL contracts pass;
+- preview has 0 mirror rows, 0 Phase 2 sync runs, and 0 Phase 2 schedules;
+- raw detail payloads are preserved without a stamped `mgTypeDesc`; pair meaning travels
+  separately and runner/database both enforce configured completeness;
+- residual Phase 0 evidence is under
+  `docs/verification/coldlion-licensor-property-phase0-20260724/`;
+- Phase 2B commands/evidence fields are in
+  `fix_coldlion_licensor_property_phase2a_handoff.md`.
+
 ### Phase 3 — reconciliation and human decisions
 
 Deliver:
@@ -950,7 +972,8 @@ Add rolled-back tests under `supabase/tests/` for:
 2. mirror update by composite key;
 3. same `mgCode` in different divisions remains distinct;
 4. same `mgCode` across entity types remains distinct;
-5. `mgDesc` rename updates the mirror without creating a duplicate;
+5. `mgDesc` rename updates the mirror without creating a duplicate; a change to any other
+   raw source field must also change the raw/source hash and register as an update;
 6. rerun idempotency;
 7. existing ColdLion source-ref match;
 8. approved manual match;
@@ -1221,7 +1244,9 @@ Per-phase cold-start contracts:
   artifact with two successful runs and trustworthy DesignFlow baseline.
   Deliver: a row-level ruling ledger for every source/canonical row, named-case
   dispositions, alias/rename decisions, parent evidence, and zero unexplained
-  ambiguity. No canonical link/create is allowed. Exit: 100% categorized,
+  ambiguity. The starting exception ledger must include the freshly measured FRIDA KAHLO
+  Licensor-to-canonical-Property code collision, not only NASA, ZAG, and FRIENDS TV. No
+  canonical link/create is allowed. Exit: 100% categorized,
   human owners named for every non-automatic decision, and Phase 4's exact
   approved mapping input frozen and hashed.
 - **Phase 4 — approved linking.** Entry: approved Phase 3 ledger and unchanged

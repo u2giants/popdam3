@@ -1,0 +1,506 @@
+entity_schema,entity_table,entity_id,source_system,source_table,source_id,source_code,source_name,confidence,created_at
+core,licensor,b96edc00-9261-46ec-af93-9de0f5b88d48,designflow_plm,merchGroup,1109,CB,CARE BEARS,verified,2026-06-25T12:44:39.107Z
+core,licensor,33962356-f1f9-4226-b3ef-00154e5b7d56,designflow_plm,merchGroup,1110,DC,DC,verified,2026-06-25T12:44:39.107Z
+core,licensor,7d141a6f-e229-46a2-b3f5-0ba0c97dd820,designflow_plm,merchGroup,1111,DY,DISNEY,verified,2026-06-25T12:44:39.107Z
+core,licensor,ea61e3bb-37f2-4cef-a6f4-8aa314ea131f,designflow_plm,merchGroup,1114,HP,HARRY POTTER,verified,2026-06-25T12:44:39.107Z
+core,licensor,f143c083-2dfd-48b9-ac9b-43d2290a4e4c,designflow_plm,merchGroup,1115,MV,MARVEL,verified,2026-06-25T12:44:39.107Z
+core,licensor,154bf54b-6f7d-4999-b0fb-c2828b12b56a,designflow_plm,merchGroup,1117,NB,NBC,verified,2026-06-25T12:44:39.107Z
+core,licensor,afff41a6-df31-4a9a-aea5-b919d1daff54,designflow_plm,merchGroup,1118,PN,PEANUTS WORLDWIDE,verified,2026-06-25T12:44:39.107Z
+core,licensor,a03fff4b-65f4-4fd6-98ad-c9db3216b140,designflow_plm,merchGroup,1119,PP,PAW PATROL,verified,2026-06-25T12:44:39.107Z
+core,licensor,e5f1686c-700c-42f6-bbc6-98aaa9ce1634,designflow_plm,merchGroup,1120,SE,SEGA,verified,2026-06-25T12:44:39.107Z
+core,licensor,14f2902d-42de-4820-83c5-e4f359a6e0d6,designflow_plm,merchGroup,1121,SW,STAR WARS,verified,2026-06-25T12:44:39.107Z
+core,licensor,5f951f5e-aaee-4add-bb51-fea888951405,designflow_plm,merchGroup,1122,VM,VIACOM MULTI,verified,2026-06-25T12:44:39.107Z
+core,licensor,88313675-0089-4072-87be-5b989df8a3fc,designflow_plm,merchGroup,1123,WB,WARNER BROS,verified,2026-06-25T12:44:39.107Z
+core,licensor,f39fe07e-e438-46b2-9e17-fb711358e790,designflow_plm,merchGroup,1601,1P,TOEI - ONE PIECE,verified,2026-06-25T12:44:39.107Z
+core,licensor,4dba7d87-54ed-4dee-894b-570326953d92,designflow_plm,merchGroup,1602,SS,STRAWBERRY SHORTCAKE,verified,2026-06-25T12:44:39.107Z
+core,licensor,f39fe07e-e438-46b2-9e17-fb711358e790,designflow_plm,merchGroup,1649,1P,TOEI - ONE PIECE,verified,2026-06-25T12:44:39.107Z
+core,licensor,4dba7d87-54ed-4dee-894b-570326953d92,designflow_plm,merchGroup,1650,SS,STRAWBERRY SHORTCAKE,verified,2026-06-25T12:44:39.107Z
+core,licensor,7575d1db-dbee-4336-84a9-aa378f05f105,designflow_plm,merchGroup,1651,WW,WWE,verified,2026-06-25T12:44:39.107Z
+core,licensor,80276015-a751-4438-8c25-759c8dd005b2,designflow_plm,merchGroup,1652,ZZ,DTR - NO LICENSE,verified,2026-06-25T12:44:39.107Z
+core,licensor,33962356-f1f9-4226-b3ef-00154e5b7d56,designflow_plm,merchGroup,196,DC,DC,verified,2026-06-25T12:44:39.107Z
+core,licensor,7d141a6f-e229-46a2-b3f5-0ba0c97dd820,designflow_plm,merchGroup,197,DY,DISNEY,verified,2026-06-25T12:44:39.107Z
+core,licensor,2b2caddf-4fb0-4fc3-8245-ccd8f8177e48,designflow_plm,merchGroup,199,FR,FRIENDS TV,verified,2026-06-25T12:44:39.107Z
+core,licensor,ea61e3bb-37f2-4cef-a6f4-8aa314ea131f,designflow_plm,merchGroup,200,HP,HARRY POTTER,verified,2026-06-25T12:44:39.107Z
+core,licensor,f143c083-2dfd-48b9-ac9b-43d2290a4e4c,designflow_plm,merchGroup,201,MV,MARVEL,verified,2026-06-25T12:44:39.107Z
+core,licensor,154bf54b-6f7d-4999-b0fb-c2828b12b56a,designflow_plm,merchGroup,203,NB,NBC,verified,2026-06-25T12:44:39.107Z
+core,licensor,a03fff4b-65f4-4fd6-98ad-c9db3216b140,designflow_plm,merchGroup,205,PP,PAW PATROL,verified,2026-06-25T12:44:39.107Z
+core,licensor,14f2902d-42de-4820-83c5-e4f359a6e0d6,designflow_plm,merchGroup,206,SW,STAR WARS,verified,2026-06-25T12:44:39.107Z
+core,licensor,5f951f5e-aaee-4add-bb51-fea888951405,designflow_plm,merchGroup,207,VM,VIACOM MULTI,verified,2026-06-25T12:44:39.107Z
+core,licensor,c70e095c-2baf-404e-a2a3-c198a259a3e6,designflow_plm,merchGroup,3884,CC,COCA COLA,verified,2026-06-25T12:44:39.107Z
+core,licensor,1619ecdc-a0ad-4d1e-b8f2-7ea2aa1184fb,designflow_plm,merchGroup,3885,SM,SESAME STREET,verified,2026-06-25T12:44:39.107Z
+core,licensor,1619ecdc-a0ad-4d1e-b8f2-7ea2aa1184fb,designflow_plm,merchGroup,3908,SM,SESAME STREET,verified,2026-06-25T12:44:39.107Z
+core,licensor,80276015-a751-4438-8c25-759c8dd005b2,designflow_plm,merchGroup,4241,ZZ,DTR - NO LICENSE,verified,2026-06-25T12:44:39.107Z
+core,licensor,e90c3124-e66d-404f-b777-0dae9a5ee4f3,designflow_plm,merchGroup,4444,AA,AARDMAN ANIMATIONS,verified,2026-06-25T12:44:39.107Z
+core,licensor,e90c3124-e66d-404f-b777-0dae9a5ee4f3,designflow_plm,merchGroup,4445,AA,AARDMAN ANIMATIONS,verified,2026-06-25T12:44:39.107Z
+core,licensor,afff41a6-df31-4a9a-aea5-b919d1daff54,designflow_plm,merchGroup,447,PN,PEANUTS WORLDWIDE,verified,2026-06-25T12:44:39.107Z
+core,licensor,b96edc00-9261-46ec-af93-9de0f5b88d48,designflow_plm,merchGroup,815,CB,CARE BEARS,verified,2026-06-25T12:44:39.107Z
+core,licensor,e5f1686c-700c-42f6-bbc6-98aaa9ce1634,designflow_plm,merchGroup,816,SE,SEGA,verified,2026-06-25T12:44:39.107Z
+core,licensor,88313675-0089-4072-87be-5b989df8a3fc,designflow_plm,merchGroup,9,WB,WARNER BROS,verified,2026-06-25T12:44:39.107Z
+core,property,93a0ef47-f736-4176-9085-8c85858dc0f8,designflow_plm,merchGroup,1700,1P,ONE PIECE GENERAL ART,verified,2026-06-25T12:44:39.107Z
+core,property,1112ba31-356d-4cae-9883-cb1b32a5f57b,designflow_plm,merchGroup,1701,3P,C3PO,verified,2026-06-25T12:44:39.107Z
+core,property,dd952916-072b-4dfb-a536-66bf25f237ae,designflow_plm,merchGroup,1703,AD,ALADDIN,verified,2026-06-25T12:44:39.107Z
+core,property,7536e022-4b0c-4975-9ceb-203e4ac428e6,designflow_plm,merchGroup,1704,AQ,AQUAMAN,verified,2026-06-25T12:44:39.107Z
+core,property,23315dd3-f6a7-41b7-bdbb-ac013dd54165,designflow_plm,merchGroup,1705,AT,AVATAR THE LAST AIRBENDER,verified,2026-06-25T12:44:39.107Z
+core,property,2be6ea98-3bb8-452a-bcc6-30d51b8beea8,designflow_plm,merchGroup,1706,AV,AVENGERS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,2a51343c-6ed0-4c8f-9f1a-d193d4a6a573,designflow_plm,merchGroup,1707,AW,ALICE IN WONDERLAND,verified,2026-06-25T12:44:39.107Z
+core,property,430cffbf-52d7-4b25-be9d-8e34824cf549,designflow_plm,merchGroup,1708,B8,BB-8,verified,2026-06-25T12:44:39.107Z
+core,property,3083bfc5-3c2c-463b-b91c-ee95e3fa415c,designflow_plm,merchGroup,1709,BA,BATWHEELS,verified,2026-06-25T12:44:39.107Z
+core,property,273bcc6b-33f7-4256-95e3-862321ec3968,designflow_plm,merchGroup,1710,BF,BOBA FETT,verified,2026-06-25T12:44:39.107Z
+core,property,130d10fb-d0ff-4d67-84ff-245f0b0b0c43,designflow_plm,merchGroup,1711,BG,BATGIRL,verified,2026-06-25T12:44:39.107Z
+core,property,4e41dcdf-a2cb-4ddd-ad03-f447ab73615a,designflow_plm,merchGroup,1712,BJ,BEETLEJUICE,verified,2026-06-25T12:44:39.107Z
+core,property,8140b36b-82d2-4289-b56f-d2cdfbcd1905,designflow_plm,merchGroup,1713,BK,BIG LEBOWSKI,verified,2026-06-25T12:44:39.107Z
+core,property,3559b3bc-6081-453a-b7de-abccd75e744e,designflow_plm,merchGroup,1714,BM,BATMAN,verified,2026-06-25T12:44:39.107Z
+core,property,a35ae775-a860-4e51-8429-762c621d07cb,designflow_plm,merchGroup,1715,BN,OBI WAN,verified,2026-06-25T12:44:39.107Z
+core,property,98715b87-13e4-4d8c-aa40-d55fe0fe04f1,designflow_plm,merchGroup,1716,BP,BLACK PANTHER,verified,2026-06-25T12:44:39.107Z
+core,property,9db1ae70-8bdb-40a3-a8a8-66e54b1edced,designflow_plm,merchGroup,1718,BTF,BACK TO THE FUTURE,verified,2026-06-25T12:44:39.107Z
+core,property,9d8aae5e-7603-4360-9fed-9e2746ec271c,designflow_plm,merchGroup,1719,BU,BUGS LIFE,verified,2026-06-25T12:44:39.107Z
+core,property,02d3ac0a-ad97-4d5a-853a-8ab6979a6572,designflow_plm,merchGroup,1720,BW,BLACK WIDOW,verified,2026-06-25T12:44:39.107Z
+core,property,38dfe7a2-9bd3-4e93-a9f2-837038a43707,designflow_plm,merchGroup,1721,BZ,BLAZE,verified,2026-06-25T12:44:39.107Z
+core,property,1b9e853e-8bda-4980-8f29-9aeb8c5e41b5,designflow_plm,merchGroup,1722,CA,CAPTAIN AMERICA,verified,2026-06-25T12:44:39.107Z
+core,property,af20b0b0-d5e1-4741-b2bc-890fd7938954,designflow_plm,merchGroup,1723,CAR,CARS,verified,2026-06-25T12:44:39.107Z
+core,property,ecb029e9-4ef0-4df0-b79e-648cd26df955,designflow_plm,merchGroup,1724,CB,CHEWBACCA,verified,2026-06-25T12:44:39.107Z
+core,property,acd50d6e-3d57-465f-b45e-0196d56ddee6,designflow_plm,merchGroup,1725,CBB,CARE BEARS BABY,verified,2026-06-25T12:44:39.107Z
+core,property,fa36cdfc-7f83-43a0-bc8d-f4b8e5cf345c,designflow_plm,merchGroup,1726,CBC,CARE BEARS CLASSIC,verified,2026-06-25T12:44:39.107Z
+core,property,9c49776d-0338-40df-b2e1-8efae10d5322,designflow_plm,merchGroup,1727,CBU,CARE BEARS UNLOCK THE MAGIC,verified,2026-06-25T12:44:39.107Z
+core,property,5c03fc46-5a02-4da1-bcac-8969e74bbd8f,designflow_plm,merchGroup,1728,CC,COCO,verified,2026-06-25T12:44:39.107Z
+core,property,01e61839-32ad-4eaf-b9e4-14b97cbd86b1,designflow_plm,merchGroup,1729,CD,CORPSE BRIDE,verified,2026-06-25T12:44:39.107Z
+core,property,9e7ff2c4-4986-48ac-a68c-05bb5f6a647b,designflow_plm,merchGroup,1730,CE,CHEECH & CHONG,verified,2026-06-25T12:44:39.107Z
+core,property,6bb79348-9704-4fba-94e5-48bdef01c3ad,designflow_plm,merchGroup,1731,CG,CURIOUS GEORGE,verified,2026-06-25T12:44:39.107Z
+core,property,93d67ea4-e07b-4142-85b1-96de603637d5,designflow_plm,merchGroup,1732,CH,CHASE,verified,2026-06-25T12:44:39.107Z
+core,property,41fef4a7-4cd8-43ab-949f-fb19747fd328,designflow_plm,merchGroup,1733,CK,CHUCKY,verified,2026-06-25T12:44:39.107Z
+core,property,ceeec50b-3b5a-4ea4-9f0f-81640908f939,designflow_plm,merchGroup,1734,CM,CAPTAIN MARVEL,verified,2026-06-25T12:44:39.107Z
+core,property,635488f5-c9ea-4e71-ac06-d844b0e5f2cf,designflow_plm,merchGroup,1735,CP,CLASSIC PROPERTIES,verified,2026-06-25T12:44:39.107Z
+core,property,3e49f5e2-394e-4433-b485-5f5c2066571f,designflow_plm,merchGroup,1737,DA,DORA,verified,2026-06-25T12:44:39.107Z
+core,property,489f0d03-bf7b-4ff2-8e4d-6c42f63bd412,designflow_plm,merchGroup,1738,DB,DRESSAROSA,verified,2026-06-25T12:44:39.107Z
+core,property,d0d45071-f703-4e96-84ff-8fac7bd0c92d,designflow_plm,merchGroup,1739,DC,DC ASSORTED STYLES,verified,2026-06-25T12:44:39.107Z
+core,property,c65af677-b1bc-4410-8761-8a6c843edd19,designflow_plm,merchGroup,1740,DD,DUMBLEDORE,verified,2026-06-25T12:44:39.107Z
+core,property,a265ad05-0b9e-4cc7-8cb4-1b5e8f7c5ed1,designflow_plm,merchGroup,1742,DH,DEATHLY HOLLOWS,verified,2026-06-25T12:44:39.107Z
+core,property,c0e20469-d150-457d-b35e-275ec47db8b1,designflow_plm,merchGroup,1743,DM,DARK MARK,verified,2026-06-25T12:44:39.107Z
+core,property,df9e382c-d1cf-4680-bc05-9d10f2e04b31,designflow_plm,merchGroup,1744,DN,DONATELLO,verified,2026-06-25T12:44:39.107Z
+core,property,a5e1bf0e-637a-4dfa-b876-736fa6c160a9,designflow_plm,merchGroup,1745,DP,DEADPOOL,verified,2026-06-25T12:44:39.107Z
+core,property,7683e52c-36d8-46a7-8997-60caa7a511d6,designflow_plm,merchGroup,1746,DR,DR. STRANGE,verified,2026-06-25T12:44:39.107Z
+core,property,1744fc41-cbc6-46ab-83f2-17c6c269548c,designflow_plm,merchGroup,1747,DS,DEATH STAR,verified,2026-06-25T12:44:39.107Z
+core,property,9c784c9b-57ec-42b2-9fb1-4abcb84f0bc8,designflow_plm,merchGroup,1748,DT,DISNEY 100TH ANNIVERSARY,verified,2026-06-25T12:44:39.107Z
+core,property,7630257d-e174-49e8-80ba-30bd168c3a50,designflow_plm,merchGroup,1749,DV,DARTH VADER,verified,2026-06-25T12:44:39.107Z
+core,property,5f53411a-0b9a-43fe-a43a-c45e5cfbfcbd,designflow_plm,merchGroup,1750,DVN,DISNEY VILLAINS,verified,2026-06-25T12:44:39.107Z
+core,property,048df4ac-fc96-4fe3-974a-46efa6f19793,designflow_plm,merchGroup,1751,DY,DISNEY LOGO,verified,2026-06-25T12:44:39.107Z
+core,property,3cd6ee16-8828-49aa-ab13-ca926d156d5c,designflow_plm,merchGroup,1752,DZ,DAZED AND CONFUSED,verified,2026-06-25T12:44:39.107Z
+core,property,c0b68009-954c-4cee-8f66-b2138ddb8308,designflow_plm,merchGroup,1753,E9,EPISODE 9 CHARACTER GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,430998b6-2c43-476e-96c3-57b1ddf1654a,designflow_plm,merchGroup,1754,EC,ENCANTO,verified,2026-06-25T12:44:39.107Z
+core,property,0d390b7e-9fdb-4386-8a1b-b5e68ca37ff7,designflow_plm,merchGroup,1755,EF,ELF,verified,2026-06-25T12:44:39.107Z
+core,property,a6859291-e6b7-4f0d-8dfe-5586fd237f11,designflow_plm,merchGroup,1756,EG,EGGHEAD ISLAND ARC,verified,2026-06-25T12:44:39.107Z
+core,property,7a671efa-7bda-4f4b-8b7f-9c78c68912f4,designflow_plm,merchGroup,1757,EM,EMPIRE ICON,verified,2026-06-25T12:44:39.107Z
+core,property,da9fb30d-20c2-4306-b1e0-9b3441ef66d8,designflow_plm,merchGroup,1758,EN,LEONARDO,verified,2026-06-25T12:44:39.107Z
+core,property,392bfaf3-59a8-43dd-8741-a6e2f5b7e228,designflow_plm,merchGroup,1759,ER,ETERNALS,verified,2026-06-25T12:44:39.107Z
+core,property,bb6b117f-dbf7-4261-9680-84bff7e214bc,designflow_plm,merchGroup,1760,ET,E.T. THE EXTRATERRESTRIAL,verified,2026-06-25T12:44:39.107Z
+core,property,5ebbe2f0-05f1-4cbb-be06-3e7cf037095f,designflow_plm,merchGroup,1761,EW,EWOK,verified,2026-06-25T12:44:39.107Z
+core,property,2baa138b-bd0f-411a-88ae-f0e7653366d3,designflow_plm,merchGroup,1762,F2,FROZEN 2,verified,2026-06-25T12:44:39.107Z
+core,property,652ac00e-7d0b-4244-bf06-f4ff5c4f5d2d,designflow_plm,merchGroup,1763,FA,FISH-MAN ISLAND ARC,verified,2026-06-25T12:44:39.107Z
+core,property,a28c4295-29dd-4728-be2c-50a39a0eadfb,designflow_plm,merchGroup,1764,FC,THE OFFICE,verified,2026-06-25T12:44:39.107Z
+core,property,f98b536b-8227-4c40-96eb-20be20019221,designflow_plm,merchGroup,1765,FD,FIELD OF DREAMS,verified,2026-06-25T12:44:39.107Z
+core,property,cc45c29a-9e47-42cf-b0ba-91dbe37bd24d,designflow_plm,merchGroup,1766,FF,THE FAST AND THE FURIOUS,verified,2026-06-25T12:44:39.107Z
+core,property,81d51de1-6ad8-45f2-889f-6b27a10faece,designflow_plm,merchGroup,1768,FM,FROSTY THE SNOW MAN,verified,2026-06-25T12:44:39.107Z
+core,property,95c1c2a5-da7b-4e69-b275-bc57e0298396,designflow_plm,merchGroup,1769,FN,FRIENDS,verified,2026-06-25T12:44:39.107Z
+core,property,edf0a163-37e5-454b-9c61-9055c0261d01,designflow_plm,merchGroup,1770,FR,1ST ORDER TROOPER,verified,2026-06-25T12:44:39.107Z
+core,property,51c0a7eb-64ab-498a-90d0-6d620dbce0c3,designflow_plm,merchGroup,1771,FS,THE FLASH,verified,2026-06-25T12:44:39.107Z
+core,property,3577f4c0-e900-45e8-aecc-89d4eac0bd6f,designflow_plm,merchGroup,1772,FT,FRIDAY THE 13TH,verified,2026-06-25T12:44:39.107Z
+core,property,6530fd59-12a6-4e79-b48c-ccbca8adf7f0,designflow_plm,merchGroup,1773,FW,FALCON & WINTER SOLDIER,verified,2026-06-25T12:44:39.107Z
+core,property,b62f91c3-d0fb-43f6-97a1-49a41519bb82,designflow_plm,merchGroup,1774,FX,FAST AND FURIOUS X,verified,2026-06-25T12:44:39.107Z
+core,property,b3486141-9ed4-40f5-9aec-878f48a1ff16,designflow_plm,merchGroup,1775,FZ,FROZEN,verified,2026-06-25T12:44:39.107Z
+core,property,30414503-8d60-4bd9-bf40-80378d2f518d,designflow_plm,merchGroup,1776,GA,SEGA,verified,2026-06-25T12:44:39.107Z
+core,property,79dd7c7b-f654-47f4-8319-8d1d5a594020,designflow_plm,merchGroup,1777,GB,LITTLE GOLDEN BOOKS,verified,2026-06-25T12:44:39.107Z
+core,property,dabdc9d7-1556-4d96-abbd-7c6036bc8f2a,designflow_plm,merchGroup,1778,GD,GABBY'S DOLLHOUSE,verified,2026-06-25T12:44:39.107Z
+core,property,4526a736-7b50-4e7d-bc30-97edc8764e3d,designflow_plm,merchGroup,1779,GE,GARFIELD,verified,2026-06-25T12:44:39.107Z
+core,property,1b39a5bc-aba2-4ba3-937e-03cb6f84c9bb,designflow_plm,merchGroup,1780,GF,GRYFFINDOR,verified,2026-06-25T12:44:39.107Z
+core,property,9fb1ed4a-0ad8-44bc-947a-320e5c59035f,designflow_plm,merchGroup,1781,GG,GUARDIANS OF THE GALAXY,verified,2026-06-25T12:44:39.107Z
+core,property,324c7dff-f984-495b-8c48-500a024757b2,designflow_plm,merchGroup,1782,GM,GAMERVERSE,verified,2026-06-25T12:44:39.107Z
+core,property,05017d26-20b7-445b-b747-4233599479c8,designflow_plm,merchGroup,1783,GN,GREEN LANTERN,verified,2026-06-25T12:44:39.107Z
+core,property,508f3488-4a85-4e5d-98f7-c21bbed99a3b,designflow_plm,merchGroup,1784,GP,CHARACTER GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,feee7520-405c-4341-96b9-f1f8ce4ee717,designflow_plm,merchGroup,1785,GR,GROOT,verified,2026-06-25T12:44:39.107Z
+core,property,be51fe30-87a9-409e-bf62-43d5c18e039f,designflow_plm,merchGroup,1786,GT,GAME OF THRONES,verified,2026-06-25T12:44:39.107Z
+core,property,7164dc50-4c3a-42a1-90a1-9f9af1e8c0de,designflow_plm,merchGroup,1787,HB,HALF BAKED,verified,2026-06-25T12:44:39.107Z
+core,property,2b110640-c8a2-4372-a817-9d988c2d6983,designflow_plm,merchGroup,1788,HC,HAN & CHEWIE,verified,2026-06-25T12:44:39.107Z
+core,property,7e21920e-1790-45bf-850c-33a16d815578,designflow_plm,merchGroup,1789,HE,HERCULES,verified,2026-06-25T12:44:39.107Z
+core,property,350be1fc-8a9a-4b8b-b66e-f98742a62482,designflow_plm,merchGroup,1790,HF,HUFFLEPUFF,verified,2026-06-25T12:44:39.107Z
+core,property,9359cb30-a6b7-47ce-8915-7ada4cc8ad21,designflow_plm,merchGroup,1791,HG,HAPPY GILMORE,verified,2026-06-25T12:44:39.107Z
+core,property,3d6fe703-af55-4ef8-8739-1bb940850853,designflow_plm,merchGroup,1792,HH,HOW HIGH,verified,2026-06-25T12:44:39.107Z
+core,property,132676c7-6d22-4f76-a8cb-be1928e43979,designflow_plm,merchGroup,1793,HN,HALLOWEEN II,verified,2026-06-25T12:44:39.107Z
+core,property,d07d42a6-067e-4ff2-a362-2c560dd179c6,designflow_plm,merchGroup,1794,HP,HARRY POTTER,verified,2026-06-25T12:44:39.107Z
+core,property,b4a1e988-7b93-4877-a50d-6f80f9ff3b30,designflow_plm,merchGroup,1795,HPS,HOCUS POCUS,verified,2026-06-25T12:44:39.107Z
+core,property,b5e945be-bff5-4d2e-b818-8460bfde7731,designflow_plm,merchGroup,1796,HQ,HARLEY QUINN,verified,2026-06-25T12:44:39.107Z
+core,property,b2f2e0c3-7ddb-42c1-9f04-d4f3153efeb4,designflow_plm,merchGroup,1797,HR,HERMIONE,verified,2026-06-25T12:44:39.107Z
+core,property,0b33898a-00af-40c5-87c7-1a9b0a7659e2,designflow_plm,merchGroup,1798,HS,HAN SOLO,verified,2026-06-25T12:44:39.107Z
+core,property,13af0b89-e3f2-455d-958c-63118fef21d1,designflow_plm,merchGroup,1799,HU,HULK,verified,2026-06-25T12:44:39.107Z
+core,property,540cb9d4-9ac2-411b-a8ca-616a4045c286,designflow_plm,merchGroup,1800,HW,HOGWARTS,verified,2026-06-25T12:44:39.107Z
+core,property,891c552f-0875-4a90-9b3b-7543331f6f7c,designflow_plm,merchGroup,1801,JG,JUSTICE LEAGUE,verified,2026-06-25T12:44:39.107Z
+core,property,81d135a6-0577-4df7-93cb-133f31cb29f7,designflow_plm,merchGroup,1802,JJ,JOJO SIWA,verified,2026-06-25T12:44:39.107Z
+core,property,7b3aa8a2-630c-41f5-9f66-f6fc92bba5eb,designflow_plm,merchGroup,1803,JK,THE JOKER,verified,2026-06-25T12:44:39.107Z
+core,property,d99503fb-53e7-4d2c-8866-13d5be94bd56,designflow_plm,merchGroup,1804,JR,JURASSIC WORLD/JURASSIC PARK,verified,2026-06-25T12:44:39.107Z
+core,property,8f723630-2d55-4a46-a9bd-abaa91d70d40,designflow_plm,merchGroup,1805,JW,JAWS,verified,2026-06-25T12:44:39.107Z
+core,property,9d46e3a0-719f-42e2-8cd2-73bdd198416c,designflow_plm,merchGroup,1806,LK,LOKI,verified,2026-06-25T12:44:39.107Z
+core,property,abf71e62-7598-4b34-b07f-364eea7cac07,designflow_plm,merchGroup,1807,LR,LORD OF THE RINGS,verified,2026-06-25T12:44:39.107Z
+core,property,2a83c3d9-794d-41cc-8467-f53a27ddb625,designflow_plm,merchGroup,1808,LS,LILO AND STITCH,verified,2026-06-25T12:44:39.107Z
+core,property,b2bf31a7-f69a-46c8-8819-eda0605dc07a,designflow_plm,merchGroup,1809,LT,LOONEY TUNES,verified,2026-06-25T12:44:39.107Z
+core,property,4e5fabba-5a1a-42a4-b997-dc7aa0a5ab35,designflow_plm,merchGroup,1810,MA,MICHAELANGELO,verified,2026-06-25T12:44:39.107Z
+core,property,c0873079-36a4-4ab1-9aa0-1e8bedc6b274,designflow_plm,merchGroup,1811,MB,MORTAL KOMBAT,verified,2026-06-25T12:44:39.107Z
+core,property,fab870e2-04d7-4bd1-8902-ea4ced286192,designflow_plm,merchGroup,1812,MC,MIRACULOUS,verified,2026-06-25T12:44:39.107Z
+core,property,d7638191-2b1f-4660-84cc-5838b3cf6778,designflow_plm,merchGroup,1813,MD,THE MANDALORIAN,verified,2026-06-25T12:44:39.107Z
+core,property,1250fa66-f332-4b24-aca7-11e34d6d4d5d,designflow_plm,merchGroup,1814,MF,MILLENIUM FALCON,verified,2026-06-25T12:44:39.107Z
+core,property,bafff40f-dfaa-43de-a5d9-8a002cf89464,designflow_plm,merchGroup,1815,MG,MARVEL RETRO GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,caa4cb55-d15b-4258-9c1a-257b0204f4d7,designflow_plm,merchGroup,1816,MK,MOON KNIGHT,verified,2026-06-25T12:44:39.107Z
+core,property,4bb52946-0d48-494a-a038-1b4d9293e8c1,designflow_plm,merchGroup,1817,MM,MICKEY MOUSE,verified,2026-06-25T12:44:39.107Z
+core,property,eb50f543-5d10-4cc5-bb7e-824b8ad212b5,designflow_plm,merchGroup,1818,MN,MINIONS,verified,2026-06-25T12:44:39.107Z
+core,property,491b1a3d-a303-4918-9a77-c1e0e2b1b175,designflow_plm,merchGroup,1819,MP,MIXED PROPERTIES (DISNEY CLASSICS),verified,2026-06-25T12:44:39.107Z
+core,property,023444ef-0b2a-49b1-a94a-2cda4c3dd2ce,designflow_plm,merchGroup,1820,MR,MARSHALL,verified,2026-06-25T12:44:39.107Z
+core,property,c2add690-3f96-4649-adea-556f19f0a8df,designflow_plm,merchGroup,1821,MS,MONSTERS,verified,2026-06-25T12:44:39.107Z
+core,property,ba64e119-517e-41c2-9679-650e62ca4287,designflow_plm,merchGroup,1822,MV,MARVEL ASSORTED STYLES,verified,2026-06-25T12:44:39.107Z
+core,property,82f92fab-9620-478e-b33a-83db2a95c9b5,designflow_plm,merchGroup,1823,NE,NIGHTMARE ON ELM STREET,verified,2026-06-25T12:44:39.107Z
+core,property,d794c6fb-9227-47fc-90ef-55d7569ef495,designflow_plm,merchGroup,1824,NG,LION KING (LIVE ACTION),verified,2026-06-25T12:44:39.107Z
+core,property,f129f007-98f2-4cad-9822-926600e4da16,designflow_plm,merchGroup,1825,NK,NICKTOONS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,91806e1c-ea24-4a90-a037-cc3a4b990189,designflow_plm,merchGroup,1826,NT,NINJA TURTLES GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,93d213f5-4fc5-4669-bf0e-7177a691b966,designflow_plm,merchGroup,1827,NX,NIGHTMARE BEFORE CHRISTMAS,verified,2026-06-25T12:44:39.107Z
+core,property,282ee9db-10f6-4a46-b066-918866b33de3,designflow_plm,merchGroup,1828,PA,PETER PAN,verified,2026-06-25T12:44:39.107Z
+core,property,ee3f6737-1bdd-45f2-ae59-aac23968f082,designflow_plm,merchGroup,1829,PB,PAW PATROL BOY,verified,2026-06-25T12:44:39.107Z
+core,property,43298ef6-0852-421c-80ba-eabc266b7baf,designflow_plm,merchGroup,1830,PC,DISNEY'S PLANES,verified,2026-06-25T12:44:39.107Z
+core,property,3ca39d32-4d76-4af9-a368-4a803b57002a,designflow_plm,merchGroup,1831,PE,PRINCESS LEIA,verified,2026-06-25T12:44:39.107Z
+core,property,20c53ef3-2844-4aa7-93fe-fba5c4ebc624,designflow_plm,merchGroup,1832,PG,PAW PATROL GIRL,verified,2026-06-25T12:44:39.107Z
+core,property,09b51b5a-0307-4c14-b675-d106ae3052aa,designflow_plm,merchGroup,1833,PH,CAPTAIN PHASMA,verified,2026-06-25T12:44:39.107Z
+core,property,15b73ddc-0d65-40f0-8c52-ef0f4e299294,designflow_plm,merchGroup,1834,PK,PUNK HAZARD,verified,2026-06-25T12:44:39.107Z
+core,property,213ed67d-438f-4f5f-bb24-44f79b770704,designflow_plm,merchGroup,1835,PN,DISNEY PRINCESSES,verified,2026-06-25T12:44:39.107Z
+core,property,23ec5417-ead7-4ec4-97a8-4623636605e2,designflow_plm,merchGroup,1836,PP,PAW PATROL GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,4365c185-a7aa-42a3-8ee7-02a98f1bd2a0,designflow_plm,merchGroup,1837,PS,POSTER VERBIAGE,verified,2026-06-25T12:44:39.107Z
+core,property,c5a70609-c9ad-4a81-b0b3-60b14b112616,designflow_plm,merchGroup,1838,PT,MOVIE POSTER,verified,2026-06-25T12:44:39.107Z
+core,property,7d31f38b-f65a-4558-b225-4cf2fe6219d2,designflow_plm,merchGroup,1839,PU,PUNISHER,verified,2026-06-25T12:44:39.107Z
+core,property,89fae816-2cd6-462f-ab11-c3853ec141fb,designflow_plm,merchGroup,1840,PW,POWERPUFF GIRLS,verified,2026-06-25T12:44:39.107Z
+core,property,b6c39c03-6f34-43f3-b84e-87aba615ac45,designflow_plm,merchGroup,1841,PX,MIXED PROPERTIES PIXAR,verified,2026-06-25T12:44:39.107Z
+core,property,f8b1f36d-ac28-43c3-ba53-2ecb3e15994c,designflow_plm,merchGroup,1842,QU,QUIDDITCH,verified,2026-06-25T12:44:39.107Z
+core,property,6e7e505b-068f-44b3-8e6b-251b0e27ac71,designflow_plm,merchGroup,1843,R2,R2D2,verified,2026-06-25T12:44:39.107Z
+core,property,4fb347ae-6d84-4b81-80ab-a8413de8cbdb,designflow_plm,merchGroup,1844,RA,RAPHAEL,verified,2026-06-25T12:44:39.107Z
+core,property,21ab26a1-db69-4b64-89be-8ee3e2b3ffb1,designflow_plm,merchGroup,1845,RE,REBEL ICON,verified,2026-06-25T12:44:39.107Z
+core,property,d536adfa-10f5-41ba-9154-3cc0610027ed,designflow_plm,merchGroup,1846,RG,RUGRATS,verified,2026-06-25T12:44:39.107Z
+core,property,789246d1-d721-40fb-97b6-ecfc73c3e2a3,designflow_plm,merchGroup,1847,RK,RICK & MORTY,verified,2026-06-25T12:44:39.107Z
+core,property,5278bbb8-cdbd-4435-8d3b-93fd38b72b53,designflow_plm,merchGroup,1848,RM,IRON MAN,verified,2026-06-25T12:44:39.107Z
+core,property,5a864f47-41cd-47d4-a04d-8f83dd5fbd48,designflow_plm,merchGroup,1849,RR,ROCKET RACCOON,verified,2026-06-25T12:44:39.107Z
+core,property,5cd92d48-3028-49a0-b984-5b347fdedf14,designflow_plm,merchGroup,1850,RU,RUBBLE,verified,2026-06-25T12:44:39.107Z
+core,property,f6c59d99-4a84-4553-9960-090109454f1e,designflow_plm,merchGroup,1851,RV,RAVENCLAW,verified,2026-06-25T12:44:39.107Z
+core,property,7d328b9c-3cf5-424a-a1a6-8ded8d7e1f1f,designflow_plm,merchGroup,1852,S1,SKELETON CREW,verified,2026-06-25T12:44:39.107Z
+core,property,99bbe795-2528-4260-9ec2-ceaa31ce0c80,designflow_plm,merchGroup,1853,SA,ASTRONAUT,verified,2026-06-25T12:44:39.107Z
+core,property,e26d6839-c6cd-4eee-ac76-f56e1479c4ed,designflow_plm,merchGroup,1854,SB,SPONGEBOB,verified,2026-06-25T12:44:39.107Z
+core,property,35cc5a57-b5e6-4c98-8a66-f2785fb68dce,designflow_plm,merchGroup,1855,SC,SONIC CLASSIC,verified,2026-06-25T12:44:39.107Z
+core,property,02de0fab-dd7e-4082-ac99-659c46c77296,designflow_plm,merchGroup,1856,SD,STAR WARS DROIDS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,140be7c5-e211-432b-acc0-f76b18eba76d,designflow_plm,merchGroup,1857,SE,SPELLS,verified,2026-06-25T12:44:39.107Z
+core,property,923af469-f81f-48ec-ae6c-d0c18bf85414,designflow_plm,merchGroup,1858,SF,SCARFACE,verified,2026-06-25T12:44:39.107Z
+core,property,a2fd8bd6-2db3-4648-ba6d-03b26c951904,designflow_plm,merchGroup,1859,SG,SUPERGIRL,verified,2026-06-25T12:44:39.107Z
+core,property,7865b410-afb6-4307-9560-4dfa2e5c3165,designflow_plm,merchGroup,1860,SH,SHREK,verified,2026-06-25T12:44:39.107Z
+core,property,cd89a833-6170-44ed-b121-8727ddbcc699,designflow_plm,merchGroup,1861,SJ,SPACE JAM & SPACE JAM 2,verified,2026-06-25T12:44:39.107Z
+core,property,96888ff8-0efc-4ca0-9a8f-0886f5d4e528,designflow_plm,merchGroup,1862,SK,SKYE,verified,2026-06-25T12:44:39.107Z
+core,property,8218937e-1417-4416-9e3f-8987f04f09b9,designflow_plm,merchGroup,1863,SM,SUPERMAN,verified,2026-06-25T12:44:39.107Z
+core,property,9981838d-f7b5-491a-bf4b-7b994ba3ef41,designflow_plm,merchGroup,1864,SN,SEINFELD,verified,2026-06-25T12:44:39.107Z
+core,property,b8f98eb8-4d09-41f0-bc64-67cd8726f19a,designflow_plm,merchGroup,1865,SP,SPIDER MAN,verified,2026-06-25T12:44:39.107Z
+core,property,b2d6def6-62bf-4303-9f94-220e03c3071b,designflow_plm,merchGroup,1866,SR,SONIC MODERN,verified,2026-06-25T12:44:39.107Z
+core,property,f17d7095-93a5-470a-8ae8-4de2a69bde0b,designflow_plm,merchGroup,1867,SS,SHIMMER & SHINE,verified,2026-06-25T12:44:39.107Z
+core,property,c3110bab-f308-43b5-bcd2-025fe978650a,designflow_plm,merchGroup,1868,SSH,STRAWBERRY SHORTCAKE,verified,2026-06-25T12:44:39.107Z
+core,property,33b25a70-4c46-43e5-bebb-83a20c4452bb,designflow_plm,merchGroup,1869,ST,STORM TROOPER,verified,2026-06-25T12:44:39.107Z
+core,property,d8cc13f9-0d06-4a21-a789-88015d5ec15a,designflow_plm,merchGroup,1870,SV,STAR WARS VEHICLES GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,9243cc30-1292-46a8-a331-6a2a719bf65e,designflow_plm,merchGroup,1871,SW,STAR WARS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,9a46a47f-8223-44d9-bcd3-e5cb67858af4,designflow_plm,merchGroup,1872,SX,SPIDEY & FRIENDS,verified,2026-06-25T12:44:39.107Z
+core,property,9fb14839-1dc9-4e31-889e-e32fe5a8b15a,designflow_plm,merchGroup,1873,SY,SLYTHERIN,verified,2026-06-25T12:44:39.107Z
+core,property,4529860c-f033-417a-b230-86b25db19d27,designflow_plm,merchGroup,1874,SZ,SANTA CLAUSE IS COMING TO TOWN,verified,2026-06-25T12:44:39.107Z
+core,property,99e3b4f5-f7ec-4d7a-b56a-9b71b374b61c,designflow_plm,merchGroup,1875,TB,THE BATMAN MOVIE,verified,2026-06-25T12:44:39.107Z
+core,property,99ca498a-7418-4ba3-b062-d6503f11cee0,designflow_plm,merchGroup,1876,TF,TIE FIGHTER,verified,2026-06-25T12:44:39.107Z
+core,property,ba04525e-3590-4b28-a467-cf6c22a0aa31,designflow_plm,merchGroup,1877,TG,THAT GIRL LAY LAY,verified,2026-06-25T12:44:39.107Z
+core,property,85c8fe14-f6c6-4cfd-9eb9-646997c978a6,designflow_plm,merchGroup,1878,TH,THOR,verified,2026-06-25T12:44:39.107Z
+core,property,158e853d-81e3-4061-a72b-5f885e278163,designflow_plm,merchGroup,1879,TJ,TOM & JERRY,verified,2026-06-25T12:44:39.107Z
+core,property,8cbd5816-343c-424a-a871-54d3d5f0245d,designflow_plm,merchGroup,1881,TN,THANOS,verified,2026-06-25T12:44:39.107Z
+core,property,64660cdc-0134-48a0-bd28-d325572e7ea1,designflow_plm,merchGroup,1882,TR,TROLLS,verified,2026-06-25T12:44:39.107Z
+core,property,74a90714-2926-4beb-a70c-c5570b963296,designflow_plm,merchGroup,1883,TS,TOY STORY 4,verified,2026-06-25T12:44:39.107Z
+core,property,4fb06294-3b3e-459e-87e9-1c6bf5911503,designflow_plm,merchGroup,1884,UK,LUKE SKYWALKER,verified,2026-06-25T12:44:39.107Z
+core,property,ac30920a-ed79-4f75-8dfa-7fd206dff05b,designflow_plm,merchGroup,1885,UP,UP MOVIE,verified,2026-06-25T12:44:39.107Z
+core,property,4a9b6b9b-7f12-45fa-b901-5cc274a6e4b0,designflow_plm,merchGroup,1886,UT,PEANUTS,verified,2026-06-25T12:44:39.107Z
+core,property,238089bc-04d6-4e28-a385-17c1b05bdc2d,designflow_plm,merchGroup,1887,VG,VILLAINS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,a7154aa5-ae40-448c-a90d-48de856ba0c9,designflow_plm,merchGroup,1888,VN,VENOM,verified,2026-06-25T12:44:39.107Z
+core,property,b3d4b6a6-cdc6-4092-9049-cce9cf61b673,designflow_plm,merchGroup,1889,VT,VOLDEMORT,verified,2026-06-25T12:44:39.107Z
+core,property,89a72f5f-798b-4902-9aab-4f01204720aa,designflow_plm,merchGroup,1890,WA,WHERES WALDO,verified,2026-06-25T12:44:39.107Z
+core,property,439ac1f9-b8a1-4e3b-a156-cfe348d6b2b2,designflow_plm,merchGroup,1891,WEG,WWE LEGENDS,verified,2026-06-25T12:44:39.107Z
+core,property,26a59510-2fcc-47c2-9d53-a235e90f62f6,designflow_plm,merchGroup,1892,WN,WANO ISLAND ARC,verified,2026-06-25T12:44:39.107Z
+core,property,b25b7831-0bff-47b4-b827-af1b596de623,designflow_plm,merchGroup,1893,WNX,NXT TALENTS,verified,2026-06-25T12:44:39.107Z
+core,property,b3f195f8-61f9-42ba-b7c9-1932a0ebcf78,designflow_plm,merchGroup,1894,WP,WINNIE THE POOH,verified,2026-06-25T12:44:39.107Z
+core,property,e62d820a-eff0-4d61-aa74-20929e5da67f,designflow_plm,merchGroup,1895,WR,WOLVERINE,verified,2026-06-25T12:44:39.107Z
+core,property,2c3f1f48-b146-4ca9-9b66-f0054f846ccf,designflow_plm,merchGroup,1896,WS,DISNEY'S WISH,verified,2026-06-25T12:44:39.107Z
+core,property,d877e38e-7c6f-44bc-9aef-30f3d491c249,designflow_plm,merchGroup,1897,WSU,WWE SUPERSTARS,verified,2026-06-25T12:44:39.107Z
+core,property,bd5e954a-530c-45d3-8130-3bbb9a8f091d,designflow_plm,merchGroup,1899,WTA,OTHER TALENT,verified,2026-06-25T12:44:39.107Z
+core,property,9391d61e-d725-4afa-9e54-fd37a0d30f31,designflow_plm,merchGroup,1900,WV,WANDAVISION,verified,2026-06-25T12:44:39.107Z
+core,property,5a4a88ac-5064-4b36-863f-666c56849ead,designflow_plm,merchGroup,1901,WW,WONDER WOMAN,verified,2026-06-25T12:44:39.107Z
+core,property,e0cde0d5-ed30-4d31-90d6-541ea1c179b6,designflow_plm,merchGroup,1903,XM,X-MEN,verified,2026-06-25T12:44:39.107Z
+core,property,42121752-11cb-47e0-b0ee-139c8214fb90,designflow_plm,merchGroup,1905,XW,XWING,verified,2026-06-25T12:44:39.107Z
+core,property,798f7ebc-fd91-469d-958a-4edc2f6d6fa4,designflow_plm,merchGroup,1906,YD,YODA,verified,2026-06-25T12:44:39.107Z
+core,property,6e0beeae-b784-4996-af8b-e06de3cfbfc9,designflow_plm,merchGroup,1907,ZM,INVADER ZIM,verified,2026-06-25T12:44:39.107Z
+core,property,93a0ef47-f736-4176-9085-8c85858dc0f8,designflow_plm,merchGroup,1940,1P,ONE PIECE GENERAL ART,verified,2026-06-25T12:44:39.107Z
+core,property,1112ba31-356d-4cae-9883-cb1b32a5f57b,designflow_plm,merchGroup,1941,3P,C3PO,verified,2026-06-25T12:44:39.107Z
+core,property,dd952916-072b-4dfb-a536-66bf25f237ae,designflow_plm,merchGroup,1943,AD,ALADDIN,verified,2026-06-25T12:44:39.107Z
+core,property,7536e022-4b0c-4975-9ceb-203e4ac428e6,designflow_plm,merchGroup,1944,AQ,AQUAMAN,verified,2026-06-25T12:44:39.107Z
+core,property,23315dd3-f6a7-41b7-bdbb-ac013dd54165,designflow_plm,merchGroup,1945,AT,AVATAR THE LAST AIRBENDER,verified,2026-06-25T12:44:39.107Z
+core,property,2be6ea98-3bb8-452a-bcc6-30d51b8beea8,designflow_plm,merchGroup,1946,AV,AVENGERS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,2a51343c-6ed0-4c8f-9f1a-d193d4a6a573,designflow_plm,merchGroup,1947,AW,ALICE IN WONDERLAND,verified,2026-06-25T12:44:39.107Z
+core,property,430cffbf-52d7-4b25-be9d-8e34824cf549,designflow_plm,merchGroup,1948,B8,BB-8,verified,2026-06-25T12:44:39.107Z
+core,property,273bcc6b-33f7-4256-95e3-862321ec3968,designflow_plm,merchGroup,1949,BF,BOBA FETT,verified,2026-06-25T12:44:39.107Z
+core,property,130d10fb-d0ff-4d67-84ff-245f0b0b0c43,designflow_plm,merchGroup,1950,BG,BATGIRL,verified,2026-06-25T12:44:39.107Z
+core,property,4e41dcdf-a2cb-4ddd-ad03-f447ab73615a,designflow_plm,merchGroup,1951,BJ,BEETLEJUICE,verified,2026-06-25T12:44:39.107Z
+core,property,8140b36b-82d2-4289-b56f-d2cdfbcd1905,designflow_plm,merchGroup,1952,BK,BIG LEBOWSKI,verified,2026-06-25T12:44:39.107Z
+core,property,3559b3bc-6081-453a-b7de-abccd75e744e,designflow_plm,merchGroup,1953,BM,BATMAN,verified,2026-06-25T12:44:39.107Z
+core,property,a35ae775-a860-4e51-8429-762c621d07cb,designflow_plm,merchGroup,1954,BN,OBI WAN,verified,2026-06-25T12:44:39.107Z
+core,property,98715b87-13e4-4d8c-aa40-d55fe0fe04f1,designflow_plm,merchGroup,1955,BP,BLACK PANTHER,verified,2026-06-25T12:44:39.107Z
+core,property,9db1ae70-8bdb-40a3-a8a8-66e54b1edced,designflow_plm,merchGroup,1956,BTF,BACK TO THE FUTURE,verified,2026-06-25T12:44:39.107Z
+core,property,9d8aae5e-7603-4360-9fed-9e2746ec271c,designflow_plm,merchGroup,1957,BU,BUGS LIFE,verified,2026-06-25T12:44:39.107Z
+core,property,02d3ac0a-ad97-4d5a-853a-8ab6979a6572,designflow_plm,merchGroup,1958,BW,BLACK WIDOW,verified,2026-06-25T12:44:39.107Z
+core,property,38dfe7a2-9bd3-4e93-a9f2-837038a43707,designflow_plm,merchGroup,1959,BZ,BLAZE,verified,2026-06-25T12:44:39.107Z
+core,property,1b9e853e-8bda-4980-8f29-9aeb8c5e41b5,designflow_plm,merchGroup,1960,CA,CAPTAIN AMERICA,verified,2026-06-25T12:44:39.107Z
+core,property,af20b0b0-d5e1-4741-b2bc-890fd7938954,designflow_plm,merchGroup,1961,CAR,CARS,verified,2026-06-25T12:44:39.107Z
+core,property,ecb029e9-4ef0-4df0-b79e-648cd26df955,designflow_plm,merchGroup,1962,CB,CHEWBACCA,verified,2026-06-25T12:44:39.107Z
+core,property,acd50d6e-3d57-465f-b45e-0196d56ddee6,designflow_plm,merchGroup,1963,CBB,CARE BEARS BABY,verified,2026-06-25T12:44:39.107Z
+core,property,fa36cdfc-7f83-43a0-bc8d-f4b8e5cf345c,designflow_plm,merchGroup,1964,CBC,CARE BEARS CLASSIC,verified,2026-06-25T12:44:39.107Z
+core,property,9c49776d-0338-40df-b2e1-8efae10d5322,designflow_plm,merchGroup,1965,CBU,CARE BEARS UNLOCK THE MAGIC,verified,2026-06-25T12:44:39.107Z
+core,property,5c03fc46-5a02-4da1-bcac-8969e74bbd8f,designflow_plm,merchGroup,1966,CC,COCO,verified,2026-06-25T12:44:39.107Z
+core,property,01e61839-32ad-4eaf-b9e4-14b97cbd86b1,designflow_plm,merchGroup,1967,CD,CORPSE BRIDE,verified,2026-06-25T12:44:39.107Z
+core,property,9e7ff2c4-4986-48ac-a68c-05bb5f6a647b,designflow_plm,merchGroup,1968,CE,CHEECH & CHONG,verified,2026-06-25T12:44:39.107Z
+core,property,6bb79348-9704-4fba-94e5-48bdef01c3ad,designflow_plm,merchGroup,1969,CG,CURIOUS GEORGE,verified,2026-06-25T12:44:39.107Z
+core,property,93d67ea4-e07b-4142-85b1-96de603637d5,designflow_plm,merchGroup,1970,CH,CHASE,verified,2026-06-25T12:44:39.107Z
+core,property,41fef4a7-4cd8-43ab-949f-fb19747fd328,designflow_plm,merchGroup,1971,CK,CHUCKY,verified,2026-06-25T12:44:39.107Z
+core,property,ceeec50b-3b5a-4ea4-9f0f-81640908f939,designflow_plm,merchGroup,1972,CM,CAPTAIN MARVEL,verified,2026-06-25T12:44:39.107Z
+core,property,635488f5-c9ea-4e71-ac06-d844b0e5f2cf,designflow_plm,merchGroup,1973,CP,CLASSIC PROPERTIES,verified,2026-06-25T12:44:39.107Z
+core,property,3e49f5e2-394e-4433-b485-5f5c2066571f,designflow_plm,merchGroup,1975,DA,DORA,verified,2026-06-25T12:44:39.107Z
+core,property,489f0d03-bf7b-4ff2-8e4d-6c42f63bd412,designflow_plm,merchGroup,1976,DB,DRESSAROSA,verified,2026-06-25T12:44:39.107Z
+core,property,d0d45071-f703-4e96-84ff-8fac7bd0c92d,designflow_plm,merchGroup,1977,DC,DC ASSORTED STYLES,verified,2026-06-25T12:44:39.107Z
+core,property,c65af677-b1bc-4410-8761-8a6c843edd19,designflow_plm,merchGroup,1978,DD,DUMBLEDORE,verified,2026-06-25T12:44:39.107Z
+core,property,a265ad05-0b9e-4cc7-8cb4-1b5e8f7c5ed1,designflow_plm,merchGroup,1980,DH,DEATHLY HOLLOWS,verified,2026-06-25T12:44:39.107Z
+core,property,c0e20469-d150-457d-b35e-275ec47db8b1,designflow_plm,merchGroup,1981,DM,DARK MARK,verified,2026-06-25T12:44:39.107Z
+core,property,df9e382c-d1cf-4680-bc05-9d10f2e04b31,designflow_plm,merchGroup,1982,DN,DONATELLO,verified,2026-06-25T12:44:39.107Z
+core,property,a5e1bf0e-637a-4dfa-b876-736fa6c160a9,designflow_plm,merchGroup,1983,DP,DEADPOOL,verified,2026-06-25T12:44:39.107Z
+core,property,7683e52c-36d8-46a7-8997-60caa7a511d6,designflow_plm,merchGroup,1984,DR,DR. STRANGE,verified,2026-06-25T12:44:39.107Z
+core,property,1744fc41-cbc6-46ab-83f2-17c6c269548c,designflow_plm,merchGroup,1985,DS,DEATH STAR,verified,2026-06-25T12:44:39.107Z
+core,property,9c784c9b-57ec-42b2-9fb1-4abcb84f0bc8,designflow_plm,merchGroup,1986,DT,DISNEY 100TH ANNIVERSARY,verified,2026-06-25T12:44:39.107Z
+core,property,7630257d-e174-49e8-80ba-30bd168c3a50,designflow_plm,merchGroup,1987,DV,DARTH VADER,verified,2026-06-25T12:44:39.107Z
+core,property,5f53411a-0b9a-43fe-a43a-c45e5cfbfcbd,designflow_plm,merchGroup,1988,DVN,DISNEY VILLAINS,verified,2026-06-25T12:44:39.107Z
+core,property,048df4ac-fc96-4fe3-974a-46efa6f19793,designflow_plm,merchGroup,1989,DY,DISNEY LOGO,verified,2026-06-25T12:44:39.107Z
+core,property,3cd6ee16-8828-49aa-ab13-ca926d156d5c,designflow_plm,merchGroup,1990,DZ,DAZED AND CONFUSED,verified,2026-06-25T12:44:39.107Z
+core,property,c0b68009-954c-4cee-8f66-b2138ddb8308,designflow_plm,merchGroup,1991,E9,EPISODE 9 CHARACTER GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,430998b6-2c43-476e-96c3-57b1ddf1654a,designflow_plm,merchGroup,1992,EC,ENCANTO,verified,2026-06-25T12:44:39.107Z
+core,property,0d390b7e-9fdb-4386-8a1b-b5e68ca37ff7,designflow_plm,merchGroup,1993,EF,ELF,verified,2026-06-25T12:44:39.107Z
+core,property,a6859291-e6b7-4f0d-8dfe-5586fd237f11,designflow_plm,merchGroup,1994,EG,EGGHEAD ISLAND ARC,verified,2026-06-25T12:44:39.107Z
+core,property,7a671efa-7bda-4f4b-8b7f-9c78c68912f4,designflow_plm,merchGroup,1995,EM,EMPIRE ICON,verified,2026-06-25T12:44:39.107Z
+core,property,da9fb30d-20c2-4306-b1e0-9b3441ef66d8,designflow_plm,merchGroup,1996,EN,LEONARDO,verified,2026-06-25T12:44:39.107Z
+core,property,392bfaf3-59a8-43dd-8741-a6e2f5b7e228,designflow_plm,merchGroup,1997,ER,ETERNALS,verified,2026-06-25T12:44:39.107Z
+core,property,bb6b117f-dbf7-4261-9680-84bff7e214bc,designflow_plm,merchGroup,1998,ET,E.T. THE EXTRATERRESTRIAL,verified,2026-06-25T12:44:39.107Z
+core,property,5ebbe2f0-05f1-4cbb-be06-3e7cf037095f,designflow_plm,merchGroup,1999,EW,EWOK,verified,2026-06-25T12:44:39.107Z
+core,property,2baa138b-bd0f-411a-88ae-f0e7653366d3,designflow_plm,merchGroup,2000,F2,FROZEN 2,verified,2026-06-25T12:44:39.107Z
+core,property,652ac00e-7d0b-4244-bf06-f4ff5c4f5d2d,designflow_plm,merchGroup,2001,FA,FISH-MAN ISLAND ARC,verified,2026-06-25T12:44:39.107Z
+core,property,a28c4295-29dd-4728-be2c-50a39a0eadfb,designflow_plm,merchGroup,2002,FC,THE OFFICE,verified,2026-06-25T12:44:39.107Z
+core,property,f98b536b-8227-4c40-96eb-20be20019221,designflow_plm,merchGroup,2003,FD,FIELD OF DREAMS,verified,2026-06-25T12:44:39.107Z
+core,property,cc45c29a-9e47-42cf-b0ba-91dbe37bd24d,designflow_plm,merchGroup,2004,FF,THE FAST AND THE FURIOUS,verified,2026-06-25T12:44:39.107Z
+core,property,81d51de1-6ad8-45f2-889f-6b27a10faece,designflow_plm,merchGroup,2006,FM,FROSTY THE SNOW MAN,verified,2026-06-25T12:44:39.107Z
+core,property,95c1c2a5-da7b-4e69-b275-bc57e0298396,designflow_plm,merchGroup,2007,FN,FRIENDS,verified,2026-06-25T12:44:39.107Z
+core,property,edf0a163-37e5-454b-9c61-9055c0261d01,designflow_plm,merchGroup,2008,FR,1ST ORDER TROOPER,verified,2026-06-25T12:44:39.107Z
+core,property,51c0a7eb-64ab-498a-90d0-6d620dbce0c3,designflow_plm,merchGroup,2009,FS,THE FLASH,verified,2026-06-25T12:44:39.107Z
+core,property,3577f4c0-e900-45e8-aecc-89d4eac0bd6f,designflow_plm,merchGroup,2010,FT,FRIDAY THE 13TH,verified,2026-06-25T12:44:39.107Z
+core,property,6530fd59-12a6-4e79-b48c-ccbca8adf7f0,designflow_plm,merchGroup,2011,FW,FALCON & WINTER SOLDIER,verified,2026-06-25T12:44:39.107Z
+core,property,b62f91c3-d0fb-43f6-97a1-49a41519bb82,designflow_plm,merchGroup,2012,FX,FAST AND FURIOUS X,verified,2026-06-25T12:44:39.107Z
+core,property,b3486141-9ed4-40f5-9aec-878f48a1ff16,designflow_plm,merchGroup,2013,FZ,FROZEN,verified,2026-06-25T12:44:39.107Z
+core,property,30414503-8d60-4bd9-bf40-80378d2f518d,designflow_plm,merchGroup,2014,GA,SEGA,verified,2026-06-25T12:44:39.107Z
+core,property,79dd7c7b-f654-47f4-8319-8d1d5a594020,designflow_plm,merchGroup,2015,GB,LITTLE GOLDEN BOOKS,verified,2026-06-25T12:44:39.107Z
+core,property,dabdc9d7-1556-4d96-abbd-7c6036bc8f2a,designflow_plm,merchGroup,2016,GD,GABBY'S DOLLHOUSE,verified,2026-06-25T12:44:39.107Z
+core,property,4526a736-7b50-4e7d-bc30-97edc8764e3d,designflow_plm,merchGroup,2017,GE,GARFIELD,verified,2026-06-25T12:44:39.107Z
+core,property,1b39a5bc-aba2-4ba3-937e-03cb6f84c9bb,designflow_plm,merchGroup,2018,GF,GRYFFINDOR,verified,2026-06-25T12:44:39.107Z
+core,property,9fb1ed4a-0ad8-44bc-947a-320e5c59035f,designflow_plm,merchGroup,2019,GG,GUARDIANS OF THE GALAXY,verified,2026-06-25T12:44:39.107Z
+core,property,324c7dff-f984-495b-8c48-500a024757b2,designflow_plm,merchGroup,2020,GM,GAMERVERSE,verified,2026-06-25T12:44:39.107Z
+core,property,05017d26-20b7-445b-b747-4233599479c8,designflow_plm,merchGroup,2021,GN,GREEN LANTERN,verified,2026-06-25T12:44:39.107Z
+core,property,508f3488-4a85-4e5d-98f7-c21bbed99a3b,designflow_plm,merchGroup,2022,GP,CHARACTER GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,feee7520-405c-4341-96b9-f1f8ce4ee717,designflow_plm,merchGroup,2023,GR,GROOT,verified,2026-06-25T12:44:39.107Z
+core,property,be51fe30-87a9-409e-bf62-43d5c18e039f,designflow_plm,merchGroup,2024,GT,GAME OF THRONES,verified,2026-06-25T12:44:39.107Z
+core,property,7164dc50-4c3a-42a1-90a1-9f9af1e8c0de,designflow_plm,merchGroup,2025,HB,HALF BAKED,verified,2026-06-25T12:44:39.107Z
+core,property,2b110640-c8a2-4372-a817-9d988c2d6983,designflow_plm,merchGroup,2026,HC,HAN & CHEWIE,verified,2026-06-25T12:44:39.107Z
+core,property,7e21920e-1790-45bf-850c-33a16d815578,designflow_plm,merchGroup,2027,HE,HERCULES,verified,2026-06-25T12:44:39.107Z
+core,property,350be1fc-8a9a-4b8b-b66e-f98742a62482,designflow_plm,merchGroup,2028,HF,HUFFLEPUFF,verified,2026-06-25T12:44:39.107Z
+core,property,9359cb30-a6b7-47ce-8915-7ada4cc8ad21,designflow_plm,merchGroup,2029,HG,HAPPY GILMORE,verified,2026-06-25T12:44:39.107Z
+core,property,3d6fe703-af55-4ef8-8739-1bb940850853,designflow_plm,merchGroup,2030,HH,HOW HIGH,verified,2026-06-25T12:44:39.107Z
+core,property,132676c7-6d22-4f76-a8cb-be1928e43979,designflow_plm,merchGroup,2031,HN,HALLOWEEN II,verified,2026-06-25T12:44:39.107Z
+core,property,d07d42a6-067e-4ff2-a362-2c560dd179c6,designflow_plm,merchGroup,2032,HP,HARRY POTTER,verified,2026-06-25T12:44:39.107Z
+core,property,b4a1e988-7b93-4877-a50d-6f80f9ff3b30,designflow_plm,merchGroup,2033,HPS,HOCUS POCUS,verified,2026-06-25T12:44:39.107Z
+core,property,b5e945be-bff5-4d2e-b818-8460bfde7731,designflow_plm,merchGroup,2034,HQ,HARLEY QUINN,verified,2026-06-25T12:44:39.107Z
+core,property,b2f2e0c3-7ddb-42c1-9f04-d4f3153efeb4,designflow_plm,merchGroup,2035,HR,HERMIONE,verified,2026-06-25T12:44:39.107Z
+core,property,0b33898a-00af-40c5-87c7-1a9b0a7659e2,designflow_plm,merchGroup,2036,HS,HAN SOLO,verified,2026-06-25T12:44:39.107Z
+core,property,13af0b89-e3f2-455d-958c-63118fef21d1,designflow_plm,merchGroup,2037,HU,HULK,verified,2026-06-25T12:44:39.107Z
+core,property,540cb9d4-9ac2-411b-a8ca-616a4045c286,designflow_plm,merchGroup,2038,HW,HOGWARTS,verified,2026-06-25T12:44:39.107Z
+core,property,891c552f-0875-4a90-9b3b-7543331f6f7c,designflow_plm,merchGroup,2039,JG,JUSTICE LEAGUE,verified,2026-06-25T12:44:39.107Z
+core,property,81d135a6-0577-4df7-93cb-133f31cb29f7,designflow_plm,merchGroup,2040,JJ,JOJO SIWA,verified,2026-06-25T12:44:39.107Z
+core,property,7b3aa8a2-630c-41f5-9f66-f6fc92bba5eb,designflow_plm,merchGroup,2041,JK,THE JOKER,verified,2026-06-25T12:44:39.107Z
+core,property,d99503fb-53e7-4d2c-8866-13d5be94bd56,designflow_plm,merchGroup,2042,JR,JURASSIC WORLD/JURASSIC PARK,verified,2026-06-25T12:44:39.107Z
+core,property,8f723630-2d55-4a46-a9bd-abaa91d70d40,designflow_plm,merchGroup,2043,JW,JAWS,verified,2026-06-25T12:44:39.107Z
+core,property,9d46e3a0-719f-42e2-8cd2-73bdd198416c,designflow_plm,merchGroup,2044,LK,LOKI,verified,2026-06-25T12:44:39.107Z
+core,property,abf71e62-7598-4b34-b07f-364eea7cac07,designflow_plm,merchGroup,2045,LR,LORD OF THE RINGS,verified,2026-06-25T12:44:39.107Z
+core,property,2a83c3d9-794d-41cc-8467-f53a27ddb625,designflow_plm,merchGroup,2046,LS,LILO AND STITCH,verified,2026-06-25T12:44:39.107Z
+core,property,b2bf31a7-f69a-46c8-8819-eda0605dc07a,designflow_plm,merchGroup,2047,LT,LOONEY TUNES,verified,2026-06-25T12:44:39.107Z
+core,property,4e5fabba-5a1a-42a4-b997-dc7aa0a5ab35,designflow_plm,merchGroup,2048,MA,MICHAELANGELO,verified,2026-06-25T12:44:39.107Z
+core,property,c0873079-36a4-4ab1-9aa0-1e8bedc6b274,designflow_plm,merchGroup,2049,MB,MORTAL KOMBAT,verified,2026-06-25T12:44:39.107Z
+core,property,fab870e2-04d7-4bd1-8902-ea4ced286192,designflow_plm,merchGroup,2050,MC,MIRACULOUS,verified,2026-06-25T12:44:39.107Z
+core,property,d7638191-2b1f-4660-84cc-5838b3cf6778,designflow_plm,merchGroup,2051,MD,THE MANDALORIAN,verified,2026-06-25T12:44:39.107Z
+core,property,1250fa66-f332-4b24-aca7-11e34d6d4d5d,designflow_plm,merchGroup,2052,MF,MILLENIUM FALCON,verified,2026-06-25T12:44:39.107Z
+core,property,bafff40f-dfaa-43de-a5d9-8a002cf89464,designflow_plm,merchGroup,2053,MG,MARVEL RETRO GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,caa4cb55-d15b-4258-9c1a-257b0204f4d7,designflow_plm,merchGroup,2054,MK,MOON KNIGHT,verified,2026-06-25T12:44:39.107Z
+core,property,4bb52946-0d48-494a-a038-1b4d9293e8c1,designflow_plm,merchGroup,2055,MM,MICKEY MOUSE,verified,2026-06-25T12:44:39.107Z
+core,property,eb50f543-5d10-4cc5-bb7e-824b8ad212b5,designflow_plm,merchGroup,2056,MN,MINIONS,verified,2026-06-25T12:44:39.107Z
+core,property,491b1a3d-a303-4918-9a77-c1e0e2b1b175,designflow_plm,merchGroup,2057,MP,MIXED PROPERTIES (DISNEY CLASSICS),verified,2026-06-25T12:44:39.107Z
+core,property,023444ef-0b2a-49b1-a94a-2cda4c3dd2ce,designflow_plm,merchGroup,2058,MR,MARSHALL,verified,2026-06-25T12:44:39.107Z
+core,property,c2add690-3f96-4649-adea-556f19f0a8df,designflow_plm,merchGroup,2059,MS,MONSTERS,verified,2026-06-25T12:44:39.107Z
+core,property,ba64e119-517e-41c2-9679-650e62ca4287,designflow_plm,merchGroup,2060,MV,MARVEL ASSORTED STYLES,verified,2026-06-25T12:44:39.107Z
+core,property,82f92fab-9620-478e-b33a-83db2a95c9b5,designflow_plm,merchGroup,2061,NE,NIGHTMARE ON ELM STREET,verified,2026-06-25T12:44:39.107Z
+core,property,d794c6fb-9227-47fc-90ef-55d7569ef495,designflow_plm,merchGroup,2062,NG,LION KING (LIVE ACTION),verified,2026-06-25T12:44:39.107Z
+core,property,f129f007-98f2-4cad-9822-926600e4da16,designflow_plm,merchGroup,2063,NK,NICKTOONS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,91806e1c-ea24-4a90-a037-cc3a4b990189,designflow_plm,merchGroup,2064,NT,NINJA TURTLES GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,93d213f5-4fc5-4669-bf0e-7177a691b966,designflow_plm,merchGroup,2065,NX,NIGHTMARE BEFORE CHRISTMAS,verified,2026-06-25T12:44:39.107Z
+core,property,282ee9db-10f6-4a46-b066-918866b33de3,designflow_plm,merchGroup,2066,PA,PETER PAN,verified,2026-06-25T12:44:39.107Z
+core,property,ee3f6737-1bdd-45f2-ae59-aac23968f082,designflow_plm,merchGroup,2067,PB,PAW PATROL BOY,verified,2026-06-25T12:44:39.107Z
+core,property,43298ef6-0852-421c-80ba-eabc266b7baf,designflow_plm,merchGroup,2068,PC,DISNEY'S PLANES,verified,2026-06-25T12:44:39.107Z
+core,property,3ca39d32-4d76-4af9-a368-4a803b57002a,designflow_plm,merchGroup,2069,PE,PRINCESS LEIA,verified,2026-06-25T12:44:39.107Z
+core,property,20c53ef3-2844-4aa7-93fe-fba5c4ebc624,designflow_plm,merchGroup,2070,PG,PAW PATROL GIRL,verified,2026-06-25T12:44:39.107Z
+core,property,09b51b5a-0307-4c14-b675-d106ae3052aa,designflow_plm,merchGroup,2071,PH,CAPTAIN PHASMA,verified,2026-06-25T12:44:39.107Z
+core,property,15b73ddc-0d65-40f0-8c52-ef0f4e299294,designflow_plm,merchGroup,2072,PK,PUNK HAZARD,verified,2026-06-25T12:44:39.107Z
+core,property,213ed67d-438f-4f5f-bb24-44f79b770704,designflow_plm,merchGroup,2073,PN,DISNEY PRINCESSES,verified,2026-06-25T12:44:39.107Z
+core,property,23ec5417-ead7-4ec4-97a8-4623636605e2,designflow_plm,merchGroup,2074,PP,PAW PATROL GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,4365c185-a7aa-42a3-8ee7-02a98f1bd2a0,designflow_plm,merchGroup,2075,PS,POSTER VERBIAGE,verified,2026-06-25T12:44:39.107Z
+core,property,c5a70609-c9ad-4a81-b0b3-60b14b112616,designflow_plm,merchGroup,2076,PT,MOVIE POSTER,verified,2026-06-25T12:44:39.107Z
+core,property,7d31f38b-f65a-4558-b225-4cf2fe6219d2,designflow_plm,merchGroup,2077,PU,PUNISHER,verified,2026-06-25T12:44:39.107Z
+core,property,89fae816-2cd6-462f-ab11-c3853ec141fb,designflow_plm,merchGroup,2078,PW,POWERPUFF GIRLS,verified,2026-06-25T12:44:39.107Z
+core,property,b6c39c03-6f34-43f3-b84e-87aba615ac45,designflow_plm,merchGroup,2079,PX,MIXED PROPERTIES PIXAR,verified,2026-06-25T12:44:39.107Z
+core,property,f8b1f36d-ac28-43c3-ba53-2ecb3e15994c,designflow_plm,merchGroup,2080,QU,QUIDDITCH,verified,2026-06-25T12:44:39.107Z
+core,property,6e7e505b-068f-44b3-8e6b-251b0e27ac71,designflow_plm,merchGroup,2081,R2,R2D2,verified,2026-06-25T12:44:39.107Z
+core,property,4fb347ae-6d84-4b81-80ab-a8413de8cbdb,designflow_plm,merchGroup,2082,RA,RAPHAEL,verified,2026-06-25T12:44:39.107Z
+core,property,21ab26a1-db69-4b64-89be-8ee3e2b3ffb1,designflow_plm,merchGroup,2083,RE,REBEL ICON,verified,2026-06-25T12:44:39.107Z
+core,property,d536adfa-10f5-41ba-9154-3cc0610027ed,designflow_plm,merchGroup,2084,RG,RUGRATS,verified,2026-06-25T12:44:39.107Z
+core,property,789246d1-d721-40fb-97b6-ecfc73c3e2a3,designflow_plm,merchGroup,2085,RK,RICK & MORTY,verified,2026-06-25T12:44:39.107Z
+core,property,5278bbb8-cdbd-4435-8d3b-93fd38b72b53,designflow_plm,merchGroup,2086,RM,IRON MAN,verified,2026-06-25T12:44:39.107Z
+core,property,5a864f47-41cd-47d4-a04d-8f83dd5fbd48,designflow_plm,merchGroup,2087,RR,ROCKET RACCOON,verified,2026-06-25T12:44:39.107Z
+core,property,5cd92d48-3028-49a0-b984-5b347fdedf14,designflow_plm,merchGroup,2088,RU,RUBBLE,verified,2026-06-25T12:44:39.107Z
+core,property,f6c59d99-4a84-4553-9960-090109454f1e,designflow_plm,merchGroup,2089,RV,RAVENCLAW,verified,2026-06-25T12:44:39.107Z
+core,property,7d328b9c-3cf5-424a-a1a6-8ded8d7e1f1f,designflow_plm,merchGroup,2090,S1,SKELETON CREW,verified,2026-06-25T12:44:39.107Z
+core,property,99bbe795-2528-4260-9ec2-ceaa31ce0c80,designflow_plm,merchGroup,2091,SA,ASTRONAUT,verified,2026-06-25T12:44:39.107Z
+core,property,e26d6839-c6cd-4eee-ac76-f56e1479c4ed,designflow_plm,merchGroup,2092,SB,SPONGEBOB,verified,2026-06-25T12:44:39.107Z
+core,property,35cc5a57-b5e6-4c98-8a66-f2785fb68dce,designflow_plm,merchGroup,2093,SC,SONIC CLASSIC,verified,2026-06-25T12:44:39.107Z
+core,property,02de0fab-dd7e-4082-ac99-659c46c77296,designflow_plm,merchGroup,2094,SD,STAR WARS DROIDS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,140be7c5-e211-432b-acc0-f76b18eba76d,designflow_plm,merchGroup,2095,SE,SPELLS,verified,2026-06-25T12:44:39.107Z
+core,property,923af469-f81f-48ec-ae6c-d0c18bf85414,designflow_plm,merchGroup,2096,SF,SCARFACE,verified,2026-06-25T12:44:39.107Z
+core,property,a2fd8bd6-2db3-4648-ba6d-03b26c951904,designflow_plm,merchGroup,2097,SG,SUPERGIRL,verified,2026-06-25T12:44:39.107Z
+core,property,7865b410-afb6-4307-9560-4dfa2e5c3165,designflow_plm,merchGroup,2098,SH,SHREK,verified,2026-06-25T12:44:39.107Z
+core,property,cd89a833-6170-44ed-b121-8727ddbcc699,designflow_plm,merchGroup,2099,SJ,SPACE JAM & SPACE JAM 2,verified,2026-06-25T12:44:39.107Z
+core,property,96888ff8-0efc-4ca0-9a8f-0886f5d4e528,designflow_plm,merchGroup,2100,SK,SKYE,verified,2026-06-25T12:44:39.107Z
+core,property,8218937e-1417-4416-9e3f-8987f04f09b9,designflow_plm,merchGroup,2101,SM,SUPERMAN,verified,2026-06-25T12:44:39.107Z
+core,property,9981838d-f7b5-491a-bf4b-7b994ba3ef41,designflow_plm,merchGroup,2102,SN,SEINFELD,verified,2026-06-25T12:44:39.107Z
+core,property,b8f98eb8-4d09-41f0-bc64-67cd8726f19a,designflow_plm,merchGroup,2103,SP,SPIDER MAN,verified,2026-06-25T12:44:39.107Z
+core,property,b2d6def6-62bf-4303-9f94-220e03c3071b,designflow_plm,merchGroup,2104,SR,SONIC MODERN,verified,2026-06-25T12:44:39.107Z
+core,property,f17d7095-93a5-470a-8ae8-4de2a69bde0b,designflow_plm,merchGroup,2105,SS,SHIMMER & SHINE,verified,2026-06-25T12:44:39.107Z
+core,property,c3110bab-f308-43b5-bcd2-025fe978650a,designflow_plm,merchGroup,2106,SSH,STRAWBERRY SHORTCAKE,verified,2026-06-25T12:44:39.107Z
+core,property,33b25a70-4c46-43e5-bebb-83a20c4452bb,designflow_plm,merchGroup,2107,ST,STORM TROOPER,verified,2026-06-25T12:44:39.107Z
+core,property,d8cc13f9-0d06-4a21-a789-88015d5ec15a,designflow_plm,merchGroup,2108,SV,STAR WARS VEHICLES GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,9243cc30-1292-46a8-a331-6a2a719bf65e,designflow_plm,merchGroup,2109,SW,STAR WARS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,9a46a47f-8223-44d9-bcd3-e5cb67858af4,designflow_plm,merchGroup,2110,SX,SPIDEY & FRIENDS,verified,2026-06-25T12:44:39.107Z
+core,property,9fb14839-1dc9-4e31-889e-e32fe5a8b15a,designflow_plm,merchGroup,2111,SY,SLYTHERIN,verified,2026-06-25T12:44:39.107Z
+core,property,99e3b4f5-f7ec-4d7a-b56a-9b71b374b61c,designflow_plm,merchGroup,2112,TB,THE BATMAN MOVIE,verified,2026-06-25T12:44:39.107Z
+core,property,99ca498a-7418-4ba3-b062-d6503f11cee0,designflow_plm,merchGroup,2113,TF,TIE FIGHTER,verified,2026-06-25T12:44:39.107Z
+core,property,ba04525e-3590-4b28-a467-cf6c22a0aa31,designflow_plm,merchGroup,2114,TG,THAT GIRL LAY LAY,verified,2026-06-25T12:44:39.107Z
+core,property,85c8fe14-f6c6-4cfd-9eb9-646997c978a6,designflow_plm,merchGroup,2115,TH,THOR,verified,2026-06-25T12:44:39.107Z
+core,property,158e853d-81e3-4061-a72b-5f885e278163,designflow_plm,merchGroup,2116,TJ,TOM & JERRY,verified,2026-06-25T12:44:39.107Z
+core,property,8cbd5816-343c-424a-a871-54d3d5f0245d,designflow_plm,merchGroup,2118,TN,THANOS,verified,2026-06-25T12:44:39.107Z
+core,property,64660cdc-0134-48a0-bd28-d325572e7ea1,designflow_plm,merchGroup,2119,TR,TROLLS,verified,2026-06-25T12:44:39.107Z
+core,property,74a90714-2926-4beb-a70c-c5570b963296,designflow_plm,merchGroup,2120,TS,TOY STORY 4,verified,2026-06-25T12:44:39.107Z
+core,property,4fb06294-3b3e-459e-87e9-1c6bf5911503,designflow_plm,merchGroup,2121,UK,LUKE SKYWALKER,verified,2026-06-25T12:44:39.107Z
+core,property,ac30920a-ed79-4f75-8dfa-7fd206dff05b,designflow_plm,merchGroup,2122,UP,UP MOVIE,verified,2026-06-25T12:44:39.107Z
+core,property,4a9b6b9b-7f12-45fa-b901-5cc274a6e4b0,designflow_plm,merchGroup,2123,UT,PEANUTS,verified,2026-06-25T12:44:39.107Z
+core,property,238089bc-04d6-4e28-a385-17c1b05bdc2d,designflow_plm,merchGroup,2124,VG,VILLAINS GROUP,verified,2026-06-25T12:44:39.107Z
+core,property,a7154aa5-ae40-448c-a90d-48de856ba0c9,designflow_plm,merchGroup,2125,VN,VENOM,verified,2026-06-25T12:44:39.107Z
+core,property,b3d4b6a6-cdc6-4092-9049-cce9cf61b673,designflow_plm,merchGroup,2126,VT,VOLDEMORT,verified,2026-06-25T12:44:39.107Z
+core,property,89a72f5f-798b-4902-9aab-4f01204720aa,designflow_plm,merchGroup,2127,WA,WHERES WALDO,verified,2026-06-25T12:44:39.107Z
+core,property,26a59510-2fcc-47c2-9d53-a235e90f62f6,designflow_plm,merchGroup,2128,WN,WANO ISLAND ARC,verified,2026-06-25T12:44:39.107Z
+core,property,b3f195f8-61f9-42ba-b7c9-1932a0ebcf78,designflow_plm,merchGroup,2129,WP,WINNIE THE POOH,verified,2026-06-25T12:44:39.107Z
+core,property,e62d820a-eff0-4d61-aa74-20929e5da67f,designflow_plm,merchGroup,2130,WR,WOLVERINE,verified,2026-06-25T12:44:39.107Z
+core,property,2c3f1f48-b146-4ca9-9b66-f0054f846ccf,designflow_plm,merchGroup,2131,WS,DISNEY'S WISH,verified,2026-06-25T12:44:39.107Z
+core,property,9391d61e-d725-4afa-9e54-fd37a0d30f31,designflow_plm,merchGroup,2133,WV,WANDAVISION,verified,2026-06-25T12:44:39.107Z
+core,property,5a4a88ac-5064-4b36-863f-666c56849ead,designflow_plm,merchGroup,2134,WW,WONDER WOMAN,verified,2026-06-25T12:44:39.107Z
+core,property,e0cde0d5-ed30-4d31-90d6-541ea1c179b6,designflow_plm,merchGroup,2136,XM,X-MEN,verified,2026-06-25T12:44:39.107Z
+core,property,42121752-11cb-47e0-b0ee-139c8214fb90,designflow_plm,merchGroup,2138,XW,XWING,verified,2026-06-25T12:44:39.107Z
+core,property,798f7ebc-fd91-469d-958a-4edc2f6d6fa4,designflow_plm,merchGroup,2139,YD,YODA,verified,2026-06-25T12:44:39.107Z
+core,property,6e0beeae-b784-4996-af8b-e06de3cfbfc9,designflow_plm,merchGroup,2140,ZM,INVADER ZIM,verified,2026-06-25T12:44:39.107Z
+core,property,6198a8d7-e000-4025-a042-d42481af6756,designflow_plm,merchGroup,2160,W1,WICKED PART I,verified,2026-06-25T12:44:39.107Z
+core,property,b5592e78-7782-41b5-8298-8ec5a93059a7,designflow_plm,merchGroup,2161,HD,HOW TO TRAIN YOUR DRAGON FRANCHISE,verified,2026-06-25T12:44:39.107Z
+core,property,9c8f531f-32ab-4e23-a701-8ee73d92cef0,designflow_plm,merchGroup,2164,W2,WICKED PART II,verified,2026-06-25T12:44:39.107Z
+core,property,b5592e78-7782-41b5-8298-8ec5a93059a7,designflow_plm,merchGroup,2165,HD,HOW TO TRAIN YOUR DRAGON FRANCHISE,verified,2026-06-25T12:44:39.107Z
+core,property,9c8f531f-32ab-4e23-a701-8ee73d92cef0,designflow_plm,merchGroup,2168,W2,WICKED PART II,verified,2026-06-25T12:44:39.107Z
+core,property,0c1fc67f-9e9c-4811-8d4c-5e5a0abda596,designflow_plm,merchGroup,3123,ADT,ADVENTURE TIME,verified,2026-06-25T12:44:39.107Z
+core,property,c8d1dd59-7c9a-4a58-ac46-63789df04286,designflow_plm,merchGroup,3124,GGS,GILMORE GIRLS,verified,2026-06-25T12:44:39.107Z
+core,property,7bdd3e50-e0bb-470e-9479-28f2ace5fe88,designflow_plm,merchGroup,3125,OGW,OVER THE GARDEN WALL,verified,2026-06-25T12:44:39.107Z
+core,property,9e37d341-ecaf-42ae-b990-788d8c02e72e,designflow_plm,merchGroup,3126,RS,REGULAR SHOW,verified,2026-06-25T12:44:39.107Z
+core,property,72e026f2-e0ca-4fe8-b96d-4090519e47c6,designflow_plm,merchGroup,3127,SFS,SMILING FRIENDS,verified,2026-06-25T12:44:39.107Z
+core,property,3e4d0960-fbb8-4e20-add8-88cebf8d4af5,designflow_plm,merchGroup,3129,N8,THE NUN 2018,verified,2026-06-25T12:44:39.107Z
+core,property,b4f84a15-e844-4483-8852-dca8d9c8a04e,designflow_plm,merchGroup,3197,A4,ANNABELLE 2014,verified,2026-06-25T12:44:39.107Z
+core,property,73bb29f4-db28-4074-8d7f-3fd6e943ec6b,designflow_plm,merchGroup,3198,A7,ANNABELLE: CREATION 2017,verified,2026-06-25T12:44:39.107Z
+core,property,7d398a00-0bb6-45ca-97f1-ea81c978bc4b,designflow_plm,merchGroup,3199,A9,ANNABELLE COMES HOME 2019,verified,2026-06-25T12:44:39.107Z
+core,property,6d5c880c-7402-4fc8-8eee-581f368873db,designflow_plm,merchGroup,3200,T7,IT 2017,verified,2026-06-25T12:44:39.107Z
+core,property,8e23f07e-2e09-4303-b451-8326654a3224,designflow_plm,merchGroup,3201,T0,IT 1990 TELEVISION SERIES,verified,2026-06-25T12:44:39.107Z
+core,property,f886b697-8e88-4a48-896a-261a5dac393e,designflow_plm,merchGroup,3202,T9,IT CHAPTER TWO 2019,verified,2026-06-25T12:44:39.107Z
+core,property,46a2193f-c29a-424e-813a-8e173f38cb27,designflow_plm,merchGroup,3203,N3,THE NUN 2 2023,verified,2026-06-25T12:44:39.107Z
+core,property,7461672c-05ff-4291-8eed-2a06d8be38eb,designflow_plm,merchGroup,3204,WD,WELCOME TO DERRY: TELEVISION SERIES,verified,2026-06-25T12:44:39.107Z
+core,property,8647745e-8ec7-4bf6-9abb-64802f2f7827,designflow_plm,merchGroup,3893,EBB,BIG BIRD,verified,2026-06-25T12:44:39.107Z
+core,property,3e9c5940-28e0-4f3d-b58e-9d8edc549671,designflow_plm,merchGroup,3894,ECM,COOKIE MONSTER,verified,2026-06-25T12:44:39.107Z
+core,property,9ec18239-3926-4ae3-8838-b3f19d21b967,designflow_plm,merchGroup,3895,EGR,OSCAR THE GROUCH,verified,2026-06-25T12:44:39.107Z
+core,property,7a770403-7e5d-4063-aff9-1743134e3343,designflow_plm,merchGroup,3896,EMM,ELMO,verified,2026-06-25T12:44:39.107Z
+core,property,8647745e-8ec7-4bf6-9abb-64802f2f7827,designflow_plm,merchGroup,3972,EBB,BIG BIRD,verified,2026-06-25T12:44:39.107Z
+core,property,3e9c5940-28e0-4f3d-b58e-9d8edc549671,designflow_plm,merchGroup,3974,ECM,COOKIE MONSTER,verified,2026-06-25T12:44:39.107Z
+core,property,9ec18239-3926-4ae3-8838-b3f19d21b967,designflow_plm,merchGroup,3977,EGR,OSCAR THE GROUCH,verified,2026-06-25T12:44:39.107Z
+core,property,7a770403-7e5d-4063-aff9-1743134e3343,designflow_plm,merchGroup,3979,EMM,ELMO,verified,2026-06-25T12:44:39.107Z
+core,property,4a9af8b7-1106-45fd-b259-7116c9e423b2,designflow_plm,merchGroup,4143,AB,AB,verified,2026-06-25T12:44:39.107Z
+core,property,b1af49a8-0ac6-4655-9961-1ed5db92f24b,designflow_plm,merchGroup,4144,BR,BOARDERLANDS,verified,2026-06-25T12:44:39.107Z
+core,property,3f0cef0d-488b-4cc3-ab72-0cf273b2c1c8,designflow_plm,merchGroup,4145,C1,THE CONJURING 3: THE DEVIL MADE ME DO IT,verified,2026-06-25T12:44:39.107Z
+core,property,773831f5-6395-4734-9633-69a1fb300725,designflow_plm,merchGroup,4146,C3,THE CONJURING 2013,verified,2026-06-25T12:44:39.107Z
+core,property,dc025c07-afd4-44b3-b810-9cc35b1fc280,designflow_plm,merchGroup,4147,C6,THE CONJURING 2 2016,verified,2026-06-25T12:44:39.107Z
+core,property,122a01c7-010f-4eac-bc5c-1e70a451b8ae,designflow_plm,merchGroup,4148,CCC,COCA COLA,verified,2026-06-25T12:44:39.107Z
+core,property,c8ee8ddc-25c2-4835-a3dd-fc5fac4c962b,designflow_plm,merchGroup,4149,CCZ,COCA COLA ZERO,verified,2026-06-25T12:44:39.107Z
+core,property,f8d43f7d-3e49-402e-8fa4-09638bd56c69,designflow_plm,merchGroup,4150,CDC,DIET COKE,verified,2026-06-25T12:44:39.107Z
+core,property,4ef79bdc-7766-4d12-9c4b-3a2ac45f1b4a,designflow_plm,merchGroup,4151,CKC,COKE,verified,2026-06-25T12:44:39.107Z
+core,property,8369d2ed-c8eb-4372-92af-fc0a20754307,designflow_plm,merchGroup,4152,CR,CREATURE,verified,2026-06-25T12:44:39.107Z
+core,property,a91558d9-284a-49f8-b016-5011837e99d3,designflow_plm,merchGroup,4153,DE,DESTINATIONS,verified,2026-06-25T12:44:39.107Z
+core,property,6467088e-535e-4356-af94-a5e942f8063e,designflow_plm,merchGroup,4154,ES,SESAME STREET,verified,2026-06-25T12:44:39.107Z
+core,property,aed914ed-2d23-496b-88e7-97e7202d5e82,designflow_plm,merchGroup,4155,FFF,FANTASTIC FOUR: THE FIRST STEPS MOVIE 25,verified,2026-06-25T12:44:39.107Z
+core,property,cb26ec58-0edb-4d45-8c0b-ba283ffb23f8,designflow_plm,merchGroup,4156,FK,FRIDA KAHLO,verified,2026-06-25T12:44:39.107Z
+core,property,dc0c8af7-53cd-4d74-b4a4-6aed3ee80cfc,designflow_plm,merchGroup,4157,GDL,GABBY'S DOLLHOUSE LIVE ACTION 2025,verified,2026-06-25T12:44:39.107Z
+core,property,3c45b8c1-fa01-4da2-a66f-8bb28b80bd09,designflow_plm,merchGroup,4158,HDL,HOW TO TRAIN YOUR DRAGON: LIVE ACTION 25,verified,2026-06-25T12:44:39.107Z
+core,property,46be5003-d83b-4bec-9143-ee9632f1b688,designflow_plm,merchGroup,4159,LSL,LILO AND STITCH LIVE ACTION 2025,verified,2026-06-25T12:44:39.107Z
+core,property,09a4f6b3-b9eb-4183-919c-3626afddfcf1,designflow_plm,merchGroup,4160,SL,SUPERMAN:LEGACY 2025 LIVE ACTION FILM,verified,2026-06-25T12:44:39.107Z
+core,property,15beb12a-b5ee-4e33-86b7-27037af444a4,designflow_plm,merchGroup,4161,SSM,STRAWBERRY SHORTCAKE MODERN,verified,2026-06-25T12:44:39.107Z
+core,property,6035073f-3993-45b1-baa9-594db3b634da,designflow_plm,merchGroup,4162,TL,TED LASSO,verified,2026-06-25T12:44:39.107Z
+core,property,387bd16b-3cfe-4aec-b2d6-0550e7a3a54c,designflow_plm,merchGroup,4163,WT,WHERE THE WILD THINGS ARE,verified,2026-06-25T12:44:39.107Z
+core,property,1ed0a814-bc1e-4874-9850-9d6dcf297ad6,designflow_plm,merchGroup,4164,WZ,WIZARD OF OZ,verified,2026-06-25T12:44:39.107Z
+core,property,d4b67e8e-4376-4dc7-ad97-0336d0b1a609,designflow_plm,merchGroup,4165,XP,POLAR EXPRESS,verified,2026-06-25T12:44:39.107Z
+core,property,53f35a43-3719-411a-a818-1c0ef31726f5,designflow_plm,merchGroup,4278,MU,MUPPETS,verified,2026-06-25T12:44:39.107Z
+core,property,53f35a43-3719-411a-a818-1c0ef31726f5,designflow_plm,merchGroup,4279,MU,MUPPETS,verified,2026-06-25T12:44:39.107Z
+core,property,515f068a-31ae-46ea-a316-4cad5eabbe9f,designflow_plm,merchGroup,4288,SCM,SCREAM,verified,2026-06-25T12:44:39.107Z
+core,property,515f068a-31ae-46ea-a316-4cad5eabbe9f,designflow_plm,merchGroup,4289,SCM,SCREAM,verified,2026-06-25T12:44:39.107Z
+core,property,09ea2689-40d5-4a5b-90ee-4b44c5453f69,designflow_plm,merchGroup,4290,FJ,FREDDY VS JASON,verified,2026-06-25T12:44:39.107Z
+core,property,09ea2689-40d5-4a5b-90ee-4b44c5453f69,designflow_plm,merchGroup,4291,FJ,FREDDY VS JASON,verified,2026-06-25T12:44:39.107Z
+core,property,07cf2941-abf3-4394-a7cb-c804c524b9e1,designflow_plm,merchGroup,4345,HM,HANNAH MONTANA,verified,2026-06-25T12:44:39.107Z
+core,property,07cf2941-abf3-4394-a7cb-c804c524b9e1,designflow_plm,merchGroup,4346,HM,HANNAH MONTANA,verified,2026-06-25T12:44:39.107Z
+core,property,7f444f88-e803-4f02-8bb3-391d709b3202,designflow_plm,merchGroup,4440,HSM,HIGH SCHOOL MUSICAL,verified,2026-06-25T12:44:39.107Z
+core,property,34b067a7-dbce-4320-bebe-3c28ff012932,designflow_plm,merchGroup,4441,MCG,LIZZIE MCGUIRE,verified,2026-06-25T12:44:39.107Z
+core,property,7f444f88-e803-4f02-8bb3-391d709b3202,designflow_plm,merchGroup,4442,HSM,HIGH SCHOOL MUSICAL,verified,2026-06-25T12:44:39.107Z
+core,property,34b067a7-dbce-4320-bebe-3c28ff012932,designflow_plm,merchGroup,4443,MCG,LIZZIE MCGUIRE,verified,2026-06-25T12:44:39.107Z
+core,property,5fa35966-05b3-4096-8098-86651031e9de,designflow_plm,merchGroup,4446,SSE,SHAUN THE SHEEP,verified,2026-06-25T12:44:39.107Z
+core,property,44969e30-68da-4719-b9ca-66f83d59f337,designflow_plm,merchGroup,4447,WG,WALLACE & GROMIT,verified,2026-06-25T12:44:39.107Z
+core,property,5fa35966-05b3-4096-8098-86651031e9de,designflow_plm,merchGroup,4448,SSE,SHAUN THE SHEEP,verified,2026-06-25T12:44:39.107Z
+core,property,44969e30-68da-4719-b9ca-66f83d59f337,designflow_plm,merchGroup,4449,WG,WALLACE & GROMIT,verified,2026-06-25T12:44:39.107Z
+core,property,5419699d-6dcf-4ed2-b1df-cf2f68591836,designflow_plm,merchGroup,4450,KP,KUNG-FU PANDA,verified,2026-06-25T12:44:39.107Z
+core,property,5419699d-6dcf-4ed2-b1df-cf2f68591836,designflow_plm,merchGroup,4451,KP,KUNG-FU PANDA,verified,2026-06-25T12:44:39.107Z
+core,property,1c75f413-582a-4ea0-87a1-3f5f3027c1ac,designflow_plm,merchGroup,4618,CS,A CHRISTMAS STORY,verified,2026-06-25T12:44:39.107Z
+core,property,41ffb828-ede0-4295-aac9-fd31eaedc840,designflow_plm,merchGroup,4619,GH,THE GODFATHER,verified,2026-06-25T12:44:39.107Z
+core,property,6894b647-b4b0-45b3-8f5f-8490044c9221,designflow_plm,merchGroup,4620,GS,GOODFELLAS,verified,2026-06-25T12:44:39.107Z
+core,property,1c75f413-582a-4ea0-87a1-3f5f3027c1ac,designflow_plm,merchGroup,4622,CS,A CHRISTMAS STORY,verified,2026-06-25T12:44:39.107Z
+core,property,41ffb828-ede0-4295-aac9-fd31eaedc840,designflow_plm,merchGroup,4623,GH,THE GODFATHER,verified,2026-06-25T12:44:39.107Z
+core,property,6894b647-b4b0-45b3-8f5f-8490044c9221,designflow_plm,merchGroup,4624,GS,GOODFELLAS,verified,2026-06-25T12:44:39.107Z
+core,property,f21afc9f-8e64-46f6-875f-757f97664a8b,designflow_plm,merchGroup,4625,TU,TOP GUN,verified,2026-06-25T12:44:39.107Z
+core,property,f21afc9f-8e64-46f6-875f-757f97664a8b,designflow_plm,merchGroup,4626,TU,TOP GUN,verified,2026-06-25T12:44:39.107Z

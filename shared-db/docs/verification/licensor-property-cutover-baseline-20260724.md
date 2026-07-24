@@ -1,5 +1,12 @@
 # Licensor / property cutover — re-measured baseline (2026-07-24)
 
+> **Residual Phase 0 evidence completed later the same day.** The full per-division
+> ColdLion inventory, all 505 source references, all 256 parent edges, complete
+> unmatched/ambiguous ledger, and database/application dependency graph are in
+> [`coldlion-licensor-property-phase0-20260724/README.md`](coldlion-licensor-property-phase0-20260724/README.md).
+> That completion used fresh ColdLion and preview reads only; no production query or
+> importer run was performed in the Phase 2A session.
+
 **Why this exists.** [`fix_coldlion_licensor_property_cutover.md`](../../fix_coldlion_licensor_property_cutover.md)
 §2 requires a fresh dated baseline before Phase 0, because the `20 / 256` figures it was
 written against predate [PR #198](https://github.com/u2giants/shared-db/pull/198) (the PopSG

@@ -1,10 +1,12 @@
 # HANDOFF — shared-db current state
 
-## CURRENT PRIORITY — ColdLion Licensor/Property Phase 2 (fresh session required)
+## CURRENT PRIORITY — ColdLion Licensor/Property Phase 2B preview run (fresh session required)
 
-**As of 2026-07-24, Phase 1 is complete in preview and production.** The next
-implementation task is Phase 2: mirror-only ColdLion ingestion. Start it in a
-new AI session with a fresh context window.
+**As of 2026-07-24, Phase 2A implementation is complete and verified on preview.** The next
+task is Phase 2B: two real preview mirror-only pulls and complete comparison. Start it in a
+new AI session with a fresh context window. Read
+[`fix_coldlion_licensor_property_phase2a_handoff.md`](fix_coldlion_licensor_property_phase2a_handoff.md)
+before running anything.
 
 Before writing code, the new agent must read, in order:
 
@@ -31,11 +33,10 @@ must reread all later phases before coding, then update the plan and handoff if
 its implementation or discoveries change a later phase's assumptions, schema,
 tests, gates, rollback, or sequencing.
 
-Before Phase 2A importer coding, the agent must also complete the residual
-Phase 0 baseline assigned in the cutover plan §2/§15.1. The current dated
-snapshot is partial; the missing per-division ColdLion inventory, full
-parent-edge/source-reference inventories, unmatched/ambiguous ledger, and
-consumer dependency graph are an entry gate, not optional later documentation.
+The residual Phase 0 baseline is complete under
+[`docs/verification/coldlion-licensor-property-phase0-20260724/`](docs/verification/coldlion-licensor-property-phase0-20260724/).
+It contains the per-division inventory, all 505 source references, all 256 parent edges,
+the complete unmatched/ambiguous ledger, and the consumer dependency graph.
 
 Authoritative current evidence:
 
@@ -43,9 +44,10 @@ Authoritative current evidence:
   merge `eda80e7e6fd420e53394dc2947c07d45fbadd44a`.
 - Migration `20260724030000` applied to preview `rjyboqwcdzcocqgmsyel`
   and production `qsllyeztdwjgirsysgai`.
+- Preview Phase 2A migrations `20260724060000` and `20260724061000` are applied.
 - 256 canonical Properties; 0 null Licensor parents; scalar FK is `NOT NULL`
   and `ON DELETE RESTRICT`.
-- Mirror tables exist but intentionally contain 0 rows until Phase 2.
+- Mirror tables remain at 0 rows; there are 0 Phase 2 sync runs and 0 schedules.
 - DesignFlow remains enabled.
 
 Older workstreams below are retained as historical context. If they contradict
