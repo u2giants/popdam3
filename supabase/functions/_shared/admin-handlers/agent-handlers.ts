@@ -530,9 +530,14 @@ export async function handleClearCompletedJobs() {
 
 export async function handleClearJunkRenderJobs() {
   const db = serviceClient();
-  const JUNK_FILENAMES = new Set([".DS_Store", ".localized", "Thumbs.db", "desktop.ini",
+  const JUNK_FILENAMES = new Set([
+    ".DS_Store",
+    ".localized",
+    "Thumbs.db",
+    "desktop.ini",
     // PERMANENT — DO NOT REMOVE: canary file owned by another application.
-    "seafile-ignore.txt"]);
+    "seafile-ignore.txt",
+  ]);
 
   const { data: jobs, error: fetchErr } = await db
     .from("render_queue")
