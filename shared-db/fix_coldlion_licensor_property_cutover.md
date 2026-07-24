@@ -145,6 +145,14 @@ The first implementation PR must record a dated baseline under
 - every database object and application query depending on `core.licensor`,
   `core.property`, `plm.licensor_import`, or `plm.property_import`.
 
+Phase 1 shipped before that full artifact was completed. Phase 2A now owns the
+remaining obligation: it must extend the dated baseline before importer coding
+begins. The existing
+`docs/verification/licensor-property-cutover-baseline-20260724.md` is useful
+evidence, but it is not a substitute for the missing per-division ColdLion
+inventory, complete parent-edge export, unmatched/ambiguous ledger, source-ref
+inventory, and consumer dependency graph listed above.
+
 The implementation must not begin while another shared schema change is in flight. Run the
 AGENTS.md §6 checks first and serialize the work.
 
@@ -1125,31 +1133,38 @@ Implement only the mirror-only runner/importer. Required deliverables:
 1. Re-run in-flight-work and scheduler/duplicate-sync checks.
 2. Read this full plan, especially Phases 3–8, §11 tests, §12 production
    checklist, §13 rollback, and §14 operations.
-3. Reuse `tools/coldlion-sync-common.mjs` and the guarded vendor-sync durable
+3. Complete the remaining Phase 0 baseline obligation in §2 before coding.
+   Extend the dated verification artifact with every listed inventory and
+   dependency, clearly separating freshly measured facts from historical
+   evidence. If a source is unavailable, record the exact blocker and stop
+   rather than silently omitting that section.
+4. Reuse `tools/coldlion-sync-common.mjs` and the guarded vendor-sync durable
    failure pattern where their contracts fit; do not fork paging/failure logic
    casually.
-4. Fetch headers for every enabled division, derive Licensor/Property pairs
+5. Fetch headers for every enabled division, derive Licensor/Property pairs
    from normalized descriptions, then fetch all detail pages/array responses.
-5. Build deterministic composite natural keys and source hashes.
-6. Add a `mirror_only` database entry point that can write only Phase 1 mirrors,
+6. Build deterministic composite natural keys and source hashes.
+7. Add a `mirror_only` database entry point that can write only Phase 1 mirrors,
    run accounting, and unresolved/review findings. It must not mutate
    `core.*`, `core.taxonomy_source_ref`, canonical links, status, or parents.
-7. Enforce completeness independently in runner and database: headers,
+8. Enforce completeness independently in runner and database: headers,
    divisions/types, terminal pagination, nonempty sets, semantic stability,
    duplicate conflicts, configurable count/sanity bands, and concurrent-run lock.
-8. Record failures durably outside a rolled-back promotion transaction and
+9. Record failures durably outside a rolled-back promotion transaction and
    alert according to the existing two-consecutive-failure pattern.
-9. Add unit and rolled-back SQL contracts covering §11.1–11.2 Phase 2 cases,
+10. Add unit and rolled-back SQL contracts covering §11.1–11.2 Phase 2 cases,
    named lapsed records, `FR`, idempotency, raw audit, no secret output, and
    zero canonical/source-ref mutations.
-10. Run local/static checks and preview migration rehearsal if Phase 2 needs a
+11. Run local/static checks and preview migration rehearsal if Phase 2 needs a
     new migration. Do not perform the first real external preview pull in this
     coding session.
-11. Update this plan/handoff using the mandatory forward-impact audit.
+12. Update this plan/handoff using the mandatory forward-impact audit.
 
-Exit gate: code is merged, CI is green, preview schema/contracts pass, no
-schedule exists, no production data run occurred, and a fresh Phase 2B session
-has exact commands and evidence fields for the operational run.
+Exit gate: the complete Phase 0 baseline artifact exists with every §2 item
+present or an explicit blocking ruling; code is merged; CI is green; preview
+schema/contracts pass; no schedule exists; no production data run occurred;
+and a fresh Phase 2B session has exact commands and evidence fields for the
+operational run.
 
 ### 15.2 Phase 2B — fresh preview run and comparison session
 

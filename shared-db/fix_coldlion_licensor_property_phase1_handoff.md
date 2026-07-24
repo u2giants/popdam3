@@ -200,10 +200,17 @@ Primary implementation:
    canonical writes.
    Gate: parallel-run mirror counts and reconciliation reports are stable while
    canonical UUIDs, statuses, and parent links remain unchanged.
-3. Add sync-run evidence, idempotency, failure alerts, and sanity bands before
+3. Before Phase 2A importer coding, complete the still-partial Phase 0 baseline
+   required by `fix_coldlion_licensor_property_cutover.md` §2. Extend the dated
+   verification evidence with the per-division ColdLion inventory, complete
+   parent edges, source references, unmatched/ambiguous ledger, and consumer
+   dependency graph; do not silently omit an unavailable source.
+   Gate: every §2 baseline item is present as freshly measured evidence or has
+   an explicit blocking ruling that prevents coding from proceeding.
+4. Add sync-run evidence, idempotency, failure alerts, and sanity bands before
    scheduling the importer.
    Gate: a failed/incomplete pull cannot replace a successful mirror snapshot.
-4. Keep DesignFlow comparison enabled until the later reconciliation/cutover
+5. Keep DesignFlow comparison enabled until the later reconciliation/cutover
    gates in `fix_coldlion_licensor_property_cutover.md` pass.
    Gate: no DesignFlow source is disabled merely because Phase 1 exists.
 
@@ -261,17 +268,25 @@ phases are in `fix_coldlion_licensor_property_cutover.md` §15.
 
 Passed on 2026-07-24 after rereading this file without relying on chat context:
 
-1. **Could a brand-new developer continue with no prior project or session
-   knowledge? Yes.** Sections 1–3 define the repository, all consumer apps,
+1. **Is `HANDOFF.md` comprehensive enough that a brand-new developer with no
+   knowledge of this project and no context about what we did or what remains
+   could pick up where I left off and not skip a beat? Yes.** Sections 1–3
+   define the repository, all consumer apps,
    canonical tables, business rule, source-authority split, migration, PR,
    merge commit, preview project, production project, and verified live state.
-2. **Could that developer continue as effectively as the current session can?
-   Yes.** Sections 4–5 preserve every material failed attempt, Grok-review
+2. **Is it detailed enough that they could continue as well as I could right
+   now, with all my knowledge from this session and all relevant background
+   about what we are trying to accomplish? Yes.** Sections 4–5 preserve every
+   material failed attempt, Grok-review
    correction, preview error, Windows-shell trap, production TLS trap, root
    cause, and architecture decision. Section 8 identifies the working CLIs,
    1Password vault, pooler test method, and local worktree.
-3. **Is every detail required for flawless execution present? Yes.** Section 6
-   gives ordered Phase 2 actions with verification gates; Sections 7 and 9
+3. **Is every single relevant detail—background, goals, intended outcome,
+   current state, failed attempts, decisions, constraints, risks, exact next
+   actions, and verification evidence—present for the implementing agent to
+   execute flawlessly? Yes.** Section 6 gives ordered Phase 2 actions with
+   verification gates, including the previously unassigned residual Phase 0
+   baseline; Sections 7 and 9
    record immutability, ledger-drift, lifecycle, parent-edge, cutover, and delete
    risks. Production evidence includes counts, permissions, contracts,
    post-apply dry-run, and application HTTP checks.

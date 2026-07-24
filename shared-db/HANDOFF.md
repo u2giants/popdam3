@@ -31,6 +31,12 @@ must reread all later phases before coding, then update the plan and handoff if
 its implementation or discoveries change a later phase's assumptions, schema,
 tests, gates, rollback, or sequencing.
 
+Before Phase 2A importer coding, the agent must also complete the residual
+Phase 0 baseline assigned in the cutover plan §2/§15.1. The current dated
+snapshot is partial; the missing per-division ColdLion inventory, full
+parent-edge/source-reference inventories, unmatched/ambiguous ledger, and
+consumer dependency graph are an entry gate, not optional later documentation.
+
 Authoritative current evidence:
 
 - Implementation PR [#208](https://github.com/u2giants/shared-db/pull/208),
@@ -59,9 +65,10 @@ Phase 1 migration/contracts, and the related architecture/API routers:
    named risks, access path, failed attempts, and verified commands. The plan
    supplies Phase 2A/2B entry and exit gates.
 3. **Is every relevant detail for flawless continuation present? Yes.** The plan
-   explicitly covers future-phase impact, tests, rollback, production approval,
-   DesignFlow coexistence, cross-app smoke tests, and Phases 3–8. Stale sections
-   below are explicitly subordinate to this router.
+   explicitly assigns the residual Phase 0 baseline, future-phase impact,
+   tests, rollback, production approval, DesignFlow coexistence, cross-app
+   smoke tests, and Phases 3–8. Stale sections below are explicitly subordinate
+   to this router.
 
 ## DB Data Admin — non-SSO tester login (DONE — 2026-07-23)
 
