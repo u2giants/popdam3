@@ -8,6 +8,19 @@ Migrations occupy the clean contiguous range `20260722221000`–`20260722221700`
 after the `220000` collision was fixed (PRs #164, #166, #168, #170 — all merged).
 Production ledger `221000`–`221700` and every object verified present 2026-07-22
 (read-only). Evidence: `docs/verification/sample-tracking-quantity-schema-20260722.md`.
+**2026-07-23 follow-up (APPLIED preview + production):** two further migrations —
+`20260723230000_sample_tracking_completion_semantics.sql` (fixes two verified
+`sample_global_status` defects: a zero-movement sample used to derive `complete`, now
+`uninitialized`; and a stop closeout could mask a remaining balance and show `complete` while
+pieces remained — now any non-terminal balance blocks completion; **and** adds the automatic
+office-inventory trigger, see §15 Q4) and
+`20260723233000_sample_shipment_line_allow_inventory_origin.sql` (lets a shipment line originate
+from an `*_office_inventory` bucket so parked stock can be added to a new box). Bounded production
+apply used a temp checkout because production is missing 16 unrelated migrations from other
+workstreams (see AGENTS.md §5.1). Consumer adoption of the movement model is **not** done — plan
+in `popcre/designflow-tracking` → `fix_sample_tracking.md` (PR #26); shared-db copy at
+`docs/verification/designflow-sample-tracking-consumer-fix-spec-20260723.md`.
+
 Trigram-ledger drift RESOLVED 2026-07-23: production had recorded the PopSG
 trigram migration at old version `220000` vs on-disk `220800`; that ledger row
 was reconciled to `220800` (no schema objects touched), so production's ledger
@@ -615,7 +628,21 @@ production edits.
 2. Which canonical table/key owns factory identity for `sample_box.owner_factory_id_fk` in the current
    `dflow` runtime?
 3. Which user-location assignments currently authorize Ningbo versus New York operations?
-4. Which retained dispositions count as globally complete versus still outstanding?
+4. ~~Which retained dispositions count as globally complete versus still outstanding?~~
+   **ANSWERED (Albert, 2026-07-23) — implemented.** When pieces ship **onward** out of an office
+   (`office → in_transit` or `office → customer`), the quantity **remaining** at that office is
+   **automatically** moved into that office's own inventory bucket
+   (`terminal/ningbo_office_inventory`, `terminal/nyc_office_inventory`) and leaves the tracking
+   flow, staying conserved and auditable. Delivered-to-customer is resolved. Only `terminal`
+   balances (incl. `*_office_inventory`) and `customer` are "resolved"; `factory`/`office`/
+   `in_transit` block global completion. Stock in an inventory bucket can be **added to a new box**
+   (a normal balance-checked movement; a `sample_shipment_line` may originate from an
+   `*_office_inventory` bucket). Canonical four-piece end state is now `complete`. Implemented in
+   migrations `20260723230000` (completion semantics + `sample_movement_auto_office_inventory`
+   trigger) and `20260723233000` (inventory-origin shipment lines); both applied to preview **and
+   production** 2026-07-23. Tests: `sample_tracking_completion_semantics.sql`,
+   `sample_tracking_office_inventory_withdrawal.sql`, and the updated
+   `sample_tracking_quantity_contract.sql`.
 5. Is original workbook retention required, and what is its approved object-storage lifecycle?
 6. Which legacy rows have trustworthy quantity evidence?
 7. Which import/reference tables should hold extensible sample types and disposition codes?

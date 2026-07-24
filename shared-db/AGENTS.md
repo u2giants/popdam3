@@ -220,6 +220,32 @@ Then: merge to `main` (this auto-syncs the `shared-db/` folder into all apps) an
 promote to **production only in an approved window**. Docs-only PRs (no schema
 change) need just items 1 and "it reads correctly" — merge them promptly.
 
+### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` (learned 2026-07-23)
+
+Production almost always has **pending migrations from other workstreams that sit *before* your
+own** (e.g. DB Data Admin write paths, DAM taxonomy cutover, PopSG — several deliberately
+unpromoted). When that is true, `supabase db push` **refuses to run** and suggests
+`--include-all`. **Do not use `--include-all`** — it promotes *every* pending migration at once,
+including work another team has deliberately kept off production.
+
+Apply **only your own** migration with a bounded temp checkout:
+
+1. `git worktree add --detach <tmp> origin/main`
+2. In the temp checkout, **delete the migration files you are not promoting** (repo copy is
+   untouched — you only shrink the local set the CLI compares).
+3. `supabase link --project-ref qsllyeztdwjgirsysgai --password "$PROD_DB_PASSWORD"`
+4. `supabase db push --dry-run` → **confirm it lists only your migrations**, then `db push`.
+5. Verify the real objects in the DB (`pg_constraint`/`pg_trigger`/`pg_get_viewdef`), **not** just
+   `supabase_migrations.schema_migrations` — the ledger can record a migration whose object is
+   absent (seen on preview 2026-07-23).
+6. Remove the temp worktree.
+
+Two traps: (a) "pending" is **not** "filename version > remote max" — production had gaps far
+below its highest version; diff the full local file list against every `schema_migrations` row.
+(b) This shared working copy is actively churned by other sessions — its branch and untracked
+files shift between turns; do sensitive git work (branch off `origin/main`, apply) in a dedicated
+`git worktree`, not the main checkout.
+
 ## 6. How to tell if a change is already in flight
 
 Before starting database work, run these and read the result:
