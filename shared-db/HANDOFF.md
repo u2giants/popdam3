@@ -2,11 +2,12 @@
 
 ## CURRENT PRIORITY — ColdLion Licensor/Property Phase 2 correction (fresh session required)
 
-**As of 2026-07-24, Phase 2B completed two full preview mirror-only snapshots with identical
-hashes and zero canonical/source-reference mutation.** The next task is a bounded Phase 2
-correction before Phase 3: make the prior-count parser accept the real Supabase CLI JSON
-output, update the stale DB Data Admin orphan fixture, and run one more preview snapshot that
-records prior counts 44/516. Start in a fresh context and read
+**As of 2026-07-24, Phase 2B and its bounded correction are complete on preview, with
+identical hashes and zero canonical/source-reference mutation.** Corrected proof run
+`7fa7925a-4307-435d-ab3c-fcf99fa9a659` recorded prior counts 44/516, 0 inserted,
+0 updated, and 560 unchanged. The stale DB Data Admin orphan fixture is fixed and passes.
+Do not start Phase 3 until a fresh trustworthy DesignFlow snapshot satisfies its remaining
+entry gate. Start in a fresh context and read
 [`fix_coldlion_licensor_property_phase2b_handoff.md`](fix_coldlion_licensor_property_phase2b_handoff.md)
 first.
 
@@ -56,7 +57,8 @@ Authoritative current evidence:
   and `ON DELETE RESTRICT`.
 - Canonical UUID/status/parent and all 505 source-reference hashes are unchanged; there are
   0 ColdLion source refs, 0 mirror canonical links, and 0 schedules.
-- Run 2 incorrectly recorded `metadata.prior_run=null`; this parser defect blocks Phase 3.
+- Corrected proof run `7fa7925a-4307-435d-ab3c-fcf99fa9a659` records
+  `metadata.prior_run` as 44/516; the parser defect is resolved.
 - Full evidence:
   [`docs/verification/coldlion-licensor-property-phase2b-20260724/README.md`](docs/verification/coldlion-licensor-property-phase2b-20260724/README.md).
 - DesignFlow remains enabled.

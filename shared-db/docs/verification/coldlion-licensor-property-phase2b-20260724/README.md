@@ -131,7 +131,19 @@ C:\Program Files\Git\bin\bash.exe scripts/check-sql.sh
 
 ## Forward-impact audit and readiness ruling
 
-The two-snapshot, idempotency, coverage, and canonical-immutability gates pass. Phase 3 must
+The two-snapshot, idempotency, coverage, and canonical-immutability gates pass. The bounded
+Phase 2 correction also passed on preview in run
+`7fa7925a-4307-435d-ab3c-fcf99fa9a659`: it recorded
+`prior_run={"licensorCount":44,"propertyCount":516}`, 0 inserted, 0 updated, and 560
+unchanged with the same snapshot hash. Canonical UUID/status/parent hashes, mirror
+key/source hashes, and the 505-row source-reference hash remained unchanged. The DB Data
+Admin rollback fixture was updated for the exact-one-Licensor rule and passed.
+
+The parser now accepts the two installed CLI shapes observed during correction: the direct
+JSON envelope and the Unicode box table produced under the 1Password execution environment,
+while retaining psql compatibility.
+
+Phase 3 must
 not start yet because live execution exposed a count-drop guard defect: run 2 recorded
 `metadata.prior_run = null` even though run 1 succeeded. The parser expects psql table text,
 while `supabase db query` returns JSON, so prior successful counts were not loaded.

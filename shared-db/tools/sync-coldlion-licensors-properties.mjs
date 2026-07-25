@@ -307,7 +307,40 @@ limit 1;\n`;
 
 export function parsePriorCounts(stdout) {
   if (!stdout || !stdout.trim()) return null;
-  const lines = stdout.trim().split(/\r?\n/);
+  const trimmed = stdout.trim();
+  try {
+    const parsed = JSON.parse(trimmed);
+    const row = Array.isArray(parsed)
+      ? parsed[0]
+      : Array.isArray(parsed?.rows)
+        ? parsed.rows[0]
+        : parsed;
+    if (row && typeof row === "object") {
+      const lic = row.licensor_count === null || row.licensor_count === undefined
+        ? NaN
+        : Number(row.licensor_count);
+      const prop = row.property_count === null || row.property_count === undefined
+        ? NaN
+        : Number(row.property_count);
+      if (!Number.isNaN(lic) || !Number.isNaN(prop)) {
+        return {
+          licensorCount: Number.isNaN(lic) ? undefined : lic,
+          propertyCount: Number.isNaN(prop) ? undefined : prop,
+        };
+      }
+    }
+  } catch {
+    // Fall through to the psql table parser retained for direct DATABASE_URL runs.
+  }
+  const lines = trimmed.split(/\r?\n/);
+  const boxRow = lines.find((line) => {
+    const cells = line.split("│").map((cell) => cell.trim()).filter(Boolean);
+    return cells.length >= 2 && /^\d+$/.test(cells[0]) && /^\d+$/.test(cells[1]);
+  });
+  if (boxRow) {
+    const cells = boxRow.split("│").map((cell) => cell.trim()).filter(Boolean);
+    return { licensorCount: Number(cells[0]), propertyCount: Number(cells[1]) };
+  }
   // runSql via psql prints a header row, a `--------+--------` separator, then data rows
   // (the separator joins columns with `+`, not `|`). Filter all of those out.
   const data = lines.filter((l) => l && !l.includes("licensor_count") && !/^[-+]+$/.test(l) && !/^\(/.test(l));
@@ -492,7 +525,11 @@ async function main() {
       throw new Error(`Refusing to apply: ${reason}`);
     }
 
-    process.stdout.write(`${JSON.stringify({ counts: decision.counts, apply }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({
+      counts: decision.counts,
+      prior_counts: prior,
+      apply,
+    }, null, 2)}\n`);
 
     if (apply) {
       stage = "apply";

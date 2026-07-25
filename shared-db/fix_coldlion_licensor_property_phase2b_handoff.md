@@ -15,6 +15,15 @@ every source/canonical row, audit preview consumers, and perform the forward-imp
 
 ## 3. Current state
 
+- Phase 2 correction completed on 2026-07-24.
+- Corrected proof run: `7fa7925a-4307-435d-ab3c-fcf99fa9a659`.
+- Its `metadata.prior_run` records `licensorCount=44` and `propertyCount=516`.
+- The run recorded 0 inserted, 0 updated, and 560 unchanged with snapshot hash
+  `a69332e05d9064723ffa1dfbd870506c`.
+- Canonical UUID/status/parent hashes, mirror key/source hashes, and the 505-row
+  source-reference hash remained identical before and after.
+- The DB Data Admin rollback fixture now enforces the exact-one-Licensor rule and passed
+  against preview.
 - Production was not connected to or modified.
 - DesignFlow remains enabled.
 - No schedule was created.
@@ -44,10 +53,9 @@ every source/canonical row, audit preview consumers, and perform the forward-imp
 
 ## 5. Root causes and key findings
 
-1. The Phase 2 runner has a live prior-count guard defect. `parsePriorCounts` understands
-   psql table text, but the installed Supabase CLI returns JSON. Run 2 therefore recorded
-   `metadata.prior_run=null` instead of 44/516. Absolute floors still ran, but the
-   cross-run percentage-drop guard did not receive its baseline.
+1. The Phase 2 runner prior-count guard defect is fixed. Supabase emits a JSON envelope in
+   direct shell use and a Unicode box table under the 1Password execution environment.
+   `parsePriorCounts` now supports both plus the existing psql format, with regression tests.
 2. The full typed reconciliation matches the Phase 0 ledger: 542 exact compatible-code
    source rows, 2 NASA name-only rows, 14 ColdLion-only rows, 10 canonical-only rows, and
    2 true unmatched FRIDA KAHLO Licensor-to-Property collisions.
@@ -59,17 +67,8 @@ every source/canonical row, audit preview consumers, and perform the forward-imp
 
 ## 6. Exact next steps
 
-1. Start a fresh Phase 2 correction session, not Phase 3.
-2. Update `parsePriorCounts` to accept the captured Supabase CLI JSON shape while retaining
-   psql compatibility.
-3. Add a regression test proving 44/516 parses from that JSON.
-4. Update `supabase/tests/db_data_admin_licensor_property_tree.sql` so its fixture obeys the
-   exact-one-Licensor rule.
-5. Run all local/static and rolled-back preview tests.
-6. Run one more identical preview `mirror_only` snapshot.
-7. Verify `metadata.prior_run` contains 44/516 and all snapshot/canonical/source-reference
-   hashes remain identical.
-8. Obtain a fresh trustworthy DesignFlow snapshot before declaring Phase 3 entry ready.
+1. Obtain a fresh trustworthy DesignFlow snapshot before declaring Phase 3 entry ready.
+2. Start Phase 3 only in its own fresh session after that remaining entry gate is satisfied.
 
 ## 7. Constraints and gotchas
 
@@ -90,8 +89,8 @@ every source/canonical row, audit preview consumers, and perform the forward-imp
 
 ## 9. Open questions and risks
 
-- The prior-count parser correction is mandatory before later phases trust the short-pull
-  percentage guard.
+- The prior-count parser correction is complete and proven by run
+  `7fa7925a-4307-435d-ab3c-fcf99fa9a659`.
 - DesignFlow staleness blocks the later parallel-run clock.
 - Phase 3 must assign human dispositions to all 28 blocking ledger rows and interpret the
   30 conservative database findings with typed context.

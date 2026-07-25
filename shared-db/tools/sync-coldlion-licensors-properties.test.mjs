@@ -350,11 +350,29 @@ test("buildPriorCountsSql targets the licensor/property source", () => {
   assert.match(buildPriorCountsSql(), /status = 'succeeded'/);
 });
 
-test("parsePriorCounts reads psql table output and tolerates no-prior-run", () => {
+test("parsePriorCounts reads Supabase CLI JSON and psql table output", () => {
+  const supabaseJson = JSON.stringify({
+    boundary: "redacted-untrusted-data-boundary",
+    rows: [{ licensor_count: "44", property_count: "516" }],
+    warning: "untrusted database output",
+  });
+  assert.deepEqual(parsePriorCounts(supabaseJson), { licensorCount: 44, propertyCount: 516 });
+  assert.deepEqual(
+    parsePriorCounts('[{"licensor_count":"44","property_count":"516"}]'),
+    { licensorCount: 44, propertyCount: 516 },
+  );
+  const supabaseTable =
+    "┌────────────────┬────────────────┐\n" +
+    "│ licensor_count │ property_count │\n" +
+    "├────────────────┼────────────────┤\n" +
+    "│ 44             │ 516            │\n" +
+    "└────────────────┴────────────────┘\n";
+  assert.deepEqual(parsePriorCounts(supabaseTable), { licensorCount: 44, propertyCount: 516 });
   const stdout = " licensor_count | property_count\n----------------+----------------\n 22             | 258\n";
   assert.deepEqual(parsePriorCounts(stdout), { licensorCount: 22, propertyCount: 258 });
   const empty = " licensor_count | property_count\n----------------+----------------\n(0 rows)\n";
   assert.equal(parsePriorCounts(empty), null);
+  assert.equal(parsePriorCounts("[]"), null);
   assert.equal(parsePriorCounts(""), null);
 });
 

@@ -12,11 +12,10 @@
 --     equal the live core.licensor / core.property counts in the same
 --     transaction, the with-licensor + orphan partition reconciles, and the
 --     "expected orphan count is zero" flag tracks reality;
---   * every canonical Property appears under exactly one Licensor or as a
---     loud orphan — no duplicates, none lost across the full paginated
---     payload;
---   * loud orphan behavior: a null-licensor property is surfaced in a
---     separate, always-complete orphan_properties list with licensor_id null;
+--   * every canonical Property appears under exactly one Licensor — no
+--     duplicates and none lost across the full paginated payload;
+--   * the orphan_properties anomaly list is empty now that the canonical
+--     schema requires exactly one Licensor for every Property;
 --   * division/type-qualified source context (plm_context carries
 --     division_code + mg_code + an explicit mg_type label, and a licensor
 --     with two source divisions shows both);
@@ -61,7 +60,6 @@ declare
   v_prop2 uuid;
   v_prop_collide uuid;
   v_prop_inactive uuid;
-  v_orphan uuid;
   v_nested integer;
   v_total_appearances integer;
   v_distinct_ids integer;
@@ -197,10 +195,6 @@ begin
   insert into core.property (licensor_id, name, code, status)
   values (v_lic_inactive, 'Step10 Property Inactive ' || v_suffix, 'PI-' || v_suffix, 'inactive')
   returning id into v_prop_inactive;
-  insert into core.property (licensor_id, name, code, status)
-  values (null, 'Step10 Orphan Property ' || v_suffix, 'PO-' || v_suffix, 'active')
-  returning id into v_orphan;
-
   insert into core.character (property_id, name, status)
   values (v_prop1, 'Step10 Character ' || v_suffix, 'active');
 
@@ -231,7 +225,7 @@ begin
 
   -- ------------------------------------------------------------------
   -- Default call: hide inactive. Alpha and Bravo are visible; the inactive
-  -- licensor and its property are not; the orphan is always surfaced.
+  -- licensor and its property are not; the orphan anomaly list remains empty.
   -- ------------------------------------------------------------------
   select api.db_data_admin_licensor_property_tree('Step10 Licensor Alpha ' || v_suffix)
   into v_result;
@@ -239,11 +233,8 @@ begin
      or (v_result -> 'licensors' -> 0 ->> 'id')::uuid <> v_lic_a then
     raise exception 'search must return exactly licensor Alpha';
   end if;
-  if not exists (
-    select 1 from jsonb_array_elements(v_result -> 'orphan_properties') p
-    where (p ->> 'id')::uuid = v_orphan
-  ) then
-    raise exception 'orphan must be surfaced even on a filtered search page';
+  if jsonb_array_length(v_result -> 'orphan_properties') <> 0 then
+    raise exception 'orphan_properties must be empty under the exact-one-Licensor rule';
   end if;
 
   -- ------------------------------------------------------------------
@@ -320,8 +311,8 @@ begin
     raise exception 'expected_orphan_count_is_zero must track the live orphan count';
   end if;
 
-  -- Every canonical Property appears under exactly one Licensor or as a loud
-  -- orphan: no duplicates, none lost across the full paginated payload.
+  -- Every canonical Property appears under exactly one Licensor: no
+  -- duplicates and none lost across the full paginated payload.
   select coalesce(sum(jsonb_array_length(l -> 'properties')), 0)
   into v_nested
   from jsonb_array_elements(v_all_licensors) l;
@@ -343,16 +334,9 @@ begin
       v_distinct_ids, v_core_properties;
   end if;
 
-  -- Loud orphan behavior: orphan list only contains null-licensor properties.
-  if not exists (
-    select 1 from jsonb_array_elements(v_orphans) o where (o ->> 'id')::uuid = v_orphan
-  ) then
-    raise exception 'fixture orphan must be in orphan_properties';
-  end if;
-  if exists (
-    select 1 from jsonb_array_elements(v_orphans) o where o ->> 'licensor_id' is not null
-  ) then
-    raise exception 'orphan_properties must only contain null-licensor properties';
+  -- Phase 1 made licensor_id NOT NULL, so any orphan now indicates schema drift.
+  if jsonb_array_length(v_orphans) <> 0 or v_core_orphan <> 0 then
+    raise exception 'exact-one-Licensor rule requires zero orphan properties';
   end if;
 
   -- Locate the Alpha and Bravo nodes in the full payload.
