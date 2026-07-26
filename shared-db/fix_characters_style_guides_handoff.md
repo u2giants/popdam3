@@ -1,8 +1,9 @@
 # HANDOFF — characters and style guides, canonical migration
 
-**Written:** 2026-07-26 · **Repo:** `u2giants/shared-db` · **Branch:** `main` (clean, everything
-pushed) · **Next action:** Phase 0 of
-[`fix_characters_style_guides.md`](fix_characters_style_guides.md) — a blocking owner decision.
+**Written:** 2026-07-26 · **Updated:** 2026-07-26 · **Repo:** `u2giants/shared-db` ·
+**Branch:** `main` · **Next action:** wait for the licensing team's completed 174-row review
+sheet, expected in 24–48 hours. Phase 2 needs separate approval because the owner previously
+said not to write a migration yet.
 
 **No database has been changed.** Every session to date has been read-only investigation plus
 documentation. `core.character` is still **0 rows**.
@@ -101,7 +102,9 @@ produced documentation and a plan rather than DDL: **the model had to be right f
 | [#236](https://github.com/u2giants/shared-db/pull/236) | `5bd2f5f` | Shared vs app-owned split (names shared, files app-owned) |
 | [#237](https://github.com/u2giants/shared-db/pull/237) | `1a9a4b1` | The phased plan + preserved review sheet and its regenerator |
 
-**Not started:** every phase. Phase 0 is a decision, not code.
+**Complete:** Phase 0 hybrid source decision and Phase 1 read-only property reconciliation.
+
+**Not started:** Phases 2–7. No migration exists.
 
 **Live database facts, measured 2026-07-26 against production `qsllyeztdwjgirsysgai`:**
 
@@ -116,7 +119,7 @@ produced documentation and a plan rather than DDL: **the model had to be right f
 
 **Deliverable already with the owner:** a 174-row review sheet for the licensing team at
 `docs/verification/style-guide-property-mapping-20260726/style-guide-property-mapping.csv`, sent
-2026-07-26, **not yet returned**. Regenerate with
+2026-07-26, **not yet returned** and expected in 24–48 hours. Regenerate with
 `node tools/generate-style-guide-property-mapping.mjs` — no database or network needed.
 
 ## 7. Constraints and gotchas recorded nowhere else
@@ -161,15 +164,15 @@ checklist passes. Not main-only.
 
 ## 9. Open questions and risks
 
-**The blocking decision (Phase 0, dated 2026-07-26 — unanswered):** promote DAM's existing
-character→property mapping, or run the 174-row licensing-team review?
+**Phase 0 decision (approved 2026-07-26):** use the hybrid source. Accept the 367 DAM
+appearances whose parents directly agree with a canonical property, apply the settled
+Classics → `CP` and no-code rules, and use the licensing team's 174-row sheet for the remaining
+family/bucket decisions.
 
-`public.characters` already parents all 9,622 characters — but it points at *licensing-catalogue*
-properties (`public.properties`, 500 rows) while `core.property` is deliberately **Coldlion-scoped**
-(256 rows). **Unverified, and it decides the branch:** how many of DAM's parents actually exist in
-`core.property`? If few, promoting relabels the review rather than removing it. **Phase 1 answers
-this, is read-only, and can start immediately** — it is the highest-value next action even before
-the owner decides.
+Phase 1 proved that wholesale DAM promotion is unsafe: 9,255 of 9,622 appearances sit under
+licensing/style-guide catalogue parents that do not directly exist in `core.property`.
+Evidence is in
+[`docs/verification/characters-property-reconcile-20260726/`](docs/verification/characters-property-reconcile-20260726/README.md).
 
 **Decisions already made — do not silently reverse:**
 
@@ -193,8 +196,8 @@ the owner decides.
 4. **Colliding with the ColdLion cutover.** Their Phase 6 is a 14-day gate, earliest exit
    **2026-08-09**; their Phase 7 is unauthorized; production untouched. Our Phase 5 must not land
    in that window. **Re-read their status header — it changes daily.**
-5. **The licensing team's sheet may never come back.** If it stalls, Phase 1's evidence plus the
-   hybrid option (promote where DAM and Coldlion agree, review only the rest) is the fallback.
+5. **The licensing team's sheet is pending.** It is expected in 24–48 hours. Phase 3 cannot
+   complete without those family/bucket decisions.
 
 **Unanswered, non-blocking:** does Coldlion expose the talent-likeness flag on any endpoint? The
 owner confirms Coldlion captures it and reports royalties against it, but it is absent from
@@ -212,9 +215,8 @@ session will find).
 1. *Could a brand-new developer with no project knowledge pick this up without asking a question?*
    **Yes.** §1 defines the business, the apps and the schemas; §8 gives every access path; §3 gives
    exact live row counts and merge SHAs; the plan doc's Phases 0–7 give ordered steps with exit
-   gates. The one thing they cannot do alone is Phase 0 — correctly so, it is the owner's decision
-   — and both branches plus the evidence needed to settle it are spelled out in §9, along with the
-   read-only Phase 1 they *can* start immediately.
+   gates. Phase 0 is recorded as approved, Phase 1 evidence is linked, and the next input is the
+   licensing team's completed sheet.
 2. *Could they continue as effectively as this session could right now?* **Yes.** The non-obvious
    knowledge is written down: the naming trap (§2), the two axes and the three corrections (model
    doc §1/§6), the eight approaches that failed (plan §10), the environment traps that each cost

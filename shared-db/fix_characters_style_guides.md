@@ -1,8 +1,9 @@
 # Characters and style guides — canonical migration plan
 
-**Status (2026-07-26): PHASE 0 — not started. Blocked on one owner decision (§Phase 0).**
+**Status (2026-07-26): PHASES 0–1 COMPLETE. Waiting for the licensing team's
+174-row review sheet, expected in 24–48 hours.**
 No schema change has been written. No database has been modified. All work so far is
-investigation and documentation, merged in PRs #197, #203, #215, #236.
+read-only investigation and documentation.
 
 **Repository:** `u2giants/shared-db` · **Preview:** `rjyboqwcdzcocqgmsyel` ·
 **Production:** `qsllyeztdwjgirsysgai`
@@ -60,9 +61,9 @@ destinations already exist and are empty.
 
 ---
 
-## Phase 0 — the one open decision (BLOCKING)
+## Phase 0 — source decision (COMPLETE 2026-07-26)
 
-**Owner decision required. Both branches are viable; they produce different Phase 1–3 work.**
+**Owner decision:** use the hybrid approach.
 
 Every character in `public.characters` already has a `property_id`, covering the same 335 parent
 style guides as the legacy spine. Meanwhile a 174-row review sheet has been prepared for the
@@ -76,18 +77,23 @@ licensing team (§9).
   build from that. Slower, higher confidence, and resolves the 74 titles that have no property
   anywhere.
 
-**Not yet answered, and it decides this:** does DAM's `property_id` point at *licensing-catalogue*
-properties (`public.properties`) that mostly do not exist in `core.property`? If so Branch A does
-not remove the review, it only relabels it.
+Phase 1 proved that DAM's `property_id` points at licensing/style-guide catalogue parents that
+mostly do not exist in `core.property`: only **367 of 9,622** appearances directly agree with a
+canonical property, while **9,255** require another mapping rule or review.
 
-**Exit:** owner picks A, B, or a hybrid (promote where DAM and Coldlion agree; review the rest —
-likely the right answer). Record the choice and the reasoning in this file.
+The approved hybrid rules are:
 
-**Before finishing this phase:** re-read Phases 1–7 below and report any drift the decision causes.
+1. Accept the **367 direct agreements**.
+2. Apply the already-decided Disney Classics → `CP` and no-code rules.
+3. Use the licensing team's 174-row review sheet for the remaining family/bucket decisions.
+
+The licensing-team sheet is expected in **24–48 hours**. Its delay blocks the Phase 3 backfill,
+not the additive Phase 2 schema design. The owner's earlier instruction not to write a migration
+remains in force until new approval is given.
 
 ---
 
-## Phase 1 — reconcile the two property populations (read-only)
+## Phase 1 — reconcile the two property populations (COMPLETE 2026-07-26)
 
 **Goal:** a written, evidence-backed answer to "can `public.characters.property_id` be trusted as
 the canonical parent, and for how many rows?"
@@ -97,8 +103,10 @@ name, and by provenance in `core.taxonomy_source_ref`. Quantify: how many of the
 land on a property that exists canonically, how many do not, and why not (classics → `CP`,
 no-code titles, genuinely missing).
 
-**Exit:** a `docs/verification/characters-property-reconcile-<date>/README.md` with the counts and
-the residual list. **No writes.**
+**Result:** complete in
+[`docs/verification/characters-property-reconcile-20260726/`](docs/verification/characters-property-reconcile-20260726/README.md).
+The read-only evidence found 367 directly reconcilable appearances and a 9,255-appearance
+residual across 314 populated licensing/style-guide parents. No database writes occurred.
 
 **Before finishing:** re-read Phases 2–7 and report drift.
 
@@ -227,7 +235,8 @@ day 1**; earliest exit **2026-08-09**; Phase 7 (production cutover) **not author
 | Licensing-team review sheet (174 rows) + inputs + how they were captured | [`docs/verification/style-guide-property-mapping-20260726/`](docs/verification/style-guide-property-mapping-20260726/README.md) |
 | Regenerator for that sheet | `tools/generate-style-guide-property-mapping.mjs` |
 
-Delivered to the owner on 2026-07-26; **not yet returned by the licensing team**.
+Delivered to the owner on 2026-07-26; **not yet returned by the licensing team**. Expected in
+24–48 hours. Phase 0 approved the hybrid path, including acceptance of all 367 direct agreements.
 
 ## 10. What was tried that did NOT work
 
@@ -258,3 +267,4 @@ model doc §6.
 | Date | Change |
 |---|---|
 | 2026-07-26 | Created. Phases 0–7 defined; Phase 0 open pending owner decision. |
+| 2026-07-26 | Phases 0–1 completed. Owner approved the hybrid source: accept 367 direct agreements, apply Classics/no-code rules, and wait for the 174-row licensing review for the residual mapping. |
