@@ -275,10 +275,68 @@ Key points:
 - **Sub-style guides** are modelled as `parent_style_guide_id` self-reference on the style guide,
   *not* as a level between property and character.
 - **Talent likeness belongs on the style guide asset (file)**, per §2.2 — not on
-  `core.character`, not on `core.style_guide`, and not on `core.property`. The asset table is not
-  yet traced (open question 5).
+  `core.character`, not on `core.style_guide`, and not on `core.property`. That asset table is
+  **`dam.style_guide_file`** (app-owned, §5A.0a); its data lives in `public.style_guide_files`
+  today. So the likeness flag is an **app-owned** attribute, not a shared-catalogue one.
 - The legacy 9,622 rows are **bridge edges**, so the loader must resolve each edge's character to
   a single canonical character identity before inserting — otherwise it recreates the duplication.
+
+### 5A.0a Shared vs app-owned: the names/files split (owner ruling, 2026-07-26)
+
+Two questions decide where each table lives, and the owner answered both:
+
+> "The Characters and style guides tables will probably be accessed by DAM and PM and possibly
+> PLM." … "style-guide **files** is only popdam/popsg. No one else needs that. When I said
+> 'style guides' I meant the **names** of the style guides themselves and their associations
+> with properties, licensors, characters." — owner, 2026-07-26
+
+Per AGENTS.md §4.1 (two-or-more apps ⇒ shared `core.*`; one app ⇒ that app's own schema), the
+line falls **between the catalogue and the files**:
+
+| Thing | Consumers | Home |
+|---|---|---|
+| Character identities | DAM, PM, probably PLM | **`core.character`** |
+| Style guide **names** + their links to property / licensor / character | DAM, PM, probably PLM | **`core.style_guide`**, **`core.style_guide_character`** |
+| Style guide **files** (the crawled artefacts on the NAS) | PopDAM / PopSG only | **`dam.style_guide_file`** (app-owned, stays private) |
+| Asset ↔ character links | PopDAM only | **`dam.asset_character`** |
+
+**Why this matters:** it roughly halves what moves into the shared schema. The catalogue is
+small and shared; the file inventory is large (279,783 rows as of 2026-07-26) and of no interest
+to any app but DAM/PopSG. Putting the file rows in `core.*` would bloat the shared surface for
+every consumer and invite cross-app coupling to DAM's crawler internals.
+
+**Do not** add `dam` to `pgrst.db_schemas` to make DAM's private tables browser-reachable —
+AGENTS.md §8.1 forbids it. Shared data reaches the browser because it is in `core.*`; app-private
+data reaches DAM's workers through `public` `SECURITY DEFINER` functions.
+
+### 5A.0b Where the data physically sits today (measured 2026-07-26)
+
+PopDAM already built working copies of all of this in the **legacy `public` schema**, which
+predates shared-db and is not the naming convention. The correctly-named canonical/app homes
+exist but are **empty**:
+
+| Data, where it lives now | Rows | Correct home | Rows |
+|---|---:|---|---:|
+| `public.characters` (each row already carries `property_id`) | 9,622 | `core.character` | **0** |
+| `public.style_guide_files` (crawled from `edge1:/volume1/styleguides`; parsed into `licensor_name`, `property_folder`, `style_guide_folder`) | 279,783 | `dam.style_guide_file` | **0** |
+| `public.asset_characters` | 117,012 | `dam.asset_character` | **0** |
+| `public.properties` (licensing catalogue, broader than Coldlion) | 500 | `core.property` (Coldlion-scoped, §5A.2) | 256 |
+
+Two consequences:
+
+1. **`public.characters` already solves the parent problem.** All 9,622 rows are parented, across
+   the same 335 parent style guides seen in the legacy spine. Before hand-curating a mapping,
+   check whether this existing mapping can simply be promoted.
+2. **`public.style_guide_files` already parsed the folder tree** into property/style-guide
+   columns — the same derivation §5A.0 does by fuzzy matching. Prefer the crawler's output over
+   re-deriving it.
+
+> **Migration-order warning.** DAM currently *reads* `public.*`. Relocating a table out from
+> under a live app breaks it — this happened on 2026-07-21 with the dflow sample-tracking tables
+> and had to be reverted (see
+> [`designflow-schema-segregation.md`](designflow-master-data-migration/designflow-schema-segregation.md)
+> warning box). Sequence: **copy into the new home → repoint the app → only then retire the old
+> table.** Never move first.
 
 ### 5A.0 How a style guide resolves to its property (owner rules, 2026-07-23/24)
 
@@ -387,16 +445,38 @@ things in different systems (see the merch-group doc's opening warning). Ask fir
 4. **What is the true distinct-character count?** At most 8,307 by normalized name, but names
    carry qualifiers (`ROBIN AKA DICK GRAYSON`, `HARLEY QUINN AKA DR. HARLEEN FRANCIS QUINZEL`)
    so real identity resolution needs rules, and probably a human pass.
-5. **Where do style guide assets (files) live**, given that talent likeness attaches to the
-   file? Not yet traced.
+5. ~~**Where do style guide assets (files) live?**~~ **RESOLVED 2026-07-26.** They are the
+   279,783 rows in `public.style_guide_files` (crawled from `edge1:/volume1/styleguides` by
+   `public.style_guide_crawl_runs`), whose correct home is the app-owned
+   `dam.style_guide_file`. Talent likeness therefore attaches to an **app-owned** row, not a
+   shared-catalogue one (§5A.0a/§5A.0b).
 6. ~~**`core.character` shape.**~~ **RESOLVED 2026-07-23.** The single `property_id` FK is
    **correct** — axis 1 is linear (§1.0). Multiplicity belongs in a new
    `core.style_guide_character` bridge, not in `core.character`. Target model in §5A.
 
 **Blocking status:** questions 3 and 3a are **resolved in principle** by §5A.0; what remains is
 a curation/review pass, not an unknown. The strategic question (§5A.2) is **decided**: mirror
-Coldlion, classics → `CP`, no-code titles excluded. Questions 1, 2, 4, and 5 do not block the
-schema change but do block a fully correct *backfill*.
+Coldlion, classics → `CP`, no-code titles excluded. Question 5 is resolved. Questions 1, 2 and 4
+do not block the schema change but do block a fully correct *backfill*.
+
+### 7.1 Sequencing against the ColdLion licensor/property cutover (2026-07-26)
+
+Characters and style guides hang off **properties**, and properties are being re-sourced right
+now by a separate, disciplined workstream:
+[`fix_coldlion_licensor_property_cutover.md`](../fix_coldlion_licensor_property_cutover.md).
+
+State on 2026-07-26: Phases 0–5 complete (Phase 5 not needed); **Phase 6 is a 14-day parallel-run
+gate, day 1**, earliest exit **2026-08-09**; Phase 7 (production source cutover) is **not
+authorized**; production `qsllyeztdwjgirsysgai` is **untouched** — all of it runs on preview
+`rjyboqwcdzcocqgmsyel`.
+
+Implications for this work:
+
+- **Not blocked.** Production properties are stable during the gate, so design and preview work
+  on characters/style guides can proceed.
+- **Do not land a character/style-guide cutover in the same window as Phase 7.** Both touch the
+  property spine; per AGENTS.md §4 rule 1 (one schema change in flight), serialize them.
+- **Re-read that plan's status header before starting any migration here** — it moves daily.
 
 ---
 
@@ -412,3 +492,4 @@ schema change but do block a fully correct *backfill*.
 | Date | Change |
 |---|---|
 | 2026-07-23 | Created from owner corrections on style guides, sub-style guides, talent likeness, and Marvel royalty rates; live measurements added |
+| 2026-07-26 | Owner ruling on shared vs app-owned (§5A.0a): character identities and style-guide **names/associations** are shared (`core.*`, used by DAM + PM + probably PLM); style-guide **files** are PopDAM/PopSG-only (`dam.style_guide_file`). Recorded where the data physically sits today (§5A.0b) and the copy→repoint→retire migration order. Resolved open question 5. Added §7.1 sequencing against the ColdLion Phase 6 gate. |
