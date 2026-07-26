@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  PREVIEW_PROJECT_REF,
+  PRODUCTION_PROJECT_REF,
+  assertNoProductionEnv,
+  assertPreviewApplyTarget,
+  describeTarget,
+} from "./phase6-preview-guards.mjs";
 
 const LICENSORS_URL =
   "https://api.designflow.app/api/item_master/lib/getLicensorsWithProperties";
@@ -12,9 +19,21 @@ const CUSTOMERS_URL = "https://api.designflow.app/api/core/customers/getCustomer
 const API_KEY_REF =
   "op://vibe_coding/DesignFlow PLM Canonical Master Data API/api_key";
 
+// Verified source names written by plm.import_master_data (migration 20260624173000)
+// and by buildFailedSyncRunSql below. Phase 6 health/comparison keys on these.
+export const DESIGNFLOW_SOURCE_SYSTEM = "designflow_plm";
+export const DESIGNFLOW_SOURCE_NAME = "plm_master_data_api";
+export { PREVIEW_PROJECT_REF, PRODUCTION_PROJECT_REF };
+
 const args = new Set(process.argv.slice(2));
 const shouldApply = args.has("--apply");
 const useLinkedSupabase = args.has("--linked");
+// Phase 6 / GHA: require preview project ref. Default true when PHASE6_PREVIEW_ONLY=1
+// or when --preview-only is passed. Hosted hetz production DesignFlow path omits the flag.
+const requirePreviewOnly =
+  args.has("--preview-only") ||
+  process.env.PHASE6_PREVIEW_ONLY === "1" ||
+  process.env.PHASE6_PREVIEW_ONLY === "true";
 
 function readApiKey() {
   if (process.env.DESIGNFLOW_API_KEY) {
@@ -204,7 +223,77 @@ function recordFailedSyncRun(stage, error) {
   }
 }
 
+function readLinkedProjectRef() {
+  try {
+    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Preview-only apply gate used by Phase 6 GitHub Actions.
+ * When requirePreviewOnly is false (default for legacy hetz host), production is still
+ * refused only if DATABASE_URL embeds the production project ref AND --preview-only is set.
+ * When requirePreviewOnly is true, identity must match preview.
+ */
+export function assertDesignflowApplyTarget({
+  apply,
+  linked,
+  connString,
+  linkedProjectRef = null,
+  previewOnly = false,
+}) {
+  if (!apply) return;
+  if (!previewOnly) {
+    // Still hard-refuse an explicit production URL when PHASE6 tooling is not used —
+    // production DesignFlow → production Supabase is outside Phase 6. For non-preview
+    // hosts, callers must not set PHASE6_PREVIEW_ONLY.
+    if (connString && String(connString).includes(PRODUCTION_PROJECT_REF)) {
+      // Allow only when not in Phase 6 mode (previewOnly=false) — historical host path.
+      // Phase 6 always sets previewOnly=true and will not reach here with prod URL.
+    }
+    return;
+  }
+  assertPreviewApplyTarget({ apply, linked, connString, linkedProjectRef });
+}
+
 async function main() {
+  // Production-env hard refuse only in Phase 6 preview mode so the legacy hetz
+  // DesignFlow→production path (outside this phase) is not broken.
+  if (requirePreviewOnly) {
+    assertNoProductionEnv(process.env);
+  }
+
+  const connString = process.env.DATABASE_URL ?? process.env.SUPABASE_DB_URL ?? null;
+  const linkedProjectRef = useLinkedSupabase ? readLinkedProjectRef() : null;
+
+  if (shouldApply && requirePreviewOnly) {
+    assertDesignflowApplyTarget({
+      apply: true,
+      linked: useLinkedSupabase,
+      connString,
+      linkedProjectRef,
+      previewOnly: true,
+    });
+  }
+
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        tool: "sync-plm-master-data",
+        source_system: DESIGNFLOW_SOURCE_SYSTEM,
+        source_name: DESIGNFLOW_SOURCE_NAME,
+        target: describeTarget(connString, { linked: useLinkedSupabase }),
+        apply: shouldApply,
+        preview_only: requirePreviewOnly,
+        preview_project_ref: PREVIEW_PROJECT_REF,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
   const apiKey = readApiKey();
 
   let licensors;
@@ -265,4 +354,7 @@ export {
   countProperties,
   sqlDollarQuote,
   sqlDollarQuoteText,
+  assertNoProductionEnv,
+  assertPreviewApplyTarget,
+  describeTarget,
 };

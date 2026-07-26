@@ -1,23 +1,25 @@
 # HANDOFF — shared-db current state
 
-## CURRENT PRIORITY — ColdLion Licensor/Property Phase 4 COMPLETE on preview (542 approved links); Phase 5 ruled NOT NEEDED
+## CURRENT PRIORITY — ColdLion Licensor/Property Phase 6 IN PROGRESS (preview applied; clock STARTED day 1)
 
-**Phase 4 is complete and verified on preview `rjyboqwcdzcocqgmsyel`; production was never
-accessed.** Albert approved only the 542 exact-compatible mappings (38 Licensor + 504 Property
-source rows → 271 canonical UUIDs), frozen at hash
-`1230f5a12d0f2a3029f1d3df17fc5b5f`. Committed run
-`875109b5-2ac9-41a9-8280-4c4a36f6b639` added 542 deterministic ColdLion source refs beside the
-505 preserved `designflow_plm` refs and set 542 typed mirror links. Idempotent runs
-`9dd0f675-30fc-4ff2-8010-9558bc075617` and
-`eb045c1b-85d5-4d0e-bb25-f86004e52f5a` each reported 0 inserted, 0 updated, and 542 unchanged.
+**Phase 6A is applied and exercised on preview `rjyboqwcdzcocqgmsyel`. Production
+`qsllyeztdwjgirsysgai` remains untouched.** Migration `20260726180000` is applied (do not edit
+that file). Day-1 manual dual-lane + green observation/health + forced-failure drills are
+verified. The **14-day clock STARTED 2026-07-26 (day 1)**; Phase 6 is still **IN PROGRESS** and
+cannot exit before **14 distinct green scheduled days** (earliest calendar date **2026-08-09**,
+subject to all §9.4 criteria). GHA secrets, workflow dispatch/schedule enable, and remaining Git/PR
+work are supervising-agent owned.
 
-Canonical counts remain 26 Licensors / 256 Properties. UUID, status, and parent hashes are
-unchanged. NASA, FRIDA KAHLO Licensor, ZAG, ColdLion-only, canonical-only, FRIENDS TV, and every
-Phase 5 candidate were excluded. Phase 5 is **NOT NEEDED / BLOCKED** because Albert approved zero
-canonical creates; do not begin Phase 5 schema or data work. The next executable phase is Phase 6
-parallel-run preparation, but its 14-day clock has not started and no schedule was created.
+Phase 4 (preview): 542 approved links (hash `1230f5a12d0f2a3029f1d3df17fc5b5f`); Phase 5 NOT NEEDED;
+NASA unlinked. Day-1 green observation `a7de69bc-60d8-4d77-8b62-1e5af37fe28b` still coexists with
+comparison drill `f5f6129a-21ec-4c23-a3ff-cdad22993da4` (append-only proven).
 
-Full implementation, failures, run IDs, hashes, rollback proof, access path, and exact next gates:
+Authoritative Phase 6 handoff + evidence:
+[`fix_coldlion_licensor_property_phase6_handoff.md`](fix_coldlion_licensor_property_phase6_handoff.md)
+and
+[`docs/verification/coldlion-licensor-property-phase6-20260726/`](docs/verification/coldlion-licensor-property-phase6-20260726/README.md).
+
+Prior Phase 4 detail:
 [`fix_coldlion_licensor_property_phase4_handoff.md`](fix_coldlion_licensor_property_phase4_handoff.md)
 and
 [`docs/verification/coldlion-licensor-property-phase4-20260725/`](docs/verification/coldlion-licensor-property-phase4-20260725/README.md).

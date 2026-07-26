@@ -1,21 +1,21 @@
 # ColdLion licensor/property master-data cutover
 
-**Status (2026-07-25): Phase 3 (reconciliation and decisions) is complete on preview
-`rjyboqwcdzcocqgmsyel`; Phase 4 is BLOCKED on human approval.** The Phase 3 entry gate is satisfied
-by a fresh read-only DesignFlow `getLicensorsWithProperties` snapshot (HTTP 200, 2026-07-26T02:06:51Z,
-edge hash `151bc8cedc988f9ad3ddc5eba6036275`; DesignFlow recovered from its 2026-07-19 502 outage)
-whose 256/256 property parent edges agree with canonical. The row-level ruling ledger (570 rows,
-100% coverage, zero unexplained ambiguity), the frozen+hashed Phase 4 mapping input, and the
-immutability corroboration (all 14 baseline checks pass) are in
+**Status (2026-07-26): Phase 6 is IN PROGRESS on preview; 14-day clock STARTED (day 1).**
+Phases 3–4 complete; Phase 5 NOT NEEDED. Migration `20260726180000` is **applied** to preview
+`rjyboqwcdzcocqgmsyel` (do not edit that applied file). Day-1 manual DesignFlow + ColdLion
+`mirror_only` + green observation/health + forced-failure drills are verified; production
+`qsllyeztdwjgirsysgai` untouched. Clock start **2026-07-26**; earliest possible exit **2026-08-09**
+only after 14 distinct green scheduled days and full §9.4 criteria — Phase 6 is **not** complete.
+NASA unlinked; no Phase 7/8. Handoff:
+[`fix_coldlion_licensor_property_phase6_handoff.md`](fix_coldlion_licensor_property_phase6_handoff.md);
+evidence:
+[`docs/verification/coldlion-licensor-property-phase6-20260726/`](docs/verification/coldlion-licensor-property-phase6-20260726/README.md).
+
+**Historical Phase 3 note (2026-07-25):** Phase 3 (reconciliation and decisions) completed on preview
+with a fresh DesignFlow snapshot (HTTP 200, edge hash `151bc8cedc988f9ad3ddc5eba6036275`). Evidence:
 [`docs/verification/coldlion-licensor-property-phase3-20260725/`](docs/verification/coldlion-licensor-property-phase3-20260725/README.md).
-**The frozen approved-mapping input is EMPTY** (`approved_mapping_hash =
-d41d8cd98f00b204e9800998ecf8427e`): Phase 3 recorded no human approval. The 542 exact-compatible
-matches are **proposed** (auto_eligible, hash `1230f5a12d0f2a3029f1d3df17fc5b5f` → 271 distinct
-canonical UUIDs), and 28 non-automatic rows (NASA ×2, FRIDA KAHLO licensor ×2, ZAG ×2, 12
-ColdLion-only properties, 10 canonical-only incl. FRIENDS TV) await Albert Hazan's disposition.
-NASA is a pending link (hash `2edf77b7ddd8d0405f93d020003b9540`). No canonical/source-reference
-mutation, schedule, production work, or DesignFlow deprecation occurred. The Phase 6 parallel-run
-clock has not started.
+Albert later approved only the 542 exact-compatible mappings (hash `1230f5a12d0f2a3029f1d3df17fc5b5f`);
+Phase 4 linked them on preview. NASA pending hash `2edf77b7ddd8d0405f93d020003b9540` remains unapproved.
 
 **Status:** Phase 2B completed two full preview `mirror_only` snapshots on 2026-07-24.
 Runs `a7eb9c1b-3868-46bc-8d9a-615c0b8c98e4` and
@@ -987,7 +987,7 @@ Only if reconciliation finds legitimate ColdLion-only records that applications 
 
 Gate: every new row has an explicit approval record and no unresolved parent/status.
 
-### Phase 6 — parallel run
+### Phase 6 — parallel run — IN PROGRESS (2026-07-26)
 
 Deliver:
 
@@ -998,6 +998,17 @@ Deliver:
 - at least 14 days of evidence.
 
 Gate: all §9.4 success criteria pass.
+
+**Phase 6A status (2026-07-26, preview verified):** migration `20260726180000` **applied** to
+preview (dry-run listed only it). Day-1 evidence: DesignFlow run `2fbc1653-…`, ColdLion mirror
+`f71705f5-…` (560 unchanged, snapshot `a69332e0…`), green observation `a7de69bc-…` / comparison
+`62843601-…` / health `8d585094-…`, comparison drill `f5f6129a-…` + health drill with expected
+exit 1; final snapshot proves green non-drill coexists with drill. N1 baseline hashes match Phase 4
+pins (26/256, 1047 refs, 542/505, 38/504, UUID/status/parent hashes as recorded in the Phase 6
+verification README). **Clock STARTED 2026-07-26 (day 1).** Still **IN PROGRESS**: GHA
+secrets/dispatch/`PHASE6_SCHEDULE_ENABLED`, and **≥13 more green scheduled days** (earliest exit
+date 2026-08-09 if all criteria hold). Production not accessed. Never edit the applied migration.
+See `fix_coldlion_licensor_property_phase6_handoff.md`.
 
 ### Phase 7 — production source cutover
 
@@ -1353,18 +1364,16 @@ Per-phase cold-start contracts:
   2026). Each property requires an approved `licensor_id` parent before any app visibility. If Albert
   approves none, Phase 5 is explicitly **not needed**. NASA needs no create (canonical `X-NASA`
   already exists; it is a Phase 4 link).
-- **Phase 6 — parallel run.** Entry: Phases 3–5 complete or explicitly not
-  needed, schedules/alerts tested, and DesignFlow comparison trustworthy.
-  Deliver: at least 14 consecutive days, two ColdLion full snapshots, two
-  DesignFlow refreshes, daily comparisons, application smoke evidence, and no
-  unexplained failures. Use persistent monitoring plus a fresh evaluation
-  session; do not pretend one chat turn constitutes the observation window.
-  Exit: all §9.4 criteria pass and the production-cutover evidence package is complete.
-  **DesignFlow status (from Phase 3):** `getLicensorsWithProperties` is healthy again (HTTP 200), so
-  the entry condition's "trustworthy DesignFlow comparison" is satisfiable. The 14-day clock still
-  requires *scheduled* ColdLion + DesignFlow refreshes; the latest scheduled `designflow_plm`
-  success is still 2026-07-08, and Phase 3's fresh pull was a one-off read-only GET, not a scheduled
-  run. Phase 6 owns standing up the schedules.
+- **Phase 6 — parallel run — IN PROGRESS (preview applied; clock STARTED day 1 on 2026-07-26).**
+  Entry: Phases 3–5 complete or explicitly not needed (satisfied). Deliver: at least 14 consecutive
+  days, two ColdLion full snapshots, two DesignFlow refreshes, daily comparisons, application smoke
+  evidence, and no unexplained failures. Use persistent monitoring plus a fresh evaluation session;
+  do not pretend one chat turn (or one manual day) completes the observation window. Exit: all §9.4
+  criteria pass.
+  **6A applied on preview:** migration `20260726180000`; day-1 green observation
+  `a7de69bc-60d8-4d77-8b62-1e5af37fe28b`; drills proven append-only. **Still required:** GHA schedule
+  enable + **14 distinct green scheduled days** (earliest exit calendar date **2026-08-09** if all
+  criteria hold). Production untouched; Phase 7 not authorized.
 - **Phase 7 — production source cutover.** Entry: Phase 6 evidence, rollback
   rehearsal, secure pre-cutover export/hashes, clean production dry-run, and
   Albert's explicit production-window approval. Deliver: guarded final snapshot,

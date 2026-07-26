@@ -8,6 +8,11 @@ import {
   buildFailedSyncRunSql,
   countProperties,
   sqlDollarQuoteText,
+  assertDesignflowApplyTarget,
+  DESIGNFLOW_SOURCE_NAME,
+  DESIGNFLOW_SOURCE_SYSTEM,
+  PREVIEW_PROJECT_REF,
+  PRODUCTION_PROJECT_REF,
 } from "./sync-plm-master-data.mjs";
 
 test("countProperties sums nested property arrays and tolerates missing", () => {
@@ -54,5 +59,48 @@ test("sqlDollarQuoteText refuses text that would break out of its own quoting", 
   assert.throws(
     () => sqlDollarQuoteText("plm_err", "boom $plm_err$ escape"),
     /dollar quote tag/,
+  );
+});
+
+test("DesignFlow source names match Phase 6 health/comparison contracts", () => {
+  assert.equal(DESIGNFLOW_SOURCE_SYSTEM, "designflow_plm");
+  assert.equal(DESIGNFLOW_SOURCE_NAME, "plm_master_data_api");
+  const sql = buildFailedSyncRunSql("fetch", "x");
+  assert.match(sql, /'designflow_plm'/);
+  assert.match(sql, /'plm_master_data_api'/);
+});
+
+test("assertDesignflowApplyTarget with previewOnly refuses production", () => {
+  assert.throws(
+    () =>
+      assertDesignflowApplyTarget({
+        apply: true,
+        linked: false,
+        connString: `postgresql://postgres.${PRODUCTION_PROJECT_REF}:x@h/db`,
+        previewOnly: true,
+      }),
+    /production|preview/,
+  );
+});
+
+test("assertDesignflowApplyTarget with previewOnly accepts preview URL", () => {
+  assert.doesNotThrow(() =>
+    assertDesignflowApplyTarget({
+      apply: true,
+      linked: false,
+      connString: `postgresql://postgres.${PREVIEW_PROJECT_REF}:x@aws-1-us-east-1.pooler.supabase.com:6543/postgres`,
+      previewOnly: true,
+    }),
+  );
+});
+
+test("assertDesignflowApplyTarget without previewOnly is a no-op for apply target shape", () => {
+  assert.doesNotThrow(() =>
+    assertDesignflowApplyTarget({
+      apply: true,
+      linked: false,
+      connString: "postgresql://anything",
+      previewOnly: false,
+    }),
   );
 });
