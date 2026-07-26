@@ -1,5 +1,16 @@
 # ColdLion licensor/property master-data cutover
 
+> **Decision update — 2026-07-26:** Albert decided not to wait for 14 elapsed days of
+> slow-moving ColdLion data. ColdLion is the canonical ERP source for Licensor/Property source
+> identity and descriptions; failures must be detected and fixed in our integration. The
+> implementation plan that replaces the active elapsed-time gate with deterministic readiness,
+> fail-closed monitoring, preview rollback rehearsal, explicit production approval, and an
+> intensified 24-hour production watch is
+> [`plan_coldlion_licensor_property_accelerated_cutover.md`](plan_coldlion_licensor_property_accelerated_cutover.md).
+> Read its STATUS table first. Until that replacement gate is implemented and proven, the
+> production prohibition below remains in force. The historical 14-day text is retained as the
+> prior plan and evidence context; it is not the intended final gate.
+
 **Status (2026-07-26): Phase 6 IN PROGRESS — machinery + GHA workflow proof COMPLETE; 14-day
 scheduled gate open (day 1).** Phases 3–4 complete; Phase 5 NOT NEEDED. Migration
 `20260726180000` applied on preview `rjyboqwcdzcocqgmsyel` (do not edit). Parser-fix merge

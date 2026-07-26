@@ -2,6 +2,16 @@
 
 ## CURRENT PRIORITY — ColdLion Licensor/Property Phase 6 IN PROGRESS (machinery + GHA proof COMPLETE; 14-day gate open)
 
+**PLANNING UPDATE — 2026-07-26:** Albert rejected the 14-day elapsed-time wait because ColdLion
+Licensor/Property data changes slowly and ColdLion is the canonical ERP source. The implementation
+plan to replace that gate with deterministic readiness proof, an explicit production window,
+fail-closed monitoring, operational rollback, and a 24-hour intensified watch is
+[`plan_coldlion_licensor_property_accelerated_cutover.md`](plan_coldlion_licensor_property_accelerated_cutover.md).
+Read its STATUS table first. This is a plan, not production authorization: until its preview
+rehearsal and readiness steps are implemented, the current production prohibition remains in
+force. Application verification must reflect reality: DesignFlow PLM is fully live, DAM is
+partially live, and CRM/PM are in development.
+
 **Phase 6A machinery and GitHub workflow proof are COMPLETE on preview
 `rjyboqwcdzcocqgmsyel`. Production `qsllyeztdwjgirsysgai` remains untouched.** Migration
 `20260726180000` is applied (do not edit). Parser fix PR **#233** /

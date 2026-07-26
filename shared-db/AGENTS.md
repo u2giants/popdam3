@@ -289,6 +289,13 @@ Anything involving licensor, property, big theme, little theme, style guide, art
 art source, artist, age group, or `mgTypeCode` must start at
 [`docs/merch-group-taxonomy-architecture.md`](docs/merch-group-taxonomy-architecture.md).
 
+For the active ColdLion Licensor/Property source cutover, read the STATUS table in
+[`plan_coldlion_licensor_property_accelerated_cutover.md`](plan_coldlion_licensor_property_accelerated_cutover.md)
+before re-deriving or re-planning anything. Albert decided on 2026-07-26 to replace the original
+14-day elapsed-time gate with an invariant-based readiness gate plus rapid post-cutover monitoring.
+The existing production prohibition remains in force until that plan's preview rehearsal,
+readiness, and explicit production-approval gates pass.
+
 **If your work touches characters, style guides, or royalty rates, read
 [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
 FIRST.** It documents a layer the merch-group doc does not cover. There are **two axes, and chaining

@@ -1,5 +1,13 @@
 # Handoff — ColdLion licensor/property Phase 6 (IN PROGRESS)
 
+> **Planning update — 2026-07-26:** Albert rejected the 14-day elapsed-time wait. ColdLion is the
+> canonical ERP source and its Licensor/Property data changes slowly, so the replacement safety
+> model is deterministic readiness proof plus rapid fail-closed monitoring and rollback. The
+> fresh-session implementation brief is
+> [`plan_coldlion_licensor_property_accelerated_cutover.md`](plan_coldlion_licensor_property_accelerated_cutover.md).
+> Read its STATUS table first. This decision does not itself authorize production: the existing
+> production prohibition stays in force until the replacement preview and approval gates pass.
+
 ## 1. What this application is
 
 `u2giants/shared-db` owns the shared Supabase schema and data-integration contracts. Licensors and
