@@ -1,18 +1,23 @@
 # HANDOFF — shared-db current state
 
-## CURRENT PRIORITY — ColdLion Licensor/Property Phase 6 IN PROGRESS (preview applied; clock STARTED day 1)
+## CURRENT PRIORITY — ColdLion Licensor/Property Phase 6 IN PROGRESS (machinery + GHA proof COMPLETE; 14-day gate open)
 
-**Phase 6A is applied and exercised on preview `rjyboqwcdzcocqgmsyel`. Production
-`qsllyeztdwjgirsysgai` remains untouched.** Migration `20260726180000` is applied (do not edit
-that file). Day-1 manual dual-lane + green observation/health + forced-failure drills are
-verified. The **14-day clock STARTED 2026-07-26 (day 1)**; Phase 6 is still **IN PROGRESS** and
-cannot exit before **14 distinct green scheduled days** (earliest calendar date **2026-08-09**,
-subject to all §9.4 criteria). GHA secrets, workflow dispatch/schedule enable, and remaining Git/PR
-work are supervising-agent owned.
+**Phase 6A machinery and GitHub workflow proof are COMPLETE on preview
+`rjyboqwcdzcocqgmsyel`. Production `qsllyeztdwjgirsysgai` remains untouched.** Migration
+`20260726180000` is applied (do not edit). Parser fix PR **#233** /
+`18ab164ce503ba875413a7d4573597032c56be81`. GHA lanes proven (DesignFlow
+`30203333356`, ColdLion `30203361246`, green compare `30203975505` / observation
+`16373e68-…`, green health `30204001916`, force-fail compare `30204031010` exit 1, force-fail
+health `30204054859` exit 1). Pre-fix compare `30203386465` retained as caught parser
+failure (DB observation `bf9e8daf-…` was green). Secrets `COLDLION_API_KEY` /
+`DESIGNFLOW_API_KEY` set; **`PHASE6_SCHEDULE_ENABLED=true` since 2026-07-26T13:27:41Z** —
+preview schedules **ACTIVE**.
 
-Phase 4 (preview): 542 approved links (hash `1230f5a12d0f2a3029f1d3df17fc5b5f`); Phase 5 NOT NEEDED;
-NASA unlinked. Day-1 green observation `a7de69bc-60d8-4d77-8b62-1e5af37fe28b` still coexists with
-comparison drill `f5f6129a-21ec-4c23-a3ff-cdad22993da4` (append-only proven).
+**14-day clock STARTED 2026-07-26 (day 1).** Phase 6 overall is still **IN PROGRESS** until
+**14 distinct green scheduled days** (earliest exit **2026-08-09** if §9.4 holds).
+
+**Exact next action:** monitor scheduled GitHub runs and append-only observations. **Do not start
+Phase 7.**
 
 Authoritative Phase 6 handoff + evidence:
 [`fix_coldlion_licensor_property_phase6_handoff.md`](fix_coldlion_licensor_property_phase6_handoff.md)

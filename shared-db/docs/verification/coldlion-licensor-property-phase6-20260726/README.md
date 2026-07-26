@@ -1,16 +1,33 @@
 # ColdLion Licensor/Property Phase 6 — parallel-run evidence (IN PROGRESS)
 
 **Date:** 2026-07-26
-**Branch:** `codex/coldlion-licensor-property-phase6`
 **Environment:** preview `rjyboqwcdzcocqgmsyel` only
 **Production `qsllyeztdwjgirsysgai`:** **untouched**
-**Phase status:** **IN PROGRESS**
-**14-day observation clock:** **STARTED 2026-07-26 (day 1 evidence recorded)**
-**Earliest possible Phase 6 exit date:** **2026-08-09**, and only if there are **14 distinct green scheduled days** plus full §9.4 exit criteria — one manual day does **not** complete Phase 6.
+**Phase 6 overall:** **IN PROGRESS** (14-day scheduled observation gate open)
+**Phase 6A machinery + GitHub workflow proof:** **COMPLETE**
+**14-day clock:** **STARTED 2026-07-26 (day 1)**
+**Earliest possible Phase 6 exit:** **2026-08-09**, only with **14 distinct green scheduled dates** and full cutover §9.4 criteria
 
-This folder records verified preview results for Phase 6A machinery and **day-1**
-manual dual-lane + comparison + health evidence. It does **not** claim the 14-day
-gate is complete, production cutover, Phase 5 creates, NASA link, or Phase 7/8.
+Parser-fix merge: **`18ab164ce503ba875413a7d4573597032c56be81`** (PR **#233**).
+Schedule active: repository variable **`PHASE6_SCHEDULE_ENABLED=true`** at **2026-07-26T13:27:41Z**.
+
+This folder is the street-newcomer record of Phase 6A deploy, day-1 evidence, parser failure/fix,
+and **final GHA workflow proof**. It does **not** claim the 14-day gate is finished, production
+cutover, Phase 5 creates, NASA link, or Phase 7/8.
+
+---
+
+## 0. What a fresh developer must know
+
+| Question | Answer |
+|---|---|
+| What is Phase 6? | Parallel run: scheduled ColdLion `mirror_only` + DesignFlow master-data sync + daily comparison + health/alerts on **preview only**, for ≥14 real days |
+| Is the plumbing done? | **Yes** — migration applied, runners work in GHA, secrets set, schedules **ACTIVE** |
+| Is Phase 6 done? | **No** — still collecting scheduled green days |
+| Day 1 | **2026-07-26** |
+| Earliest exit calendar date | **2026-08-09** (if every required day is green and §9.4 holds) |
+| Exact next action | **Monitor scheduled GitHub runs** and append-only `plm.taxonomy_parallel_observation` rows; do **not** start Phase 7 |
+| Production | Untouched |
 
 ---
 
@@ -21,32 +38,25 @@ gate is complete, production cutover, Phase 5 creates, NASA link, or Phase 7/8.
 | Migration | `20260726180000_coldlion_licensor_property_phase6_parallel_run.sql` |
 | Target | preview `rjyboqwcdzcocqgmsyel` |
 | Dry-run | Listed **only** this migration |
-| Apply | **Applied** to preview |
+| Apply | **Applied** |
 | Production | **Never** linked or applied |
 
-**Do not edit the applied migration file.** Further schema changes need a new
-timestamped migration.
+**Do not edit the applied migration.** Further schema needs a new timestamped file.
 
-Rolled-back SQL contracts (`supabase/tests/coldlion_licensor_property_phase6_contracts.sql`)
-**PASS** on preview after the supervising-agent fixture correction that strips SQL
-comments before scanning for forbidden `ON CONFLICT` text. Preserve that test fix.
+Rolled-back SQL contracts PASS (comment-strip fixture before ON CONFLICT scan — preserve it).
 
 ---
 
-## 2. N1 live snapshot (baseline reproduced exactly)
-
-Measured on preview after Phase 6 migration apply; matches Phase 4 immutability pins:
+## 2. Final baseline snapshot (2026-07-26 09:28 EDT) — exact
 
 | Check | Value |
 |---|---|
-| Canonical licensors | **26** |
-| Canonical properties | **256** |
+| Canonical licensors / properties | **26 / 256** |
 | Mirror licensors / properties | **44 / 516** |
 | `taxonomy_source_ref` total | **1047** |
-| ColdLion refs (`coldlion` / `merchGroupDetails`) | **542** |
-| DesignFlow refs (`designflow_plm`) | **505** |
-| Linked `plm.erp_licensor` | **38** |
-| Linked `plm.erp_property` | **504** |
+| ColdLion refs | **542** |
+| DesignFlow refs | **505** |
+| Linked licensors / properties | **38 / 504** |
 | Licensor UUID hash | `590ea83ea6df1487fcfc1e18b3ef6a0d` |
 | Property UUID hash | `e0e6c36eb02bb2d320c0deaff7aa8f8c` |
 | Licensor status hash | `d9b07759bf80ff227e2fa9bd635d2138` |
@@ -57,133 +67,106 @@ Measured on preview after Phase 6 migration apply; matches Phase 4 immutability 
 
 ---
 
-## 3. Day-1 manual lane runs (preview)
+## 3. Early day-1 manual / local preview runs (historical)
 
-### DesignFlow (`designflow_plm` / `plm_master_data_api`)
+These predate full GHA proof; retained for continuity.
 
-| Field | Value |
-|---|---|
-| `ingest.sync_run` id | `2fbc1653-e8ed-452f-8527-e1bf2761e25f` |
-| Payload counts | **37** licensors, **468** properties, **57** customers |
-
-### ColdLion `mirror_only` (`coldlion` / `coldlion_licensors_properties_api`)
-
-| Field | Value |
-|---|---|
-| `ingest.sync_run` id | `f71705f5-4778-47b0-a8e8-bb6233060933` |
-| Prior mirror counts | **44 / 516** |
-| Accounting | **560** unchanged; **0** inserted; **0** updated |
-| Snapshot hash | `a69332e05d9064723ffa1dfbd870506c` |
-
-Identical re-pull behavior matches Phase 2B snapshot identity (same hash family as prior
-mirror-only evidence).
+| Kind | ID | Notes |
+|---|---|---|
+| DesignFlow (manual) | `2fbc1653-e8ed-452f-8527-e1bf2761e25f` | 37 licensors, 468 properties, 57 customers |
+| ColdLion mirror (manual) | `f71705f5-4778-47b0-a8e8-bb6233060933` | 560 unchanged; snapshot `a69332e0…` |
+| Green observation (manual) | `a7de69bc-60d8-4d77-8b62-1e5af37fe28b` | pass true |
+| Comparison drill (manual) | `f5f6129a-21ec-4c23-a3ff-cdad22993da4` | is_drill; exit 1 |
+| Health drill (manual) | run `5af6aecd-…` | exit 1 |
 
 ---
 
-## 4. Green daily comparison + health (day 1 non-drill)
+## 4. Final GitHub Actions workflow proof (COMPLETE)
 
-### Observation (non-drill, pass)
+Parser fix: merge **`18ab164ce503ba875413a7d4573597032c56be81`** / **PR #233**
+(`tools/phase6-cli-result-parse.mjs` — Go-style `map[...]` box cells + fail-closed + duplicate-key reject).
 
-| Field | Value |
-|---|---|
-| Observation id | `a7de69bc-60d8-4d77-8b62-1e5af37fe28b` |
-| Comparison `sync_run` id | `62843601-1a94-4081-9fa0-e324d14a5f89` |
-| `pass` | **true** |
-| Diffs | **zero** |
-| `is_drill` | **false** |
+### 4.1 Lane workflows
 
-### Health (green)
+| Job | Workflow run | Result | DB `ingest.sync_run` | Notes |
+|---|---|---|---|---|
+| DesignFlow | **30203333356** | **PASS** | `0a3c5474-2f33-49a4-926a-ef888ddbb826` | GHA DesignFlow sync |
+| ColdLion `mirror_only` | **30203361246** | **PASS** | `9b0b9f1c-f4b6-46b4-ba8a-4f1320470b4b` | 44/516 prior; **560 unchanged**; snapshot `a69332e05d9064723ffa1dfbd870506c` |
 
-| Field | Value |
-|---|---|
-| Health `sync_run` id | `8d585094-1bac-4343-8b25-8465ce3dbb05` |
-| `ok` | **true** |
-| Issues | **zero** |
-
-This green non-drill observation is **day 1** of the Phase 6 clock (2026-07-26).
-
----
-
-## 5. Forced-failure drills (append-only; expected non-zero exit)
-
-### Comparison drill
-
-| Field | Value |
-|---|---|
-| Observation id | `f5f6129a-21ec-4c23-a3ff-cdad22993da4` |
-| Comparison `sync_run` id | `c4c76bd5-b4a2-459b-9c5d-e99c5c80e05d` |
-| Alert id | `50ffcfc2-58f8-4e50-97ac-0a9866579a6f` |
-| Exit | **1** (expected) |
-| Notes | Failed drill row **appended**; does not erase green non-drill observation |
-
-### Health drill
-
-| Field | Value |
-|---|---|
-| Health `sync_run` id | `5af6aecd-bdf7-4a4a-9a42-1e8c446da441` |
-| Alert id | `77521ad3-e0dd-4aea-8047-cd7c3338e018` |
-| Exit | **1** (expected) |
-
-### Final read-only proof after drills
-
-- Every count/hash in §2 reproduced again.
-- Green non-drill observation `a7de69bc-60d8-4d77-8b62-1e5af37fe28b` **still present**
-  beside failed drill observation `f5f6129a-21ec-4c23-a3ff-cdad22993da4`.
-
----
-
-## 6. Workflow run 30203386465 — DB green, runner parse failure (integration gap)
+### 4.2 Pre-fix comparison (retained as caught failure)
 
 | Item | Value |
 |---|---|
-| Run id | **30203386465** |
-| SQL / DB | Inserted green observation **`bf9e8daf-84d9-49a1-8958-39aa987adeb4`** (`pass:true`) |
-| Runner | Exit **2** (fail-closed): `parseComparisonResult` → `null` |
-| CLI render | Ubuntu `supabase db query` Unicode box table; cell = Go-style `map[… pass:true … alert_id:<nil> … diffs:[] …]` (unordered keys) |
-| Root cause | Parser accepted JSON/envelope only; not Go `map[...]` cells |
-| Permanent fix | `tools/phase6-cli-result-parse.mjs` (+ tests) on branch `codex/coldlion-phase6-cli-parser-fix` — comparison **and** health |
-| Workflow proof complete? | **No** — re-run GHA compare/health after parser merge and require exit 0/1 (not 2) |
+| Workflow run | **30203386465** |
+| Runner | Exit **2** (parser null on Go-map box cell) |
+| DB | Green observation **`bf9e8daf-84d9-49a1-8958-39aa987adeb4`** (`pass:true`) still valid as DB evidence |
+| Role | Historical proof that fail-closed worked; **not** integration success |
 
-This does **not** invalidate the DB-level green observation. It **does** block claiming the
-scheduled GitHub Actions path is proven.
+### 4.3 Post-parser-fix comparison + health (green)
 
----
+| Job | Workflow run | Result | DB IDs |
+|---|---|---|---|
+| Green comparison | **30203975505** | **PASS** (runner exit 0) | comparison `a3776002-637b-4ca8-b0f4-a6d026a7f1c9`; observation **`16373e68-6f72-43ad-8219-7c999799675d`** (`pass:true`) |
+| Green health | **30204001916** | **PASS** (runner exit 0) | health **`0332f071-b632-4fe4-ad7b-3d48168451da`** (`ok:true`) |
 
-## 7. Clock and exit criteria (not complete)
+### 4.4 Post-parser-fix force-fail drills (PASS-as-drill = expected exit 1)
+
+| Job | Workflow run | Result | DB IDs |
+|---|---|---|---|
+| Forced comparison | **30204031010** | **PASS-as-drill** — parser reported `pass=false`, exit **1** | comparison `9bb99f4b-524f-4e25-9f6e-601afce92aed`; drill observation **`ca8d6615-5fcd-4243-ab7a-de1db23842a1`** |
+| Forced health | **30204054859** | **PASS-as-drill** — parser reported `ok=false`, exit **1** | health **`7f5fa415-6d9e-4cf3-b131-b278e830dae5`** |
+
+No exit **2** on corrected runs.
+
+### 4.5 Secrets and schedule (ACTIVE)
 
 | Item | Status |
 |---|---|
-| Clock start | **2026-07-26** (day 1 manual green evidence) |
-| Days completed | **1** of ≥14 |
-| Earliest calendar date Phase 6 *could* exit | **2026-08-09** |
-| Exit still requires | **14 distinct green scheduled days**, dual-lane successes, daily comparisons, no unexplained failures, §9.4 criteria |
-| Phase 6 complete? | **No** — still **IN PROGRESS** |
-| Workflow integration | **Not proven** until parser fix is merged and re-verified (run 30203386465) |
-
-Supervising-agent **pending**:
-
-- Merge CLI parser fix; re-dispatch compare/health green + force-fail
-- Schedule enable (`PHASE6_SCHEDULE_ENABLED=true`) only after runner exits are correct
-- Ongoing scheduled observation through day 14+
+| `COLDLION_API_KEY` | Added to GitHub repo secrets from 1Password (name only in docs) |
+| `DESIGNFLOW_API_KEY` | Added to GitHub repo secrets from 1Password (name only in docs) |
+| Also required | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD_PREVIEW` (existing migrations pattern) |
+| `PHASE6_SCHEDULE_ENABLED` | **`true`** since **2026-07-26T13:27:41Z** |
+| Preview schedules | **ACTIVE** (DesignFlow 03:30 UTC, ColdLion 04:00, compare 05:00, health `15 */6 * * *`) |
 
 ---
 
-## 8. Explicit non-claims
+## 5. Clock and exit criteria
+
+| Item | Status |
+|---|---|
+| Clock start | **2026-07-26** (day 1) |
+| Green scheduled days completed | **In progress** — day 1 evidence recorded; unattended schedule just enabled |
+| Earliest exit date | **2026-08-09** |
+| Exit requires | 14 **distinct** green **scheduled** dates; dual-lane successes; daily comparisons; no unexplained failures; cutover §9.4 |
+| Machinery + workflow proof | **COMPLETE** |
+| Phase 6 overall | **IN PROGRESS** |
+
+### Exact next action
+
+1. **Monitor** scheduled GitHub Actions runs for the Phase 6 workflow.
+2. **Read** append-only `plm.taxonomy_parallel_observation` (prefer `is_drill=false` + `pass=true` for the gate).
+3. **Do not** start Phase 7 or 8.
+4. After ≥14 distinct green scheduled days, open a fresh evaluation session against cutover §9.4.
+
+---
+
+## 6. Explicit non-claims
 
 - Production was **not** accessed or modified.
+- Phase 6 **14-day gate** is **not** complete.
 - Phase 7 production cutover **not** started.
 - Phase 8 DesignFlow deprecation **not** started.
 - Phase 5 creates **not** reopened; NASA **not** linked.
-- Applied migration `20260726180000` must **not** be edited; corrections need new migrations only.
-- One successful manual day is **not** 14 days of scheduled parallel-run evidence.
+- Applied migration `20260726180000` must **not** be edited.
 
 ---
 
-## 9. Pointers
+## 7. Pointers
 
 | Artifact | Path |
 |---|---|
 | Phase 6 handoff | [`fix_coldlion_licensor_property_phase6_handoff.md`](../../../fix_coldlion_licensor_property_phase6_handoff.md) |
 | Cutover plan | [`fix_coldlion_licensor_property_cutover.md`](../../../fix_coldlion_licensor_property_cutover.md) |
+| Parser fix PR | #233 / merge `18ab164ce503ba875413a7d4573597032c56be81` |
 | Phase 4 links | [`../coldlion-licensor-property-phase4-20260725/`](../coldlion-licensor-property-phase4-20260725/README.md) |
 | Phase 5 NOT NEEDED | [`../coldlion-licensor-property-phase5-not-needed-20260726/`](../coldlion-licensor-property-phase5-not-needed-20260726/README.md) |
