@@ -7,7 +7,16 @@ Properties live in `core.licensor` / `core.property`. **Phase 6** is the paralle
 window on **preview only**: scheduled ColdLion `mirror_only` + DesignFlow master-data sync + daily
 comparison + health/alerts for **≥14 real calendar days**.
 
-## 2. What a developer walking in today must know
+## 2. What we set out to do this session, and why
+
+The business goal was to prove that ColdLion can refresh Licensor and Property source data beside
+the still-enabled DesignFlow lane without changing the canonical records every POP application
+uses. Technically, this session built and proved the preview-only Phase 6 observation machinery:
+scheduled dual-lane refreshes, append-only daily comparisons against the exact Phase 4 baseline,
+health checks, durable alerts, forced-failure drills, and fail-closed GitHub Actions handling. This
+was required before any separately approved production source cutover can be considered.
+
+What a developer walking in today must know:
 
 | Fact | Value |
 |---|---|
@@ -114,7 +123,21 @@ Parser fix path: Go-style `map[...]` box cells, fail-closed on garbage, **duplic
 | JSON-only CLI parse | **Failed in production GHA** (run 30203386465) → fixed PR #233 |
 | Editing applied migration | Forbidden |
 
-## 5. Exact next steps
+## 5. Root causes and key findings
+
+- Audit evidence must be append-only and compared with the frozen Phase 4 baseline; a date-keyed
+  upsert or a first-run-derived baseline can erase or legitimize drift.
+- GitHub's Ubuntu Supabase CLI renders JSONB as a Unicode box table containing Go-style `map[...]`,
+  not reliably as JSON. The shared strict parser must retain exact real-output fixtures and fail
+  closed with exit 2 on ambiguity or malformed output.
+- Scheduled job selection must use the exact `github.event.schedule` string; wall-clock inspection
+  can misroute a delayed cron run.
+- A forced-failure drill is valid only when stored separately from non-drill evidence and when it
+  exits nonzero without changing canonical or mirror data.
+- Fourteen elapsed days are insufficient by themselves: exit requires 14 distinct qualifying
+  scheduled observation dates and every criterion in cutover §9.4.
+
+## 6. Exact next steps
 
 1. **Monitor** scheduled Phase 6 GitHub Actions runs (preview only).
 2. **Confirm** each day has a non-drill `pass=true` observation (and lane successes) in append-only evidence.
@@ -122,23 +145,27 @@ Parser fix path: Go-style `map[...]` box cells, fail-closed on garbage, **duplic
 4. Earliest calendar claim of exit: **2026-08-09** if all criteria hold — do not claim earlier.
 5. **Do not start Phase 7 or Phase 8** without Phase 6 exit + Albert’s explicit production window.
 
-## 6. Constraints and gotchas
+## 7. Constraints and gotchas
 
 - Preview only for Phase 6 observation until Phase 7 is separately approved.
 - Never `--include-all` promote unrelated migrations to production.
 - NASA unlinked; Phase 5 creates blocked; 542 ColdLion links preserved.
 - Secret **names** only in docs; values live in GitHub secrets / 1Password `vibe_coding`.
 
-## 7. Access and environment
+## 8. Access and environment
 
 - Preview pooler port 6543; 1Password vault `vibe_coding` for local work.
 - GHA uses repo secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD_PREVIEW`,
   `COLDLION_API_KEY`, `DESIGNFLOW_API_KEY`.
 
-## 8. Open items
+## 9. Open questions and risks
 
 - Collect remaining green **scheduled** observation days through the 14-day gate.
 - Production promotion of Phase 4+6 migrations = separate approved window (not this phase).
+- A failed or missing scheduled day can extend or reset the qualifying window under cutover §9.4;
+  never infer a pass from elapsed calendar time alone.
+- Phase 7 remains an owner-approved production-window decision, not an automatic next action when
+  the monitoring period ends.
 
 ## Forward-impact audit
 
@@ -148,8 +175,35 @@ Parser fix path: Go-style `map[...]` box cells, fail-closed on garbage, **duplic
 
 ## Handoff self-audit
 
-1. Street newcomer knows machinery is done and only the calendar gate remains? **Yes** (§2–§3).
-2. All workflow + DB IDs recorded? **Yes** (§3.2 + verification README).
-3. Parser failure retained without blocking proof claim after fix? **Yes** (30203386465 historical).
-4. Exact next action single sentence? **Yes** — monitor schedules; no Phase 7.
-5. Production untouched? **Yes**.
+1. **Could a street-new developer continue without asking a question? Yes.** §§1–3 explain the
+   application, objective, environments, completed machinery, immutable baseline, schedule state,
+   and exact present gate; §§5–9 supply root causes, next actions, constraints, access, and risks.
+2. **Could that developer continue as effectively as this session? Yes.** §3 records every workflow
+   and database evidence ID, exact hashes/counts, source names, schedule cadence, applied migration,
+   parser correction, and the authoritative verification artifact.
+3. **Are failed attempts and their causes preserved? Yes.** §4 records the rejected Edge/Vault
+   design, overwriteable date-key evidence, wall-clock routing, the real GitHub Actions parser
+   failure, its run ID, and why the applied migration cannot be edited.
+4. **Is every next step concrete and verifiable? Yes.** §6 requires scheduled-run monitoring,
+   non-drill `pass=true` observations, 14 distinct qualifying dates, a fresh §9.4 evaluation, and
+   explicit production approval before Phase 7.
+5. **Are unfamiliar identifiers, paths, and environments explained? Yes.** §§1–3 and §§7–8 define
+   the repository, schemas, preview/production refs, evidence path, migration, source names,
+   GitHub variable/secrets, and 1Password location without exposing values.
+
+Final synthesis:
+
+1. **Is this handoff comprehensive enough that a brand-new developer with no project or chat
+   context could pick up where this session left off and not skip a beat? Yes.** §§1–5 establish
+   the full purpose, verified state, failure history, root causes, and the only authorized next
+   action.
+2. **Is it detailed enough for that developer to continue with all knowledge needed from this
+   session and the relevant background? Yes.** §§3–4 preserve the operational evidence and
+   non-obvious parser/evidence-design lessons; §§7–9 preserve every active boundary and risk.
+3. **Is every relevant background, goal, outcome, current state, failed attempt, decision,
+   constraint, risk, next action, and verification item present? Yes.** These map respectively to
+   §§1–2, §2, §3, §3, §4, §§3 and 7, §7, §9, §6, and §3. No gap remains.
+
+The self-audit passed on 2026-07-26. The plan's mandatory forward-impact instruction is present in
+`fix_coldlion_licensor_property_cutover.md` under “Mandatory fresh-session and forward-impact
+protocol”; the next session must reread Phases 7–8 and report any downstream drift before ending.
