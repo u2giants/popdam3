@@ -105,6 +105,34 @@ Phase 1 migration/contracts, and the related architecture/API routers:
    smoke tests, and Phases 3–8. Stale sections below are explicitly subordinate
    to this router.
 
+## Active workstream — Characters and style guides → canonical (2026-07-26)
+
+**Separate workstream from ColdLion Phase 6 above. Not blocked by it, but see sequencing.**
+
+`core.character` is **0 rows**; characters and style guides exist only in legacy copies
+(`dflow.properties_and_characters` 10,122; `public.characters` 9,622;
+`public.style_guide_files` 279,783). Model, rules and a phased plan are merged; **no schema
+change written, no database modified.**
+
+- **Plan (Phases 0–7):** [`fix_characters_style_guides.md`](fix_characters_style_guides.md)
+- **Handoff:** [`fix_characters_style_guides_handoff.md`](fix_characters_style_guides_handoff.md)
+- **Model (read before touching anything):** [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
+- **Licensing-team review sheet + regenerator:** [`docs/verification/style-guide-property-mapping-20260726/`](docs/verification/style-guide-property-mapping-20260726/README.md)
+
+Merged: PRs #197 `db97cd9`, #203 `31e6583`, #215 `f9c8758`, #236 `5bd2f5f`, #237 `1a9a4b1`.
+
+**Exact next action:** Phase 0 — blocking **owner decision** (promote DAM's existing
+character→property mapping vs the 174-row licensing-team review). Phase 1 is read-only and can
+start immediately regardless.
+
+**Sequencing:** this touches the property spine, so **its Phase 5 (production apply) must not land
+in the same window as ColdLion Phase 7** (earliest 2026-08-09). Phases 0–4 may proceed.
+
+**Naming trap that has already caused three modelling errors:** in
+`dflow.properties_and_characters`, `type='PROPERTY'` rows are **style guides**, not properties, and
+`type='CHARACTER'` rows are character **appearances** (one per style guide), not distinct
+characters. Batman is one character in 15 style guides.
+
 ## DB Data Admin — non-SSO tester login (DONE — 2026-07-23)
 
 Status: **done.** Owner approved "gate to data-dev only" on 2026-07-23. Shipped in
