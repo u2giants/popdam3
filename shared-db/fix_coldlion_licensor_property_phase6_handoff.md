@@ -35,7 +35,8 @@ New schema needs a new timestamped migration only.
 | Phase 6 complete? | **No** — still **IN PROGRESS** |
 | Earliest possible exit date | **2026-08-09**, only with 14 distinct green **scheduled** days + §9.4 |
 | Phase 7 / 8 | **Not started; forbidden until Phase 6 exits** |
-| GHA secrets / dispatch / schedule enable / Git PR | **Pending — supervising agent** |
+| GHA secrets / dispatch / schedule enable | Secrets exist; schedule path still being hardened |
+| Workflow integration | **Partial** — run `30203386465` was DB-green but runner parse failed (see §3.1) |
 
 ### Entry prerequisites
 
@@ -85,6 +86,19 @@ still exists beside the failed drill (append-only proven live).
 Evidence package:
 [`docs/verification/coldlion-licensor-property-phase6-20260726/README.md`](docs/verification/coldlion-licensor-property-phase6-20260726/README.md).
 
+### 3.1 Workflow run 30203386465 — DB green, runner integration failure (NOT workflow proof)
+
+| Item | Value |
+|---|---|
+| GitHub Actions run | **30203386465** (merged Phase 6 workflow) |
+| Environment | Ubuntu runner + `supabase db query` |
+| DB outcome | **Succeeded** — green observation inserted `bf9e8daf-84d9-49a1-8958-39aa987adeb4` with `pass:true` |
+| Runner outcome | **Failed closed exit 2** — `parseComparisonResult` returned `null` |
+| Root cause | Hosted Supabase CLI rendered the jsonb function result as a Unicode box table whose cell is a **Go-style** `map[key:value …]` dump (key order not fixed; values include `<nil>`, bools, ints, UUIDs, `[]`). The parser only accepted JSON/envelope shapes. |
+| What this is not | Not a Phase 4 baseline drift, not a failed observation write, not production impact. |
+| Permanent fix branch | `codex/coldlion-phase6-cli-parser-fix` — shared `tools/phase6-cli-result-parse.mjs` for comparison **and** health; regression fixtures from real Go-map box output; fail-closed preserved for garbage; exit 2 still failure; **duplicate map keys rejected** (no later-value shadowing). |
+| Next verification (supervising) | Re-run GHA compare + health (green + force-fail) on preview after merge of parser fix; require runner exit **0** on green and **1** on force-fail (not 2). **Do not claim workflow proof complete until those exits are green.** |
+
 ### Source names (unchanged)
 
 | Lane | `source_system` / `source_name` |
@@ -114,15 +128,15 @@ Evidence package:
 
 ## 5. Exact next steps (supervising agent)
 
-1. Finish Git: commit remaining doc updates if needed; PR; merge when ready.
-2. Confirm GH secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD_PREVIEW`,
-   `COLDLION_API_KEY`, `DESIGNFLOW_API_KEY` (names only; values from 1Password `vibe_coding`).
-3. `workflow_dispatch` dry-runs then apply paths as needed against **preview only**.
-4. Set repository variable `PHASE6_SCHEDULE_ENABLED=true` only when ready for unattended days.
-5. Collect **14 distinct green scheduled observation days** (day 1 manual is evidence but
-   exit still needs scheduled dual-lane + comparison success criteria per cutover §9.4).
-6. Earliest calendar check: **2026-08-09** — do not claim exit earlier.
-7. Fresh evaluation session for Phase 6 exit. **Do not start Phase 7/8 without Albert’s production window and Phase 6 exit.**
+1. Merge `codex/coldlion-phase6-cli-parser-fix` (shared Go-map CLI parser + fixtures).
+2. Re-dispatch Phase 6 workflow jobs on **preview**: compare (expect exit 0), force-fail-compare
+   (expect exit 1), health (expect exit 0), force-fail-health (expect exit 1). Confirm no exit 2.
+3. Only after step 2: treat GHA path as integration-proven; then enable
+   `PHASE6_SCHEDULE_ENABLED=true` if still pending.
+4. Collect **14 distinct green scheduled observation days** (§9.4). Day 1 manual + DB row
+   `bf9e8daf-…` count toward evidence but **workflow proof is not complete** until step 2.
+5. Earliest calendar exit: **2026-08-09** if all criteria hold — do not claim earlier.
+6. **Do not start Phase 7/8** without Albert’s production window and Phase 6 exit.
 
 ## 6. Constraints and gotchas
 

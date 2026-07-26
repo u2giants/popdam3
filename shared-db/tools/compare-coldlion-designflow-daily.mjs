@@ -21,12 +21,18 @@ import {
   assertPreviewApplyTarget,
   resolveRunMode,
 } from "./phase6-preview-guards.mjs";
+import {
+  parseComparisonResult,
+  comparisonExitCode,
+} from "./phase6-cli-result-parse.mjs";
 
 export {
   PREVIEW_PROJECT_REF,
   assertPreviewApplyTarget,
   resolveRunMode,
 } from "./phase6-preview-guards.mjs";
+
+export { parseComparisonResult, comparisonExitCode } from "./phase6-cli-result-parse.mjs";
 
 export function buildComparisonSql({ observationDate = null, forceFail = false, maxSuccessAge = "36 hours" } = {}) {
   const daySql =
@@ -41,62 +47,6 @@ export function buildComparisonSql({ observationDate = null, forceFail = false, 
   ${daySql},
   ${sqlDollarQuote("obs_opts", opts)}::jsonb
 );\n`;
-}
-
-/**
- * Parse comparison RPC result from supabase/psql stdout.
- *
- * GLM I3: fail-closed. No unverified CLI flag dependency is required.
- * Known shapes accepted when present:
- *   - JSON array of objects
- *   - Supabase CLI `{ rows: [ { fn_name: <object|string> } ] }` envelope
- *   - bare object with `pass`
- * Unparseable / empty output returns null → comparisonExitCode 2 (CI red).
- * We deliberately do not invent a second CLI output mode that is not already
- * exercised by this repo's Phase 2/4 runners.
- */
-export function parseComparisonResult(stdout) {
-  if (!stdout || !String(stdout).trim()) return null;
-  const trimmed = String(stdout).trim();
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) return parsed[0] ?? null;
-    if (Array.isArray(parsed?.rows)) {
-      const row = parsed.rows[0];
-      if (row && typeof row === "object") {
-        const first = Object.values(row)[0];
-        if (typeof first === "object" && first !== null) return first;
-        if (typeof first === "string") {
-          try {
-            return JSON.parse(first);
-          } catch {
-            return null; // fail-closed: do not treat opaque string as success
-          }
-        }
-        return row;
-      }
-    }
-    if (parsed && typeof parsed === "object" && "pass" in parsed) return parsed;
-  } catch {
-    // fall through — still fail-closed if no structured object found
-  }
-  // Last resort: locate a JSON object that includes pass (table-wrapped dumps).
-  const match = trimmed.match(/\{[\s\S]*"pass"[\s\S]*\}/);
-  if (match) {
-    try {
-      const obj = JSON.parse(match[0]);
-      if (obj && typeof obj === "object" && "pass" in obj) return obj;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-/** 0 = pass, 1 = explicit fail, 2 = unparseable/missing result (fail-closed). */
-export function comparisonExitCode(result) {
-  if (!result || typeof result !== "object" || !("pass" in result)) return 2;
-  return result.pass === true ? 0 : 1;
 }
 
 function readLinkedProjectRef() {

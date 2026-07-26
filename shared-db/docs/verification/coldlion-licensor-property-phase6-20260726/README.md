@@ -132,7 +132,24 @@ This green non-drill observation is **day 1** of the Phase 6 clock (2026-07-26).
 
 ---
 
-## 6. Clock and exit criteria (not complete)
+## 6. Workflow run 30203386465 — DB green, runner parse failure (integration gap)
+
+| Item | Value |
+|---|---|
+| Run id | **30203386465** |
+| SQL / DB | Inserted green observation **`bf9e8daf-84d9-49a1-8958-39aa987adeb4`** (`pass:true`) |
+| Runner | Exit **2** (fail-closed): `parseComparisonResult` → `null` |
+| CLI render | Ubuntu `supabase db query` Unicode box table; cell = Go-style `map[… pass:true … alert_id:<nil> … diffs:[] …]` (unordered keys) |
+| Root cause | Parser accepted JSON/envelope only; not Go `map[...]` cells |
+| Permanent fix | `tools/phase6-cli-result-parse.mjs` (+ tests) on branch `codex/coldlion-phase6-cli-parser-fix` — comparison **and** health |
+| Workflow proof complete? | **No** — re-run GHA compare/health after parser merge and require exit 0/1 (not 2) |
+
+This does **not** invalidate the DB-level green observation. It **does** block claiming the
+scheduled GitHub Actions path is proven.
+
+---
+
+## 7. Clock and exit criteria (not complete)
 
 | Item | Status |
 |---|---|
@@ -141,17 +158,17 @@ This green non-drill observation is **day 1** of the Phase 6 clock (2026-07-26).
 | Earliest calendar date Phase 6 *could* exit | **2026-08-09** |
 | Exit still requires | **14 distinct green scheduled days**, dual-lane successes, daily comparisons, no unexplained failures, §9.4 criteria |
 | Phase 6 complete? | **No** — still **IN PROGRESS** |
+| Workflow integration | **Not proven** until parser fix is merged and re-verified (run 30203386465) |
 
-Supervising-agent **pending** (not claimed done here):
+Supervising-agent **pending**:
 
-- Git commit / PR / merge for remaining branch work if any
-- Confirm GitHub secrets (`COLDLION_API_KEY`, `DESIGNFLOW_API_KEY`, plus existing Supabase preview secrets)
-- Workflow `workflow_dispatch` dry-runs and schedule enable (`PHASE6_SCHEDULE_ENABLED=true`)
+- Merge CLI parser fix; re-dispatch compare/health green + force-fail
+- Schedule enable (`PHASE6_SCHEDULE_ENABLED=true`) only after runner exits are correct
 - Ongoing scheduled observation through day 14+
 
 ---
 
-## 7. Explicit non-claims
+## 8. Explicit non-claims
 
 - Production was **not** accessed or modified.
 - Phase 7 production cutover **not** started.
@@ -162,7 +179,7 @@ Supervising-agent **pending** (not claimed done here):
 
 ---
 
-## 8. Pointers
+## 9. Pointers
 
 | Artifact | Path |
 |---|---|

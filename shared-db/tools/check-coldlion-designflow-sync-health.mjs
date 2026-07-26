@@ -21,6 +21,10 @@ import {
   assertPreviewApplyTarget,
   resolveRunMode,
 } from "./phase6-preview-guards.mjs";
+import {
+  parseHealthResult,
+  healthExitCode,
+} from "./phase6-cli-result-parse.mjs";
 
 export {
   PREVIEW_PROJECT_REF,
@@ -28,59 +32,14 @@ export {
   resolveRunMode,
 } from "./phase6-preview-guards.mjs";
 
+export { parseHealthResult, healthExitCode } from "./phase6-cli-result-parse.mjs";
+
 export function buildHealthSql({ maxSuccessAge = "36 hours", forceFail = false } = {}) {
   const opts = { force_fail: Boolean(forceFail) };
   return `select public.check_taxonomy_sync_health(
   ${sqlDollarQuote("max_age", maxSuccessAge)}::interval,
   ${sqlDollarQuote("health_opts", opts)}::jsonb
 );\n`;
-}
-
-/**
- * Parse health RPC result. GLM I3: fail-closed on unparseable output (exit 2).
- * Accepts the same established JSON/envelope shapes as Phase 2/4 runners only.
- */
-export function parseHealthResult(stdout) {
-  if (!stdout || !String(stdout).trim()) return null;
-  const trimmed = String(stdout).trim();
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) return parsed[0] ?? null;
-    if (Array.isArray(parsed?.rows)) {
-      const row = parsed.rows[0];
-      if (row && typeof row === "object") {
-        const first = Object.values(row)[0];
-        if (typeof first === "object" && first !== null) return first;
-        if (typeof first === "string") {
-          try {
-            return JSON.parse(first);
-          } catch {
-            return null;
-          }
-        }
-        return row;
-      }
-    }
-    if (parsed && typeof parsed === "object" && "ok" in parsed) return parsed;
-  } catch {
-    // fall through
-  }
-  const match = trimmed.match(/\{[\s\S]*"ok"[\s\S]*\}/);
-  if (match) {
-    try {
-      const obj = JSON.parse(match[0]);
-      if (obj && typeof obj === "object" && "ok" in obj) return obj;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-/** 0 = ok, 1 = explicit fail, 2 = unparseable/missing (fail-closed). */
-export function healthExitCode(result) {
-  if (!result || typeof result !== "object" || !("ok" in result)) return 2;
-  return result.ok === true ? 0 : 1;
 }
 
 function readLinkedProjectRef() {
