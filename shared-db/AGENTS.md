@@ -161,7 +161,7 @@ single schema change here can break an app that a different session built months
 ago. The database has no "just this app" — it is always shared. That is why the
 four rules below are non-negotiable for any database change.
 
-## 4. The four anti-collision rules (shared database)
+## 4. The five anti-collision rules (shared database)
 
 1. **One schema change in flight at a time.** Before starting database work,
    check whether another change is already in progress (§6). If so, finish or
@@ -177,6 +177,22 @@ four rules below are non-negotiable for any database change.
 4. **New timestamped migration files only.** Each change is a new
    `YYYYMMDDHHMMSS_*.sql` file. Never edit a migration that has already been
    applied anywhere — that is how two sessions silently clobber each other.
+5. **Never reuse a timestamp — a duplicate SILENTLY SKIPS a migration.**
+   Supabase's ledger (`supabase_migrations.schema_migrations`) keys on the
+   **version (the timestamp) alone — not the filename**. If two migrations share
+   one timestamp, whichever applies first claims that version and **the other is
+   treated as already-applied and never runs**. No error, no warning.
+   *This actually happened (2026-07-22):* `20260722220000` was used by BOTH the
+   PopSG trigram-index migration and the Sample Tracking
+   `restore_dflow_sample_shipment_item` migration. Production recorded 220000 as
+   the PopSG one and skipped the table restore, so `dflow.sample_shipment_item`
+   never existed in production and the whole dependent feature (movements,
+   closeouts, views) could never apply — while the ledger claimed success.
+   **Before adding a migration:** `ls supabase/migrations | cut -c1-14 | sort |
+   uniq -d` must print nothing. **Before trusting a migration:** confirm the
+   OBJECT exists (`to_regclass`), never just the ledger row.
+   Fix for a collision: re-timestamp the not-yet-applied file (pure rename) so
+   it sorts after the winner — and keep dependent migrations in order.
 
 ## 4.1 App-specific attributes go in per-app extension tables (decided 2026-07-17)
 
