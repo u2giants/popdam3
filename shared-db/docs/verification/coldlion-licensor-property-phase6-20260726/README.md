@@ -118,7 +118,22 @@ Parser fix: merge **`18ab164ce503ba875413a7d4573597032c56be81`** / **PR #233**
 
 No exit **2** on corrected runs.
 
-### 4.5 Secrets and schedule (ACTIVE)
+### 4.5 Scheduled monitoring observations (append-only)
+
+This ledger records unattended `schedule` events after
+`PHASE6_SCHEDULE_ENABLED=true`. A health-only event proves scheduler routing and health
+evaluation; it does **not** qualify an observation date without the scheduled DesignFlow,
+ColdLion, and daily-comparison lanes required by cutover §9.4.
+
+| Scheduled date (UTC) | Workflow run | Exact schedule / lane | Result | Preview DB evidence | Qualifying-date ruling |
+|---|---|---|---|---|---|
+| **2026-07-26** | **30217172947** | `15 */6 * * *` / health | **PASS**; preview guard, schedule gate, 98 offline tests, preview link, and health step all passed; DesignFlow, ColdLion, comparison, and drills correctly skipped | non-drill health **`c738beac-fd63-44ae-9a90-5a67576c61aa`**; `ok:true`; `issues:[]`; ColdLion run `9b0b9f1c-f4b6-46b4-ba8a-4f1320470b4b`; DesignFlow run `0a3c5474-2f33-49a4-926a-ef888ddbb826`; latest non-drill observation `16373e68-6f72-43ad-8219-7c999799675d`; refs/links **542 / 38 / 504** | **Does not qualify.** This date has no scheduled DesignFlow, ColdLion, or daily-comparison run. Qualifying dates remain **0 / 14**. |
+
+The workflow checked out `a14fefc9459a3ff8c74ea21c55e58230c47a4296`, resolved the
+exact health cron rather than wall-clock time, displayed preview project
+`rjyboqwcdzcocqgmsyel`, and refused production identity. Production was not accessed.
+
+### 4.6 Secrets and schedule (ACTIVE)
 
 | Item | Status |
 |---|---|
