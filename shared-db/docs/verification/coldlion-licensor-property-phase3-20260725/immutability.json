@@ -1,0 +1,77 @@
+{
+  "captured_at_utc": "2026-07-26T01:25:52.281Z",
+  "target": "rjyboqwcdzcocqgmsyel",
+  "pass": true,
+  "checks": {
+    "licensor_uuid_hash": {
+      "baseline": "590ea83ea6df1487fcfc1e18b3ef6a0d",
+      "measured": "590ea83ea6df1487fcfc1e18b3ef6a0d",
+      "pass": true
+    },
+    "property_uuid_hash": {
+      "baseline": "e0e6c36eb02bb2d320c0deaff7aa8f8c",
+      "measured": "e0e6c36eb02bb2d320c0deaff7aa8f8c",
+      "pass": true
+    },
+    "status_hash": {
+      "baseline": "5960fa4c08b5da2d0880c138e3e32ef7",
+      "measured": "5960fa4c08b5da2d0880c138e3e32ef7",
+      "pass": true
+    },
+    "parent_edge_hash": {
+      "baseline": "7459f6826cc59468779e7ead33ec0edc",
+      "measured": "7459f6826cc59468779e7ead33ec0edc",
+      "pass": true
+    },
+    "null_parent_count": {
+      "baseline": 0,
+      "measured": 0,
+      "pass": true
+    },
+    "source_ref_count": {
+      "baseline": 505,
+      "measured": 505,
+      "pass": true
+    },
+    "source_ref_hash": {
+      "baseline": "5f7221c29bca6e755c448200da1a88c5",
+      "measured": "5f7221c29bca6e755c448200da1a88c5",
+      "pass": true
+    },
+    "coldlion_source_refs": {
+      "baseline": 0,
+      "measured": 0,
+      "pass": true
+    },
+    "mirror_licensor_key_hash": {
+      "baseline": "7170df2831fd3b4ff74f62ef262f8256",
+      "measured": "7170df2831fd3b4ff74f62ef262f8256",
+      "pass": true
+    },
+    "mirror_property_key_hash": {
+      "baseline": "a02670389f7e5b15c12ba667a23e1905",
+      "measured": "a02670389f7e5b15c12ba667a23e1905",
+      "pass": true
+    },
+    "coldlion_snapshot_hash": {
+      "baseline": "a69332e05d9064723ffa1dfbd870506c",
+      "measured": "a69332e05d9064723ffa1dfbd870506c",
+      "pass": true
+    },
+    "linked_licensors": {
+      "baseline": 0,
+      "measured": 0,
+      "pass": true
+    },
+    "linked_properties": {
+      "baseline": 0,
+      "measured": 0,
+      "pass": true
+    },
+    "schedules": {
+      "baseline": 0,
+      "measured": 0,
+      "pass": true
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "compared_at_utc": "2026-07-26T02:07:20.141Z",
+  "canonical_properties": 256,
+  "designflow_distinct_properties": 256,
+  "agreed": 256,
+  "disagreed": 0,
+  "disagree_detail": [],
+  "method": "canonical property.code -> DesignFlow edge property_code; agree iff canonical licensor.code is in DesignFlow's licensor set for that property"
+}

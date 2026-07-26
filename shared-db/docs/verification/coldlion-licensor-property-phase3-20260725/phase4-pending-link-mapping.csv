@@ -1,0 +1,3 @@
+"entity_type","composite_key","mg_code","source_name","canonical_id","canonical_code","canonical_name","status","note"
+"licensor","EDGEHOME/CW001/05/NA","NA","NASA","9625fce2-25b4-471c-b9d9-0fdb9e07a338","X-NASA","NASA","pending_human_approval","NASA cross-code normalized-name match (alias/rename candidate); code differs."
+"licensor","EDGEHOME/SP001/05/NA","NA","NASA","9625fce2-25b4-471c-b9d9-0fdb9e07a338","X-NASA","NASA","pending_human_approval","NASA cross-code normalized-name match (alias/rename candidate); code differs."

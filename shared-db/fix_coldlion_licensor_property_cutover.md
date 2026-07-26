@@ -1,5 +1,22 @@
 # ColdLion licensor/property master-data cutover
 
+**Status (2026-07-25): Phase 3 (reconciliation and decisions) is complete on preview
+`rjyboqwcdzcocqgmsyel`; Phase 4 is BLOCKED on human approval.** The Phase 3 entry gate is satisfied
+by a fresh read-only DesignFlow `getLicensorsWithProperties` snapshot (HTTP 200, 2026-07-26T02:06:51Z,
+edge hash `151bc8cedc988f9ad3ddc5eba6036275`; DesignFlow recovered from its 2026-07-19 502 outage)
+whose 256/256 property parent edges agree with canonical. The row-level ruling ledger (570 rows,
+100% coverage, zero unexplained ambiguity), the frozen+hashed Phase 4 mapping input, and the
+immutability corroboration (all 14 baseline checks pass) are in
+[`docs/verification/coldlion-licensor-property-phase3-20260725/`](docs/verification/coldlion-licensor-property-phase3-20260725/README.md).
+**The frozen approved-mapping input is EMPTY** (`approved_mapping_hash =
+d41d8cd98f00b204e9800998ecf8427e`): Phase 3 recorded no human approval. The 542 exact-compatible
+matches are **proposed** (auto_eligible, hash `1230f5a12d0f2a3029f1d3df17fc5b5f` → 271 distinct
+canonical UUIDs), and 28 non-automatic rows (NASA ×2, FRIDA KAHLO licensor ×2, ZAG ×2, 12
+ColdLion-only properties, 10 canonical-only incl. FRIENDS TV) await Albert Hazan's disposition.
+NASA is a pending link (hash `2edf77b7ddd8d0405f93d020003b9540`). No canonical/source-reference
+mutation, schedule, production work, or DesignFlow deprecation occurred. The Phase 6 parallel-run
+clock has not started.
+
 **Status:** Phase 2B completed two full preview `mirror_only` snapshots on 2026-07-24.
 Runs `a7eb9c1b-3868-46bc-8d9a-615c0b8c98e4` and
 `8a18acf5-0ce6-4be1-a522-85ba5478be43` share snapshot hash
@@ -905,7 +922,33 @@ Deliver:
 
 Gate: zero ambiguous automatic matches and 100% categorized coverage.
 
+Completion evidence (2026-07-25):
+[`docs/verification/coldlion-licensor-property-phase3-20260725/README.md`](docs/verification/coldlion-licensor-property-phase3-20260725/README.md).
+Entry gate satisfied (fresh read-only DesignFlow HTTP 200 snapshot, 256/256 canonical parents
+agree). 570-row ruling ledger = 100% coverage (560 ColdLion source + 10 canonical-only; 272 distinct
+canonical UUIDs matched + 10 canonical-only = 26 licensors + 256 properties) with zero unexplained
+ambiguity (no code/name collisions). Typed dispositions: 542 `auto_link_eligible` (exact
+code+name agree, same entity), 2 `nasa_name_only_pending` (NASA → `X-NASA`, alias/rename
+candidate), 2 `frida_kahlo_cross_entity_quarantine` (FK licensor; canonical FK is a property),
+2 `zag_coldlion_only_lapsed`, 12 `coldlion_only_new_candidate`, 9 `canonical_only_preserve`, 1
+`friends_tv_curated_only`. Every non-automatic decision (`pending_human`) names Albert Hazan as
+owner; none is approved. Immutability corroborated (all 14 baseline checks pass).
+
+**Phase 4 mapping frozen + hashed, but the approved input is EMPTY.** No human approval was
+recorded, so `approved_mappings = []` (`approved_mapping_hash = d41d8cd98f00b204e9800998ecf8427e`,
+md5 of the empty set). The 542 exact-compatible matches are **proposed** (`auto_eligible`,
+`phase4-proposed-auto-mapping.csv`, hash `1230f5a12d0f2a3029f1d3df17fc5b5f` → 271 distinct canonical
+UUIDs); the 2 NASA rows are pending-link (`phase4-pending-link-mapping.csv`, hash
+`2edf77b7ddd8d0405f93d020003b9540`). 26 rows are not-linked. Phase 3 is evidence-only and fully
+reproducible locally (`node tools/generate-coldlion-licensor-property-phase3-report.mjs` then
+`node --test tools/coldlion-licensor-property-phase3.test.mjs`).
+
 ### Phase 4 — approved canonical linking
+
+**Entry (2026-07-25): BLOCKED on human approval.** Phase 4 may not start until a human (Albert)
+approves the proposed mapping set — populating the frozen approved input (currently empty) — and
+records dispositions for the 28 pending rows. Linking only the approved set (and NASA after
+approval) is allowed; nothing outside it.
 
 Deliver:
 
@@ -1269,17 +1312,43 @@ Per-phase cold-start contracts:
   canonical link/create is allowed. Exit: 100% categorized,
   human owners named for every non-automatic decision, and Phase 4's exact
   approved mapping input frozen and hashed.
-- **Phase 4 — approved linking.** Entry: approved Phase 3 ledger and unchanged
-  baseline hashes. Deliver: `link_approved` mode, deterministic ColdLion source
+  **Complete (2026-07-25):** entry gate satisfied by a fresh read-only DesignFlow snapshot
+  (HTTP 200, edge hash `151bc8cedc988f9ad3ddc5eba6036275`); 256/256 canonical parent edges agree;
+  570-row ruling ledger covers all 560 source rows + 282 canonical UUIDs (272 matched + 10
+  canonical-only) with zero unexplained ambiguity; immutability corroborated (all 14 baseline
+  checks pass). **The frozen approved mapping input is EMPTY and Phase 4 is blocked** — Phase 3
+  recorded no human approval. Artifacts under
+  `docs/verification/coldlion-licensor-property-phase3-20260725/`: `phase4-approved-mapping.json`
+  (`approved_mappings = []`, hash `d41d8cd98f00b204e9800998ecf8427e`); `phase4-proposed-auto-mapping.csv`
+  (542 exact-compatible rows → 271 distinct canonical UUIDs, **proposed** not approved, hash
+  `1230f5a12d0f2a3029f1d3df17fc5b5f`); `phase4-pending-link-mapping.csv` (2 NASA → `X-NASA`, hash
+  `2edf77b7ddd8d0405f93d020003b9540`, owner Albert). The FRIDA KAHLO licensor (×2), ZAG (×2), 12
+  ColdLion-only properties, and 10 canonical-only UUIDs (incl. FRIENDS TV) are NOT in any link
+  mapping. Fully reproducible locally with `node tools/generate-coldlion-licensor-property-phase3-report.mjs`
+  + `node --test tools/coldlion-licensor-property-phase3.test.mjs`.
+- **Phase 4 — approved linking.** Entry: a **human-approved** Phase 3 mapping input (Albert must
+  approve the proposed 542-row set, moving it into the currently-empty `approved_mappings`) and
+  unchanged baseline hashes. Deliver: `link_approved` mode, deterministic ColdLion source
   refs, mirror links to existing UUIDs, run accounting, and preview app smoke
   evidence. No canonical creates. Exit: UUID, row-count, status, parent, and
   dependent-FK hashes unchanged; rollback of links rehearsed; Phase 5 need
-  explicitly ruled yes/no.
+  explicitly ruled yes/no. **Phase 4 input (from Phase 3):** link ONLY rows a human has approved —
+  the proposed 542 exact-compatible set (→271 distinct canonical UUIDs, proposed hash
+  `1230f5a12d0f2a3029f1d3df17fc5b5f`) once approved, plus NASA `NA`→`X-NASA` only after Albert.
+  Write ColdLion `source_id` as slash-joined `<companyCode>/<divisionCode>/<mgTypeCode>/<mgCode>`
+  beside the 505 existing DesignFlow refs; never change code/name/status/parent; never link the
+  FRIDA KAHLO licensor, ZAG, ColdLion-only, or canonical-only rows.
 - **Phase 5 — approved new records, only if needed.** Entry: individually
   approved ColdLion-only records with explicit status and Property parent.
   Deliver: conservative canonical creation plus source refs and audit evidence.
   Exit: every new row traces to approval, no unresolved parent/status, all app
   visibility reviewed, and recovery defaults to inactive/unexposed—not delete.
+  **Phase 5 candidate set (from Phase 3 Tier C/D/E):** ZAG licensor (`ZG`), FRIDA KAHLO licensor
+  (`FK`, lapsed), and the 12 ColdLion-only properties (each in CW001+SP001: `55` Shrek 5, `75`
+  Peanuts 75th, `CHR` Cheers, `EX` The Exorcist, `LB` The Lost Boys, `SGT` Supergirl Theatrical
+  2026). Each property requires an approved `licensor_id` parent before any app visibility. If Albert
+  approves none, Phase 5 is explicitly **not needed**. NASA needs no create (canonical `X-NASA`
+  already exists; it is a Phase 4 link).
 - **Phase 6 — parallel run.** Entry: Phases 3–5 complete or explicitly not
   needed, schedules/alerts tested, and DesignFlow comparison trustworthy.
   Deliver: at least 14 consecutive days, two ColdLion full snapshots, two
@@ -1287,6 +1356,11 @@ Per-phase cold-start contracts:
   unexplained failures. Use persistent monitoring plus a fresh evaluation
   session; do not pretend one chat turn constitutes the observation window.
   Exit: all §9.4 criteria pass and the production-cutover evidence package is complete.
+  **DesignFlow status (from Phase 3):** `getLicensorsWithProperties` is healthy again (HTTP 200), so
+  the entry condition's "trustworthy DesignFlow comparison" is satisfiable. The 14-day clock still
+  requires *scheduled* ColdLion + DesignFlow refreshes; the latest scheduled `designflow_plm`
+  success is still 2026-07-08, and Phase 3's fresh pull was a one-off read-only GET, not a scheduled
+  run. Phase 6 owns standing up the schedules.
 - **Phase 7 — production source cutover.** Entry: Phase 6 evidence, rollback
   rehearsal, secure pre-cutover export/hashes, clean production dry-run, and
   Albert's explicit production-window approval. Deliver: guarded final snapshot,

@@ -1,32 +1,50 @@
 # HANDOFF — shared-db current state
 
-## CURRENT PRIORITY — ColdLion Licensor/Property Phase 2 correction (fresh session required)
+## CURRENT PRIORITY — ColdLion Licensor/Property Phase 3 complete; Phase 4 BLOCKED on human approval
 
-**As of 2026-07-24, Phase 2B and its bounded correction are complete on preview, with
-identical hashes and zero canonical/source-reference mutation.** Corrected proof run
-`7fa7925a-4307-435d-ab3c-fcf99fa9a659` recorded prior counts 44/516, 0 inserted,
-0 updated, and 560 unchanged. The stale DB Data Admin orphan fixture is fixed and passes.
-Do not start Phase 3 until a fresh trustworthy DesignFlow snapshot satisfies its remaining
-entry gate. Start in a fresh context and read
-[`fix_coldlion_licensor_property_phase2b_handoff.md`](fix_coldlion_licensor_property_phase2b_handoff.md)
-first.
+**As of 2026-07-25, Phase 3 (reconciliation and decisions) is complete on preview
+`rjyboqwcdzcocqgmsyel` with zero canonical/source-reference mutation.** The Phase 3 entry gate is
+satisfied by a fresh read-only DesignFlow snapshot (HTTP 200, 2026-07-26T02:06:51Z, edge hash
+`151bc8cedc988f9ad3ddc5eba6036275`; 256/256 canonical parent edges agree). The row-level ruling
+ledger (570 rows, 100% coverage, zero unexplained ambiguity) and the immutability corroboration
+(all 14 baseline checks pass) are in
+[`docs/verification/coldlion-licensor-property-phase3-20260725/`](docs/verification/coldlion-licensor-property-phase3-20260725/README.md).
+
+**Phase 4 is BLOCKED — no human approval recorded.** Phase 3 produced the decision ledger but did
+NOT approve any mapping. The frozen Phase 4 approved-mapping input is **empty** and hashed
+(`approved_mapping_hash = d41d8cd98f00b204e9800998ecf8427e`, md5 of the empty set). The 542
+exact-compatible same-entity matches are **proposed** (`auto_eligible`, proposed hash
+`1230f5a12d0f2a3029f1d3df17fc5b5f`, → 271 distinct canonical UUIDs), not approved. **28 non-automatic
+rows await Albert Hazan's disposition:** NASA ×2 (cross-code name match → `X-NASA`, pending-link hash
+`2edf77b7ddd8d0405f93d020003b9540`), FRIDA KAHLO licensor ×2 (cross-entity, quarantine), ZAG ×2
+(lapsed, no link), 12 ColdLion-only properties (Phase 5 only, need approved parent), and 10
+canonical-only UUIDs including FRIENDS TV (`FR`, curated-only). Phase 4 may not start until a human
+approves the proposed mapping set (populating the approved input) and records those dispositions.
+The Phase 6 parallel-run clock has not started (the fresh pull was a one-off read-only GET, not a
+scheduled refresh; latest scheduled `designflow_plm` success is still 2026-07-08).
+
+Phase 3 is evidence-only and fully reproducible locally: regenerate with
+`node tools/generate-coldlion-licensor-property-phase3-report.mjs` (no DB, no credentials) and
+validate with `node --test tools/coldlion-licensor-property-phase3.test.mjs`.
 
 Before writing code, the new agent must read, in order:
 
 1. [`AGENTS.md`](AGENTS.md), especially §§6.1, 8.1, and the shared-db protocol.
-2. [`fix_coldlion_licensor_property_phase1_handoff.md`](fix_coldlion_licensor_property_phase1_handoff.md)
+2. [`fix_coldlion_licensor_property_phase3_handoff.md`](fix_coldlion_licensor_property_phase3_handoff.md)
+   for the Phase 3 ruling, the empty/blocked approved mapping input, and the gated Phase 4 steps.
+3. [`fix_coldlion_licensor_property_phase1_handoff.md`](fix_coldlion_licensor_property_phase1_handoff.md)
    for the exact shipped state, failures, evidence, access path, and next gates.
-3. [`fix_coldlion_licensor_property_cutover.md`](fix_coldlion_licensor_property_cutover.md)
+4. [`fix_coldlion_licensor_property_cutover.md`](fix_coldlion_licensor_property_cutover.md)
    **in full, including every phase after Phase 2**. Its session protocol and
    forward-impact audit are mandatory.
-4. [`docs/merch-group-taxonomy-architecture.md`](docs/merch-group-taxonomy-architecture.md)
+5. [`docs/merch-group-taxonomy-architecture.md`](docs/merch-group-taxonomy-architecture.md)
    for division/type semantics, lifecycle behavior, and known defects.
-5. [`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md)
+6. [`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md)
    for endpoint, paging, response-shape, and Windows/1Password behavior.
-6. [`docs/coldlion-direct-sync-and-taxonomy-plan.md`](docs/coldlion-direct-sync-and-taxonomy-plan.md)
+7. [`docs/coldlion-direct-sync-and-taxonomy-plan.md`](docs/coldlion-direct-sync-and-taxonomy-plan.md)
    and [`docs/coldlion-erp-to-supabase-field-mapping.md`](docs/coldlion-erp-to-supabase-field-mapping.md)
    to prevent duplicate syncs or conflicts with item/taxonomy work.
-7. [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
+8. [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
    before changing anything involving style guides, characters, likeness, or royalties.
 
 Phase 2 and its preview comparison should be separate fresh sessions. Phase 3

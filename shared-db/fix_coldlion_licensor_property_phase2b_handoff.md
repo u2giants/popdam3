@@ -67,8 +67,24 @@ every source/canonical row, audit preview consumers, and perform the forward-imp
 
 ## 6. Exact next steps
 
-1. Obtain a fresh trustworthy DesignFlow snapshot before declaring Phase 3 entry ready.
-2. Start Phase 3 only in its own fresh session after that remaining entry gate is satisfied.
+1. ~~Obtain a fresh trustworthy DesignFlow snapshot before declaring Phase 3 entry ready.~~
+   **Done (2026-07-25):** a fresh read-only DesignFlow comparison snapshot succeeded (HTTP 200,
+   37 licensors / 468 properties / 256 distinct property codes, edge hash
+   `151bc8cedc988f9ad3ddc5eba6036275`), matching the recorded staging shape.
+2. ~~Start Phase 3 only in its own fresh session after that remaining entry gate is satisfied.~~
+   **Done (2026-07-25):** Phase 3 reconciliation is complete. The 570-row ruling ledger (100%
+   coverage, zero unexplained ambiguity), typed dispositions with named owners for all 28
+   non-automatic rows, the frozen+hashed Phase 4 mapping, and the parent-edge comparison
+   (256/256 agree) are in
+   [`docs/verification/coldlion-licensor-property-phase3-20260725/`](docs/verification/coldlion-licensor-property-phase3-20260725/README.md).
+   The 30 conservative database findings are correctly distinguished from the two true unmatched
+   `FK` collisions, and NASA/ZAG/FRIDA KAHLO/FRIENDS TV each have explicit dispositions.
+
+   **Phase 4 is BLOCKED:** Phase 3 recorded no human approval, so the frozen approved-mapping
+   input is empty (`approved_mapping_hash = d41d8cd98f00b204e9800998ecf8427e`). The 542
+   exact-compatible matches are proposed (not approved), and 28 rows await Albert Hazan's
+   disposition. See `HANDOFF.md` current priority and the Phase 4 entry contract in
+   `fix_coldlion_licensor_property_cutover.md`.
 
 ## 7. Constraints and gotchas
 
