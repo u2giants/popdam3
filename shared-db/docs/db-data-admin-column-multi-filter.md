@@ -129,3 +129,18 @@ logic would cost more than it saves. Instead each side borrowed the other's stre
   `popcrm-web/src/components/app/columnFilters.ts` with unit tests. Not ported: this app's
   `null` vs empty-`Set` semantics — it would have changed PopCRM's Clear-button behavior in
   production for marginal benefit.
+
+#### Verified live in PopCRM production (2026-07-25)
+
+Logged into `crm.designflow.app` → Contacts and opened the **Title** column filter: it now
+offers `(blank)`, and selecting it registers as a real filter (`256 rows · 1 filter
+active`) matching all 256 blank rows — a broken sentinel would have matched 0. Confirmed
+the old algorithm returned `[]` for that same data (popover rendered *"No values in
+column."*), so the Title filter was **completely unusable** before the fix.
+
+**Non-obvious gotcha for future sessions:** most PopCRM columns never produce blanks
+because their `filterValue` runs through `relatedName()` / `label()`, which substitute
+placeholder **strings** — `Department` yields a literal `"—"` and `Type` yields
+`"Unspecified"`. Those are real values to the filter, not blanks. Only columns whose
+`filterValue` returns the raw nullable field (e.g. Contacts `job_title`) can produce a
+`(blank)` entry. Don't read a missing `(blank)` option on those columns as a regression.
