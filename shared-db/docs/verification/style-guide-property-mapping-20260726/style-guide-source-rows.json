@@ -1,0 +1,2347 @@
+[
+ {
+  "licensor": "Coca Cola",
+  "style_guide": "Coca-Cola",
+  "characters": 6,
+  "bucket": "name-matched",
+  "resolved_property": "COCA COLA"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Aladdin (2019)",
+  "characters": 2,
+  "bucket": "name-matched",
+  "resolved_property": "ALADDIN"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Alice In Wonderland",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "ALICE IN WONDERLAND"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Cars",
+  "characters": 84,
+  "bucket": "name-matched",
+  "resolved_property": "CARS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Cars 2",
+  "characters": 44,
+  "bucket": "name-matched",
+  "resolved_property": "CARS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Cars 3",
+  "characters": 57,
+  "bucket": "name-matched",
+  "resolved_property": "CARS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Coco",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "COCO"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Encanto",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "ENCANTO"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Frozen",
+  "characters": 2,
+  "bucket": "name-matched",
+  "resolved_property": "FROZEN"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Frozen 3",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "FROZEN"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Frozen II",
+  "characters": 6,
+  "bucket": "name-matched",
+  "resolved_property": "FROZEN"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Hannah Montana Movie",
+  "characters": 8,
+  "bucket": "name-matched",
+  "resolved_property": "HANNAH MONTANA"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Hercules",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "HERCULES"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "High School Musical",
+  "characters": 17,
+  "bucket": "name-matched",
+  "resolved_property": "HIGH SCHOOL MUSICAL"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "High School Musical 2",
+  "characters": 20,
+  "bucket": "name-matched",
+  "resolved_property": "HIGH SCHOOL MUSICAL"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "High School Musical 3",
+  "characters": 18,
+  "bucket": "name-matched",
+  "resolved_property": "HIGH SCHOOL MUSICAL"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "High School Musical 4",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "HIGH SCHOOL MUSICAL"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "High School Musical: The Musical: The Series",
+  "characters": 11,
+  "bucket": "name-matched",
+  "resolved_property": "HIGH SCHOOL MUSICAL"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Hocus Pocus",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "HOCUS POCUS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Lizzie McGuire - TV Series",
+  "characters": 2,
+  "bucket": "name-matched",
+  "resolved_property": "LIZZIE MCGUIRE"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Lizzie McGuire Movie",
+  "characters": 6,
+  "bucket": "name-matched",
+  "resolved_property": "LIZZIE MCGUIRE"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Mickey Mouse",
+  "characters": 14,
+  "bucket": "name-matched",
+  "resolved_property": "MICKEY MOUSE"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Mickey Mouse Family",
+  "characters": 10,
+  "bucket": "name-matched",
+  "resolved_property": "MICKEY MOUSE"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Monsters at Work",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "MONSTERS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Monsters Inc",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "MONSTERS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Monsters University",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "MONSTERS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Muppets",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "MUPPETS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Nightmare Before Christmas",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE BEFORE CHRISTMAS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Peter Pan",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "PETER PAN"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Peter Pan - Individual Characters",
+  "characters": 2,
+  "bucket": "name-matched",
+  "resolved_property": "PETER PAN"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Toy Story 4",
+  "characters": 9,
+  "bucket": "name-matched",
+  "resolved_property": "TOY STORY 4"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Winnie The Pooh",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "WINNIE THE POOH"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Winnie The Pooh Classic",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "WINNIE THE POOH"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Black Panther Movie 2 - No Likeness",
+  "characters": 21,
+  "bucket": "name-matched",
+  "resolved_property": "BLACK PANTHER"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Black Panther Movie 2 - With Likeness",
+  "characters": 4,
+  "bucket": "name-matched",
+  "resolved_property": "BLACK PANTHER"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Captain Marvel Movie - No Likeness",
+  "characters": 22,
+  "bucket": "name-matched",
+  "resolved_property": "CAPTAIN MARVEL"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Captain Marvel Movie - With Likeness",
+  "characters": 12,
+  "bucket": "name-matched",
+  "resolved_property": "CAPTAIN MARVEL"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Deadpool Classic",
+  "characters": 39,
+  "bucket": "name-matched",
+  "resolved_property": "DEADPOOL"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Guardians of the Galaxy",
+  "characters": 27,
+  "bucket": "name-matched",
+  "resolved_property": "GUARDIANS OF THE GALAXY"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man",
+  "characters": 164,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man Animated",
+  "characters": 15,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man Animated Movie 2022 ",
+  "characters": 25,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man Family Live Action Movies - No Likeness",
+  "characters": 8,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man Family Live Action Movies - With Likeness",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man Movie (2017) - No Likeness",
+  "characters": 11,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man Movie (2017) - With Likeness",
+  "characters": 11,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man Movie 2021 - No Likeness",
+  "characters": 16,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man Movie 2021 - With Likeness",
+  "characters": 14,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man: Brand New Day Movie 2026 - No Likeness",
+  "characters": 9,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Spider-Man: Brand New Day Movie 2026 - With Likeness",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "SPIDER MAN"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Venom Movie 2024 - No Likeness",
+  "characters": 6,
+  "bucket": "name-matched",
+  "resolved_property": "VENOM"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Venom Movie 2024 - With Likeness",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "VENOM"
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "X-Men Classic",
+  "characters": 167,
+  "bucket": "name-matched",
+  "resolved_property": "X-MEN"
+ },
+ {
+  "licensor": "Strawberry Shortcake",
+  "style_guide": "Strawberry Shortcake Classic",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "STRAWBERRY SHORTCAKE"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Adventure Time: Animated Series",
+  "characters": 97,
+  "bucket": "name-matched",
+  "resolved_property": "ADVENTURE TIME"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Annabelle (2014)",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "ANNABELLE 2014"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Annabelle Comes Home (2019)",
+  "characters": 5,
+  "bucket": "name-matched",
+  "resolved_property": "ANNABELLE COMES HOME 2019"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Annabelle: Creation (2017)",
+  "characters": 2,
+  "bucket": "name-matched",
+  "resolved_property": "ANNABELLE: CREATION 2017"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Aquaman (2018)",
+  "characters": 22,
+  "bucket": "name-matched",
+  "resolved_property": "AQUAMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Aquaman and the Lost Kingdom (2023)",
+  "characters": 11,
+  "bucket": "name-matched",
+  "resolved_property": "AQUAMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Aquaman Core",
+  "characters": 5,
+  "bucket": "name-matched",
+  "resolved_property": "AQUAMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman (1989) ",
+  "characters": 27,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman & Robin (1997)",
+  "characters": 23,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman 85th Mash Ups",
+  "characters": 48,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman Begins (2005)",
+  "characters": 32,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman Beyond: Animated Series ",
+  "characters": 38,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman Core",
+  "characters": 160,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman Forever (1995) ",
+  "characters": 20,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman Returns (1992) ",
+  "characters": 13,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman v Superman: Dawn of Justice (2016)",
+  "characters": 22,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman, The (2022)",
+  "characters": 10,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman: Animated Series (1992)",
+  "characters": 45,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman: Arkham Asylum: Video Game 1",
+  "characters": 11,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman: Arkham City: Video Game 2",
+  "characters": 21,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman: Arkham Knight: Video Game 4",
+  "characters": 13,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman: Arkham Origins: Video Game 3",
+  "characters": 17,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batman: Television Series (1966) ",
+  "characters": 32,
+  "bucket": "name-matched",
+  "resolved_property": "BATMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Batwheels: Animated Series",
+  "characters": 29,
+  "bucket": "name-matched",
+  "resolved_property": "BATWHEELS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Beetlejuice (1988)",
+  "characters": 22,
+  "bucket": "name-matched",
+  "resolved_property": "BEETLEJUICE"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Beetlejuice Beetlejuice (2024)",
+  "characters": 17,
+  "bucket": "name-matched",
+  "resolved_property": "BEETLEJUICE"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Beetlejuice: Animated Series",
+  "characters": 2,
+  "bucket": "name-matched",
+  "resolved_property": "BEETLEJUICE"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Corpse Bride (2005)",
+  "characters": 6,
+  "bucket": "name-matched",
+  "resolved_property": "CORPSE BRIDE"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Elf (2003)",
+  "characters": 11,
+  "bucket": "name-matched",
+  "resolved_property": "ELF"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Freddy vs. Jason (2003)",
+  "characters": 13,
+  "bucket": "name-matched",
+  "resolved_property": "FREDDY VS JASON"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th (1980)",
+  "characters": 3,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th (2009)",
+  "characters": 13,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th Part II (1981)",
+  "characters": 5,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th Part III (1982)",
+  "characters": 3,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th Part VI: Jason Lives (1986)",
+  "characters": 3,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th Part VII: The New Blood (1988)",
+  "characters": 3,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th Part VIII: Jason Takes Manhattan",
+  "characters": 3,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th: A New Beginning (1985)",
+  "characters": 2,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th: Jason Goes to Hell (1993)",
+  "characters": 3,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th: Jason X (2001)",
+  "characters": 3,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friday the 13th: The Final Chapter (1984)",
+  "characters": 5,
+  "bucket": "name-matched",
+  "resolved_property": "FRIDAY THE 13TH"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Friends: Television Series",
+  "characters": 21,
+  "bucket": "name-matched",
+  "resolved_property": "FRIENDS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Frosty The Snowman Art Program (1954)",
+  "characters": 2,
+  "bucket": "name-matched",
+  "resolved_property": "FROSTY THE SNOW MAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Game of Thrones: Television Series",
+  "characters": 160,
+  "bucket": "name-matched",
+  "resolved_property": "GAME OF THRONES"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gilmore Girls: Television Series",
+  "characters": 13,
+  "bucket": "name-matched",
+  "resolved_property": "GILMORE GIRLS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Goodfellas (1990)",
+  "characters": 3,
+  "bucket": "name-matched",
+  "resolved_property": "GOODFELLAS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Green Lantern Core",
+  "characters": 60,
+  "bucket": "name-matched",
+  "resolved_property": "GREEN LANTERN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter and the Chamber of Secrets (2002)",
+  "characters": 66,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter and the Deathly Hallows Part 1 (2010)",
+  "characters": 28,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter and the Deathly Hallows Part 2 (2011)",
+  "characters": 15,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter and the Goblet of Fire (2005)",
+  "characters": 87,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter and the Half-Blood Prince (2009)",
+  "characters": 25,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter and the Order of the Phoenix (2007)",
+  "characters": 89,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter and the Prisoner of Azkaban (2004)",
+  "characters": 64,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter and the Sorcerer`s Stone (2001)",
+  "characters": 67,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Harry Potter Literary Collection",
+  "characters": 64,
+  "bucket": "name-matched",
+  "resolved_property": "HARRY POTTER"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Hogwarts Legacy: Video Game",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "HOGWARTS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "IT (2017)",
+  "characters": 11,
+  "bucket": "name-matched",
+  "resolved_property": "IT 2017"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "IT Chapter Two (2019)",
+  "characters": 17,
+  "bucket": "name-matched",
+  "resolved_property": "IT CHAPTER TWO 2019"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Justice League Core",
+  "characters": 431,
+  "bucket": "name-matched",
+  "resolved_property": "JUSTICE LEAGUE"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Looney Tunes Core",
+  "characters": 273,
+  "bucket": "name-matched",
+  "resolved_property": "LOONEY TUNES"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Lord of the Rings, The: The Fellowship of the Ring (2001)",
+  "characters": 54,
+  "bucket": "name-matched",
+  "resolved_property": "LORD OF THE RINGS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Lord of the Rings, The: The Return of the King (2003)",
+  "characters": 52,
+  "bucket": "name-matched",
+  "resolved_property": "LORD OF THE RINGS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Lord of the Rings, The: The Two Towers (2002)",
+  "characters": 56,
+  "bucket": "name-matched",
+  "resolved_property": "LORD OF THE RINGS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Lord of the Rings, The: The War Of The Rohirrim (2024)",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "LORD OF THE RINGS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Mortal Kombat (2021)",
+  "characters": 5,
+  "bucket": "name-matched",
+  "resolved_property": "MORTAL KOMBAT"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Mortal Kombat 2 (2025)",
+  "characters": 15,
+  "bucket": "name-matched",
+  "resolved_property": "MORTAL KOMBAT"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Mortal Kombat Core: Video Game",
+  "characters": 20,
+  "bucket": "name-matched",
+  "resolved_property": "MORTAL KOMBAT"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nightmare on Elm Street 2, A: Freddy`s Revenge (1985)",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE ON ELM STREET"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nightmare on Elm Street 3, A: Dream Warriors (1987)",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE ON ELM STREET"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nightmare on Elm Street 4, A: The Dream Master (1988)",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE ON ELM STREET"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nightmare on Elm Street, A (1984)",
+  "characters": 5,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE ON ELM STREET"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nightmare on Elm Street, A (2010)",
+  "characters": 12,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE ON ELM STREET"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nightmare on Elm Street, A: Freddy`s Dead (1991)",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE ON ELM STREET"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nightmare on Elm Street, A: New Nightmare (1994)",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE ON ELM STREET"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nightmare on Elm Street, A: The Dream Child (1989)",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "NIGHTMARE ON ELM STREET"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Over the Garden Wall: Animated Series",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "OVER THE GARDEN WALL"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Polar Express, The (2004)",
+  "characters": 32,
+  "bucket": "name-matched",
+  "resolved_property": "POLAR EXPRESS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Powerpuff Girls, The: Animated Series",
+  "characters": 27,
+  "bucket": "name-matched",
+  "resolved_property": "POWERPUFF GIRLS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Regular Show: Animated Series",
+  "characters": 1,
+  "bucket": "name-matched",
+  "resolved_property": "REGULAR SHOW"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Seinfeld: Television Series",
+  "characters": 13,
+  "bucket": "name-matched",
+  "resolved_property": "SEINFELD"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Smiling Friends: Animated Series",
+  "characters": 7,
+  "bucket": "name-matched",
+  "resolved_property": "SMILING FRIENDS"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Supergirl (2026)",
+  "characters": 14,
+  "bucket": "name-matched",
+  "resolved_property": "SUPERGIRL"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Supergirl Core",
+  "characters": 4,
+  "bucket": "name-matched",
+  "resolved_property": "SUPERGIRL"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Supergirl: Television Series (2015)",
+  "characters": 23,
+  "bucket": "name-matched",
+  "resolved_property": "SUPERGIRL"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Superman (2025)",
+  "characters": 18,
+  "bucket": "name-matched",
+  "resolved_property": "SUPERMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Superman Core",
+  "characters": 115,
+  "bucket": "name-matched",
+  "resolved_property": "SUPERMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Ted Lasso: Television Series",
+  "characters": 13,
+  "bucket": "name-matched",
+  "resolved_property": "TED LASSO"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Where The Wild Things Are - Literary",
+  "characters": 11,
+  "bucket": "name-matched",
+  "resolved_property": "WHERE THE WILD THINGS ARE"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Where The Wild Things Are (2009)",
+  "characters": 20,
+  "bucket": "name-matched",
+  "resolved_property": "WHERE THE WILD THINGS ARE"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Wizard of Oz, The (1939)",
+  "characters": 50,
+  "bucket": "name-matched",
+  "resolved_property": "WIZARD OF OZ"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Wonder Woman (2017)",
+  "characters": 24,
+  "bucket": "name-matched",
+  "resolved_property": "WONDER WOMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Wonder Woman 1984 (2020)",
+  "characters": 8,
+  "bucket": "name-matched",
+  "resolved_property": "WONDER WOMAN"
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Wonder Woman Core",
+  "characters": 24,
+  "bucket": "name-matched",
+  "resolved_property": "WONDER WOMAN"
+ },
+ {
+  "licensor": "WWE",
+  "style_guide": "WWE Superstars, Divas, Legends & Logos",
+  "characters": 604,
+  "bucket": "name-matched",
+  "resolved_property": "WWE SUPERSTARS"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "101 Dalmatians",
+  "characters": 1,
+  "bucket": "classics-CP",
+  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Aristocats",
+  "characters": 1,
+  "bucket": "classics-CP",
+  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Bambi",
+  "characters": 1,
+  "bucket": "classics-CP",
+  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Dumbo",
+  "characters": 1,
+  "bucket": "classics-CP",
+  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Dumbo (2019)",
+  "characters": 10,
+  "bucket": "classics-CP",
+  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Jungle Book",
+  "characters": 1,
+  "bucket": "classics-CP",
+  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Lion King",
+  "characters": 1,
+  "bucket": "classics-CP",
+  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Lion King, The (2019)",
+  "characters": 1,
+  "bucket": "classics-CP",
+  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Inside Out",
+  "characters": 1,
+  "bucket": "no-code",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Inside Out 2",
+  "characters": 1,
+  "bucket": "no-code",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Kim Possible",
+  "characters": 1,
+  "bucket": "no-code",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Luca",
+  "characters": 2,
+  "bucket": "no-code",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "A Bug's Life",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Atlantis",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Big Hero 6 TV",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Camp Rock",
+  "characters": 20,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Camp Rock 2",
+  "characters": 17,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Cruella (Live Action)",
+  "characters": 8,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Descendants 3",
+  "characters": 12,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Disney Babies",
+  "characters": 14,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Disney Junior Ariel",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Disney Junior Super Kitties",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Disney Princess",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Disney Stitch Franchise",
+  "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Disney Zombies",
+  "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Disney Zombies 2",
+  "characters": 9,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Disney Zombies 3",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Doc McStuffins",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Ducktales",
+  "characters": 16,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Elio",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Emperor's New Groove",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Fancy Nancy",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Finding Dory",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Finding Nemo",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Firebuds",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Goofy Movie",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Haunted Mansion (Theme Park)",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Hunchback of Notre Dame",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Incredibles, The",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Kingdom Hearts 3.0",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Lady And The Tramp",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Lightyear",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Lilo & Stitch (Live-Action)",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Little Mermaid, The (Live Action)",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Minnie",
+  "characters": 3,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Moana (Live-Action)",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Moana 2",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "MS Disney Plus TV Shows - No Likeness",
+  "characters": 179,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "MS Disney Plus TV Shows - With Likeness",
+  "characters": 37,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Muppet Babies (2018)",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Oswald The Lucky Rabbit",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pete's Dragon (2016)",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pete's Dragon (Classic)",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pinocchio",
+  "characters": 3,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pirates of the Caribbean 2: Dead Man's Chest",
+  "characters": 42,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pirates of the Caribbean 3: At Worlds End",
+  "characters": 53,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pirates of the Caribbean 4: On Stranger Tides",
+  "characters": 22,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pirates of the Caribbean 5: Dead Men Tell No Tales",
+  "characters": 14,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pirates of the Caribbean: Curse of the Black Pearl",
+  "characters": 18,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pixar Collection",
+  "characters": 59,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pixar Shorts - Luxo Jr",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pixar Studios Logo",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pocahontas",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Preschool CG Mickey (& Friends)",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Preschool CG Minnie (& Friends)",
+  "characters": 4,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Puppy Dog Pals",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Pupstruction",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Ratatouille",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Raya and the Last Dragon",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Robin Hood",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Soul",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Standard Characters",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Steamboat Willie",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Strange World",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Suite Life of Zack and Cody",
+  "characters": 12,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "T.O.T.S. (TINY ONES TRANSPORT SERVICE)",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "That's So Raven",
+  "characters": 9,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "The Good Dinosaur",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "The Incredibles 2",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Toy Story",
+  "characters": 5,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Toy Story 2",
+  "characters": 5,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Toy Story 3",
+  "characters": 36,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Toy Story 5",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Tsum Tsum",
+  "characters": 63,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Turning Red",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Up",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Vampirina Ballerina",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Villains",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Wall-E",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Wish",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Wizards of Waverly Place",
+  "characters": 8,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Dis/Mrv/SW",
+  "style_guide": "Wreck-It Ralph 2",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Avengers",
+  "characters": 103,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Fantastic Four",
+  "characters": 38,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Fantastic Four Movie - No Likeness",
+  "characters": 7,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Fantastic Four Movie - With Likeness",
+  "characters": 7,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Comics (Retro)",
+  "characters": 911,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Cross-Franchise Art Packs",
+  "characters": 271,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Games",
+  "characters": 175,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Seasonal",
+  "characters": 91,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios Collection - No Likeness",
+  "characters": 126,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios: The Infinity Saga - No Likeness",
+  "characters": 142,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios: The Infinity Saga - With Likeness",
+  "characters": 88,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Ant-Man Wasp Quantumania - No Likeness",
+  "characters": 19,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Ant-Man Wasp Quantumania - With Likeness",
+  "characters": 11,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Avengers Doomsday - No Likeness",
+  "characters": 33,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Avengers Doomsday - With Likeness",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Avengers Secret Wars - No Likeness",
+  "characters": 5,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Avengers Secret Wars - With Likeness",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Captain Marvel 2 - No Likeness",
+  "characters": 24,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Captain Marvel 2 - With Likeness",
+  "characters": 6,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Deadpool Movie 3 - No Likeness",
+  "characters": 28,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Deadpool Movie 3 - With Likeness",
+  "characters": 6,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Fantastic Four - No Likeness",
+  "characters": 16,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Fantastic Four - With Likeness",
+  "characters": 4,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' GOTG Vol. 3 - No Likeness",
+  "characters": 15,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' GOTG Vol. 3 - With Likeness",
+  "characters": 11,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Thunderbolts - No Likeness",
+  "characters": 12,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Studios' Thunderbolts - With Likeness",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel Universe",
+  "characters": 1041,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel's Moon Girl and Devil Dinosaur",
+  "characters": 6,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvel's Spidey and His Amazing Friends",
+  "characters": 40,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvels' Blade Movie - No Likeness",
+  "characters": 3,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "Marvels' Blade Movie - With Likeness",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "MS Captain America New World Order - No Likeness",
+  "characters": 6,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "Marvel",
+  "style_guide": "MS Captain America New World Order - With Likeness",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Black Adam (2022)",
+  "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Blue Beetle (2023)",
+  "characters": 11,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Conjuring 2, The (2016)",
+  "characters": 8,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Conjuring 3: The Devil Made Me Do It, The (2021)",
+  "characters": 7,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Conjuring, The (2013)",
+  "characters": 16,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Cyborg Core",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Dark Knight Rises, The (2012)",
+  "characters": 15,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Dark Knight, The (2008)",
+  "characters": 25,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "DC League of Super-Pets (2022)",
+  "characters": 16,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "DC Super Friends Collection Comics",
+  "characters": 55,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "DC Super Hero Girls: Animated Series",
+  "characters": 68,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "DC Women Core",
+  "characters": 12,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Exorcist, The (1973) ",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Fantastic Beasts and Where To Find Them (2016)",
+  "characters": 26,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Fantastic Beasts: The Crimes of Grindelwald (2018)",
+  "characters": 17,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Fantastic Beasts: The Secrets of Dumbledore (2022)",
+  "characters": 20,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Flash Core, The",
+  "characters": 15,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Flash, The (2023)",
+  "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gokko x DC",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gokko x Looney Tunes",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gokko x Powerpuff Girls, The",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gokko x Scooby-Doo",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gokko x Tom and Jerry",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Goonies, The (1985)",
+  "characters": 14,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gotham Knights: Video Game",
+  "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gremlins (1984)",
+  "characters": 7,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Gremlins 2: The New Batch (1990)",
+  "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Hobbit, The: An Unexpected Journey (2012)",
+  "characters": 48,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Hobbit, The: The Battle of the Five Armies (2014)",
+  "characters": 39,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Hobbit, The: The Desolation of Smaug (2013)",
+  "characters": 43,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "House of the Dragon: Television Series",
+  "characters": 34,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Infinite Crisis: Video Game",
+  "characters": 25,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Injustice 2: Every Battle Defines You: Video Game",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Injustice: Gods Among Us: Video Game",
+  "characters": 30,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "IT (1990): Television Miniseries",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "IT: Welcome to Derry: Television Series",
+  "characters": 16,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Lost Boys, The (1987) ",
+  "characters": 20,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Matrix Reloaded, The (2003) ",
+  "characters": 24,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Matrix Resurrections, The (2022)",
+  "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Matrix Revolutions, The (2003) ",
+  "characters": 22,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Matrix, The (1999)",
+  "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Multiple Licensed Properties",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nun 2, The (2023)",
+  "characters": 7,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Nun, The (2018)",
+  "characters": 2,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Peacemaker: Television Series",
+  "characters": 7,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Rick and Morty: Animated Series",
+  "characters": 112,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "SCOOB (2020)",
+  "characters": 22,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Scooby-Doo Core",
+  "characters": 63,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Shazam! (2019)",
+  "characters": 17,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Shazam!: Fury of the Gods (2023)",
+  "characters": 19,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Suicide Squad (2016)",
+  "characters": 13,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Suicide Squad, The (2021)",
+  "characters": 34,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Suicide Squad: Kill the Justice League: Video Game",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Teen Titans Go!: Animated Series",
+  "characters": 32,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "WB 100: Art of the 100th",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "WB 100: Artist Collaborations",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "WB 100: Looney Tunes Mashups",
+  "characters": 70,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "WB 100: Poster Series",
+  "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Willy Wonka & the Chocolate Factory (1971)",
+  "characters": 18,
+  "bucket": "needs-review",
+  "resolved_property": null
+ },
+ {
+  "licensor": "WB",
+  "style_guide": "Wonka (2023)",
+  "characters": 15,
+  "bucket": "needs-review",
+  "resolved_property": null
+ }
+]
