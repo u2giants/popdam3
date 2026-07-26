@@ -107,17 +107,22 @@ begin
       "prior": null
     }$snap$;
   begin
-    -- 1) First run: all licensed details are new -> inserted.
+    -- 1) First run: all 6 licensed details are accounted for. Environment-safe:
+    --    on the long-lived preview the fixed fixture keys may PRE-EXIST in the
+    --    intentionally populated mirror, so a pre-existing key counts as
+    --    updated/unchanged instead of inserted. Require rows_seen and the
+    --    per-entity totals = 6 and inserted+updated+unchanged = 6; a clean
+    --    return with full accounting means no failures. Importer behavior is
+    --    unchanged — only the fresh-database assumption is relaxed.
     select to_jsonb(t) into v_run1 from plm.sync_coldlion_licensors_properties(v_snap, 'mirror_only') t;
 
-    if (v_run1 ->> 'licensor_rows')::int <> 3 or (v_run1 ->> 'property_rows')::int <> 3 then
+    if (v_run1 ->> 'rows_seen')::int <> 6
+       or (v_run1 ->> 'licensor_rows')::int <> 3 or (v_run1 ->> 'property_rows')::int <> 3 then
       raise exception 'run1 counts wrong: %', v_run1;
     end if;
-    if (v_run1 ->> 'rows_inserted')::int <> 6 then
-      raise exception 'run1 expected 6 inserted, got %', v_run1 ->> 'rows_inserted';
-    end if;
-    if (v_run1 ->> 'rows_updated')::int <> 0 or (v_run1 ->> 'rows_unchanged')::int <> 0 then
-      raise exception 'run1 expected 0 updated / 0 unchanged';
+    if (v_run1 ->> 'rows_inserted')::int + (v_run1 ->> 'rows_updated')::int
+         + (v_run1 ->> 'rows_unchanged')::int <> 6 then
+      raise exception 'run1 expected inserted+updated+unchanged = 6 (pre-existing fixture keys may count updated/unchanged), got %', v_run1;
     end if;
     if (v_run1 ->> 'cross_entity_collisions')::int < 1 then
       raise exception 'run1 expected >=1 cross-entity collision (ZZ)';
@@ -137,9 +142,12 @@ begin
       raise exception 'snapshot_hash not stable across identical runs';
     end if;
 
-    -- mirror row count + default resolution_status = unresolved (new record => unresolved).
+    -- Exact baseline fixture rows only. The long-lived preview may contain other
+    -- P2A-* rows from earlier rehearsals, so broad prefix counts are stale.
     select count(*) into v_count from plm.erp_licensor
-      where mg_code like 'P2A-%' or mg_code = 'ZZ';
+      where company_code = 'EDGEHOME'
+        and ((division_code = 'CW001' and mg_type_code = '05' and mg_code in ('P2A-1', 'ZZ'))
+          or (division_code = 'SP001' and mg_type_code = '05' and mg_code = 'P2A-1'));
     if v_count <> 3 then raise exception 'expected 3 licensor mirror rows, got %', v_count; end if;
 
     select count(*) into v_count from plm.erp_licensor
@@ -147,7 +155,10 @@ begin
     if v_count <> 2 then raise exception 'same mg_code across divisions not distinct (expected 2)'; end if;
 
     select count(*) into v_count from plm.erp_licensor e
-      where resolution_status <> 'unresolved' and (e.mg_code like 'P2A-%' or e.mg_code = 'ZZ');
+      where resolution_status <> 'unresolved'
+        and company_code = 'EDGEHOME'
+        and ((division_code = 'CW001' and mg_type_code = '05' and mg_code in ('P2A-1', 'ZZ'))
+          or (division_code = 'SP001' and mg_type_code = '05' and mg_code = 'P2A-1'));
     if v_count <> 0 then raise exception 'new mirror rows must default to unresolved'; end if;
 
     -- cross-entity same code: licensor ZZ (05) and property ZZ (06) coexist, distinct types.
@@ -352,10 +363,12 @@ begin
   -- 8) Mode guard: link_approved and promote_approved raise loudly (Phase 4/5 only).
   -- ---------------------------------------------------------------------------------
   begin
+    -- Post-Phase-4 behavior: link_approved dispatches to the PINNED wrapper,
+    -- which rejects a missing expected contract outright. It must never run.
     perform plm.sync_coldlion_licensors_properties(jsonb_build_object('companyCode','EDGEHOME','headers','[]'::jsonb,'details','[]'::jsonb,'pairs','[]'::jsonb,'pages','[]'::jsonb), 'link_approved');
     raise exception 'link_approved mode was accepted in Phase 2A';
   exception when others then
-    if sqlerrm !~* 'mirror_only' then raise exception 'link_approved rejection message unexpected: %', sqlerrm; end if;
+    if sqlerrm !~* 'requires an explicit expected contract' then raise exception 'link_approved rejection message unexpected: %', sqlerrm; end if;
   end;
   begin
     perform public.sync_coldlion_licensors_properties(jsonb_build_object('companyCode','EDGEHOME','headers','[]'::jsonb,'details','[]'::jsonb,'pairs','[]'::jsonb,'pages','[]'::jsonb), 'promote_approved');
@@ -462,8 +475,8 @@ begin
   -- ---------------------------------------------------------------------------------
   -- 10) Function execute privilege: service_role may, authenticated may not.
   -- ---------------------------------------------------------------------------------
-  select has_function_privilege('service_role','plm.sync_coldlion_licensors_properties(jsonb,text)','execute'),
-         has_function_privilege('authenticated','plm.sync_coldlion_licensors_properties(jsonb,text)','execute')
+  select has_function_privilege('service_role','plm.sync_coldlion_licensors_properties(jsonb,text,jsonb)','execute'),
+         has_function_privilege('authenticated','plm.sync_coldlion_licensors_properties(jsonb,text,jsonb)','execute')
     into v_has_exec_service, v_has_exec_auth;
   if v_has_exec_service is not true then raise exception 'service_role must have execute on the importer'; end if;
   if v_has_exec_auth is true then raise exception 'authenticated must NOT have execute on the importer (browser cannot trigger import)'; end if;

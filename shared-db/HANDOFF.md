@@ -1,37 +1,32 @@
 # HANDOFF — shared-db current state
 
-## CURRENT PRIORITY — ColdLion Licensor/Property Phase 3 complete; Phase 4 BLOCKED on human approval
+## CURRENT PRIORITY — ColdLion Licensor/Property Phase 4 COMPLETE on preview (542 approved links); Phase 5 ruled NOT NEEDED
 
-**As of 2026-07-25, Phase 3 (reconciliation and decisions) is complete on preview
-`rjyboqwcdzcocqgmsyel` with zero canonical/source-reference mutation.** The Phase 3 entry gate is
-satisfied by a fresh read-only DesignFlow snapshot (HTTP 200, 2026-07-26T02:06:51Z, edge hash
-`151bc8cedc988f9ad3ddc5eba6036275`; 256/256 canonical parent edges agree). The row-level ruling
-ledger (570 rows, 100% coverage, zero unexplained ambiguity) and the immutability corroboration
-(all 14 baseline checks pass) are in
-[`docs/verification/coldlion-licensor-property-phase3-20260725/`](docs/verification/coldlion-licensor-property-phase3-20260725/README.md).
+**Phase 4 is complete and verified on preview `rjyboqwcdzcocqgmsyel`; production was never
+accessed.** Albert approved only the 542 exact-compatible mappings (38 Licensor + 504 Property
+source rows → 271 canonical UUIDs), frozen at hash
+`1230f5a12d0f2a3029f1d3df17fc5b5f`. Committed run
+`875109b5-2ac9-41a9-8280-4c4a36f6b639` added 542 deterministic ColdLion source refs beside the
+505 preserved `designflow_plm` refs and set 542 typed mirror links. Idempotent runs
+`9dd0f675-30fc-4ff2-8010-9558bc075617` and
+`eb045c1b-85d5-4d0e-bb25-f86004e52f5a` each reported 0 inserted, 0 updated, and 542 unchanged.
 
-**Phase 4 is BLOCKED — no human approval recorded.** Phase 3 produced the decision ledger but did
-NOT approve any mapping. The frozen Phase 4 approved-mapping input is **empty** and hashed
-(`approved_mapping_hash = d41d8cd98f00b204e9800998ecf8427e`, md5 of the empty set). The 542
-exact-compatible same-entity matches are **proposed** (`auto_eligible`, proposed hash
-`1230f5a12d0f2a3029f1d3df17fc5b5f`, → 271 distinct canonical UUIDs), not approved. **28 non-automatic
-rows await Albert Hazan's disposition:** NASA ×2 (cross-code name match → `X-NASA`, pending-link hash
-`2edf77b7ddd8d0405f93d020003b9540`), FRIDA KAHLO licensor ×2 (cross-entity, quarantine), ZAG ×2
-(lapsed, no link), 12 ColdLion-only properties (Phase 5 only, need approved parent), and 10
-canonical-only UUIDs including FRIENDS TV (`FR`, curated-only). Phase 4 may not start until a human
-approves the proposed mapping set (populating the approved input) and records those dispositions.
-The Phase 6 parallel-run clock has not started (the fresh pull was a one-off read-only GET, not a
-scheduled refresh; latest scheduled `designflow_plm` success is still 2026-07-08).
+Canonical counts remain 26 Licensors / 256 Properties. UUID, status, and parent hashes are
+unchanged. NASA, FRIDA KAHLO Licensor, ZAG, ColdLion-only, canonical-only, FRIENDS TV, and every
+Phase 5 candidate were excluded. Phase 5 is **NOT NEEDED / BLOCKED** because Albert approved zero
+canonical creates; do not begin Phase 5 schema or data work. The next executable phase is Phase 6
+parallel-run preparation, but its 14-day clock has not started and no schedule was created.
 
-Phase 3 is evidence-only and fully reproducible locally: regenerate with
-`node tools/generate-coldlion-licensor-property-phase3-report.mjs` (no DB, no credentials) and
-validate with `node --test tools/coldlion-licensor-property-phase3.test.mjs`.
+Full implementation, failures, run IDs, hashes, rollback proof, access path, and exact next gates:
+[`fix_coldlion_licensor_property_phase4_handoff.md`](fix_coldlion_licensor_property_phase4_handoff.md)
+and
+[`docs/verification/coldlion-licensor-property-phase4-20260725/`](docs/verification/coldlion-licensor-property-phase4-20260725/README.md).
 
 Before writing code, the new agent must read, in order:
 
 1. [`AGENTS.md`](AGENTS.md), especially §§6.1, 8.1, and the shared-db protocol.
-2. [`fix_coldlion_licensor_property_phase3_handoff.md`](fix_coldlion_licensor_property_phase3_handoff.md)
-   for the Phase 3 ruling, the empty/blocked approved mapping input, and the gated Phase 4 steps.
+2. [`fix_coldlion_licensor_property_phase4_handoff.md`](fix_coldlion_licensor_property_phase4_handoff.md)
+   for the completed Phase 4 implementation, preview evidence, failures, and Phase 5/6 gates.
 3. [`fix_coldlion_licensor_property_phase1_handoff.md`](fix_coldlion_licensor_property_phase1_handoff.md)
    for the exact shipped state, failures, evidence, access path, and next gates.
 4. [`fix_coldlion_licensor_property_cutover.md`](fix_coldlion_licensor_property_cutover.md)

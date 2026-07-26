@@ -945,10 +945,14 @@ reproducible locally (`node tools/generate-coldlion-licensor-property-phase3-rep
 
 ### Phase 4 — approved canonical linking
 
-**Entry (2026-07-25): BLOCKED on human approval.** Phase 4 may not start until a human (Albert)
-approves the proposed mapping set — populating the frozen approved input (currently empty) — and
-records dispositions for the 28 pending rows. Linking only the approved set (and NASA after
-approval) is allowed; nothing outside it.
+**Complete on preview (2026-07-26).** Albert approved only the 542 exact-compatible mappings
+(38 Licensor + 504 Property source rows → 271 canonical UUIDs), frozen at hash
+`1230f5a12d0f2a3029f1d3df17fc5b5f`. Preview run
+`875109b5-2ac9-41a9-8280-4c4a36f6b639` added 542 ColdLion source refs and set 542 typed mirror
+links. Two identical reruns were fully idempotent (0 inserted / 0 updated / 542 unchanged).
+Canonical row counts, UUID sets, status hashes, and the Property→Licensor parent hash remained
+unchanged. NASA and every pending/not-linked/Phase 5 row were excluded. Evidence:
+[`docs/verification/coldlion-licensor-property-phase4-20260725/`](docs/verification/coldlion-licensor-property-phase4-20260725/README.md).
 
 Deliver:
 
@@ -968,6 +972,10 @@ Gate:
 - applications pass preview smoke tests.
 
 ### Phase 5 — controlled creation of approved new records
+
+**Ruling (2026-07-26): NOT NEEDED / BLOCKED.** Albert approved zero canonical creates. Do not
+begin Phase 5 schema or data work unless he later approves specific ColdLion-only records and,
+for every Property, an explicit canonical Licensor parent and conservative lifecycle status.
 
 Only if reconciliation finds legitimate ColdLion-only records that applications need:
 
@@ -1316,8 +1324,9 @@ Per-phase cold-start contracts:
   (HTTP 200, edge hash `151bc8cedc988f9ad3ddc5eba6036275`); 256/256 canonical parent edges agree;
   570-row ruling ledger covers all 560 source rows + 282 canonical UUIDs (272 matched + 10
   canonical-only) with zero unexplained ambiguity; immutability corroborated (all 14 baseline
-  checks pass). **The frozen approved mapping input is EMPTY and Phase 4 is blocked** — Phase 3
-  recorded no human approval. Artifacts under
+  checks pass). **At the Phase 3 exit, the frozen approved mapping input was empty and Phase 4
+  was blocked; Albert subsequently approved only the 542 exact-compatible set, and Phase 4 is
+  now complete as recorded below.** Historical Phase 3 artifacts under
   `docs/verification/coldlion-licensor-property-phase3-20260725/`: `phase4-approved-mapping.json`
   (`approved_mappings = []`, hash `d41d8cd98f00b204e9800998ecf8427e`); `phase4-proposed-auto-mapping.csv`
   (542 exact-compatible rows → 271 distinct canonical UUIDs, **proposed** not approved, hash
@@ -1326,19 +1335,14 @@ Per-phase cold-start contracts:
   ColdLion-only properties, and 10 canonical-only UUIDs (incl. FRIENDS TV) are NOT in any link
   mapping. Fully reproducible locally with `node tools/generate-coldlion-licensor-property-phase3-report.mjs`
   + `node --test tools/coldlion-licensor-property-phase3.test.mjs`.
-- **Phase 4 — approved linking.** Entry: a **human-approved** Phase 3 mapping input (Albert must
-  approve the proposed 542-row set, moving it into the currently-empty `approved_mappings`) and
-  unchanged baseline hashes. Deliver: `link_approved` mode, deterministic ColdLion source
-  refs, mirror links to existing UUIDs, run accounting, and preview app smoke
-  evidence. No canonical creates. Exit: UUID, row-count, status, parent, and
-  dependent-FK hashes unchanged; rollback of links rehearsed; Phase 5 need
-  explicitly ruled yes/no. **Phase 4 input (from Phase 3):** link ONLY rows a human has approved —
-  the proposed 542 exact-compatible set (→271 distinct canonical UUIDs, proposed hash
-  `1230f5a12d0f2a3029f1d3df17fc5b5f`) once approved, plus NASA `NA`→`X-NASA` only after Albert.
-  Write ColdLion `source_id` as slash-joined `<companyCode>/<divisionCode>/<mgTypeCode>/<mgCode>`
-  beside the 505 existing DesignFlow refs; never change code/name/status/parent; never link the
-  FRIDA KAHLO licensor, ZAG, ColdLion-only, or canonical-only rows.
-- **Phase 5 — approved new records, only if needed.** Entry: individually
+- **Phase 4 — approved linking: COMPLETE on preview (2026-07-26).** The pinned 542-row input
+  produced 542 deterministic ColdLion source refs and 542 typed mirror links; two identical
+  reruns were 0 inserted / 0 updated / 542 unchanged. Canonical counts, UUIDs, statuses, and
+  parents stayed unchanged; rollback was rehearsed. NASA, FRIDA KAHLO Licensor, ZAG,
+  ColdLion-only, canonical-only, and FRIENDS TV were excluded. Evidence:
+  `docs/verification/coldlion-licensor-property-phase4-20260725/`.
+- **Phase 5 — approved new records: NOT NEEDED / BLOCKED (2026-07-26).** Zero canonical creates
+  were approved. A future entry requires individually
   approved ColdLion-only records with explicit status and Property parent.
   Deliver: conservative canonical creation plus source refs and audit evidence.
   Exit: every new row traces to approval, no unresolved parent/status, all app
