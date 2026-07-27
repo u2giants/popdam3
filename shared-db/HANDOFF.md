@@ -148,6 +148,160 @@ proceed.
 `type='CHARACTER'` rows are character **appearances** (one per style guide), not distinct
 characters. Batman is one character in 15 style guides.
 
+## PopSG Property taxonomy reconciliation — OPUS 5-REVISED FORMAL PLAN, NOT STARTED (2026-07-26)
+
+### 1. What the application and workstream are
+
+PopSG is the licensor style-guide library served by the PopDAM codebase at
+`https://sg.designflow.app`. NAS crawlers populate
+`public.style_guide_files`; its folder-derived `property_folder` values are
+observations, not canonical master data. Canonical Property identity and the
+Property→Licensor parent edge live in `core.property`.
+
+The single formal execution plan is now
+[`fix_popsg_property_taxonomy_reconciliation.md`](fix_popsg_property_taxonomy_reconciliation.md).
+It unifies the previously split operational guidance from the ColdLion
+source-cutover plan and the style-guide/character architecture document without
+replacing either authority.
+
+### 2. Goal and trigger
+
+The 2026-07-26 production deterministic rebuild processed 216,417 active PopSG
+files with zero technical failures, but 165,274 of 216,201 present raw Property
+fields were unresolved (76.44%). The goal is to classify every distinct
+Licensor-scoped observed value and apply only defensible canonical mappings.
+The target is 100% classification coverage, zero structural cross-parent
+violations, and zero unexplained accepted-tag loss—not 100% tag or terminal
+settlement coverage, because structural folders, unresolved Licensors, open
+decisions, and licensed titles without ERP codes may correctly remain untagged.
+
+### 3. Current state
+
+- Documentation/plan only; no schema, data, app, preview, or production mutation
+  was authorized or performed by the planning session.
+- Unified plan created in shared-db and routed from `AGENTS.md`,
+  `fix_coldlion_licensor_property_cutover.md`, and
+  `docs/style-guides-characters-and-royalties.md`.
+- The plan defines nine controlled states (including `licensor_unresolved`), a
+  read-only evidence inventory, deterministic proposals, an administrator
+  review UI, hashed owner approvals, preview-first implementation, bounded
+  production promotion, rebuild, rollback, tests, metrics, and acceptance
+  gates.
+- Exact-model `claude-opus-5` performed a read-only review. The plan now names
+  phases `PSG-0`–`PSG-7` and incorporates every Critical/High finding.
+- Current worker behavior is globally exact-matched, not Licensor-scoped.
+  PSG-0/1 therefore require a `currently-tagged-at-risk.csv` and an approved
+  signed accepted-tag delta before the safety correction can ship.
+- Property reconciliation now explicitly separates the 2×2
+  Licensor-resolved/unresolved × Property-resolved/unresolved populations.
+  `licensor_unresolved` is routed out of Property mapping rather than forced
+  into an invalid tuple.
+- The eight live hard-coded Licensor aliases must be inventoried and either
+  migrated to an approved contract or retained with explicit owner sign-off.
+- Administrator UI actions are pending proposals only; only Albert's unchanged
+  hash can activate decisions through a guarded RPC.
+- PSG-6 applies and verifies production schema before deploying dependent app
+  code, then captures a fresh accepted/manual/rejected tag snapshot before the
+  rebuild.
+- Recommended durable split: true cross-app aliases in a shared
+  `core.property_alias` contract; PopSG-only structural/no-code/review decisions
+  in an app-owned `dam.popsg_property_resolution` contract. Names/shapes remain
+  provisional until PSG-1 proves no existing contract covers them.
+
+### 4. Rejected approaches and why
+
+- **Mass-create the formerly proposed ~186 “missing Properties”: rejected.**
+  Canonical Properties follow ColdLion-coded business records; style-guide names
+  and merely licensed titles are not automatically Properties.
+- **Fuzzy automatic mapping: rejected.** Common titles and cross-entity code
+  collisions make it unsafe. Similarity may be reviewer evidence only.
+- **Drive the raw unresolved counter to zero: rejected.** It would misclassify
+  intentional non-Properties/no-code titles. Metrics must separate mapped,
+  intentionally untagged, actionable unresolved, and technical failures.
+- **Hard-code a growing worker alias array: rejected.** Decisions must be durable,
+  scoped by Licensor, reviewable, auditable, and reusable where genuinely shared.
+- **Mix source cutover and PopSG mapping into one document: rejected.** The unified
+  plan is one PopSG execution plan; the ColdLion cutover and style-guide model
+  remain supporting authorities with different responsibilities.
+
+### 5. Root findings and decisions
+
+- The future resolver must resolve the canonical Licensor first, then Property
+  only within that parent; this intentionally corrects today's global matcher
+  and must have a signed, explainable tag-removal delta.
+- Exact normalized name/code and approved aliases are allowed; cross-parent
+  mappings must remain zero.
+- Disney Classics map to `CP` only from the owner-approved list/rule in the
+  style-guide authority doc; “titles like them” is not a fuzzy match license.
+- A no-code title receives no invented canonical row.
+- Canonical creates remain separately owner-gated; ColdLion Phase 5 is
+  `NOT NEEDED / BLOCKED`, with zero approved creates and a documented candidate
+  set, and cannot be reopened implicitly.
+
+### 6. Exact next steps
+
+1. Record Albert's §14 plan-entry acceptance; it authorizes evidence work only.
+   **Pass when:** dated acceptance is preserved verbatim.
+2. Enter `PSG-0`: create a dated zero-database-write evidence directory and
+   record repo/PR/migration state, both Supabase refs, ColdLion phase, new
+   production baseline, accepted/manual/rejected tag export+hash, all eight
+   Licensor aliases/blast radius, and normalization fixtures. **Pass when:** the
+   README contains every named artifact and reproduction command.
+3. Build the tested read-only `PSG-1` inventory extractor. **Pass when:** the 2×2
+   matrix balances, every active observation is represented once, and
+   `currently-tagged-at-risk.csv` captures every accepted tag threatened by
+   parent scoping.
+4. Generate the frozen `PSG-2` proposal set. **Pass when:** every observation
+   has one disposition, create candidates are diffed against ColdLion's
+   existing set, the hash reproduces, and structural cross-parent proposals are
+   zero.
+5. Present the business-readable summary to Albert. **Pass when:** Albert
+   approves the disposition vocabulary and first bounded decision hash.
+6. Only then build `PSG-3` pending-proposal UI. `PSG-5` schema/rebuild work
+   requires a recorded ColdLion checkpoint and owner sign-off; `PSG-6` must not
+   overlap ColdLion Phase 7.
+
+### 7. Constraints and gotchas
+
+Shared-db owns all DDL and uses branch+PR+preview-first. PopDAM is a consumer and
+must not author shared migrations. `dam` remains unexposed through PostgREST.
+Do not bypass the active ColdLion Phase 6/Phase 5 gates, edit applied migrations,
+use unrestricted `--include-all`, overwrite concurrent PopDAM edits, or treat
+PopDAM `assets` as PopSG `style_guide_files`.
+
+### 8. Access and environment
+
+Preview: `rjyboqwcdzcocqgmsyel`. Production:
+`qsllyeztdwjgirsysgai`. Canonical credentials remain in 1Password vault
+`vibe_coding` under the item titles documented in `AGENTS.md`; no value belongs
+in files or chat. PSG-0/1 begin read-only.
+
+### 9. Open questions and risks
+
+Albert has not yet accepted the revised plan-entry checklist. The exact
+alias/decision table names remain provisional; the first review-batch size
+depends on the distinct-value distribution. Folder drift will create an ongoing
+small queue. Any canonical create requires an explicitly reopened and approved
+ColdLion Phase 5 decision. Licensor-unresolved rows need a separate bounded
+parent reconciliation. The eight hard-coded Licensor aliases need an explicit
+owner ruling. The production tag-loss delta is unknown until PSG-1.
+
+### PopSG Property plan handoff self-audit
+
+1. **Could a street-new developer continue without chat context? Yes.** This
+   section defines the app, authority, measured trigger, current plan-only state,
+   rejected approaches, decisions, environments, and ordered next actions; the
+   linked formal plan contains the complete implementation phases and gates.
+2. **Could they continue as effectively as this session? Yes.** The precise
+   production baseline, current global-matcher defect, required at-risk export,
+   2×2 population split, Licensor-alias blast radius, authority split, metric
+   definition, no-create boundary, production rollout order, snapshots, and
+   required approval sequence are preserved.
+3. **Are failures, constraints, risks, and verification gates complete? Yes.**
+   §§4, 6, 7, and 9 preserve every rejected path, explicit blocker, and
+   executable “Pass when” condition. No implementation or production action is
+   falsely reported.
+
 ## DB Data Admin — non-SSO tester login (DONE — 2026-07-23)
 
 Status: **done.** Owner approved "gate to data-dev only" on 2026-07-23. Shipped in
@@ -653,17 +807,26 @@ for a developer with **zero** prior context. Read it, then read the linked plan.
 
 ## 🚧 Production migration backlog — READ BEFORE ANY PRODUCTION APPLY (2026-07-23)
 
-**Production is missing 16 migrations that sit *before* its last applied migration.**
+**Historical baseline (2026-07-23): production was missing 16 migrations that
+sat *before* its last applied migration.** The exact backlog is dynamic and must
+always be recalculated from the full local/remote ledger before a production
+apply.
 Because of that, `supabase db push` **refuses to run** against production and exits 1 with
 *"Found local migration files to be inserted before the last migration on remote database.
 Rerun the command with --include-all flag."*
 
-**Do NOT rerun with `--include-all`.** That would promote all 16 at once, and several are
+**Do NOT rerun with `--include-all`.** That would promote every current gap at once, and several are
 **deliberately unpromoted** — the DB Data Admin write paths (`20260722170000` single-record
 updates, `20260722194000`/`194100` merge workflow, `20260722203000`/`203100` licensor tree),
 plus the DAM taxonomy cutover (`20260723112910`–`112940`), `dam_customer_hub_wiring`,
-`dam_path_facets_by_customer_id`, `plm_import_master_data_preserve_customer_status`, and the
-three PopSG migrations. Promoting those is each workstream's decision, in its own window.
+`dam_path_facets_by_customer_id`, and `plm_import_master_data_preserve_customer_status`.
+Promoting those is each workstream's decision, in its own window.
+
+**PopSG correction (2026-07-26):** migrations `20260723170000`,
+`20260723170100`, and `20260723170200` were promoted through an owner-approved
+physically bounded runner and verified in production. The deterministic rebuild
+then completed 216,417 active files with zero failures. Do not treat those three
+as pending merely because this historical section once listed them.
 
 **How to apply only your own migration (the bounded technique, used successfully 2026-07-23):**
 

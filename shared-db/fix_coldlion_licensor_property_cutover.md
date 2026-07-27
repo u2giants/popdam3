@@ -11,6 +11,15 @@
 > production prohibition below remains in force. The historical 14-day text is retained as the
 > prior plan and evidence context; it is not the intended final gate.
 
+> **PopSG execution boundary:** This document governs source cutover and
+> canonical master data. The single bounded plan for reconciling PopSG folder
+> observations to those canonical Properties is
+> [`fix_popsg_property_taxonomy_reconciliation.md`](fix_popsg_property_taxonomy_reconciliation.md).
+> Do not turn this source-cutover plan into a competing PopSG mapping plan.
+> PopSG `PSG-0`–`PSG-4` may prepare evidence/proposals; `PSG-5` requires a
+> checkpoint recorded in this workstream's Phase 6 handoff plus owner sign-off,
+> and PopSG `PSG-6` must not overlap this plan's Phase 7 production cutover.
+
 **Status (2026-07-26): Phase 6 IN PROGRESS — machinery + GHA workflow proof COMPLETE;
 accelerated readiness implementation open.** Phases 3–4 complete; Phase 5 NOT NEEDED. Migration
 `20260726180000` applied on preview `rjyboqwcdzcocqgmsyel` (do not edit). Parser-fix merge

@@ -1,5 +1,13 @@
 # Style guides, characters, and royalty rates
 
+> **PopSG execution boundary:** This document remains the authority for the
+> business meaning and relationships described below. The single bounded
+> execution plan for reconciling PopSG folder-derived Property observations is
+> [`../fix_popsg_property_taxonomy_reconciliation.md`](../fix_popsg_property_taxonomy_reconciliation.md).
+> Apply this document's rules through that plan rather than creating a second
+> reconciliation workstream. The executable phases are named `PSG-0` through
+> `PSG-7`; this document supplies business authority, not a parallel checklist.
+
 **Status:** authoritative for the business rules in §1–§3, which were stated directly by the
 owner (Albert) on 2026-07-23. Data measurements in §4 were taken live against production
 Supabase `qsllyeztdwjgirsysgai` on the same date. Open questions are marked as such in §7.

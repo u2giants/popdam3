@@ -341,6 +341,15 @@ before re-deriving or re-planning anything. Albert decided on 2026-07-26 to repl
 The existing production prohibition remains in force until that plan's preview rehearsal,
 readiness, and explicit production-approval gates pass.
 
+For **PopSG folder-derived Property matching and reconciliation**, the single
+bounded execution plan is
+[`fix_popsg_property_taxonomy_reconciliation.md`](fix_popsg_property_taxonomy_reconciliation.md).
+It applies the ColdLion and style-guide architecture decisions without replacing
+either authority document. Its phases are named `PSG-0` through `PSG-7` to
+avoid collision with ColdLion phases. `PSG-0`–`PSG-4` are preparation only;
+`PSG-5` requires a recorded ColdLion checkpoint and owner sign-off, and `PSG-6`
+must not overlap ColdLion Phase 7.
+
 **If your work touches characters, style guides, or royalty rates, read
 [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md)
 FIRST.** It documents a layer the merch-group doc does not cover. There are **two axes, and chaining
