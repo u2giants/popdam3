@@ -1,7 +1,3 @@
-Exit code: 0
-Wall time: 2 seconds
-Total output lines: 2491
-Output:
 # HANDOFF — shared-db current state
 
 ## FRESH-SESSION BOUNDARY — PopSG Property reconciliation PSG-3 UI SHELL
