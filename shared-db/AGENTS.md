@@ -116,6 +116,35 @@ copy-pasting it a third time.
 Do not "add set filters later" — they shipped. Older text in `DB_Data_Admin.md`
 that described set filters as future work refers to the pre-2026-07-23 design.
 
+## 0.4 Master Data (style tracker) editing is OPEN to every signed-in user — by design
+
+**`public.style_tracker_rows` INSERT/UPDATE are intentionally permissive
+(`using (true) with check (true)`, any authenticated user). That is the whole point
+of the Master Data / Styles grid at `dam.designflow.app/styles` — the team edits it.
+Do NOT "harden" this policy.**
+
+This is not an oversight and not a security hole, even though it looks like one next
+to `public.assets` and `public.style_groups` (which DO require
+`has_role(auth.uid(),'admin')` and should stay that way).
+
+Learned the hard way on **2026-07-26**: an AI session provisioning role-tiered DAM test
+accounts noticed a "viewer" could edit Master Data, judged it a gap, and shipped
+`20260726190000_style_tracker_rows_restrict_writes.sql` restricting writes to
+admin/administrator/designer/licensing. That locked **all 33 plain `user` accounts** out
+of Master Data — i.e. it broke the feature for essentially the entire company. Reverted
+the same day by `20260726200000_style_tracker_rows_restore_open_writes.sql`.
+
+Two traps that made it look safe to tighten:
+- `public.style_tracker_audit_log` was **empty**, which reads as "nobody edits this."
+  It is empty because the audit trigger is recent and backfills ran with it disabled —
+  NOT because the grid is unused. Do not use that table as a blast-radius proxy.
+- PopDAM's own role enum (`public.app_role`) has only `admin | user`. There is no
+  "editor" role to grant, so restricting writes to admins is not a smaller change —
+  it removes the capability from every non-admin.
+
+If a genuinely read-only DAM tester is needed, express it with the **app-schema** roles
+that gate the shared `api.*`/`dam.*` contracts. Never narrow `style_tracker_rows`.
+
 ## Session wrap-up convention
 
 When the user says **"wrap up"**, that means finish the session safely: update
