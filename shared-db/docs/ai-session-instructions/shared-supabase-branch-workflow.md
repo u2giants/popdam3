@@ -105,6 +105,59 @@ Baseline result:
 
 9. Point the app rewrite to the preview branch URL and test the frontend there.
 10. Commit the migration files and any docs to `shared-db`.
+11. **Open and land the PR promptly.** Step 8 leaves your migrations in the
+    preview ledger. Until they also exist in `main`, every *other* workstream is
+    blocked — see the next section.
+
+## When preview holds another workstream's unmerged rehearsal
+
+The preview branch is **persistent and shared**, so its ledger accumulates the
+migrations of every branch that has ever run step 8 — including branches that
+were never merged. A checkout based on `main` cannot reconcile against that
+ledger, so a second concurrent workstream's step 7 dies before it starts:
+
+```text
+Remote migration versions not found in local migrations directory.
+...
+supabase migration repair --status reverted 20260727013000 20260727013100 ...
+```
+
+**Never run the repair command the CLI suggests here.** Those versions are
+another team's *applied, working* rehearsal. Repairing them to `reverted` deletes
+their ledger rows while the functions, tables and indexes stay in the preview
+database — so the next push from their branch tries to create objects that
+already exist. You will have broken someone else's workstream to unblock your
+own.
+
+The correct response, in order of preference:
+
+1. **Land the other branch.** If its work is complete and rehearsed, open its PR
+   and merge it (§5). Once it is in `main`, preview and `main` reconcile and step
+   7 works again for everyone. This is usually the right answer, and it is the
+   whole point of `AGENTS.md` §4 rule 1 — *finish or land the in-flight change
+   first.*
+2. **Coordinate with its owner** if the work is genuinely mid-flight and cannot
+   land yet.
+3. **Only if neither is possible**, run your step 7/8 from a temporary
+   integration checkout that contains both `main` and the in-flight branch's
+   migration files. That checkout mirrors what preview actually is — the shared
+   integration target — so the comparison is honest. Do not commit that merge;
+   it exists to make the CLI's view match reality.
+
+Real occurrence, 2026-07-27: `codex/poppim-audit-remediation` applied 17
+migrations (`20260727013000`–`20260727024300`) to preview and never opened a PR.
+Every other session's preview dry-run failed until the branch was merged as
+PR #271. Two `dam_customer_hub_*` versions from a third concurrent session showed
+up on preview during the same window. Diagnose with:
+
+```bash
+# versions on preview that are absent from main == the blocking set
+comm -13 \
+  <(git ls-tree --name-only origin/main supabase/migrations/ | sed 's|.*/||' | cut -c1-14 | sort) \
+  <(psql "$PREVIEW_URL" -t -A -c 'select version from supabase_migrations.schema_migrations order by version')
+```
+
+Empty output means preview and `main` are reconciled and nothing is blocking.
 
 If `supabase db push` or `supabase migration list` fails with a login role or
 connection error, relink with the branch password from 1Password. Do not switch

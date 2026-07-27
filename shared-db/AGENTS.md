@@ -196,6 +196,19 @@ four rules below are non-negotiable for any database change.
    check whether another change is already in progress (§6). If so, finish or
    land that one first, or coordinate with the owner. Two simultaneous schema
    edits are the number-one cause of a broken shared database.
+   **The concrete symptom when this rule is broken:** the preview branch is
+   persistent, so its ledger holds every branch that ever ran `db push` —
+   including unmerged ones. A `main`-based checkout then cannot dry-run against
+   preview at all; it aborts with `Remote migration versions not found in local
+   migrations directory` and suggests `supabase migration repair --status
+   reverted …`. **Never run that repair** — those rows belong to another team's
+   applied work, and clearing them leaves the objects in place so their next
+   push collides. Land or coordinate the other branch instead. Full procedure:
+   [`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](docs/ai-session-instructions/shared-supabase-branch-workflow.md)
+   → "When preview holds another workstream's unmerged rehearsal". A migration
+   left rehearsed-but-unmerged blocks everyone, so **open its PR the same
+   session** (seen 2026-07-27: 17 PopPIM migrations blocked all preview
+   dry-runs until PR #271 landed).
 2. **Preview database first. Production never receives untested schema.** Apply
    every migration to the preview branch (`rjyboqwcdzcocqgmsyel`), prove it
    works, *then* promote to production (`qsllyeztdwjgirsysgai`).
