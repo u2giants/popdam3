@@ -45,6 +45,22 @@ git push github main
 
 If one remote fails, report which one and why.
 
+**On this checkout, `origin` and `github` are the same repository**
+(`https://github.com/u2giants/popdam3.git` — verified 2026-07-26 with
+`git remote -v` and matching `git ls-remote --heads` SHAs), so the second push
+is a no-op that reports "Everything up-to-date". That is expected, not a failed
+push — do not go looking for a missing mirror. Keep running both commands: the
+instruction is written for checkouts where the two remotes differ, and re-verify
+with `git remote -v` rather than assuming this still holds.
+
+Pushes here are frequently rejected as non-fast-forward — `main` moves often
+(mostly automated `chore: sync shared-db` commits). The worktree is usually
+dirty with other sessions' work, so rebase with
+`git rebase --autostash origin/main`, then confirm the worktree came back
+unchanged (`git status --short` before and after, plus `git stash list` count)
+before pushing. Never resolve this with force-push or by reverting files you
+did not modify.
+
 ---
 
 ## No Workarounds
