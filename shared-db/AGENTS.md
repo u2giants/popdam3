@@ -265,7 +265,7 @@ Then: merge to `main` (this auto-syncs the `shared-db/` folder into all apps) an
 promote to **production only in an approved window**. Docs-only PRs (no schema
 change) need just items 1 and "it reads correctly" — merge them promptly.
 
-### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` (learned 2026-07-23)
+### 5.1 Promoting to production when a backlog exists — NEVER `--include-all` on the full repo set (learned 2026-07-23; recipe corrected 2026-07-27)
 
 Production almost always has **pending migrations from other workstreams that sit *before* your
 own** (e.g. DB Data Admin write paths, DAM taxonomy cutover, PopSG — several deliberately
@@ -276,10 +276,23 @@ including work another team has deliberately kept off production.
 Apply **only your own** migration with a bounded temp checkout:
 
 1. `git worktree add --detach <tmp> origin/main`
-2. In the temp checkout, **delete the migration files you are not promoting** (repo copy is
-   untouched — you only shrink the local set the CLI compares).
+2. In the temp checkout, delete **only the PENDING migration files you are not promoting**
+   (repo copy is untouched — you only shrink the local set the CLI compares).
+   **Do NOT delete the already-applied files.** The CLI compares the local folder against
+   *every* `schema_migrations` row, so removing applied files makes `db push` abort with
+   `Remote migration versions not found in local migrations directory` and suggest
+   `supabase migration repair --status reverted …` — do **not** run that repair; restore the
+   files instead (`git checkout -- supabase/migrations`, then delete just the pending ones).
+   *(Corrected 2026-07-27 — "delete everything except your own file" does not work.)*
 3. `supabase link --project-ref qsllyeztdwjgirsysgai --password "$PROD_DB_PASSWORD"`
-4. `supabase db push --dry-run` → **confirm it lists only your migrations**, then `db push`.
+4. `supabase db push --dry-run` → **confirm it lists only your migrations**.
+   If your file sorts *before* the remote max, the dry run says "Found local migration files to
+   be inserted before the last migration on remote database" and asks for `--include-all`.
+   **In this bounded temp checkout that flag is the correct and safe way to finish** — the
+   migrations you must not promote are no longer on disk, so it cannot reach them. Run
+   `supabase db push --include-all --dry-run` first and confirm it names **exactly** your files,
+   then drop `--dry-run`. The §5.1 prohibition is on `--include-all` against the **full repo
+   set**, never against a verified bounded set.
 5. Verify the real objects in the DB (`pg_constraint`/`pg_trigger`/`pg_get_viewdef`), **not** just
    `supabase_migrations.schema_migrations` — the ledger can record a migration whose object is
    absent (seen on preview 2026-07-23).
@@ -290,6 +303,15 @@ below its highest version; diff the full local file list against every `schema_m
 (b) This shared working copy is actively churned by other sessions — its branch and untracked
 files shift between turns; do sensitive git work (branch off `origin/main`, apply) in a dedicated
 `git worktree`, not the main checkout.
+
+A third habit worth breaking: **promote the original file — do not hand-copy it into a new
+"bounded forward" migration.** Copying the SQL under a fresh timestamp does reach production,
+but the original stays pending forever and hundreds of lines get duplicated. Two sessions did
+this in July 2026 (`20260723183000_step11_bounded_production_forward.sql`,
+`20260727154500_db_data_admin_bounded_production_forward.sql`), which is why three already-live
+migrations still had to be replayed as no-ops on 2026-07-27 just to close the ledger gap. Full
+worked example, including the verification queries:
+[`docs/migration-backlog-triage-2026-07-27.md`](docs/migration-backlog-triage-2026-07-27.md).
 
 ## 6. How to tell if a change is already in flight
 
