@@ -1,0 +1,319 @@
+style_guide,character_name,source_character_id,candidate_mg06_codes,status
+DC Super Friends Collection Comics,Ace the Bat-Hound,4cdc100f-5b77-47f9-aece-3aa74dcaa2f3,,UNMATCHED
+DC Super Friends Collection Comics,Aquaman aka Arthur Curry,bbf42bc4-c392-4202-9d93-04765feee74a,AQ|JG,CONFLICT
+DC Super Friends Collection Comics,Bane,22b7455d-4832-4be9-bf06-26979245546c,BM|HP|JG,CONFLICT
+DC Super Friends Collection Comics,Batgirl aka Barbara Gordon,378da08f-46bb-4666-8ef8-a3375d038ec1,BM|JG,CONFLICT
+DC Super Friends Collection Comics,Batman,8c645722-5c67-4a64-8fc8-41b8adf09ef7,BM|GN|JG,CONFLICT
+DC Super Friends Collection Comics,Bizzaro,f9835158-9a7d-4be1-a619-3fad624ead38,,UNMATCHED
+DC Super Friends Collection Comics,Black Manta,23ed0c87-88cb-495e-98ed-41f4f0d3479f,AQ|JG,CONFLICT
+DC Super Friends Collection Comics,Brainiac,236287d1-ae26-48b5-98d9-ab07f5a8ce62,JG|SM,CONFLICT
+DC Super Friends Collection Comics,Bumblebee aka Karen Beecher Duncan,f1373770-bd3a-416f-996d-3dfc38f4be0b,,UNMATCHED
+DC Super Friends Collection Comics,Captain Cold,df6cada4-d964-4e45-b5ff-dc54c470cc7a,FS|JG,CONFLICT
+DC Super Friends Collection Comics,Catwoman,0ffbe594-c553-47fb-a21d-1823a7f273c7,BA|BM,CONFLICT
+DC Super Friends Collection Comics,Cheetah,4eb039f4-a854-4d3b-ac83-1468620e43af,JG|WW,CONFLICT
+DC Super Friends Collection Comics,"Cyborg aka Victor ""Vic"" Stone",d285a226-89ad-4128-92bc-9394e5c6d6ce,JG|SM,CONFLICT
+DC Super Friends Collection Comics,Darkseid,1e8728d8-986f-4e6c-a70b-0b5fd4ac445c,,UNMATCHED
+DC Super Friends Collection Comics,Doomsday,e2df8117-2b19-456b-8b8e-1f2c32fd283b,JG|SM,CONFLICT
+DC Super Friends Collection Comics,Flash,e63fb25e-e812-4909-9d8a-a0272bd8d443,,UNMATCHED
+DC Super Friends Collection Comics,Gorilla Grod,0ddbd2a1-7c6d-4167-9efb-43e717e3e135,,UNMATCHED
+DC Super Friends Collection Comics,Green Arrow,7a65e3d3-fe0f-4b77-820e-28f84bcff207,GN|JG,CONFLICT
+DC Super Friends Collection Comics,Green Lantern,0fa5d585-537b-48bc-b760-e6d5d59a1d36,GN|JG,CONFLICT
+DC Super Friends Collection Comics,Green Lantern aka Alan Scott,bc0e967f-6362-4abf-a157-f7e3747a1c80,GN|JG,CONFLICT
+DC Super Friends Collection Comics,Harley Quinn aka Dr. Harleen Francis Quinzel,24e1a79b-8ed8-4bab-baa6-303725124bfa,BM|JG,CONFLICT
+DC Super Friends Collection Comics,Joker,e47c5a73-70a5-41dc-83b9-d846da19dfba,BA|BM|JG,CONFLICT
+DC Super Friends Collection Comics,Killer Croc,1df33d75-4aa8-4af8-97a1-177783a00e53,BM|JG,CONFLICT
+DC Super Friends Collection Comics,Krypto,8cc3798f-d397-4e57-a0fc-3031a1fd109a,JG|SM,CONFLICT
+DC Super Friends Collection Comics,Lex Luthor,6a70563b-4d28-490a-bc32-33e0a4221546,JG|SM,CONFLICT
+DC Super Friends Collection Comics,Mettalo,83b5200d-800b-4af2-bc7a-ecfae75296e7,,UNMATCHED
+DC Super Friends Collection Comics,Mister Freeze,352fa787-0ddf-466d-8659-e46c4bc43889,BA|BM|JG,CONFLICT
+DC Super Friends Collection Comics,Penguin,f0f5b4ee-d7af-40e8-97a4-8827095ae3d6,BA|BM|JG,CONFLICT
+DC Super Friends Collection Comics,Poison Ivy,81abd594-d26e-4c2f-996c-0cc902f4bcfd,BA|BM|JG,CONFLICT
+DC Super Friends Collection Comics,Reverse Flash,a676cfff-d4a0-4a57-a545-d236585b4713,FS|JG,CONFLICT
+DC Super Friends Collection Comics,Riddler,56d8e36d-cb56-4760-b961-4104972d59e5,BA|BM|JG|WW,CONFLICT
+DC Super Friends Collection Comics,Robin aka Dick Grayson,175acf29-723a-4520-b220-5081e17bdab9,BM|JG,CONFLICT
+DC Super Friends Collection Comics,Scarecrow aka Jonathan Crane,6dc7edf6-e0b0-480f-ac1f-9e89a839e8f5,,UNMATCHED
+DC Super Friends Collection Comics,Sinestro,f2dedaf4-7c79-474d-926e-74fe4a3a0ba7,GN|JG,CONFLICT
+DC Super Friends Collection Comics,Solomon Grundy,40faf2d2-34e6-4389-a3ae-5bdda0f9d245,BM|JG,CONFLICT
+DC Super Friends Collection Comics,Streaky the Supercat,b0bd6eae-aecd-435d-9be9-29ae4aa30262,,UNMATCHED
+DC Super Friends Collection Comics,Supergirl,108a938d-889d-470b-8d4b-e0e081c0fbb2,JG|SG|SM,CONFLICT
+DC Super Friends Collection Comics,Two Face aka Harvey Dent,6a1556bb-82ba-4d8d-926d-d34e5394eb22,BM|JG,CONFLICT
+DC Super Friends Collection Comics,Two-Face aka Harvey Dent,1ce975d1-8d24-4904-ab38-501854b2f5d3,BM|JG,CONFLICT
+DC Super Friends Collection Comics,Wonder Woman,31a986b5-2708-43b5-9f2d-3583d5c1953e,GN|JG|WW,CONFLICT
+DC Women Core,Bumblebee aka Karen Beecher Duncan,54166dce-3cb9-442e-a512-6b2a65798852,,UNMATCHED
+DC Women Core,Catwoman,47e10783-8e2d-4646-ad93-52388dbafb94,BA|BM,CONFLICT
+DC Women Core,Cheetah,c5ba890f-e7d6-4f4d-a50f-810f0a1d8c00,JG|WW,CONFLICT
+DC Women Core,Harley Quinn aka Dr. Harleen Francis Quinzel,671c9da9-731b-4f28-9d41-78624e9ca553,BM|JG,CONFLICT
+DC Women Core,Poison Ivy,58a9402f-25a0-4ff4-bed3-ca71b3375624,BA|BM|JG,CONFLICT
+DC Women Core,Supergirl,a9244d39-f979-4079-99ee-0537860e31d3,JG|SG|SM,CONFLICT
+DC Women Core,Wonder Woman,39bdc89b-40ff-4e29-b5b5-11de5f2558e2,GN|JG|WW,CONFLICT
+Marvel Cross-Franchise Art Packs, Marvel Cross-Franchise Art Packs ),1159368696,,UNMATCHED
+Marvel Cross-Franchise Art Packs,A.I.M. ( Marvel Cross-Franchise Art Packs ),1159111292,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Abomination ( Marvel Cross-Franchise Art Packs ),1159111275,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Absorbing Man ( Marvel Cross-Franchise Art Packs ),1159111522,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Agent Venom ( Marvel Cross-Franchise Art Packs ),1159111450,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Alligator Loki  ( Marvel Cross-Franchise Art Packs )	,1159378355,,UNMATCHED
+Marvel Cross-Franchise Art Packs,America Chavez ( Marvel Cross-Franchise Art Packs ),1159151800,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Angel ( Marvel Cross-Franchise Art Packs ),1159368225,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Annihilus ( Marvel Cross-Franchise Art Packs ),1159368223,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ant-Man ( Marvel Cross-Franchise Art Packs ),1159111294,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Apocalypse ( Marvel Cross-Franchise Art Packs ),1159152015,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Archangel ( Marvel Cross-Franchise Art Packs ),1159378348,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Avengers Logo ( Marvel Cross-Franchise Art Packs ),1159110869,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Barnes, Bucky ( Marvel Cross-Franchise Art Packs )",1159111132,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Baron Mordo ( Marvel Cross-Franchise Art Packs ),1159111296,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Baron Zemo ( Marvel Cross-Franchise Art Packs ),1159152009,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Beast ( Marvel Cross-Franchise Art Packs ),1159152010,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Bishop ( Marvel Cross-Franchise Art Packs ),1159378345,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Black Bolt ( Marvel Cross-Franchise Art Packs ),1159111295,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Black Cat ( Marvel Cross-Franchise Art Packs ),1159111451,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Black Panther ( Marvel Cross-Franchise Art Packs ),1159111297,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Black Widow ( Marvel Cross-Franchise Art Packs ),1159110870,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Blade ( Marvel Cross-Franchise Art Packs ),1159371833,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Bombshell ( Marvel Cross-Franchise Art Packs ),1159111469,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Bulldozer ( Marvel Cross-Franchise Art Packs ),1159378351,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Bullseye ( Marvel Cross-Franchise Art Packs ),1159110807,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Cage, Luke ( Marvel Cross-Franchise Art Packs )",1159111299,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Cap-Wolf ( Marvel Cross-Franchise Art Packs ),1159371837,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Captain America ( Marvel Cross-Franchise Art Packs ),1159111129,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Captain America (Sam Wilson) ( Marvel Cross-Franchise Art Packs ),1159368811,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Captain Mar-Vell ( Marvel Cross-Franchise Art Packs ),1159371834,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Captain Marvel ( Marvel Cross-Franchise Art Packs ),1159111298,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Carnage ( Marvel Cross-Franchise Art Packs ),1159111470,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Cloak ( Marvel Cross-Franchise Art Packs ),1159111300,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Collector ( Marvel Cross-Franchise Art Packs ),1159111232,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Colossus ( Marvel Cross-Franchise Art Packs ),1159368466,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Cosmo ( Marvel Cross-Franchise Art Packs ),1159111233,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Coulson, Phil ( Marvel Cross-Franchise Art Packs )",1159111301,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Crossbones ( Marvel Cross-Franchise Art Packs ),1159111130,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Crystal ( Marvel Cross-Franchise Art Packs ),1159111302,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Cyclops ( Marvel Cross-Franchise Art Packs ),1159151799,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Dagger ( Marvel Cross-Franchise Art Packs ),1159111309,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Daredevil ( Marvel Cross-Franchise Art Packs ),1159111209,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Deadpool ( Marvel Cross-Franchise Art Packs ),1159368467,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Dean, Karolina ( Marvel Cross-Franchise Art Packs )",1159111311,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Death, Embodiment of ( Marvel Cross-Franchise Art Packs )",1159111310,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Doctor Octopus ( Marvel Cross-Franchise Art Packs ),1159111471,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Dormammu ( Marvel Cross-Franchise Art Packs ),1159111312,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Dr. Doom ( Marvel Cross-Franchise Art Packs ),1159111156,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Dr. Strange ( Marvel Cross-Franchise Art Packs ),1159111369,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Drax ( Marvel Cross-Franchise Art Packs ),1159111249,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Druig ( Marvel Cross-Franchise Art Packs ),1159368812,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Echo ( Marvel Cross-Franchise Art Packs ),1159368468,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ego the Living Planet ( Marvel Cross-Franchise Art Packs ),1159111250,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Electro ( Marvel Cross-Franchise Art Packs ),1159111472,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Electro (Francine Frye) ( Marvel Cross-Franchise Art Packs ),1159111473,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Elektra ( Marvel Cross-Franchise Art Packs ),1159111157,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Enchantress ( Marvel Cross-Franchise Art Packs ),1159111523,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Falcon ( Marvel Cross-Franchise Art Packs ),1159111131,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Flerkittens  ( Marvel Cross-Franchise Art Packs ),1159378363,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Frost, Emma ( Marvel Cross-Franchise Art Packs )",1159368469,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Galactus ( Marvel Cross-Franchise Art Packs ),1159111158,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Gambit ( Marvel Cross-Franchise Art Packs ),1159368470,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Gamora ( Marvel Cross-Franchise Art Packs ),1159111251,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ghost ( Marvel Cross-Franchise Art Packs ),1159111280,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ghost Rider ( Marvel Cross-Franchise Art Packs ),1159111231,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ghost-Spider ( Marvel Cross-Franchise Art Packs ),1159111370,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Giant Man ( Marvel Cross-Franchise Art Packs ),1159110871,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Gilgamesh ( Marvel Cross-Franchise Art Packs ),1159368813,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Goose ( Marvel Cross-Franchise Art Packs ),1159368810,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Gorgon ( Marvel Cross-Franchise Art Packs ),1159111371,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Grandmaster ( Marvel Cross-Franchise Art Packs ),1159111162,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Green Goblin ( Marvel Cross-Franchise Art Packs ),1159111474,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Grey, Jean ( Marvel Cross-Franchise Art Packs )",1159152011,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Groot ( Marvel Cross-Franchise Art Packs ),1159111252,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Guardians of the Galaxy Logo ( Marvel Cross-Franchise Art Packs ),1159111253,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Gwenpool  ( Marvel Cross-Franchise Art Packs ),1159378374,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Havok ( Marvel Cross-Franchise Art Packs ),1159368472,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Hawkeye ( Marvel Cross-Franchise Art Packs ),1159110793,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Hayes, Molly ( Marvel Cross-Franchise Art Packs )",1159111163,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Hazmat ( Marvel Cross-Franchise Art Packs ),1159368471,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Hela ( Marvel Cross-Franchise Art Packs ),1159111524,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Hercules ( Marvel Cross-Franchise Art Packs ),1159368474,,UNMATCHED
+Marvel Cross-Franchise Art Packs,High Evolutionary ( Marvel Cross-Franchise Art Packs ),1159368473,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Hill, Maria ( Marvel Cross-Franchise Art Packs )",1159110891,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Hobgoblin ( Marvel Cross-Franchise Art Packs ),1159111475,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Howard The Duck ( Marvel Cross-Franchise Art Packs ),1159111164,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Hulk ( Marvel Cross-Franchise Art Packs ),1159111276,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Hulkbuster Armor Iron Man ( Marvel Cross-Franchise Art Packs ),1159111270,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Human Torch ( Marvel Cross-Franchise Art Packs ),1159368475,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Hydra ( Marvel Cross-Franchise Art Packs ),1159111165,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ikaris ( Marvel Cross-Franchise Art Packs ),1159368801,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Inferno ( Marvel Cross-Franchise Art Packs ),1159111166,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Infinity Gauntlet ( Marvel Cross-Franchise Art Packs ),1159111389,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Inhumans ( Marvel Cross-Franchise Art Packs ),1159111390,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Invisible Woman ( Marvel Cross-Franchise Art Packs ),1159368476,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Iron Fist ( Marvel Cross-Franchise Art Packs ),1159111391,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Iron Man ( Marvel Cross-Franchise Art Packs ),1159111281,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Iron Spider-Man ( Marvel Cross-Franchise Art Packs ),1159111476,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Jack o Lantern ( Marvel Cross-Franchise Art Packs ),1159371835,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Jackal ( Marvel Cross-Franchise Art Packs ),1159111477,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Jameson, J. Jonah ( Marvel Cross-Franchise Art Packs )",1159111489,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Jarvis ( Marvel Cross-Franchise Art Packs ),1159111271,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Jeff the Land Shark  ( Marvel Cross-Franchise Art Packs )	,1159378383,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Jones, Jessica ( Marvel Cross-Franchise Art Packs )",1159111392,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Jubilee ( Marvel Cross-Franchise Art Packs ),1159151459,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Juggernaut ( Marvel Cross-Franchise Art Packs ),1159152012,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Kang ( Marvel Cross-Franchise Art Packs ),1159110889,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Karnak ( Marvel Cross-Franchise Art Packs ),1159111420,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Killmonger, Erik ( Marvel Cross-Franchise Art Packs )",1159111414,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Kingo ( Marvel Cross-Franchise Art Packs ),1159368802,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Kingpin ( Marvel Cross-Franchise Art Packs ),1159111490,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Klaw ( Marvel Cross-Franchise Art Packs ),1159111410,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Korg ( Marvel Cross-Franchise Art Packs ),1159111277,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Kraven the Hunter ( Marvel Cross-Franchise Art Packs ),1159111491,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Latveria ( Marvel Cross-Franchise Art Packs ),1159368803,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Leader ( Marvel Cross-Franchise Art Packs ),1159111278,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Lizard ( Marvel Cross-Franchise Art Packs ),1159111494,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Lockheed ( Marvel Cross-Franchise Art Packs ),1159378380,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Lockjaw ( Marvel Cross-Franchise Art Packs ),1159111431,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Loki ( Marvel Cross-Franchise Art Packs ),1159111525,,UNMATCHED
+Marvel Cross-Franchise Art Packs,M.O.D.O.K ( Marvel Cross-Franchise Art Packs ),1159110801,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Madame Hydra ( Marvel Cross-Franchise Art Packs ),1159110802,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Madame Masque ( Marvel Cross-Franchise Art Packs ),1159111272,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Magik ( Marvel Cross-Franchise Art Packs ),1159368477,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Magneto ( Marvel Cross-Franchise Art Packs ),1159152013,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Makkari ( Marvel Cross-Franchise Art Packs ),1159368814,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Man-Spider ( Marvel Cross-Franchise Art Packs ),1159371836,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mantis ( Marvel Cross-Franchise Art Packs ),1159111254,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Marvel Cross-Franchise Art Packs,1159110849,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Marvel Girl ( Marvel Cross-Franchise Art Packs ),1159371838,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Marvel Logo ( Marvel Cross-Franchise Art Packs ),1159111417,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Marvel Universe (General) ( Marvel Cross-Franchise Art Packs ),1159368804,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mech Strike Mechasaurs (General) ( Marvel Cross-Franchise Art Packs ),1159151798,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mech Strike Mechasaurs Logo ( Marvel Cross-Franchise Art Packs ),1159151797,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Arachno ( Marvel Cross-Franchise Art Packs ),1159147413,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Binary ( Marvel Cross-Franchise Art Packs ),1159368805,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Dragonscale ( Marvel Cross-Franchise Art Packs ),1159147414,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Gamma Smasher ( Marvel Cross-Franchise Art Packs ),1159147415,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Guardian ( Marvel Cross-Franchise Art Packs ),1159141311,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Iron Stomper ( Marvel Cross-Franchise Art Packs ),1159151789,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur R4ptor Sentries ( Marvel Cross-Franchise Art Packs ),1159151790,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Redwing ( Marvel Cross-Franchise Art Packs ),1159147430,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Sabre Claw ( Marvel Cross-Franchise Art Packs ),1159151791,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur T-R3x ( Marvel Cross-Franchise Art Packs ),1159151792,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Thunderhoof ( Marvel Cross-Franchise Art Packs ),1159151795,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mechasaur Ultron Primeval ( Marvel Cross-Franchise Art Packs ),1159151796,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Medusa ( Marvel Cross-Franchise Art Packs ),1159111422,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mephisto ( Marvel Cross-Franchise Art Packs ),1159378392,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mighty Thor ( Marvel Cross-Franchise Art Packs ),1159151457,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Minoru, Nico ( Marvel Cross-Franchise Art Packs )",1159111416,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Miss America (America Chavez) ( Marvel Cross-Franchise Art Packs ),1159111430,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mole Man ( Marvel Cross-Franchise Art Packs ),1159111229,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Moloid ( Marvel Cross-Franchise Art Packs ),1159111230,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Moon Knight ( Marvel Cross-Franchise Art Packs ),1159111415,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Morales, Miles ( Marvel Cross-Franchise Art Packs )",1159111492,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Morbius ( Marvel Cross-Franchise Art Packs ),1159368478,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mr. Fantastic ( Marvel Cross-Franchise Art Packs ),1159151793,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mr. Sinister ( Marvel Cross-Franchise Art Packs ),1159152014,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ms. Marvel (Kamala Khan) ( Marvel Cross-Franchise Art Packs ),1159111423,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Mysterio ( Marvel Cross-Franchise Art Packs ),1159111493,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Namor ( Marvel Cross-Franchise Art Packs ),1159151453,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Nebula ( Marvel Cross-Franchise Art Packs ),1159111255,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Nick Fury ( Marvel Cross-Franchise Art Packs ),1159111421,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Nightcrawler ( Marvel Cross-Franchise Art Packs ),1159368479,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Nova ( Marvel Cross-Franchise Art Packs ),1159368164,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Nova ( Marvel Cross-Franchise Art Packs ),1159368806,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"O`Hara, Miguel ( Marvel Cross-Franchise Art Packs )",1159368480,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"O`Hara, Miguel ( Marvel Cross-Franchise Art Packs )",1159368523,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Okoye ( Marvel Cross-Franchise Art Packs ),1159111433,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Old Lace ( Marvel Cross-Franchise Art Packs ),1159111426,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Parker, May ( Marvel Cross-Franchise Art Packs )",1159368524,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Parker, Peter ( Marvel Cross-Franchise Art Packs )",1159111495,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Parker, Richard ( Marvel Cross-Franchise Art Packs )",1159368525,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Patriot ( Marvel Cross-Franchise Art Packs ),1159110890,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Phastos ( Marvel Cross-Franchise Art Packs ),1159368807,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Photon ( Marvel Cross-Franchise Art Packs ),1159151456,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Piledriver ( Marvel Cross-Franchise Art Packs ),1159378381,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Polaris ( Marvel Cross-Franchise Art Packs ),1159371839,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Power Man ( Marvel Cross-Franchise Art Packs ),1159368528,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Prowler ( Marvel Cross-Franchise Art Packs ),1159111498,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Pryde, Kitty ( Marvel Cross-Franchise Art Packs )",1159368526,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Punisher ( Marvel Cross-Franchise Art Packs ),1159111449,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Pym, Hank ( Marvel Cross-Franchise Art Packs )",1159151461,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Quake ( Marvel Cross-Franchise Art Packs ),1159111418,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Quinjet ( Marvel Cross-Franchise Art Packs ),1159368815,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Red Hulk ( Marvel Cross-Franchise Art Packs ),1159152016,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Red Skull ( Marvel Cross-Franchise Art Packs ),1159110803,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Rhino ( Marvel Cross-Franchise Art Packs ),1159111499,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Richards, Franklin ( Marvel Cross-Franchise Art Packs )",1159368529,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Richards, Valeria ( Marvel Cross-Franchise Art Packs )",1159368527,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Rocket Raccoon ( Marvel Cross-Franchise Art Packs ),1159111256,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Rogers, Steve ( Marvel Cross-Franchise Art Packs )",1159110805,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Rogue ( Marvel Cross-Franchise Art Packs ),1159152017,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ronan the Accuser ( Marvel Cross-Franchise Art Packs ),1159111257,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ronin ( Marvel Cross-Franchise Art Packs ),1159368532,,UNMATCHED
+Marvel Cross-Franchise Art Packs,S.H.I.E.L.D. ( Marvel Cross-Franchise Art Packs ),1159111289,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Sandman ( Marvel Cross-Franchise Art Packs ),1159111496,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Scarlet Spider Ben Reilly ( Marvel Cross-Franchise Art Packs ),1159111497,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Scarlet Witch ( Marvel Cross-Franchise Art Packs ),1159110892,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Scorpion ( Marvel Cross-Franchise Art Packs ),1159111167,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Sentinel ( Marvel Cross-Franchise Art Packs ),1159152018,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Sentry ( Marvel Cross-Franchise Art Packs ),1159368533,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Sersi ( Marvel Cross-Franchise Art Packs ),1159368816,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Shang-Chi ( Marvel Cross-Franchise Art Packs ),1159368163,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Shang-Chi ( Marvel Cross-Franchise Art Packs ),1159368808,,UNMATCHED
+Marvel Cross-Franchise Art Packs,She-Hulk ( Marvel Cross-Franchise Art Packs ),1159111279,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Shocker ( Marvel Cross-Franchise Art Packs ),1159111168,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Shuri ( Marvel Cross-Franchise Art Packs ),1159111429,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Silk ( Marvel Cross-Franchise Art Packs ),1159111509,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Silver Surfer ( Marvel Cross-Franchise Art Packs ),1159151794,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Skurge ( Marvel Cross-Franchise Art Packs ),1159111526,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spider Woman ( Marvel Cross-Franchise Art Packs ),1159111409,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spider-Girl ( Marvel Cross-Franchise Art Packs ),1159111510,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spider-Girl (Anya Corazon) ( Marvel Cross-Franchise Art Packs ),1159111511,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spider-Ham ( Marvel Cross-Franchise Art Packs ),1159111512,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spider-Man ( Marvel Cross-Franchise Art Packs ),1159111513,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spider-Man 2099 ( Marvel Cross-Franchise Art Packs ),1159111514,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spider-Rex ( Marvel Cross-Franchise Art Packs ),1159151452,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spot ( Marvel Cross-Franchise Art Packs ),1159111515,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Sprite ( Marvel Cross-Franchise Art Packs ),1159368817,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Spyder-Knight ( Marvel Cross-Franchise Art Packs ),1159111516,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Squirrel Girl ( Marvel Cross-Franchise Art Packs ),1159111413,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Stacy, Gwen ( Marvel Cross-Franchise Art Packs )",1159111518,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Star-Lord ( Marvel Cross-Franchise Art Packs ),1159111273,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Stark Industries ( Marvel Cross-Franchise Art Packs ),1159111290,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Stark, Tony ( Marvel Cross-Franchise Art Packs )",1159111291,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Stein, Chase ( Marvel Cross-Franchise Art Packs )",1159111432,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Storm ( Marvel Cross-Franchise Art Packs ),1159368809,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Sunfire ( Marvel Cross-Franchise Art Packs ),1159371840,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Sunspot ( Marvel Cross-Franchise Art Packs ),1159378352,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Superior Spider-Man ( Marvel Cross-Franchise Art Packs ),1159111517,,UNMATCHED
+Marvel Cross-Franchise Art Packs,T`Challa ( Marvel Cross-Franchise Art Packs ),1159111427,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Task Master ( Marvel Cross-Franchise Art Packs ),1159111425,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Thanos ( Marvel Cross-Franchise Art Packs ),1159111412,,UNMATCHED
+Marvel Cross-Franchise Art Packs,The Milano ( Marvel Cross-Franchise Art Packs ),1159368818,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Thena ( Marvel Cross-Franchise Art Packs ),1159368819,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Thor ( Marvel Cross-Franchise Art Packs ),1159111528,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Thor (Female) ( Marvel Cross-Franchise Art Packs ),1159368820,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Throg ( Marvel Cross-Franchise Art Packs ),1159378359,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Thunderball ( Marvel Cross-Franchise Art Packs ),1159378372,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Thunderbird ( Marvel Cross-Franchise Art Packs ),1159371841,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Thunderbolt Ross ( Marvel Cross-Franchise Art Packs ),1159111269,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Tigra ( Marvel Cross-Franchise Art Packs ),1159151460,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Tippy-Toe ( Marvel Cross-Franchise Art Packs ),1159111419,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Triton ( Marvel Cross-Franchise Art Packs ),1159111424,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ultimate Spider-Man Morales ( Marvel Cross-Franchise Art Packs ),1159111519,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ultron ( Marvel Cross-Franchise Art Packs ),1159110909,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Ultron Drone ( Marvel Cross-Franchise Art Packs ),1159378377,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Valkyrie ( Marvel Cross-Franchise Art Packs ),1159111529,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Venom ( Marvel Cross-Franchise Art Packs ),1159111520,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Vision ( Marvel Cross-Franchise Art Packs ),1159110930,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Vulture ( Marvel Cross-Franchise Art Packs ),1159111527,,UNMATCHED
+Marvel Cross-Franchise Art Packs,War Machine ( Marvel Cross-Franchise Art Packs ),1159111293,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Wasp ( Marvel Cross-Franchise Art Packs ),1159110929,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Watson, Mary Jane ( Marvel Cross-Franchise Art Packs )",1159111521,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Werewolf By Night ( Marvel Cross-Franchise Art Packs ),1159371843,,UNMATCHED
+Marvel Cross-Franchise Art Packs,White Tiger ( Marvel Cross-Franchise Art Packs ),1159368530,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Wilder, Alex ( Marvel Cross-Franchise Art Packs )",1159111411,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Winter Soldier ( Marvel Cross-Franchise Art Packs ),1159110804,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Wolverine ( Marvel Cross-Franchise Art Packs ),1159368165,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Wolverine ( Marvel Cross-Franchise Art Packs ),1159368821,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Wonder Man ( Marvel Cross-Franchise Art Packs ),1159151454,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Wong ( Marvel Cross-Franchise Art Packs ),1159151458,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Wrecker ( Marvel Cross-Franchise Art Packs ),1159378354,,UNMATCHED
+Marvel Cross-Franchise Art Packs,X-23 ( Marvel Cross-Franchise Art Packs ),1159368531,,UNMATCHED
+Marvel Cross-Franchise Art Packs,X-Men Logo ( Marvel Cross-Franchise Art Packs ),1159368822,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Yellowjacket ( Marvel Cross-Franchise Art Packs ),1159110931,,UNMATCHED
+Marvel Cross-Franchise Art Packs,Yondu ( Marvel Cross-Franchise Art Packs ),1159111274,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Yorkes, Gertrude ( Marvel Cross-Franchise Art Packs )",1159111428,,UNMATCHED
+Marvel Cross-Franchise Art Packs,"Zola, Arnim ( Marvel Cross-Franchise Art Packs )",1159110806,,UNMATCHED
