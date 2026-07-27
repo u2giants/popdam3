@@ -119,6 +119,40 @@ Users can sign up or sign in with email + password. Sign-up requires a pending i
 
 All paths produce a Supabase JWT. Sessions are stored in `localStorage` under the key `sb-popdam-auth-token` and auto-refreshed by the Supabase client. The `AuthProvider` in `src/hooks/useAuth.tsx` listens to `onAuthStateChange` and provides the session to the rest of the app.
 
+## Authorization: three axes across two schemas
+
+Being signed in is not one permission question but three. The first two live in
+`public` and are what this app's own code checks; the third lives in the shared
+`app` schema and is invisible in this repo's TypeScript, which makes it the one
+that surprises people.
+
+| # | Where | Values | Gates |
+|---|---|---|---|
+| 1 | `public.user_roles.role` (enum `public.app_role`) | `admin`, `user` | Privilege inside PopDAM — admin UI, `requireAdmin()` routes, most `public.*` RLS via `has_role()` |
+| 2 | `public.app_access.app` (enum `public.app_name`) | `popdam`, `styleguides` | Which app you may enter; checked for sister apps by `supabase/functions/verify-app-access/index.ts` |
+| 3 | `app.profile` → `app.user_role` → `app.role` (enum `app.app_role`) | `administrator`, `sales`, `licensing`, `designer`, `viewer`, `vendor` | **Every `core.*`, `api.*` and `dam.*` object.** All 40 policies there are app-schema gated, e.g. `core.customer.shared_read` = `app.has_any_role(ARRAY[...all six...])` |
+
+**Axis 3 matters to the frontend directly.** `src/pages/StylesPage.tsx`,
+`src/components/settings/PackagingTypesTab.tsx` and `ApisTab.tsx` read
+`.schema("core")` / `.schema("api")` from the browser with the *user's* JWT. A
+user provisioned only in `public` therefore signs in fine, sees the app, and
+gets an **empty Styles page** — not an error. Measured 2026-07-26: 18 of 35
+`popdam` users had no active `app.user_role`.
+
+Provisioning one axis does not provision another, and the role vocabularies do
+not overlap — `designer` and `viewer` exist **only** in the `app` schema, while
+`public.app_role` has just `admin | user`. A PopDAM `admin` with no `app` role
+still sees nothing in `core.*`.
+
+The `app` schema is not exposed through PostgREST (only `public` and `api`), so
+inspect it via the Management API
+(`POST https://api.supabase.com/v1/projects/<ref>/database/query`) with the
+"Supabase CLI Personal Access Token" from 1Password vault `vibe_coding`. Any
+change there is a shared-DB change → canonical `u2giants/shared-db`, never this
+repo.
+
+---
+
 ## Backend enforcement
 
 **One shared admin check.** Every edge-function admin decision goes through `supabase/functions/_shared/admin-auth.ts` (`requireAdmin()`), which is the only place `user_roles` is queried for authorization. Its pure, unit-tested policy half is `_shared/auth-policy.ts` (`src/test/auth-policy.test.ts`). Any new admin-gated route must call `requireAdmin()` instead of hand-rolling a role lookup.
