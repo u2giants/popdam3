@@ -1,4 +1,4 @@
-# Style guide → property mapping — review sheet for the licensing team
+# Style guide → property mapping review sheet
 
 **Captured:** 2026-07-26 · **Source of truth for the model:**
 [`../../style-guides-characters-and-royalties.md`](../../style-guides-characters-and-royalties.md)
@@ -7,11 +7,27 @@ This folder holds the inputs, the generator, and the output for the sheet the li
 fills in. It exists so the sheet can be **regenerated and audited** rather than trusted as a
 one-off export.
 
+## Current decision model
+
+The sheet now contains **all 335 populated style guides in one complete list**.
+The `decision_status` column separates settled rows from rows that need the
+licensing team:
+
+| Status | Rows | Meaning |
+|---|---:|---|
+| `ACCEPTED_DIRECT` | 21 | The owner accepted the exact normalized DAM parent + licensor match. These 21 parents contain 367 appearances. |
+| `ACCEPTED_CLASSIC_CP` | 5 | Owner-confirmed Disney Classics: 101 Dalmatians, Aristocats, Bambi, Jungle Book, Lion King. |
+| `ACCEPTED_NO_CODE` | 3 | Owner-confirmed no-code titles: Inside Out, Kim Possible, Luca. No placeholder may be created. |
+| `NEEDS_REVIEW` | 306 | Every other style guide, including broader name suggestions and unconfirmed Classics/no-code guesses. |
+
+This replaces the old incomplete story that combined 367 accepted appearances
+with a 174-row sheet built from a different 149/8/4/174 bucket split.
+
 ## Regenerate
 
 ```bash
-node tools/generate-style-guide-property-mapping.mjs          # 174 rows needing a decision
-node tools/generate-style-guide-property-mapping.mjs --all    # all 335 style guides
+node tools/generate-style-guide-property-mapping.mjs                 # all 335 rows
+node tools/generate-style-guide-property-mapping.mjs --needs-review  # 306 open rows
 ```
 
 Reads only the files in this folder. No database or network access required.
@@ -20,8 +36,8 @@ Reads only the files in this folder. No database or network access required.
 
 | File | What it is |
 |---|---|
-| `style-guide-property-mapping.csv` | **The deliverable.** 174 style guides that need a human decision, each with up to two suggestions and a blank column for the answer. |
-| `style-guide-source-rows.json` | The 335 style guides that actually have characters, pre-bucketed (149 name-matched, 8 classics→`CP`, 4 no-code, 174 needs-review). |
+| `style-guide-property-mapping.csv` | **The deliverable.** All 335 style guides, with accepted rows prefilled and 306 rows clearly marked `NEEDS_REVIEW`. |
+| `style-guide-source-rows.json` | The 335 style guides that actually have characters. Its older buckets are input hints only; the generator applies the approved decision rules. |
 | `coldlion_mg06.json` | Coldlion MG06 property dictionary, all four divisions, 576 rows / 318 distinct descriptions. |
 | `styleguide_tree.txt` | Folder listing from `edge1:/volume1/styleguides`, 1,958 directories to depth 3. |
 
@@ -57,13 +73,13 @@ rows **are style guides**, not properties.
 
 ## Reading the sheet
 
-Columns: `licensor · style_guide · characters · folder_property · folder_leaf_match ·
-folder_confidence · coldlion_mg06_code · coldlion_mg06_desc · coldlion_confidence ·
-final_mg06_code (licensing team fills in)`
+The licensing team filters `decision_status` to `NEEDS_REVIEW` and fills in
+`final_mg06_code`.
 
-The licensing team puts **one MG06 code per row** in the last column — the code the style guide
-belongs to, `CP` for a Disney Classic, a marker such as `NEW` where a code must be created, or
-blank/`NONE` where there genuinely is no property.
+The answer must be an **existing Coldlion MG06 code**, `CP` for a confirmed
+Disney Classic, or `NONE` where no property code exists. `NEW` is not allowed.
+If a new property is truly needed, the business must create its code in Coldlion
+first. This sheet must never create a placeholder in `core.property`.
 
 ### The two suggestion columns are hints, not authority
 
@@ -80,13 +96,31 @@ Both columns are shown so a human reconciles them rather than a script picking a
 
 ### A blank suggestion is a finding
 
-Coverage of the 174: **79** have a folder-tree property, **62** have a Coldlion guess, **74** have
-neither. That last group is the real work — titles with no property code in Coldlion *and* no
-property folder on the server. Verified absent from Coldlion: Pirates of the Caribbean, the
-Matrix films, the Hobbit films, Scooby-Doo, Shazam, Suicide Squad, The Incredibles, Tsum Tsum.
-Those need a code created or a bucket chosen.
+The folder and fuzzy MG06 columns are suggestions only. The broader 149-row
+name-match set is also a suggestion unless the row is one of the 21 accepted
+direct agreements. This prevents `Batman Core → BATMAN` and similar family
+matches from silently becoming approved facts.
+
+Titles with no match need an existing bucket chosen or `NONE`. If the business
+needs a new code, it must be added to Coldlion before this migration can use it.
 
 ## Scope note
 
 This sheet resolves **style guide → property** only. It does not decide character identity
 (§7 open question 4 of the model doc) and it does not touch the database.
+
+## Corrections after independent review
+
+Grok independently checked the Phase 0/1 work on 2026-07-26. It confirmed the
+counts but found that the 367 direct agreements and old 174-row sheet came from
+different matching tracks. The old wording left 128 populated parents without
+a stated decision path.
+
+The correction:
+
+- puts all 335 style guides in one sheet;
+- keeps only the 21 owner-accepted direct parents automatic;
+- keeps only the five owner-named Classics automatic;
+- keeps only the three owner-named no-code titles automatic;
+- returns Dumbo, Dumbo (2019), Lion King (2019), and Inside Out 2 to review;
+- removes `NEW`.

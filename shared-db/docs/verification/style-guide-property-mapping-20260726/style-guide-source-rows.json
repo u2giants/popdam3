@@ -1064,18 +1064,18 @@
   "resolved_property": "CLASSIC PROPERTIES (CP)"
  },
  {
-  "licensor": "Dis/Mrv/SW",
-  "style_guide": "Dumbo",
-  "characters": 1,
-  "bucket": "classics-CP",
-  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ "licensor": "Dis/Mrv/SW",
+ "style_guide": "Dumbo",
+ "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
  },
  {
-  "licensor": "Dis/Mrv/SW",
-  "style_guide": "Dumbo (2019)",
-  "characters": 10,
-  "bucket": "classics-CP",
-  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ "licensor": "Dis/Mrv/SW",
+ "style_guide": "Dumbo (2019)",
+ "characters": 10,
+  "bucket": "needs-review",
+  "resolved_property": null
  },
  {
   "licensor": "Dis/Mrv/SW",
@@ -1092,11 +1092,11 @@
   "resolved_property": "CLASSIC PROPERTIES (CP)"
  },
  {
-  "licensor": "Dis/Mrv/SW",
-  "style_guide": "Lion King, The (2019)",
-  "characters": 1,
-  "bucket": "classics-CP",
-  "resolved_property": "CLASSIC PROPERTIES (CP)"
+ "licensor": "Dis/Mrv/SW",
+ "style_guide": "Lion King, The (2019)",
+ "characters": 1,
+  "bucket": "needs-review",
+  "resolved_property": null
  },
  {
   "licensor": "Dis/Mrv/SW",
@@ -1106,10 +1106,10 @@
   "resolved_property": null
  },
  {
-  "licensor": "Dis/Mrv/SW",
-  "style_guide": "Inside Out 2",
-  "characters": 1,
-  "bucket": "no-code",
+ "licensor": "Dis/Mrv/SW",
+ "style_guide": "Inside Out 2",
+ "characters": 1,
+  "bucket": "needs-review",
   "resolved_property": null
  },
  {

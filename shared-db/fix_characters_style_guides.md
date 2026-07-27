@@ -1,7 +1,7 @@
 # Characters and style guides — canonical migration plan
 
 **Status (2026-07-26): PHASES 0–1 COMPLETE. Waiting for the licensing team's
-174-row review sheet, expected in 24–48 hours.**
+corrected 335-row review sheet, expected in 24–48 hours.**
 No schema change has been written. No database has been modified. All work so far is
 read-only investigation and documentation.
 
@@ -66,8 +66,8 @@ destinations already exist and are empty.
 **Owner decision:** use the hybrid approach.
 
 Every character in `public.characters` already has a `property_id`, covering the same 335 parent
-style guides as the legacy spine. Meanwhile a 174-row review sheet has been prepared for the
-licensing team (§9).
+style guides as the legacy spine. The licensing sheet now contains all 335 style guides in one
+complete decision list (§9).
 
 - **Branch A — promote DAM's existing mapping.** Trust `public.characters.property_id`, verify a
   sample, skip the manual review. Fast; depends on DAM's mapping being correct and on its
@@ -85,11 +85,16 @@ The approved hybrid rules are:
 
 1. Accept the **367 direct agreements**.
 2. Apply the already-decided Disney Classics → `CP` and no-code rules.
-3. Use the licensing team's 174-row review sheet for the remaining family/bucket decisions.
+3. Use the licensing team's corrected **335-row** sheet. It contains 21 accepted direct parents,
+   five accepted Classics, three accepted no-code titles, and **306 rows needing review**.
 
 The licensing-team sheet is expected in **24–48 hours**. Its delay blocks the Phase 3 backfill,
 not the additive Phase 2 schema design. The owner's earlier instruction not to write a migration
 remains in force until new approval is given.
+
+**Merge rule:** the 367 figure counts appearances under 21 accepted parents. It is not combined
+arithmetically with the old 149/8/4/174 suggestion buckets. The corrected sheet is the single
+row-level source for all 335 style guides. Only rows marked `ACCEPTED_*` are automatic.
 
 ---
 
@@ -232,11 +237,12 @@ day 1**; earliest exit **2026-08-09**; Phase 7 (production cutover) **not author
 | Asset | Where |
 |---|---|
 | The model, rules, and decisions | [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md) |
-| Licensing-team review sheet (174 rows) + inputs + how they were captured | [`docs/verification/style-guide-property-mapping-20260726/`](docs/verification/style-guide-property-mapping-20260726/README.md) |
+| Licensing-team decision sheet (all 335 rows; 306 need review) + inputs + capture notes | [`docs/verification/style-guide-property-mapping-20260726/`](docs/verification/style-guide-property-mapping-20260726/README.md) |
 | Regenerator for that sheet | `tools/generate-style-guide-property-mapping.mjs` |
 
-Delivered to the owner on 2026-07-26; **not yet returned by the licensing team**. Expected in
-24–48 hours. Phase 0 approved the hybrid path, including acceptance of all 367 direct agreements.
+The original 174-row sheet was replaced after independent review found that it did not cover
+the residual left by the 367 accepted appearances. The corrected 335-row sheet has 306 open
+rows and is **not yet returned by the licensing team**. Expected in 24–48 hours.
 
 ## 10. What was tried that did NOT work
 
@@ -259,8 +265,9 @@ model doc §6.
    a Marvel archive folder). Constrain candidates to the same licensor.
 7. **Over-tightening the matcher** to remove low-confidence noise. Dropped good matches and cut
    coverage. For a human review sheet, a visible low-confidence guess beats a blank.
-8. **A 335-row sheet including already-settled rows.** The team only needs the rows that need a
-   decision. The sheet is 174 rows for that reason.
+8. **The old 174-row-only sheet.** It hid the automatic rows and made two different matching
+   tracks look complete when they were not. The corrected sheet includes all 335 rows and labels
+   the 306 rows that still need a decision.
 
 ## 11. Document history
 
@@ -268,3 +275,4 @@ model doc §6.
 |---|---|
 | 2026-07-26 | Created. Phases 0–7 defined; Phase 0 open pending owner decision. |
 | 2026-07-26 | Phases 0–1 completed. Owner approved the hybrid source: accept 367 direct agreements, apply Classics/no-code rules, and wait for the 174-row licensing review for the residual mapping. |
+| 2026-07-26 | Grok review found the 367 and 174 tracks did not cover the same population. Replaced the sheet with one 335-row list: 21 accepted direct parents, 5 confirmed Classics, 3 confirmed no-code titles, 306 review rows. |

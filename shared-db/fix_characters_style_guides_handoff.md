@@ -1,7 +1,7 @@
 # HANDOFF — characters and style guides, canonical migration
 
 **Written:** 2026-07-26 · **Updated:** 2026-07-26 · **Repo:** `u2giants/shared-db` ·
-**Branch:** `main` · **Next action:** wait for the licensing team's completed 174-row review
+**Branch:** `main` · **Next action:** wait for the licensing team's completed corrected 335-row review
 sheet, expected in 24–48 hours. Phase 2 needs separate approval because the owner previously
 said not to write a migration yet.
 
@@ -117,9 +117,10 @@ produced documentation and a plan rather than DDL: **the model had to be right f
 - `public.style_guide_files` — 279,783 · `public.asset_characters` — 117,012
 - `dam.style_guide_file`, `dam.asset_character`, `dam.style_group`, `dam.asset` — all **0 rows**
 
-**Deliverable already with the owner:** a 174-row review sheet for the licensing team at
+**Deliverable for the licensing team:** a corrected 335-row review sheet at
 `docs/verification/style-guide-property-mapping-20260726/style-guide-property-mapping.csv`, sent
-2026-07-26, **not yet returned** and expected in 24–48 hours. Regenerate with
+2026-07-26, **not yet returned** and expected in 24–48 hours. It contains 29 settled rows and
+306 rows marked `NEEDS_REVIEW`. Regenerate with
 `node tools/generate-style-guide-property-mapping.mjs` — no database or network needed.
 
 ## 7. Constraints and gotchas recorded nowhere else
@@ -165,9 +166,9 @@ checklist passes. Not main-only.
 ## 9. Open questions and risks
 
 **Phase 0 decision (approved 2026-07-26):** use the hybrid source. Accept the 367 DAM
-appearances whose parents directly agree with a canonical property, apply the settled
-Classics → `CP` and no-code rules, and use the licensing team's 174-row sheet for the remaining
-family/bucket decisions.
+appearances whose 21 parents directly agree with a canonical property, apply the five settled
+Classics → `CP` and three settled no-code rules, and use the corrected 335-row sheet as the
+single decision list. The remaining 306 rows need licensing-team review.
 
 Phase 1 proved that wholesale DAM promotion is unsafe: 9,255 of 9,622 appearances sit under
 licensing/style-guide catalogue parents that do not directly exist in `core.property`.
@@ -198,6 +199,9 @@ Evidence is in
    in that window. **Re-read their status header — it changes daily.**
 5. **The licensing team's sheet is pending.** It is expected in 24–48 hours. Phase 3 cannot
    complete without those family/bucket decisions.
+6. **The old 174-row sheet was incomplete when combined with the 367 path.** Grok found that
+   the two numbers came from different matching tracks. The corrected 335-row sheet removes
+   that gap and returns unapproved Classics/no-code guesses to review.
 
 **Unanswered, non-blocking:** does Coldlion expose the talent-likeness flag on any endpoint? The
 owner confirms Coldlion captures it and reports royalties against it, but it is absent from

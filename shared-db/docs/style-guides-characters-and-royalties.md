@@ -350,7 +350,7 @@ The owner supplied the rules that resolve it. Apply them in order:
    properties in our catalog. They are grouped under one Coldlion property:
    **`CP` = "CLASSIC PROPERTIES"** (licensor DISNEY, active; present in both Coldlion MG06 and
    `core.property`). Confirmed classics that map to `CP`:
-   **Bambi, Lion King, Aristocats, Jungle Book, 101 Dalmatians** (and titles like them).
+   **Bambi, Lion King, Aristocats, Jungle Book, 101 Dalmatians**.
    > "Bambi, Lion King, Aristocats, Jungle Book and 101 Dalmatians are considered Classics so
    > we use the CP MG06." — owner, 2026-07-24
    Related Coldlion classics buckets, for reference: `MP` "MIXED PROPERTIES (DISNEY CLASSICS)",
@@ -372,11 +372,11 @@ The blocker is **not** the shape above — it is the two inputs the legacy data 
 1. **Which property does each character belong to?** (axis 1 parent)
 2. **Which property does each style guide belong to?** (open question 3)
 
-The legacy tables record `licensor` for both, never `property`. §5A.0 now supplies the owner's
-resolution rules for input 2 (style guide → property). Input 1 (character → property) follows
-from it: a character's property is the property of whichever style guide owns it, which is
-well-defined for the 149 name-matched style guides plus the classics that fold into `CP`, and
-undefined for the no-code titles (§5A.0 rule 3).
+The legacy tables record `licensor` for both, never `property`. §5A.0 supplies the owner's
+resolution rules, but a text match is still only a suggestion unless it is one of the 21
+accepted direct DAM parent agreements. The corrected 335-row review sheet is the single
+decision list: 21 accepted direct parents, five confirmed Classics, three confirmed no-code
+titles, and 306 rows requiring review.
 
 ### 5A.2 "Everything licensed" vs "only what Coldlion produces" — decided
 
