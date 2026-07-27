@@ -1,0 +1,97 @@
+{
+  "phase": "PSG-3",
+  "generated_on": "2026-07-27",
+  "canonical_text_line_endings": "LF",
+  "files": {
+    "approval.json": {
+      "sha256": "0d9c3d78126f60fcf97329a0ec23d15c891206186a227e9d64d6076f86682e64",
+      "bytes": 1269
+    },
+    "README.md": {
+      "sha256": "e830611afae4c892d61698332ef2e2321a5d228de23dc0db4af141f4a2d7b459",
+      "bytes": 7537
+    },
+    "psg3-admin-overview.png": {
+      "sha256": "fef12ab6d76407bf125e8f7d7f527ec6379e4c70a90fbe984fa3eca4620dc76f",
+      "bytes": 183852
+    },
+    "psg3-admin-prepare-dialog.png": {
+      "sha256": "708c229e076ae1d615ab30c039d8dd4d0f5a32e493714eddf7aaae04976ac940",
+      "bytes": 37725
+    },
+    "psg3-admin-pending-export.png": {
+      "sha256": "3854bd292be3f4cf01f1f9447fbd15d78358fb8d5a39c6d2d61225a7a42fc24f",
+      "bytes": 43621
+    },
+    "psg3-cross-licensor-locked.png": {
+      "sha256": "e1724c11bc13cce3754c24ea02d7d791e48e9093440df7cff5bee915945655d4",
+      "bytes": 14861
+    },
+    "psg3-designer-locked.png": {
+      "sha256": "349e1b09b6771d5858a9452fdc279c9a2ef6eeae2935828e72cfa3825d5e124f",
+      "bytes": 190066
+    },
+    "psg3-lion-king-open.png": {
+      "sha256": "1bede1acf2d13cffc9a8f6717df4d1d7ef10373f2b17cb9935ef610310dd5d55",
+      "bytes": 141571
+    },
+    "psg3-create-candidates-locked.png": {
+      "sha256": "4f29ceeab9598d9562303175053590ac24f20a1f05489c93fcf0f104e6a54a66",
+      "bytes": 157580
+    }
+  },
+  "inputs": {
+    "popdam3/scripts/generate-popsg-property-reconciliation-fixture.cjs": {
+      "sha256": "344eabe7cc293eb14d84b845a0e954300b932ad34658d4e54cdd9e104f469f75",
+      "bytes": 4521
+    },
+    "popdam3/src/features/popsg-property-reconciliation/contract.ts": {
+      "sha256": "30973730ac9c8ff061b1597342a6e86d511bd4b9f027639d38b3a801487843dc",
+      "bytes": 5611
+    },
+    "popdam3/src/features/popsg-property-reconciliation/contract.test.ts": {
+      "sha256": "cf3cb80942332088c09272a8361505287cc3d919215eb8ac5e77ff8338311486",
+      "bytes": 3927
+    },
+    "popdam3/src/features/popsg-property-reconciliation/fixture-contract.test.ts": {
+      "sha256": "741dced80592192122796bdd402a020c69c7a691983ea0128642dcb596f4c62d",
+      "bytes": 2541
+    },
+    "popdam3/src/features/popsg-property-reconciliation/no-write-boundary.test.ts": {
+      "sha256": "b062749684c4a88abf303dc7bde17f95cce3454dc6d5d9769db471129a715cb3",
+      "bytes": 2086
+    },
+    "popdam3/src/features/popsg-property-reconciliation/generated-psg2-fixture.ts": {
+      "sha256": "ff75166191d9a8202ef1360da7dbf939a8e0b55132d75257732adcfe98c40155",
+      "bytes": 388984
+    },
+    "popdam3/src/features/popsg-property-reconciliation/PropertyReconciliationPanel.tsx": {
+      "sha256": "6e271b17c75aa20f7075127d3465cf0efa8eb123f13cf40f2c3e06e18eeda2eb",
+      "bytes": 20461
+    },
+    "popdam3/src/features/popsg-property-reconciliation/PropertyReconciliationPanel.test.tsx": {
+      "sha256": "328c9b85a4cda3abb238df688d7f4134b56b096c21a248cf90cba05f15089484",
+      "bytes": 4459
+    },
+    "popdam3/src/features/popsg-property-reconciliation/PropertyReconciliationVisualPage.tsx": {
+      "sha256": "e26db79a9e6b1c7360e8a1969b4e141c658829a8a51cb87b90a50689ae85c6d8",
+      "bytes": 1255
+    },
+    "popdam3/src/pages/popsg/PopSGSettingsPage.tsx": {
+      "sha256": "c88cd5a3ff6c9d230ca50296fd84e94c32ec4d9567642ce13e4e6f9572398ed0",
+      "bytes": 51010
+    },
+    "popdam3/src/App.tsx": {
+      "sha256": "6f6209201a26bd487803034b7ff777283559cd859d1decd316807cbda6651a63",
+      "bytes": 4184
+    },
+    "shared-db/HANDOFF.md": {
+      "sha256": "837baeb78ba61545360f9cf95d91dd507ab71a5e8cd70477798a9f7aa77d6724",
+      "bytes": 154219
+    },
+    "shared-db/fix_popsg_property_taxonomy_reconciliation.md": {
+      "sha256": "52d51457ee5a6228aa9da9d98ed1033e14e71be8c7653b4d53878d5cbb1a44b3",
+      "bytes": 51061
+    }
+  }
+}

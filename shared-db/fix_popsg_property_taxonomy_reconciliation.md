@@ -940,3 +940,48 @@ batch hash, and PSG-3 remains forbidden.
 
 **Owner gate:** Albert must approve or reject an exact batch ID and SHA-256. Do not start PSG-3
 or infer approval from the review pass.
+
+---
+
+## 18. PSG-3 implementation record — 2026-07-27
+
+**Status:** UI/fixture shell implemented locally. Full PSG-3 plan gate remains OPEN. Stop before
+PSG-4.
+
+Albert explicitly approved only `batch-01-exact-existing`, 51 rows / 44,331 files, SHA-256
+`f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e`.
+The durable bounded record is
+[`docs/verification/popsg-property-reconciliation-20260727-psg3/approval.json`](docs/verification/popsg-property-reconciliation-20260727-psg3/approval.json).
+It does not approve batch 02, canonical creates, 6,961 at-risk removals, schema, migrations,
+database writes, activation, rebuilds, deployment, production, or PSG-4.
+
+PSG-3 resolves the UI-versus-schema boundary with a safe non-writing fixture/data adapter. The
+real PopSG Settings → File Tags → Property reconciliation component reads all 372 frozen PSG-2
+rows, displays five business queues and required evidence/filters, and lets an administrator
+prepare only valid same-parent rows from the exact approved batch. Pending rows live in browser
+memory only and export as stable JSON with a hash. Viewer/designer preparation is denied. No
+activation action or backend adapter exists.
+
+This phase authored no SQL, migration, RLS, RPC, database API, database write, rebuild, deployment,
+canonical create, or tag removal. PSG-5 still owns any future schema-backed contract and its real
+RLS/RPC proof after separate authority exists.
+
+Unit, fixture, role, component, and no-write contract tests pass (19). The full PopDAM suite passes
+(93 tests across 22 files). The production build passes.
+Seven real-browser screenshots prove the administrator flow, cross-Licensor lock, designer lock,
+open Lion King row, locked ColdLion candidates, owner hash, exclusions, and export surface. Full
+evidence and source hashes are in
+[`docs/verification/popsg-property-reconciliation-20260727-psg3/`](docs/verification/popsg-property-reconciliation-20260727-psg3/README.md).
+
+The first Grok review required corrections for phase status, ambiguity handling, mixed-Licensor
+export, signed-key enforcement, security tests, hidden rows, and related medium findings. The
+second review then found a stale prepare-dialog screenshot and three low-risk hardening gaps.
+The screenshot now starts from an empty set on Winnie the Pooh / 6,887 files. Both preparation
+and export enforce membership in the signed 51-key set, parent-proof text renders only for an
+equal Licensor parent, and starting a pending set immediately locks rows from other Licensors.
+All corrections are implemented and locally verified. The final Grok follow-up returned PASS with
+no Critical, High, or Medium findings.
+
+The full PSG-3 plan gate remains open until separately approved PSG-5 work proves RLS, RPCs,
+persistence, and the complete workflow on preview. The moving ColdLion accelerated plan still has
+Steps 1–10 open and production Phase 7 forbidden. Stop before PSG-4 and before any deployment.

@@ -1,0 +1,34 @@
+{
+  "phase": "PSG-3",
+  "recorded_on": "2026-07-27",
+  "decision_owner": "Albert Hazan",
+  "decision": "approved",
+  "approved_batch": {
+    "id": "batch-01-exact-existing",
+    "rows": 51,
+    "active_files": 44331,
+    "sha256": "f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e"
+  },
+  "authorized_scope": [
+    "PSG-3 pending-proposal user experience",
+    "safe non-writing fixture and data adapter",
+    "administrator preparation of valid same-parent pending proposals for the approved batch only",
+    "read-only queue, filter, evidence, hash, role, and export proof"
+  ],
+  "explicitly_not_approved": [
+    "batch-02-non-property",
+    "canonical create candidates",
+    "the 6961 at-risk removals",
+    "schema activation",
+    "mapping activation",
+    "database writes",
+    "migrations",
+    "rebuilds",
+    "deployment",
+    "production",
+    "PSG-4 or any later phase"
+  ],
+  "activation_authority": "No PSG-3 user or adapter can activate a proposal. Any future activation must use a separately authorized guarded exact-owner-hash flow.",
+  "evidence_source": "Albert's explicit current-chat instruction dated 2026-07-27",
+  "immutable_input": "docs/verification/popsg-property-reconciliation-20260727-psg2/batch-01-exact-existing.csv"
+}
