@@ -1,5 +1,178 @@
 # HANDOFF — shared-db current state
 
+## OPEN FIX — `search_style_tracker_link_candidates` is blind to alias rows and to master rows with no PLM source ref (2026-07-27)
+
+**Status:** NOT STARTED. Spec only — no branch, no migration, no DB write yet.
+**Scope:** one shared-db migration replacing `public.search_style_tracker_link_candidates`,
+plus two small canonical data adds. Does not supersede the PSG-3 boundary below.
+**Found by:** PopDAM Master Data → "Master Data matching" review queue (`/styles`),
+triaged 2026-07-27 against live prod `qsllyeztdwjgirsysgai`.
+
+### Symptom
+
+Values in the review queue show **no candidate at all** even when the correct canonical
+row exists and matches the raw string *exactly*. The reviewer's only options become
+"Dismiss: Keep In Master Data" or a manual search that also returns nothing — so
+correct data gets recorded as unmatchable.
+
+Reproducer, verified in prod:
+
+```sql
+-- The canonical row exists, name is an exact case-insensitive match:
+select id, name, status from core.licensor where name = 'NASA';
+--  dd9d7be2-6f77-4183-8e41-3e57a7a20f8b | NASA | active
+
+-- The matcher returns nothing:
+select * from public.search_style_tracker_link_candidates('licensor','NASA',8,'fuzzy');
+--  (0 rows)
+select count(*) from public.search_style_tracker_link_candidates('licensor','NASA',500,'all')
+  where target_label = 'NASA';
+--  0            -- 'all' returns 20 unrelated score-0 licensors but never NASA itself
+```
+
+44 `License.Style` tracker rows carry licensor `NASA` and were unmatchable because of this.
+
+### Root cause
+
+Two independent defects in `public.search_style_tracker_link_candidates`
+(current definition: `select pg_get_functiondef('public.search_style_tracker_link_candidates'::regproc)`).
+
+**(1) The source-ref joins are INNER joins, so they act as a filter on the master table.**
+
+- `customer` branch: `from core.customer c join core.company_source_ref csr on csr.company_id = c.id
+  where csr.source_system = 'designflow_plm' and csr.source_table = 'customers'`
+- `licensor` branch: `from core.licensor l join core.taxonomy_source_ref tsr on tsr.entity_id = l.id
+  where tsr.entity_schema='core' and tsr.entity_table='licensor'
+  and tsr.source_system='designflow_plm' and tsr.source_table='merchGroup'`
+- `property` branch: same shape as `licensor`.
+
+The joins exist only to surface the PLM `source_name`/`source_code` as extra things to score
+against. But because they are INNER joins with a `where` on the joined table, **any canonical row
+that was not created by the DesignFlow PLM sync is excluded from the candidate set entirely** —
+it can never be matched, at any score, in any `p_match_mode`. `core.licensor.NASA` has no
+`core.taxonomy_source_ref` row, which is exactly the reproducer above. The same hole applies to
+every hand-added or non-PLM-sourced customer, licensor, and property. Note `p_match_mode='all'`
+does **not** rescue these rows: `use_all` only bypasses the `score >= min_score` filter, it does
+not touch the join — the fallback in PopDAM's `searchCandidates` therefore returns a page of
+unrelated score-0 licensors and still not the right one.
+
+**(2) The dedicated alias tables are never consulted.**
+
+`core.customer_alias` (100 rows) and `core.factory_alias` (8 rows) both exist, both have
+`alias` / `normalized_alias` / `alias_type` / `source_system`, and **neither is referenced by the
+matcher**. The `factory` branch scores against `f.name` and `f.code` only; the `customer` branch
+scores against `c.name` plus the PLM source ref only. So the one mechanism the schema already
+provides for "this string means that row" is inert for this feature.
+
+This is why the tracker's vendor column is ~2,240 unmatched rows across 29 values: the sheet
+records the **sales rep**, not the factory (`Jerome Chen` 431, `Alice zhu` 379, `Lucy Wang` 304,
+`Chloe Huang` 244, `Mr Ying` 141, …). Rep→factory is precisely an alias relationship, and
+`core.factory_alias` is where it belongs.
+
+### The fix
+
+One migration under `supabase/migrations/`, `create or replace function
+public.search_style_tracker_link_candidates(...)` keeping the exact same signature and
+`returns table(target_schema text, target_table text, target_id uuid, target_label text, score real)`
+contract — PopDAM calls it as-is from `src/pages/StylesPage.tsx` (`searchCandidates`,
+`searchManualCandidates`) and must need no client change.
+
+1. **Convert every source-ref join to a `left join`** and move the `source_system` /
+   `source_table` / `entity_*` predicates from the `where` clause **into the join condition**.
+   A `where` on a left-joined table silently degrades it back to an inner join — this is the
+   trap that must not be reintroduced.
+2. **Fold the alias tables into the candidate set**, `left join`ed the same way:
+   - `customer` branch → `core.customer_alias ca on ca.customer_id = c.id`
+   - `factory` branch → `core.factory_alias fa on fa.factory_id = f.id`
+   Score against `ca.alias` / `fa.alias` with the same `greatest(similarity(...), case ... end)`
+   ladder already used for `name` / `code` / `source_name`. Keep `target_label` as the **canonical
+   name**, never the alias, so the reviewer approves a row they can recognize; if a UI hint is
+   wanted later, add it as a separate column in a follow-up rather than mangling `target_label`.
+3. **Keep the existing dedupe** — the `row_number() over (partition by target_schema,
+   target_table, target_id order by score desc, target_label) ... where rn = 1` block already
+   collapses multiple scoring paths for the same row. Adding alias rows multiplies the candidate
+   rows per master row, so verify this still yields one row per `target_id` (it is the reason the
+   partition exists; do not drop it).
+4. **Leave the `sku` branch alone** — it reads `public.style_groups` directly with no join and no
+   alias table, and has neither defect.
+
+### Canonical data adds that belong with this change
+
+Owner-confirmed 2026-07-27:
+
+- **`Frida Kahlo`** and **`ZAG Miraculous`** are real licenses that were **not renewed**. They
+  should exist in `core.licensor` with `status = 'inactive'` (not absent). 4 and 1 tracker rows
+  respectively. Once added, defect (1) must already be fixed or they will still be invisible to
+  the matcher — they will have no `taxonomy_source_ref` either.
+- **Five rep→factory aliases** for `core.factory_alias`, confirmed correct by the owner. Insert
+  with `alias_type = 'other'` (matching the existing 8 rows) and
+  `source_system = 'style_tracker'`:
+
+  | alias | factory (`core.factory.name`) |
+  |---|---|
+  | `Rita Okay Home` | HangZhou Okay Home Products Co., Ltd. |
+  | `Henry Newdeco` | NEW DECO ARTS AND CRAFTS CO.,LTD |
+  | `Rex EVERICH` | SUZHOU EVERICH CO.,LTD |
+  | `King Sofine` | Ningbo Sofine Framing Co.,Ltd. |
+  | `King Pharos` | Pharos Artcraft Co., LTD |
+
+  These are worth ~140 tracker rows immediately, and they establish the pattern for the
+  remaining rep names (`Jerome Chen`, `Alice zhu`, `Lucy Wang`, `Chloe Huang`, `Mr Ying`,
+  `Tom Zhang`, …), which the owner can map in bulk once the matcher actually reads aliases.
+
+- **Open question for the owner — `DCR`.** 17 tracker rows on `License.Style` carry licensor
+  `DCR`. No `core.licensor` row matches; the only near hit is `DC` (similarity 0.400). It has not
+  been confirmed as either a `DC` alias or a separate lapsed license. **Do not guess.** Ask before
+  adding a row or an alias.
+
+### Verification
+
+1. `scripts/check-sql.sh`.
+2. Apply to the preview branch `rjyboqwcdzcocqgmsyel` and run there first (§5).
+3. Regression — these must all return the canonical row after the fix, and are the exact cases
+   that fail today:
+   ```sql
+   select * from public.search_style_tracker_link_candidates('licensor','NASA',8,'fuzzy');
+   select * from public.search_style_tracker_link_candidates('factory','Rita Okay Home',8,'fuzzy');
+   select * from public.search_style_tracker_link_candidates('licensor','Frida Kahlo',8,'fuzzy');
+   ```
+4. No-regression — these already work and must be unchanged in both result and rank order:
+   ```sql
+   select * from public.search_style_tracker_link_candidates('licensor','One Piece (Toei)',8,'fuzzy'); -- TOEI - ONE PIECE, 1.0
+   select * from public.search_style_tracker_link_candidates('licensor','Coca-Cola',8,'fuzzy');        -- COCA COLA, 1.0
+   select * from public.search_style_tracker_link_candidates('customer','Burlington, Ross',8,'fuzzy'); -- Burlington, 0.9
+   select * from public.search_style_tracker_link_candidates('sku','VSZ93DA',8,'fuzzy');
+   ```
+5. Confirm one row per `target_id` in every result (the alias join must not duplicate candidates).
+6. Exercise the real screen against preview: PopDAM `/styles` → Master Data matching, confirm the
+   NASA and rep-name values now offer a candidate and that Approve writes the expected
+   `plm.style_tracker_value_resolution` row.
+
+### Context — what was already resolved by hand, so do not re-derive it
+
+On 2026-07-27, 196 review values were resolved directly through
+`public.upsert_style_tracker_value_resolution` (service path, so those audit rows have
+`changed_by is null`):
+
+- 11 designer values → `core.creative_designer` by unique first name (`Sarbani`→Sarbani Ghosh,
+  `James`→James Ashley, `Steve`→Steve Savitsky, `Theo`→Theo Kim, `Tanisha`→Tanisha Shah,
+  `Siyuan`, `Érica`→Erica Perestrelo, `Leonard`→Leonard Boone), 3,841 rows.
+- 4 licensor values (`Warner Brothers`, `Coca-Cola`, `One Piece (Toei)`, `NASA`), 1,840 rows.
+  NASA had to be linked by id because of the defect above.
+- 2 factory values (`JieDa Fech Art`, `Dawang`), 34 rows.
+- 177 SKUs with an exact, unique `public.style_groups.sku` hit that had never been linked.
+- Dismissed into Master Data: `Stallion Wholesale Art` / `Stallion Art Wholesale`, and all
+  remaining designer values (retired designers who are intentionally absent from
+  `core.creative_designer`).
+
+**Related PopDAM-side observation, not part of this migration:** the designer picker in
+`src/pages/StylesPage.tsx` (`fetchDesignerRecords`) filters `status = 'active'`, so retired
+designers are offered as candidates nowhere in the UI even when they are the historically correct
+answer. That is why the largest designer values had no candidate. It is a PopDAM app change, not
+a shared-db one.
+
+---
+
 ## FRESH-SESSION BOUNDARY — PopSG Property reconciliation PSG-3 UI SHELL
 
 **Date:** 2026-07-27
