@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 1.3 seconds
+Output:
 {
   "phase": "PSG-3",
   "generated_on": "2026-07-27",
@@ -86,12 +89,13 @@
       "bytes": 4184
     },
     "shared-db/HANDOFF.md": {
-      "sha256": "837baeb78ba61545360f9cf95d91dd507ab71a5e8cd70477798a9f7aa77d6724",
-      "bytes": 154219
+      "sha256": "32293c903f4cb608aaa329f48d45f741e5bb40f9a3621af6cd10ae4a2a8b120f",
+      "bytes": 156470
     },
     "shared-db/fix_popsg_property_taxonomy_reconciliation.md": {
-      "sha256": "52d51457ee5a6228aa9da9d98ed1033e14e71be8c7653b4d53878d5cbb1a44b3",
-      "bytes": 51061
+      "sha256": "d8e816d3f6b6aadfe113f87b5beb982adc3df370e62924c95376d69ecf9dbcbf",
+      "bytes": 52019
     }
   }
 }
+
