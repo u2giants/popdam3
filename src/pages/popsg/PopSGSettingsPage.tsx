@@ -20,6 +20,8 @@ import { useCrawlLifecycle } from "@/hooks/useCrawlLifecycle";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { PropertyReconciliationPanel } from "@/features/popsg-property-reconciliation/PropertyReconciliationPanel";
 import {
   WindowsAgentStatus,
   AgentRemoteControls,
@@ -679,6 +681,7 @@ function SgRenderJobsTable({
 // ── Main Page ───────────────────────────────────────────────────────
 
 export default function PopSGSettingsPage() {
+  const { isAdmin } = useIsAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "setup";
   const handleTabChange = useCallback((value: string) => {
@@ -802,7 +805,7 @@ export default function PopSGSettingsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
       <div className="flex items-center gap-3">
         <Settings className="h-5 w-5 text-primary" />
         <h1 className="text-xl font-semibold text-foreground">{CURRENT_APP.name} Settings</h1>
@@ -811,6 +814,7 @@ export default function PopSGSettingsPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="setup">Setup</TabsTrigger>
+          <TabsTrigger value="file-tags">File Tags</TabsTrigger>
           <TabsTrigger value="render-agent">Render Agent</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
         </TabsList>
@@ -988,9 +992,6 @@ export default function PopSGSettingsPage() {
           </Card>
 
           {/* Preview Coverage */}
-          <PopSGTaggingCard />
-
-          {/* Preview Coverage */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
@@ -1142,6 +1143,12 @@ export default function PopSGSettingsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── File Tags tab ── */}
+        <TabsContent value="file-tags" className="space-y-5">
+          <PopSGTaggingCard />
+          <PropertyReconciliationPanel role={isAdmin ? "administrator" : "viewer"} />
         </TabsContent>
 
         {/* ── Render Agent tab ── */}

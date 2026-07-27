@@ -27,6 +27,7 @@ import FileBrowserPage from "./pages/FileBrowserPage";
 import StylesPage from "./pages/StylesPage";
 import SellThroughExportPage from "./pages/SellThroughExportPage";
 import { IS_POPSG } from "@/lib/app-mode";
+import PropertyReconciliationVisualPage from "@/features/popsg-property-reconciliation/PropertyReconciliationVisualPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,9 @@ const App = () => (
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
+              {import.meta.env.DEV && (
+                <Route path="/__visual/property-reconciliation" element={<PropertyReconciliationVisualPage />} />
+              )}
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/library" element={IS_POPSG ? <PopSGLibraryPage /> : <Index />} />
                 <Route path="/files" element={<FileBrowserPage />} />
