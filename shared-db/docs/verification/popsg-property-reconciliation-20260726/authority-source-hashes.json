@@ -1,0 +1,38 @@
+{
+  "shared-db/AGENTS.md": {
+    "sha256": "3fc824b0b6a4ffba880d737d803eb502bbd35d7731c82fdd40b00bd3e254b89d",
+    "bytes": 35792
+  },
+  "shared-db/HANDOFF.md": {
+    "sha256": "8f7c72a1c98d1c543d85c530163fc0a2375e6ef77b405365e4c1a57878189f37",
+    "bytes": 139509
+  },
+  "shared-db/fix_popsg_property_taxonomy_reconciliation.md": {
+    "sha256": "9f3380f4393239852be94450f462e31c13a658bfdd48dbc1ec0925d1619d7d80",
+    "bytes": 40605
+  },
+  "shared-db/fix_coldlion_licensor_property_cutover.md": {
+    "sha256": "6ee8583e43b5948e9459714e5479cbc81f19fda076c4f36537188a1937b877a7",
+    "bytes": 68172
+  },
+  "shared-db/fix_coldlion_licensor_property_phase6_handoff.md": {
+    "sha256": "d3b8b7a0cdcf6721846801e50f154ad18a3b8a1619221a9cae9064b8084beb7b",
+    "bytes": 12746
+  },
+  "shared-db/docs/style-guides-characters-and-royalties.md": {
+    "sha256": "d79066650da2c77bbdf2e952e4240dec70bbbc2d763b4adc76bc7c0e322ea18a",
+    "bytes": 28845
+  },
+  "popdam3/AGENTS.md": {
+    "sha256": "9247e2f8a3016d202626a3e3fdacdee6319a020ab879cc317216c87ba09a7ab6",
+    "bytes": 105866
+  },
+  "popdam3/docs/POPSG.md": {
+    "sha256": "b7c09bffd37cff4320ade638c4e716c60b2501f9b20a36bd4d4424177e83e190",
+    "bytes": 14655
+  },
+  "popdam3/apps/worker/src/handlers/popsg-tags.ts": {
+    "sha256": "1fe0f7214cabf15bd0cd5035c95897d40f18c8990172fa394bfb654c796f2ce3",
+    "bytes": 27756
+  }
+}

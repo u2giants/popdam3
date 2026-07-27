@@ -1,0 +1,23 @@
+[
+  {"id":"empty","input":"","expected":""},
+  {"id":"ascii_case","input":"BATMAN","expected":"batman"},
+  {"id":"camel_case","input":"SpiderMan","expected":"spider man"},
+  {"id":"leading_trailing_space","input":"  Batman  ","expected":"batman"},
+  {"id":"multi_space","input":"Batman   Returns","expected":"batman returns"},
+  {"id":"tab_newline","input":"Batman\tReturns\nCore","expected":"batman returns core"},
+  {"id":"ampersand","input":"Parks & Rec","expected":"parks rec"},
+  {"id":"straight_apostrophe","input":"Ferris Bueller's Day Off","expected":"ferris buellers day off"},
+  {"id":"curly_apostrophe","input":"Gabby’s Dollhouse","expected":"gabbys dollhouse"},
+  {"id":"ascii_hyphen","input":"TOEI - ONE PIECE","expected":"toei one piece"},
+  {"id":"en_dash","input":"Batman–Robin","expected":"batman robin"},
+  {"id":"em_dash","input":"Batman—Robin","expected":"batman robin"},
+  {"id":"underscore","input":"Marvel_Style_Guide","expected":"marvel style guide"},
+  {"id":"slashes","input":"Marvel/Disney\\WB","expected":"marvel disney wb"},
+  {"id":"punctuation","input":"The Mummy (1999)!","expected":"the mummy 1999"},
+  {"id":"multi_punctuation","input":"Batman...Returns","expected":"batman returns"},
+  {"id":"nfkc_fullwidth","input":"ＭＡＲＶＥＬ","expected":"marvel"},
+  {"id":"nfkc_ligature","input":"Ofﬁce","expected":"office"},
+  {"id":"accented","input":"Café","expected":"caf"},
+  {"id":"punctuation_only","input":"___---!!!","expected":""},
+  {"id":"digit_boundary","input":"Phase6Ready","expected":"phase6 ready"}
+]

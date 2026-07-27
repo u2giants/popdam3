@@ -1,0 +1,1981 @@
+{
+  "measured_at": "2026-07-27T02:06:30.018Z",
+  "licensors": [
+    {
+      "facet": "licensor",
+      "id": "e90c3124-e66d-404f-b777-0dae9a5ee4f3",
+      "name": "AARDMAN ANIMATIONS",
+      "code": "AA",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "41b43c61-aaea-4f9d-b84c-abfb04de59f1",
+      "name": "Anheuser Busch",
+      "code": "X-ANHEUSERBUSCH",
+      "status": "potential"
+    },
+    {
+      "facet": "licensor",
+      "id": "b96edc00-9261-46ec-af93-9de0f5b88d48",
+      "name": "CARE BEARS",
+      "code": "CB",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "c70e095c-2baf-404e-a2a3-c198a259a3e6",
+      "name": "COCA COLA",
+      "code": "CC",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "33962356-f1f9-4226-b3ef-00154e5b7d56",
+      "name": "DC",
+      "code": "DC",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "7d141a6f-e229-46a2-b3f5-0ba0c97dd820",
+      "name": "DISNEY",
+      "code": "DY",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "80276015-a751-4438-8c25-759c8dd005b2",
+      "name": "DTR - NO LICENSE",
+      "code": "ZZ",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "c345beff-5ed3-4f2f-b952-4b6db245c37c",
+      "name": "Ford",
+      "code": "X-FORD",
+      "status": "potential"
+    },
+    {
+      "facet": "licensor",
+      "id": "2b2caddf-4fb0-4fc3-8245-ccd8f8177e48",
+      "name": "FRIENDS TV",
+      "code": "FR",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "ea61e3bb-37f2-4cef-a6f4-8aa314ea131f",
+      "name": "HARRY POTTER",
+      "code": "HP",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "f143c083-2dfd-48b9-ac9b-43d2290a4e4c",
+      "name": "MARVEL",
+      "code": "MV",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "a06658c6-7fed-40ac-84e2-7f4802cdd086",
+      "name": "Miller Coors",
+      "code": "X-MILLERCOORS",
+      "status": "potential"
+    },
+    {
+      "facet": "licensor",
+      "id": "dd9d7be2-6f77-4183-8e41-3e57a7a20f8b",
+      "name": "NASA",
+      "code": "X-NASA",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "154bf54b-6f7d-4999-b0fb-c2828b12b56a",
+      "name": "NBC",
+      "code": "NB",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "23937016-6f26-4a26-a281-da5a9dc15362",
+      "name": "NCAA",
+      "code": "X-NCAA",
+      "status": "potential"
+    },
+    {
+      "facet": "licensor",
+      "id": "1c47d63b-bf79-42ff-876e-c5263f323418",
+      "name": "NFL",
+      "code": "X-NFL",
+      "status": "potential"
+    },
+    {
+      "facet": "licensor",
+      "id": "a03fff4b-65f4-4fd6-98ad-c9db3216b140",
+      "name": "PAW PATROL",
+      "code": "PP",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "afff41a6-df31-4a9a-aea5-b919d1daff54",
+      "name": "PEANUTS WORLDWIDE",
+      "code": "PN",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "e5f1686c-700c-42f6-bbc6-98aaa9ce1634",
+      "name": "SEGA",
+      "code": "SE",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "1619ecdc-a0ad-4d1e-b8f2-7ea2aa1184fb",
+      "name": "SESAME STREET",
+      "code": "SM",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "14f2902d-42de-4820-83c5-e4f359a6e0d6",
+      "name": "STAR WARS",
+      "code": "SW",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "4dba7d87-54ed-4dee-894b-570326953d92",
+      "name": "STRAWBERRY SHORTCAKE",
+      "code": "SS",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "f39fe07e-e438-46b2-9e17-fb711358e790",
+      "name": "TOEI - ONE PIECE",
+      "code": "1P",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "5f951f5e-aaee-4add-bb51-fea888951405",
+      "name": "VIACOM MULTI",
+      "code": "VM",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "88313675-0089-4072-87be-5b989df8a3fc",
+      "name": "WARNER BROS",
+      "code": "WB",
+      "status": "active"
+    },
+    {
+      "facet": "licensor",
+      "id": "7575d1db-dbee-4336-84a9-aa378f05f105",
+      "name": "WWE",
+      "code": "WW",
+      "status": "active"
+    }
+  ],
+  "properties": [
+    {
+      "facet": "property",
+      "id": "edf0a163-37e5-454b-9c61-9055c0261d01",
+      "name": "1ST ORDER TROOPER",
+      "code": "FR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "1c75f413-582a-4ea0-87a1-3f5f3027c1ac",
+      "name": "A CHRISTMAS STORY",
+      "code": "CS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4a9af8b7-1106-45fd-b259-7116c9e423b2",
+      "name": "AB",
+      "code": "AB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "0c1fc67f-9e9c-4811-8d4c-5e5a0abda596",
+      "name": "ADVENTURE TIME",
+      "code": "ADT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "dd952916-072b-4dfb-a536-66bf25f237ae",
+      "name": "ALADDIN",
+      "code": "AD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "2a51343c-6ed0-4c8f-9f1a-d193d4a6a573",
+      "name": "ALICE IN WONDERLAND",
+      "code": "AW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b4f84a15-e844-4483-8852-dca8d9c8a04e",
+      "name": "ANNABELLE 2014",
+      "code": "A4",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7d398a00-0bb6-45ca-97f1-ea81c978bc4b",
+      "name": "ANNABELLE COMES HOME 2019",
+      "code": "A9",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "73bb29f4-db28-4074-8d7f-3fd6e943ec6b",
+      "name": "ANNABELLE: CREATION 2017",
+      "code": "A7",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7536e022-4b0c-4975-9ceb-203e4ac428e6",
+      "name": "AQUAMAN",
+      "code": "AQ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "99bbe795-2528-4260-9ec2-ceaa31ce0c80",
+      "name": "ASTRONAUT",
+      "code": "SA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "23315dd3-f6a7-41b7-bdbb-ac013dd54165",
+      "name": "AVATAR THE LAST AIRBENDER",
+      "code": "AT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "2be6ea98-3bb8-452a-bcc6-30d51b8beea8",
+      "name": "AVENGERS GROUP",
+      "code": "AV",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9db1ae70-8bdb-40a3-a8a8-66e54b1edced",
+      "name": "BACK TO THE FUTURE",
+      "code": "BTF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "130d10fb-d0ff-4d67-84ff-245f0b0b0c43",
+      "name": "BATGIRL",
+      "code": "BG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3559b3bc-6081-453a-b7de-abccd75e744e",
+      "name": "BATMAN",
+      "code": "BM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3083bfc5-3c2c-463b-b91c-ee95e3fa415c",
+      "name": "BATWHEELS",
+      "code": "BA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "430cffbf-52d7-4b25-be9d-8e34824cf549",
+      "name": "BB-8",
+      "code": "B8",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4e41dcdf-a2cb-4ddd-ad03-f447ab73615a",
+      "name": "BEETLEJUICE",
+      "code": "BJ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "8647745e-8ec7-4bf6-9abb-64802f2f7827",
+      "name": "BIG BIRD",
+      "code": "EBB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "8140b36b-82d2-4289-b56f-d2cdfbcd1905",
+      "name": "BIG LEBOWSKI",
+      "code": "BK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "98715b87-13e4-4d8c-aa40-d55fe0fe04f1",
+      "name": "BLACK PANTHER",
+      "code": "BP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "02d3ac0a-ad97-4d5a-853a-8ab6979a6572",
+      "name": "BLACK WIDOW",
+      "code": "BW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "38dfe7a2-9bd3-4e93-a9f2-837038a43707",
+      "name": "BLAZE",
+      "code": "BZ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b1af49a8-0ac6-4655-9961-1ed5db92f24b",
+      "name": "BOARDERLANDS",
+      "code": "BR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "273bcc6b-33f7-4256-95e3-862321ec3968",
+      "name": "BOBA FETT",
+      "code": "BF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9d8aae5e-7603-4360-9fed-9e2746ec271c",
+      "name": "BUGS LIFE",
+      "code": "BU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "1112ba31-356d-4cae-9883-cb1b32a5f57b",
+      "name": "C3PO",
+      "code": "3P",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "1b9e853e-8bda-4980-8f29-9aeb8c5e41b5",
+      "name": "CAPTAIN AMERICA",
+      "code": "CA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "ceeec50b-3b5a-4ea4-9f0f-81640908f939",
+      "name": "CAPTAIN MARVEL",
+      "code": "CM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "09b51b5a-0307-4c14-b675-d106ae3052aa",
+      "name": "CAPTAIN PHASMA",
+      "code": "PH",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "acd50d6e-3d57-465f-b45e-0196d56ddee6",
+      "name": "CARE BEARS BABY",
+      "code": "CBB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "fa36cdfc-7f83-43a0-bc8d-f4b8e5cf345c",
+      "name": "CARE BEARS CLASSIC",
+      "code": "CBC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9c49776d-0338-40df-b2e1-8efae10d5322",
+      "name": "CARE BEARS UNLOCK THE MAGIC",
+      "code": "CBU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "af20b0b0-d5e1-4741-b2bc-890fd7938954",
+      "name": "CARS",
+      "code": "CAR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "508f3488-4a85-4e5d-98f7-c21bbed99a3b",
+      "name": "CHARACTER GROUP",
+      "code": "GP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "93d67ea4-e07b-4142-85b1-96de603637d5",
+      "name": "CHASE",
+      "code": "CH",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9e7ff2c4-4986-48ac-a68c-05bb5f6a647b",
+      "name": "CHEECH & CHONG",
+      "code": "CE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "ecb029e9-4ef0-4df0-b79e-648cd26df955",
+      "name": "CHEWBACCA",
+      "code": "CB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "41fef4a7-4cd8-43ab-949f-fb19747fd328",
+      "name": "CHUCKY",
+      "code": "CK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "635488f5-c9ea-4e71-ac06-d844b0e5f2cf",
+      "name": "CLASSIC PROPERTIES",
+      "code": "CP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "122a01c7-010f-4eac-bc5c-1e70a451b8ae",
+      "name": "COCA COLA",
+      "code": "CCC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c8ee8ddc-25c2-4835-a3dd-fc5fac4c962b",
+      "name": "COCA COLA ZERO",
+      "code": "CCZ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5c03fc46-5a02-4da1-bcac-8969e74bbd8f",
+      "name": "COCO",
+      "code": "CC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4ef79bdc-7766-4d12-9c4b-3a2ac45f1b4a",
+      "name": "COKE",
+      "code": "CKC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3e9c5940-28e0-4f3d-b58e-9d8edc549671",
+      "name": "COOKIE MONSTER",
+      "code": "ECM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "01e61839-32ad-4eaf-b9e4-14b97cbd86b1",
+      "name": "CORPSE BRIDE",
+      "code": "CD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "8369d2ed-c8eb-4372-92af-fc0a20754307",
+      "name": "CREATURE",
+      "code": "CR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6bb79348-9704-4fba-94e5-48bdef01c3ad",
+      "name": "CURIOUS GEORGE",
+      "code": "CG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c0e20469-d150-457d-b35e-275ec47db8b1",
+      "name": "DARK MARK",
+      "code": "DM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7630257d-e174-49e8-80ba-30bd168c3a50",
+      "name": "DARTH VADER",
+      "code": "DV",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3cd6ee16-8828-49aa-ab13-ca926d156d5c",
+      "name": "DAZED AND CONFUSED",
+      "code": "DZ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d0d45071-f703-4e96-84ff-8fac7bd0c92d",
+      "name": "DC ASSORTED STYLES",
+      "code": "DC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "a5e1bf0e-637a-4dfa-b876-736fa6c160a9",
+      "name": "DEADPOOL",
+      "code": "DP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "1744fc41-cbc6-46ab-83f2-17c6c269548c",
+      "name": "DEATH STAR",
+      "code": "DS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "a265ad05-0b9e-4cc7-8cb4-1b5e8f7c5ed1",
+      "name": "DEATHLY HOLLOWS",
+      "code": "DH",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "a91558d9-284a-49f8-b016-5011837e99d3",
+      "name": "DESTINATIONS",
+      "code": "DE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "f8d43f7d-3e49-402e-8fa4-09638bd56c69",
+      "name": "DIET COKE",
+      "code": "CDC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9c784c9b-57ec-42b2-9fb1-4abcb84f0bc8",
+      "name": "DISNEY 100TH ANNIVERSARY",
+      "code": "DT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "048df4ac-fc96-4fe3-974a-46efa6f19793",
+      "name": "DISNEY LOGO",
+      "code": "DY",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "213ed67d-438f-4f5f-bb24-44f79b770704",
+      "name": "DISNEY PRINCESSES",
+      "code": "PN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5f53411a-0b9a-43fe-a43a-c45e5cfbfcbd",
+      "name": "DISNEY VILLAINS",
+      "code": "DVN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "43298ef6-0852-421c-80ba-eabc266b7baf",
+      "name": "DISNEY'S PLANES",
+      "code": "PC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "2c3f1f48-b146-4ca9-9b66-f0054f846ccf",
+      "name": "DISNEY'S WISH",
+      "code": "WS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "df9e382c-d1cf-4680-bc05-9d10f2e04b31",
+      "name": "DONATELLO",
+      "code": "DN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3e49f5e2-394e-4433-b485-5f5c2066571f",
+      "name": "DORA",
+      "code": "DA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7683e52c-36d8-46a7-8997-60caa7a511d6",
+      "name": "DR. STRANGE",
+      "code": "DR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "489f0d03-bf7b-4ff2-8e4d-6c42f63bd412",
+      "name": "DRESSAROSA",
+      "code": "DB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c65af677-b1bc-4410-8761-8a6c843edd19",
+      "name": "DUMBLEDORE",
+      "code": "DD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "bb6b117f-dbf7-4261-9680-84bff7e214bc",
+      "name": "E.T. THE EXTRATERRESTRIAL",
+      "code": "ET",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "a6859291-e6b7-4f0d-8dfe-5586fd237f11",
+      "name": "EGGHEAD ISLAND ARC",
+      "code": "EG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "0d390b7e-9fdb-4386-8a1b-b5e68ca37ff7",
+      "name": "ELF",
+      "code": "EF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7a770403-7e5d-4063-aff9-1743134e3343",
+      "name": "ELMO",
+      "code": "EMM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7a671efa-7bda-4f4b-8b7f-9c78c68912f4",
+      "name": "EMPIRE ICON",
+      "code": "EM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "430998b6-2c43-476e-96c3-57b1ddf1654a",
+      "name": "ENCANTO",
+      "code": "EC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c0b68009-954c-4cee-8f66-b2138ddb8308",
+      "name": "EPISODE 9 CHARACTER GROUP",
+      "code": "E9",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "392bfaf3-59a8-43dd-8741-a6e2f5b7e228",
+      "name": "ETERNALS",
+      "code": "ER",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5ebbe2f0-05f1-4cbb-be06-3e7cf037095f",
+      "name": "EWOK",
+      "code": "EW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6530fd59-12a6-4e79-b48c-ccbca8adf7f0",
+      "name": "FALCON & WINTER SOLDIER",
+      "code": "FW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "aed914ed-2d23-496b-88e7-97e7202d5e82",
+      "name": "FANTASTIC FOUR: THE FIRST STEPS MOVIE 25",
+      "code": "FFF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b62f91c3-d0fb-43f6-97a1-49a41519bb82",
+      "name": "FAST AND FURIOUS X",
+      "code": "FX",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "f98b536b-8227-4c40-96eb-20be20019221",
+      "name": "FIELD OF DREAMS",
+      "code": "FD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "652ac00e-7d0b-4244-bf06-f4ff5c4f5d2d",
+      "name": "FISH-MAN ISLAND ARC",
+      "code": "FA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "09ea2689-40d5-4a5b-90ee-4b44c5453f69",
+      "name": "FREDDY VS JASON",
+      "code": "FJ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "cb26ec58-0edb-4d45-8c0b-ba283ffb23f8",
+      "name": "FRIDA KAHLO",
+      "code": "FK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3577f4c0-e900-45e8-aecc-89d4eac0bd6f",
+      "name": "FRIDAY THE 13TH",
+      "code": "FT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "95c1c2a5-da7b-4e69-b275-bc57e0298396",
+      "name": "FRIENDS",
+      "code": "FN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "81d51de1-6ad8-45f2-889f-6b27a10faece",
+      "name": "FROSTY THE SNOW MAN",
+      "code": "FM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b3486141-9ed4-40f5-9aec-878f48a1ff16",
+      "name": "FROZEN",
+      "code": "FZ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "2baa138b-bd0f-411a-88ae-f0e7653366d3",
+      "name": "FROZEN 2",
+      "code": "F2",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "dabdc9d7-1556-4d96-abbd-7c6036bc8f2a",
+      "name": "GABBY'S DOLLHOUSE",
+      "code": "GD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "dc0c8af7-53cd-4d74-b4a4-6aed3ee80cfc",
+      "name": "GABBY'S DOLLHOUSE LIVE ACTION 2025",
+      "code": "GDL",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "be51fe30-87a9-409e-bf62-43d5c18e039f",
+      "name": "GAME OF THRONES",
+      "code": "GT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "324c7dff-f984-495b-8c48-500a024757b2",
+      "name": "GAMERVERSE",
+      "code": "GM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4526a736-7b50-4e7d-bc30-97edc8764e3d",
+      "name": "GARFIELD",
+      "code": "GE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c8d1dd59-7c9a-4a58-ac46-63789df04286",
+      "name": "GILMORE GIRLS",
+      "code": "GGS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6894b647-b4b0-45b3-8f5f-8490044c9221",
+      "name": "GOODFELLAS",
+      "code": "GS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "05017d26-20b7-445b-b747-4233599479c8",
+      "name": "GREEN LANTERN",
+      "code": "GN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "feee7520-405c-4341-96b9-f1f8ce4ee717",
+      "name": "GROOT",
+      "code": "GR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "1b39a5bc-aba2-4ba3-937e-03cb6f84c9bb",
+      "name": "GRYFFINDOR",
+      "code": "GF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9fb1ed4a-0ad8-44bc-947a-320e5c59035f",
+      "name": "GUARDIANS OF THE GALAXY",
+      "code": "GG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7164dc50-4c3a-42a1-90a1-9f9af1e8c0de",
+      "name": "HALF BAKED",
+      "code": "HB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "132676c7-6d22-4f76-a8cb-be1928e43979",
+      "name": "HALLOWEEN II",
+      "code": "HN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "2b110640-c8a2-4372-a817-9d988c2d6983",
+      "name": "HAN & CHEWIE",
+      "code": "HC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "0b33898a-00af-40c5-87c7-1a9b0a7659e2",
+      "name": "HAN SOLO",
+      "code": "HS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "07cf2941-abf3-4394-a7cb-c804c524b9e1",
+      "name": "HANNAH MONTANA",
+      "code": "HM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9359cb30-a6b7-47ce-8915-7ada4cc8ad21",
+      "name": "HAPPY GILMORE",
+      "code": "HG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b5e945be-bff5-4d2e-b818-8460bfde7731",
+      "name": "HARLEY QUINN",
+      "code": "HQ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d07d42a6-067e-4ff2-a362-2c560dd179c6",
+      "name": "HARRY POTTER",
+      "code": "HP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7e21920e-1790-45bf-850c-33a16d815578",
+      "name": "HERCULES",
+      "code": "HE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b2f2e0c3-7ddb-42c1-9f04-d4f3153efeb4",
+      "name": "HERMIONE",
+      "code": "HR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7f444f88-e803-4f02-8bb3-391d709b3202",
+      "name": "HIGH SCHOOL MUSICAL",
+      "code": "HSM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b4a1e988-7b93-4877-a50d-6f80f9ff3b30",
+      "name": "HOCUS POCUS",
+      "code": "HPS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "540cb9d4-9ac2-411b-a8ca-616a4045c286",
+      "name": "HOGWARTS",
+      "code": "HW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3d6fe703-af55-4ef8-8739-1bb940850853",
+      "name": "HOW HIGH",
+      "code": "HH",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b5592e78-7782-41b5-8298-8ec5a93059a7",
+      "name": "HOW TO TRAIN YOUR DRAGON FRANCHISE",
+      "code": "HD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3c45b8c1-fa01-4da2-a66f-8bb28b80bd09",
+      "name": "HOW TO TRAIN YOUR DRAGON: LIVE ACTION 25",
+      "code": "HDL",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "350be1fc-8a9a-4b8b-b66e-f98742a62482",
+      "name": "HUFFLEPUFF",
+      "code": "HF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "13af0b89-e3f2-455d-958c-63118fef21d1",
+      "name": "HULK",
+      "code": "HU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6e0beeae-b784-4996-af8b-e06de3cfbfc9",
+      "name": "INVADER ZIM",
+      "code": "ZM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5278bbb8-cdbd-4435-8d3b-93fd38b72b53",
+      "name": "IRON MAN",
+      "code": "RM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "8e23f07e-2e09-4303-b451-8326654a3224",
+      "name": "IT 1990 TELEVISION SERIES",
+      "code": "T0",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6d5c880c-7402-4fc8-8eee-581f368873db",
+      "name": "IT 2017",
+      "code": "T7",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "f886b697-8e88-4a48-896a-261a5dac393e",
+      "name": "IT CHAPTER TWO 2019",
+      "code": "T9",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "8f723630-2d55-4a46-a9bd-abaa91d70d40",
+      "name": "JAWS",
+      "code": "JW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "81d135a6-0577-4df7-93cb-133f31cb29f7",
+      "name": "JOJO SIWA",
+      "code": "JJ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d99503fb-53e7-4d2c-8866-13d5be94bd56",
+      "name": "JURASSIC WORLD/JURASSIC PARK",
+      "code": "JR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "891c552f-0875-4a90-9b3b-7543331f6f7c",
+      "name": "JUSTICE LEAGUE",
+      "code": "JG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5419699d-6dcf-4ed2-b1df-cf2f68591836",
+      "name": "KUNG-FU PANDA",
+      "code": "KP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "da9fb30d-20c2-4306-b1e0-9b3441ef66d8",
+      "name": "LEONARDO",
+      "code": "EN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "2a83c3d9-794d-41cc-8467-f53a27ddb625",
+      "name": "LILO AND STITCH",
+      "code": "LS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "46be5003-d83b-4bec-9143-ee9632f1b688",
+      "name": "LILO AND STITCH LIVE ACTION 2025",
+      "code": "LSL",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d794c6fb-9227-47fc-90ef-55d7569ef495",
+      "name": "LION KING (LIVE ACTION)",
+      "code": "NG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "79dd7c7b-f654-47f4-8319-8d1d5a594020",
+      "name": "LITTLE GOLDEN BOOKS",
+      "code": "GB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "34b067a7-dbce-4320-bebe-3c28ff012932",
+      "name": "LIZZIE MCGUIRE",
+      "code": "MCG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9d46e3a0-719f-42e2-8cd2-73bdd198416c",
+      "name": "LOKI",
+      "code": "LK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b2bf31a7-f69a-46c8-8819-eda0605dc07a",
+      "name": "LOONEY TUNES",
+      "code": "LT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "abf71e62-7598-4b34-b07f-364eea7cac07",
+      "name": "LORD OF THE RINGS",
+      "code": "LR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4fb06294-3b3e-459e-87e9-1c6bf5911503",
+      "name": "LUKE SKYWALKER",
+      "code": "UK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "023444ef-0b2a-49b1-a94a-2cda4c3dd2ce",
+      "name": "MARSHALL",
+      "code": "MR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "ba64e119-517e-41c2-9679-650e62ca4287",
+      "name": "MARVEL ASSORTED STYLES",
+      "code": "MV",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "bafff40f-dfaa-43de-a5d9-8a002cf89464",
+      "name": "MARVEL RETRO GROUP",
+      "code": "MG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4e5fabba-5a1a-42a4-b997-dc7aa0a5ab35",
+      "name": "MICHAELANGELO",
+      "code": "MA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4bb52946-0d48-494a-a038-1b4d9293e8c1",
+      "name": "MICKEY MOUSE",
+      "code": "MM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "1250fa66-f332-4b24-aca7-11e34d6d4d5d",
+      "name": "MILLENIUM FALCON",
+      "code": "MF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "eb50f543-5d10-4cc5-bb7e-824b8ad212b5",
+      "name": "MINIONS",
+      "code": "MN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "fab870e2-04d7-4bd1-8902-ea4ced286192",
+      "name": "MIRACULOUS",
+      "code": "MC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "491b1a3d-a303-4918-9a77-c1e0e2b1b175",
+      "name": "MIXED PROPERTIES (DISNEY CLASSICS)",
+      "code": "MP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b6c39c03-6f34-43f3-b84e-87aba615ac45",
+      "name": "MIXED PROPERTIES PIXAR",
+      "code": "PX",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c2add690-3f96-4649-adea-556f19f0a8df",
+      "name": "MONSTERS",
+      "code": "MS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "caa4cb55-d15b-4258-9c1a-257b0204f4d7",
+      "name": "MOON KNIGHT",
+      "code": "MK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c0873079-36a4-4ab1-9aa0-1e8bedc6b274",
+      "name": "MORTAL KOMBAT",
+      "code": "MB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c5a70609-c9ad-4a81-b0b3-60b14b112616",
+      "name": "MOVIE POSTER",
+      "code": "PT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "53f35a43-3719-411a-a818-1c0ef31726f5",
+      "name": "MUPPETS",
+      "code": "MU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "f129f007-98f2-4cad-9822-926600e4da16",
+      "name": "NICKTOONS GROUP",
+      "code": "NK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "93d213f5-4fc5-4669-bf0e-7177a691b966",
+      "name": "NIGHTMARE BEFORE CHRISTMAS",
+      "code": "NX",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "82f92fab-9620-478e-b33a-83db2a95c9b5",
+      "name": "NIGHTMARE ON ELM STREET",
+      "code": "NE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "91806e1c-ea24-4a90-a037-cc3a4b990189",
+      "name": "NINJA TURTLES GROUP",
+      "code": "NT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b25b7831-0bff-47b4-b827-af1b596de623",
+      "name": "NXT TALENTS",
+      "code": "WNX",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "a35ae775-a860-4e51-8429-762c621d07cb",
+      "name": "OBI WAN",
+      "code": "BN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "93a0ef47-f736-4176-9085-8c85858dc0f8",
+      "name": "ONE PIECE GENERAL ART",
+      "code": "1P",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9ec18239-3926-4ae3-8838-b3f19d21b967",
+      "name": "OSCAR THE GROUCH",
+      "code": "EGR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "bd5e954a-530c-45d3-8130-3bbb9a8f091d",
+      "name": "OTHER TALENT",
+      "code": "WTA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7bdd3e50-e0bb-470e-9479-28f2ace5fe88",
+      "name": "OVER THE GARDEN WALL",
+      "code": "OGW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "ee3f6737-1bdd-45f2-ae59-aac23968f082",
+      "name": "PAW PATROL BOY",
+      "code": "PB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "20c53ef3-2844-4aa7-93fe-fba5c4ebc624",
+      "name": "PAW PATROL GIRL",
+      "code": "PG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "23ec5417-ead7-4ec4-97a8-4623636605e2",
+      "name": "PAW PATROL GROUP",
+      "code": "PP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4a9b6b9b-7f12-45fa-b901-5cc274a6e4b0",
+      "name": "PEANUTS",
+      "code": "UT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "282ee9db-10f6-4a46-b066-918866b33de3",
+      "name": "PETER PAN",
+      "code": "PA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d4b67e8e-4376-4dc7-ad97-0336d0b1a609",
+      "name": "POLAR EXPRESS",
+      "code": "XP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4365c185-a7aa-42a3-8ee7-02a98f1bd2a0",
+      "name": "POSTER VERBIAGE",
+      "code": "PS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "89fae816-2cd6-462f-ab11-c3853ec141fb",
+      "name": "POWERPUFF GIRLS",
+      "code": "PW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3ca39d32-4d76-4af9-a368-4a803b57002a",
+      "name": "PRINCESS LEIA",
+      "code": "PE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7d31f38b-f65a-4558-b225-4cf2fe6219d2",
+      "name": "PUNISHER",
+      "code": "PU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "15b73ddc-0d65-40f0-8c52-ef0f4e299294",
+      "name": "PUNK HAZARD",
+      "code": "PK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "f8b1f36d-ac28-43c3-ba53-2ecb3e15994c",
+      "name": "QUIDDITCH",
+      "code": "QU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6e7e505b-068f-44b3-8e6b-251b0e27ac71",
+      "name": "R2D2",
+      "code": "R2",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4fb347ae-6d84-4b81-80ab-a8413de8cbdb",
+      "name": "RAPHAEL",
+      "code": "RA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "f6c59d99-4a84-4553-9960-090109454f1e",
+      "name": "RAVENCLAW",
+      "code": "RV",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "21ab26a1-db69-4b64-89be-8ee3e2b3ffb1",
+      "name": "REBEL ICON",
+      "code": "RE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9e37d341-ecaf-42ae-b990-788d8c02e72e",
+      "name": "REGULAR SHOW",
+      "code": "RS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "789246d1-d721-40fb-97b6-ecfc73c3e2a3",
+      "name": "RICK & MORTY",
+      "code": "RK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5a864f47-41cd-47d4-a04d-8f83dd5fbd48",
+      "name": "ROCKET RACCOON",
+      "code": "RR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5cd92d48-3028-49a0-b984-5b347fdedf14",
+      "name": "RUBBLE",
+      "code": "RU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d536adfa-10f5-41ba-9154-3cc0610027ed",
+      "name": "RUGRATS",
+      "code": "RG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "4529860c-f033-417a-b230-86b25db19d27",
+      "name": "SANTA CLAUSE IS COMING TO TOWN",
+      "code": "SZ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "923af469-f81f-48ec-ae6c-d0c18bf85414",
+      "name": "SCARFACE",
+      "code": "SF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "515f068a-31ae-46ea-a316-4cad5eabbe9f",
+      "name": "SCREAM",
+      "code": "SCM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "30414503-8d60-4bd9-bf40-80378d2f518d",
+      "name": "SEGA",
+      "code": "GA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9981838d-f7b5-491a-bf4b-7b994ba3ef41",
+      "name": "SEINFELD",
+      "code": "SN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6467088e-535e-4356-af94-a5e942f8063e",
+      "name": "SESAME STREET",
+      "code": "ES",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5fa35966-05b3-4096-8098-86651031e9de",
+      "name": "SHAUN THE SHEEP",
+      "code": "SSE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "f17d7095-93a5-470a-8ae8-4de2a69bde0b",
+      "name": "SHIMMER & SHINE",
+      "code": "SS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7865b410-afb6-4307-9560-4dfa2e5c3165",
+      "name": "SHREK",
+      "code": "SH",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7d328b9c-3cf5-424a-a1a6-8ded8d7e1f1f",
+      "name": "SKELETON CREW",
+      "code": "S1",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "96888ff8-0efc-4ca0-9a8f-0886f5d4e528",
+      "name": "SKYE",
+      "code": "SK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9fb14839-1dc9-4e31-889e-e32fe5a8b15a",
+      "name": "SLYTHERIN",
+      "code": "SY",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "72e026f2-e0ca-4fe8-b96d-4090519e47c6",
+      "name": "SMILING FRIENDS",
+      "code": "SFS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "35cc5a57-b5e6-4c98-8a66-f2785fb68dce",
+      "name": "SONIC CLASSIC",
+      "code": "SC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b2d6def6-62bf-4303-9f94-220e03c3071b",
+      "name": "SONIC MODERN",
+      "code": "SR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "cd89a833-6170-44ed-b121-8727ddbcc699",
+      "name": "SPACE JAM & SPACE JAM 2",
+      "code": "SJ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "140be7c5-e211-432b-acc0-f76b18eba76d",
+      "name": "SPELLS",
+      "code": "SE",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b8f98eb8-4d09-41f0-bc64-67cd8726f19a",
+      "name": "SPIDER MAN",
+      "code": "SP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9a46a47f-8223-44d9-bcd3-e5cb67858af4",
+      "name": "SPIDEY & FRIENDS",
+      "code": "SX",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "e26d6839-c6cd-4eee-ac76-f56e1479c4ed",
+      "name": "SPONGEBOB",
+      "code": "SB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "02de0fab-dd7e-4082-ac99-659c46c77296",
+      "name": "STAR WARS DROIDS GROUP",
+      "code": "SD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9243cc30-1292-46a8-a331-6a2a719bf65e",
+      "name": "STAR WARS GROUP",
+      "code": "SW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d8cc13f9-0d06-4a21-a789-88015d5ec15a",
+      "name": "STAR WARS VEHICLES GROUP",
+      "code": "SV",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "33b25a70-4c46-43e5-bebb-83a20c4452bb",
+      "name": "STORM TROOPER",
+      "code": "ST",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "c3110bab-f308-43b5-bcd2-025fe978650a",
+      "name": "STRAWBERRY SHORTCAKE",
+      "code": "SSH",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "15beb12a-b5ee-4e33-86b7-27037af444a4",
+      "name": "STRAWBERRY SHORTCAKE MODERN",
+      "code": "SSM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "a2fd8bd6-2db3-4648-ba6d-03b26c951904",
+      "name": "SUPERGIRL",
+      "code": "SG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "8218937e-1417-4416-9e3f-8987f04f09b9",
+      "name": "SUPERMAN",
+      "code": "SM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "09a4f6b3-b9eb-4183-919c-3626afddfcf1",
+      "name": "SUPERMAN:LEGACY 2025 LIVE ACTION FILM",
+      "code": "SL",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6035073f-3993-45b1-baa9-594db3b634da",
+      "name": "TED LASSO",
+      "code": "TL",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "8cbd5816-343c-424a-a871-54d3d5f0245d",
+      "name": "THANOS",
+      "code": "TN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "ba04525e-3590-4b28-a467-cf6c22a0aa31",
+      "name": "THAT GIRL LAY LAY",
+      "code": "TG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "99e3b4f5-f7ec-4d7a-b56a-9b71b374b61c",
+      "name": "THE BATMAN MOVIE",
+      "code": "TB",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "dc025c07-afd4-44b3-b810-9cc35b1fc280",
+      "name": "THE CONJURING 2 2016",
+      "code": "C6",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "773831f5-6395-4734-9633-69a1fb300725",
+      "name": "THE CONJURING 2013",
+      "code": "C3",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3f0cef0d-488b-4cc3-ab72-0cf273b2c1c8",
+      "name": "THE CONJURING 3: THE DEVIL MADE ME DO IT",
+      "code": "C1",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "cc45c29a-9e47-42cf-b0ba-91dbe37bd24d",
+      "name": "THE FAST AND THE FURIOUS",
+      "code": "FF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "51c0a7eb-64ab-498a-90d0-6d620dbce0c3",
+      "name": "THE FLASH",
+      "code": "FS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "41ffb828-ede0-4295-aac9-fd31eaedc840",
+      "name": "THE GODFATHER",
+      "code": "GH",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7b3aa8a2-630c-41f5-9f66-f6fc92bba5eb",
+      "name": "THE JOKER",
+      "code": "JK",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d7638191-2b1f-4660-84cc-5838b3cf6778",
+      "name": "THE MANDALORIAN",
+      "code": "MD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "46a2193f-c29a-424e-813a-8e173f38cb27",
+      "name": "THE NUN 2 2023",
+      "code": "N3",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "3e4d0960-fbb8-4e20-add8-88cebf8d4af5",
+      "name": "THE NUN 2018",
+      "code": "N8",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "a28c4295-29dd-4728-be2c-50a39a0eadfb",
+      "name": "THE OFFICE",
+      "code": "FC",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "85c8fe14-f6c6-4cfd-9eb9-646997c978a6",
+      "name": "THOR",
+      "code": "TH",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "99ca498a-7418-4ba3-b062-d6503f11cee0",
+      "name": "TIE FIGHTER",
+      "code": "TF",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "158e853d-81e3-4061-a72b-5f885e278163",
+      "name": "TOM & JERRY",
+      "code": "TJ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "f21afc9f-8e64-46f6-875f-757f97664a8b",
+      "name": "TOP GUN",
+      "code": "TU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "74a90714-2926-4beb-a70c-c5570b963296",
+      "name": "TOY STORY 4",
+      "code": "TS",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "64660cdc-0134-48a0-bd28-d325572e7ea1",
+      "name": "TROLLS",
+      "code": "TR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "ac30920a-ed79-4f75-8dfa-7fd206dff05b",
+      "name": "UP MOVIE",
+      "code": "UP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "a7154aa5-ae40-448c-a90d-48de856ba0c9",
+      "name": "VENOM",
+      "code": "VN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "238089bc-04d6-4e28-a385-17c1b05bdc2d",
+      "name": "VILLAINS GROUP",
+      "code": "VG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b3d4b6a6-cdc6-4092-9049-cce9cf61b673",
+      "name": "VOLDEMORT",
+      "code": "VT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "44969e30-68da-4719-b9ca-66f83d59f337",
+      "name": "WALLACE & GROMIT",
+      "code": "WG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9391d61e-d725-4afa-9e54-fd37a0d30f31",
+      "name": "WANDAVISION",
+      "code": "WV",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "26a59510-2fcc-47c2-9d53-a235e90f62f6",
+      "name": "WANO ISLAND ARC",
+      "code": "WN",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "7461672c-05ff-4291-8eed-2a06d8be38eb",
+      "name": "WELCOME TO DERRY: TELEVISION SERIES",
+      "code": "WD",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "387bd16b-3cfe-4aec-b2d6-0550e7a3a54c",
+      "name": "WHERE THE WILD THINGS ARE",
+      "code": "WT",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "89a72f5f-798b-4902-9aab-4f01204720aa",
+      "name": "WHERES WALDO",
+      "code": "WA",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "6198a8d7-e000-4025-a042-d42481af6756",
+      "name": "WICKED PART I",
+      "code": "W1",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "9c8f531f-32ab-4e23-a701-8ee73d92cef0",
+      "name": "WICKED PART II",
+      "code": "W2",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "b3f195f8-61f9-42ba-b7c9-1932a0ebcf78",
+      "name": "WINNIE THE POOH",
+      "code": "WP",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "1ed0a814-bc1e-4874-9850-9d6dcf297ad6",
+      "name": "WIZARD OF OZ",
+      "code": "WZ",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "e62d820a-eff0-4d61-aa74-20929e5da67f",
+      "name": "WOLVERINE",
+      "code": "WR",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "5a4a88ac-5064-4b36-863f-666c56849ead",
+      "name": "WONDER WOMAN",
+      "code": "WW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "439ac1f9-b8a1-4e3b-a156-cfe348d6b2b2",
+      "name": "WWE LEGENDS",
+      "code": "WEG",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "d877e38e-7c6f-44bc-9aef-30f3d491c249",
+      "name": "WWE SUPERSTARS",
+      "code": "WSU",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "e0cde0d5-ed30-4d31-90d6-541ea1c179b6",
+      "name": "X-MEN",
+      "code": "XM",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "42121752-11cb-47e0-b0ee-139c8214fb90",
+      "name": "XWING",
+      "code": "XW",
+      "status": "active"
+    },
+    {
+      "facet": "property",
+      "id": "798f7ebc-fd91-469d-958a-4edc2f6d6fa4",
+      "name": "YODA",
+      "code": "YD",
+      "status": "active"
+    }
+  ]
+}

@@ -755,3 +755,41 @@ This plan is ready to enter PSG-0 only when Albert confirms:
 - no canonical Property creation is implied;
 - implementation begins with read-only inventory and proposals, not schema or
   production writes.
+
+---
+
+## 15. PSG-0 completion record — 2026-07-26
+
+**Status:** COMPLETE. Stop at the fresh-session boundary before PSG-1.
+
+Albert approved the §14 checklist on 2026-07-26. The dated evidence package is:
+
+[`docs/verification/popsg-property-reconciliation-20260726/`](docs/verification/popsg-property-reconciliation-20260726/README.md)
+
+New read-only production measurements exactly reproduce the plan baseline:
+
+- 216,417 active files;
+- 216,201 active files with a raw Property value;
+- 165,274 raw Property values unresolved by the current global exact-name behavior;
+- 76.4446% unresolved;
+- 26 canonical Licensors and 256 canonical Properties;
+- completed deterministic run `37lo38wrj6d`;
+- zero deterministic failures.
+
+The package freezes 111,011 accepted Property relationships and the complete manual/rejected
+relationship-ID sets. Both immutable sets are currently empty. All eight hard-coded Licensor
+aliases are measured with their resolved parent, occurrence distribution, affected raw Property
+values, and accepted-tag blast radius. `PROPERTY_ALIASES=[]` is frozen separately.
+
+Normalization contract `popsg-property-observation-v1` and its fixture corpus are frozen as
+PSG-0 specification evidence. They do not authorize SQL or application implementation.
+
+The live ColdLion checkpoint still reads Phase 6 **IN PROGRESS** on preview. The latest non-drill
+observation passed all comparison gates; later failures in the evidence are marked forced-failure
+drills. Production has zero ColdLion Licensor/Property mirror rows and no Phase 6 comparison
+object. PSG-0 did not alter any schedule, observation, alert, migration, database row, or PopDAM
+file.
+
+PSG-1 entry instructions are in the dated README. PSG-1 must remain read-only, must enumerate the
+complete parent-scoped accepted-tag delta, must exclude unresolved Licensors from Property
+proposals, and must stop before PSG-2.

@@ -1,0 +1,189 @@
+{
+  "measured_at": "2026-07-27T02:06:30.018Z",
+  "transaction": "REPEATABLE READ READ ONLY; rolled back",
+  "database_name": "postgres",
+  "project_ref": "qsllyeztdwjgirsysgai",
+  "counts": {
+    "all_files": 279783,
+    "active_files": 216417,
+    "active_property_present": 216201,
+    "canonical_licensors": 26,
+    "canonical_properties": 256,
+    "deterministic_state_rows": 279783,
+    "deterministic_completed": 279783,
+    "deterministic_failed": 0
+  },
+  "property_resolution": {
+    "active_property_present": 216201,
+    "active_property_unresolved_global_exact": 165274,
+    "unresolved_rate_percent": 76.4446
+  },
+  "relationship_counts": {
+    "accepted": 111011,
+    "manual": 0,
+    "rejected": 0
+  },
+  "deterministic_rebuild_operation": {
+    "cursor": "consensus:c3R5bGVndWlkZXMfV1dFL0xlZ2VuZHMvSHVsayBIb2dhbl9QaG90b2dyYXBoeSBDb2xsZWN0aW9u",
+    "params": {
+      "rebuild": true
+    },
+    "run_id": "37lo38wrj6d",
+    "status": "completed",
+    "progress": {
+      "failed": 0,
+      "processed": 216417,
+      "tags_written": 1062452,
+      "failure_samples": [],
+      "licensor_present": 216417,
+      "property_present": 216201,
+      "consensus_folders": 14148,
+      "licensor_unmatched": 1,
+      "property_unmatched": 165274,
+      "consensus_relationships": 56
+    },
+    "started_at": "2026-07-26T18:12:29.858Z",
+    "updated_at": "2026-07-26T21:18:07.216Z",
+    "result_message": "Tagged 216417 PopSG files with 1062452 direct relationships and 56 folder-consensus relationships. 0 failed.",
+    "last_successful_cursor": "consensus:c3R5bGVndWlkZXMfV1dFL0xlZ2VuZHMvSHVsayBIb2dhbl9QaG90b2dyYXBoeSBDb2xsZWN0aW9u"
+  },
+  "coldlion_production": {
+    "erp_licensor_object": "plm.erp_licensor",
+    "erp_property_object": "plm.erp_property",
+    "comparison_object": null,
+    "erp_licensor_rows": 0,
+    "erp_property_rows": 0
+  },
+  "latest_coldlion_sync_runs": [
+    {
+      "id": "695cc4d5-87c7-4f60-819f-476b2d8d5196",
+      "source_system": "coldlion",
+      "source_name": "coldlion_vendors_api",
+      "status": "succeeded",
+      "started_at": "2026-07-22 23:10:49.42917+00",
+      "finished_at": "2026-07-22 23:10:49.42917+00",
+      "rows_seen": 97,
+      "rows_inserted": 0,
+      "rows_updated": 95,
+      "rows_failed": 1,
+      "error": ""
+    },
+    {
+      "id": "05d09a73-5a7f-40aa-857e-23316107f015",
+      "source_system": "coldlion",
+      "source_name": "coldlion_vendors_api",
+      "status": "succeeded",
+      "started_at": "2026-07-22 19:05:43.61858+00",
+      "finished_at": "2026-07-22 19:05:43.61858+00",
+      "rows_seen": 97,
+      "rows_inserted": 0,
+      "rows_updated": 0,
+      "rows_failed": 442,
+      "error": ""
+    },
+    {
+      "id": "60ba3b33-b1ee-4f72-8358-9bbfaa6aefee",
+      "source_system": "coldlion",
+      "source_name": "coldlion_vendors_api",
+      "status": "succeeded",
+      "started_at": "2026-07-17 23:25:55.411806+00",
+      "finished_at": "2026-07-17 23:25:55.411806+00",
+      "rows_seen": 539,
+      "rows_inserted": 0,
+      "rows_updated": 96,
+      "rows_failed": 0,
+      "error": ""
+    },
+    {
+      "id": "0f53d8d8-2e79-468d-9fce-536ac34a1217",
+      "source_system": "coldlion",
+      "source_name": "coldlion_vendors_api",
+      "status": "succeeded",
+      "started_at": "2026-07-17 23:10:27.123497+00",
+      "finished_at": "2026-07-17 23:10:27.123497+00",
+      "rows_seen": 539,
+      "rows_inserted": 0,
+      "rows_updated": 96,
+      "rows_failed": 0,
+      "error": ""
+    },
+    {
+      "id": "0d4e1299-6bc4-4cbd-838f-234442168039",
+      "source_system": "coldlion",
+      "source_name": "coldlion_vendors_api",
+      "status": "succeeded",
+      "started_at": "2026-07-17 23:04:16.59099+00",
+      "finished_at": "2026-07-17 23:04:16.59099+00",
+      "rows_seen": 539,
+      "rows_inserted": 0,
+      "rows_updated": 96,
+      "rows_failed": 0,
+      "error": ""
+    },
+    {
+      "id": "f9dd79e5-b8fe-477b-a299-1b0d8616ab51",
+      "source_system": "coldlion",
+      "source_name": "coldlion_vendors_api",
+      "status": "succeeded",
+      "started_at": "2026-07-17 23:02:12.832683+00",
+      "finished_at": "2026-07-17 23:02:12.832683+00",
+      "rows_seen": 539,
+      "rows_inserted": 0,
+      "rows_updated": 96,
+      "rows_failed": 0,
+      "error": ""
+    },
+    {
+      "id": "c3d70c6e-974a-495d-93bf-88eb0198ec06",
+      "source_system": "coldlion",
+      "source_name": "coldlion_customers_api",
+      "status": "succeeded",
+      "started_at": "2026-07-17 16:20:42.710244+00",
+      "finished_at": "2026-07-17 16:20:42.710244+00",
+      "rows_seen": 836,
+      "rows_inserted": 0,
+      "rows_updated": 153,
+      "rows_failed": 0,
+      "error": ""
+    },
+    {
+      "id": "6aaac7ad-ae17-4dbe-a51a-5d3932694dca",
+      "source_system": "coldlion",
+      "source_name": "coldlion_vendors_api",
+      "status": "succeeded",
+      "started_at": "2026-07-16 19:43:01.789763+00",
+      "finished_at": "2026-07-16 19:43:01.789763+00",
+      "rows_seen": 539,
+      "rows_inserted": 0,
+      "rows_updated": 96,
+      "rows_failed": 0,
+      "error": ""
+    },
+    {
+      "id": "f0e11d65-3316-4dea-b38f-dc59a0574ddf",
+      "source_system": "coldlion",
+      "source_name": "coldlion_customers_api",
+      "status": "succeeded",
+      "started_at": "2026-07-16 19:42:59.920041+00",
+      "finished_at": "2026-07-16 19:42:59.920041+00",
+      "rows_seen": 836,
+      "rows_inserted": 0,
+      "rows_updated": 153,
+      "rows_failed": 0,
+      "error": ""
+    },
+    {
+      "id": "f694cdb5-c866-4887-8c1f-787b02f3743a",
+      "source_system": "coldlion",
+      "source_name": "coldlion_vendors_api",
+      "status": "succeeded",
+      "started_at": "2026-07-16 03:42:19.350841+00",
+      "finished_at": "2026-07-16 03:42:19.350841+00",
+      "rows_seen": 539,
+      "rows_inserted": 523,
+      "rows_updated": 8,
+      "rows_failed": 0,
+      "error": ""
+    }
+  ]
+}
