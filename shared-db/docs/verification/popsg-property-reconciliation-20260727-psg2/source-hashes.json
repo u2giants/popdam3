@@ -1,0 +1,80 @@
+{
+  "proposals.csv": {
+    "sha256": "cc036567653c69801b089fae1443f4323321ec9dc3f7d874e4ee80f8e11347d4",
+    "bytes": 92733
+  },
+  "coldlion-phase5-create-candidate-diff.csv": {
+    "sha256": "6ea88626093423b5374be843e61432371c1110260022dba5294bcc2dce81cde7",
+    "bytes": 851
+  },
+  "owner-review-batches.csv": {
+    "sha256": "78afa12f5edf4ac56f00d8fad592b6c6c2bcb128730ed5c837ad29270931976d",
+    "bytes": 1328
+  },
+  "batch-01-exact-existing.csv": {
+    "sha256": "f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e",
+    "bytes": 17388
+  },
+  "batch-02-non-property.csv": {
+    "sha256": "6bde1c518bd2496d861283b9801a7cb05d15144e429eb3b9c51ed005e5ad2a52",
+    "bytes": 9063
+  },
+  "batch-03-create-candidates.csv": {
+    "sha256": "850c900e7ed76bd272db7bed7ccdcbefc4d0ea55177ddb8d884a5f01d011fcc1",
+    "bytes": 1342
+  },
+  "batch-04-open-review.csv": {
+    "sha256": "a75a5e1fd7a04f0fcc389c3fef1a81e56cab8eddda3abf7d69ae49bc383c0799",
+    "bytes": 66506
+  },
+  "batch-05-licensor-unresolved.csv": {
+    "sha256": "beecb4146c952024bf7ab425b3054d81028e30db084c0c7cdc18d6a29e7994d1",
+    "bytes": 750
+  },
+  "summary.json": {
+    "sha256": "9ddae4fb1e183f59ee2e414ef032931e717d2919508a48b5574326ef6dcbb50d",
+    "bytes": 2639
+  },
+  "authority-source-hashes.json": {
+    "sha256": "abbce43f1eeca0bbb291a51d6ea0705357efcb194dff0c2509348beeea598d9a",
+    "bytes": 1373
+  },
+  "README.md": {
+    "sha256": "00db0c635e03c49c055649f12a736cc83b568362bec8e907eacfbf67deeb5908",
+    "bytes": 8326
+  },
+  "inputs": {
+    "psg1/inventory.csv": {
+      "sha256": "97feb1fe91ae0632e27dd4574d955af0bd58c156e3f9c07d8bf99347f0719e8b",
+      "bytes": 242605
+    },
+    "psg1/currently-tagged-at-risk.csv": {
+      "sha256": "f3274213ad55c983e12f174bffc9cc693772f11d578a2ae78e4f99b4a5bf03b6",
+      "bytes": 2220874
+    },
+    "coldlion-phase3/dispositions.csv": {
+      "sha256": "eae0bc882817a97bfe19e73c0aa812209ae4ef7fa489f6fdf91e58a3cf0e487f",
+      "bytes": 17580
+    },
+    "coldlion-phase3/parent-edges.csv": {
+      "sha256": "39b03034b3553643ab86634e5bab6c1890287e08f34c24873e15492c7af9a753",
+      "bytes": 34335
+    },
+    "shared-db/scripts/popsg-property-psg2-proposals.cjs": {
+      "sha256": "07bda1300467bd7247fd7387ad6dfa8c195b4912202682907501a617b13fcc37",
+      "bytes": 38756
+    },
+    "shared-db/scripts/popsg-property-psg2-proposals.test.cjs": {
+      "sha256": "e0998b709b49643720f5b51242f7c9a9b8514d349805893c16c57867d3945db1",
+      "bytes": 12988
+    },
+    "shared-db/scripts/lib/popsg-property-normalizer-v1.cjs": {
+      "sha256": "5ccfb32ba0c7a3a5ae6920bd454b14459b0339def21f49e16e7526f971b31c9b",
+      "bytes": 330
+    },
+    "shared-db/docs/verification/popsg-property-reconciliation-20260726/normalization-fixtures-v1.json": {
+      "sha256": "a9f2ff47ad5ad41b4fb407494b13b775ce7afe5fb31cdb44de964610c78b4890",
+      "bytes": 1558
+    }
+  }
+}

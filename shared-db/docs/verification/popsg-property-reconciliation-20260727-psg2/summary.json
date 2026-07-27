@@ -1,0 +1,66 @@
+{
+  "phase": "PSG-2",
+  "generated_at": "2026-07-27",
+  "proposal_engine": "popsg-property-psg2-v1",
+  "input_inventory_sha256": "97feb1fe91ae0632e27dd4574d955af0bd58c156e3f9c07d8bf99347f0719e8b",
+  "immutable_at_risk_sha256": "f3274213ad55c983e12f174bffc9cc693772f11d578a2ae78e4f99b4a5bf03b6",
+  "inventory_rows": 372,
+  "active_file_occurrences": 216417,
+  "disposition_rows": {
+    "licensor_unresolved": 1,
+    "exact_existing": 51,
+    "alias_existing": 0,
+    "classics_cp": 0,
+    "non_property": 36,
+    "licensed_no_code": 0,
+    "canonical_create_candidate": 2,
+    "ambiguous": 43,
+    "deferred": 239
+  },
+  "disposition_file_occurrences": {
+    "non_property": 20309,
+    "deferred": 118067,
+    "ambiguous": 33416,
+    "exact_existing": 44331,
+    "canonical_create_candidate": 293,
+    "licensor_unresolved": 1
+  },
+  "rationale_rows": {
+    "blank_property_observation": 15,
+    "insufficient_deterministic_evidence": 213,
+    "psg1_structural_folder_pattern_candidate": 21,
+    "multiple_same_parent_or_phase5_review_candidates": 43,
+    "single_similarity_hint_is_not_deterministic_evidence": 26,
+    "exact_normalized_canonical_name_under_resolved_licensor": 50,
+    "exact_canonical_code_under_resolved_licensor": 1,
+    "exact_coldlion_phase5_candidate_with_resolved_popsg_parent_observation": 2,
+    "parent_licensor_unresolved": 1
+  },
+  "automatically_proposed_cross_parent_mappings": 0,
+  "unresolved_licensor_property_proposals": 0,
+  "fuzzy_selected_mappings": 0,
+  "effective_or_activated_proposals": 0,
+  "owner_activation_required_rows": 372,
+  "classification_automatic_rows": 52,
+  "currently_tagged_at_risk_relationships": 6961,
+  "coldlion_phase5_unique_create_candidates": 6,
+  "coldlion_phase5_overlaps_in_proposals": 2,
+  "safeguards": {
+    "database_writes": false,
+    "migrations": false,
+    "canonical_creates": false,
+    "rebuilds": false,
+    "deployments": false,
+    "popdam_ui_changes": false,
+    "proposal_activation": false
+  },
+  "proposals_sha256": "cc036567653c69801b089fae1443f4323321ec9dc3f7d874e4ee80f8e11347d4",
+  "owner_review_batches_sha256": "78afa12f5edf4ac56f00d8fad592b6c6c2bcb128730ed5c837ad29270931976d",
+  "popdam_worker_authority": {
+    "psg1_manifest_raw_working_tree_sha256": "1fe0f7214cabf15bd0cd5035c95897d40f18c8990172fa394bfb654c796f2ce3",
+    "current_canonical_lf_sha256": "76579ecba08ae1a5207bbe2f2d3a4e23a8979ad050ceb69cff11dba29c75d255",
+    "current_reconstructed_crlf_sha256": "1fe0f7214cabf15bd0cd5035c95897d40f18c8990172fa394bfb654c796f2ce3",
+    "behavior_content_matches_psg1": true,
+    "psg5_rebaseline_required_if_behavior_hash_changes": true
+  }
+}
