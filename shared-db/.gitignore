@@ -26,3 +26,6 @@ tools/clean-designer-artist-records.mjs
 .grok-step11-*.md
 .grok-step11-*.log
 
+__pycache__/
+*.pyc
+.ai-review*.txt
