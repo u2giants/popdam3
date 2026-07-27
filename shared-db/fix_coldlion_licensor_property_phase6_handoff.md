@@ -35,10 +35,35 @@ What a developer walking in today must know:
 | Machinery (6A) | **COMPLETE** |
 | GitHub workflow proof | **COMPLETE** (after parser-fix PR #233) |
 | Schedules | **ACTIVE** (`PHASE6_SCHEDULE_ENABLED=true` since 2026-07-26T13:27:41Z) |
-| Phase 6 overall | **IN PROGRESS** — accelerated readiness implementation open |
+| Phase 6 overall | **IN PROGRESS** — preview readiness gates PROVEN 2026-07-27; application-maturity checks and production packaging still open |
 | Historical schedule start | **2026-07-26**; retained as evidence, not an exit clock |
-| Active exit gate | Accelerated plan invariants, preview rehearsal, rollback, alert delivery, and durable production approval |
-| **Exact next action** | **Implement/prove the accelerated readiness plan on preview. Do not execute Phase 7.** |
+| Active exit gate | Plan Steps 6–8: application checks at real maturity, bounded production package, and Albert's durable production-window approval |
+| **Exact next action** | **Plan Step 6 — verify DesignFlow PLM (primary live gate), the DAM live subset, CRM/PM development compatibility, and DB Data Admin. Do not execute Phase 7.** |
+
+### 2026-07-27 update — accelerated readiness proven on preview
+
+| Item | Result |
+|---|---|
+| Readiness command | `node tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs --apply --linked` → **exit 0, `ready=true`** (preview) |
+| 542-row identity proof | **542/542 exact**; 271 distinct canonical UUIDs; SQL-recomputed hash `1230f5a12d0f2a3029f1d3df17fc5b5f`; missing/extra/duplicate/changed/cross-typed/link-mismatch/canonical-missing all **0** |
+| Circuit breaker | `plm.taxonomy_circuit_breaker` + append-only `plm.taxonomy_circuit_breaker_event`; enforced by triggers on `core.taxonomy_source_ref` (ColdLion rows) and `plm.erp_licensor`/`plm.erp_property` link changes |
+| Forced-failure drill | Real promotion attempt refused: `run-coldlion-licensor-property-phase4.mjs` **exit 1**, failed run `15c0b900-d8eb-4925-a1ac-6323eaec5572` retained; trip event `aedace23-…`, blocked event `a97fc56d-…`, critical alert `de27d819-…` naming **Albert Hazan** |
+| Rollback rehearsal | Unauthorized reset **refused**; authorized reset closed the lane (event `19f8e231-…`); recovery run `5676f13a-…` re-linked **542 unchanged / 0 changed**; every protected hash byte-identical before, during, and after |
+| Alert delivery | The plan's named "Codex heartbeat" **does not exist in this repo**. Built `.github/workflows/coldlion-licensor-property-alert-monitor.yml` (cron `*/10`, gated by `COLDLION_ALERT_MONITOR_ENABLED`) → GitHub issue naming Albert Hazan + red run |
+| New migrations | `20260727221500`, `20260727223000`, `20260727224500` — **all applied to preview; never edit them** |
+| Tests | 127 offline tests green; `scripts/check-sql.sh` green; `supabase/tests/coldlion_licensor_property_readiness_breaker_contracts.sql` PASS (rolled back) |
+| Production | **Not accessed. Not linked. Not queried.** Phase 7 **not started** |
+
+Two defects this work found in itself — both worth remembering, both caught by its own
+tests, both documented in evidence §4.7.5:
+
+1. **A trigger cannot durably log the exception it raises** — the write is rolled back with
+   the statement. The breaker triggers now refuse only; the caller records the blocked attempt.
+2. **`text[] || '<bare literal>'` is parsed as an array literal** (`22P02`). It only bit the
+   duplicate/ambiguity branches, so the verifier would have crashed exactly when it had found a
+   real problem. Explicit `::text` fixes it.
+
+Full evidence: `docs/verification/coldlion-licensor-property-phase6-20260726/README.md` §4.7.
 
 Full evidence IDs:
 [`docs/verification/coldlion-licensor-property-phase6-20260726/README.md`](docs/verification/coldlion-licensor-property-phase6-20260726/README.md).
@@ -147,15 +172,27 @@ Parser fix path: Go-style `map[...]` box cells, fail-closed on garbage, **duplic
   but readiness requires the accelerated plan's deterministic identity, invariant, rollback, alert,
   and approval gates.
 
-## 6. Exact next steps
+## 6. Exact next steps (updated 2026-07-27)
 
-1. Implement the accelerated plan's thin readiness composer and exact 542-row mapping-identity
-   proof on preview.
-2. Prove the circuit breaker, heartbeat alert delivery, authorized re-enable, and rollback.
-3. Preserve all scheduled/manual successes, failures, parser errors, and drills append-only.
-4. Prepare the bounded production package and durable approval record only after preview gates pass.
-5. **Do not execute Phase 7 or Phase 8** without the readiness evidence and Albert's explicit
-   production-window approval.
+Items 1–3 below are **DONE** — see the 2026-07-27 update in §2 and evidence §4.7.
+
+1. ~~Implement the thin readiness composer and exact 542-row mapping-identity proof on preview.~~ **Done.**
+2. ~~Prove the circuit breaker, alert delivery, authorized re-enable, and rollback.~~ **Done on preview.**
+3. ~~Preserve all successes, failures, parser errors, and drills append-only.~~ **Done — nothing was overwritten.**
+4. **NEXT — plan Step 6:** verify the applications at their real maturity levels. DesignFlow PLM
+   is the only fully live application and is the primary gate; DAM's live subset only; CRM and
+   PM are development compatibility checks; plus DB Data Admin's Licensor/Property tree/filters.
+   Never overstate CRM/PM/DAM coverage.
+5. Then plan Step 7: the bounded production package (detached worktree, explicit allowlist,
+   never `--include-all`).
+6. Then plan Step 8: Albert's durable, explicit production-window approval.
+7. **Do not execute Phase 7 or Phase 8** before 4–6 are complete.
+
+One live-alert item remains outstanding from this session and is listed honestly rather than
+claimed: the alert monitor's **scheduled** delivery timing has not yet been observed, because
+GitHub only runs `schedule` triggers on the default branch. Enable repository variable
+`COLDLION_ALERT_MONITOR_ENABLED=true` on `main`, fire a drill alert, and record the observed
+delivery latency against the 15-minute target in evidence §4.7.6.
 
 ## 7. Constraints and gotchas
 

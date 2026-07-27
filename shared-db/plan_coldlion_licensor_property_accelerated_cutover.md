@@ -4,21 +4,23 @@
 **Documentation corrections:** 2026-07-26 — Kimi critique corrections applied; see STATUS
 **Decision owner:** Albert Hazan  
 **Repository:** `u2giants/shared-db`  
-**Fresh-session starting point:** Step 1 — reconcile this plan with the latest `main`, then implement
-the readiness gates on preview. The 2026-07-26 documentation pass already retired the 14-day
-Phase 6 exit gate as an active rule (it survives only as labeled historical evidence). No
-implementation step is complete and no production change is authorized.
+**Fresh-session starting point (updated 2026-07-27):** **Step 6** — verify the applications at
+their real maturity levels. Steps 1–3 are complete and Steps 4–5 are complete for every new
+behavior; the readiness command reports `ready=true` on preview with all 542 mappings proven by
+row-by-row identity. The 14-day / 2026-08-09 gate is retired and survives only as labeled
+historical evidence. **No production change is authorized**, no production workflow exists, and
+Phase 7 has not been started.
 
 ## STATUS
 
 | Step | State | Date | Evidence / next action |
 |---|---|---|---|
 | 0. Documentation corrections (Kimi critique + active-gate retirement) | ✅ Complete | 2026-07-26 | Kimi P1/P2 corrections and routed-doc retirement completed; implementation Steps 1–10 remain open |
-| 1. Reconfirm current state and serialize work | ⬜ Open | 2026-07-26 | Start here in a fresh implementation session |
-| 2. Replace the elapsed-time Phase 6 gate | 🔶 Policy/docs done | 2026-07-26 | Routed docs and automation prompt corrected; workflow contracts and static tests remain open |
-| 3. Build the readiness evaluator | ⬜ Open | 2026-07-26 | One command must prove or deny cutover readiness |
-| 4. Strengthen fail-closed production monitoring | ⬜ Open | 2026-07-26 | Alerts, circuit breaker, and response evidence |
-| 5. Rehearse the complete cutover and rollback on preview | ⬜ Open | 2026-07-26 | Preview `rjyboqwcdzcocqgmsyel` only; reuse Phase 2B/4/6 evidence, rehearse only new behaviors |
+| 1. Reconfirm current state and serialize work | ✅ Complete | 2026-07-27 | Clean worktree from `origin/main`; preview ledger checked (no blocking rows, no duplicate timestamps); identity `Albert Hazan <u2giants@users.noreply.github.com>` confirmed; production never contacted |
+| 2. Replace the elapsed-time Phase 6 gate | ✅ Complete | 2026-07-27 | Policy/docs retired 2026-07-26; workflow contracts and static tests now carry invariant-readiness wording. No active 14-day / 2026-08-09 rule remains |
+| 3. Build the readiness evaluator | ✅ Complete | 2026-07-27 | `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs` — one command; **`ready=true` on preview**; all 542 approved mappings proven by row-by-row identity (all 8 difference buckets 0). Evidence §4.7 |
+| 4. Strengthen fail-closed production monitoring | 🔶 Preview-proven; production lane not built | 2026-07-27 | Circuit breaker + durable alert + append-only breaker events built and drilled on preview. Alert delivery: the named Codex heartbeat **does not exist in this repo**, so `.github/workflows/coldlion-licensor-property-alert-monitor.yml` (10-min → GitHub issue naming Albert Hazan) was built as the smallest durable path. **A production successor workflow and `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` remain unbuilt — Step 8 gates them** |
+| 5. Rehearse the complete cutover and rollback on preview | 🔶 New behaviors rehearsed; app checks are Step 6 | 2026-07-27 | Forced-failure drill, refused real promotion (`run-...-phase4.mjs` exit 1, failed run `15c0b900-…`), append-only evidence, refused unauthorized reset, authorized rollback, proven recovery (542 unchanged, run `5676f13a-…`), protected hashes unchanged throughout. Evidence §4.7.4 |
 | 6. Verify the applications at their real maturity levels | ⬜ Open | 2026-07-26 | PLM sandbox/preview-connected; DAM live subset; CRM/PM development |
 | 7. Prepare the production change package | ⬜ Open | 2026-07-26 | Read-only production inventory, mapping-identity proof, secret proposal, bounded apply manifest |
 | 8. Obtain Albert's production-window approval | ⬜ Open | 2026-07-26 | Exact migrations/actions/rollback named; durable approval record before execution |
@@ -294,14 +296,26 @@ These do not require a new business decision if the implementer follows the stat
    cutover. No 15-minute cron — overlapping jobs and queue noise do not buy materially faster
    detection for slow-moving data, and the circuit breaker already fails closed independently of
    check frequency. Full ColdLion snapshots remain daily because the data is slow.
-2. **Alert transport (decided 2026-07-26):** the primary named monitoring path is the existing
-   Codex heartbeat task — the scheduled automation prompt that already watches this workstream's
-   GitHub Actions runs (Step 2 item 6) — backed by the durable database alert and the GitHub
-   Actions failure surface. No document proves a better existing human channel, so none is
-   invented here and no email address is fabricated. Production additionally requires a named
-   human escalation owner: **Albert Hazan**. Alert delivery is a hard gate (Step 4 item 8): a
-   forced-failure drill must prove delivery to that named path within the stated target before
-   cutover approval.
+2. **Alert transport (decided 2026-07-26; CORRECTED 2026-07-27).** The 2026-07-26 text named
+   "the existing Codex heartbeat task" as the primary path. **A repository-wide sweep on
+   2026-07-27 found no such task exists here** — no scheduled monitor workflow, no cron
+   definition, and no automation prompt in this repo watches this workstream. The named path
+   could not be proven because it is not real, so Step 4 item 8's fallback applied and the
+   smallest durable channel was built and is now the primary path:
+
+   ```text
+   plm.taxonomy_sync_alert (preview)
+     -> .github/workflows/coldlion-licensor-property-alert-monitor.yml  (cron */10 * * * *)
+     -> a GitHub Issue naming Albert Hazan + a RED failed workflow run
+   ```
+
+   Both surfaces are permanent and timestamped, so delivery time is provable after the fact
+   instead of asserted. 10 minutes sits inside the 15-minute target with margin for GitHub queue
+   delay. Gated by repository variable `COLDLION_ALERT_MONITOR_ENABLED` (default off); production
+   ref hard-refused. The named human escalation owner remains **Albert Hazan**, carried in the
+   alert payload, the issue body, and the workflow error annotation. No email address is
+   fabricated. If a real Codex heartbeat is introduced later, it should consume this issue/run
+   surface rather than replace it.
 3. **Circuit-breaker implementation:** prefer disabling only the ColdLion promotion/schedule path
    while leaving mirrors/evidence intact. It may be implemented as a repository variable checked by
    the job plus a database guard; never delete data automatically.
@@ -740,9 +754,12 @@ Target branch policy:
 - [x] The active 14-day/2026-08-09 documentation gate is retired in routed docs; workflow
       contracts/static tests still belong to implementation Step 2.
 - [x] Historical 14-day evidence and every failed/drill run remain preserved.
-- [ ] The deterministic readiness evaluator passes all green and failure fixtures.
-- [ ] Production monitoring, circuit breaker, durable alerts, and recovery are proven on preview.
-- [ ] The complete cutover and rollback are rehearsed on preview.
+- [x] The deterministic readiness evaluator passes all green and failure fixtures.
+      (`ready=true` on preview 2026-07-27; 127 offline tests + rolled-back SQL contracts green.)
+- [x] Production monitoring, circuit breaker, durable alerts, and recovery are proven on preview.
+      (Production-lane workflow itself is deliberately unbuilt until Step 8.)
+- [x] The complete cutover and rollback are rehearsed on preview — for the NEW behaviors.
+      Application-maturity checks remain Step 6.
 - [ ] DesignFlow PLM live behavior gate is evidenced.
 - [ ] DAM's applicable live subset is evidenced without overclaiming.
 - [ ] CRM and PM development compatibility is evidenced.

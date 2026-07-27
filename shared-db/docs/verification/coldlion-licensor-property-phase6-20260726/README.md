@@ -163,6 +163,168 @@ authorize production work or Phase 7.
 
 ---
 
+### 4.7 Accelerated readiness build — identity proof, circuit breaker, drills, rollback (2026-07-27, APPEND-ONLY)
+
+Nothing in §§4.1–4.6 was changed, replaced, or re-run to produce this section. The
+2026-07-27 scheduled cycle recorded in §4.5 (PR #262) was **reused as evidence, not
+repeated**. Production `qsllyeztdwjgirsysgai` was **not accessed in any way** during
+this work — not linked, not queried, not read.
+
+#### 4.7.1 What was built
+
+| Artifact | Purpose |
+|---|---|
+| `supabase/migrations/20260727221500_coldlion_licensor_property_readiness_and_breaker.sql` | `plm.taxonomy_circuit_breaker` + append-only `plm.taxonomy_circuit_breaker_event`; trip/reset/state functions; three enforcement triggers; the read-only 542-row identity verifier |
+| `supabase/migrations/20260727223000_coldlion_breaker_blocked_attempt_logging_fix.sql` | Correction: a trigger cannot durably log its own refusal (see 4.7.5) |
+| `supabase/migrations/20260727224500_coldlion_identity_verifier_reason_cast_fix.sql` | Correction: `text[] || <bare literal>` was parsed as an array literal (see 4.7.5) |
+| `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs` (+ `.test.mjs`) | The single deterministic readiness command |
+| `tools/dispatch-coldlion-taxonomy-alerts.mjs` (+ `.test.mjs`) | Durable alert delivery |
+| `.github/workflows/coldlion-licensor-property-alert-monitor.yml` | 10-minute preview alert monitor → GitHub issue naming Albert Hazan |
+| `supabase/tests/coldlion_licensor_property_readiness_breaker_contracts.sql` | Rolled-back SQL contracts for the breaker and the identity verifier |
+
+Preview apply used the bounded pattern from `AGENTS.md` §5.1: the three unrelated
+pending migrations (`20260726190000`, `20260726200000`, `20260726210000`, all other
+workstreams) were moved out of the local folder for the push and restored
+immediately after, so each `supabase db push --dry-run` listed **only** the file
+being applied. `--include-all` was never used.
+
+#### 4.7.2 The readiness command
+
+```bash
+node tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs --apply --linked
+```
+
+Preview is the default target. Production requires **all three** of `--production`,
+`--production-authorized`, `--project-ref qsllyeztdwjgirsysgai`, **and**
+`COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED=true`; any one missing blocks. No
+production authorization was supplied or created in this session.
+
+#### 4.7.3 Exact mapping identity — all 542 rows, by identity, not by count
+
+`plm.verify_coldlion_approved_mapping_identity` resolves every approved mapping by
+full typed source identity (`company/division/mgTypeCode/mgCode` **plus** entity
+type) to its exact canonical UUID, **in both directions**, and independently
+recomputes the frozen Phase 4 hash in SQL.
+
+| Measure | Result |
+|---|---|
+| Approved mappings checked | **542** (38 licensor + 504 property) |
+| Distinct canonical UUIDs | **271** |
+| Hash recomputed **in SQL** | **`1230f5a12d0f2a3029f1d3df17fc5b5f`** (matches the frozen Phase 4 artifact) |
+| Live ColdLion source refs | **542** |
+| `missing` / `extra` / `duplicate_input_key` / `duplicate_source_ref` | **0 / 0 / 0 / 0** |
+| `cross_typed` / `changed_uuid` / `link_mismatch` / `canonical_missing` | **0 / 0 / 0 / 0** |
+
+Counts alone can never pass: `row_counts_without_identity_proof_never_pass` blocks
+readiness when the per-row payload is absent, partial, or non-numeric, even when
+every count and hash is correct.
+
+#### 4.7.4 Preview drills — forced failure, refusal, rollback, recovery (all real, not rolled back)
+
+Protected baseline before the drill, identical to the §2 pinned values:
+licensor UUID `590ea83ea6df1487fcfc1e18b3ef6a0d`, property UUID
+`e0e6c36eb02bb2d320c0deaff7aa8f8c`, licensor status `d9b07759bf80ff227e2fa9bd635d2138`,
+property status `f436d4acd79761fedbfc9b5796ac7bce`, parent edge
+`7459f6826cc59468779e7ead33ec0edc`, combined status `5960fa4c08b5da2d0880c138e3e32ef7`,
+source ref `5585216ad77d3aec0f1dbbba802f1e36`; canonical 26/256, refs 1047 = 542 + 505,
+links 38/504.
+
+| # | Step | Command / call | Result | Evidence ID |
+|---|---|---|---|---|
+| 1 | Trip the breaker on a simulated protected-invariant failure (drill-labelled) | `plm.trip_taxonomy_circuit_breaker(..., is_drill => true)` | `state=tripped` | trip event **`aedace23-c0eb-47d3-aad7-d49a1584b95e`**; durable **critical** alert **`de27d819-d4f7-4ab4-be0f-b6863e662e58`**, `human_response_owner: Albert Hazan` |
+| 2 | Attempt a REAL ColdLion promotion while tripped | `node tools/run-coldlion-licensor-property-phase4.mjs --apply --linked` | **FAILED, exit 1** — trigger refused the first source-ref INSERT (`EDGEHOME/CW001/05/1P`) | failed `ingest.sync_run` **`15c0b900-d8eb-4925-a1ac-6323eaec5572`** (status `failed`, retained) |
+| 3 | Record the refusal append-only | `plm.record_taxonomy_circuit_breaker_blocked_attempt(...)` | recorded | blocked_attempt event **`a97fc56d-5bd4-40e2-861f-bf6d2336a9c5`** |
+| 4 | Re-snapshot protected facts | `plm.compute_taxonomy_immutability_snapshot()` | **every hash and count identical to the baseline above** | — |
+| 5 | Readiness while tripped | readiness command | **exit 1, `ready=false`**; 6 checks passed, blocked **only** on `circuit_breaker_is_closed` with the exact trip reason | health run `3cbbe4a6-a4ea-4074-84eb-e22db527d7a4` |
+| 6 | Alert delivery collection while tripped | `node tools/dispatch-coldlion-taxonomy-alerts.mjs --apply --linked` | **exit 1**, `deliver=true`, title `[DRILL] ColdLion taxonomy alert — 7 undelivered (breaker: tripped)`, body names **Albert Hazan** | — |
+| 7 | Unauthorized reset | `readiness_pass=false` | **REFUSED** `P0001: circuit-breaker reset requires authorization.readiness_pass = true` | — |
+| 8 | Operational rollback (authorized reset) | `plm.reset_taxonomy_circuit_breaker({authorized_by:'Albert Hazan', readiness_pass:true, readiness_evidence:'…'})` | `state=closed` | reset event **`19f8e231-6e0c-4928-8cda-18e86362c983`**; alert acknowledged `2026-07-27T18:23:09Z` |
+| 9 | Prove promotion works again after rollback | `node tools/run-coldlion-licensor-property-phase4.mjs --apply --linked` | **exit 0** — `rows_seen 542`, `inserted 0`, `updated 0`, **`unchanged 542`**, licensor 38 / property 504, snapshot hash `1230f5a12d0f2a3029f1d3df17fc5b5f` | `ingest.sync_run` **`5676f13a-637d-4ca6-a77c-9e8f8d7d8839`** (succeeded) |
+| 10 | Readiness after all drills | readiness command | **exit 0, `ready=true`**, all 7 checks pass, `blocking_reasons: []` | health run **`9d3b0ee3-6abf-49fe-85f0-c4632e32e9c8`** |
+| 11 | Final protected snapshot | `plm.compute_taxonomy_immutability_snapshot()` | **byte-identical to the pre-drill baseline** — no canonical UUID, status, Property-to-Licensor parent, or approved source link changed at any point | — |
+
+The rollback restored the prior safe state **and kept every failure**: the trip
+event, the blocked-attempt event, and the failed link run all survive the reset.
+The reset is append-only too — it adds a `reset` event rather than clearing history.
+
+Latest non-drill comparison observation reused as evidence:
+**`c72852e3-428b-4716-abcb-823bac769505`** (`pass:true`, `unexplained_diff_count:0`),
+from the 2026-07-27 scheduled cycle in §4.5. It was **not** re-run.
+
+#### 4.7.5 Two real defects this work found in itself — both caught by its own tests
+
+Recorded because both are the kind of bug that reads as working code.
+
+1. **A trigger cannot durably log its own refusal.** The first breaker triggers did
+   `insert into plm.taxonomy_circuit_breaker_event (... 'blocked_attempt' ...)` and
+   then `raise exception`. The exception rolls back the trigger's own insert, so the
+   event row silently vanished. Postgres has no autonomous transactions. The contract
+   test failed with `blocked attempts were not recorded append-only (got 0)` — without
+   that assertion this would have been a permanent, invisible evidence gap. Fixed by
+   `20260727223000`: triggers refuse only; the **caller** records the blocked attempt
+   after catching the error, in a transaction that commits.
+2. **`text[] || '<bare literal>'` is parsed as an array literal.** The identity
+   verifier built its blocking-reason list with `format(...)` (returns `text`, works)
+   in most branches but with bare quoted literals in two. Those two threw
+   `22P02 malformed array literal`. The two affected branches were the **duplicate**
+   and **ambiguous** detectors — they only run when something is already wrong, so the
+   verifier would have crashed with a type error at exactly the moment it had found a
+   real ambiguity, looking like a broken tool instead of a caught defect. Fixed by
+   `20260727224500` with explicit `::text`.
+
+Neither applied migration was edited. Each correction is a new timestamped file, per
+`AGENTS.md` §4.4.
+
+#### 4.7.6 Alert delivery — the named path did not exist, so the smallest durable one was built
+
+The accelerated plan named "the existing Codex heartbeat task" as the primary alert
+path. **A 2026-07-27 sweep of this repository found no such task**: no scheduled
+monitor workflow, no cron definition, and no automation prompt anywhere in the repo
+watches this workstream. The named path could not be proven because it is not here.
+Per plan Step 4 item 8, the smallest durable replacement was built instead:
+
+```text
+plm.taxonomy_sync_alert (preview)
+  -> .github/workflows/coldlion-licensor-property-alert-monitor.yml, cron */10 * * * *
+  -> a GitHub Issue naming Albert Hazan as human response owner + a RED failed run
+```
+
+Both surfaces are permanent and timestamped, so delivery time is provable after the
+fact rather than asserted. The 10-minute cadence sits inside the 15-minute target with
+margin for GitHub queue delay. Gated by repository variable
+`COLDLION_ALERT_MONITOR_ENABLED` (default off), production ref hard-refused.
+
+#### 4.7.7 Tests
+
+| Suite | Result |
+|---|---|
+| `node --test` across all 11 ColdLion/Phase 6 suites | **127 passing, 0 failing** |
+| `bash scripts/check-sql.sh` | **PASS** |
+| `supabase/tests/coldlion_licensor_property_readiness_breaker_contracts.sql` (rolled back, preview) | **PASS** — emits `coldlion readiness + circuit-breaker contracts PASS` |
+
+New readiness cases: `preview_composes_existing_green_results`,
+`production_requires_exact_authorization`,
+`all_542_typed_source_rows_resolve_to_approved_uuids`,
+`missing_ambiguous_or_different_mapping_blocks` (each of the eight buckets
+independently), `row_counts_without_identity_proof_never_pass`,
+`tampered_approved_mapping_contract_blocks`.
+
+New circuit-breaker contracts: durable alert on trip; refusal of a first and a
+**second** promotion attempt; refusal of typed mirror link changes; evidence and the
+DesignFlow/curated lane still writable while tripped; an unconfigured lane reads
+closed; unauthorized reset refused three ways; authorized reset works; trip and
+blocked-attempt evidence survives the reset; protected UUID/status/parent hashes
+unchanged throughout.
+
+#### 4.7.8 Explicit non-claims for this section
+
+- Production was **not** accessed, linked, queried, or modified.
+- **Phase 7 was not started.** No production migration, secret, or window exists.
+- The readiness command reports readiness of the **preview** deterministic gates only.
+- Application maturity checks (plan Step 6) and the bounded production package
+  (Step 7) are **not** done.
+- Albert's production-window approval (Step 8) has **not** been requested or given.
+
 ## 5. Historical clock and active exit criteria
 
 | Item | Status |

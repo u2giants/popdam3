@@ -585,10 +585,37 @@ preview schedules **ACTIVE**.
 an active exit condition. Its scheduled/manual successes, failures, drills, and append-only
 observations remain evidence.
 
-**Exact next action:** implement and prove the accelerated plan's invariant readiness, exact
-542-row mapping-identity check, circuit breaker, alert delivery, and rollback on preview.
-Production remains prohibited until those gates pass and Albert gives durable, explicit approval.
-Do not execute Phase 7.
+**2026-07-27 — PREVIEW READINESS GATES ARE NOW PROVEN.** The readiness command
+`node tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs --apply --linked` returns
+**`ready=true`** on preview. All **542** approved mappings were re-resolved **row by row** by full
+typed source identity to the exact approved canonical UUIDs (271 distinct) — missing, extra,
+duplicate, changed, cross-typed, link-mismatched, and canonical-missing counts are **all zero**,
+and the mapping hash `1230f5a12d0f2a3029f1d3df17fc5b5f` was recomputed independently in SQL.
+Counts alone can never pass: `row_counts_without_identity_proof_never_pass` is an explicit tested rule.
+
+A fail-closed **circuit breaker** now stops unsafe ColdLion canonical changes at the trigger level
+(`core.taxonomy_source_ref` ColdLion rows; `plm.erp_licensor`/`plm.erp_property` link changes), with
+an append-only `plm.taxonomy_circuit_breaker_event` log. The 2026-07-27 preview drill tripped it,
+watched a **real** promotion attempt fail (`run-coldlion-licensor-property-phase4.mjs` exit 1; failed
+run `15c0b900-…` retained), refused an unauthorized reset, then rehearsed the authorized operational
+rollback and proved recovery (`5676f13a-…`, **542 unchanged, 0 changed**). Every protected hash —
+canonical UUIDs, status, Property-to-Licensor parents, approved source links — was byte-identical
+before, during, and after. New migrations `20260727221500`, `20260727223000`, `20260727224500` are
+applied to preview; **never edit them**.
+
+Alert delivery: the plan named an "existing Codex heartbeat task" — **it does not exist in this
+repo**. `.github/workflows/coldlion-licensor-property-alert-monitor.yml` (cron `*/10`, gated by
+`COLDLION_ALERT_MONITOR_ENABLED`, default off) was built as the smallest durable path: it opens a
+GitHub issue naming **Albert Hazan** as human response owner and fails red. Its **scheduled** latency
+is not yet observed, because GitHub runs `schedule` only on the default branch.
+
+**Exact next action:** plan **Step 6** — verify the applications at their real maturity levels
+(DesignFlow PLM is the only fully live gate; DAM live subset only; CRM/PM are development
+compatibility checks; plus DB Data Admin). Then Step 7's bounded production package, then Step 8's
+approval. Production `qsllyeztdwjgirsysgai` was **not accessed** and remains prohibited.
+**Do not execute Phase 7.**
+
+Full evidence: `docs/verification/coldlion-licensor-property-phase6-20260726/README.md` **§4.7**.
 
 Authoritative Phase 6 handoff + evidence:
 [`fix_coldlion_licensor_property_phase6_handoff.md`](fix_coldlion_licensor_property_phase6_handoff.md)
