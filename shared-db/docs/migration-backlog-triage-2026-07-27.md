@@ -155,3 +155,35 @@ Verified afterwards in production:
   originals. That works, but it leaves the originals permanently stuck as "pending" and
   duplicates hundreds of lines of SQL. Promoting the original file in a bounded window, as
   §5.1 describes, is the cleaner habit and is what section 5 above recommends.
+
+## 9. A third promotion route was used once the same day — prefer §5.1 over it
+
+`20260727180000_designer_roster_pinilla_merge_and_creative_adds.sql` (the PopDAM designer
+roster cleanup: Jessica Pinilla merged into Alejandra Pinilla, the stray technical
+Martina Cardoso removed, three creative designers added) reached both preview and
+production **without `supabase db push`**. It was applied with
+`psql -v ON_ERROR_STOP=1 -f <file>` and its `supabase_migrations.schema_migrations` row was
+then inserted by hand. Recorded here so nobody auditing that ledger row assumes the CLI put
+it there.
+
+Why it happened, and why it was avoidable:
+
+- **Preview** was legitimately blocked — the 17 unmerged PopPIM rehearsal migrations
+  described in `shared-supabase-branch-workflow.md` were still in the preview ledger at the
+  time, so no `main`-based dry run could run at all. Direct `psql` was a reasonable call
+  there; the ledger insert kept preview from drifting.
+- **Production** was *not* blocked. The bounded temp checkout in §5.1 would have worked.
+  The session deleted every migration except its own instead of deleting only the six
+  pending ColdLion files, hit the "remote migration versions not found in local migrations
+  directory" abort documented in section 7, and reached for `psql` rather than re-reading
+  the recipe. The corrected §5.1 wording (PR #272) had landed hours earlier but the session
+  was working from an older checkout.
+
+If you find yourself about to run a migration through `psql`, **re-read §5.1 first** and
+confirm you pruned only the *pending* files. The direct route is acceptable only when the
+CLI genuinely cannot reconcile — and if you use it, insert the ledger row in the same
+session or the next `db push` will replay your migration.
+
+Two properties of that particular migration made the direct route low-risk, and they will
+not always hold: it was **data-only** (no DDL, so nothing for the CLI's diff to protect),
+and it carried its own `DO $$ … $$` guard block that raised on any unexpected end state.
