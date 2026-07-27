@@ -398,7 +398,265 @@ Generate proposals in this strict order:
 The proposal engine may calculate fuzzy similarity only as a reviewer hint.
 Fuzzy score must never select a target or change a disposition.
 
-**Deliverable:** a frozen, hashe…3250 tokens truncated… ownership, and sequencing
+**Deliverable:** a frozen, hashed proposal set plus tests proving deterministic
+ordering, parent scoping, and no cross-Licensor matches.
+
+Diff every `canonical_create_candidate` against the ColdLion Phase 5 candidate
+set in
+`docs/verification/coldlion-licensor-property-phase3-20260725/`. Route overlaps
+back through the existing ColdLion Phase 5 re-entry mechanism rather than
+creating a second candidate ledger.
+
+**Gate:** zero automatically proposed cross-parent mappings; every inventory row
+has exactly one proposed disposition; no database writes.
+
+### PSG-3 — administrator reconciliation UI and pending proposals
+
+Build **PopSG Settings → File Tags → Property reconciliation** with:
+
+- summary cards for file occurrences and distinct observed values;
+- queues for “needs review,” “intentionally untagged,” “mapped,” and
+  “create approval required”;
+- filters by Licensor, disposition, occurrence count, and ambiguity;
+- representative path evidence;
+- canonical candidate name/code/status/parent;
+- actions:
+  - map as alias to an existing Property;
+  - apply Classics → `CP`;
+  - mark non-Property;
+  - mark licensed/no-code;
+  - defer;
+  - nominate as canonical-create candidate;
+- mandatory notes for non-obvious/manual decisions;
+- preview of affected file count before approval;
+- no bulk approval across mixed Licensors or mixed dispositions;
+- export of the frozen decision set and hash.
+
+Every action above creates or updates a **pending** proposal. The UI must not
+offer an administrator-only “approve” action that activates master-data
+mappings. It may show the owner-approved hash and activation state, but only
+the guarded owner-approval workflow in PSG-4 can make a decision effective.
+
+The UI must loudly distinguish:
+
+- **unreviewed** — human work remains;
+- **intentionally untagged** — reviewed and correct;
+- **mapped** — will produce a canonical tag;
+- **create candidate** — blocked on separate master-data approval.
+
+**Gate:** role/RLS/RPC tests pass; viewer/designer cannot propose or activate;
+administrator can create only valid same-parent pending proposals and cannot
+activate them; only the owner-hash activation path can make them effective;
+real browser screenshots prove the complete workflow on preview.
+
+### PSG-4 — owner decision batch and activation authority
+
+Review proposals in descending file-impact order, but approve at the **distinct
+value** level.
+
+Albert receives one business-readable decision package:
+
+- mappings to existing Properties;
+- Disney Classics → `CP`;
+- intentional non-Properties;
+- licensed/no-code titles;
+- canonical-create candidates;
+- ambiguous/deferred remainder;
+- files affected by each decision;
+- immutable proposal hash.
+
+Approval is explicit and bounded to that hash. Editing any proposal after
+approval invalidates the hash and requires reapproval.
+
+**Gate:** every approved row has disposition, reason, parent evidence, reviewer,
+and timestamp. Canonical creates remain zero unless separately named and
+approved.
+
+### PSG-5 — preview implementation and rebuild
+
+1. Create shared-db migration(s) for the approved alias/decision contracts.
+2. Run `scripts/check-sql.sh`.
+3. Apply to preview first.
+4. Update the PopDAM worker to load:
+   - canonical Property name/code;
+   - approved `core.property_alias` rows;
+   - PopSG-specific terminal decisions;
+   - all scoped by resolved canonical Licensor.
+5. Remove reliance on the hard-coded empty `PROPERTY_ALIASES` array.
+6. Resolve the future of all eight hard-coded `LICENSOR_ALIASES`: migrate them
+   into an approved contract or retain each one only with recorded owner
+   sign-off and tests. Do not leave their authority implicit.
+7. Preserve manual/rejected tags.
+8. Run unit/contract/RLS/RPC tests.
+9. Run a full deterministic rebuild on preview.
+
+Required preview assertions:
+
+- zero failed files;
+- zero cross-parent Property tags;
+- exact/alias/CP decisions produce the approved Property IDs;
+- non-Property and licensed/no-code decisions produce no Property tag;
+- ambiguous/deferred/create-candidate values produce no Property tag;
+- manual and rejected tags are unchanged;
+- every accepted tag removed by Licensor scoping equals an approved row in the
+  signed `currently-tagged-at-risk.csv` delta; unexplained loss is zero;
+- actual accepted-tag delta equals the owner-approved expected signed delta;
+- rerun is idempotent;
+- “actionable unresolved” counts equal only ambiguous, deferred, and
+  create-candidate rows.
+
+**Gate:** application behavior is visually verified on preview and Albert
+confirms the decision summary matches the approved batch.
+
+### PSG-6 — shared-db PR, production schema, app rollout, and rebuild
+
+Order is mandatory:
+
+1. Shared-db branch → PR → checks → preview proof → AI merge.
+2. Let the shared-db mirror sync to consumer repos.
+3. Re-read the moving status header in
+   `fix_coldlion_licensor_property_phase6_handoff.md`. Record the required
+   ColdLion checkpoint and Albert's sign-off that PSG-6 cannot perturb §9.4.
+4. Obtain a fresh owner-approved production window naming the exact shared-db
+   migrations.
+5. Use a physically bounded production migration runner if unrelated migrations
+   remain pending. Never use unrestricted `--include-all`.
+6. Apply the database contracts to production **before** deploying application
+   code that requires them. Verify actual tables, generated normalization,
+   functions, SQL grants, and policies—not just the migration ledger.
+7. Commit/deploy the tested PopDAM worker/UI changes to PopDAM `main`, then
+   verify Railway and frontend SHAs for their respective code paths. If a
+   backwards-compatible feature flag/fallback is deliberately chosen instead,
+   its schema-absence test must pass and the flag must remain off until step 6
+   is verified.
+8. Re-take and hash the accepted/manual/rejected production tag snapshot from
+   PSG-0. Abort if the immutable manual/rejected baseline cannot be reproduced.
+9. Run a production no-write comparison of current global behavior versus the
+   approved Licensor-scoped behavior. Abort unless its signed accepted-tag delta
+   exactly equals the owner-approved expectation from PSG-4.
+10. Launch “Rebuild all deterministic tags.”
+
+**Gate:** ColdLion checkpoint/sign-off is recorded; production dry run lists
+only approved migrations; production schema exists before dependent app
+deployment; tag baselines and approved signed delta match; deployed app SHA is
+verified; the rebuild is durably running before the browser session ends.
+
+### PSG-7 — production acceptance and closeout
+
+Verify after the rebuild:
+
+- operation status `completed`;
+- zero failures;
+- accepted Property tags have a canonical Property and correct parent Licensor;
+- no cross-parent relationships;
+- every approved high-impact mapping has representative live examples;
+- Disney Classics resolve to `CP`;
+- structural/non-Property values remain without a Property tag;
+- licensed/no-code examples remain without a Property tag;
+- actionable unresolved distinct values match the approved remainder exactly;
+- intentionally-untagged counts are reported separately;
+- old and new coverage metrics are recorded;
+- no manual/rejected relationship changed;
+- accepted-tag additions and removals equal the approved signed delta exactly,
+  with zero unexplained loss;
+- the pre-rebuild and post-rebuild snapshots and hashes are preserved.
+
+Update the relevant PopDAM and shared-db docs, write a comprehensive handoff if
+anything remains, and preserve the dated evidence directory.
+
+**Completion definition:** classification coverage is 100%; terminal settlement
+rate and open categories are reported honestly; every approved mapping is live;
+all remaining untagged values are intentionally untagged,
+`licensor_unresolved`, or explicitly open; and no invalid or unexplained-lost
+Property tag was introduced.
+
+## 8. Metrics that must not be conflated
+
+The UI and evidence must report all of these separately:
+
+| Metric | Meaning |
+|---|---|
+| File-occurrence mapping coverage | Files whose observed Property produced a canonical tag |
+| Classification coverage | Unique normalized observations assigned exactly one disposition, including open/out-of-scope states |
+| Terminal settlement rate | Classified observations in an effective mapped or intentionally-untagged terminal state; report only, no 100% target |
+| Actionable unresolved | Ambiguous, deferred, or create-candidate observations still requiring action |
+| Parent unresolved | Observations blocked because the Licensor did not resolve |
+| Intentionally untagged | Reviewed non-Property or licensed/no-code observations |
+| Property precision audit | Sampled/contract-proven tags that point to the correct canonical Property |
+| Licensor precision audit | Sampled Licensor resolutions, including every hard-coded/unreviewed-alias source |
+| Structural cross-parent violations | Constraint-enforced; must be zero, but does not prove the Licensor itself was factually resolved correctly |
+| Accepted-tag signed delta | Added and removed accepted Property tags versus the pre-rebuild snapshot, partitioned into approved and unexplained |
+| Processing failures | Technical failures, separate from taxonomy decisions |
+
+The targets are **100% classification coverage, zero structural cross-parent
+violations, zero unexplained accepted-tag loss, and zero unexplained actionable
+unresolved values**. Terminal settlement rate and file-occurrence tag coverage
+are reported without a forced 100% target.
+
+## 9. Test matrix
+
+At minimum, include:
+
+1. Canonical name match under the correct Licensor.
+2. Canonical code match under the correct Licensor.
+3. Same text under a different Licensor does not match.
+4. Approved alias matches only its scoped Licensor.
+5. Disney Classic maps to `CP`.
+6. No-code title stays untagged.
+7. Collection/style-guide/workflow folder stays untagged.
+8. Ambiguous candidate stays untagged and visible.
+9. Cross-entity code collision never matches.
+10. Inactive/lapsed canonical status is displayed and does not silently activate.
+11. Manual tag survives rebuild.
+12. Rejected automatic tag survives rebuild.
+13. Rebuild rerun is idempotent.
+14. Viewer/designer approval is denied.
+15. Administrator action is audited.
+16. Changed path/fingerprint requeues only the affected file.
+17. Full rebuild produces zero processing failures.
+18. Current global exact match that is invalid under Licensor scoping is removed
+    only when present in the approved signed delta.
+19. Worker fails closed—or a deliberately implemented compatibility fallback
+    is proven—when the alias table/RPC is absent.
+20. SQL and TypeScript normalizers return byte-identical keys for every shared
+    fixture, including NFKC, ampersand, apostrophe, hyphen, punctuation, and
+    multi-space cases.
+21. Alias RPC rejects blank/redundant aliases and
+    `alias.licensor_id != property.licensor_id`.
+22. Shared-alias promotion rejects PopSG-only folder artifacts without explicit
+    cross-app certification and owner-approved hash.
+23. An approved alias fails closed if its target Property is inactivated or
+    reparented; it never silently retargets.
+24. Wrong Licensor resolution remains visible even when the selected Property
+    structurally shares that parent.
+25. Administrator may create pending proposals but cannot activate them.
+26. Only the exact unchanged owner-approved hash activates decisions.
+27. Concurrent deterministic rebuild acquisition is rejected.
+28. An interrupted rebuild resumes from the preserved cursor without
+    duplicating or losing work.
+29. A reactivated historical file inherits the current tuple decision or
+    enters review deterministically.
+
+## 10. Rollback and failure handling
+
+- Alias/decision records must be deactivatable or supersedable; never erase
+  audit history.
+- A bad mapping rollback deactivates the decision and rebuilds only affected
+  files when possible.
+- Before every production rebuild, preserve the named accepted/manual/rejected
+  tag export and hashes. Rollback uses that evidence to identify the exact
+  affected files and relationships; “rebuild affected files” is not a recovery
+  plan without this snapshot.
+- Do not delete canonical Properties as a rollback for a PopSG mapping.
+- Never rewrite an applied migration.
+- If a rebuild fails, preserve its cursor, run ID, failure samples, and last
+  successful cursor; resume only after the root cause is fixed.
+- Any cross-parent tag is a release blocker: stop the rebuild, deactivate the
+  offending decision, repair, retest in preview, then resume.
+- Authentication failure is not permission to use dashboard SQL or embed
+  secrets. Repair the canonical Supabase/1Password path.
+
+## 11. Dependencies, ownership, and sequencing
 
 - PSG-0 through PSG-4 are parallel-safe with ColdLion only because they are
   evidence, proposal, UI, and approval preparation with no schema activation or
@@ -742,4 +1000,3 @@ Albert's explicit current-chat instruction.
 
 The moving ColdLion accelerated plan still has Steps 1–10 open and production Phase 7 forbidden.
 Stop before PSG-4 until Albert explicitly starts it.
-
