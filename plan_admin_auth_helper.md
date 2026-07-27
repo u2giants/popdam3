@@ -1,6 +1,12 @@
 # Implementation Plan — One shared "are you an admin?" check for PopDAM edge functions
 
-**Status:** not started. Written 2026-07-26.
+**Status: DONE — implemented, deployed and verified live on 2026-07-26.**
+Shipped in commit `refactor(edge): one shared admin check; fix helper-api denying
+multi-role admins` (pushed to `main`; `Deploy Supabase Edge Functions` run
+30231551152 green). One verification remains outstanding and is not blocking —
+see "Implementation record" at the bottom of this file. Delete this file once
+that last check is done.
+
 **Plan file owner:** whoever implements it. Delete this file only when § 13 is fully ticked.
 **Related:** `HANDOFF.md` (session state — read both, never one alone), `docs/AUTHENTICATION.md`, `docs/API_CONTRACTS.md`, `docs/INFRASTRUCTURE.md`.
 
@@ -994,3 +1000,79 @@ production `user_roles` counts in § 6.1, actual deployed function settings, and
 any external caller not discoverable in the repo. The § 6.1 counts were obtained
 by the plan author via PostgREST with the service role on 2026-07-26 using the
 command in § 12 — re-run it if you want to confirm before starting.
+
+---
+
+## 15. Implementation record (2026-07-26)
+
+**Shipped.** New `supabase/functions/_shared/auth-policy.ts` (pure, zero imports)
++ `_shared/admin-auth.ts` (Deno wiring, `authenticateUser` / `requireAdmin`), all
+six functions rewired with the per-call-site options from step 3, and
+`src/test/auth-policy.test.ts` (12 tests) added. D1–D7 implemented as written.
+`npm test` 18 files / 75 tests green; `npm run lint` 0 errors. Step-4 gates:
+1 hit / 1 hit / nothing. Deploy workflow run **30231551152 green** (the Deno
+type check). Docs updated: `docs/AUTHENTICATION.md`, `docs/API_CONTRACTS.md`,
+`docs/KNOWN_QUIRKS.md` #70.
+
+### Live probe results
+
+**(i) Service-role acceptance — all five opt-in functions PASS auth**
+(`export-table` 200, `export-sql-dump` 200, `export-thumbnail-manifest` 500 DB
+timeout, `admin-api` 500 schema-cache, `erp-sync` 502 from the external ERP —
+all past auth, no sync ran).
+
+**(ii) Rejection shapes — all six byte-identical to § 5**, plus the missing-header
+variants (`admin-api` → "Missing or invalid Authorization header",
+`erp-sync` → "Missing auth").
+
+**(iii) `helper-api` still REJECTS the service role key** → 401
+`{"ok":false,"error":"Unauthorized"}`. Access was not widened.
+
+**(iv) Non-admin (`ai-viewer@designflow.app`)**: `admin-api` 403
+`{"ok":false,"error":"Forbidden: admin role required"}`, `helper-api` 403
+`{"ok":false,"error":"Admin only"}`, exporter 401. **Admin JWT
+(`ai-admin@designflow.app`)**: `helper-api` force-discard reaches the handler
+(400 `checkout_id required`), `export-table` 200.
+
+### ⚠️ Gotcha found: the service-role key in 1Password is NOT the one the
+### functions use
+
+`supabase secrets list`'s DIGEST column is a **plain sha256 of the value**
+(verified against `SUPABASE_URL`). The deployed `SUPABASE_SERVICE_ROLE_KEY`
+digest matches the project's **new-format `default secret` (`sb_secret_…`) key**,
+while 1Password item "Supabase Runtime Keys - shared POP database (production)"
+holds the **legacy `service_role` JWT**. Same for `SUPABASE_ANON_KEY` (deployed =
+new publishable key). The legacy JWT still works against PostgREST, so it looks
+fine — but every edge-function service-role probe with it returns 401 and looks
+exactly like an auth regression. This is pre-existing and unrelated to this work.
+Reveal the real key with:
+`GET https://api.supabase.com/v1/projects/qsllyeztdwjgirsysgai/api-keys?reveal=true`
+using the vault's "Supabase CLI Personal Access Token". **The 1Password entry
+should be reconciled** — separate task.
+
+### Outstanding (not blocking, needs Albert)
+
+- **The § 6.1 end-to-end check against a multi-role admin.** The only user with
+  two `user_roles` rows is **`albert@popcre.com`** (confirmed live: 36 role rows,
+  35 users, 3 admins, 1 multi-role). The `ai-admin@designflow.app` tester has a
+  single row, so it proves the admin path but not the multi-row case. No JWT for
+  that account was available and neither impersonating it nor mutating
+  production role rows is acceptable, so this was **not** faked. Albert can close
+  it by signing in and running:
+  `POST {SUPABASE_URL}/functions/v1/helper-api/admin/force-discard` with `{}` —
+  expect **400 `checkout_id required`** (before this change it returned 403
+  "Admin only").
+  The logic itself is covered by the unit test *"a user holding both 'user' and
+  'admin' is an admin"*.
+
+### Pre-existing failures found while probing (NOT caused by this change, not fixed)
+
+- **`admin-api` `list-users` is broken today** — 500
+  `Could not find a relationship between 'profiles' and 'user_roles' in the
+  schema cache`. Reproduced directly against PostgREST
+  (`/rest/v1/profiles?select=user_id,email,user_roles(role)` → 400 `PGRST200`),
+  so it is a missing FK / schema-cache problem in the database, independent of
+  auth and of this refactor. The admin UI's user-management screen cannot work
+  until it is resolved. Fixing it is a **shared-db** change — out of scope here.
+- **`export-thumbnail-manifest` returns 500 `canceling statement due to statement
+  timeout`** after passing auth. Pre-existing query-performance issue.
