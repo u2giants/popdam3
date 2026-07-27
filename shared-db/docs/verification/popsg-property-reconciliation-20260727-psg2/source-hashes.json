@@ -36,12 +36,12 @@
     "bytes": 2639
   },
   "authority-source-hashes.json": {
-    "sha256": "abbce43f1eeca0bbb291a51d6ea0705357efcb194dff0c2509348beeea598d9a",
+    "sha256": "045a564228aa12f5dcf86680ea4d85018ab75f60bf71c70225a713841fc523b1",
     "bytes": 1373
   },
   "README.md": {
-    "sha256": "00db0c635e03c49c055649f12a736cc83b568362bec8e907eacfbf67deeb5908",
-    "bytes": 8326
+    "sha256": "fb50767e5c9f710c10451e03c994cc63305d6a275d67530089e99f7f47297137",
+    "bytes": 8608
   },
   "inputs": {
     "psg1/inventory.csv": {
@@ -61,12 +61,12 @@
       "bytes": 34335
     },
     "shared-db/scripts/popsg-property-psg2-proposals.cjs": {
-      "sha256": "07bda1300467bd7247fd7387ad6dfa8c195b4912202682907501a617b13fcc37",
-      "bytes": 38756
+      "sha256": "a163d04b1306c7b055ae4e80e231d2c727acd3a1e7da982ff840159084d07669",
+      "bytes": 39038
     },
     "shared-db/scripts/popsg-property-psg2-proposals.test.cjs": {
-      "sha256": "e0998b709b49643720f5b51242f7c9a9b8514d349805893c16c57867d3945db1",
-      "bytes": 12988
+      "sha256": "d871e8349a9ca2ee16eefe1601ead81aa33670e49e899d2c93899f69c39c20a0",
+      "bytes": 13018
     },
     "shared-db/scripts/lib/popsg-property-normalizer-v1.cjs": {
       "sha256": "5ccfb32ba0c7a3a5ae6920bd454b14459b0339def21f49e16e7526f971b31c9b",

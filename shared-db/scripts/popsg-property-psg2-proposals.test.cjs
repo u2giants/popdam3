@@ -57,7 +57,10 @@ const frozenNormalizerSource = psg1Source.match(
   /function normalize\(value\) \{[\s\S]*?\n\}/,
 );
 assert(frozenNormalizerSource, "PSG-1 frozen normalizer source was not found");
-assert.equal(normalize.toString(), frozenNormalizerSource[0]);
+assert.equal(
+  normalize.toString().replace(/\r\n/g, "\n"),
+  frozenNormalizerSource[0],
+);
 const normalizationFixtures = JSON.parse(
   fs.readFileSync(path.join(psg0, "normalization-fixtures-v1.json"), "utf8"),
 );

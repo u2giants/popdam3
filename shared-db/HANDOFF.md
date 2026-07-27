@@ -72,6 +72,9 @@ findings. PSG-2 remains draft and incomplete at Albert's exact-hash gate:
 - The first Grok review found that parent safety was asserted as a constant, create candidates
   accepted bare codes, the copied normalizer changed ampersand behavior, activation authority was
   unclear, and fixture/hash coverage was too weak. All are corrected in the current draft.
+- After PR #256 merged, a clean Windows checkout exposed a test-only CRLF mismatch: the source
+  comparison normalized PSG-1 but not the loaded normalizer. The follow-up canonicalizes both
+  strings. Proposal rows, owner batches, and their frozen hashes did not change.
 
 ### 5. Root causes and key findings
 

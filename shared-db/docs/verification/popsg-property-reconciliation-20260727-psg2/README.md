@@ -110,6 +110,9 @@ risk file and its signed hash. It is evidence only, never a removal approval.
 - Second Grok review passed with no Critical, High, or Medium findings. Residual non-blocking
   notes are the intentional gates: every row still needs owner activation, PSG-2 remains
   incomplete until Albert names an exact batch hash, and PSG-3 remains forbidden.
+- The first clean Windows post-merge test found that the byte-for-byte normalizer source test
+  normalized CRLF only on the PSG-1 side. Proposal behavior and hashes were unchanged. The test
+  now canonicalizes both source strings before comparison and passes from a clean checkout.
 
 ## PSG-3 through PSG-7 forward-impact audit
 
