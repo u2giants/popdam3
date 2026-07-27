@@ -398,9 +398,10 @@ This confirms why `core.style_guide.property_id` must stay nullable. Never-desig
 have no canonical property because `core.property` mirrors what POP has designed/holds a code
 for. Multiple style guides cannot carry one property because their characters span properties.
 
-The three multiple style guides contain 338 appearances. Read-only reconciliation against
-already-resolved same-licensor character names found 18 unique mappings, excluded two royalty
-sentinels, and left 305 distinct character names for licensing review. Evidence:
+The three multiple style guides contain 338 appearances. The final read-only character/franchise
+rules map 256 appearances to the closest specific existing MG06 franchise, preserve 18 unique
+same-licensor historical matches, map 62 to the existing `MV` Marvel Assorted Styles catch-all,
+and exclude two royalty sentinels. No licensing follow-up remains. Evidence:
 [`verification/style-guide-licensing-review-20260727/`](verification/style-guide-licensing-review-20260727/README.md).
 
 ### 5A.2 "Everything licensed" vs "only what Coldlion produces" — decided

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   classifyCandidates,
+  classifyFranchiseCharacter,
   classifyResponse,
   cleanCharacterName,
   csvObjects,
@@ -35,4 +36,28 @@ assert.equal(classifyCandidates([], true), 'SENTINEL_EXCLUDED');
 assert.equal(
   cleanCharacterName('Batman ( Marvel Cross-Franchise Art Packs )'),
   'Batman',
+);
+assert.deepEqual(
+  classifyFranchiseCharacter('DC Super Friends Collection Comics', 'Batman'),
+  {
+    code: 'BM',
+    basis: 'Batman character family',
+    rule: 'SPECIFIC_FRANCHISE',
+  },
+);
+assert.deepEqual(
+  classifyFranchiseCharacter('Marvel Cross-Franchise Art Packs', 'Parker, Peter'),
+  {
+    code: 'SP',
+    basis: 'Spider-Man character family',
+    rule: 'SPECIFIC_FRANCHISE',
+  },
+);
+assert.deepEqual(
+  classifyFranchiseCharacter('Marvel Cross-Franchise Art Packs', 'Blade'),
+  {
+    code: 'MV',
+    basis: 'Marvel Assorted Styles catch-all; no narrower current MG06 franchise rule',
+    rule: 'MARVEL_CATCH_ALL',
+  },
 );

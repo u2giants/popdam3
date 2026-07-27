@@ -1,9 +1,8 @@
 # HANDOFF — characters and style guides, canonical migration
 
 **Written:** 2026-07-26 · **Updated:** 2026-07-27 · **Repo:** `u2giants/shared-db` ·
-**Branch:** `main` · **Next action:** licensing reviews the deduplicated 305-character exception
-sheet for the three `MULTIPLE` style guides. Phase 2 needs separate approval because the owner
-previously said not to write a migration yet.
+**Branch:** `main` · **Next action:** Phase 2 needs separate approval because the owner previously
+said not to write a migration yet. Licensing has no remaining character review.
 
 **No database has been changed.** Every session to date has been read-only investigation plus
 documentation. `core.character` is still **0 rows**.
@@ -122,8 +121,9 @@ raw returned file, and read-only `MULTIPLE` character reconciliation are under
 `docs/verification/style-guide-licensing-review-20260727/`.
 
 Results: 32 existing MG06 codes, 118 never designed, and three multiple. Of 338 character
-appearances under the multiple style guides, 18 resolved automatically, two royalty sentinels
-were excluded, and 305 distinct character names remain in the follow-up sheet.
+appearances under the multiple style guides, 256 use specific existing franchise rules, 18 keep
+one unique same-licensor historical match, 62 use `MV` Marvel Assorted Styles, and two royalty
+sentinels are excluded. No licensing follow-up remains.
 
 ## 7. Constraints and gotchas recorded nowhere else
 
@@ -199,8 +199,8 @@ Evidence is in
 4. **Colliding with the ColdLion cutover.** Its 14-day gate was retired on 2026-07-26, but Phase 7
    remains unauthorized and production untouched. Our Phase 5 must not land in the actual approved
    ColdLion production window. **Re-read their status header before scheduling.**
-5. **The style-guide sheet is complete, but character-level review remains.** The three
-   `MULTIPLE` answers require 305 distinct character decisions before Phase 3 can complete.
+5. **The first character-level pass overused licensing.** Name history alone left 305 rows.
+   Specific franchise rules plus existing catch-all properties now leave zero licensing rows.
 6. **The old 174-row sheet was incomplete when combined with the 367 path.** Grok found that
    the two numbers came from different matching tracks. The corrected 335-row sheet removes
    that gap and returns unapproved Classics/no-code guesses to review.
@@ -221,11 +221,11 @@ session will find).
 1. *Could a brand-new developer with no project knowledge pick this up without asking a question?*
    **Yes.** §1 defines the business, the apps and the schemas; §8 gives every access path; §3 gives
    exact live row counts and merge SHAs; the plan doc's Phases 0–7 give ordered steps with exit
-   gates. Phase 0 is recorded as approved, Phase 1 evidence is linked, the style-guide review is
-   complete, and the next input is licensing's 305-character follow-up.
+   gates. Phase 0 is recorded as approved, Phase 1 evidence is linked, and both the style-guide
+   review and the `MULTIPLE` character classification are complete.
 2. *Could they continue as effectively as this session could right now?* **Yes.** The non-obvious
    knowledge is written down: the naming trap (§2), the two axes and the three corrections (model
-   doc §1/§6), the eight approaches that failed (plan §10), the environment traps that each cost
+   doc §1/§6), the eleven approaches that failed (plan §10), the environment traps that each cost
    real time (§7), and the two reuse opportunities that could remove work entirely (plan §2).
 3. *Is every relevant detail included — background, goals, state, failures, decisions, constraints,
    risks, next actions, verification?* **Yes.** Decisions are dated in §9 so a later session cannot

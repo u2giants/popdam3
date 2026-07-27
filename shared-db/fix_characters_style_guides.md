@@ -1,7 +1,7 @@
 # Characters and style guides — canonical migration plan
 
-**Status (2026-07-27): PHASES 0–1 COMPLETE. Licensing review returned and
-normalized. Three `MULTIPLE` style guides need character-level classification.**
+**Status (2026-07-27): PHASES 0–1 COMPLETE. Licensing review and the three
+`MULTIPLE` style guides are fully reconciled. No licensing follow-up remains.**
 No schema change has been written. No database has been modified. All work so far is
 read-only investigation and documentation.
 
@@ -96,9 +96,10 @@ The licensing team returned all 153 answers on 2026-07-27:
 - **3** are `MULTIPLE`; leave the style guide's `property_id` null because property depends on
   the character: Marvel Cross-Franchise Art Packs, DC Super Friends Collection Comics, DC Women Core.
 
-Read-only character reconciliation resolved 18 of the 338 `MULTIPLE` appearances to one unique
-MG06 code, excluded two royalty sentinels, and left 305 distinct character names for licensing
-review (30 conflicts, 275 unmatched). Evidence:
+Read-only character and franchise rules resolved 336 of the 338 `MULTIPLE` appearances:
+256 by the closest specific existing MG06 franchise, 18 by one unique same-licensor historical
+match, and 62 by the existing `MV` Marvel Assorted Styles catch-all. Two royalty sentinels were
+excluded. **No licensing follow-up remains.** Evidence:
 [`docs/verification/style-guide-licensing-review-20260727/`](docs/verification/style-guide-licensing-review-20260727/README.md).
 
 This remaining character review blocks the Phase 3 backfill, not the additive Phase 2 schema
@@ -170,9 +171,10 @@ rule — see model doc §7 question 4. **This is the single most likely place to
 - `NEVER_DESIGNED`: keep the style guide with null `property_id`; do not use that appearance
   alone to assign a character property and do not invent a property.
 - `MULTIPLE`: keep the style guide with null `property_id`; resolve property per character.
-- For `MULTIPLE`, automatically accept only a same-licensor character name that resolves through
-  already-mapped style guides to exactly one MG06 code.
-- Conflicting and unmatched characters require licensing review.
+- For `MULTIPLE`, use the closest specific existing MG06 franchise code first.
+- If there is no specific rule, preserve one unique same-licensor historical match.
+- If neither exists, use the current licensor catch-all: `MV` for Marvel or `DC` for DC.
+- Never create a property code, and never use a code outside the captured Coldlion MG06 list.
 
 **Reconciliation checks (all must pass, all recorded):**
 - row counts in vs out, with every exclusion explained by number
@@ -297,10 +299,11 @@ model doc §6.
 10. **Loading `pg` as a normal ESM package on Windows.** The read-only processor could not see
     the shared package path through ESM resolution. It now uses `createRequire`, which honors the
     supplied package path without installing anything in this repository.
-11. **Assuming name history would make the `MULTIPLE` list small.** Same-licensor character names
-    resolved only 18 of 338 appearances. Most Marvel cross-franchise characters appear nowhere
-    else in resolved style guides, so guessing would spend less licensing time but corrupt the
-    ownership mapping. The honest follow-up is 305 distinct character names.
+11. **Using name history alone for `MULTIPLE`.** Same-licensor character names resolved only 18
+    of 338 appearances and produced an unacceptable 305-row licensing follow-up. The corrected
+    approach uses specific existing franchise codes, preserves unique history, then uses the
+    existing licensor catch-all. It resolves all 336 non-sentinel appearances without inventing
+    a code or asking licensing to repeat known franchise classification.
 
 ## 11. Document history
 
@@ -310,3 +313,4 @@ model doc §6.
 | 2026-07-26 | Phases 0–1 completed. Owner approved the hybrid source: accept 367 direct agreements, apply Classics/no-code rules, and wait for the 174-row licensing review for the residual mapping. |
 | 2026-07-26 | Grok review found the 367 and 174 tracks did not cover the same population. Replaced the sheet with one 335-row list: 21 accepted direct parents, 5 confirmed Classics, 3 confirmed no-code titles, 306 review rows. |
 | 2026-07-27 | Licensing returned all 153 uncertainty rows: 32 existing codes, 118 never designed, 3 multiple. Read-only character reconciliation reduced the 338 multiple appearances to 305 distinct licensing exceptions. |
+| 2026-07-27 | Replaced the 305-row follow-up with character/franchise rules: 256 specific franchise, 18 unique history, 62 Marvel catch-all, 2 sentinels excluded, 0 licensing rows. |
