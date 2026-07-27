@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Build one complete style-guide -> property decision sheet.
 //
-// Default: all 335 populated style guides, including accepted and review rows.
-// --needs-review: only rows that still need a licensing-team answer.
+// Default: only rows that still need a licensing-team answer.
+// --all: all 335 populated style guides for audit.
 // --out <path>: write to another path.
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -14,7 +14,7 @@ const DATA_DIR = join(HERE, '..', 'docs', 'verification', 'style-guide-property-
 const RECONCILE_DIR = join(HERE, '..', 'docs', 'verification', 'characters-property-reconcile-20260726');
 const readJson = (file) => JSON.parse(readFileSync(join(DATA_DIR, file), 'utf8').replace(/^﻿/, ''));
 const argv = process.argv.slice(2);
-const NEEDS_REVIEW_ONLY = argv.includes('--needs-review');
+const ALL = argv.includes('--all');
 const outIndex = argv.indexOf('--out');
 const OUT = outIndex >= 0 ? argv[outIndex + 1] : join(DATA_DIR, 'style-guide-property-mapping.csv');
 
@@ -189,7 +189,7 @@ function exactSourceSuggestion(row) {
   return matches.length === 1 ? matches[0] : null;
 }
 
-function decision(row) {
+function decision(row, fuzzy) {
   const key = norm(row.style_guide);
   const direct = acceptedDirect.get(key);
   if (direct) {
@@ -220,11 +220,29 @@ function decision(row) {
     };
   }
   const exact = exactSourceSuggestion(row);
+  if (exact) {
+    return {
+      status: 'ACCEPTED_CLEAR_MG06',
+      code: exact.code,
+      desc: exact.desc,
+      basis: 'Clear existing MG06 property name match',
+      finalCode: exact.code,
+    };
+  }
+  if (fuzzy && fuzzy.score >= 0.7) {
+    return {
+      status: 'ACCEPTED_CLEAR_MG06',
+      code: fuzzy.property.code,
+      desc: fuzzy.property.desc,
+      basis: 'Strong existing MG06 name match (70% or higher)',
+      finalCode: fuzzy.property.code,
+    };
+  }
   return {
     status: 'NEEDS_REVIEW',
-    code: exact?.code ?? '',
-    desc: exact?.desc ?? row.resolved_property ?? '',
-    basis: exact ? 'Existing MG06 name suggestion; not approved' : '',
+    code: '',
+    desc: '',
+    basis: '',
     finalCode: '',
   };
 }
@@ -253,11 +271,11 @@ const csv = (value) => {
 const lines = [HEADER.join(',')];
 const stats = {};
 for (const row of sourceRows) {
-  const resolved = decision(row);
-  stats[resolved.status] = (stats[resolved.status] || 0) + 1;
-  if (NEEDS_REVIEW_ONLY && resolved.status !== 'NEEDS_REVIEW') continue;
-  const folder = folderGuess(row.licensor, row.style_guide);
   const fuzzy = coldlionGuess(row.style_guide);
+  const resolved = decision(row, fuzzy);
+  stats[resolved.status] = (stats[resolved.status] || 0) + 1;
+  if (!ALL && resolved.status !== 'NEEDS_REVIEW') continue;
+  const folder = folderGuess(row.licensor, row.style_guide);
   lines.push([
     row.licensor,
     row.style_guide,

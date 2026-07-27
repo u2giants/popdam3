@@ -70,10 +70,10 @@ Choose the **hybrid** branch:
 1. Accept the 367 appearance rows whose DAM parent agrees with a canonical
    property by normalized name and licensor.
 2. Apply the already-decided Classics → `CP` and no-code rules.
-3. Have the licensing team complete the rows marked `NEEDS_REVIEW` in the corrected 335-row
-   decision sheet at
+3. Automatically accept clear existing MG06 property-name matches, then have the licensing team
+   complete the 153-row uncertainty-only sheet at
    `../style-guide-property-mapping-20260726/style-guide-property-mapping.csv`
-   for the remaining family/bucket decisions. There are 306 open rows.
+   for the remaining family/bucket decisions.
 
 Branch A (promote all DAM mappings) is disproved by the evidence: it would leave
 9,255 of 9,622 appearance rows pointing at licensing/style-guide catalogue

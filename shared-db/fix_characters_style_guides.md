@@ -1,7 +1,7 @@
 # Characters and style guides — canonical migration plan
 
 **Status (2026-07-26): PHASES 0–1 COMPLETE. Waiting for the licensing team's
-corrected 335-row review sheet, expected in 24–48 hours.**
+153-row uncertainty-only review sheet, expected in 24–48 hours.**
 No schema change has been written. No database has been modified. All work so far is
 read-only investigation and documentation.
 
@@ -85,16 +85,16 @@ The approved hybrid rules are:
 
 1. Accept the **367 direct agreements**.
 2. Apply the already-decided Disney Classics → `CP` and no-code rules.
-3. Use the licensing team's corrected **335-row** sheet. It contains 21 accepted direct parents,
-   five accepted Classics, three accepted no-code titles, and **306 rows needing review**.
+3. Automatically accept 153 clear existing MG06 name matches.
+4. Use the licensing team's **153-row** sheet only for uncertain choices.
 
 The licensing-team sheet is expected in **24–48 hours**. Its delay blocks the Phase 3 backfill,
 not the additive Phase 2 schema design. The owner's earlier instruction not to write a migration
 remains in force until new approval is given.
 
 **Merge rule:** the 367 figure counts appearances under 21 accepted parents. It is not combined
-arithmetically with the old 149/8/4/174 suggestion buckets. The corrected sheet is the single
-row-level source for all 335 style guides. Only rows marked `ACCEPTED_*` are automatic.
+arithmetically with the old 149/8/4/174 suggestion buckets. The generator is the single
+row-level source for all 335 style guides: 182 automatic decisions and 153 human decisions.
 
 ---
 
@@ -237,12 +237,13 @@ production approval. Phase 7 production execution remains unauthorized and produ
 | Asset | Where |
 |---|---|
 | The model, rules, and decisions | [`docs/style-guides-characters-and-royalties.md`](docs/style-guides-characters-and-royalties.md) |
-| Licensing-team decision sheet (all 335 rows; 306 need review) + inputs + capture notes | [`docs/verification/style-guide-property-mapping-20260726/`](docs/verification/style-guide-property-mapping-20260726/README.md) |
+| Licensing-team decision sheet (153 uncertain rows) + full 335-row generator + capture notes | [`docs/verification/style-guide-property-mapping-20260726/`](docs/verification/style-guide-property-mapping-20260726/README.md) |
 | Regenerator for that sheet | `tools/generate-style-guide-property-mapping.mjs` |
 
-The original 174-row sheet was replaced after independent review found that it did not cover
-the residual left by the 367 accepted appearances. The corrected 335-row sheet has 306 open
-rows and is **not yet returned by the licensing team**. Expected in 24–48 hours.
+The original 174-row sheet was replaced after independent review found a coverage gap. A first
+correction overreacted and sent 306 rows to review. The final sheet automatically settles 153
+clear existing MG06 name matches and contains only **153 uncertain rows**. It is not yet returned
+by the licensing team. Expected in 24–48 hours.
 
 ## 10. What was tried that did NOT work
 
@@ -266,8 +267,8 @@ model doc §6.
 7. **Over-tightening the matcher** to remove low-confidence noise. Dropped good matches and cut
    coverage. For a human review sheet, a visible low-confidence guess beats a blank.
 8. **The old 174-row-only sheet.** It hid the automatic rows and made two different matching
-   tracks look complete when they were not. The corrected sheet includes all 335 rows and labels
-   the 306 rows that still need a decision.
+   tracks look complete when they were not. The generator now covers all 335 rows while the
+   delivered sheet contains only the 153 uncertain decisions.
 
 ## 11. Document history
 

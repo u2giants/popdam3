@@ -9,25 +9,29 @@ one-off export.
 
 ## Current decision model
 
-The sheet now contains **all 335 populated style guides in one complete list**.
-The `decision_status` column separates settled rows from rows that need the
-licensing team:
+The generator accounts for all 335 populated style guides. The delivered review
+sheet contains only the **153 truly uncertain rows**. The accepted rows remain
+reproducible with `--all` but do not consume licensing-team time.
 
 | Status | Rows | Meaning |
 |---|---:|---|
 | `ACCEPTED_DIRECT` | 21 | The owner accepted the exact normalized DAM parent + licensor match. These 21 parents contain 367 appearances. |
+| `ACCEPTED_CLEAR_MG06` | 153 | Clear existing MG06 property name matches, such as Lizzie McGuire → `MCG`, Monsters University → `MS`, and strong matches scoring 70% or higher. |
 | `ACCEPTED_CLASSIC_CP` | 5 | Owner-confirmed Disney Classics: 101 Dalmatians, Aristocats, Bambi, Jungle Book, Lion King. |
 | `ACCEPTED_NO_CODE` | 3 | Owner-confirmed no-code titles: Inside Out, Kim Possible, Luca. No placeholder may be created. |
-| `NEEDS_REVIEW` | 306 | Every other style guide, including broader name suggestions and unconfirmed Classics/no-code guesses. |
+| `NEEDS_REVIEW` | 153 | Only unclear choices, conflicts, missing codes, and unconfirmed Classics/no-code guesses. |
 
 This replaces the old incomplete story that combined 367 accepted appearances
 with a 174-row sheet built from a different 149/8/4/174 bucket split.
 
+Weak fuzzy matches remain in review. For example, `Wreck-It Ralph 2 → IT 2017`
+scores only 63% and is not accepted.
+
 ## Regenerate
 
 ```bash
-node tools/generate-style-guide-property-mapping.mjs                 # all 335 rows
-node tools/generate-style-guide-property-mapping.mjs --needs-review  # 306 open rows
+node tools/generate-style-guide-property-mapping.mjs        # 153 review rows
+node tools/generate-style-guide-property-mapping.mjs --all  # all 335 audit rows
 ```
 
 Reads only the files in this folder. No database or network access required.
@@ -36,7 +40,7 @@ Reads only the files in this folder. No database or network access required.
 
 | File | What it is |
 |---|---|
-| `style-guide-property-mapping.csv` | **The deliverable.** All 335 style guides, with accepted rows prefilled and 306 rows clearly marked `NEEDS_REVIEW`. |
+| `style-guide-property-mapping.csv` | **The deliverable.** Only the 153 style guides that need a human decision. |
 | `style-guide-source-rows.json` | The 335 style guides that actually have characters. Its older buckets are input hints only; the generator applies the approved decision rules. |
 | `coldlion_mg06.json` | Coldlion MG06 property dictionary, all four divisions, 576 rows / 318 distinct descriptions. |
 | `styleguide_tree.txt` | Folder listing from `edge1:/volume1/styleguides`, 1,958 directories to depth 3. |
@@ -73,7 +77,7 @@ rows **are style guides**, not properties.
 
 ## Reading the sheet
 
-The licensing team filters `decision_status` to `NEEDS_REVIEW` and fills in
+Every delivered row is marked `NEEDS_REVIEW`. The licensing team fills in
 `final_mg06_code`.
 
 The answer must be an **existing Coldlion MG06 code**, `CP` for a confirmed
@@ -96,10 +100,10 @@ Both columns are shown so a human reconciles them rather than a script picking a
 
 ### A blank suggestion is a finding
 
-The folder and fuzzy MG06 columns are suggestions only. The broader 149-row
-name-match set is also a suggestion unless the row is one of the 21 accepted
-direct agreements. This prevents `Batman Core → BATMAN` and similar family
-matches from silently becoming approved facts.
+The folder and fuzzy MG06 columns are suggestions only. Clear existing MG06
+property-name matches are handled automatically. This includes harmless wording
+differences such as `Lizzie McGuire - TV Series → LIZZIE MCGUIRE` and franchise
+members such as `Monsters University → MONSTERS`.
 
 Titles with no match need an existing bucket chosen or `NONE`. If the business
 needs a new code, it must be added to Coldlion before this migration can use it.
@@ -118,9 +122,11 @@ a stated decision path.
 
 The correction:
 
-- puts all 335 style guides in one sheet;
-- keeps only the 21 owner-accepted direct parents automatic;
+- accounts for all 335 style guides in the generator;
+- keeps the 21 owner-accepted direct parents automatic;
+- accepts 153 clear existing MG06 name matches automatically;
 - keeps only the five owner-named Classics automatic;
 - keeps only the three owner-named no-code titles automatic;
 - returns Dumbo, Dumbo (2019), Lion King (2019), and Inside Out 2 to review;
-- removes `NEW`.
+- removes `NEW`;
+- delivers only the remaining 153 uncertain rows to the licensing team.

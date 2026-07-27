@@ -373,10 +373,10 @@ The blocker is **not** the shape above — it is the two inputs the legacy data 
 2. **Which property does each style guide belong to?** (open question 3)
 
 The legacy tables record `licensor` for both, never `property`. §5A.0 supplies the owner's
-resolution rules, but a text match is still only a suggestion unless it is one of the 21
-accepted direct DAM parent agreements. The corrected 335-row review sheet is the single
-decision list: 21 accepted direct parents, five confirmed Classics, three confirmed no-code
-titles, and 306 rows requiring review.
+resolution rules. Clear existing MG06 name matches are automatic, including harmless wording
+differences and obvious franchise members. The generator covers all 335 style guides:
+21 accepted direct parents, 153 clear MG06 name matches, five confirmed Classics, three
+confirmed no-code titles, and 153 uncertain rows requiring review.
 
 ### 5A.2 "Everything licensed" vs "only what Coldlion produces" — decided
 

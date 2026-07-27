@@ -4,27 +4,44 @@ import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
-const output = join(root, 'tmp-style-guide-property-mapping-test.csv');
+const reviewOutput = join(root, 'tmp-style-guide-property-review-test.csv');
+const auditOutput = join(root, 'tmp-style-guide-property-all-test.csv');
 
 try {
   execFileSync(process.execPath, [
     'tools/generate-style-guide-property-mapping.mjs',
     '--out',
-    output,
+    reviewOutput,
+  ], { cwd: root });
+  execFileSync(process.execPath, [
+    'tools/generate-style-guide-property-mapping.mjs',
+    '--all',
+    '--out',
+    auditOutput,
   ], { cwd: root });
 
-  const text = readFileSync(output, 'utf8');
-  const lines = text.trimEnd().split(/\r?\n/);
-  assert.equal(lines.length - 1, 335);
-  assert.equal((text.match(/,ACCEPTED_DIRECT,/g) || []).length, 21);
-  assert.equal((text.match(/,ACCEPTED_CLASSIC_CP,/g) || []).length, 5);
-  assert.equal((text.match(/,ACCEPTED_NO_CODE,/g) || []).length, 3);
-  assert.equal((text.match(/,NEEDS_REVIEW,/g) || []).length, 306);
-  assert.match(text, /Dumbo,1,NEEDS_REVIEW,/);
-  assert.match(text, /Dumbo \(2019\),10,NEEDS_REVIEW,/);
-  assert.match(text, /"Lion King, The \(2019\)",1,NEEDS_REVIEW,/);
-  assert.match(text, /Inside Out 2,1,NEEDS_REVIEW,/);
-  assert.doesNotMatch(text, /,NEW,/);
+  const review = readFileSync(reviewOutput, 'utf8');
+  const audit = readFileSync(auditOutput, 'utf8');
+  assert.equal(review.trimEnd().split(/\r?\n/).length - 1, 153);
+  assert.equal(audit.trimEnd().split(/\r?\n/).length - 1, 335);
+  assert.equal((audit.match(/,ACCEPTED_DIRECT,/g) || []).length, 21);
+  assert.equal((audit.match(/,ACCEPTED_CLEAR_MG06,/g) || []).length, 153);
+  assert.equal((audit.match(/,ACCEPTED_CLASSIC_CP,/g) || []).length, 5);
+  assert.equal((audit.match(/,ACCEPTED_NO_CODE,/g) || []).length, 3);
+  assert.equal((audit.match(/,NEEDS_REVIEW,/g) || []).length, 153);
+  assert.match(audit, /Lizzie McGuire - TV Series,2,ACCEPTED_CLEAR_MG06,MCG,LIZZIE MCGUIRE/);
+  assert.match(audit, /Monsters University,1,ACCEPTED_CLEAR_MG06,MS,MONSTERS/);
+  assert.match(audit, /Toy Story 3,36,ACCEPTED_CLEAR_MG06,TS,TOY STORY 4/);
+  assert.match(audit, /Marvel Studios' Captain Marvel 2 - No Likeness,24,ACCEPTED_CLEAR_MG06,CM,CAPTAIN MARVEL/);
+  assert.match(review, /Wreck-It Ralph 2,1,NEEDS_REVIEW,/);
+  assert.match(review, /Smiling Friends: Animated Series,7,NEEDS_REVIEW,/);
+  assert.match(review, /Dumbo,1,NEEDS_REVIEW,/);
+  assert.match(review, /Dumbo \(2019\),10,NEEDS_REVIEW,/);
+  assert.match(audit, /"Lion King, The \(2019\)",1,ACCEPTED_CLEAR_MG06,NG,LION KING \(LIVE ACTION\)/);
+  assert.match(review, /Inside Out 2,1,NEEDS_REVIEW,/);
+  assert.doesNotMatch(review, /,ACCEPTED_/);
+  assert.doesNotMatch(audit, /,NEW,/);
 } finally {
-  rmSync(output, { force: true });
+  rmSync(reviewOutput, { force: true });
+  rmSync(auditOutput, { force: true });
 }
