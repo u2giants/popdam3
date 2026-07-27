@@ -18,12 +18,13 @@ All returned MG06 codes exist in the captured Coldlion MG06 dictionary.
 
 | Result | Character appearances |
 |---|---:|
-| Specific franchise rule | 256 |
-| One unique property found automatically | 18 |
-| Marvel catch-all rule | 62 |
+| Specific franchise rule | 248 |
+| One unique property found automatically | 13 |
+| Marvel catch-all rule | 66 |
 | DC catch-all rule | 0 |
 | Conflicting properties found | 0 |
 | No property found | 0 |
+| Non-character labels excluded | 9 |
 | Royalty sentinel excluded | 2 |
 | **Total** | **338** |
 

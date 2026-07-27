@@ -96,10 +96,10 @@ The licensing team returned all 153 answers on 2026-07-27:
 - **3** are `MULTIPLE`; leave the style guide's `property_id` null because property depends on
   the character: Marvel Cross-Franchise Art Packs, DC Super Friends Collection Comics, DC Women Core.
 
-Read-only character and franchise rules resolved 336 of the 338 `MULTIPLE` appearances:
-256 by the closest specific existing MG06 franchise, 18 by one unique same-licensor historical
-match, and 62 by the existing `MV` Marvel Assorted Styles catch-all. Two royalty sentinels were
-excluded. **No licensing follow-up remains.** Evidence:
+Read-only character and franchise rules classify all 338 `MULTIPLE` appearances:
+248 by the closest specific existing MG06 franchise, 13 by one unique same-licensor historical
+match, and 66 by the existing `MV` Marvel Assorted Styles catch-all. Nine non-character labels
+and two royalty sentinels are excluded. **No licensing follow-up remains.** Evidence:
 [`docs/verification/style-guide-licensing-review-20260727/`](docs/verification/style-guide-licensing-review-20260727/README.md).
 
 This remaining character review blocks the Phase 3 backfill, not the additive Phase 2 schema
@@ -314,3 +314,4 @@ model doc §6.
 | 2026-07-26 | Grok review found the 367 and 174 tracks did not cover the same population. Replaced the sheet with one 335-row list: 21 accepted direct parents, 5 confirmed Classics, 3 confirmed no-code titles, 306 review rows. |
 | 2026-07-27 | Licensing returned all 153 uncertainty rows: 32 existing codes, 118 never designed, 3 multiple. Read-only character reconciliation reduced the 338 multiple appearances to 305 distinct licensing exceptions. |
 | 2026-07-27 | Replaced the 305-row follow-up with character/franchise rules: 256 specific franchise, 18 unique history, 62 Marvel catch-all, 2 sentinels excluded, 0 licensing rows. |
+| 2026-07-27 | Grok review corrected four DC alias mappings, moved six weak franchise guesses to `MV`, excluded nine non-character labels, and expanded tests. Final: 248 specific, 13 unique history, 66 Marvel catch-all, 9 non-character labels, 2 sentinels, 0 licensing rows. |

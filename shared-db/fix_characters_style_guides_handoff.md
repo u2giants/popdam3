@@ -121,9 +121,10 @@ raw returned file, and read-only `MULTIPLE` character reconciliation are under
 `docs/verification/style-guide-licensing-review-20260727/`.
 
 Results: 32 existing MG06 codes, 118 never designed, and three multiple. Of 338 character
-appearances under the multiple style guides, 256 use specific existing franchise rules, 18 keep
-one unique same-licensor historical match, 62 use `MV` Marvel Assorted Styles, and two royalty
-sentinels are excluded. No licensing follow-up remains.
+appearances under the multiple style guides, 248 use specific existing franchise rules, 13 keep
+one unique same-licensor historical match, 66 use `MV` Marvel Assorted Styles, nine
+non-character labels are excluded, and two royalty sentinels are excluded. No licensing
+follow-up remains.
 
 ## 7. Constraints and gotchas recorded nowhere else
 

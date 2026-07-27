@@ -5,6 +5,7 @@ import {
   classifyResponse,
   cleanCharacterName,
   csvObjects,
+  isNonCharacterLabel,
   norm,
 } from './process-style-guide-licensing-review.mjs';
 
@@ -12,6 +13,54 @@ assert.equal(norm(' Lizzie McGuire - TV Series '), 'lizzie mcguire tv series');
 assert.deepEqual(
   csvObjects('name,value\r\n"Hello, world","A""B"\r\n'),
   [{ name: 'Hello, world', value: 'A"B' }],
+);
+assert.equal(
+  classifyFranchiseCharacter(
+    'DC Super Friends Collection Comics',
+    'Superman aka Clark Kent aka Kal-EI',
+  ).code,
+  'SM',
+);
+assert.equal(
+  classifyFranchiseCharacter(
+    'DC Super Friends Collection Comics',
+    'Wonder Woman aka Princess Diana aka Diana Prince',
+  ).code,
+  'WW',
+);
+assert.equal(
+  classifyFranchiseCharacter(
+    'DC Super Friends Collection Comics',
+    'The Flash aka Jason Peter "Jay" Garrick',
+  ).code,
+  'FS',
+);
+assert.equal(
+  classifyFranchiseCharacter(
+    'DC Super Friends Collection Comics',
+    'Green Lantern aka Hal Jordan',
+  ).code,
+  'GN',
+);
+for (const ambiguous of [
+  'Bombshell', 'Nova', 'Shang-Chi', 'Mechasaur Binary', 'Mechasaur Arachno',
+  'White Tiger',
+]) {
+  assert.equal(
+    classifyFranchiseCharacter('Marvel Cross-Franchise Art Packs', ambiguous).code,
+    'MV',
+  );
+}
+assert.equal(
+  isNonCharacterLabel(
+    'Marvel Cross-Franchise Art Packs',
+    'Marvel Cross-Franchise Art Packs )',
+  ),
+  true,
+);
+assert.equal(
+  isNonCharacterLabel('Marvel Cross-Franchise Art Packs', 'Avengers Logo'),
+  true,
 );
 
 const codes = new Set(['CP', 'BM']);

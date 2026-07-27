@@ -105,9 +105,11 @@ addRule('BM', 'Batman character family', [
 ]);
 addRule('FS', 'Flash character family', [
   'Captain Cold', 'Flash', 'Gorilla Grod', 'Reverse Flash',
+  'The Flash aka Jason Peter "Jay" Garrick',
 ]);
 addRule('GN', 'Green Lantern character family', [
-  'Green Lantern', 'Green Lantern aka Alan Scott', 'Sinestro',
+  'Green Lantern', 'Green Lantern aka Alan Scott', 'Green Lantern aka Hal Jordan',
+  'Sinestro',
 ]);
 addRule('HQ', 'Harley Quinn exact character property', [
   'Harley Quinn aka Dr. Harleen Francis Quinzel',
@@ -116,9 +118,11 @@ addRule('JK', 'Joker exact character property', ['Joker']);
 addRule('SG', 'Supergirl exact character property', ['Supergirl']);
 addRule('SM', 'Superman character family', [
   'Bizzaro', 'Brainiac', 'Doomsday', 'Krypto', 'Lex Luthor', 'Mettalo',
-  'Streaky the Supercat',
+  'Streaky the Supercat', 'Superman aka Clark Kent aka Kal-EI',
 ]);
-addRule('WW', 'Wonder Woman character family', ['Cheetah', 'Wonder Woman']);
+addRule('WW', 'Wonder Woman character family', [
+  'Cheetah', 'Wonder Woman', 'Wonder Woman aka Princess Diana aka Diana Prince',
+]);
 addRule('JG', 'Justice League umbrella', [
   'Bumblebee aka Karen Beecher Duncan', 'Cyborg aka Victor "Vic" Stone',
   'Darkseid', 'Green Arrow',
@@ -147,7 +151,7 @@ addRule('ER', 'Eternals character family', [
 ]);
 addRule('GG', 'Guardians of the Galaxy character family', [
   'Collector', 'Cosmo', 'Drax', 'Ego the Living Planet', 'Gamora',
-  'Grandmaster', 'Guardians of the Galaxy Logo', 'Mantis', 'Nebula', 'Nova',
+  'Grandmaster', 'Guardians of the Galaxy Logo', 'Mantis', 'Nebula',
   'Ronan the Accuser', 'Star-Lord', 'The Milano', 'Yondu',
 ]);
 addRule('GR', 'Groot exact character property', ['Groot']);
@@ -164,7 +168,7 @@ addRule('RM', 'Iron Man character family', [
 ]);
 addRule('RR', 'Rocket Raccoon exact character property', ['Rocket Raccoon']);
 addRule('SP', 'Spider-Man character family', [
-  'Bombshell', 'Doctor Octopus', 'Electro', 'Electro (Francine Frye)',
+  'Doctor Octopus', 'Electro', 'Electro (Francine Frye)',
   'Ghost-Spider', 'Green Goblin', 'Hobgoblin', 'Iron Spider-Man',
   'Jack o Lantern', 'Jackal', 'Jameson, J. Jonah', 'Kraven the Hunter',
   'Lizard', 'Man-Spider', 'Morales, Miles', 'Morbius', 'Mysterio',
@@ -195,13 +199,13 @@ addRule('AV', 'Avengers character family', [
   'Coulson, Phil', 'Echo', 'Giant Man', 'Hawkeye', 'Hercules', 'Hill, Maria',
   'Jarvis', 'Kang', 'M.O.D.O.K', 'Madame Masque',
   'Mech Strike Mechasaurs (General)', 'Mech Strike Mechasaurs Logo',
-  'Mechasaur Arachno', 'Mechasaur Binary', 'Mechasaur Dragonscale',
+  'Mechasaur Dragonscale',
   'Mechasaur Guardian', 'Mechasaur R4ptor Sentries', 'Mechasaur Redwing',
   'Mechasaur Sabre Claw', 'Mechasaur T-R3x', 'Mechasaur Ultron Primeval',
   'Nick Fury', 'Patriot', 'Piledriver', 'Pym, Hank', 'Quake', 'Quinjet',
-  'Ronin', 'S.H.I.E.L.D.', 'Scarlet Witch', 'Sentry', 'Shang-Chi',
+  'Ronin', 'S.H.I.E.L.D.', 'Scarlet Witch', 'Sentry',
   'Squirrel Girl', 'Task Master', 'Thunderball', 'Tigra', 'Ultron',
-  'Ultron Drone', 'Vision', 'Wasp', 'White Tiger', 'Wonder Man', 'Wrecker',
+  'Ultron Drone', 'Vision', 'Wasp', 'Wonder Man', 'Wrecker',
   'Yellowjacket',
 ]);
 
@@ -234,6 +238,15 @@ export function classifyFranchiseCharacter(styleGuide, characterName, allowCatch
     };
   }
   return null;
+}
+
+export function isNonCharacterLabel(styleGuide, characterName) {
+  const cleaned = cleanCharacterName(characterName);
+  const normalized = norm(cleaned);
+  return normalized === norm(styleGuide)
+    || normalized === norm('Marvel Cross-Franchise Art Packs')
+    || normalized.endsWith(' logo')
+    || normalized.endsWith(' general');
 }
 
 const csv = (value) => {
@@ -362,6 +375,7 @@ async function main() {
     const key = `${row.licensor_id}|${norm(row.character_name)}`;
     const candidates = [...(candidatesByCharacter.get(key) ?? new Set())].sort();
     const sentinel = sentinels.has(norm(row.character_name));
+    const nonCharacter = isNonCharacterLabel(row.style_guide, row.character_name);
     const specificFranchise = sentinel
       ? null
       : classifyFranchiseCharacter(row.style_guide, cleanCharacterName(row.character_name), false);
@@ -377,6 +391,8 @@ async function main() {
           : classifyFranchiseCharacter(row.style_guide, cleanCharacterName(row.character_name)));
     const status = sentinel
       ? 'SENTINEL_EXCLUDED'
+      : nonCharacter
+        ? 'NON_CHARACTER_EXCLUDED'
       : franchise
         ? franchise.rule
         : classifyCandidates(candidates);
@@ -386,13 +402,19 @@ async function main() {
       source_character_id: row.source_character_id,
       candidate_mg06_codes: candidates.join('|'),
       status,
-      final_mg06_code: franchise?.code ?? (status === 'AUTO_UNIQUE' ? candidates[0] : ''),
-      rule_basis: franchise?.basis ?? '',
+      final_mg06_code: ['SENTINEL_EXCLUDED', 'NON_CHARACTER_EXCLUDED'].includes(status)
+        ? ''
+        : franchise?.code ?? (status === 'AUTO_UNIQUE' ? candidates[0] : ''),
+      rule_basis: status === 'NON_CHARACTER_EXCLUDED'
+        ? 'Guide, logo, or general label; not a canonical character'
+        : status === 'SENTINEL_EXCLUDED'
+          ? 'Royalty reporting sentinel; not a canonical character'
+          : franchise?.basis ?? '',
     });
   }
   assert.equal(multipleRows.length, 338, 'expected 338 appearances under MULTIPLE style guides');
   for (const row of multipleRows) {
-    if (row.status === 'SENTINEL_EXCLUDED') continue;
+    if (['SENTINEL_EXCLUDED', 'NON_CHARACTER_EXCLUDED'].includes(row.status)) continue;
     assert(validCodes.has(row.final_mg06_code), `invalid franchise code for ${row.character_name}`);
   }
 
@@ -472,6 +494,7 @@ All returned MG06 codes exist in the captured Coldlion MG06 dictionary.
 | DC catch-all rule | ${count(reconcileCounts, 'DC_CATCH_ALL')} |
 | Conflicting properties found | ${count(reconcileCounts, 'CONFLICT')} |
 | No property found | ${count(reconcileCounts, 'UNMATCHED')} |
+| Non-character labels excluded | ${count(reconcileCounts, 'NON_CHARACTER_EXCLUDED')} |
 | Royalty sentinel excluded | ${count(reconcileCounts, 'SENTINEL_EXCLUDED')} |
 | **Total** | **${multipleRows.length}** |
 
@@ -505,6 +528,7 @@ internal evidence only and must not be sent to licensing.
       autoUnique: count(reconcileCounts, 'AUTO_UNIQUE'),
       marvelCatchAll: count(reconcileCounts, 'MARVEL_CATCH_ALL'),
       dcCatchAll: count(reconcileCounts, 'DC_CATCH_ALL'),
+      nonCharacterExcluded: count(reconcileCounts, 'NON_CHARACTER_EXCLUDED'),
       conflict: count(reconcileCounts, 'CONFLICT'),
       unmatched: count(reconcileCounts, 'UNMATCHED'),
       sentinelExcluded: count(reconcileCounts, 'SENTINEL_EXCLUDED'),
@@ -514,7 +538,7 @@ internal evidence only and must not be sent to licensing.
   }, null, 2));
 }
 
-if (resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
     console.error(error);
     process.exitCode = 1;

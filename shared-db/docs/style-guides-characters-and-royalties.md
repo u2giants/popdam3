@@ -399,9 +399,9 @@ have no canonical property because `core.property` mirrors what POP has designed
 for. Multiple style guides cannot carry one property because their characters span properties.
 
 The three multiple style guides contain 338 appearances. The final read-only character/franchise
-rules map 256 appearances to the closest specific existing MG06 franchise, preserve 18 unique
-same-licensor historical matches, map 62 to the existing `MV` Marvel Assorted Styles catch-all,
-and exclude two royalty sentinels. No licensing follow-up remains. Evidence:
+rules map 248 appearances to the closest specific existing MG06 franchise, preserve 13 unique
+same-licensor historical matches, map 66 to the existing `MV` Marvel Assorted Styles catch-all,
+and exclude nine non-character labels plus two royalty sentinels. No licensing follow-up remains. Evidence:
 [`verification/style-guide-licensing-review-20260727/`](verification/style-guide-licensing-review-20260727/README.md).
 
 ### 5A.2 "Everything licensed" vs "only what Coldlion produces" — decided
