@@ -3,16 +3,16 @@
 **Date:** 2026-07-26
 **Environment:** preview `rjyboqwcdzcocqgmsyel` only
 **Production `qsllyeztdwjgirsysgai`:** **untouched**
-**Phase 6 overall:** **IN PROGRESS** (14-day scheduled observation gate open)
+**Phase 6 overall:** **IN PROGRESS** (accelerated invariant-readiness gates open)
 **Phase 6A machinery + GitHub workflow proof:** **COMPLETE**
-**14-day clock:** **STARTED 2026-07-26 (day 1)**
-**Earliest possible Phase 6 exit:** **2026-08-09**, only with **14 distinct green scheduled dates** and full cutover §9.4 criteria
+**Historical observation schedule:** **STARTED 2026-07-26**; elapsed-time gate retired later that day
+**Active exit:** accelerated readiness plan + §9.4 + explicit durable production approval
 
 Parser-fix merge: **`18ab164ce503ba875413a7d4573597032c56be81`** (PR **#233**).
 Schedule active: repository variable **`PHASE6_SCHEDULE_ENABLED=true`** at **2026-07-26T13:27:41Z**.
 
 This folder is the street-newcomer record of Phase 6A deploy, day-1 evidence, parser failure/fix,
-and **final GHA workflow proof**. It does **not** claim the 14-day gate is finished, production
+and **final GHA workflow proof**. It does **not** claim accelerated readiness, production
 cutover, Phase 5 creates, NASA link, or Phase 7/8.
 
 ---
@@ -21,12 +21,12 @@ cutover, Phase 5 creates, NASA link, or Phase 7/8.
 
 | Question | Answer |
 |---|---|
-| What is Phase 6? | Parallel run: scheduled ColdLion `mirror_only` + DesignFlow master-data sync + daily comparison + health/alerts on **preview only**, for ≥14 real days |
+| What is Phase 6? | Preview parallel-run machinery plus deterministic identity/invariant, breaker, alert, and rollback readiness |
 | Is the plumbing done? | **Yes** — migration applied, runners work in GHA, secrets set, schedules **ACTIVE** |
-| Is Phase 6 done? | **No** — still collecting scheduled green days |
-| Day 1 | **2026-07-26** |
-| Earliest exit calendar date | **2026-08-09** (if every required day is green and §9.4 holds) |
-| Exact next action | **Monitor scheduled GitHub runs** and append-only `plm.taxonomy_parallel_observation` rows; do **not** start Phase 7 |
+| Is Phase 6 done? | **No** — accelerated readiness implementation remains open |
+| Historical schedule start | **2026-07-26**; evidence only |
+| Earliest exit calendar date | **None** — readiness is invariant-based, not calendar-based |
+| Exact next action | Implement/prove the accelerated plan on preview; preserve observations; do **not execute** Phase 7 |
 | Production | Untouched |
 
 ---
@@ -122,12 +122,11 @@ No exit **2** on corrected runs.
 
 This ledger records unattended `schedule` events after
 `PHASE6_SCHEDULE_ENABLED=true`. A health-only event proves scheduler routing and health
-evaluation; it does **not** qualify an observation date without the scheduled DesignFlow,
-ColdLion, and daily-comparison lanes required by cutover §9.4.
+evaluation; it does **not** establish cutover readiness without the other accelerated gates.
 
 | Scheduled date (UTC) | Workflow run | Exact schedule / lane | Result | Preview DB evidence | Qualifying-date ruling |
 |---|---|---|---|---|---|
-| **2026-07-26** | **30217172947** | `15 */6 * * *` / health | **PASS**; preview guard, schedule gate, 98 offline tests, preview link, and health step all passed; DesignFlow, ColdLion, comparison, and drills correctly skipped | non-drill health **`c738beac-fd63-44ae-9a90-5a67576c61aa`**; `ok:true`; `issues:[]`; ColdLion run `9b0b9f1c-f4b6-46b4-ba8a-4f1320470b4b`; DesignFlow run `0a3c5474-2f33-49a4-926a-ef888ddbb826`; latest non-drill observation `16373e68-6f72-43ad-8219-7c999799675d`; refs/links **542 / 38 / 504** | **Does not qualify.** This date has no scheduled DesignFlow, ColdLion, or daily-comparison run. Qualifying dates remain **0 / 14**. |
+| **2026-07-26** | **30217172947** | `15 */6 * * *` / health | **PASS**; preview guard, schedule gate, 98 offline tests, preview link, and health step all passed; DesignFlow, ColdLion, comparison, and drills correctly skipped | non-drill health **`c738beac-fd63-44ae-9a90-5a67576c61aa`**; `ok:true`; `issues:[]`; ColdLion run `9b0b9f1c-f4b6-46b4-ba8a-4f1320470b4b`; DesignFlow run `0a3c5474-2f33-49a4-926a-ef888ddbb826`; latest non-drill observation `16373e68-6f72-43ad-8219-7c999799675d`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It proves health routing, not full accelerated readiness. |
 
 The workflow checked out `a14fefc9459a3ff8c74ea21c55e58230c47a4296`, resolved the
 exact health cron rather than wall-clock time, displayed preview project
@@ -145,30 +144,29 @@ exact health cron rather than wall-clock time, displayed preview project
 
 ---
 
-## 5. Clock and exit criteria
+## 5. Historical clock and active exit criteria
 
 | Item | Status |
 |---|---|
-| Clock start | **2026-07-26** (day 1) |
-| Green scheduled days completed | **In progress** — day 1 evidence recorded; unattended schedule just enabled |
-| Earliest exit date | **2026-08-09** |
-| Exit requires | 14 **distinct** green **scheduled** dates; dual-lane successes; daily comparisons; no unexplained failures; cutover §9.4 |
+| Historical schedule start | **2026-07-26** |
+| Scheduled observations | Preserved as supporting evidence; not counted toward an elapsed-time gate |
+| Earliest exit date | **None** — calendar gate retired |
+| Exit requires | Accelerated plan readiness, exact mapping identity, breaker/alert/rollback proof, §9.4, and durable approval |
 | Machinery + workflow proof | **COMPLETE** |
 | Phase 6 overall | **IN PROGRESS** |
 
 ### Exact next action
 
-1. **Monitor** scheduled GitHub Actions runs for the Phase 6 workflow.
-2. **Read** append-only `plm.taxonomy_parallel_observation` (prefer `is_drill=false` + `pass=true` for the gate).
-3. **Do not** start Phase 7 or 8.
-4. After ≥14 distinct green scheduled days, open a fresh evaluation session against cutover §9.4.
+1. Implement/prove the accelerated readiness plan on preview.
+2. Preserve scheduled GitHub Actions and append-only observations as supporting evidence.
+3. **Do not execute** Phase 7 or 8.
 
 ---
 
 ## 6. Explicit non-claims
 
 - Production was **not** accessed or modified.
-- Phase 6 **14-day gate** is **not** complete.
+- The historical 14-day gate was retired; accelerated readiness is **not** complete.
 - Phase 7 production cutover **not** started.
 - Phase 8 DesignFlow deprecation **not** started.
 - Phase 5 creates **not** reopened; NASA **not** linked.

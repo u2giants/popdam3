@@ -99,7 +99,9 @@ Phase 2A verification is
    Gate: every row is categorized or explicitly blocks Phase 3.
 6. Re-run the forward-impact audit before handing off to Phase 3.
 
-Do not start the 14-day parallel-run clock if DesignFlow evidence is stale or unavailable.
+Historical Phase 2B rule: the former 14-day clock could not start with stale DesignFlow evidence.
+That elapsed-time gate was retired on 2026-07-26; current readiness still requires trustworthy
+DesignFlow parent/status evidence under the accelerated plan.
 
 ## 7. Constraints and gotchas
 

@@ -119,11 +119,10 @@ New tools (local/dry-run-default; no network in tests):
 2. **NASA stays pending.** Linking `NA`→`X-NASA` (preserving canonical code `X-NASA`) requires
    Albert's explicit approval (pending hash `2edf77b7ddd8d0405f93d020003b9540`); it is NOT part of
    the Phase 4 set.
-3. **Phase 6 (parallel run)** is the next phase when the owner calls it: scheduled mirror-only
-   ColdLion sync + continued DesignFlow sync + daily comparison + alerts, ≥14 days of evidence
-   (cutover §Phase 6 and §9.4). The clock has not started; entry requires Phases 3–5 complete or
-   explicitly not needed (satisfied: 3 complete, 4 complete, 5 ruled not needed) plus
-   schedules/alerts tested.
+3. **Phase 6 accelerated readiness** supersedes the former 14-day waiting rule: scheduled
+   mirror-only ColdLion sync + continued DesignFlow sync + comparison/alerts remain evidence, while
+   deterministic invariants, exact mapping identity, rollback, and alert delivery are the active
+   gates. Follow `plan_coldlion_licensor_property_accelerated_cutover.md`.
 4. **Promotion to production is a separate approved window** (AGENTS §5/§5.1): the three Phase 4
    migrations are preview-only; production promotion needs explicit owner approval and the
    bounded-temp-checkout protocol (never `--include-all`).

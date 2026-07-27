@@ -167,8 +167,9 @@ change — only new read-only/local tools + evidence):
    hash `1230f5a1…`; pending NASA 2, hash `2edf77b7…`).
 2. **Phase 5** candidates are a specific enumerated list (FRIDA KAHLO licensor, ZAG, 12 ColdLion-only
    properties), not an open "if found."
-3. **Phase 6:** DesignFlow is healthy again, so its entry condition is satisfiable once scheduled
-   refreshes exist; the 14-day clock still requires scheduled ColdLion + DesignFlow runs.
+3. **Phase 6 historical assumption:** DesignFlow was healthy again and the original plan expected a
+   14-day clock. Albert retired that elapsed-time gate on 2026-07-26; current readiness uses
+   deterministic ColdLion + DesignFlow evidence, exact mapping identity, rollback, and alert proof.
 4. **FRIENDS TV** disposition is an owner decision that does not block Phase 4 and can settle before
    Phase 8.
 5. No Phase 7/8 assumption changed.

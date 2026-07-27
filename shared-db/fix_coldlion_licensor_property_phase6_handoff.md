@@ -11,9 +11,10 @@
 ## 1. What this application is
 
 `u2giants/shared-db` owns the shared Supabase schema and data-integration contracts. Licensors and
-Properties live in `core.licensor` / `core.property`. **Phase 6** is the parallel-run observation
-window on **preview only**: scheduled ColdLion `mirror_only` + DesignFlow master-data sync + daily
-comparison + health/alerts for **≥14 real calendar days**.
+Properties live in `core.licensor` / `core.property`. **Phase 6** built the preview-only
+parallel-run machinery: scheduled ColdLion `mirror_only` + DesignFlow master-data sync + daily
+comparison + health/alerts. The elapsed-time gate was retired on 2026-07-26; the machinery and
+append-only evidence now support the accelerated invariant-readiness plan.
 
 ## 2. What we set out to do this session, and why
 
@@ -34,10 +35,10 @@ What a developer walking in today must know:
 | Machinery (6A) | **COMPLETE** |
 | GitHub workflow proof | **COMPLETE** (after parser-fix PR #233) |
 | Schedules | **ACTIVE** (`PHASE6_SCHEDULE_ENABLED=true` since 2026-07-26T13:27:41Z) |
-| Phase 6 overall | **IN PROGRESS** — 14-day gate open |
-| Clock day 1 | **2026-07-26** |
-| Earliest exit | **2026-08-09** (only if 14 distinct green scheduled dates + §9.4) |
-| **Exact next action** | **Monitor scheduled GHA runs and append-only observations. Do not start Phase 7.** |
+| Phase 6 overall | **IN PROGRESS** — accelerated readiness implementation open |
+| Historical schedule start | **2026-07-26**; retained as evidence, not an exit clock |
+| Active exit gate | Accelerated plan invariants, preview rehearsal, rollback, alert delivery, and durable production approval |
+| **Exact next action** | **Implement/prove the accelerated readiness plan on preview. Do not execute Phase 7.** |
 
 Full evidence IDs:
 [`docs/verification/coldlion-licensor-property-phase6-20260726/README.md`](docs/verification/coldlion-licensor-property-phase6-20260726/README.md).
@@ -53,8 +54,8 @@ Full evidence IDs:
 | Parser fix | PR **#233**, merge **`18ab164ce503ba875413a7d4573597032c56be81`** |
 | Workflow integration proof | **COMPLETE** (see §3.2) |
 | Preview schedules | **ACTIVE** |
-| 14-day clock | **STARTED 2026-07-26 (day 1)** |
-| Phase 6 exit | **Not yet** — still **IN PROGRESS** |
+| Historical observation clock | Started 2026-07-26; elapsed-time requirement retired |
+| Phase 6 exit | **Not yet** — accelerated readiness gates remain **IN PROGRESS** |
 | Phase 7 / 8 | **Forbidden until Phase 6 exits + Albert production window** |
 
 ### Entry prerequisites
@@ -65,7 +66,7 @@ Full evidence IDs:
 | Phase 4 542 links | Yes (preview) |
 | Phase 5 | NOT NEEDED |
 | Schedules/alerts tested | **Yes** — GHA green + force-fail drills |
-| 14 green scheduled days | **In progress** |
+| Accelerated invariant-readiness gates | **In progress** |
 
 ### Final baseline snapshot (2026-07-26 09:28 EDT)
 
@@ -142,16 +143,19 @@ Parser fix path: Go-style `map[...]` box cells, fail-closed on garbage, **duplic
   can misroute a delayed cron run.
 - A forced-failure drill is valid only when stored separately from non-drill evidence and when it
   exits nonzero without changing canonical or mirror data.
-- Fourteen elapsed days are insufficient by themselves: exit requires 14 distinct qualifying
-  scheduled observation dates and every criterion in cutover §9.4.
+- Elapsed days are not an active exit gate. Existing scheduled observations remain useful evidence,
+  but readiness requires the accelerated plan's deterministic identity, invariant, rollback, alert,
+  and approval gates.
 
 ## 6. Exact next steps
 
-1. **Monitor** scheduled Phase 6 GitHub Actions runs (preview only).
-2. **Confirm** each day has a non-drill `pass=true` observation (and lane successes) in append-only evidence.
-3. After **14 distinct green scheduled dates**, run a fresh evaluation session against cutover §9.4.
-4. Earliest calendar claim of exit: **2026-08-09** if all criteria hold — do not claim earlier.
-5. **Do not start Phase 7 or Phase 8** without Phase 6 exit + Albert’s explicit production window.
+1. Implement the accelerated plan's thin readiness composer and exact 542-row mapping-identity
+   proof on preview.
+2. Prove the circuit breaker, heartbeat alert delivery, authorized re-enable, and rollback.
+3. Preserve all scheduled/manual successes, failures, parser errors, and drills append-only.
+4. Prepare the bounded production package and durable approval record only after preview gates pass.
+5. **Do not execute Phase 7 or Phase 8** without the readiness evidence and Albert's explicit
+   production-window approval.
 
 ## 7. Constraints and gotchas
 
@@ -168,7 +172,7 @@ Parser fix path: Go-style `map[...]` box cells, fail-closed on garbage, **duplic
 
 ## 9. Open questions and risks
 
-- Collect remaining green **scheduled** observation days through the 14-day gate.
+- Scheduled preview observations may continue as supporting evidence; they are not a calendar gate.
 - Production promotion of Phase 4+6 migrations = separate approved window (not this phase).
 - A failed or missing scheduled day can extend or reset the qualifying window under cutover §9.4;
   never infer a pass from elapsed calendar time alone.
@@ -192,9 +196,9 @@ Parser fix path: Go-style `map[...]` box cells, fail-closed on garbage, **duplic
 3. **Are failed attempts and their causes preserved? Yes.** §4 records the rejected Edge/Vault
    design, overwriteable date-key evidence, wall-clock routing, the real GitHub Actions parser
    failure, its run ID, and why the applied migration cannot be edited.
-4. **Is every next step concrete and verifiable? Yes.** §6 requires scheduled-run monitoring,
-   non-drill `pass=true` observations, 14 distinct qualifying dates, a fresh §9.4 evaluation, and
-   explicit production approval before Phase 7.
+4. **Is every next step concrete and verifiable? Yes.** §6 requires deterministic readiness,
+   exact mapping identity, breaker/alert/rollback proof, preserved observations, and explicit
+   durable production approval before Phase 7.
 5. **Are unfamiliar identifiers, paths, and environments explained? Yes.** §§1–3 and §§7–8 define
    the repository, schemas, preview/production refs, evidence path, migration, source names,
    GitHub variable/secrets, and 1Password location without exposing values.

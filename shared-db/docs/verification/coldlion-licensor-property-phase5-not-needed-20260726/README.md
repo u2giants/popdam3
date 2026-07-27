@@ -198,9 +198,10 @@ With this closeout, the cutover plan’s “Phases 3–5 complete **or explicitl
 | Phase 4 approved linking complete (preview) | Yes — [`phase4-20260725`](../coldlion-licensor-property-phase4-20260725/README.md) |
 | Phase 5 complete **or explicitly not needed** | **Explicitly NOT NEEDED** — this folder |
 | Scheduled ColdLion + DesignFlow runs / alerts tested | **Not done** — clock not started |
-| ≥14 days parallel-run evidence | **Not started** |
+| Historical ≥14-day parallel-run evidence | **Retired as an active gate on 2026-07-26** |
 
-**This closeout does not start Phase 6.** When the owner requests Phase 6, a fresh session must implement schedules, alerts, and the measured parallel run per cutover §Phase 6 / §9.4.
+**Historical closeout state:** this closeout did not start Phase 6. Phase 6 machinery was later
+built on preview, and the elapsed-time gate was replaced by the accelerated readiness plan.
 
 ---
 

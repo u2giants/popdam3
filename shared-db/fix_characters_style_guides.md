@@ -222,11 +222,11 @@ rule 3). **Expect this to be months later, not days.**
 Characters hang off properties, and properties are being re-sourced right now by
 [`fix_coldlion_licensor_property_cutover.md`](fix_coldlion_licensor_property_cutover.md).
 
-As of **2026-07-26**: Phases 0–5 complete (5 not needed); **Phase 6 is a 14-day parallel-run gate,
-day 1**; earliest exit **2026-08-09**; Phase 7 (production cutover) **not authorized**; production
-**untouched** — all on preview.
+As of **2026-07-26**: Phases 0–5 complete (5 not needed); the former 14-day ColdLion Phase 6
+waiting rule is retired in favor of invariant readiness, preview rollback/alert proof, and explicit
+production approval. Phase 7 production execution remains unauthorized and production untouched.
 
-- This plan is **not blocked** — production properties are stable during that gate, so Phases 0–4
+- This plan is **not blocked** — production properties remain stable, so Phases 0–4
   here can proceed.
 - **Do not land Phase 5 (production apply) in the same window as their Phase 7.** Both touch the
   property spine; AGENTS.md §4 rule 1 allows one schema change in flight.

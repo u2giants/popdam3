@@ -1,6 +1,6 @@
 # HANDOFF — shared-db current state
 
-## CURRENT PRIORITY — ColdLion Licensor/Property Phase 6 IN PROGRESS (machinery + GHA proof COMPLETE; 14-day gate open)
+## CURRENT PRIORITY — ColdLion Licensor/Property accelerated readiness IN PROGRESS
 
 **PLANNING UPDATE — 2026-07-26:** Albert rejected the 14-day elapsed-time wait because ColdLion
 Licensor/Property data changes slowly and ColdLion is the canonical ERP source. The implementation
@@ -23,11 +23,14 @@ failure (DB observation `bf9e8daf-…` was green). Secrets `COLDLION_API_KEY` /
 `DESIGNFLOW_API_KEY` set; **`PHASE6_SCHEDULE_ENABLED=true` since 2026-07-26T13:27:41Z** —
 preview schedules **ACTIVE**.
 
-**14-day clock STARTED 2026-07-26 (day 1).** Phase 6 overall is still **IN PROGRESS** until
-**14 distinct green scheduled days** (earliest exit **2026-08-09** if §9.4 holds).
+**Historical gate retired 2026-07-26:** the earlier 14-day / 2026-08-09 waiting rule is no longer
+an active exit condition. Its scheduled/manual successes, failures, drills, and append-only
+observations remain evidence.
 
-**Exact next action:** monitor scheduled GitHub runs and append-only observations. **Do not start
-Phase 7.**
+**Exact next action:** implement and prove the accelerated plan's invariant readiness, exact
+542-row mapping-identity check, circuit breaker, alert delivery, and rollback on preview.
+Production remains prohibited until those gates pass and Albert gives durable, explicit approval.
+Do not execute Phase 7.
 
 Authoritative Phase 6 handoff + evidence:
 [`fix_coldlion_licensor_property_phase6_handoff.md`](fix_coldlion_licensor_property_phase6_handoff.md)
@@ -135,8 +138,10 @@ Merged: PRs #197 `db97cd9`, #203 `31e6583`, #215 `f9c8758`, #236 `5bd2f5f`, #237
 character→property mapping vs the 174-row licensing-team review). Phase 1 is read-only and can
 start immediately regardless.
 
-**Sequencing:** this touches the property spine, so **its Phase 5 (production apply) must not land
-in the same window as ColdLion Phase 7** (earliest 2026-08-09). Phases 0–4 may proceed.
+**Sequencing:** this touches the property spine, so **its Phase 5 production apply must not land
+in the same window as the separately approved ColdLion production cutover**. There is no longer a
+calendar-based 2026-08-09 gate; coordinate against the actual approved window. Phases 0–4 may
+proceed.
 
 **Naming trap that has already caused three modelling errors:** in
 `dflow.properties_and_characters`, `type='PROPERTY'` rows are **style guides**, not properties, and

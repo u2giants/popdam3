@@ -465,9 +465,10 @@ Characters and style guides hang off **properties**, and properties are being re
 now by a separate, disciplined workstream:
 [`fix_coldlion_licensor_property_cutover.md`](../fix_coldlion_licensor_property_cutover.md).
 
-State on 2026-07-26: Phases 0–5 complete (Phase 5 not needed); **Phase 6 is a 14-day parallel-run
-gate, day 1**, earliest exit **2026-08-09**; Phase 7 (production source cutover) is **not
-authorized**; production `qsllyeztdwjgirsysgai` is **untouched** — all of it runs on preview
+State on 2026-07-26: Phases 0–5 complete (Phase 5 not needed); the former 14-day Phase 6 wait is
+retired in favor of deterministic readiness, preview rollback/alert proof, and explicit production
+approval. Phase 7 production execution is **not authorized**; production
+`qsllyeztdwjgirsysgai` is **untouched** and the work remains on preview
 `rjyboqwcdzcocqgmsyel`.
 
 Implications for this work:
@@ -492,4 +493,4 @@ Implications for this work:
 | Date | Change |
 |---|---|
 | 2026-07-23 | Created from owner corrections on style guides, sub-style guides, talent likeness, and Marvel royalty rates; live measurements added |
-| 2026-07-26 | Owner ruling on shared vs app-owned (§5A.0a): character identities and style-guide **names/associations** are shared (`core.*`, used by DAM + PM + probably PLM); style-guide **files** are PopDAM/PopSG-only (`dam.style_guide_file`). Recorded where the data physically sits today (§5A.0b) and the copy→repoint→retire migration order. Resolved open question 5. Added §7.1 sequencing against the ColdLion Phase 6 gate. |
+| 2026-07-26 | Owner ruling on shared vs app-owned (§5A.0a): character identities and style-guide **names/associations** are shared (`core.*`, used by DAM + PM + probably PLM); style-guide **files** are PopDAM/PopSG-only (`dam.style_guide_file`). Recorded where the data physically sits today (§5A.0b) and the copy→repoint→retire migration order. Resolved open question 5. Added §7.1 sequencing against the ColdLion cutover; later the same day the 14-day wait was replaced by invariant readiness. |

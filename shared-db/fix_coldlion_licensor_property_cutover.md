@@ -11,14 +11,15 @@
 > production prohibition below remains in force. The historical 14-day text is retained as the
 > prior plan and evidence context; it is not the intended final gate.
 
-**Status (2026-07-26): Phase 6 IN PROGRESS — machinery + GHA workflow proof COMPLETE; 14-day
-scheduled gate open (day 1).** Phases 3–4 complete; Phase 5 NOT NEEDED. Migration
+**Status (2026-07-26): Phase 6 IN PROGRESS — machinery + GHA workflow proof COMPLETE;
+accelerated readiness implementation open.** Phases 3–4 complete; Phase 5 NOT NEEDED. Migration
 `20260726180000` applied on preview `rjyboqwcdzcocqgmsyel` (do not edit). Parser-fix merge
 `18ab164ce503ba875413a7d4573597032c56be81` (PR #233). GHA dual-lane + green compare/health +
 force-fail drills proven; `PHASE6_SCHEDULE_ENABLED=true` since 2026-07-26T13:27:41Z (schedules
-**ACTIVE**). Production `qsllyeztdwjgirsysgai` untouched. Clock **STARTED 2026-07-26**; earliest
-exit **2026-08-09** only after 14 distinct green scheduled days + §9.4 — Phase 6 overall **not**
-complete. **Next:** monitor scheduled runs; **do not start Phase 7.** Handoff:
+**ACTIVE**). Production `qsllyeztdwjgirsysgai` untouched. The former 14-day / 2026-08-09 gate is
+retired as an active rule; its observations remain historical/supporting evidence. Phase 6 overall
+is **not** complete. **Next:** implement and prove the accelerated invariant-readiness plan on
+preview; **do not execute Phase 7.** Handoff:
 [`fix_coldlion_licensor_property_phase6_handoff.md`](fix_coldlion_licensor_property_phase6_handoff.md);
 evidence:
 [`docs/verification/coldlion-licensor-property-phase6-20260726/`](docs/verification/coldlion-licensor-property-phase6-20260726/README.md).
@@ -717,19 +718,22 @@ Lane B: DesignFlow → plm.*_import → existing core promotion/refresh path
 Lane A must not change parent/status during the observation period. Lane B continues current
 behavior until the cutover gate is approved.
 
-### 9.2 Duration
+### 9.2 Readiness duration (updated 2026-07-26)
 
-Minimum observation:
+There is no minimum elapsed-time requirement. ColdLion Licensor/Property data is slow-moving, so
+calendar repetition is not the acceptance test. Existing scheduled runs remain supporting
+evidence. Active readiness requires:
 
-- at least 14 consecutive calendar days;
-- at least two successful scheduled ColdLion full snapshots;
-- at least two successful DesignFlow refreshes;
-- no unexplained failed/partial runs;
-- longer if either upstream is unavailable during the window.
+- complete guarded ColdLion and DesignFlow proof;
+- identical replay/idempotency evidence;
+- exact 542-row mapping identity, not counts alone;
+- all §9.4 invariants;
+- circuit-breaker, alert-delivery, re-enable, and rollback rehearsal on preview;
+- maturity-accurate application checks; and
+- Albert's durable approval of the exact production package/window.
 
-If DesignFlow remains operationally broken, the clock does not start merely because ColdLion
-runs. First obtain a trustworthy DesignFlow comparison snapshot or explicitly approve a
-frozen, dated baseline.
+If either upstream is unavailable or evidence is stale, readiness fails until the missing proof is
+restored or explicitly replaced by an approved frozen baseline.
 
 ### 9.3 Daily comparison
 
@@ -1007,7 +1011,7 @@ Deliver:
 - continued DesignFlow sync;
 - daily comparison;
 - alerts;
-- at least 14 days of evidence.
+- deterministic readiness evidence under the accelerated plan.
 
 Gate: all §9.4 success criteria pass.
 
@@ -1019,9 +1023,11 @@ exit 1 (drill `ca8d6615-…`); force-fail health `30204054859` exit 1. Pre-fix c
 `30203386465` retained (DB green `bf9e8daf-…`, runner exit 2) then fixed by PR #233 /
 `18ab164…`. Secrets set; **`PHASE6_SCHEDULE_ENABLED=true` at 2026-07-26T13:27:41Z** (ACTIVE).
 Baseline snapshot 09:28 EDT still exact Phase 4 pins (26/256, 44/516, 1047/542/505, 38/504,
-listed hashes). **Clock STARTED day 1 2026-07-26.** Phase 6 overall **IN PROGRESS** until 14
-distinct green scheduled days (earliest exit **2026-08-09**). Next: monitor schedules; no Phase 7.
-Never edit applied migration. See `fix_coldlion_licensor_property_phase6_handoff.md`.
+listed hashes). The historical observation schedule started 2026-07-26, but elapsed time is no
+longer an exit gate. Phase 6 overall remains **IN PROGRESS** until the accelerated readiness,
+rollback, alert-delivery, and durable approval gates pass. Next: implement/prove those gates on
+preview; no Phase 7 execution. Never edit the applied migration. See
+`fix_coldlion_licensor_property_phase6_handoff.md`.
 
 ### Phase 7 — production source cutover
 
@@ -1152,7 +1158,7 @@ All items must be true:
 - [ ] Canonical UUID preservation is proven.
 - [ ] Canonical status preservation is proven.
 - [ ] Property parent-edge preservation is proven.
-- [ ] Parallel run meets the minimum duration and success criteria.
+- [ ] Accelerated readiness and §9.4 criteria pass; elapsed days are not the gate.
 - [ ] All application preview smoke tests pass.
 - [ ] Empty/short-pull, semantic-change, and durable-failure alerts are proven.
 - [ ] Rollback has been rehearsed on preview.
@@ -1377,15 +1383,15 @@ Per-phase cold-start contracts:
   2026). Each property requires an approved `licensor_id` parent before any app visibility. If Albert
   approves none, Phase 5 is explicitly **not needed**. NASA needs no create (canonical `X-NASA`
   already exists; it is a Phase 4 link).
-- **Phase 6 — parallel run — IN PROGRESS (machinery + GHA proof COMPLETE; clock day 1 =
-  2026-07-26; schedules ACTIVE).** Entry: Phases 3–5 complete or not needed (satisfied). Deliver:
-  ≥14 consecutive green scheduled days, dual-lane refreshes, daily comparisons, no unexplained
-  failures. Exit: all §9.4 criteria. Do not treat one day or one chat turn as the full window.
+- **Phase 6 — accelerated readiness — IN PROGRESS (machinery + GHA proof COMPLETE; schedules
+  ACTIVE).** Entry: Phases 3–5 complete or not needed (satisfied). Deliver: deterministic
+  identity/invariant proof, circuit breaker, alert delivery, rollback, maturity-matched app checks,
+  and all §9.4 criteria. Elapsed days are not the exit gate.
   **Done:** migration applied; PR #233 parser fix; GHA DesignFlow/ColdLion/compare/health + force-fail
-  drills proven; secrets set; `PHASE6_SCHEDULE_ENABLED=true` (2026-07-26T13:27:41Z). **Still
-  required:** **14 distinct green scheduled observation dates** (earliest exit **2026-08-09**).
-  **Next action:** monitor scheduled GHA runs and append-only observations. Production untouched;
-  Phase 7 not authorized.
+  drills proven; secrets set; `PHASE6_SCHEDULE_ENABLED=true` (2026-07-26T13:27:41Z). Prior scheduled
+  observations remain evidence. **Still required:** accelerated plan implementation and preview
+  proof. **Next action:** implement the readiness plan. Production untouched; Phase 7 execution
+  not authorized.
 - **Phase 7 — production source cutover.** Entry: Phase 6 evidence, rollback
   rehearsal, secure pre-cutover export/hashes, clean production dry-run, and
   Albert's explicit production-window approval. Deliver: guarded final snapshot,
@@ -1417,7 +1423,7 @@ This work is complete only when:
 - lapsed licenses cannot be resurrected by synchronization;
 - `FR` cannot cross-match entity types;
 - the 22/258 versus canonical population is fully reconciled, not merely count-matched;
-- DesignFlow and ColdLion have run in parallel long enough to prove behavior;
+- DesignFlow and ColdLion readiness is proven by deterministic invariants and preserved runs;
 - alerts and durable failure records work;
 - production cutover and rollback are verified;
 - DesignFlow is retired only from the master-record transport role, while relationship and

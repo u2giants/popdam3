@@ -6,7 +6,15 @@ it still fed by the DesignFlow PLM API?* Every fact below was previously discove
 only by reading four separate documents and then querying the database. That cost has been
 paid at least twice; this page ends it.
 
-Verified live against `qsllyeztdwjgirsysgai` on **2026-07-23**.
+Production rows below were verified against `qsllyeztdwjgirsysgai` on **2026-07-23**.
+
+> **Licensor/Property correction — 2026-07-26:** direct ColdLion mirrors now exist on preview
+> `rjyboqwcdzcocqgmsyel`: `plm.erp_licensor` (44) and `plm.erp_property` (516), with 542
+> Albert-approved source links proven against 271 canonical UUIDs. Production remains on
+> DesignFlow until the invariant-readiness plan passes and Albert explicitly approves the bounded
+> production window. The former 14-day wait is retired. Read
+> [`plan_coldlion_licensor_property_accelerated_cutover.md`](../plan_coldlion_licensor_property_accelerated_cutover.md)
+> before re-deriving the current state.
 
 ---
 
@@ -25,9 +33,9 @@ noise, and neither prefix is a "worse name" for the other.
 (54 rows, DesignFlow) and `plm.erp_customer` (836 rows, ColdLion) coexist: the old staging
 table is left in place for reconciliation while the new `erp_*` mirror becomes the truth.
 
-**Therefore the absence of `plm.erp_licensor` / `plm.erp_property` is meaningful, not an
-oversight of where to look.** Searching for those names and finding nothing is the *correct*
-diagnostic, and it correctly concludes that licensor and property were never cut over.
+**Historical note:** before Phase 1, the absence of `plm.erp_licensor` /
+`plm.erp_property` correctly showed that groundwork had not begun. Those tables now exist on
+preview; their presence does not mean production has cut over.
 
 > ⚠️ **Do not mistake `plm.licensor_import` / `plm.property_import` for a ColdLion mirror.**
 > They are DesignFlow PLM staging. A previous AI session made exactly this error, reasoning
@@ -43,12 +51,12 @@ diagnostic, and it correctly concludes that licensor and property were never cut
 |---|---|---|---|---|---|---|
 | **Customer** | ✅ **Cut over to ColdLion** | ColdLion `/customers` | `plm.erp_customer` | 836 | `core.customer` | 929 |
 | **Vendor / factory** | ✅ **Cut over to ColdLion** | ColdLion `/vendors` | `plm.erp_vendor` | 97 | `core.factory` | 529 |
-| **Licensor** | ⏳ **Still DesignFlow** | DesignFlow PLM API | `plm.licensor_import` | 37 | `core.licensor` | 20 |
-| **Property** | ⏳ **Still DesignFlow** | DesignFlow PLM API | `plm.property_import` | 468 | `core.property` | 256 |
+| **Licensor** | ⏳ **Production DesignFlow; preview ColdLion readiness** | DesignFlow PLM API in production | preview `plm.erp_licensor` | 44 | preview `core.licensor` | 26 |
+| **Property** | ⏳ **Production DesignFlow; preview ColdLion readiness** | DesignFlow PLM API in production | preview `plm.erp_property` | 516 | `core.property` | 256 |
 
-`core.taxonomy_source_ref` — the bridge for licensor and property — is **505 / 505
-`designflow_plm`**, zero ColdLion. That single query is the fastest possible check of
-whether this page is still accurate:
+The historical production baseline was **505 / 505 `designflow_plm`**, zero ColdLion. Preview now
+has 505 DesignFlow plus 542 approved ColdLion source refs. Before claiming production cutover,
+re-measure production read-only and run the accelerated plan's exact mapping-identity proof:
 
 ```sql
 select source_system, count(*) from core.taxonomy_source_ref group by 1;

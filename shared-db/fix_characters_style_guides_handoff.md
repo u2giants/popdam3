@@ -194,9 +194,9 @@ Evidence is in
    them is hard to unpick later.
 3. **Breaking DAM by moving tables (Phase 4).** DAM reads `public.*` today. **Copy → repoint →
    retire.** Moving first broke dflow's sample tracking on 2026-07-21 and had to be reverted.
-4. **Colliding with the ColdLion cutover.** Their Phase 6 is a 14-day gate, earliest exit
-   **2026-08-09**; their Phase 7 is unauthorized; production untouched. Our Phase 5 must not land
-   in that window. **Re-read their status header — it changes daily.**
+4. **Colliding with the ColdLion cutover.** Its 14-day gate was retired on 2026-07-26, but Phase 7
+   remains unauthorized and production untouched. Our Phase 5 must not land in the actual approved
+   ColdLion production window. **Re-read their status header before scheduling.**
 5. **The licensing team's sheet is pending.** It is expected in 24–48 hours. Phase 3 cannot
    complete without those family/bucket decisions.
 6. **The old 174-row sheet was incomplete when combined with the 367 path.** Grok found that

@@ -1,25 +1,29 @@
 # Implementation plan — accelerated ColdLion Licensor/Property cutover
 
 **Written:** 2026-07-26  
+**Documentation corrections:** 2026-07-26 — Kimi critique corrections applied; see STATUS
 **Decision owner:** Albert Hazan  
 **Repository:** `u2giants/shared-db`  
-**Fresh-session starting point:** Step 1 — reconcile this plan with the latest `main`, then replace
-the obsolete 14-day Phase 6 exit gate before making any production change.
+**Fresh-session starting point:** Step 1 — reconcile this plan with the latest `main`, then implement
+the readiness gates on preview. The 2026-07-26 documentation pass already retired the 14-day
+Phase 6 exit gate as an active rule (it survives only as labeled historical evidence). No
+implementation step is complete and no production change is authorized.
 
 ## STATUS
 
 | Step | State | Date | Evidence / next action |
 |---|---|---|---|
+| 0. Documentation corrections (Kimi critique + active-gate retirement) | ✅ Complete | 2026-07-26 | Kimi P1/P2 corrections and routed-doc retirement completed; implementation Steps 1–10 remain open |
 | 1. Reconfirm current state and serialize work | ⬜ Open | 2026-07-26 | Start here in a fresh implementation session |
-| 2. Replace the elapsed-time Phase 6 gate | ⬜ Open | 2026-07-26 | Update the plan, handoff, workflow contracts, and monitoring language |
+| 2. Replace the elapsed-time Phase 6 gate | 🔶 Policy/docs done | 2026-07-26 | Routed docs and automation prompt corrected; workflow contracts and static tests remain open |
 | 3. Build the readiness evaluator | ⬜ Open | 2026-07-26 | One command must prove or deny cutover readiness |
 | 4. Strengthen fail-closed production monitoring | ⬜ Open | 2026-07-26 | Alerts, circuit breaker, and response evidence |
-| 5. Rehearse the complete cutover and rollback on preview | ⬜ Open | 2026-07-26 | Preview `rjyboqwcdzcocqgmsyel` only |
-| 6. Verify the applications at their real maturity levels | ⬜ Open | 2026-07-26 | PLM live; DAM partial; CRM/PM development |
-| 7. Prepare the production change package | ⬜ Open | 2026-07-26 | Read-only production inventory plus bounded apply manifest |
-| 8. Obtain Albert's production-window approval | ⬜ Open | 2026-07-26 | Exact migrations/actions/rollback named before approval |
-| 9. Execute the production cutover | ⬜ Open | 2026-07-26 | Separate fresh session; only after Step 8 |
-| 10. Run intensified monitoring and close out | ⬜ Open | 2026-07-26 | 24-hour watch, then normal guarded operation |
+| 5. Rehearse the complete cutover and rollback on preview | ⬜ Open | 2026-07-26 | Preview `rjyboqwcdzcocqgmsyel` only; reuse Phase 2B/4/6 evidence, rehearse only new behaviors |
+| 6. Verify the applications at their real maturity levels | ⬜ Open | 2026-07-26 | PLM sandbox/preview-connected; DAM live subset; CRM/PM development |
+| 7. Prepare the production change package | ⬜ Open | 2026-07-26 | Read-only production inventory, mapping-identity proof, secret proposal, bounded apply manifest |
+| 8. Obtain Albert's production-window approval | ⬜ Open | 2026-07-26 | Exact migrations/actions/rollback named; durable approval record before execution |
+| 9. Execute the production cutover | ⬜ Open | 2026-07-26 | Separate fresh session; only after Step 8; mapping-identity proof before any write |
+| 10. Run intensified monitoring and close out | ⬜ Open | 2026-07-26 | Hourly cadence + deliberate +1h/+4h/+24h checks, then normal guarded operation |
 
 This plan complements, and does not replace, the historical evidence in
 [`fix_coldlion_licensor_property_phase6_handoff.md`](fix_coldlion_licensor_property_phase6_handoff.md)
@@ -27,8 +31,11 @@ and the full original plan in
 [`fix_coldlion_licensor_property_cutover.md`](fix_coldlion_licensor_property_cutover.md).
 Those files explain what was already built and tested. Where they require 14 distinct scheduled
 dates or an earliest exit of 2026-08-09, this plan records Albert's 2026-07-26 decision to replace
-that elapsed-time gate. Until Steps 1–5 are implemented and verified, the existing production
-prohibition remains in force.
+that elapsed-time gate, and the 2026-07-26 documentation pass retired it as an active rule across
+the named documents — it survives there only as labeled historical evidence. Until Steps 1–5 are
+implemented and verified, the existing production prohibition remains in force. The active Phase 6
+next action is implementing and proving this readiness plan on preview — not collecting further
+elapsed days.
 
 ---
 
@@ -165,8 +172,8 @@ The implementer must reverify these facts against the latest `origin/main`; they
 1. `HANDOFF.md:3` identifies Phase 6 as the current priority.
 2. `fix_coldlion_licensor_property_phase6_handoff.md:1` records the complete Phase 6 machinery,
    workflow runs, failures, hashes, schedule, and constraints.
-3. `fix_coldlion_licensor_property_cutover.md:742` contains the original §9.4 invariant criteria.
-4. `fix_coldlion_licensor_property_cutover.md:991` defines Phase 6.
+3. `fix_coldlion_licensor_property_cutover.md:753` contains the original §9.4 invariant criteria.
+4. `fix_coldlion_licensor_property_cutover.md:1002` defines Phase 6.
 5. `.github/workflows/coldlion-licensor-property-phase6-parallel.yml` runs four preview lanes:
    DesignFlow, ColdLion `mirror_only`, daily comparison, and health.
 6. `tools/compare-coldlion-designflow-daily.mjs` records an append-only comparison and fails closed.
@@ -182,7 +189,16 @@ The implementer must reverify these facts against the latest `origin/main`; they
     `2026-07-26T13:27:41Z`.
 12. Phase 4 linked only the approved 542 exact-compatible ColdLion source rows on preview:
     38 Licensor rows and 504 Property rows. Canonical UUID, status, and parent hashes stayed
-    unchanged.
+    unchanged. The authoritative approved set is the frozen artifact
+    `docs/verification/coldlion-licensor-property-phase4-20260725/approved-mapping.json` (md5
+    `1230f5a12d0f2a3029f1d3df17fc5b5f`), approved by Albert Hazan on 2026-07-25 — the Phase 4
+    approval record is `fix_coldlion_licensor_property_phase4_handoff.md` §3 (38 licensor + 504
+    property mappings → 271 distinct canonical UUIDs: 19 licensor + 252 property). Do **not**
+    confuse it with the Phase 3 placeholder
+    `docs/verification/coldlion-licensor-property-phase3-20260725/phase4-approved-mapping.json`,
+    whose `approved_mapping_hash` is `d41d8cd98f00b204e9800998ecf8427e` — the md5 of the **empty
+    set**, with `approved_by: null`. The Phase 3 file froze the pre-approval empty state; the
+    Albert-approved 542-row Phase 4 artifact is the only approved mapping input.
 13. Phase 5 is not needed because Albert approved no canonical creations.
 14. Production has not received Phase 4 or Phase 6 cutover work under this workstream.
 15. Existing proof includes:
@@ -273,12 +289,19 @@ Do not delete its observations; historical evidence remains valuable.
 
 These do not require a new business decision if the implementer follows the stated criteria:
 
-1. **Monitoring frequency:** use the lowest frequency that detects a failed cutover promptly
-   without creating overlapping jobs. Recommendation: health evaluation every 15 minutes for the
-   first 24 hours, then hourly; full ColdLion snapshots remain daily because the data is slow.
-2. **Alert transport:** reuse the repository's existing durable database alert and GitHub Actions
-   failure surfaces. Add another channel only if the existing path cannot notify Albert/engineering
-   promptly and durably.
+1. **Monitoring frequency (decided 2026-07-26):** hourly GitHub Actions health checks as the
+   standing cadence, plus deliberate checks at +1 hour, +4 hours, and +24 hours after the
+   cutover. No 15-minute cron — overlapping jobs and queue noise do not buy materially faster
+   detection for slow-moving data, and the circuit breaker already fails closed independently of
+   check frequency. Full ColdLion snapshots remain daily because the data is slow.
+2. **Alert transport (decided 2026-07-26):** the primary named monitoring path is the existing
+   Codex heartbeat task — the scheduled automation prompt that already watches this workstream's
+   GitHub Actions runs (Step 2 item 6) — backed by the durable database alert and the GitHub
+   Actions failure surface. No document proves a better existing human channel, so none is
+   invented here and no email address is fabricated. Production additionally requires a named
+   human escalation owner: **Albert Hazan**. Alert delivery is a hard gate (Step 4 item 8): a
+   forced-failure drill must prove delivery to that named path within the stated target before
+   cutover approval.
 3. **Circuit-breaker implementation:** prefer disabling only the ColdLion promotion/schedule path
    while leaving mirrors/evidence intact. It may be implemented as a repository variable checked by
    the job plus a database guard; never delete data automatically.
@@ -314,12 +337,15 @@ mutation occurred. If another licensor/property schema change is in flight, stop
 
 ### Step 2 — Replace the elapsed-time Phase 6 exit gate
 
-**Files:**
+**Files (illustrative, not exhaustive — the repo-wide sweep below is the authoritative gate):**
 
+- `plan_coldlion_licensor_property_accelerated_cutover.md` (this file);
 - `fix_coldlion_licensor_property_cutover.md`;
 - `fix_coldlion_licensor_property_phase6_handoff.md`;
+- `fix_coldlion_licensor_property_phase4_handoff.md`;
 - `HANDOFF.md`;
 - `AGENTS.md`;
+- `docs/master-data-cutover-scoreboard.md`;
 - `docs/verification/coldlion-licensor-property-phase6-20260726/README.md`;
 - `.github/workflows/coldlion-licensor-property-phase6-parallel.yml`;
 - related static tests in `tools/coldlion-licensor-property-phase6.test.mjs` and
@@ -344,11 +370,16 @@ mutation occurred. If another licensor/property schema change is in flight, stop
    than counting toward an obsolete 14-day gate. Keep it preview-only until production approval.
 
 **Dependency:** Step 1.  
-**Verification gate:** `rg` finds no active instruction that requires 14 qualifying days or
-2026-08-09, while the historical record remains. Static tests prove schedule jobs remain
-preview-guarded and append-only. The automation view shows the updated policy.
+**Verification gate (authoritative):** a repo-wide `rg` sweep over the **whole repository** — not
+just the illustrative file list above — finds no *active* instruction that requires 14 qualifying
+days or 2026-08-09, while explicitly labeled historical records remain. The file list is
+illustrative; the sweep is the gate, and it must cover docs, handoffs, plans, workflows, tools,
+and tests. Static tests prove schedule jobs remain preview-guarded and append-only. The
+automation view shows the updated policy. (Known remainder after the 2026-07-27 documentation
+pass: historical verification artifacts may retain the retired rule when explicitly labeled as
+historical. Workflow comments and static tests must describe invariant readiness, not elapsed time.)
 
-### Step 3 — Build one deterministic readiness evaluator
+### Step 3 — Build one thin deterministic readiness evaluator
 
 **Recommended files:**
 
@@ -356,40 +387,28 @@ preview-guarded and append-only. The automation view shows the updated policy.
 - new `tools/evaluate-coldlion-licensor-property-cutover-readiness.test.mjs`;
 - reuse `tools/phase6-preview-guards.mjs`;
 - reuse `tools/phase6-cli-result-parse.mjs`;
-- add a read-only database function/view only if existing Phase 6 functions cannot return every
-  required fact; any database addition must be a new timestamped migration.
+- add a read-only database function/view only if existing Phase 6 functions cannot support the
+  exact mapping-identity proof; any database addition must be a new timestamped migration.
 
-The evaluator must accept an explicit environment/project ref and default to preview. It must
-refuse production unless a separately named execution flag is supplied in the approved Step 9
-session. It must output a machine-readable and human-readable readiness result containing:
+The evaluator is a thin composer, not a second monitoring system. It must invoke and preserve the
+results of the existing strict health/comparison tools, print their target, run IDs, hashes,
+counts, alerts, and blocking reasons, then add only two genuinely new checks:
 
-- target project ref and environment;
-- latest successful ColdLion and DesignFlow run IDs/timestamps;
-- complete division/type/page accounting;
-- mirror counts and source snapshot hash;
-- approved-link counts (38 Licensor / 504 Property unless later approved evidence changes them);
-- canonical Licensor/Property counts;
-- canonical UUID hashes;
-- separate status hashes;
-- Property parent-edge hash;
-- ColdLion and DesignFlow source-reference counts;
-- unresolved/quarantined/new-candidate changes;
-- unexpected canonical writes grouped by field;
-- latest non-drill comparison result;
-- outstanding alerts/failures;
-- rollback rehearsal identifier;
-- application-check evidence identifiers;
-- overall `ready: true|false`;
-- explicit blocking reasons.
+1. production execution requires the exact separately approved authorization flag and project ref;
+2. the frozen 542-row approved mapping is re-resolved by full typed source identity to the exact
+   intended canonical UUID set. Every source row must resolve to exactly one intended production
+   canonical row. Any missing row, ambiguity, UUID difference, entity-type difference, or
+   unexpected production baseline difference blocks readiness. Counts alone never pass.
 
 It must reject malformed, duplicate, missing, ambiguous, stale, or environment-mismatched data and
 exit nonzero. It must never infer readiness from row counts alone.
 
 **Dependency:** Step 2 policy must be settled first.  
-**Verification gate:** unit fixtures cover green, missing page, wrong project, stale run, changed
-UUID, changed status, changed parent, unexpected link, malformed CLI result, duplicate key,
-unexplained difference, and preserved legitimate source-owned name change. A green preview
-evaluation exits 0; every unsafe fixture exits nonzero with a specific blocking reason.
+**Verification gate:** existing health/comparison suites remain green. New fixtures prove only the
+new logic: preview is the default, production requires exact authorization, all 542 typed source
+identities resolve to the approved UUIDs, and a missing/ambiguous/different mapping blocks with a
+specific reason. Existing tools continue covering pagination, freshness, hashes, malformed output,
+duplicate keys, unexplained differences, and permitted source-owned name changes.
 
 ### Step 4 — Strengthen fail-closed production monitoring and rapid response
 
@@ -409,12 +428,15 @@ Implement:
 2. exact project-ref guards that make preview and production lanes unambiguous;
 3. a concurrency group preventing overlapping importer/promoter runs;
 4. daily full ColdLion snapshot and weekly full reconciliation;
-5. intensified health checks every 15 minutes for the first 24 hours after cutover, then hourly;
+5. hourly GitHub health checks plus deliberate checks at +1 hour, +4 hours, and +24 hours;
 6. an operational circuit breaker that prevents further ColdLion canonical promotion after any
    protected invariant, parsing, completeness, authentication, or pagination failure;
 7. continued mirror/failure evidence where safe, without deleting or overwriting failed rows;
 8. a loud GitHub Actions failure plus durable database alert containing run ID, environment,
-   failed invariant, last green run, and the exact first response;
+   failed invariant, last green run, and the exact first response. A preview forced-failure drill
+   must prove the current Codex heartbeat receives the failure within **15 minutes** and names
+   **Albert Hazan** as the human escalation owner. If that path cannot meet the target, this step
+   must add and prove the smallest durable notification channel before production approval;
 9. no automatic status, parent, UUID, deletion, or broad schema rollback;
 10. a response runbook:
     - disable the ColdLion production schedule/promotion variable;
@@ -428,27 +450,26 @@ Implement:
 **Dependency:** Step 3 defines the readiness/invariant contract.  
 **Verification gate:** preview forced-failure drills prove the job exits nonzero, writes a durable
 alert, prevents the next promotion attempt, retains evidence, and leaves UUID/status/parent hashes
-unchanged. A recovery drill proves an authorized re-enable succeeds after a green evaluation.
+unchanged. The drill must prove delivery to the named Codex heartbeat within 15 minutes and record
+Albert Hazan as escalation owner. A recovery drill proves an authorized re-enable succeeds after a
+green evaluation.
 
 ### Step 5 — Rehearse the complete cutover and rollback on preview
 
 **Environment:** preview `rjyboqwcdzcocqgmsyel` only.
 
-1. Capture a fresh baseline of canonical counts, UUIDs, status, parents, source refs, links,
-   mirrors, alerts, and latest successful runs.
-2. Run a complete ColdLion full snapshot.
-3. Run it identically again and prove idempotency.
-4. Run `link_approved` with exactly the frozen 542-row approved mapping and prove it remains
-   unchanged/idempotent.
-5. Simulate a legitimate source-owned name change and prove only the permitted mirror/source field
-   changes; protected canonical facts do not.
-6. Simulate incomplete pagination, missing division/type, malformed output, and unexpected
-   protected-field drift. Prove every case fails closed and alerts.
-7. Exercise the circuit breaker and operational rollback.
-8. Restore the preview fixture to its documented baseline without deleting failure evidence.
-9. Run the Step 3 readiness evaluator.
-10. Write a dated append-only verification artifact containing commands, run IDs, hashes,
-    expected failures, and recovery evidence.
+1. Cite and reuse the already-green Phase 2B, Phase 4, and Phase 6 evidence for full snapshots,
+   identical replay, 542-link idempotency, parsing failures, protected hashes, and append-only
+   forced-failure records. Do not rerun a test merely to duplicate preserved proof.
+2. Capture a fresh preview baseline.
+3. Exercise only the new production-authorization guard in safe preview mode.
+4. Run the new exact 542-row mapping-identity proof against preview.
+5. Exercise the new circuit breaker, alert delivery, authorized re-enable, and operational
+   rollback.
+6. Restore the preview fixture without deleting failure evidence.
+7. Run the thin readiness evaluator.
+8. Write a dated append-only verification artifact that links the reused proof and records the new
+   commands, run IDs, hashes, delivery timing, expected failures, and recovery evidence.
 
 **Dependency:** Steps 3–4.  
 **Fresh-session cut:** use a separate session for this operational rehearsal.  
@@ -461,8 +482,9 @@ production credential, URL, project ref, or mutation appears in logs.
 Application checks must use existing test accounts from 1Password vault `vibe_coding`; never write
 credentials into evidence.
 
-1. **DesignFlow PLM — primary live gate.** Against its approved nonproduction/preview-connected
-   environment, verify Licensor and Property selectors, item creation/reference validation,
+1. **DesignFlow PLM — primary compatibility gate.** Against its approved
+   nonproduction/preview-connected sandbox, verify Licensor and Property selectors, item
+   creation/reference validation,
    existing item display, tracking references, and a representative UUID-deep-link or saved
    selection. Confirm no application error logs attributable to the cutover.
 2. **DAM — partial-live gate.** Identify and verify only the currently live paths that read
@@ -477,8 +499,9 @@ credentials into evidence.
 **Dependency:** Step 5 green preview state.  
 **Verification gate:** the evidence names environment, URL, tested path, expected result, actual
 result, and screenshot/HTTP/log proof for each applicable check. The conclusion must say:
-“DesignFlow PLM live behavior verified; DAM live subset verified; CRM/PM development compatibility
-verified,” not “all production applications verified.”
+“DesignFlow PLM behavior verified against preview-connected sandbox; DAM live subset verified;
+CRM/PM development compatibility verified.” The later production smoke is separately and
+explicitly read-only.
 
 ### Step 7 — Prepare the bounded production change package
 
@@ -487,13 +510,21 @@ verified,” not “all production applications verified.”
 1. Create a detached temporary worktree from the exact proposed `origin/main` commit.
 2. Read-only compare the full local migration list with the production migration ledger.
 3. Produce an explicit allowlist of only the migrations required for the approved
-   Licensor/Property cutover.
+   Licensor/Property cutover. Expected candidates are `20260724060000`, `20260724061000`,
+   `20260726180000`, the Phase 4 linking migration identified by the Phase 4 evidence, and any new
+   Step 3/4 migration; the read-only ledger/object comparison decides the final manifest.
 4. Exclude every unrelated pending migration. Never use `--include-all`.
-5. Produce the exact workflow/CLI commands that Step 9 will run, with project ref displayed before
+5. Prepare the read-only production identity command that re-resolves all 542 rows from
+   `docs/verification/coldlion-licensor-property-phase4-20260725/approved-mapping.json`
+   (hash `1230f5a12d0f2a3029f1d3df17fc5b5f`) to the exact approved canonical UUIDs.
+6. Propose GitHub Actions secret `SUPABASE_DB_PASSWORD_PRODUCTION`, sourced from 1Password vault
+   `vibe_coding`, item `Supabase DB Password - shared POP database`. Its creation/use is a named
+   production action requiring Step 8 approval; do not create or read it during packaging.
+7. Produce the exact workflow/CLI commands that Step 9 will run, with project ref displayed before
    execution and secret references by 1Password/GitHub name only.
-6. Prepare the pre-cutover export/hash command, post-cutover verification command, application
+8. Prepare the pre-cutover export/hash command, post-cutover verification command, application
    smoke checklist, circuit-breaker command, and rollback commands.
-7. Record the expected database object changes and explicitly state that canonical data rows,
+9. Record the expected database object changes and explicitly state that canonical data rows,
    statuses, and parents are not expected to change except the already approved source refs/links.
 
 **Dependency:** Steps 5–6 green and CI merged to `main`.  
@@ -501,7 +532,8 @@ verified,” not “all production applications verified.”
 **Verification gate:** a second read-only review shows the manifest contains only the named
 Licensor/Property migrations and actions; every command names
 `qsllyeztdwjgirsysgai`; no command includes `--include-all`; rollback is executable without a
-schema drop.
+schema drop; every approved mapping row has a prepared identity proof; and the proposed production
+secret action is named but not executed.
 
 ### Step 8 — Obtain Albert's production-window approval
 
@@ -512,6 +544,8 @@ Present Albert one concise approval request naming:
 - exact data modes (`mirror_only`, approved 542-row `link_approved`, or other explicitly justified
   mode);
 - schedule/variable to be enabled;
+- creation/use of GitHub secret `SUPABASE_DB_PASSWORD_PRODUCTION` from the named 1Password item;
+- the exact 542-row production identity proof and its blocking rules;
 - expected application-visible effect;
 - maximum likely blast radius;
 - pre-cutover backup/hash evidence;
@@ -520,7 +554,10 @@ Present Albert one concise approval request naming:
 
 **Dependency:** Step 7.  
 **Verification gate:** Albert explicitly approves the named production window and actions in the
-current chat. General statements such as “go ahead with the project” do not count.
+current chat. General statements such as “go ahead with the project” do not count. Before the
+fresh Step 9 session, copy Albert's exact approval text, timestamp, project, migrations, modes,
+secret action, window, monitoring, and rollback into this plan's STATUS area and a dated
+`docs/verification/` approval artifact. Do not fabricate or pre-fill approval.
 
 ### Step 9 — Execute the production cutover
 
@@ -528,19 +565,26 @@ current chat. General statements such as “go ahead with the project” do not 
 
 1. Re-run identity, clean-worktree, in-flight PR, and production-target checks.
 2. Capture the secure pre-cutover export and public non-secret hashes.
-3. Run a bounded production dry-run from the detached worktree and compare it byte-for-byte with
+3. Verify the durable Step 8 approval record exactly matches the planned session.
+4. Run the read-only 542-row production identity proof. Stop before any write on any missing row,
+   ambiguity, UUID/entity mismatch, or unexpected baseline difference and return the difference to
+   Albert.
+5. Create/use `SUPABASE_DB_PASSWORD_PRODUCTION` only if the durable approval explicitly includes
+   that action.
+6. Run a bounded production dry-run from the detached worktree and compare it byte-for-byte with
    the approved manifest.
-4. Stop if any additional migration/action appears.
-5. Apply only the approved migrations.
-6. Verify actual database objects, not only the migration ledger.
-7. Run one full guarded ColdLion `mirror_only` snapshot.
-8. Run only the approved linking/promotion mode and mapping set.
-9. Verify canonical UUID, status, and parent hashes.
-10. Run the readiness evaluator in its explicitly production-authorized mode.
-11. Run the application checks from Step 6 against their appropriate real environments, with
-    DesignFlow PLM as the primary live gate.
-12. Enable the normal production schedule and intensified health monitoring.
-13. If any protected gate fails, execute the operational rollback immediately; do not improvise a
+7. Stop if any additional migration/action appears.
+8. Apply only the approved migrations.
+9. Verify actual database objects, not only the migration ledger.
+10. Run one full guarded ColdLion `mirror_only` snapshot.
+11. Run only the approved linking mode and exact identity-proven mapping set.
+12. Verify canonical UUID, status, and parent hashes.
+13. Run the readiness evaluator in its explicitly production-authorized mode.
+14. Run **read-only** production smoke checks: selectors load, existing item display, tracking
+    references, saved UUID/deep links, the applicable live DAM subset, and named log sources. Do
+    not create or modify a production item. CRM/PM remain development checks.
+15. Enable the normal production schedule and hourly health monitoring.
+16. If any protected gate fails, execute the operational rollback immediately; do not improvise a
     schema/data cleanup.
 
 **Dependency:** explicit Step 8 approval.  
@@ -553,17 +597,18 @@ green. Report PR, merge SHA, workflow IDs, sync UUIDs, and evidence path.
 
 For the first 24 hours:
 
-1. evaluate health every 15 minutes without rerunning the slow full import each time;
-2. inspect the first scheduled ColdLion full snapshot and comparison;
-3. inspect DesignFlow relationship/status preservation;
-4. watch application error telemetry for DesignFlow PLM and the live DAM subset;
-5. keep CRM/PM checks in their development environments;
-6. preserve every success and failure append-only;
-7. disable the ColdLion production schedule/promotion immediately on a protected invariant failure;
-8. reproduce and fix the defect on preview before re-enabling production.
+1. evaluate health hourly without rerunning the slow full import each time;
+2. perform deliberate named checks at +1 hour, +4 hours, and +24 hours;
+3. inspect the first scheduled ColdLion full snapshot and comparison;
+4. inspect DesignFlow relationship/status preservation;
+5. watch named application log sources for DesignFlow PLM and the live DAM subset;
+6. keep CRM/PM checks in their development environments;
+7. preserve every success and failure append-only;
+8. disable the ColdLion production schedule/promotion immediately on a protected invariant failure;
+9. reproduce and fix the defect on preview before re-enabling production.
 
 After one fully successful scheduled production cycle and 24 hours with no unexplained alert,
-reduce health evaluation to hourly while retaining daily full snapshots and weekly reconciliation.
+retain hourly health evaluation, daily full snapshots, and weekly reconciliation.
 This is an operational stabilization gate, not permission to start Phase 8.
 
 **Dependency:** Step 9.  
@@ -588,27 +633,15 @@ remove the old monitoring automation only when the work is genuinely complete.
 - relevant rolled-back Supabase SQL contract tests, including
   `supabase/tests/coldlion_licensor_property_phase6_contracts.sql`
 
-### New readiness-evaluator tests
+### New thin-readiness tests
 
-Add named cases proving:
+Add only the new cases; existing health/comparison suites retain their current responsibilities:
 
-1. `green_complete_preview_is_ready`;
-2. `wrong_project_ref_is_blocked`;
-3. `production_requires_explicit_authorization`;
-4. `missing_page_is_blocked`;
-5. `missing_required_division_or_type_is_blocked`;
-6. `stale_or_failed_lane_is_blocked`;
-7. `uuid_hash_change_is_blocked`;
-8. `status_hash_change_is_blocked`;
-9. `parent_hash_change_is_blocked`;
-10. `unexpected_link_count_or_mapping_hash_is_blocked`;
-11. `legitimate_source_owned_name_change_is_allowed`;
-12. `canonical_name_or_curated_field_change_is_blocked`;
-13. `malformed_cli_output_is_blocked`;
-14. `duplicate_cli_key_is_blocked`;
-15. `unexplained_reconciliation_difference_is_blocked`;
-16. `preserved_failure_does_not_get_overwritten_by_green_run`;
-17. `elapsed_time_alone_never_sets_ready`.
+1. `preview_composes_existing_green_results`;
+2. `production_requires_exact_authorization`;
+3. `all_542_typed_source_rows_resolve_to_approved_uuids`;
+4. `missing_ambiguous_or_different_mapping_blocks`;
+5. `row_counts_without_identity_proof_never_pass`.
 
 ### New circuit-breaker tests
 
@@ -682,6 +715,9 @@ Secret locations, names only:
 - GitHub Actions secrets:
   `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD_PREVIEW`, `COLDLION_API_KEY`,
   `DESIGNFLOW_API_KEY`;
+- proposed production GitHub secret `SUPABASE_DB_PASSWORD_PRODUCTION`, sourced from
+  `vibe_coding` item `Supabase DB Password - shared POP database`; it does not exist by authority
+  of this plan and may be created/used only if Step 8 explicitly approves it;
 - dflow sandbox test login in `vibe_coding`.
 
 Before trusting any tool, exercise the real read-only operation. A working `--version` does not
@@ -701,8 +737,9 @@ Target branch policy:
 
 ### Definition of done
 
-- [ ] The active 14-day/2026-08-09 gate is replaced everywhere by the concrete readiness gate.
-- [ ] Historical 14-day evidence and every failed/drill run remain preserved.
+- [x] The active 14-day/2026-08-09 documentation gate is retired in routed docs; workflow
+      contracts/static tests still belong to implementation Step 2.
+- [x] Historical 14-day evidence and every failed/drill run remain preserved.
 - [ ] The deterministic readiness evaluator passes all green and failure fixtures.
 - [ ] Production monitoring, circuit breaker, durable alerts, and recovery are proven on preview.
 - [ ] The complete cutover and rollback are rehearsed on preview.
@@ -731,7 +768,7 @@ Target branch policy:
 | Cross-entity or ambiguous match | Composite typed keys; quarantine; approved mapping hash |
 | UUID/status/parent corruption | Before/after hashes, transaction guard, circuit breaker, operational rollback |
 | Production migration backlog promoted accidentally | Detached bounded worktree; explicit allowlist; never `--include-all` |
-| Alert arrives after repeated damage | Promotion is disabled on first protected failure; health checks intensified for 24 hours |
+| Alert arrives after repeated damage | Promotion is disabled on first protected failure; hourly health plus +1h/+4h/+24h named checks; delivery drill must reach the heartbeat within 15 minutes |
 | DesignFlow removal loses parent/status source | DesignFlow deprecation explicitly out of scope |
 | False claim that all apps are production-proven | Maturity-specific evidence language is mandatory |
 | Monitoring itself parses output incorrectly | Strict real-output fixtures, duplicate-key rejection, nonzero on malformed data |
@@ -740,12 +777,9 @@ Target branch policy:
 ### Open questions
 
 No business decision is required to write or implement Steps 1–7. Step 8 intentionally remains an
-approval gate because it is the first authorization for production mutation.
-
-The implementer may discover that the existing durable alert surface cannot notify engineering
-quickly enough. If so, add the smallest durable notification path compatible with existing
-infrastructure, document its owner, and prove it with a forced-failure drill. Do not delay the
-readiness evaluator while debating a broad observability redesign.
+approval gate because it is the first authorization for production mutation. Alert delivery is no
+longer an open question: the heartbeat-within-15-minutes drill is mandatory, with Albert Hazan as
+human escalation owner; if it fails, Step 4 must add and prove the smallest durable channel.
 
 ---
 
