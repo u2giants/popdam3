@@ -20,6 +20,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe } from "../_shared/http.ts";
 
 const corsHeaders = {
@@ -93,32 +94,8 @@ function escapeSQL(val: unknown): string {
 // ── Auth helper ─────────────────────────────────────────────────────
 
 async function authorizeAdmin(req: Request): Promise<boolean> {
-  const authHeader = req.headers.get("authorization") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-
-  // Service role key (for automated calls)
-  if (serviceKey && authHeader.includes(serviceKey)) return true;
-
-  // Admin JWT
-  const token = authHeader.replace(/^Bearer\s+/i, "");
-  if (!token || token === serviceKey) return false;
-
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data: { user }, error } = await userClient.auth.getUser(token);
-  if (!user || error) return false;
-
-  const svc = createClient(supabaseUrl, serviceKey);
-  const { data: roleRow } = await svc
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("role", "admin")
-    .maybeSingle();
-  return !!roleRow;
+  const auth = await requireAdmin(req, { parseMode: "loose", allowServiceRole: true });
+  return auth.ok;
 }
 
 // ── Main handler ────────────────────────────────────────────────────

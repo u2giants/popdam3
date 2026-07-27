@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe, json } from "../_shared/http.ts";
 import { unwrapConfigString } from "../_shared/config-utils.ts";
 import { resolveMg01Code, resolveMg02Code, resolveMg03Code } from "../_shared/mg-codes.ts";
@@ -23,26 +24,11 @@ corsServe(async (req: Request) => {
 
   try {
     // ── Auth ──────────────────────────────────────────────────────────
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return json({ ok: false, error: "Missing auth" }, 401);
-    }
-    const token = authHeader.replace("Bearer ", "");
-    if (token !== serviceRoleKey) {
-      const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: authHeader } },
-      });
-      let userId: string | undefined;
-      try {
-        const { data: { user }, error } = await anonClient.auth.getUser(token);
-        if (error || !user?.id) return json({ ok: false, error: "Invalid token" }, 401);
-        userId = user.id;
-      } catch {
-        return json({ ok: false, error: "Invalid token" }, 401);
-      }
-      const { data: roleRow } = await db.from("user_roles").select("role")
-        .eq("user_id", userId).eq("role", "admin").maybeSingle();
-      if (!roleRow) return json({ ok: false, error: "Admin required" }, 403);
+    const auth = await requireAdmin(req, { parseMode: "strict", allowServiceRole: true });
+    if (!auth.ok) {
+      if (auth.reason === "missing_header") return json({ ok: false, error: "Missing auth" }, 401);
+      if (auth.reason === "invalid_token") return json({ ok: false, error: "Invalid token" }, 401);
+      return json({ ok: false, error: "Admin required" }, 403);
     }
 
     // ── Parse request body ────────────────────────────────────────────

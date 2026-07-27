@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  authenticateUser as sharedAuthenticateUser,
+  requireAdmin,
+} from "../_shared/admin-auth.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { findRunningConflict } from "../_shared/operation-constants.ts";
 import { serviceClient } from "../_shared/service-client.ts";
@@ -104,51 +108,33 @@ import {
 
 // ── Auth: JWT validation only (any authenticated user) ──────────────
 
+// Thin adapters over the shared module in _shared/admin-auth.ts — that is the
+// single place the admin rule lives. These keep this function's historical
+// return type ({userId} | Response) and its exact error strings/statuses.
+
+const ADMIN_AUTH_OPTS = {
+  parseMode: "strict",
+  allowServiceRole: true,
+  allowClaimsFallback: true, // admin-api only — see _shared/admin-auth.ts
+  roleQueryAttempts: 3, // replaces the old withRetry() around the role query
+} as const;
+
+function authFailureResponse(
+  reason: "missing_header" | "invalid_token" | "not_admin",
+): Response {
+  if (reason === "missing_header") {
+    return err("Missing or invalid Authorization header", 401);
+  }
+  if (reason === "invalid_token") return err("Invalid or expired token", 401);
+  return err("Forbidden: admin role required", 403);
+}
+
 async function authenticateUser(
   req: Request,
 ): Promise<{ userId: string } | Response> {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return err("Missing or invalid Authorization header", 401);
-  }
-
-  const token = authHeader.replace("Bearer ", "");
-
-  // Service role key bypass — allows server-to-server calls (e.g., Railway worker)
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (serviceRoleKey && token === serviceRoleKey) {
-    return { userId: "system" };
-  }
-
-  const anonClient = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } },
-  );
-
-  try {
-    let sub: string | undefined;
-    const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
-    if (userError || !user?.id) {
-      if (typeof anonClient.auth.getClaims === "function") {
-        const { data, error: claimsError } = await anonClient.auth.getClaims(token);
-        if (!claimsError && data?.claims?.sub) {
-          sub = data.claims.sub as string;
-        }
-      }
-      if (!sub) {
-        console.error("Auth failed — getUser:", userError);
-        return err("Invalid or expired token", 401);
-      }
-    } else {
-      sub = user.id;
-    }
-    console.log("Authenticated userId:", sub);
-    return { userId: sub };
-  } catch (e) {
-    console.error("Token validation error:", e);
-    return err("Invalid or expired token", 401);
-  }
+  const result = await sharedAuthenticateUser(req, ADMIN_AUTH_OPTS);
+  if (!result.ok) return authFailureResponse(result.reason);
+  return { userId: result.userId };
 }
 
 // ── Auth: JWT validation + admin role check ─────────────────────────
@@ -156,39 +142,9 @@ async function authenticateUser(
 async function authenticateAdmin(
   req: Request,
 ): Promise<{ userId: string } | Response> {
-  const authResult = await authenticateUser(req);
-  if (authResult instanceof Response) return authResult;
-  const { userId } = authResult;
-  if (userId === "system") return { userId };
-
-  // Check admin role using service client (bypasses RLS)
-  const db = serviceClient();
-  let roleRow: { role: string } | null = null;
-  let roleError: unknown = null;
-
-  try {
-    const result = await withRetry(async () => {
-      const queryResult = await db
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
-      if (queryResult.error) throw queryResult.error;
-      return queryResult;
-    });
-    roleRow = result.data as { role: string } | null;
-  } catch (e) {
-    roleError = e;
-  }
-
-  console.log("Role check for userId:", userId, "result:", JSON.stringify(roleRow), "error:", roleError);
-
-  if (!roleRow) {
-    return err("Forbidden: admin role required", 403);
-  }
-
-  return { userId };
+  const result = await requireAdmin(req, ADMIN_AUTH_OPTS);
+  if (!result.ok) return authFailureResponse(result.reason);
+  return { userId: result.userId };
 }
 
 // ── Actions accessible to any authenticated user (not admin-only) ────

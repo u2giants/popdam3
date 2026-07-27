@@ -121,6 +121,13 @@ All paths produce a Supabase JWT. Sessions are stored in `localStorage` under th
 
 ## Backend enforcement
 
-- **admin-api**: validates the Supabase JWT and checks the `user_roles` table for `admin` role
+**One shared admin check.** Every edge-function admin decision goes through `supabase/functions/_shared/admin-auth.ts` (`requireAdmin()`), which is the only place `user_roles` is queried for authorization. Its pure, unit-tested policy half is `_shared/auth-policy.ts` (`src/test/auth-policy.test.ts`). Any new admin-gated route must call `requireAdmin()` instead of hand-rolling a role lookup.
+
+- `requireAdmin()` returns a plain result object, never a `Response` — the six callers do not share a failure wire contract (some `{ok:false,error}` at 403, some a bare `{error}` at 401), so each one formats its own reply.
+- The **service-role bypass is opt-in per call site** (`allowServiceRole`). `admin-api`, `erp-sync` and the three exporters pass `true` for server-to-server callers; `helper-api`'s force-discard route passes nothing and must keep rejecting the service role key.
+- The `getClaims()` fallback is likewise opt-in (`allowClaimsFallback`) and enabled for `admin-api` only.
+- A user may legitimately hold both `user` and `admin` rows (`UNIQUE(user_id, role)`), so the shared query fetches **all** rows and never uses `.single()`.
+
+- **admin-api**: validates the Supabase JWT and checks the `user_roles` table for `admin` role, via the shared `requireAdmin()`
 - **agent-api**: uses a separate `x-agent-key` — not tied to user auth
 - **authenticate-with-authentik**: `verify_jwt = false` — it handles its own token validation via JWKS before creating the Supabase session

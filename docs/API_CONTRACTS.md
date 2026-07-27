@@ -15,7 +15,7 @@ This file is the single source of truth for request/response shapes. All endpoin
 ### admin-api
 
 - `verify_jwt = false` at gateway level (CORS preflight workaround — see KNOWN_QUIRKS.md #4)
-- Auth: user JWT + admin role, verified inside the function via `authenticateAdmin()`
+- Auth: user JWT + admin role, verified inside the function via `authenticateAdmin()`, now a thin adapter over the shared `requireAdmin()` in `supabase/functions/_shared/admin-auth.ts` (the single admin check for all six admin-gated functions — see `docs/AUTHENTICATION.md`)
 - Also accepts Supabase service role key as Bearer token for Railway worker calls (see KNOWN_QUIRKS.md #8)
 
 ---

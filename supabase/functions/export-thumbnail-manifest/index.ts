@@ -12,35 +12,13 @@
  * Auth: admin JWT or service role key.
  */
 
+import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
 
 async function authorizeAdmin(req: Request): Promise<boolean> {
-  const authHeader = req.headers.get("authorization") ?? "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-
-  if (serviceKey && authHeader.includes(serviceKey)) return true;
-
-  const token = authHeader.replace(/^Bearer\s+/i, "");
-  if (!token || token === serviceKey) return false;
-
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data: { user }, error } = await userClient.auth.getUser(token);
-  if (!user || error) return false;
-
-  const svc = serviceClient();
-  const { data: roleRow } = await svc
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("role", "admin")
-    .maybeSingle();
-  return !!roleRow;
+  const auth = await requireAdmin(req, { parseMode: "loose", allowServiceRole: true });
+  return auth.ok;
 }
 
 function escapeCSV(val: string | null): string {

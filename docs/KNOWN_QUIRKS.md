@@ -952,3 +952,36 @@ Consequences seen in production:
 Therefore PopSG tagging (`apps/worker/src/handlers/popsg-tags.ts`) must resolve licensor and
 property **by value** against `core.licensor` (name + merch-group `code`) and `core.property`
 — never by folder position — and only emits those facets on an exact match or curated alias.
+
+---
+
+## 70. `.single()` on `user_roles` Silently Denies Admins Who Hold Two Roles (fixed 2026-07-26)
+
+**File**: `supabase/functions/helper-api/index.ts` — `handleAdminForceDiscard()`
+
+**What it looked like**: a normal admin check.
+
+```ts
+const { data: role } = await db.from("user_roles").select("role")
+  .eq("user_id", userId).single();          // no .eq("role","admin")
+if (!role || role.role !== "admin") return err("Admin only", 403);
+```
+
+**Why it was a bug**: `user_roles` is `UNIQUE(user_id, role)` — one row *per role* — so a
+user may legitimately hold both `user` and `admin`. `.single()` returns a `PGRST116` **error
+result** (it does not throw) when the query matches more than one row, and destructuring only
+`data` discarded it, leaving `role === null`. Verified against production on 2026-07-26: one
+of the three PopDAM admins had two `user_roles` rows and was getting **403 "Admin only"** on
+force-discard. The other five admin checks in the codebase filtered with
+`.eq("role","admin").maybeSingle()` and were unaffected — classic copy-paste drift.
+
+**Fix**: all six admin checks now go through `_shared/admin-auth.ts` → `requireAdmin()`,
+which fetches **every** role row for the user and decides with the pure
+`rolesGrantAdmin(rows)` in `_shared/auth-policy.ts`. `.single()` is banned in this path.
+Regression guard: `src/test/auth-policy.test.ts`, *"a user holding both 'user' and 'admin' is
+an admin"*.
+
+**What breaks if you "fix" it back**: filtering the query with `.eq("role","admin")` would
+also be correct, but production would then never pass a multi-row array to the policy
+function and that regression test would guard a dead path. Deleting the duplicate row is not
+the fix either — the schema permits it.

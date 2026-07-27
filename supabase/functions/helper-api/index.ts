@@ -16,6 +16,7 @@
  *   POST  /logs                     Helper — store audit / error events
  */
 
+import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsServe, err, json } from "../_shared/http.ts";
 import { serviceClient } from "../_shared/service-client.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -679,18 +680,14 @@ async function handleLogs(req: Request): Promise<Response> {
 // ── Admin: force-unlock a checkout (admin only) ───────────────────────────────
 
 async function handleAdminForceDiscard(req: Request): Promise<Response> {
-  const userId = await getUserId(req);
-  if (!userId) return err("Unauthorized", 401);
+  // Deliberately no allowServiceRole: this force-unlock route has never
+  // accepted the service role key and must not start.
+  const auth = await requireAdmin(req, { parseMode: "strict" });
+  if (!auth.ok) {
+    return auth.reason === "not_admin" ? err("Admin only", 403) : err("Unauthorized", 401);
+  }
 
   const db = serviceClient();
-
-  // Check admin role
-  const { data: role } = await db
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .single();
-  if (!role || role.role !== "admin") return err("Admin only", 403);
 
   const body = await req.json();
   const { checkout_id } = body;
