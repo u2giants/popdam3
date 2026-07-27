@@ -188,11 +188,24 @@ Items 1–3 below are **DONE** — see the 2026-07-27 update in §2 and evidence
 6. Then plan Step 8: Albert's durable, explicit production-window approval.
 7. **Do not execute Phase 7 or Phase 8** before 4–6 are complete.
 
-One live-alert item remains outstanding from this session and is listed honestly rather than
-claimed: the alert monitor's **scheduled** delivery timing has not yet been observed, because
-GitHub only runs `schedule` triggers on the default branch. Enable repository variable
-`COLDLION_ALERT_MONITOR_ENABLED=true` on `main`, fire a drill alert, and record the observed
-delivery latency against the 15-minute target in evidence §4.7.6.
+**Alert delivery was measured and passed:** alert `821d2c5b-…` fired 2026-07-27T22:30:00Z and
+was delivered to GitHub issue **#279** at 22:41:27Z by monitor run **30311589271** — **11m27s,
+inside the 15-minute target** — with **Albert Hazan** named as human response owner in the issue
+body, the alert payload, and the workflow error annotation. The alert was acknowledged (never
+deleted), the breaker reset under authorization, and readiness re-evaluated `ready=true`.
+
+**One item is genuinely NOT yet proven, and must not be reported as if it were:** run
+30311589271 was a `workflow_dispatch`. As of 2026-07-27T23:09Z GitHub had not yet fired any
+`schedule` run of the new monitor workflow (normal for a newly added cron). So the delivery
+**mechanism** is proven; the **unattended cadence** is not. Close it with:
+
+```bash
+gh run list --repo u2giants/shared-db --workflow coldlion-licensor-property-alert-monitor.yml --json event,createdAt,conclusion,databaseId
+```
+
+Confirm at least one `"event":"schedule"` row roughly 10 minutes apart and record the interval in
+evidence §4.7.6. If GitHub cannot hold the cadence, attach the alert check as an extra job on the
+already-proven Phase 6 schedule rather than relaxing the 15-minute target.
 
 ## 7. Constraints and gotchas
 

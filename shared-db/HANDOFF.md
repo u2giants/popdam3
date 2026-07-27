@@ -606,8 +606,16 @@ applied to preview; **never edit them**.
 Alert delivery: the plan named an "existing Codex heartbeat task" — **it does not exist in this
 repo**. `.github/workflows/coldlion-licensor-property-alert-monitor.yml` (cron `*/10`, gated by
 `COLDLION_ALERT_MONITOR_ENABLED`, default off) was built as the smallest durable path: it opens a
-GitHub issue naming **Albert Hazan** as human response owner and fails red. Its **scheduled** latency
-is not yet observed, because GitHub runs `schedule` only on the default branch.
+GitHub issue naming **Albert Hazan** as human response owner and fails red. **Measured on
+2026-07-27:** alert `821d2c5b-…` fired 22:30:00Z, delivered to issue **#279** at 22:41:27Z by run
+**30311589271** — **11m27s, inside the 15-minute target**. Alert acknowledged (never deleted),
+breaker reset, readiness back to `ready=true`.
+
+**Not yet proven (do not claim it):** that run was a `workflow_dispatch`. GitHub had fired **no
+`schedule` run** of the new monitor as of 23:09Z, so the delivery *mechanism* is proven but the
+*unattended cadence* is not. Check with `gh run list --repo u2giants/shared-db --workflow
+coldlion-licensor-property-alert-monitor.yml --json event,createdAt` and record the observed
+interval in evidence §4.7.6.
 
 **Exact next action:** plan **Step 6** — verify the applications at their real maturity levels
 (DesignFlow PLM is the only fully live gate; DAM live subset only; CRM/PM are development

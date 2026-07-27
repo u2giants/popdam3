@@ -294,6 +294,41 @@ fact rather than asserted. The 10-minute cadence sits inside the 15-minute targe
 margin for GitHub queue delay. Gated by repository variable
 `COLDLION_ALERT_MONITOR_ENABLED` (default off), production ref hard-refused.
 
+**Delivery drill — measured, 2026-07-27 (post-merge on `main`)**
+
+| Step | Value |
+|---|---|
+| Monitor enabled | repository variable `COLDLION_ALERT_MONITOR_ENABLED=true` at **2026-07-27T22:29:49Z** |
+| Six pre-existing Phase 6 drill alerts | **acknowledged, never deleted** (`50ffcfc2`, `77521ad3`, `884bcab2`, `609db3fb`, `896185d4`, `7d6bfc6d`) so the drill measured only the fresh alert |
+| Alert fired | **2026-07-27T22:30:00Z** — critical alert **`821d2c5b-5fd1-4714-a4ca-274fd22a9e75`**, `failed_invariant: alert_delivery_drill`, breaker tripped (second trip event) |
+| Monitor run | **30311589271** — collected the alert, exited **red** as designed |
+| Delivered | GitHub issue **[#279](https://github.com/u2giants/shared-db/issues/279)** created **2026-07-27T22:41:27Z** |
+| **Latency** | **11 minutes 27 seconds — inside the 15-minute target** |
+| Named owner | Issue body opens `**Human response owner: Albert Hazan.**`; the alert payload, the workflow error annotation, and the readiness report all carry the same name |
+| Contents delivered | alert id, fired-at, age, severity, drill flag, failed invariant, reason, exact first response, preview project ref, run link |
+| Closeout | alert acknowledged (not deleted), breaker reset under authorization, issue #279 closed, readiness re-evaluated **`ready=true`** (health run `c6518fc2-420d-4502-9f6b-9ab131593dfe`), every protected hash still identical to the §2 baseline |
+
+**Honest remaining gap — the one thing NOT yet proven.** Run 30311589271 was a
+`workflow_dispatch`. As of **2026-07-27T23:09Z**, roughly 40 minutes after the workflow
+landed on `main`, **GitHub had not yet fired any `schedule` run of this workflow**. That
+is normal for a newly added cron (GitHub activates new schedules lazily and throttles
+`*/10` on shared runners), but it means the **delivery mechanism is proven end to end
+while the unattended scheduled cadence is not yet observed**. Do not report this as
+fully proven until it is.
+
+To close it, in one command:
+
+```bash
+gh run list --repo u2giants/shared-db \
+  --workflow coldlion-licensor-property-alert-monitor.yml \
+  --json event,createdAt,conclusion,databaseId
+```
+
+Confirm at least one `"event": "schedule"` row and that consecutive scheduled runs are
+about 10 minutes apart, then record the observed interval here. If GitHub proves unable
+to hold the cadence, the fallback is to attach the alert check as an extra job on the
+already-proven Phase 6 schedule rather than to relax the 15-minute target.
+
 #### 4.7.7 Tests
 
 | Suite | Result |
