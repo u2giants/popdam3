@@ -1171,6 +1171,24 @@ hierarchy with dated reconciliation and loud orphan handling. Production writes 
   migration versions remain absent. Bulk operations (Step 12), production delivery
   (Step 13), optional grid consolidation (Step 14), and final superseded-plan removal
   (Step 15) remain.
+- **2026-07-27 — the failing `DB Data Admin` check is fixed (PR #253, merge `0a87c20`).**
+  `npm audit --audit-level=high` had been failing on every run, including commits that
+  touched no code, with 5 high findings for `brace-expansion` (<=5.0.7,
+  GHSA-mh99-v99m-4gvg) reaching the tree through eslint 9. The fix upgrades the lint
+  toolchain only: eslint 9.39.2 -> 10.8.0, `@eslint/js` 9.39.2 -> 10.0.1,
+  typescript-eslint 8.59.2 -> 8.65.0 (first line declaring eslint 10 support),
+  eslint-plugin-react-hooks 7.0.1 -> 7.1.1, eslint-plugin-react-refresh 0.4.26 -> 0.5.3.
+  No runtime dependency, migration, or schema change.
+  **Do not "fix" this with an npm `overrides` pin on `brace-expansion@5.0.8`** — it clears
+  the audit but breaks lint, because the bundled `minimatch` calls the v4 API and eslint
+  dies with `TypeError: expand is not a function`. That path was tried and reverted.
+  react-hooks 7.1.1 adds `set-state-in-effect`, which flags two pre-existing data-loading
+  effects (`src/DataAdmin.tsx:299`, `src/LicensorTree.tsx:71`). Each carries a targeted
+  `eslint-disable-next-line` and the reason, so the rule still errors on new code; the
+  proper refactor (remount-by-`key`, which this screen cannot use until the cursor and
+  grid-state refs stop needing to survive a tab switch) is open follow-up work.
+  Verified before merge: `npm audit` 0 vulnerabilities, lint clean, build clean,
+  55/55 unit tests, and main CI green.
 
 ### 4. What did not work
 
