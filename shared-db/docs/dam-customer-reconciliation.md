@@ -91,3 +91,16 @@ Note: HomeGoods, Marshalls, TJ Maxx are already merged into one **TJX** hub cust
 2. popdam3: single `useDamCustomers()` hook → `api.dam_customer_list`; Styles
    editor writes `customer_id`; Library filter uses curated options + filters by
    `customer_id`.
+
+## 2026-07-27 preview correction
+
+The original resolver treated every comma as evidence of multiple customers.
+That correctly protected values such as `Burlington, Ross`, but incorrectly left
+five `Rooms to Go - CODE1, CODE2, CODE3` rows unlinked because those commas
+separate style codes. The bounded forward migration
+`20260727191000_dam_customer_hub_production_forward.sql` now requires a space or
+hyphen boundary after the recognized customer name/alias and permits commas
+later in the suffix. Genuine comma-separated customer names remain unlinked.
+
+Full preview and production evidence:
+[`verification/dam-customer-hub-production-forward-20260727.md`](verification/dam-customer-hub-production-forward-20260727.md).
