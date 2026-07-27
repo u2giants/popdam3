@@ -4,9 +4,11 @@
 
 **Date:** 2026-07-27
 **Status:** PSG-3 pending-only UI shell deployed and healthy; stop before PSG-4
-**Shared-db checkout:** `C:\repos\shared-db`, `main` at `78d0130`, with three verified
-closeout files modified locally because this restricted session could not write `.git` and the
-GitHub branch action was not approved
+**Shared-db remote:** `main` contains the verified closeout through direct GitHub commit
+`a4a99fa266ea6ea6ba070b3a67bf762d35bdb3b7`
+**Shared-db local checkout:** `C:\repos\shared-db` still has stale read-only Git metadata at
+`78d0130` and therefore reports the three closeout files as modified even though their clean
+bytes match remote; this restricted session could not create `.git/index.lock`
 **PopDAM checkout:** `C:\repos\popdam3`, `main`, clean at `b4bf454b`
 **Database writes / migrations / rebuilds / activation:** none
 
@@ -79,12 +81,9 @@ High, or Medium findings.
 
 ### Exact next steps
 
-1. From a normal-authority session, create branch
-   `codex/popsg-psg3-deploy-closeout-20260727`, commit `HANDOFF.md`,
-   `fix_popsg_property_taxonomy_reconciliation.md`, and
-   `docs/verification/popsg-property-reconciliation-20260727-psg3/source-hashes.json`, then open,
-   check, and merge the docs-only shared-db PR.
-   **Pass when:** `main` contains the closeout and the shared-db consumer-sync workflow is green.
+1. In a normal-authority session, reconcile the stale local shared-db Git metadata with remote
+   `main` after confirming the three local file bytes match GitHub. Do not discard unrelated work.
+   **Pass when:** `C:\repos\shared-db` is clean at the remote closeout head.
 2. Obtain Albert's explicit instruction to start PSG-4.
    **Pass when:** the current chat says to start PSG-4.
 3. Execute PSG-4 as decision-package work only: preserve the frozen proposal hash, add reviewer
