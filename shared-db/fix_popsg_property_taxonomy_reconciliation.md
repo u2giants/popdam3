@@ -793,3 +793,53 @@ file.
 PSG-1 entry instructions are in the dated README. PSG-1 must remain read-only, must enumerate the
 complete parent-scoped accepted-tag delta, must exclude unresolved Licensors from Property
 proposals, and must stop before PSG-2.
+
+---
+
+## 16. PSG-1 completion record — 2026-07-27
+
+**Status:** COMPLETE. Stop before PSG-2.
+
+The reproducible read-only extractor and dated evidence package are:
+
+- [`scripts/popsg-property-psg1-inventory.cjs`](scripts/popsg-property-psg1-inventory.cjs)
+- [`scripts/popsg-property-psg1-inventory.test.cjs`](scripts/popsg-property-psg1-inventory.test.cjs)
+- [`docs/verification/popsg-property-reconciliation-20260727-psg1/`](docs/verification/popsg-property-reconciliation-20260727-psg1/README.md)
+
+The production and preview reads ran in PostgreSQL-enforced `REPEATABLE READ READ ONLY`
+transactions and ended with `ROLLBACK`. PSG-1 made no database write, migration, canonical
+creation, rebuild, deployment, proposal, fuzzy automatic mapping, or PopDAM UI/code change.
+
+The dated production population remains 216,417 active files. Every file occurrence appears
+exactly once in the required current-behavior matrix:
+
+| Licensor | Current global Property | Active files |
+|---|---|---:|
+| Resolved | Resolved | 50,927 |
+| Resolved | Unresolved | 165,489 |
+| Unresolved | Resolved | 0 |
+| Unresolved | Unresolved | 1 |
+
+The inventory contains 372 normalized observation rows: 371 with a resolved canonical Licensor
+and one `licensor_unresolved` row. The unresolved Licensor row has no candidate Property and is
+marked ineligible for proposals. Parent-scoped exact canonical name/code matching resolves
+44,331 file occurrences across 51 inventory rows.
+
+The signed `currently-tagged-at-risk.csv` enumerates 6,961 accepted current global exact-name
+relationships that parent scoping would remove. Every one is a cross-parent global match. Its
+SHA-256 is `f3274213ad55c983e12f174bffc9cc693772f11d578a2ae78e4f99b4a5bf03b6`.
+This is evidence only. No removal is approved.
+
+All eight hard-coded Licensor aliases remain load-bearing inputs. Their occurrence and accepted
+relationship counts reproduce PSG-0. None of the 6,961 at-risk relationships comes from an
+alias-resolved Licensor observation.
+
+The moving ColdLion checkpoint remains Phase 6 **IN PROGRESS** on preview. Counts remain 26/256
+canonical and 44/516 mirror. The latest non-drill observation
+`16373e68-6f72-43ad-8219-7c999799675d` passes every gate with zero unexplained differences.
+The later failed observation is still the marked forced-failure drill. Production remains
+untouched by ColdLion Phase 6.
+
+PSG-2 is not authorized by this completion record. A fresh PSG-2 session must start from the
+dated PSG-1 README, verify its hashes, recheck the moving ColdLion status, and treat the 6,961-row
+signed delta as an immutable input.

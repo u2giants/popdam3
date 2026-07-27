@@ -1,6 +1,6 @@
 # HANDOFF — shared-db current state
 
-## FRESH-SESSION BOUNDARY — PopSG Property reconciliation PSG-0 COMPLETE
+## FRESH-SESSION BOUNDARY — PopSG Property reconciliation PSG-1 COMPLETE
 
 ### 1. What this application is
 
@@ -11,93 +11,102 @@ catalogue used by PopSG and every other POP application.
 
 ### 2. What this session set out to do, and why
 
-Albert approved PSG-0 evidence work only from
+Albert asked for PSG-1 evidence work only from
 [`fix_popsg_property_taxonomy_reconciliation.md`](fix_popsg_property_taxonomy_reconciliation.md).
-The goal was to freeze the rollback baseline, alias blast radius, normalization contract, repo
-state, and current ColdLion checkpoint before any mapping or implementation work.
+The goal was to build a reproducible read-only inventory, balance every active file in the
+required 2×2 matrix, enumerate the accepted tags threatened by safe parent scoping, measure the
+eight Licensor aliases, and stop before proposals or implementation.
 
 ### 3. Current state
 
-PSG-0 is complete. The authoritative package is
-[`docs/verification/popsg-property-reconciliation-20260726/`](docs/verification/popsg-property-reconciliation-20260726/README.md).
+PSG-1 is complete. The authoritative package is
+[`docs/verification/popsg-property-reconciliation-20260727-psg1/`](docs/verification/popsg-property-reconciliation-20260727-psg1/README.md).
 
-- Production was remeasured read-only: 216,417 active files, 216,201 raw Property values,
-  165,274 unresolved, 76.4446%, 26 Licensors, 256 Properties.
-- Completed deterministic run `37lo38wrj6d` processed the full active population with zero
-  failures.
-- The rollback snapshot contains 111,011 accepted Property relationships.
-- Manual Property relationships: 0. Rejected Property relationships: 0.
-- Immutable manual/rejected relationship-ID arrays exist and are hashed.
-- All eight `LICENSOR_ALIASES` are inventoried with occurrence counts, canonical parent, raw
-  Property observations, and accepted-tag blast radius.
-- `PROPERTY_ALIASES=[]` is frozen separately.
-- Normalization contract `popsg-property-observation-v1` and its fixture corpus are frozen.
+- Production still has 216,417 active files. The count did not drift from PSG-0.
+- The 2×2 current-behavior matrix balances exactly to all 216,417 active files.
+- Cells are 50,927 resolved/resolved, 165,489 resolved/unresolved, 0 unresolved/resolved, and
+  1 unresolved/unresolved.
+- The inventory has 372 normalized rows. One row has an unresolved Licensor and no candidates.
+- Parent-scoped exact name/code matching safely resolves 44,331 file occurrences in 51 rows.
+- `currently-tagged-at-risk.csv` contains all 6,961 accepted global exact-name relationships
+  that parent scoping would remove. All are cross-parent matches.
+- The signed at-risk SHA-256 is
+  `f3274213ad55c983e12f174bffc9cc693772f11d578a2ae78e4f99b4a5bf03b6`.
+- All eight Licensor alias counts reproduce PSG-0. None contributes an at-risk relationship.
+- The extractor has a unit test and exports no full path or filename.
+- `source-hashes.json` verifies every PSG-1 output plus the extractor, test, normalizer, and
+  PopDAM worker source.
 - ColdLion Phase 6 remains IN PROGRESS on preview. The latest non-drill comparison passed.
   Forced-failure drill rows are correctly marked. Production remains untouched by Phase 6.
-- PSG-0 changed no PopDAM file and caused zero database writes.
+- PSG-1 changed no PopDAM file and caused zero database writes.
 
 ### 4. Everything tried that did not work
 
-- The pasted request used `/worksp` Linux paths. This Windows session uses the corresponding
-  `C:\repos\shared-db` and `C:\repos\popdam3` checkouts.
-- The initial checkout was behind GitHub, so the new plan and PopDAM worker appeared absent.
-  Fast-forward pulls supplied them without conflict.
-- The first observation aggregate multiplied file counts when files had multiple accepted
-  Property relationships. It was discarded and rerun with one pre-aggregated row per file. The
-  corrected result exactly matches the prior production baseline.
-- The preview Secure Note uses field `DB_PASSWORD`, not `password`. The corrected read used the
-  documented `DB_*` fields without printing values.
+- The first preview secret reference used the long item title. Parentheses made that reference
+  fail parsing. The final run used the stable 1Password item ID and printed no secret.
+- The first preview query assumed parent columns on `plm.erp_property`. ColdLion does not supply
+  the parent relationship, so those columns do not exist. The final extractor uses only an
+  already-linked canonical Property to obtain parent evidence.
+- The first status query used friendly field names instead of the real Phase 6 column names.
+  The final query uses `pass`, `unexplained_diff_count`, `finished_at`, and `metadata.mode`.
+- Each failed database attempt was inside a read-only transaction and ended without a write.
 
 ### 5. Root causes and key findings
 
-- Current Property matching is global and name-only. The worker does not load Property codes.
-- The exact prior baseline remains current; no dated count drift occurred.
-- The eight Licensor aliases are load-bearing for 62,941 active files. Nickelodeon and Viacom
-  currently have zero observations but remain code authority until explicitly reviewed.
-- Accepted Property relationships total 111,011, which is larger than files carrying accepted
-  Property tags because some files have more than one accepted Property relationship.
-- Production migration backlog contains 18 files. PSG-0 added none.
-- Preview Phase 6 has 44/516 ColdLion mirror rows, six observations, and six drill alerts.
+- Current Property matching is global and name-only. It resolves 50,927 file occurrences.
+- Safe parent-scoped name/code matching resolves 44,331 occurrences. The difference is explained
+  by the signed 6,961 accepted cross-parent relationships plus code/name behavior details.
+- The only unresolved Licensor observation is a one-file `seafile-ignore.txt` structural row
+  with a blank Property. It is excluded from all candidate evidence and proposals.
+- The eight hard-coded aliases resolve 62,941 active files and remain business authority until
+  Albert reviews them.
+- Production still has 318 migration ledger versions and 336 repo migration files. There are no
+  duplicate 14-digit versions. PSG-1 added no migration.
+- Preview Phase 6 remains at 44 ColdLion Licensors and 516 ColdLion Properties.
 
 ### 6. Exact next steps
 
-1. Start a fresh PSG-1 session with the copy-paste prompt at the end of the dated README.
-   **Pass when:** all nine authority files and every PSG-0 hash are verified.
-2. Recheck Git/PR/migration and ColdLion moving state.
-   **Pass when:** the new README records the exact current state and any dated drift.
-3. Build the read-only PSG-1 inventory and required 2×2 matrix.
-   **Pass when:** every active file occurrence appears exactly once.
-4. Produce `currently-tagged-at-risk.csv`.
-   **Pass when:** every accepted global Property tag that parent scoping would remove is present
-   with no unexplained loss.
-5. Stop before PSG-2.
-   **Pass when:** no proposal activation, schema, database write, rebuild, deployment, or UI work
-   occurred.
+1. Start PSG-2 only in a fresh session after Albert asks for it.
+   **Pass when:** the new session reads all authorities and the PSG-1 README.
+2. Verify every PSG-1 artifact against `source-hashes.json`.
+   **Pass when:** all eight artifact hashes and four source-file hashes match.
+3. Recheck Git, PRs, migration versions, and the moving ColdLion Phase 6 header.
+   **Pass when:** any dated change is recorded before proposals are built.
+4. Treat `currently-tagged-at-risk.csv` as immutable input.
+   **Pass when:** its SHA-256 remains
+   `f3274213ad55c983e12f174bffc9cc693772f11d578a2ae78e4f99b4a5bf03b6`.
+5. Build PSG-2 proposals in the strict plan order without activating anything.
+   **Pass when:** unresolved Licensors have zero proposals and every resolved tuple has one
+   proposed disposition.
 
 ### 7. Constraints and gotchas
 
-No mapping batch, fuzzy automatic mapping, canonical creation, preview/production write,
-migration, rebuild, deployment, or PopDAM edit is authorized. Unresolved Licensors are never
-valid Property tuples. PSG-5 needs a fresh ColdLion checkpoint and Albert's sign-off. PSG-6
-cannot overlap ColdLion Phase 7.
+No proposal activation, fuzzy automatic mapping, canonical creation, preview/production write,
+migration, rebuild, deployment, or PopDAM UI change occurred or is authorized by PSG-1.
+Shared-token candidate rows are review evidence only. Unresolved Licensors are never valid
+Property tuples. PSG-5 needs a fresh ColdLion checkpoint and Albert's sign-off. PSG-6 cannot
+overlap ColdLion Phase 7.
 
 ### 8. Access and environment
 
-Shared-db branch: `codex/popsg-property-psg0-20260726`. PopDAM remained clean on `main`.
+Shared-db branch: `codex/popsg-property-psg1-20260727`. PopDAM remained clean on `main`.
 Production ref: `qsllyeztdwjgirsysgai`. Preview ref: `rjyboqwcdzcocqgmsyel`. Credentials are in
 1Password vault `vibe_coding`; no value was printed or committed. Production and preview reads
-used PostgreSQL-enforced read-only transactions and ended with rollback.
+used PostgreSQL-enforced `REPEATABLE READ READ ONLY` transactions and ended with rollback.
+The `pg@8.16.3` package was installed only in the Windows temp folder
+`C:\Users\ahazan2\AppData\Local\Temp\codex-psg1-pg`.
 
 ### 9. Open questions and risks
 
-PSG-1 must measure the signed accepted-tag delta caused by Licensor scoping. Albert has not
-approved any alias disposition, mapping, create candidate, schema, or rebuild. ColdLion
-accelerated readiness remains a moving parallel workstream and must be rechecked.
+Albert has not approved any alias disposition, mapping, create candidate, schema, tag removal,
+or rebuild. The 6,961-row signed delta is risk evidence, not approval. Shared-token candidates
+are not safe matches. ColdLion accelerated readiness remains a moving parallel workstream and
+must be rechecked before every later PSG phase.
 
 ### Handoff self-audit
 
-Passed on 2026-07-26. A fresh developer can identify the applications, purpose, exact state,
-failed attempts, findings, constraints, access path, risks, and executable PSG-1 entry gates
+Passed on 2026-07-27. A fresh developer can identify the applications, purpose, exact state,
+failed attempts, findings, constraints, access path, risks, and executable PSG-2 entry gates
 without chat history.
 
 ## CURRENT PRIORITY — ColdLion Licensor/Property accelerated readiness IN PROGRESS

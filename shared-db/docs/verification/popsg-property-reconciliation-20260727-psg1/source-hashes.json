@@ -1,0 +1,59 @@
+{
+  "candidate-evidence.csv": {
+    "sha256": "dbedf50bb35959785588865a84cd65b65da180f37704a36853d9ec5426d48576",
+    "bytes": 74321
+  },
+  "currently-tagged-at-risk.csv": {
+    "sha256": "f3274213ad55c983e12f174bffc9cc693772f11d578a2ae78e4f99b4a5bf03b6",
+    "bytes": 2220874
+  },
+  "inventory.csv": {
+    "sha256": "97feb1fe91ae0632e27dd4574d955af0bd58c156e3f9c07d8bf99347f0719e8b",
+    "bytes": 242605
+  },
+  "licensor-alias-blast-radius.csv": {
+    "sha256": "55f2b6124a6e472183b7ad0c2f1a836cf8e9f330afea91e51575a9956672b13b",
+    "bytes": 4555
+  },
+  "licensor-property-resolution-matrix.json": {
+    "sha256": "51af74452a0859de945b47886cdade7b058e412342f900dcbc4675aa1567a42c",
+    "bytes": 433
+  },
+  "README.md": {
+    "sha256": "05bbdd56cc5f0138f552a54cd36ec6ca572125aa61ee4c37573fd5157ed701ba",
+    "bytes": 4536
+  },
+  "summary.json": {
+    "sha256": "f5a51d8ea753cc51457bdb9f27b55917f28f8346f54b9e07e32e341739d19f20",
+    "bytes": 2358
+  },
+  "top-unresolved.csv": {
+    "sha256": "9fd41809143b0ce6137fd54036784e576698f5b69985cd6660ca6c633f95abdb",
+    "bytes": 62886
+  },
+  "inputs": {
+    "production_project_ref": "qsllyeztdwjgirsysgai",
+    "preview_project_ref": "rjyboqwcdzcocqgmsyel",
+    "production_transaction": "REPEATABLE READ READ ONLY then ROLLBACK",
+    "preview_transaction": "REPEATABLE READ READ ONLY then ROLLBACK",
+    "normalizer_contract": "popsg-property-observation-v1",
+    "source_files": {
+      "shared-db/scripts/popsg-property-psg1-inventory.cjs": {
+        "sha256": "aa4043d573b7a3a0e366f0c39ae547887ebe710504f98d05ec96d395b4c806b9",
+        "bytes": 34678
+      },
+      "shared-db/scripts/popsg-property-psg1-inventory.test.cjs": {
+        "sha256": "2ac76cf402ae181e4c6a293307ff7bf2abeb91273fdc0f5d3db9572eec2fb427",
+        "bytes": 1047
+      },
+      "shared-db/docs/verification/popsg-property-reconciliation-20260726/normalization-contract-v1.md": {
+        "sha256": "90eb6b1b319c1ecb27ae98a50eba06fbc3b37974238d8808accb055a21fed3ad",
+        "bytes": 1981
+      },
+      "popdam3/apps/worker/src/handlers/popsg-tags.ts": {
+        "sha256": "1fe0f7214cabf15bd0cd5035c95897d40f18c8990172fa394bfb654c796f2ce3",
+        "bytes": 27756
+      }
+    }
+  }
+}
