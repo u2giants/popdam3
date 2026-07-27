@@ -1,7 +1,3 @@
-Exit code: 0
-Wall time: 2.4 seconds
-Total output lines: 1003
-Output:
 # PopSG Property taxonomy reconciliation — unified bounded plan
 
 **Status:** PLAN ONLY — no schema, data, application, or production changes are
