@@ -127,10 +127,29 @@ evaluation; it does **not** establish cutover readiness without the other accele
 | Scheduled date (UTC) | Workflow run | Exact schedule / lane | Result | Preview DB evidence | Qualifying-date ruling |
 |---|---|---|---|---|---|
 | **2026-07-26** | **30217172947** | `15 */6 * * *` / health | **PASS**; preview guard, schedule gate, 98 offline tests, preview link, and health step all passed; DesignFlow, ColdLion, comparison, and drills correctly skipped | non-drill health **`c738beac-fd63-44ae-9a90-5a67576c61aa`**; `ok:true`; `issues:[]`; ColdLion run `9b0b9f1c-f4b6-46b4-ba8a-4f1320470b4b`; DesignFlow run `0a3c5474-2f33-49a4-926a-ef888ddbb826`; latest non-drill observation `16373e68-6f72-43ad-8219-7c999799675d`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It proves health routing, not full accelerated readiness. |
+| **2026-07-27** | **30236047002** | `15 */6 * * *` / health | **PASS**; preview guard, 98 offline tests, preview link, and health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`0f971d44-6355-4f28-9a3f-9295db84a248`**; `ok:true`; `issues:[]`; prior ColdLion run `9b0b9f1c-f4b6-46b4-ba8a-4f1320470b4b`; prior DesignFlow run `0a3c5474-2f33-49a4-926a-ef888ddbb826`; refs/links **542 / 38 / 504** | **Supporting evidence only.** Health remained green before the day's source lanes. |
+| **2026-07-27** | **30243839143** | `30 3 * * *` / DesignFlow | **PASS**; DesignFlow preview sync completed; other lanes correctly skipped | sync run **`e14de3e0-c9a0-4730-b205-bdad5df9bb4e`**; licensors/properties/customers seen **37 / 468 / 57**; raw records upserted **562** | **Partial evidence.** One source lane passed; this run alone does not prove readiness. |
+| **2026-07-27** | **30246402428** | `0 4 * * *` / ColdLion `mirror_only` | **PASS**; ColdLion preview mirror completed; DesignFlow, comparison, health, and drills correctly skipped | sync run **`295ac8fb-d8f5-4017-9292-0449789990bf`**; rows **560**; inserted/updated/unchanged **0 / 0 / 560**; licensors/properties **44 / 516**; divisions **2**; cross-entity collisions **30**; snapshot hash **`a69332e05d9064723ffa1dfbd870506c`** | **Partial evidence.** The mirror was unchanged and successful, but this run alone does not prove readiness. |
+| **2026-07-27** | **30249661878** | `0 5 * * *` / daily comparison | **PASS**; complete scheduled DesignFlow + ColdLion pairing passed comparison with no unexplained differences | observation **`c72852e3-428b-4716-abcb-823bac769505`**; comparison run **`544f6995-82f1-457e-aa3a-552e784cec6e`**; `pass:true`; `diffs:[]`; `unexplained_diff_count:0`; baseline, both source lanes, link checks, and immutability all true; canonical licensors/properties **26 / 256**; linked rows **38 / 504**; ColdLion refs **542**; DesignFlow refs **505**; hashes recorded for licensor UUID/status, property UUID/status, parent edges, source refs, and overall status | **Strong §9.4 evidence, not readiness.** It proves a green complete scheduled cycle and protected hashes for this observation. It does not prove exact 542-row mapping identity, breaker/alert delivery, or rollback. |
+| **2026-07-27** | **30256960304** | `15 */6 * * *` / health | **PASS**; post-comparison preview health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`3dcc1598-345e-4ca3-b18d-06bab47e2bf1`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the completed cycle remained healthy. |
+| **2026-07-27** | **30279033321** | `15 */6 * * *` / health | **PASS**; later preview health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`27083aaf-4936-41bf-b09b-00b31e9294de`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no health regression later in the day. |
 
 The workflow checked out `a14fefc9459a3ff8c74ea21c55e58230c47a4296`, resolved the
 exact health cron rather than wall-clock time, displayed preview project
 `rjyboqwcdzcocqgmsyel`, and refused production identity. Production was not accessed.
+
+The six 2026-07-27 runs checked out `b97e9537aa9e748bd297d27894a1fb949ebea69b`
+through the comparison and first post-comparison health check; the later health run checked out
+`ad34051ae303d37b2f164974153e9449d6adbc4d`. Every run passed the preview-only
+identity guard. Skipped lanes above were expected because each cron selects exactly one lane.
+No failed, partial, parser-error, or drill run occurred in this monitoring window.
+
+**Deterministic-readiness ruling at 2026-07-27T15:14:54Z:** **NOT READY.** The
+scheduled source pair, comparison, protected hashes, zero unexplained differences, and repeated
+health checks are proven. The accelerated plan still requires exact row-by-row identity for all
+542 approved typed mappings rather than count/hash evidence alone, plus circuit-breaker behavior,
+actual alert delivery to the named responder, and a rehearsed rollback. This entry does not
+authorize production work or Phase 7.
 
 ### 4.6 Secrets and schedule (ACTIVE)
 
