@@ -2202,6 +2202,92 @@ export type Database = {
         }
         Relationships: []
       }
+      style_guide_file_tags: {
+        Row: {
+          confidence: number
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          evidence: Json
+          facet: string
+          id: string
+          inherited: boolean
+          rule_version: string
+          source: string
+          source_file_id: string | null
+          status: string
+          style_guide_file_id: string
+          tag_id: string
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          evidence?: Json
+          facet?: string
+          id?: string
+          inherited?: boolean
+          rule_version?: string
+          source: string
+          source_file_id?: string | null
+          status?: string
+          style_guide_file_id: string
+          tag_id: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          evidence?: Json
+          facet?: string
+          id?: string
+          inherited?: boolean
+          rule_version?: string
+          source?: string
+          source_file_id?: string | null
+          status?: string
+          style_guide_file_id?: string
+          tag_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_file_tags_source_file_id_fkey"
+            columns: ["source_file_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_guide_file_tags_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "style_guide_file_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_file_tags_display"
+            referencedColumns: ["tag_id"]
+          },
+          {
+            foreignKeyName: "style_guide_file_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_guide_files: {
         Row: {
           basename_no_ext: string
@@ -2222,6 +2308,8 @@ export type Database = {
           root_label: string
           size_bytes: number | null
           style_guide_folder: string | null
+          tag_names: string[]
+          tag_search_text: string
           thumbnail_error: string | null
           thumbnail_url: string | null
         }
@@ -2244,6 +2332,8 @@ export type Database = {
           root_label: string
           size_bytes?: number | null
           style_guide_folder?: string | null
+          tag_names?: string[]
+          tag_search_text?: string
           thumbnail_error?: string | null
           thumbnail_url?: string | null
         }
@@ -2266,6 +2356,8 @@ export type Database = {
           root_label?: string
           size_bytes?: number | null
           style_guide_folder?: string | null
+          tag_names?: string[]
+          tag_search_text?: string
           thumbnail_error?: string | null
           thumbnail_url?: string | null
         }
@@ -2325,6 +2417,143 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      style_guide_tag_aliases: {
+        Row: {
+          alias: string
+          created_at: string
+          created_by: string
+          id: string
+          normalized_alias: string
+          scope: Json | null
+          tag_id: string
+        }
+        Insert: {
+          alias: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          normalized_alias: string
+          scope?: Json | null
+          tag_id: string
+        }
+        Update: {
+          alias?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          normalized_alias?: string
+          scope?: Json | null
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_tag_aliases_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_file_tags_display"
+            referencedColumns: ["tag_id"]
+          },
+          {
+            foreignKeyName: "style_guide_tag_aliases_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_guide_tagging_state: {
+        Row: {
+          accepted_count: number
+          attempt_count: number
+          candidate_count: number
+          completed_at: string | null
+          error_code: string | null
+          error_detail: string | null
+          input_fingerprint: string | null
+          pipeline: string
+          rule_version: string | null
+          started_at: string | null
+          status: string
+          style_guide_file_id: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_count?: number
+          attempt_count?: number
+          candidate_count?: number
+          completed_at?: string | null
+          error_code?: string | null
+          error_detail?: string | null
+          input_fingerprint?: string | null
+          pipeline: string
+          rule_version?: string | null
+          started_at?: string | null
+          status?: string
+          style_guide_file_id: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_count?: number
+          attempt_count?: number
+          candidate_count?: number
+          completed_at?: string | null
+          error_code?: string | null
+          error_detail?: string | null
+          input_fingerprint?: string | null
+          pipeline?: string
+          rule_version?: string | null
+          started_at?: string | null
+          status?: string
+          style_guide_file_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_tagging_state_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      style_guide_tags: {
+        Row: {
+          created_at: string
+          display_name: string
+          facet: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          normalized_tag: string
+          tag: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          facet?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          normalized_tag: string
+          tag: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          facet?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          normalized_tag?: string
+          tag?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       style_tracker_audit_log: {
         Row: {
@@ -2647,6 +2876,28 @@ export type Database = {
         }
         Relationships: []
       }
+      style_guide_file_tags_display: {
+        Row: {
+          confidence: number | null
+          confirmed: boolean | null
+          display_name: string | null
+          facet: string | null
+          manual: boolean | null
+          sources: Json | null
+          style_guide_file_id: string | null
+          tag: string | null
+          tag_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "style_guide_file_tags_style_guide_file_id_fkey"
+            columns: ["style_guide_file_id"]
+            isOneToOne: false
+            referencedRelation: "style_guide_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_guide_folders: {
         Row: {
           licensor_name: string | null
@@ -2743,6 +2994,15 @@ export type Database = {
       }
     }
     Functions: {
+      add_style_guide_manual_tag: {
+        Args: { p_facet?: string; p_file_id: string; p_tag: string }
+        Returns: {
+          display_name: string
+          facet: string
+          tag: string
+          tag_id: string
+        }[]
+      }
       add_style_tracker_rows: {
         Args: {
           p_count?: number
@@ -2984,6 +3244,36 @@ export type Database = {
       }
       get_sg_preview_stats: { Args: never; Returns: Json }
       get_sg_render_queue_stats: { Args: never; Returns: Json }
+      get_style_guide_deterministic_tag_batch: {
+        Args: { p_after_id?: string; p_limit?: number; p_rebuild?: boolean }
+        Returns: {
+          directory_path: string
+          file_extension: string
+          filename: string
+          id: string
+          input_fingerprint: string
+          licensor_name: string
+          property_folder: string
+          relative_path: string
+          style_guide_folder: string
+        }[]
+      }
+      get_style_guide_deterministic_tag_batch_v2: {
+        Args: { p_after_id?: string; p_limit?: number; p_rebuild?: boolean }
+        Returns: {
+          directory_path: string
+          file_extension: string
+          filename: string
+          id: string
+          input_fingerprint: string
+          licensor_name: string
+          property_folder: string
+          relative_path: string
+          root_label: string
+          style_guide_folder: string
+        }[]
+      }
+      get_style_guide_tagging_stats: { Args: never; Returns: Json }
       has_app_access: {
         Args: {
           _app: Database["public"]["Enums"]["app_name"]
@@ -3013,6 +3303,7 @@ export type Database = {
         Returns: boolean
       }
       normalize_for_sg_match: { Args: { p: string }; Returns: string }
+      normalize_style_guide_tag: { Args: { p_value: string }; Returns: string }
       parse_pdf_files_used: { Args: { p_asset_id: string }; Returns: number }
       propagate_group_tags_batch: {
         Args: { p_batch_size?: number; p_cursor?: string }
@@ -3074,6 +3365,23 @@ export type Database = {
         Args: { p_style_group_id: string }
         Returns: undefined
       }
+      refresh_style_guide_file_tag_cache: {
+        Args: { p_file_id: string }
+        Returns: undefined
+      }
+      refresh_style_guide_folder_consensus_batch: {
+        Args: {
+          p_after_key?: string
+          p_limit_folders?: number
+          p_rule_version?: string
+        }
+        Returns: {
+          done: boolean
+          folders_processed: number
+          next_cursor: string
+          relationships_written: number
+        }[]
+      }
       refresh_style_guide_matviews: { Args: never; Returns: undefined }
       refresh_style_tracker_item_bridge: {
         Args: never
@@ -3082,6 +3390,27 @@ export type Database = {
           total_count: number
           updated_count: number
         }[]
+      }
+      reject_style_guide_auto_tag: {
+        Args: { p_file_id: string; p_tag_id: string }
+        Returns: number
+      }
+      remove_style_guide_manual_tag: {
+        Args: { p_file_id: string; p_tag_id: string }
+        Returns: boolean
+      }
+      replace_style_guide_deterministic_tags: {
+        Args: {
+          p_file_id: string
+          p_input_fingerprint: string
+          p_rule_version: string
+          p_tags: Json
+        }
+        Returns: number
+      }
+      replace_style_guide_folder_consensus_tags: {
+        Args: { p_file_id: string; p_rule_version: string; p_tags: Json }
+        Returns: number
       }
       requeue_all_failed_sg_jobs: {
         Args: { p_limit?: number }
@@ -3156,6 +3485,16 @@ export type Database = {
       set_style_group_cover: {
         Args: { p_asset_id: string; p_group_id: string }
         Returns: undefined
+      }
+      style_guide_tag_input_fingerprint: {
+        Args: {
+          p_file_extension: string
+          p_filename: string
+          p_modified_at: string
+          p_relative_path: string
+          p_size_bytes: number
+        }
+        Returns: string
       }
       sync_coldlion_vendors: {
         Args: { vendors_payload: Json }
