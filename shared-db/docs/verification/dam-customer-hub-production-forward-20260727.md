@@ -141,29 +141,92 @@ Claude's non-blocking observations were:
 The migration checks the trigger is enabled before succeeding, and production
 verification repeats that check immediately after apply.
 
-## Production rollout plan
-
-1. Merge the shared-db PR only after static checks, preview evidence, and Claude
-   PASS.
-2. Build a disposable runner containing the exact production ledger plus only
-   `20260727191000_dam_customer_hub_production_forward.sql`.
-3. Require the dry run to list exactly that one file.
-4. Apply it.
-5. Verify real functions, columns, aliases, customer links, trigger state,
-   signed-in DAM facets/programs, and CRM/PM picker contracts.
-6. Mark only preview-rehearsal version `20260727190000` applied after the
-   production-safe `20260727191000` effects are verified. Do not rerun or repair
-   `20260722210100` or `20260722222000`; PR #268 already cleared them.
-7. Recompute the exact production backlog. It must remain exactly the six held
-   ColdLion versions.
-
 ## Production evidence
 
-Pre-apply baseline:
+### Bounded promotion
 
-- ledger already contains `20260722210100` and `20260722222000` (PR #268);
-- the production resolver does not yet resolve the Rooms-to-Go code-list value;
-- exactly five Rooms-to-Go rows remain unlinked;
-- `trg_style_tracker_row_audit` is enabled.
+Shared-db PR
+[#269](https://github.com/u2giants/shared-db/pull/269) merged as
+`20565edd7001c855915199bed1754a642b0e889b` after its validation workflow
+`30300535181` passed.
 
-Apply and post-apply evidence pending.
+The disposable production runner contained:
+
+- all 333 versions in the production migration ledger;
+- only the approved new production migration,
+  `20260727191000_dam_customer_hub_production_forward.sql`.
+
+The runner contained 334 migration files total. All other repository-pending
+files, including the ColdLion migrations and preview-only `20260727190000`,
+were physically absent. The production dry run listed exactly:
+
+```text
+20260727191000_dam_customer_hub_production_forward.sql
+```
+
+No `--include-all` option was used. The apply completed successfully.
+
+### Database contracts and data
+
+Post-apply production verification proved:
+
+- installed signatures are `dam_resolve_customer(text)`,
+  `get_dam_customer_facets()`, and `get_path_facets(uuid)`;
+- legacy `get_path_facets(text)` is absent;
+- `trg_style_tracker_row_audit` is enabled (`tgenabled = O`);
+- all five Rooms-to-Go style-code rows are linked;
+- current linked coverage across `style_groups`, `assets`, and
+  `style_tracker_rows` is 56,082 of 58,273 nonblank rows;
+- the remaining 2,191 unmatched rows span the same 20 approved names;
+- CVS has 115/115 current rows linked, Costco 95/95, and Meijer 38/38;
+- the Rooms-to-Go code-list value resolves, while `Burlington, Ross` and
+  `TJX, HomeGoods` remain null;
+- the full rollback-only DAM customer-hub SQL test passed.
+
+### Signed-in and live-app behavior
+
+Authenticated production contract checks returned:
+
+- `api.dam_customer_list`: 155 rows;
+- CVS, Costco, and Meijer visible: 3/3;
+- Library customer facets: 39;
+- all-customer programs: 124;
+- CVS-scoped programs: exactly `2026` with count 8;
+- `api.crm_customer_picker_list`: 155 rows;
+- `api.pm_customer_list`: 155 rows.
+
+A signed-in browser check at `https://dam.designflow.app/library` verified the
+deployed frontend build `b4bf454`:
+
+- the customer picker showed CVS with 107 Library records;
+- selecting CVS scoped the Program picker to only `2026`;
+- selecting `2026` showed its expected count of 8;
+- a clean reload produced zero console errors or warnings.
+
+Four earlier console errors were retained in the browser session from a
+pre-check load (`assets` and `get_filter_counts`, twice each). They did not
+recur on a clean navigation, and the customer/program selections and counts
+loaded successfully.
+
+### Ledger closure and remaining backlog
+
+The original versions `20260722210100` and `20260722222000` were already
+recorded by shared-db PR
+[#268](https://github.com/u2giants/shared-db/pull/268). After verifying the real
+production effects, the preview-rehearsal version `20260727190000` was marked
+applied without executing it, and the final production ledger contains both
+`20260727190000` and `20260727191000`.
+
+The exact remaining production backlog is six untouched ColdLion migrations:
+
+```text
+20260724060000
+20260724061000
+20260726030000
+20260726031000
+20260726032000
+20260726180000
+```
+
+Both requested old DAM versions are cleared. No ColdLion or other taxonomy
+migration was applied, repaired, or otherwise changed by this rollout.
