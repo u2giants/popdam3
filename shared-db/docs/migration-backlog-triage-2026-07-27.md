@@ -1,7 +1,12 @@
 # Production migration backlog triage — 2026-07-27
 
 **Database:** production `qsllyeztdwjgirsysgai` (PopDAM / PopSG, Virginia)
-**Written for:** Albert. Analysis only — **nothing was applied to production in this session.**
+**Written for:** Albert.
+
+> **UPDATE — 2026-07-27, same day.** Albert approved the KEEP set and it was
+> **promoted to production**. All three applied cleanly as no-ops (Postgres reported
+> "already exists, skipping" for every object). The remaining backlog is now **only the
+> six ColdLion files**, which is the intended state. See section 7 for the evidence.
 
 ---
 
@@ -107,7 +112,36 @@ objects in production.
 
 ---
 
-## 7. Two things worth recording
+## 7. Promotion record — 2026-07-27
+
+Done exactly as section 5 describes.
+
+- Temp checkout `git worktree add --detach C:\tmp\mig-promote-20260727 origin/main`;
+  **only the six ColdLion files deleted** from it.
+- **Correction to the recipe in section 5:** do *not* delete the already-applied files.
+  The CLI compares the local folder against the whole ledger and aborts with "remote
+  migration versions not found in local migrations directory." Delete only the pending
+  files you are *not* promoting.
+- With that smaller set, `supabase db push --dry-run` listed exactly the three KEEP files
+  and told us to rerun with `--include-all`. **In a bounded temp checkout that is the
+  correct and safe use of the flag** — the ColdLion files are not present, so it cannot
+  reach them. The `--include-all` dry run confirmed the same three names before pushing.
+- Apply output: `SET LOCAL` warning outside a transaction (harmless), `customer_id already
+  exists, skipping` on both tables, both indexes already present, and
+  `get_path_facets(text) does not exist, skipping`. Zero functional change, as predicted.
+
+Verified afterwards in production:
+
+- `public.get_path_facets(p_customer_id uuid)`, `public.get_dam_customer_facets()`,
+  `public.dam_resolve_customer(p_text text)` all present.
+- Miller Coors / Anheuser Busch / NFL / Ford / NCAA = `potential`; NASA still `active`.
+- Ledger now contains `20260722210100`, `20260722222000`, `20260724050000`.
+- Both Master Data audit triggers re-enabled; the `style_tracker_rows` INSERT and UPDATE
+  policies still check `true` — the open write policy of AGENTS §0.4 is intact.
+- Remaining pending set re-derived: exactly the six ColdLion files, nothing else.
+- Temp worktree removed.
+
+## 8. Two things worth recording
 
 - **The style-tracker pair is closed.** `20260726190000_..._restrict_writes.sql` and
   `20260726200000_..._restore_open_writes.sql` are **both recorded as applied** in
