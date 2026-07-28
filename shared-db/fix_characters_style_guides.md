@@ -203,13 +203,23 @@ merged migrations plus this one, with nothing on preview that was missing from t
    migrations (readiness evaluator, circuit breaker, verifier cast fix) to **preview** on
    2026-07-27 and ran monitor cycles on 2026-07-28. ColdLion is actively mid-flight on the same
    preview database this plan now uses.
-2. **Phase 3 has a new sequencing exposure that §8 does not cover.** §8 only forbids landing
-   **Phase 5** (production apply) in the same window as ColdLion Phase 7. But Phase 3's property
-   rules resolve style guides onto `core.property` rows, and the ColdLion cutover re-sources
-   exactly those rows. A Phase 3 backfill run before ColdLion's Step 9 could bind provenance to
-   property identities that the cutover then re-keys. **Before starting Phase 3, re-read the
-   ColdLion accelerated plan's STATUS table and confirm whether `core.property` identity is
-   settled** — do not rely on §8's date.
+2. ~~**Phase 3 has a new sequencing exposure that §8 does not cover.**~~ **Withdrawn on
+   2026-07-28 after checking the code and the preview database — it was overstated.** The concern
+   was that ColdLion re-sources `core.property` and could re-key the identities Phase 3 binds to.
+   It cannot, by construction:
+   - `link_approved` (the only implemented write mode) **"never creates or deletes canonical
+     rows … never touches status/parents/codes/names/UUIDs"**, and a canonical-immutability guard
+     aborts the whole transaction if `core.licensor`/`core.property` row counts move
+     (`20260726030000_coldlion_licensor_property_phase4_link_approved.sql`).
+   - `promote_approved` — the only mode that could ever create a canonical property — is
+     **intentionally not implemented**.
+   - Measured on preview 2026-07-28: `core.property` = 256 rows, 0 without a code, and ColdLion's
+     542 `coldlion/merchGroupDetails` source refs are **already written**. Its preview linking is
+     done and property identity did not move.
+
+   What survives is narrower and worth keeping: ColdLion's Steps 6–9 are still open and its
+   production cutover is unauthorized, so this stays a **Phase 5** (production) sequencing
+   question exactly as §8 already says — not a Phase 3 one.
 3. **Phase 3 says "the three canonical tables"; Phase 2 created only two.** The third is
    `core.character`, which already exists and is empty (model doc §5A.0b). Not a contradiction,
    but Phase 3 owns populating all three, not just the two added here.
@@ -258,6 +268,37 @@ rule — see model doc §7 question 4. **This is the single most likely place to
 **Exit:** all checks green on preview, evidence written to `docs/verification/`.
 
 **Before finishing:** re-read Phases 4–7 and report drift.
+
+### Phase 3 readiness, measured on preview 2026-07-28
+
+Everything Phase 3 needs is present and the ground is stable. Verified directly:
+
+| Check | Result |
+|---|---|
+| `core.property` | 256 rows, **0 without a code** |
+| `core.licensor` | 26 rows |
+| `core.character` | 0 rows — Phase 3 populates it |
+| `core.style_guide` / `core.style_guide_character` | exist, 0 rows (Phase 2) |
+| `public.characters` | 9,622 |
+| `public.properties` | 500 |
+| `dflow.properties_and_characters` | 10,122 |
+| `dflow.property_character_associations` | 9,622 |
+| `public.style_guide_files` | 274,906 |
+| `public.asset_characters` | 117,011 |
+
+**`source_table` values already in use in `core.taxonomy_source_ref`:** only
+`coldlion/merchGroupDetails` (542) and `designflow_plm/merchGroup` (505). Phase 3's new
+`source_table` values must not reuse either — the table's unique key is
+`(source_system, source_table, source_id)`, so a reused pair would silently collide.
+
+Two file counts differ slightly from the numbers quoted earlier in this plan
+(`public.style_guide_files` 274,906 vs 279,783; `public.asset_characters` 117,011 vs 117,012).
+Those earlier figures were measured on **production** on 2026-07-26. The gap is expected drift
+between the two databases, not a fault — but **Phase 4 must re-measure both on the database it is
+actually working against** rather than trusting either number.
+
+**The real Phase 3 risk is not sequencing — it is character identity resolution.** The plan
+already says so above, and nothing found on 2026-07-28 reduces it.
 
 ---
 
@@ -391,3 +432,4 @@ model doc §6.
 | 2026-07-27 | Grok review corrected four DC alias mappings, moved six weak franchise guesses to `MV`, excluded nine non-character labels, and expanded tests. Final: 248 specific, 13 unique history, 66 Marvel catch-all, 9 non-character labels, 2 sentinels, 0 licensing rows. |
 | 2026-07-28 | A concurrent closeout session recorded the Phase 2 work as an unmerged draft at `e0657f7` with no PR or preview apply. That was a mid-flight snapshot and is superseded by the next row. |
 | 2026-07-28 | Phase 2 completed. Migration `20260727230000_core_style_guide_axis.sql` created `core.style_guide` and `core.style_guide_character`, applied to preview only and verified empty; production untouched. Recorded three drift findings, chiefly that ColdLion is actively mid-flight on the same preview database and that Phase 3 (not just Phase 5) now carries a `core.property` identity exposure. |
+| 2026-07-28 | Withdrew that Phase 3 exposure as overstated: ColdLion's `link_approved` provably never creates, deletes, or re-keys canonical rows and is guarded by a row-count immutability check, `promote_approved` is not implemented, and preview shows `core.property` at 256 rows with ColdLion's 542 source refs already written. Added a measured Phase 3 readiness table and flagged that the two file-row counts quoted earlier were production figures. |
