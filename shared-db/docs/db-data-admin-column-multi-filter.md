@@ -70,6 +70,45 @@ that same display string, so the list always matches what the user sees on scree
 Before this change that mapping was duplicated inline in `visibleRows`; do not
 re-duplicate it.
 
+### Derived columns must go through `getCellDisplayValue` — the Name column proved why
+
+`name_display` is the second derived column (added 2026-07-28). It resolves the
+effective entity name as **non-empty `display_name`, else `name`**.
+
+`display_name` is an *optional curated override*; `name` is canonical. On
+2026-07-28 the count was **824 of 862 customers (96%) with no override at all**,
+and 92 of 93 factories. The Name column originally rendered raw `display_name`,
+so almost every row showed a **blank Name** — while still sorting into its correct
+alphabetical slot, because the list RPC already sorts on
+`lower(coalesce(display_name, name))`. That "blank cells in the right order"
+signature is what makes this class of bug confusing: the sort key and the
+rendered value came from different expressions.
+
+Routing it through `getCellDisplayValue` fixes the row source, the distinct-value
+list, the Text Filter, and the Set Filter in one place — the four consumers this
+function exists to unify. Sorting is RevoGrid client-side over the same derived
+value, so no RPC contract changed.
+
+Two constraints on this column, both deliberate:
+
+- **It cannot use `??`.** A present-but-empty `display_name` (`''`) must fall
+  through to `name`. `??` only falls through on `null`/`undefined`.
+- **The raw `display_name` field stays on the row, untouched.** `RecordEditor`
+  reads it to tell "no override set" apart from a real override, and its
+  unchanged-field check (`displayName === String(row.display_name ?? '')`) relies
+  on that to send `null` instead of silently writing the fallback name in as a
+  brand-new override. Never overwrite `display_name` with the effective name.
+
+**Latent trap.** The RPC's sort key is plain `coalesce(display_name, name)`, and
+`coalesce('', name)` is `''` — SQL does *not* fall through on empty string, but
+the client now does. A row with `display_name = ''` would therefore sort as blank
+server-side while displaying its canonical name, reintroducing the same
+sort-vs-display split. Verified 2026-07-28 on **both** preview and production:
+**zero** empty or whitespace-only overrides in `core.customer` and `core.factory`,
+so this is currently unreachable. If anything ever starts writing `''` instead of
+`NULL` on clear, change the RPC to
+`coalesce(nullif(btrim(display_name), ''), name)` rather than reverting the client.
+
 ### Focus/caret preservation is a hard requirement
 
 RevoGrid re-renders headers when filtering. There is a standing acceptance test —
