@@ -552,6 +552,27 @@ zero; surface any orphan loudly rather than silently hiding it.
 V1 is fully read-only for Licensors and Properties: no relationship, status, display-name,
 or source-reference edits.
 
+#### The flat Properties tab
+
+The tree answers "what does this Licensor own?". A separate **Properties** tab answers the
+opposite question — "show me every Property, filterable and sortable as one table" — with
+columns for Property, code, Licensor, Licensor code, status, Character count, PLM context,
+and source. It is the same RevoGrid, set-filter and text-filter surface used by Customers and
+Vendors, minus inline editing.
+
+Both tabs read the **same** contract, `api.db_data_admin_licensor_property_tree`. There is
+deliberately no separate `db_data_admin_property_list` RPC: a second read path over the same
+rows would be free to drift from the tree's own reconciliation counts. The flat rows are built
+from the tree payload in `apps/db-data-admin/src/lib/property-rows.ts`.
+
+Orphans appear in the table as ordinary rows parented to `(no licensor)`, plus a banner naming
+the exact count — never filtered out, for the same reason the tree surfaces them loudly.
+
+The table has no "Updated" column. The tree contract carries `updated_at` on Licensors and on
+orphan Properties, but not on Properties nested under a Licensor, and a column that is blank
+for nearly every row reads as missing data. Adding it means adding `updated_at` to the nested
+Property object in that RPC first.
+
 ---
 
 ## 9. Mandatory cross-application cutover-safety audit
