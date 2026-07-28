@@ -25,6 +25,11 @@ import {
   parseComparisonResult,
   comparisonExitCode,
 } from "./phase6-cli-result-parse.mjs";
+import {
+  assertColdlionApplyTarget,
+  describeAuthorizedTarget,
+  resolveProductionAuthorization,
+} from "./coldlion-production-authorization.mjs";
 
 export {
   PREVIEW_PROJECT_REF,
@@ -58,14 +63,26 @@ function readLinkedProjectRef() {
 }
 
 function main(argv = process.argv.slice(2), env = process.env) {
-  assertNoProductionEnv(env);
+  // WIRED FOR PRODUCTION 2026-07-28 (Kimi review). This runner records the
+  // append-only comparison observation that the readiness command REQUIRES. It was
+  // preview-only, and it was not in the Step 7 command list, so on production the
+  // readiness gate could never go green: before linking the identity check fails
+  // (0 ColdLion refs), and after linking the comparison check fails because no
+  // observation exists and the operator had no authorized way to create one. The
+  // cutover would have ended on a red light with no instruction — the fourth
+  // instance of "the pieces pass, the sequence does not run".
+  const auth = resolveProductionAuthorization(argv, env);
+  if (!(auth.requested && auth.authorized)) assertNoProductionEnv(env);
   const mode = resolveRunMode(argv, env);
   const linkedProjectRef = mode.linked ? readLinkedProjectRef() : null;
-  assertPreviewApplyTarget({
+  assertColdlionApplyTarget({
     apply: mode.apply,
     linked: mode.linked,
     connString: mode.connString,
     linkedProjectRef,
+    argv,
+    env,
+    assertPreviewApplyTarget,
   });
 
   const sql = buildComparisonSql({
@@ -77,6 +94,7 @@ function main(argv = process.argv.slice(2), env = process.env) {
     `${JSON.stringify(
       {
         tool: "compare-coldlion-designflow-daily",
+        authorized_target: describeAuthorizedTarget(argv, env),
         target: mode.target,
         mode: mode.apply ? "apply" : "dry-run (no DB write)",
         force_fail: mode.forceFail,

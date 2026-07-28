@@ -88,6 +88,31 @@ hand-watched cutover would have widened the blast radius for no benefit. **Nothi
 here creates a secret.** If recurring production automation is built later, that becomes its own
 request.
 
+## 3B. The sequence has been REHEARSED end to end
+
+`tools/rehearse-coldlion-cutover-sequence.mjs` executes **every command in §4, in order**,
+against preview. Not reviewed — run.
+
+```bash
+node tools/rehearse-coldlion-cutover-sequence.mjs
+```
+
+Latest result: **18/18 steps passed.** It covers the prerequisites, the hash capture, object and
+9/9 guard verification, both write runners, the partial-authorization refusals on all four
+runners, the comparison that readiness requires, readiness reaching `ready=true`, rollback
+generation bound to exactly 542 keys, rollback SQL **actually executing** (rolled back), and
+every protected hash identical afterwards.
+
+**Why this exists:** four independent reviews each found a different fault, and all four were
+the same kind — the pieces passed their own tests while the operator sequence could not run.
+Reviews argue about the sequence; this runs it. Re-run it before any production window; a
+failure here is a failure that would otherwise have happened mid-cutover.
+
+It does **not** prove a production-targeted run succeeds — the only difference is the linked
+project, which is exactly what the guards it exercises check.
+
+---
+
 ## 3A. Pre-window prerequisites — prove each ONE BEFORE starting
 
 Every one of these has to work before the first migration is applied. A missing
@@ -257,15 +282,37 @@ source-ref hash and the ColdLion ref count may change, and only by exactly 542 a
 Same read-only checks as §4.7. This is the one that proves the cutover itself changed nothing
 DesignFlow depends on.
 
+### 4.9a Record the first production comparison observation — REQUIRED
+
+**Added 2026-07-28 (Kimi review). Without this step the readiness gate in §4.10 can never go
+green on production, and the cutover would end on a red light with no instruction.**
+
+The readiness command requires a non-drill observation row in
+`plm.taxonomy_parallel_observation`. On a fresh production database none exists, and nothing
+else in this sequence creates one. The comparison runner was also preview-only until
+2026-07-28, so the operator had no authorized way to produce one at all.
+
+```bash
+node tools/compare-coldlion-designflow-daily.mjs --apply --linked   --production --production-authorized --project-ref qsllyeztdwjgirsysgai
+```
+
+Expected: exit 0, `pass: true`, `unexplained_diff_count: 0`. A non-zero exit here means the
+ColdLion and DesignFlow lanes disagree — **stop and roll back (§7)**; do not proceed.
+
 ### 4.10 Readiness, in explicitly production-authorized mode
 
 ```bash
-COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED=true \
-node tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs \
-  --apply --linked --production --production-authorized --project-ref qsllyeztdwjgirsysgai
+COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED=true node tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs   --apply --linked --production --production-authorized --project-ref qsllyeztdwjgirsysgai
 ```
 
 All three flags **and** the environment variable are required; any one missing blocks.
+
+**Expected result: exit 0, `ready=true`, all 8 checks passing.** Anything else is a stop.
+
+**Do not run this before §4.8.** Before the links exist the identity check correctly reports
+542 missing rows, so an early run reads as a catastrophic failure when it is simply premature.
+The order — link, compare, then evaluate — is deliberate, and each gate's expected result is
+stated so a red light is never ambiguous.
 
 ---
 
@@ -401,5 +448,6 @@ migration list, the data modes, the window, the monitoring, and this rollback.
 | Date | Change |
 |---|---|
 | 2026-07-28 (first draft) | Original package written from the owner-authorized read-only production inventory |
+| 2026-07-28 (revision 4) | **Kimi review found the readiness gate could NEVER go green on production**: it requires a non-drill comparison observation, nothing in the sequence recorded one, and the comparison runner was preview-only so the operator could not create one. The cutover would have ended on a red light with no instruction. Fixed by wiring production authorization into the comparison runner and adding §4.9a, plus stating the expected result at every gate. Also added `tools/rehearse-coldlion-cutover-sequence.mjs`, which executes the whole §4 sequence against preview — **18/18 passing** — because four reviews finding four instances of the same fault class meant the answer was to run the sequence, not review it again. Verified separately that browser roles hold **SELECT only** on `core.taxonomy_source_ref` (RLS on; the linking function is granted to `postgres`/`service_role` only), so the browser bypass path Kimi hypothesised does not exist |
 | 2026-07-28 (revision 3) | **Grok review found six more "cannot be run as written" faults**, all confirmed: the checkout SHA pointed at bare `origin/main` which lacked the new tooling; the sync runner never printed the `authorized_target` the package told the operator to check; `COLDLION_API_KEY` was missing from the prerequisites; the rollback used an unbound `:approved_mapping_json`; **readiness skipped the target check under production authorization and could have reported green against preview**; and a `/tmp` path on a Windows machine. All fixed. Executing the generated rollback on preview then exposed a seventh: nulling a mirror link without resetting `resolution_status` violates `plm_erp_licensor_resolution_link_ck` and aborts the whole rollback — corrected, and the SQL has now actually been run end to end |
 | 2026-07-28 (revision 2) | **Codex review found the package could not be executed**: both write runners were hard preview-only, so §4.8 would have aborted mid-window. Added four-part production authorization to both runners (`tools/coldlion-production-authorization.mjs`, 7 new tests) and proved the refusals. Also: DesignFlow smoke moved **before** linking so a failure needs no cleanup; rollback bound to the **exact frozen 542** instead of every ColdLion row, and now re-arms the breaker; pre/post hashes strengthened to include entity type, canonical UUID and code, with ColdLion and DesignFlow hashed separately; the production GitHub secret request **withdrawn** as unnecessary |
