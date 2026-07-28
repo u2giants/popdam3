@@ -1,9 +1,10 @@
 # Characters and style guides — canonical migration plan
 
-**Status (2026-07-27): PHASES 0–1 COMPLETE. Licensing review and the three
+**Status (2026-07-28): PHASES 0–1 COMPLETE. Licensing review and the three
 `MULTIPLE` style guides are fully reconciled. No licensing follow-up remains.**
-No schema change has been written. No database has been modified. All work so far is
-read-only investigation and documentation.
+A Phase 2 migration draft exists on branch `codex/characters-style-guides-phase2-20260727`,
+commit `e0657f7`, but it has no PR and no recorded preview rehearsal. No database change is
+confirmed. Owner approval is still required before preview apply.
 
 **Repository:** `u2giants/shared-db` · **Preview:** `rjyboqwcdzcocqgmsyel` ·
 **Production:** `qsllyeztdwjgirsysgai`
@@ -134,6 +135,12 @@ residual across 314 populated licensing/style-guide parents. No database writes 
 ## Phase 2 — additive schema on preview
 
 **Goal:** create `core.style_guide` and `core.style_guide_character` per model doc §5A.
+
+**Current state (2026-07-28):** migration
+`supabase/migrations/20260727230000_core_style_guide_axis.sql` is committed and pushed only on
+`codex/characters-style-guides-phase2-20260727` at `e0657f7`. It has no PR and no recorded
+preview dry-run or apply. Rebase it onto current `origin/main`, review it against the current
+migration ledger, and obtain owner approval before any preview write.
 
 **Do:** one new timestamped migration. **Additive only** — creates two tables, touches nothing
 existing. Include the `parent_style_guide_id` self-reference for sub-style guides. Do **not** add
@@ -302,8 +309,12 @@ model doc §6.
 11. **Using name history alone for `MULTIPLE`.** Same-licensor character names resolved only 18
     of 338 appearances and produced an unacceptable 305-row licensing follow-up. The corrected
     approach uses specific existing franchise codes, preserves unique history, then uses the
-    existing licensor catch-all. It resolves all 336 non-sentinel appearances without inventing
-    a code or asking licensing to repeat known franchise classification.
+    existing licensor catch-all. The final Grok-reviewed rules map 327 appearances and exclude
+    nine non-character labels plus two sentinels, without inventing a code or asking licensing
+    to repeat known franchise classification.
+12. **Treating `grok models` as an authentication test.** It printed "not authenticated" even
+    though the real headless task path worked. The first review was also stopped during a long
+    silent run. Verify Grok with a short `--single` task, then allow focused reviews to finish.
 
 ## 11. Document history
 
@@ -315,3 +326,4 @@ model doc §6.
 | 2026-07-27 | Licensing returned all 153 uncertainty rows: 32 existing codes, 118 never designed, 3 multiple. Read-only character reconciliation reduced the 338 multiple appearances to 305 distinct licensing exceptions. |
 | 2026-07-27 | Replaced the 305-row follow-up with character/franchise rules: 256 specific franchise, 18 unique history, 62 Marvel catch-all, 2 sentinels excluded, 0 licensing rows. |
 | 2026-07-27 | Grok review corrected four DC alias mappings, moved six weak franchise guesses to `MV`, excluded nine non-character labels, and expanded tests. Final: 248 specific, 13 unique history, 66 Marvel catch-all, 9 non-character labels, 2 sentinels, 0 licensing rows. |
+| 2026-07-28 | Closeout recorded the unmerged Phase 2 draft at `e0657f7`; no PR, preview apply, or database change is confirmed. |
