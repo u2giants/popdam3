@@ -1,0 +1,51 @@
+{
+  "appearances": 9622,
+  "identityCounts": {
+    "AUTO_RESOLVED": 8878,
+    "NON_CHARACTER_EXCLUDED": 360,
+    "SENTINEL_EXCLUDED": 182,
+    "COMBINATION_COVERED": 17,
+    "NEEDS_HUMAN": 154,
+    "GROUPING_EXCLUDED": 31,
+    "IDENTITIES": 6538,
+    "TOTAL": 9622
+  },
+  "identityRuleCounts": {
+    "PRIMARY_ONLY": 8310,
+    "SELF_NAMED_GUIDE": 135,
+    "LOGO_LABEL": 101,
+    "DO_NOT_USE_LABEL": 13,
+    "SENTINEL": 182,
+    "GENERAL_ROYALTY_LABEL": 111,
+    "STRIP_TITLE_YEAR": 58,
+    "STRIP_LIKENESS": 91,
+    "STRIP_PORTRAYAL": 1036,
+    "BARE_PRIMARY_KEPT": 84,
+    "SPLIT_SLASH_ALIAS": 96,
+    "SPLIT_AKA": 484,
+    "ALIAS_UNIQUE_MERGED": 319,
+    "ALIAS_DISAMBIGUATED": 165,
+    "STRIP_GUIDE_CONTEXT": 2133,
+    "INVERT_SURNAME_FIRST": 229,
+    "MULTI_CHARACTER_LABEL": 171,
+    "COMBINATION_COVERED": 17,
+    "COMBINATION_UNCOVERED": 154,
+    "GROUPING_LABEL": 31
+  },
+  "propertyRuleCounts": {
+    "SINGLE_CANDIDATE": 4638,
+    "NO_PROPERTY_CANDIDATE": 1302,
+    "NEEDS_HUMAN": 173,
+    "REVIEWED_FRANCHISE_RULE": 193,
+    "MAJORITY_OF_APPEARANCES": 28,
+    "MOST_SPECIFIC_CODE": 204
+  },
+  "identityDecisionsNeeded": 154,
+  "identityDecisionStyleGuides": 30,
+  "propertyDecisionsNeeded": 173,
+  "propertyDecisionAppearances": 425,
+  "batman": {
+    "appearances": 20,
+    "styleGuides": 17
+  }
+}

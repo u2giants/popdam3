@@ -1,0 +1,336 @@
+licensor,style_guide,characters,decision_status,suggested_existing_mg06_code,suggested_existing_mg06_desc,decision_basis,folder_property,folder_leaf_match,folder_confidence,fuzzy_mg06_code,fuzzy_mg06_desc,fuzzy_confidence,final_mg06_code
+Coca Cola,Coca-Cola,6,ACCEPTED_DIRECT,CCC,COCA COLA,Owner accepted exact normalized DAM parent + licensor agreement,Coca-Cola Packaging OneSheet 2023 Update_Folder,,66%,CCC,COCA COLA,100%,CCC
+Dis/Mrv/SW,Aladdin (2019),2,ACCEPTED_CLEAR_MG06,AD,ALADDIN,Clear existing MG06 property name match,Aladdin,,100%,AD,ALADDIN,100%,AD
+Dis/Mrv/SW,Alice In Wonderland,1,ACCEPTED_DIRECT,AW,ALICE IN WONDERLAND,Owner accepted exact normalized DAM parent + licensor agreement,Alice in Wonderland,,100%,AW,ALICE IN WONDERLAND,100%,AW
+Dis/Mrv/SW,Cars,84,ACCEPTED_DIRECT,CAR,CARS,Owner accepted exact normalized DAM parent + licensor agreement,Cars,,100%,CAR,CARS,100%,CAR
+Dis/Mrv/SW,Cars 2,44,ACCEPTED_CLEAR_MG06,CAR,CARS,Clear existing MG06 property name match,Cars,,100%,CAR,CARS,100%,CAR
+Dis/Mrv/SW,Cars 3,57,ACCEPTED_CLEAR_MG06,CAR,CARS,Clear existing MG06 property name match,Cars,,100%,CAR,CARS,100%,CAR
+Dis/Mrv/SW,Coco,1,ACCEPTED_CLEAR_MG06,CC,COCO,Clear existing MG06 property name match,Pixar,Coco,100%,CC,COCO,100%,CC
+Dis/Mrv/SW,Encanto,1,ACCEPTED_DIRECT,EC,ENCANTO,Owner accepted exact normalized DAM parent + licensor agreement,Encanto,,100%,EC,ENCANTO,100%,EC
+Dis/Mrv/SW,Frozen,2,ACCEPTED_DIRECT,FZ,FROZEN,Owner accepted exact normalized DAM parent + licensor agreement,Frozen,,100%,F2,FROZEN 2,100%,FZ
+Dis/Mrv/SW,Frozen 3,1,ACCEPTED_CLEAR_MG06,FZ,FROZEN,Clear existing MG06 property name match,Frozen,,100%,F2,FROZEN 2,100%,FZ
+Dis/Mrv/SW,Frozen II,6,ACCEPTED_CLEAR_MG06,FZ,FROZEN,Clear existing MG06 property name match,Frozen II,,100%,FZ,FROZEN,87%,FZ
+Dis/Mrv/SW,Hannah Montana Movie,8,ACCEPTED_CLEAR_MG06,HM,HANNAH MONTANA,Clear existing MG06 property name match,Disney Channel,Hannah Montana,77%,HM,HANNAH MONTANA,89%,HM
+Dis/Mrv/SW,Hercules,1,ACCEPTED_DIRECT,HE,HERCULES,Owner accepted exact normalized DAM parent + licensor agreement,Hercules,,100%,HE,HERCULES,100%,HE
+Dis/Mrv/SW,High School Musical,17,ACCEPTED_DIRECT,HSM,HIGH SCHOOL MUSICAL,Owner accepted exact normalized DAM parent + licensor agreement,Disney Channel,High School Musical,100%,HSM,HIGH SCHOOL MUSICAL,100%,HSM
+Dis/Mrv/SW,High School Musical 2,20,ACCEPTED_CLEAR_MG06,HSM,HIGH SCHOOL MUSICAL,Clear existing MG06 property name match,Disney Channel,High School Musical,100%,HSM,HIGH SCHOOL MUSICAL,100%,HSM
+Dis/Mrv/SW,High School Musical 3,18,ACCEPTED_CLEAR_MG06,HSM,HIGH SCHOOL MUSICAL,Clear existing MG06 property name match,Disney Channel,High School Musical,100%,HSM,HIGH SCHOOL MUSICAL,100%,HSM
+Dis/Mrv/SW,High School Musical 4,1,ACCEPTED_CLEAR_MG06,HSM,HIGH SCHOOL MUSICAL,Clear existing MG06 property name match,Disney Channel,High School Musical,100%,HSM,HIGH SCHOOL MUSICAL,100%,HSM
+Dis/Mrv/SW,High School Musical: The Musical: The Series,11,ACCEPTED_CLEAR_MG06,HSM,HIGH SCHOOL MUSICAL,Clear existing MG06 property name match,Disney Channel,High School Musical,80%,HSM,HIGH SCHOOL MUSICAL,80%,HSM
+Dis/Mrv/SW,Hocus Pocus,1,ACCEPTED_DIRECT,HPS,HOCUS POCUS,Owner accepted exact normalized DAM parent + licensor agreement,Hocus Pocus,,100%,HPS,HOCUS POCUS,100%,HPS
+Dis/Mrv/SW,Lizzie McGuire - TV Series,2,ACCEPTED_CLEAR_MG06,MCG,LIZZIE MCGUIRE,Clear existing MG06 property name match,Disney Channel,Lizzie McGuire,77%,MCG,LIZZIE MCGUIRE,84%,MCG
+Dis/Mrv/SW,Lizzie McGuire Movie,6,ACCEPTED_CLEAR_MG06,MCG,LIZZIE MCGUIRE,Clear existing MG06 property name match,Disney Channel,Lizzie McGuire,77%,MCG,LIZZIE MCGUIRE,89%,MCG
+Dis/Mrv/SW,Mickey Mouse,14,ACCEPTED_DIRECT,MM,MICKEY MOUSE,Owner accepted exact normalized DAM parent + licensor agreement,Mickey,,70%,MM,MICKEY MOUSE,100%,MM
+Dis/Mrv/SW,Mickey Mouse Family,10,ACCEPTED_CLEAR_MG06,MM,MICKEY MOUSE,Clear existing MG06 property name match,Mickey,,63%,MM,MICKEY MOUSE,86%,MM
+Dis/Mrv/SW,Monsters at Work,1,ACCEPTED_CLEAR_MG06,MS,MONSTERS,Clear existing MG06 property name match,,,,MS,MONSTERS,81%,MS
+Dis/Mrv/SW,Monsters Inc,1,ACCEPTED_CLEAR_MG06,MS,MONSTERS,Clear existing MG06 property name match,Pixar,Monsters Inc. Style Guide,100%,MS,MONSTERS,87%,MS
+Dis/Mrv/SW,Monsters University,1,ACCEPTED_CLEAR_MG06,MS,MONSTERS,Clear existing MG06 property name match,,,,MS,MONSTERS,78%,MS
+Dis/Mrv/SW,Muppets,1,ACCEPTED_DIRECT,MU,MUPPETS,Owner accepted exact normalized DAM parent + licensor agreement,Muppets,,100%,MU,MUPPETS,100%,MU
+Dis/Mrv/SW,Nightmare Before Christmas,1,ACCEPTED_DIRECT,NX,NIGHTMARE BEFORE CHRISTMAS,Owner accepted exact normalized DAM parent + licensor agreement,_Packaging,2342024-Tim-Burton_s-The-Nightmare-Before-Christmas Jan 2025,67%,NX,NIGHTMARE BEFORE CHRISTMAS,100%,NX
+Dis/Mrv/SW,Peter Pan,1,ACCEPTED_DIRECT,PA,PETER PAN,Owner accepted exact normalized DAM parent + licensor agreement,Peter Pan,,100%,PA,PETER PAN,100%,PA
+Dis/Mrv/SW,Peter Pan - Individual Characters,2,ACCEPTED_CLEAR_MG06,PA,PETER PAN,Clear existing MG06 property name match,Peter Pan,,70%,PA,PETER PAN,73%,PA
+Dis/Mrv/SW,Toy Story 4,9,ACCEPTED_DIRECT,TS,TOY STORY 4,Owner accepted exact normalized DAM parent + licensor agreement,Toy Story 4,,100%,TS,TOY STORY 4,100%,TS
+Dis/Mrv/SW,Winnie The Pooh,1,ACCEPTED_DIRECT,WP,WINNIE THE POOH,Owner accepted exact normalized DAM parent + licensor agreement,Winnie the Pooh,,100%,WP,WINNIE THE POOH,100%,WP
+Dis/Mrv/SW,Winnie The Pooh Classic,1,ACCEPTED_CLEAR_MG06,WP,WINNIE THE POOH,Clear existing MG06 property name match,Winnie the Pooh,,77%,WP,WINNIE THE POOH,87%,WP
+Marvel,Black Panther Movie 2 - No Likeness,21,ACCEPTED_CLEAR_MG06,BP,BLACK PANTHER,Clear existing MG06 property name match,,,,BP,BLACK PANTHER,77%,BP
+Marvel,Black Panther Movie 2 - With Likeness,4,ACCEPTED_CLEAR_MG06,BP,BLACK PANTHER,Clear existing MG06 property name match,,,,BP,BLACK PANTHER,77%,BP
+Marvel,Captain Marvel Movie - No Likeness,22,ACCEPTED_CLEAR_MG06,CM,CAPTAIN MARVEL,Clear existing MG06 property name match,,,,CM,CAPTAIN MARVEL,79%,CM
+Marvel,Captain Marvel Movie - With Likeness,12,ACCEPTED_CLEAR_MG06,CM,CAPTAIN MARVEL,Clear existing MG06 property name match,,,,CM,CAPTAIN MARVEL,78%,CM
+Marvel,Deadpool Classic,39,ACCEPTED_CLEAR_MG06,DP,DEADPOOL,Clear existing MG06 property name match,Theatrical Releases,Deadpool 3,70%,DP,DEADPOOL,81%,DP
+Marvel,Guardians of the Galaxy,27,ACCEPTED_DIRECT,GG,GUARDIANS OF THE GALAXY,Owner accepted exact normalized DAM parent + licensor agreement,Theatrical Releases,Guardians of the Galaxy Vol 3,100%,GG,GUARDIANS OF THE GALAXY,100%,GG
+Marvel,Spider-Man,164,ACCEPTED_DIRECT,SP,SPIDER MAN,Owner accepted exact normalized DAM parent + licensor agreement,Spider-Man,,100%,SP,SPIDER MAN,100%,SP
+Marvel,Spider-Man Animated,15,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Spider-Man,,77%,SP,SPIDER MAN,82%,SP
+Marvel,Spider-Man Animated Movie 2022 ,25,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Spider-Man,,70%,SP,SPIDER MAN,75%,SP
+Marvel,Spider-Man Family Live Action Movies - No Likeness,8,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Spider-Man,,63%,SP,SPIDER MAN,70%,SP
+Marvel,Spider-Man Family Live Action Movies - With Likeness,1,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Spider-Man,,63%,SP,SPIDER MAN,70%,SP
+Marvel,Spider-Man Movie (2017) - No Likeness,11,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Spider-Man,,77%,SP,SPIDER MAN,77%,SP
+Marvel,Spider-Man Movie (2017) - With Likeness,11,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Spider-Man,,77%,SP,SPIDER MAN,77%,SP
+Marvel,Spider-Man Movie 2021 - No Likeness,16,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Spider-Man,,77%,SP,SPIDER MAN,77%,SP
+Marvel,Spider-Man Movie 2021 - With Likeness,14,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Spider-Man,,77%,SP,SPIDER MAN,77%,SP
+Marvel,Spider-Man: Brand New Day Movie 2026 - No Likeness,9,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Theatrical Releases,Spider Man Brand New Day,83%,SP,SPIDER MAN,70%,SP
+Marvel,Spider-Man: Brand New Day Movie 2026 - With Likeness,1,ACCEPTED_CLEAR_MG06,SP,SPIDER MAN,Clear existing MG06 property name match,Theatrical Releases,Spider Man Brand New Day,83%,SP,SPIDER MAN,70%,SP
+Marvel,Venom Movie 2024 - No Likeness,6,ACCEPTED_CLEAR_MG06,VN,VENOM,Clear existing MG06 property name match,Spider-Man,Venom,70%,VN,VENOM,70%,VN
+Marvel,Venom Movie 2024 - With Likeness,1,ACCEPTED_CLEAR_MG06,VN,VENOM,Clear existing MG06 property name match,Spider-Man,Venom,70%,VN,VENOM,70%,VN
+Marvel,X-Men Classic,167,ACCEPTED_CLEAR_MG06,XM,X-MEN,Clear existing MG06 property name match,Marvel Universe Publishing Art Archive,X-MEN,70%,XM,X-MEN,77%,XM
+Strawberry Shortcake,Strawberry Shortcake Classic,1,ACCEPTED_CLEAR_MG06,SSH,STRAWBERRY SHORTCAKE,Clear existing MG06 property name match,,,,SSH,STRAWBERRY SHORTCAKE,89%,SSH
+WB,Adventure Time: Animated Series,97,NEEDS_REVIEW,,,,,,,,,,
+WB,Annabelle (2014),1,ACCEPTED_DIRECT,A4,ANNABELLE 2014,Owner accepted exact normalized DAM parent + licensor agreement,WB Horror,Annabelle,100%,A4,ANNABELLE 2014,100%,A4
+WB,Annabelle Comes Home (2019),5,ACCEPTED_DIRECT,A9,ANNABELLE COMES HOME 2019,Owner accepted exact normalized DAM parent + licensor agreement,WB Horror,Annabelle,63%,A9,ANNABELLE COMES HOME 2019,100%,A9
+WB,Annabelle: Creation (2017),2,ACCEPTED_DIRECT,A7,ANNABELLE: CREATION 2017,Owner accepted exact normalized DAM parent + licensor agreement,WB Horror,Annabelle,70%,A7,ANNABELLE: CREATION 2017,100%,A7
+WB,Aquaman (2018),22,ACCEPTED_CLEAR_MG06,AQ,AQUAMAN,Clear existing MG06 property name match,,,,AQ,AQUAMAN,100%,AQ
+WB,Aquaman and the Lost Kingdom (2023),11,ACCEPTED_CLEAR_MG06,AQ,AQUAMAN,Clear existing MG06 property name match,,,,AQ,AQUAMAN,70%,AQ
+WB,Aquaman Core,5,ACCEPTED_CLEAR_MG06,AQ,AQUAMAN,Clear existing MG06 property name match,,,,AQ,AQUAMAN,84%,AQ
+WB,Batman (1989) ,27,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,100%,BM,BATMAN,100%,BM
+WB,Batman & Robin (1997),23,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,70%,BM,BATMAN,75%,BM
+WB,Batman 85th Mash Ups,48,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,60%,BM,BATMAN,73%,BM
+WB,Batman Begins (2005),32,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,70%,BM,BATMAN,75%,BM
+WB,Batman Beyond: Animated Series ,38,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,60%,BM,BATMAN,70%,BM
+WB,Batman Core,160,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,100%,BM,BATMAN,83%,BM
+WB,Batman Forever (1995) ,20,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,70%,BM,BATMAN,74%,BM
+WB,Batman Returns (1992) ,13,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,70%,BM,BATMAN,74%,BM
+WB,Batman v Superman: Dawn of Justice (2016),22,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,60%,BM,BATMAN,68%,BM
+WB,"Batman, The (2022)",10,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,100%,BM,BATMAN,100%,BM
+WB,Batman: Animated Series (1992),45,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,63%,BM,BATMAN,70%,BM
+WB,Batman: Arkham Asylum: Video Game 1,11,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,58%,BM,BATMAN,69%,BM
+WB,Batman: Arkham City: Video Game 2,21,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,58%,BM,BATMAN,69%,BM
+WB,Batman: Arkham Knight: Video Game 4,13,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,58%,BM,BATMAN,69%,BM
+WB,Batman: Arkham Origins: Video Game 3,17,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,58%,BM,BATMAN,69%,BM
+WB,Batman: Television Series (1966) ,32,ACCEPTED_CLEAR_MG06,BM,BATMAN,Clear existing MG06 property name match,DC,Batman,63%,BM,BATMAN,70%,BM
+WB,Batwheels: Animated Series,29,ACCEPTED_CLEAR_MG06,BA,BATWHEELS,Clear existing MG06 property name match,,,,BA,BATWHEELS,76%,BA
+WB,Beetlejuice (1988),22,ACCEPTED_CLEAR_MG06,BJ,BEETLEJUICE,Clear existing MG06 property name match,Beetlejuice,,100%,BJ,BEETLEJUICE,100%,BJ
+WB,Beetlejuice Beetlejuice (2024),17,ACCEPTED_CLEAR_MG06,BJ,BEETLEJUICE,Clear existing MG06 property name match,Beetlejuice,,100%,BJ,BEETLEJUICE,100%,BJ
+WB,Beetlejuice: Animated Series,2,ACCEPTED_CLEAR_MG06,BJ,BEETLEJUICE,Clear existing MG06 property name match,Beetlejuice,,63%,BJ,BEETLEJUICE,77%,BJ
+WB,Corpse Bride (2005),6,ACCEPTED_CLEAR_MG06,CD,CORPSE BRIDE,Clear existing MG06 property name match,Corpse Bride,,100%,CD,CORPSE BRIDE,100%,CD
+WB,Elf (2003),11,ACCEPTED_CLEAR_MG06,EF,ELF,Clear existing MG06 property name match,WB Christmas,Elf,100%,EF,ELF,100%,EF
+WB,Freddy vs. Jason (2003),13,ACCEPTED_CLEAR_MG06,FJ,FREDDY VS JASON,Clear existing MG06 property name match,WB Horror,Freddy vs Jason [2003],100%,FJ,FREDDY VS JASON,100%,FJ
+WB,Friday the 13th (1980),3,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,100%,FT
+WB,Friday the 13th (2009),13,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,100%,FT
+WB,Friday the 13th Part II (1981),5,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,82%,FT
+WB,Friday the 13th Part III (1982),3,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,82%,FT
+WB,Friday the 13th Part VI: Jason Lives (1986),3,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,76%,FT
+WB,Friday the 13th Part VII: The New Blood (1988),3,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,75%,FT
+WB,Friday the 13th Part VIII: Jason Takes Manhattan,3,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,74%,FT
+WB,Friday the 13th: A New Beginning (1985),2,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,78%,FT
+WB,Friday the 13th: Jason Goes to Hell (1993),3,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,77%,FT
+WB,Friday the 13th: Jason X (2001),3,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,82%,FT
+WB,Friday the 13th: The Final Chapter (1984),5,ACCEPTED_CLEAR_MG06,FT,FRIDAY THE 13TH,Clear existing MG06 property name match,,,,FT,FRIDAY THE 13TH,77%,FT
+WB,Friends: Television Series,21,ACCEPTED_CLEAR_MG06,FN,FRIENDS,Clear existing MG06 property name match,Friends,,63%,FN,FRIENDS,73%,FN
+WB,Frosty The Snowman Art Program (1954),2,ACCEPTED_CLEAR_MG06,FM,FROSTY THE SNOW MAN,Clear existing MG06 property name match,WB Christmas,Frosty the Snowman,77%,,,,FM
+WB,Game of Thrones: Television Series,160,ACCEPTED_CLEAR_MG06,GT,GAME OF THRONES,Clear existing MG06 property name match,Game of Thrones,,70%,GT,GAME OF THRONES,79%,GT
+WB,Gilmore Girls: Television Series,13,ACCEPTED_CLEAR_MG06,GGS,GILMORE GIRLS,Clear existing MG06 property name match,Gilmore Girls,Gilmore Girls Style Guide-Gilmore Girls_ Television Series,100%,GGS,GILMORE GIRLS,78%,GGS
+WB,Goodfellas (1990),3,ACCEPTED_CLEAR_MG06,GS,GOODFELLAS,Clear existing MG06 property name match,The Goodfellas,,100%,GS,GOODFELLAS,100%,GS
+WB,Green Lantern Core,60,ACCEPTED_CLEAR_MG06,GN,GREEN LANTERN,Clear existing MG06 property name match,,,,GN,GREEN LANTERN,89%,GN
+WB,Harry Potter and the Chamber of Secrets (2002),66,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,70%,HP,HARRY POTTER,72%,HP
+WB,Harry Potter and the Deathly Hallows Part 1 (2010),28,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,66%,HP,HARRY POTTER,72%,HP
+WB,Harry Potter and the Deathly Hallows Part 2 (2011),15,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,66%,HP,HARRY POTTER,72%,HP
+WB,Harry Potter and the Goblet of Fire (2005),87,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,70%,HP,HARRY POTTER,73%,HP
+WB,Harry Potter and the Half-Blood Prince (2009),25,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,66%,HP,HARRY POTTER,73%,HP
+WB,Harry Potter and the Order of the Phoenix (2007),89,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,70%,HP,HARRY POTTER,72%,HP
+WB,Harry Potter and the Prisoner of Azkaban (2004),64,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,70%,HP,HARRY POTTER,72%,HP
+WB,Harry Potter and the Sorcerer`s Stone (2001),67,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,70%,HP,HARRY POTTER,73%,HP
+WB,Harry Potter Literary Collection,64,ACCEPTED_CLEAR_MG06,HP,HARRY POTTER,Clear existing MG06 property name match,Harry Potter,,70%,HP,HARRY POTTER,76%,HP
+WB,Hogwarts Legacy: Video Game,1,ACCEPTED_CLEAR_MG06,HW,HOGWARTS,Clear existing MG06 property name match,Harry Potter,Harry Potter Legacy Video Game,50%,HW,HOGWARTS,74%,HW
+WB,IT (2017),11,ACCEPTED_DIRECT,T7,IT 2017,Owner accepted exact normalized DAM parent + licensor agreement,WB Horror,IT,100%,T7,IT 2017,100%,T7
+WB,IT Chapter Two (2019),17,ACCEPTED_DIRECT,T9,IT CHAPTER TWO 2019,Owner accepted exact normalized DAM parent + licensor agreement,WB Horror,IT,63%,T9,IT CHAPTER TWO 2019,100%,T9
+WB,Justice League Core,431,ACCEPTED_CLEAR_MG06,JG,JUSTICE LEAGUE,Clear existing MG06 property name match,DC,Justice League,100%,JG,JUSTICE LEAGUE,90%,JG
+WB,Looney Tunes Core,273,ACCEPTED_CLEAR_MG06,LT,LOONEY TUNES,Clear existing MG06 property name match,Looney Tunes,,100%,LT,LOONEY TUNES,89%,LT
+WB,"Lord of the Rings, The: The Fellowship of the Ring (2001)",54,ACCEPTED_CLEAR_MG06,LR,LORD OF THE RINGS,Clear existing MG06 property name match,Lord of the Rings,,70%,LR,LORD OF THE RINGS,74%,LR
+WB,"Lord of the Rings, The: The Return of the King (2003)",52,ACCEPTED_CLEAR_MG06,LR,LORD OF THE RINGS,Clear existing MG06 property name match,Lord of the Rings,,70%,LR,LORD OF THE RINGS,75%,LR
+WB,"Lord of the Rings, The: The Two Towers (2002)",56,ACCEPTED_CLEAR_MG06,LR,LORD OF THE RINGS,Clear existing MG06 property name match,Lord of the Rings,,70%,LR,LORD OF THE RINGS,78%,LR
+WB,"Lord of the Rings, The: The War Of The Rohirrim (2024)",1,ACCEPTED_CLEAR_MG06,LR,LORD OF THE RINGS,Clear existing MG06 property name match,Lord of the Rings,,70%,LR,LORD OF THE RINGS,75%,LR
+WB,Mortal Kombat (2021),5,ACCEPTED_CLEAR_MG06,MB,MORTAL KOMBAT,Clear existing MG06 property name match,MORTAL KOMBAT,,100%,MB,MORTAL KOMBAT,100%,MB
+WB,Mortal Kombat 2 (2025),15,ACCEPTED_CLEAR_MG06,MB,MORTAL KOMBAT,Clear existing MG06 property name match,MORTAL KOMBAT,,100%,MB,MORTAL KOMBAT,100%,MB
+WB,Mortal Kombat Core: Video Game,20,ACCEPTED_CLEAR_MG06,MB,MORTAL KOMBAT,Clear existing MG06 property name match,MORTAL KOMBAT,,70%,MB,MORTAL KOMBAT,79%,MB
+WB,"Nightmare on Elm Street 2, A: Freddy`s Revenge (1985)",1,ACCEPTED_CLEAR_MG06,NE,NIGHTMARE ON ELM STREET,Clear existing MG06 property name match,WB Horror,Nightmare on Elm Street,77%,NE,NIGHTMARE ON ELM STREET,80%,NE
+WB,"Nightmare on Elm Street 3, A: Dream Warriors (1987)",1,ACCEPTED_CLEAR_MG06,NE,NIGHTMARE ON ELM STREET,Clear existing MG06 property name match,WB Horror,Nightmare on Elm Street,77%,NE,NIGHTMARE ON ELM STREET,81%,NE
+WB,"Nightmare on Elm Street 4, A: The Dream Master (1988)",1,ACCEPTED_CLEAR_MG06,NE,NIGHTMARE ON ELM STREET,Clear existing MG06 property name match,WB Horror,Nightmare on Elm Street,77%,NE,NIGHTMARE ON ELM STREET,80%,NE
+WB,"Nightmare on Elm Street, A (1984)",5,ACCEPTED_CLEAR_MG06,NE,NIGHTMARE ON ELM STREET,Clear existing MG06 property name match,WB Horror,Nightmare on Elm Street,100%,NE,NIGHTMARE ON ELM STREET,100%,NE
+WB,"Nightmare on Elm Street, A (2010)",12,ACCEPTED_CLEAR_MG06,NE,NIGHTMARE ON ELM STREET,Clear existing MG06 property name match,WB Horror,Nightmare on Elm Street,100%,NE,NIGHTMARE ON ELM STREET,100%,NE
+WB,"Nightmare on Elm Street, A: Freddy`s Dead (1991)",1,ACCEPTED_CLEAR_MG06,NE,NIGHTMARE ON ELM STREET,Clear existing MG06 property name match,WB Horror,Nightmare on Elm Street,77%,NE,NIGHTMARE ON ELM STREET,82%,NE
+WB,"Nightmare on Elm Street, A: New Nightmare (1994)",1,ACCEPTED_CLEAR_MG06,NE,NIGHTMARE ON ELM STREET,Clear existing MG06 property name match,WB Horror,Nightmare on Elm Street,82%,NE,NIGHTMARE ON ELM STREET,82%,NE
+WB,"Nightmare on Elm Street, A: The Dream Child (1989)",1,ACCEPTED_CLEAR_MG06,NE,NIGHTMARE ON ELM STREET,Clear existing MG06 property name match,WB Horror,Nightmare on Elm Street,77%,NE,NIGHTMARE ON ELM STREET,81%,NE
+WB,Over the Garden Wall: Animated Series,1,NEEDS_REVIEW,,,,,,,,,,
+WB,"Polar Express, The (2004)",32,ACCEPTED_CLEAR_MG06,XP,POLAR EXPRESS,Clear existing MG06 property name match,WB Christmas,POLAR EXPRESS,100%,XP,POLAR EXPRESS,100%,XP
+WB,"Powerpuff Girls, The: Animated Series",27,ACCEPTED_CLEAR_MG06,PW,POWERPUFF GIRLS,Clear existing MG06 property name match,PowerPuff Girls,,70%,PW,POWERPUFF GIRLS,78%,PW
+WB,Regular Show: Animated Series,1,NEEDS_REVIEW,,,,,,,,,,
+WB,Seinfeld: Television Series,13,ACCEPTED_CLEAR_MG06,SN,SEINFELD,Clear existing MG06 property name match,Seinfeld,,63%,SN,SEINFELD,74%,SN
+WB,Smiling Friends: Animated Series,7,NEEDS_REVIEW,,,,Friends,,60%,FN,FRIENDS,60%,
+WB,Supergirl (2026),14,ACCEPTED_CLEAR_MG06,SG,SUPERGIRL,Clear existing MG06 property name match,DC,Supergirl,100%,SG,SUPERGIRL,100%,SG
+WB,Supergirl Core,4,ACCEPTED_CLEAR_MG06,SG,SUPERGIRL,Clear existing MG06 property name match,DC,Supergirl,100%,SG,SUPERGIRL,86%,SG
+WB,Supergirl: Television Series (2015),23,ACCEPTED_CLEAR_MG06,SG,SUPERGIRL,Clear existing MG06 property name match,DC,Supergirl,63%,SG,SUPERGIRL,73%,SG
+WB,Superman (2025),18,ACCEPTED_CLEAR_MG06,SM,SUPERMAN,Clear existing MG06 property name match,DC,Superman,100%,SM,SUPERMAN,100%,SM
+WB,Superman Core,115,ACCEPTED_CLEAR_MG06,SM,SUPERMAN,Clear existing MG06 property name match,DC,Superman,100%,SM,SUPERMAN,85%,SM
+WB,Ted Lasso: Television Series,13,ACCEPTED_CLEAR_MG06,TL,TED LASSO,Clear existing MG06 property name match,Ted Lasso,,70%,TL,TED LASSO,75%,TL
+WB,Where The Wild Things Are - Literary,11,ACCEPTED_CLEAR_MG06,WT,WHERE THE WILD THINGS ARE,Clear existing MG06 property name match,Where The Wild Things Are,,82%,WT,WHERE THE WILD THINGS ARE,90%,WT
+WB,Where The Wild Things Are (2009),20,ACCEPTED_CLEAR_MG06,WT,WHERE THE WILD THINGS ARE,Clear existing MG06 property name match,Where The Wild Things Are,,100%,WT,WHERE THE WILD THINGS ARE,100%,WT
+WB,"Wizard of Oz, The (1939)",50,ACCEPTED_CLEAR_MG06,WZ,WIZARD OF OZ,Clear existing MG06 property name match,Wizard of Oz,,100%,WZ,WIZARD OF OZ,100%,WZ
+WB,Wonder Woman (2017),24,ACCEPTED_CLEAR_MG06,WW,WONDER WOMAN,Clear existing MG06 property name match,DC,Wonder Woman,100%,WW,WONDER WOMAN,100%,WW
+WB,Wonder Woman 1984 (2020),8,ACCEPTED_CLEAR_MG06,WW,WONDER WOMAN,Clear existing MG06 property name match,DC,Wonder Woman,100%,WW,WONDER WOMAN,100%,WW
+WB,Wonder Woman Core,24,ACCEPTED_CLEAR_MG06,WW,WONDER WOMAN,Clear existing MG06 property name match,DC,Wonder Woman,100%,WW,WONDER WOMAN,89%,WW
+WWE,"WWE Superstars, Divas, Legends & Logos",604,ACCEPTED_CLEAR_MG06,WSU,WWE SUPERSTARS,Clear existing MG06 property name match,Superstars,,58%,WSU,WWE SUPERSTARS,78%,WSU
+Dis/Mrv/SW,101 Dalmatians,1,ACCEPTED_CLASSIC_CP,CP,CLASSIC PROPERTIES,Owner-confirmed Disney Classic,,,,,,,CP
+Dis/Mrv/SW,Aristocats,1,ACCEPTED_CLASSIC_CP,CP,CLASSIC PROPERTIES,Owner-confirmed Disney Classic,,,,,,,CP
+Dis/Mrv/SW,Bambi,1,ACCEPTED_CLASSIC_CP,CP,CLASSIC PROPERTIES,Owner-confirmed Disney Classic,,,,,,,CP
+Dis/Mrv/SW,Dumbo,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Dumbo (2019),10,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Jungle Book,1,ACCEPTED_CLASSIC_CP,CP,CLASSIC PROPERTIES,Owner-confirmed Disney Classic,,,,,,,CP
+Dis/Mrv/SW,Lion King,1,ACCEPTED_CLASSIC_CP,CP,CLASSIC PROPERTIES,Owner-confirmed Disney Classic,The Lion King,,100%,NG,LION KING (LIVE ACTION),78%,CP
+Dis/Mrv/SW,"Lion King, The (2019)",1,ACCEPTED_CLEAR_MG06,NG,LION KING (LIVE ACTION),Strong existing MG06 name match (70% or higher),The Lion King,,100%,NG,LION KING (LIVE ACTION),70%,NG
+Dis/Mrv/SW,Inside Out,1,ACCEPTED_NO_CODE,NONE,No Coldlion property code,Owner confirmed no code; do not create a placeholder,,,,,,,NONE
+Dis/Mrv/SW,Inside Out 2,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Kim Possible,1,ACCEPTED_NO_CODE,NONE,No Coldlion property code,Owner confirmed no code; do not create a placeholder,Disney Channel,Kim Possible,100%,,,,NONE
+Dis/Mrv/SW,Luca,2,ACCEPTED_NO_CODE,NONE,No Coldlion property code,Owner confirmed no code; do not create a placeholder,,,,,,,NONE
+Dis/Mrv/SW,A Bug's Life,1,NEEDS_REVIEW,,,,,,,BU,BUGS LIFE,33%,
+Dis/Mrv/SW,Atlantis,1,NEEDS_REVIEW,,,,Disney Classics,Atlantis-00-Aug-03-Core guide,60%,,,,
+Dis/Mrv/SW,Big Hero 6 TV,1,NEEDS_REVIEW,,,,,,,BK,BIG LEBOWSKI,33%,
+Dis/Mrv/SW,Camp Rock,20,NEEDS_REVIEW,,,,Disney Channel,Camp Rock,100%,,,,
+Dis/Mrv/SW,Camp Rock 2,17,NEEDS_REVIEW,,,,Disney Channel,Camp Rock,100%,,,,
+Dis/Mrv/SW,Cruella (Live Action),8,NEEDS_REVIEW,,,,Stitch,Live Action,77%,GDL,GABBY'S DOLLHOUSE LIVE ACTION 2025,40%,
+Dis/Mrv/SW,Descendants 3,12,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Disney Babies,14,NEEDS_REVIEW,,,,,,,DVN,DISNEY VILLAINS,33%,
+Dis/Mrv/SW,Disney Junior Ariel,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Disney Junior Super Kitties,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Disney Princess,2,NEEDS_REVIEW,,,,Princess,,70%,DVN,DISNEY VILLAINS,33%,
+Dis/Mrv/SW,Disney Stitch Franchise,10,NEEDS_REVIEW,,,,Stitch,,63%,,,,
+Dis/Mrv/SW,Disney Zombies,10,NEEDS_REVIEW,,,,,,,DVN,DISNEY VILLAINS,33%,
+Dis/Mrv/SW,Disney Zombies 2,9,NEEDS_REVIEW,,,,,,,DVN,DISNEY VILLAINS,33%,
+Dis/Mrv/SW,Disney Zombies 3,1,NEEDS_REVIEW,,,,,,,DVN,DISNEY VILLAINS,33%,
+Dis/Mrv/SW,Doc McStuffins,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Ducktales,16,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Elio,1,NEEDS_REVIEW,,,,_Packaging,1587084 Elio - Packaging,70%,,,,
+Dis/Mrv/SW,Emperor's New Groove,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Fancy Nancy,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Finding Dory,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Finding Nemo,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Firebuds,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Goofy Movie,1,NEEDS_REVIEW,,,,,,,PT,MOVIE POSTER,33%,
+Dis/Mrv/SW,Haunted Mansion (Theme Park),1,NEEDS_REVIEW,,,,_Packaging,Haunted Mansion Branding,70%,,,,
+Dis/Mrv/SW,Hunchback of Notre Dame,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,"Incredibles, The",2,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Kingdom Hearts 3.0,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Lady And The Tramp,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Lightyear,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Lilo & Stitch (Live-Action),1,ACCEPTED_CLEAR_MG06,LSL,LILO AND STITCH LIVE ACTION 2025,Strong existing MG06 name match (70% or higher),Stitch,Live Action,70%,LSL,LILO AND STITCH LIVE ACTION 2025,100%,LSL
+Dis/Mrv/SW,"Little Mermaid, The (Live Action)",2,NEEDS_REVIEW,,,,The Little Mermaid,,70%,GDL,GABBY'S DOLLHOUSE LIVE ACTION 2025,33%,
+Dis/Mrv/SW,Minnie,3,NEEDS_REVIEW,,,,_Packaging,467122-Minnie-Mouse_-Adult-and-Tween-Branding Packaging-Jun 2024,57%,,,,
+Dis/Mrv/SW,Moana (Live-Action),1,NEEDS_REVIEW,,,,Moana Live Action,,100%,GDL,GABBY'S DOLLHOUSE LIVE ACTION 2025,40%,
+Dis/Mrv/SW,Moana 2,1,NEEDS_REVIEW,,,,_Packaging,2419461-Moana-2,70%,,,,
+Dis/Mrv/SW,MS Disney Plus TV Shows - No Likeness,179,NEEDS_REVIEW,,,,Disney+ Shows,,70%,,,,
+Dis/Mrv/SW,MS Disney Plus TV Shows - With Likeness,37,NEEDS_REVIEW,,,,Disney+ Shows,,70%,,,,
+Dis/Mrv/SW,Muppet Babies (2018),1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Oswald The Lucky Rabbit,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pete's Dragon (2016),1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pete's Dragon (Classic),2,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pinocchio,3,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pirates of the Caribbean 2: Dead Man's Chest,42,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pirates of the Caribbean 3: At Worlds End,53,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pirates of the Caribbean 4: On Stranger Tides,22,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pirates of the Caribbean 5: Dead Men Tell No Tales,14,NEEDS_REVIEW,,,,Marvel Universe Publishing Art Archive,X-MEN,57%,XM,X-MEN,57%,
+Dis/Mrv/SW,Pirates of the Caribbean: Curse of the Black Pearl,18,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pixar Collection,59,NEEDS_REVIEW,,,,Pixar,,70%,,,,
+Dis/Mrv/SW,Pixar Shorts - Luxo Jr,1,NEEDS_REVIEW,,,,Pixar,,60%,,,,
+Dis/Mrv/SW,Pixar Studios Logo,1,NEEDS_REVIEW,,,,Pixar,,63%,,,,
+Dis/Mrv/SW,Pocahontas,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Preschool CG Mickey (& Friends),2,NEEDS_REVIEW,,,,_Packaging,Mickey-and-Friends_-Branding,70%,FN,FRIENDS,60%,
+Dis/Mrv/SW,Preschool CG Minnie (& Friends),4,NEEDS_REVIEW,,,,,,,FN,FRIENDS,60%,
+Dis/Mrv/SW,Puppy Dog Pals,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Pupstruction,2,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Ratatouille,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Raya and the Last Dragon,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Robin Hood,1,NEEDS_REVIEW,,,,Robin Hood,,100%,,,,
+Dis/Mrv/SW,Soul,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Standard Characters,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Steamboat Willie,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Strange World,1,NEEDS_REVIEW,,,,,,,DR,DR. STRANGE,33%,
+Dis/Mrv/SW,Suite Life of Zack and Cody,12,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,T.O.T.S. (TINY ONES TRANSPORT SERVICE),1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,That's So Raven,9,NEEDS_REVIEW,,,,Disney Channel,Thats So Raven,50%,,,,
+Dis/Mrv/SW,The Good Dinosaur,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,The Incredibles 2,2,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Toy Story,5,ACCEPTED_CLEAR_MG06,TS,TOY STORY 4,Strong existing MG06 name match (70% or higher),Toy Story 4,,100%,TS,TOY STORY 4,100%,TS
+Dis/Mrv/SW,Toy Story 2,5,ACCEPTED_CLEAR_MG06,TS,TOY STORY 4,Strong existing MG06 name match (70% or higher),Toy Story 4,,100%,TS,TOY STORY 4,100%,TS
+Dis/Mrv/SW,Toy Story 3,36,ACCEPTED_CLEAR_MG06,TS,TOY STORY 4,Strong existing MG06 name match (70% or higher),Toy Story 4,,100%,TS,TOY STORY 4,100%,TS
+Dis/Mrv/SW,Toy Story 5,1,ACCEPTED_CLEAR_MG06,TS,TOY STORY 4,Strong existing MG06 name match (70% or higher),Toy Story 4,,100%,TS,TOY STORY 4,100%,TS
+Dis/Mrv/SW,Tsum Tsum,63,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Turning Red,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Up,1,ACCEPTED_CLEAR_MG06,UP,UP MOVIE,Strong existing MG06 name match (70% or higher),Pixar,UP,100%,UP,UP MOVIE,72%,UP
+Dis/Mrv/SW,Vampirina Ballerina,1,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Villains,1,ACCEPTED_CLEAR_MG06,VG,VILLAINS GROUP,Strong existing MG06 name match (70% or higher),Villains,,100%,VG,VILLAINS GROUP,84%,VG
+Dis/Mrv/SW,Wall-E,1,NEEDS_REVIEW,,,,Pixar,WALL-E_-Product-Development-Style-Guide-07-Jun-15-obj0b01d6368003ce23-FULL,55%,,,,
+Dis/Mrv/SW,Wish,1,ACCEPTED_CLEAR_MG06,WS,DISNEY'S WISH,Strong existing MG06 name match (70% or higher),,,,WS,DISNEY'S WISH,70%,WS
+Dis/Mrv/SW,Wizards of Waverly Place,8,NEEDS_REVIEW,,,,,,,,,,
+Dis/Mrv/SW,Wreck-It Ralph 2,1,NEEDS_REVIEW,,,,,,,T7,IT 2017,63%,
+Marvel,Avengers,103,ACCEPTED_CLEAR_MG06,AV,AVENGERS GROUP,Strong existing MG06 name match (70% or higher),Avengers,,100%,AV,AVENGERS GROUP,84%,AV
+Marvel,Fantastic Four,38,ACCEPTED_CLEAR_MG06,FFF,FANTASTIC FOUR: THE FIRST STEPS MOVIE 25,Strong existing MG06 name match (70% or higher),Theatrical Releases,The Fantastic Four - First Steps,70%,FFF,FANTASTIC FOUR: THE FIRST STEPS MOVIE 25,76%,FFF
+Marvel,Fantastic Four Movie - No Likeness,7,ACCEPTED_CLEAR_MG06,FFF,FANTASTIC FOUR: THE FIRST STEPS MOVIE 25,Strong existing MG06 name match (70% or higher),Theatrical Releases,The Fantastic Four - First Steps,40%,FFF,FANTASTIC FOUR: THE FIRST STEPS MOVIE 25,70%,FFF
+Marvel,Fantastic Four Movie - With Likeness,7,ACCEPTED_CLEAR_MG06,FFF,FANTASTIC FOUR: THE FIRST STEPS MOVIE 25,Strong existing MG06 name match (70% or higher),Theatrical Releases,The Fantastic Four - First Steps,40%,FFF,FANTASTIC FOUR: THE FIRST STEPS MOVIE 25,70%,FFF
+Marvel,Marvel Comics (Retro),911,NEEDS_REVIEW,,,,Style Guide - Opportunity,Marvel Comics,77%,MG,MARVEL RETRO GROUP,50%,
+Marvel,Marvel Cross-Franchise Art Packs,271,NEEDS_REVIEW,,,,Style Guide - Evergreen Priorities,Marvel Cross-Franchise,80%,,,,
+Marvel,Marvel Games,175,NEEDS_REVIEW,,,,,,,CM,CAPTAIN MARVEL,33%,
+Marvel,Marvel Seasonal,91,NEEDS_REVIEW,,,,Marvel Universe Publishing Art Archive,,70%,CM,CAPTAIN MARVEL,33%,
+Marvel,Marvel Studios Collection - No Likeness,126,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Studios: The Infinity Saga - No Likeness,142,NEEDS_REVIEW,,,,Theatrical Releases,Infinity Saga logos,40%,,,,
+Marvel,Marvel Studios: The Infinity Saga - With Likeness,88,NEEDS_REVIEW,,,,Theatrical Releases,Infinity Saga logos,40%,,,,
+Marvel,Marvel Studios' Ant-Man Wasp Quantumania - No Likeness,19,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Studios' Ant-Man Wasp Quantumania - With Likeness,11,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Studios' Avengers Doomsday - No Likeness,33,NEEDS_REVIEW,,,,Theatrical Releases,Avengers Doomsday,70%,,,,
+Marvel,Marvel Studios' Avengers Doomsday - With Likeness,1,NEEDS_REVIEW,,,,Theatrical Releases,Avengers Doomsday,70%,,,,
+Marvel,Marvel Studios' Avengers Secret Wars - No Likeness,5,NEEDS_REVIEW,,,,Avengers,,58%,,,,
+Marvel,Marvel Studios' Avengers Secret Wars - With Likeness,1,NEEDS_REVIEW,,,,Avengers,,58%,,,,
+Marvel,Marvel Studios' Captain Marvel 2 - No Likeness,24,ACCEPTED_CLEAR_MG06,CM,CAPTAIN MARVEL,Strong existing MG06 name match (70% or higher),,,,CM,CAPTAIN MARVEL,77%,CM
+Marvel,Marvel Studios' Captain Marvel 2 - With Likeness,6,ACCEPTED_CLEAR_MG06,CM,CAPTAIN MARVEL,Strong existing MG06 name match (70% or higher),,,,CM,CAPTAIN MARVEL,77%,CM
+Marvel,Marvel Studios' Deadpool Movie 3 - No Likeness,28,NEEDS_REVIEW,,,,Theatrical Releases,Deadpool 3,60%,DP,DEADPOOL,60%,
+Marvel,Marvel Studios' Deadpool Movie 3 - With Likeness,6,NEEDS_REVIEW,,,,Theatrical Releases,Deadpool 3,60%,DP,DEADPOOL,60%,
+Marvel,Marvel Studios' Fantastic Four - No Likeness,16,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Studios' Fantastic Four - With Likeness,4,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Studios' GOTG Vol. 3 - No Likeness,15,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Studios' GOTG Vol. 3 - With Likeness,11,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Studios' Thunderbolts - No Likeness,12,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Studios' Thunderbolts - With Likeness,1,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel Universe,1041,NEEDS_REVIEW,,,,Marvel Universe Publishing Art Archive,,100%,CM,CAPTAIN MARVEL,33%,
+Marvel,Marvel's Moon Girl and Devil Dinosaur,6,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvel's Spidey and His Amazing Friends,40,NEEDS_REVIEW,,,,Style Guide - Evergreen Priorities,Spidey and Friends,66%,SX,SPIDEY & FRIENDS,66%,
+Marvel,Marvels' Blade Movie - No Likeness,3,NEEDS_REVIEW,,,,,,,,,,
+Marvel,Marvels' Blade Movie - With Likeness,1,NEEDS_REVIEW,,,,,,,,,,
+Marvel,MS Captain America New World Order - No Likeness,6,NEEDS_REVIEW,,,,,,,CA,CAPTAIN AMERICA,63%,
+Marvel,MS Captain America New World Order - With Likeness,1,NEEDS_REVIEW,,,,,,,CA,CAPTAIN AMERICA,63%,
+WB,Black Adam (2022),10,NEEDS_REVIEW,,,,,,,BP,BLACK PANTHER,33%,
+WB,Blue Beetle (2023),11,NEEDS_REVIEW,,,,,,,,,,
+WB,"Conjuring 2, The (2016)",8,ACCEPTED_CLEAR_MG06,C3,THE CONJURING 2013,Strong existing MG06 name match (70% or higher),WB Horror,Conjuring,100%,C3,THE CONJURING 2013,100%,C3
+WB,"Conjuring 3: The Devil Made Me Do It, The (2021)",7,ACCEPTED_CLEAR_MG06,C1,THE CONJURING 3: THE DEVIL MADE ME DO IT,Strong existing MG06 name match (70% or higher),WB Horror,IT,57%,C1,THE CONJURING 3: THE DEVIL MADE ME DO IT,100%,C1
+WB,"Conjuring, The (2013)",16,ACCEPTED_CLEAR_MG06,C3,THE CONJURING 2013,Strong existing MG06 name match (70% or higher),WB Horror,Conjuring,100%,C3,THE CONJURING 2013,100%,C3
+WB,Cyborg Core,1,NEEDS_REVIEW,,,,,,,,,,
+WB,"Dark Knight Rises, The (2012)",15,NEEDS_REVIEW,,,,,,,,,,
+WB,"Dark Knight, The (2008)",25,NEEDS_REVIEW,,,,,,,DM,DARK MARK,33%,
+WB,DC League of Super-Pets (2022),16,NEEDS_REVIEW,,,,DC,,60%,,,,
+WB,DC Super Friends Collection Comics,55,NEEDS_REVIEW,,,,Friends,,58%,FN,FRIENDS,58%,
+WB,DC Super Hero Girls: Animated Series,68,NEEDS_REVIEW,,,,DC,DC Super Hero Girls,77%,,,,
+WB,DC Women Core,12,NEEDS_REVIEW,,,,DC,,70%,,,,
+WB,"Exorcist, The (1973) ",2,ACCEPTED_CLEAR_MG06,EX,THE EXORCIST,Strong existing MG06 name match (70% or higher),WB Horror,The Exorcist,100%,EX,THE EXORCIST,100%,EX
+WB,Fantastic Beasts and Where To Find Them (2016),26,NEEDS_REVIEW,,,,,,,,,,
+WB,Fantastic Beasts: The Crimes of Grindelwald (2018),17,NEEDS_REVIEW,,,,,,,,,,
+WB,Fantastic Beasts: The Secrets of Dumbledore (2022),20,NEEDS_REVIEW,,,,,,,DD,DUMBLEDORE,60%,
+WB,"Flash Core, The",15,ACCEPTED_CLEAR_MG06,FS,THE FLASH,Strong existing MG06 name match (70% or higher),DC,Flash,100%,FS,THE FLASH,70%,FS
+WB,"Flash, The (2023)",10,ACCEPTED_CLEAR_MG06,FS,THE FLASH,Strong existing MG06 name match (70% or higher),DC,Flash,100%,FS,THE FLASH,100%,FS
+WB,Gokko x DC,1,NEEDS_REVIEW,,,,DC,,70%,,,,
+WB,Gokko x Looney Tunes,1,ACCEPTED_CLEAR_MG06,LT,LOONEY TUNES,Strong existing MG06 name match (70% or higher),Looney Tunes,,77%,LT,LOONEY TUNES,77%,LT
+WB,"Gokko x Powerpuff Girls, The",1,ACCEPTED_CLEAR_MG06,PW,POWERPUFF GIRLS,Strong existing MG06 name match (70% or higher),PowerPuff Girls,,77%,PW,POWERPUFF GIRLS,77%,PW
+WB,Gokko x Scooby-Doo,1,NEEDS_REVIEW,,,,Scooby-Doo,,77%,,,,
+WB,Gokko x Tom and Jerry,1,ACCEPTED_CLEAR_MG06,TJ,TOM & JERRY,Strong existing MG06 name match (70% or higher),Tom and Jerry,,77%,TJ,TOM & JERRY,77%,TJ
+WB,"Goonies, The (1985)",14,NEEDS_REVIEW,,,,The Goonies,,100%,,,,
+WB,Gotham Knights: Video Game,10,NEEDS_REVIEW,,,,,,,,,,
+WB,Gremlins (1984),7,NEEDS_REVIEW,,,,Gremlins,,100%,,,,
+WB,Gremlins 2: The New Batch (1990),10,NEEDS_REVIEW,,,,Gremlins,,63%,,,,
+WB,"Hobbit, The: An Unexpected Journey (2012)",48,NEEDS_REVIEW,,,,,,,,,,
+WB,"Hobbit, The: The Battle of the Five Armies (2014)",39,NEEDS_REVIEW,,,,,,,,,,
+WB,"Hobbit, The: The Desolation of Smaug (2013)",43,NEEDS_REVIEW,,,,LOTR The Hobbit,The Hobbit - The Desolation of Smaug,100%,,,,
+WB,House of the Dragon: Television Series,34,NEEDS_REVIEW,,,,House of the Dragon,,70%,T0,IT 1990 TELEVISION SERIES,40%,
+WB,Infinite Crisis: Video Game,25,NEEDS_REVIEW,,,,,,,,,,
+WB,Injustice 2: Every Battle Defines You: Video Game,1,NEEDS_REVIEW,,,,,,,,,,
+WB,Injustice: Gods Among Us: Video Game,30,NEEDS_REVIEW,,,,,,,,,,
+WB,IT (1990): Television Miniseries,2,NEEDS_REVIEW,,,,WB Horror,IT,63%,T7,IT 2017,63%,
+WB,IT: Welcome to Derry: Television Series,16,ACCEPTED_CLEAR_MG06,WD,WELCOME TO DERRY: TELEVISION SERIES,Strong existing MG06 name match (70% or higher),WB Horror,IT,57%,WD,WELCOME TO DERRY: TELEVISION SERIES,83%,WD
+WB,"Lost Boys, The (1987) ",20,ACCEPTED_CLEAR_MG06,LB,THE LOST BOYS,Strong existing MG06 name match (70% or higher),WB Horror,The Lost Boys,100%,LB,THE LOST BOYS,100%,LB
+WB,"Matrix Reloaded, The (2003) ",24,NEEDS_REVIEW,,,,,,,,,,
+WB,"Matrix Resurrections, The (2022)",10,NEEDS_REVIEW,,,,,,,,,,
+WB,"Matrix Revolutions, The (2003) ",22,NEEDS_REVIEW,,,,,,,,,,
+WB,"Matrix, The (1999)",10,NEEDS_REVIEW,,,,,,,,,,
+WB,Multiple Licensed Properties,2,NEEDS_REVIEW,,,,,,,,,,
+WB,"Nun 2, The (2023)",7,ACCEPTED_CLEAR_MG06,N3,THE NUN 2 2023,Strong existing MG06 name match (70% or higher),,,,N3,THE NUN 2 2023,100%,N3
+WB,"Nun, The (2018)",2,ACCEPTED_CLEAR_MG06,N3,THE NUN 2 2023,Strong existing MG06 name match (70% or higher),,,,N3,THE NUN 2 2023,100%,N3
+WB,Peacemaker: Television Series,7,NEEDS_REVIEW,,,,Gilmore Girls,Gilmore Girls Style Guide-Gilmore Girls_ Television Series,40%,T0,IT 1990 TELEVISION SERIES,50%,
+WB,Rick and Morty: Animated Series,112,ACCEPTED_CLEAR_MG06,RK,RICK & MORTY,Strong existing MG06 name match (70% or higher),Rick and Morty,,70%,RK,RICK & MORTY,70%,RK
+WB,SCOOB (2020),22,NEEDS_REVIEW,,,,,,,,,,
+WB,Scooby-Doo Core,63,NEEDS_REVIEW,,,,Scooby-Doo,,100%,,,,
+WB,Shazam! (2019),17,NEEDS_REVIEW,,,,,,,,,,
+WB,Shazam!: Fury of the Gods (2023),19,NEEDS_REVIEW,,,,,,,,,,
+WB,Suicide Squad (2016),13,NEEDS_REVIEW,,,,,,,,,,
+WB,"Suicide Squad, The (2021)",34,NEEDS_REVIEW,,,,,,,,,,
+WB,Suicide Squad: Kill the Justice League: Video Game,1,NEEDS_REVIEW,,,,DC,Justice League,61%,JG,JUSTICE LEAGUE,61%,
+WB,Teen Titans Go!: Animated Series,32,NEEDS_REVIEW,,,,,,,,,,
+WB,WB 100: Art of the 100th,1,NEEDS_REVIEW,,,,WB 100,,77%,,,,
+WB,WB 100: Artist Collaborations,1,NEEDS_REVIEW,,,,WB 100,,70%,,,,
+WB,WB 100: Looney Tunes Mashups,70,NEEDS_REVIEW,,,,Looney Tunes,,66%,LT,LOONEY TUNES,66%,
+WB,WB 100: Poster Series,1,NEEDS_REVIEW,,,,WB 100,,70%,,,,
+WB,Willy Wonka & the Chocolate Factory (1971),18,NEEDS_REVIEW,,,,Wonka (2023),,60%,,,,
+WB,Wonka (2023),15,NEEDS_REVIEW,,,,Wonka (2023),,100%,,,,

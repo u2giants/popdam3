@@ -300,6 +300,37 @@ actually working against** rather than trusting either number.
 **The real Phase 3 risk is not sequencing — it is character identity resolution.** The plan
 already says so above, and nothing found on 2026-07-28 reduces it.
 
+### Phase 3 identity rules — PROPOSED, AWAITING OWNER APPROVAL (2026-07-28)
+
+Read-only evidence and the proposed rule set:
+[`docs/verification/character-identity-rules-20260728/`](docs/verification/character-identity-rules-20260728/README.md).
+Rules are implemented in `tools/resolve-character-identity.mjs` (21 unit tests) and measured by
+`tools/analyze-character-identity-resolution.mjs`. **No rows were written; production was never
+contacted.**
+
+- **9,622 appearances → 6,538 canonical characters.** 8,878 auto-resolved, 590 excluded by rule
+  (182 sentinels, 135 self-named guides, 111 "general" royalty labels, 101 logos, 31 grouping
+  combinations, 13 do-not-use, 17 covered combinations).
+- **154 appearances need a human identity decision**, concentrated in 30 style guides (Pirates,
+  Toy Story 3, Looney Tunes, Camp Rock…). All are one-row-names-many-characters combinations whose
+  components exist nowhere else, so splitting would invent names. Answerable as **one policy
+  question**, not 154 rows.
+- **173 characters need a human property decision** (425 appearances): a character's style guides
+  carry equally specific, equally frequent property codes. The rules resolve 425 other conflicts
+  by the reviewed franchise table, code specificity, or majority.
+
+Three things the owner must decide before the backfill runs:
+
+1. **Batman resolves to 17 bridge rows, not the 15 in this plan's exit check.** The extra two are
+   `Batman As Portrayed By Christian Bale` (*Batman Begins 2005*) and `Batman (non-talent
+   likeness)` (*Dark Knight Rises 2012*) — both Batman under the owner's own likeness rule. Confirm
+   17 is correct, or the qualifier-stripping rules must be narrowed.
+2. **The 154 combination rows:** exclude them (recommended, invents nothing), split them, or decide
+   the 30 style guides individually.
+3. **The licensing answer `MU` for the `Marvel Universe` style guide is almost certainly wrong** —
+   `MU` is **MUPPETS** in Coldlion MG06, and that guide carries 1,041 Marvel appearances. It
+   passed code validation because `MU` is a real code. Re-ask licensing (likely `MV`).
+
 ---
 
 ## Phase 4 — app-owned relocation (DAM), preview

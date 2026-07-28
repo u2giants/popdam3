@@ -209,6 +209,15 @@ addRule('AV', 'Avengers character family', [
   'Yellowjacket',
 ]);
 
+/**
+ * Look a character name up in the reviewed DC/Marvel franchise rule table.
+ * Exported so the Phase 3 identity resolver can reuse the same reviewed rules
+ * instead of restating them. `universe` is 'DC' or 'MARVEL'.
+ */
+export function lookupFranchiseRule(universe, characterName) {
+  return franchiseRules.get(`${universe}|${norm(characterName)}`) ?? null;
+}
+
 export function classifyFranchiseCharacter(styleGuide, characterName, allowCatchAll = true) {
   const normalizedGuide = norm(styleGuide);
   const universe = normalizedGuide === norm('Marvel Cross-Franchise Art Packs')
