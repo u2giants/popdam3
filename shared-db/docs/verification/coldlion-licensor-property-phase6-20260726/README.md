@@ -133,6 +133,8 @@ evaluation; it does **not** establish cutover readiness without the other accele
 | **2026-07-27** | **30249661878** | `0 5 * * *` / daily comparison | **PASS**; complete scheduled DesignFlow + ColdLion pairing passed comparison with no unexplained differences | observation **`c72852e3-428b-4716-abcb-823bac769505`**; comparison run **`544f6995-82f1-457e-aa3a-552e784cec6e`**; `pass:true`; `diffs:[]`; `unexplained_diff_count:0`; baseline, both source lanes, link checks, and immutability all true; canonical licensors/properties **26 / 256**; linked rows **38 / 504**; ColdLion refs **542**; DesignFlow refs **505**; hashes recorded for licensor UUID/status, property UUID/status, parent edges, source refs, and overall status | **Strong §9.4 evidence, not readiness.** It proves a green complete scheduled cycle and protected hashes for this observation. It does not prove exact 542-row mapping identity, breaker/alert delivery, or rollback. |
 | **2026-07-27** | **30256960304** | `15 */6 * * *` / health | **PASS**; post-comparison preview health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`3dcc1598-345e-4ca3-b18d-06bab47e2bf1`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the completed cycle remained healthy. |
 | **2026-07-27** | **30279033321** | `15 */6 * * *` / health | **PASS**; later preview health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`27083aaf-4936-41bf-b09b-00b31e9294de`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no health regression later in the day. |
+| **2026-07-27** | **30300363303** | `15 */6 * * *` / health | **PASS**; preview guard, tests, preview link, and health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`b7f0b1ca-baf8-496a-b9ad-5320d2d8c7ae`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the last complete scheduled cycle remained healthy after the accelerated safety build began. |
+| **2026-07-28** | **30326393766** | `15 */6 * * *` / health | **PASS**; preview guard, tests, preview link, and health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`f4887126-ff7a-47d7-93f7-b5f955f920a3`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no preview health regression after the accelerated readiness implementation merged. |
 
 The workflow checked out `a14fefc9459a3ff8c74ea21c55e58230c47a4296`, resolved the
 exact health cron rather than wall-clock time, displayed preview project
@@ -150,6 +152,13 @@ health checks are proven. The accelerated plan still requires exact row-by-row i
 542 approved typed mappings rather than count/hash evidence alone, plus circuit-breaker behavior,
 actual alert delivery to the named responder, and a rehearsed rollback. This entry does not
 authorize production work or Phase 7.
+
+**Monitoring update at 2026-07-28T03:37:06Z:** the two later scheduled health runs
+above are green and add no unexplained difference. Section 4.7 now proves the formerly missing
+exact 542-row identity, circuit-breaker, measured alert delivery, rollback, and recovered
+`ready=true` preview result. The active plan still requires Step 6 application checks before a
+production package can be prepared. No production readiness or Phase 7 authorization is declared
+by this monitoring entry.
 
 ### 4.6 Secrets and schedule (ACTIVE)
 
