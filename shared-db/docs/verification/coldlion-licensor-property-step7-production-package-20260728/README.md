@@ -110,9 +110,20 @@ never the shared checkout — other sessions churn it between turns.
 ### 4.1 Bounded checkout
 
 ```bash
-git worktree add --detach C:/repos/shared-db-prod-apply-<date> <PINNED_SHA>
+git worktree add --detach C:/repos/shared-db-prod-apply-<date> fcca1f7b47b857f7c6da976d417220c13f6cf2ed
 cd C:/repos/shared-db-prod-apply-<date>
 rm supabase/migrations/20260727230000_core_style_guide_axis.sql
+```
+
+**The SHA is pinned deliberately, not floating `origin/main`.** `fcca1f7b47b857f7c6da976d417220c13f6cf2ed` is the merge
+commit that contains the production-authorization tooling. Checking out bare `origin/main`
+was a real defect (Grok review, 2026-07-28): at the time the package was written, `main`
+carried the migrations but **not** the runners that can write to production, so following
+the package literally would have applied the migrations and then aborted mid-window. Verify
+before going further:
+
+```bash
+test -f tools/coldlion-production-authorization.mjs && echo "production tooling present"
 ```
 
 Delete **only** the pending file being excluded. Do **not** delete already-applied files — the
@@ -390,4 +401,5 @@ migration list, the data modes, the window, the monitoring, and this rollback.
 | Date | Change |
 |---|---|
 | 2026-07-28 (first draft) | Original package written from the owner-authorized read-only production inventory |
-| 2026-07-28 (revised) | **Codex review found the package could not be executed**: both write runners were hard preview-only, so §4.8 would have aborted mid-window. Added four-part production authorization to both runners (`tools/coldlion-production-authorization.mjs`, 7 new tests) and proved the refusals. Also: DesignFlow smoke moved **before** linking so a failure needs no cleanup; rollback bound to the **exact frozen 542** instead of every ColdLion row, and now re-arms the breaker; pre/post hashes strengthened to include entity type, canonical UUID and code, with ColdLion and DesignFlow hashed separately; the production GitHub secret request **withdrawn** as unnecessary |
+| 2026-07-28 (revision 3) | **Grok review found six more "cannot be run as written" faults**, all confirmed: the checkout SHA pointed at bare `origin/main` which lacked the new tooling; the sync runner never printed the `authorized_target` the package told the operator to check; `COLDLION_API_KEY` was missing from the prerequisites; the rollback used an unbound `:approved_mapping_json`; **readiness skipped the target check under production authorization and could have reported green against preview**; and a `/tmp` path on a Windows machine. All fixed. Executing the generated rollback on preview then exposed a seventh: nulling a mirror link without resetting `resolution_status` violates `plm_erp_licensor_resolution_link_ck` and aborts the whole rollback — corrected, and the SQL has now actually been run end to end |
+| 2026-07-28 (revision 2) | **Codex review found the package could not be executed**: both write runners were hard preview-only, so §4.8 would have aborted mid-window. Added four-part production authorization to both runners (`tools/coldlion-production-authorization.mjs`, 7 new tests) and proved the refusals. Also: DesignFlow smoke moved **before** linking so a failure needs no cleanup; rollback bound to the **exact frozen 542** instead of every ColdLion row, and now re-arms the breaker; pre/post hashes strengthened to include entity type, canonical UUID and code, with ColdLion and DesignFlow hashed separately; the production GitHub secret request **withdrawn** as unnecessary |
