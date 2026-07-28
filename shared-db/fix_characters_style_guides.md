@@ -259,7 +259,8 @@ rule — see model doc §7 question 4. **This is the single most likely place to
 **Reconciliation checks (all must pass, all recorded):**
 - row counts in vs out, with every exclusion explained by number
 - zero duplicate `(style_guide, character)` bridge rows
-- zero characters with a missing/dangling `property_id`
+- zero characters with a **dangling** `property_id` (a **missing** one is expected and required —
+  see the correction below)
 - zero orphan bridge rows at either end
 - **idempotency:** running the backfill twice changes nothing the second time
 - sentinels absent from `core.character`
@@ -327,6 +328,15 @@ Three things the owner must decide before the backfill runs:
    17 is correct, or the qualifier-stripping rules must be narrowed.
 2. **The 154 combination rows:** exclude them (recommended, invents nothing), split them, or decide
    the 30 style guides individually.
+Two of this phase's own exit checks were unachievable as originally written and are corrected
+above:
+
+- **"zero characters with a missing/dangling `property_id`" contradicted the `NEVER_DESIGNED`
+  rule.** 1,302 of the 6,538 characters appear only under never-designed or no-code style guides,
+  so by the owner's own rule they must carry a **null** `property_id` and no placeholder property
+  may be invented. Only a *dangling* FK is a failure.
+- **"spot-check Batman: 15 bridge rows"** measures 17 under these rules (see point 1 below).
+
 3. **The licensing answer `MU` for the `Marvel Universe` style guide is almost certainly wrong** —
    `MU` is **MUPPETS** in Coldlion MG06, and that guide carries 1,041 Marvel appearances. It
    passed code validation because `MU` is a real code. Re-ask licensing (likely `MV`).
