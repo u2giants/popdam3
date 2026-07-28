@@ -644,12 +644,39 @@ migrations**, deliberately excluding `20260727230000` (another workstream) — n
 canonical baseline identical to preview. **Nothing was written**, and the detached worktree used
 for it was removed.
 
-**Exact next action:** finish Step 6's two browser checks — the DB Data Admin screens, and DAM
-**only once a genuinely read-only account exists** (per `AGENTS.md` §0.4 the Master Data grid is
-writable by any signed-in user, so an ordinary tester login is not a safe read-only instrument).
-Then Step 7 items 6–9 (production secret proposal, exact commands, rollback), then put the Step 8
-approval request to Albert. **Production writes remain prohibited. Do not execute Phase 7
-without that named approval** — a general "go ahead" does not count.
+**2026-07-28 — STEPS 6 AND 7 ARE COMPLETE. The next gate is Albert's approval.**
+
+Step 6, at the accuracy the evidence supports: **DB Data Admin is verified** as a real
+signed-in user against preview (`data-dev.designflow.app` runs on preview) — tree of 26
+licensors / 256 properties, filters work, every property shows its parent, **0** duplicates and
+**0** cross-entity rows. ColdLion and DesignFlow provenance appear **side by side** (MARVEL
+carries both ColdLion divisions and its DesignFlow refs), which is the parallel run working end
+to end. **DAM's live subset is verified at the data-contract level** (0 orphans, 0
+asset-vs-parent mismatches) and its **screens were deliberately not driven** — per `AGENTS.md`
+§0.4 the Master Data grid is writable by any signed-in user and PopDAM has no read-only role,
+so a tester login is not a safe read-only instrument. **DesignFlow PLM, CRM and PM hold zero
+rows on preview**, so they were **not exercised**; that is recorded as untested, **not** as
+passed, and their 40 foreign keys and `api.*` contracts are proven intact. The live PLM smoke
+belongs in the Step 9 read-only production window.
+
+Two traps worth keeping: the DB Data Admin functions are **role-gated** (calling them from the
+CLI fails `42501` — a real JWT is required, which is correct), and their signature is
+`(p_search, p_include_inactive, p_cursor, p_page_size)` returning a **jsonb envelope**, not a
+row set. Also, the inactive-visibility rule could **not** be exercised — there are 21 active +
+5 potential and **zero inactive** licensors, so there was nothing to hide.
+
+Step 7 is written in full:
+[`docs/verification/coldlion-licensor-property-step7-production-package-20260728/README.md`](docs/verification/coldlion-licensor-property-step7-production-package-20260728/README.md)
+— bounded **9-migration** manifest (plus the 2026-07-28 hardening, which should go with it,
+since without it the breaker exists but nothing arms it), every command naming
+`qsllyeztdwjgirsysgai`, pre/post hash captures, the production secret **named but not created**,
+a read-only smoke checklist by real maturity, and an operational rollback that drops no schema
+and deletes no canonical row.
+
+**Exact next action: Step 8 — put the production-window approval request to Albert**, naming the
+exact project, migrations, data modes, secret action, window, monitoring, and rollback.
+**Production writes remain prohibited. Do not execute Phase 7 without that named approval** —
+a general "go ahead" does not count.
 
 Full evidence: `docs/verification/coldlion-licensor-property-phase6-20260726/README.md`
 **§4.7** (readiness/identity/breaker), **§4.8** (correction + auto-trip hardening), **§4A**

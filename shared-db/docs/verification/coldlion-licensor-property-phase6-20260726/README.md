@@ -528,6 +528,72 @@ and the identity verifier are all **absent** — consistent with the pending lis
 Step 7 items 1–5 are satisfied. Items 6–9 (the production secret proposal, the exact command
 set, and the rollback commands) remain, and **Step 8 approval has not been requested.**
 
+### 4A.3 Step 6 item 5 — DB Data Admin, exercised as a real signed-in user (2026-07-28)
+
+`data-dev.designflow.app` runs against **preview** `rjyboqwcdzcocqgmsyel` (confirmed in
+`docs/db-data-admin-deployment.md`), so this check carried **zero production risk**.
+
+Signed in through Supabase Auth with the 1Password tester account
+`DB Data Admin AI tester login (data-dev.designflow.app) - non-SSO`, then called the exact
+`api.db_data_admin_licensor_property_tree` / `_list` functions the UI calls, under a genuine
+user JWT. The password was passed through the process environment and never written to a file,
+a log, or a command line.
+
+> Two traps worth recording. (1) These functions are **role-gated** — calling them from the
+> Supabase CLI as the migration role fails with `42501 db_data_admin: not authorized` from
+> `app.require_db_data_admin_access()`. A real JWT is required; that is correct behaviour, not
+> a defect. (2) Their real signature is
+> `(p_search text, p_include_inactive boolean, p_cursor text, p_page_size integer)` returning a
+> **jsonb envelope** keyed `licensors / page_size / next_cursor / orphan_properties`
+> (plus `snapshot` and `reconciliation` on the tree) — **not** a row set. Guessing
+> `p_entity` / `p_limit` returns `PGRST202`.
+
+| Contract check | Result |
+|---|---|
+| Tree renders the hierarchy | **26 licensors, 256 properties** |
+| Duplicate licensor rows / duplicate property rows | **0 / 0** |
+| A UUID appearing as both a licensor **and** a property (cross-entity) | **0** |
+| A property appearing under more than one licensor | **0** |
+| Orphan properties reported by the function | **0** |
+| Linked parent display | every property row carries `licensor_id` |
+| Filter — search `MARVEL` | **1** licensor |
+| Filter — nonsense search term | **0** rows (does not fall back to everything) |
+| List envelope | `licensors / page_size / next_cursor / orphan_properties`, 26 licensors |
+
+**ColdLion provenance is visible in the admin surface, beside DesignFlow — the parallel run
+working end to end:**
+
+- **19** licensors show at least one `coldlion` source ref (matching the 19 distinct linked
+  licensors from Phase 4)
+- **504** ColdLion property refs and **468** DesignFlow property refs visible together
+- `MARVEL` (`MV`, active, 29 properties) shows both ColdLion divisions
+  (`EDGEHOME/CW001/05/MV`, `EDGEHOME/SP001/05/MV`, table `merchGroupDetails`) **and** its
+  DesignFlow refs (`merchGroup` ids `1115`, `201`) — coexisting, neither overwriting the other
+
+**Honest limitation on the inactive-visibility rule.** `include_inactive=false` returned the
+same 26 licensors as `true`, because production and preview currently hold **21 active + 5
+potential and zero inactive** licensors. There was nothing inactive to hide, so that rule was
+**not genuinely exercised**. It is recorded as untested, not as passed.
+
+### 4A.4 Step 6 — final maturity-accurate conclusion
+
+| App | Result | Basis |
+|---|---|---|
+| **DB Data Admin** | **VERIFIED** | Real signed-in user against preview; tree, filters, parent display, duplicate/cross-entity all clean (§4A.3) |
+| **DAM** | **Live subset verified at the data contract; screens NOT clicked** | 85,481 assets / 42,700 property refs / 5,726 style groups, **0 orphans**, **0** asset-licensor vs property-parent mismatches, 10 ColdLion-linked licensors in real use (§4A.1). The UI was deliberately not driven: per `AGENTS.md` §0.4 the Master Data grid is writable by **any** signed-in user and PopDAM has no read-only role, so an ordinary tester login is not a safe read-only instrument against production |
+| **DesignFlow PLM** | **NOT exercised — no data on preview** | `plm.item` is **0 rows** on preview. Its dependency is the FK/api contract, and all 40 FKs are valid. This is "nothing to exercise", **not** a pass. The live PLM smoke belongs in the Step 9 read-only production window |
+| **CRM** | **NOT exercised — no data** | `crm.licensor_approval_thread` is **0 rows** on preview; dependency is 2 FKs, both valid |
+| **PM/PIM** | **NOT exercised — no data** | `pim.product` / `pim.project` / `pim.product_submission` all **0 rows** on preview; dependency is 6 FKs, all valid |
+
+**Conclusion, stated at the accuracy the evidence supports:** DB Data Admin behaviour is
+verified against the preview-connected environment; the DAM live subset is verified at the
+data-contract level and its screens are explicitly untested; DesignFlow PLM, CRM, and PM/PIM
+could not be exercised because those tables hold no rows on preview, and their dependency —
+40 valid foreign keys and the `api.*` contracts — is proven intact. **No claim is made that
+CRM, PM, or all of DAM is production-proven.**
+
+---
+
 ## 5. Historical clock and active exit criteria
 
 | Item | Status |

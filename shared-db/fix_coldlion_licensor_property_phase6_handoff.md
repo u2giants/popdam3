@@ -38,7 +38,38 @@ What a developer walking in today must know:
 | Phase 6 overall | **IN PROGRESS** — preview readiness gates PROVEN 2026-07-27; application-maturity checks and production packaging still open |
 | Historical schedule start | **2026-07-26**; retained as evidence, not an exit clock |
 | Active exit gate | Plan Steps 6–8: application checks at real maturity, bounded production package, and Albert's durable production-window approval |
-| **Exact next action** | **Finish Step 6's two browser checks (DB Data Admin screens; DAM only with a genuinely read-only account), then Step 7 items 6–9, then the Step 8 approval request. Do not execute Phase 7 without Albert's named approval.** |
+| **Exact next action** | **Step 8 — put the production-window approval request to Albert. Steps 1–7 are complete. Do not execute Phase 7 without that named approval.** |
+
+### 2026-07-28 — Steps 6 and 7 closed
+
+**Step 6, stated at the accuracy the evidence supports.** DB Data Admin **verified** as a real
+signed-in user against preview (`data-dev.designflow.app` runs on preview): 26 licensors / 256
+properties, filters work, every property shows its parent, **0** duplicates, **0** cross-entity
+rows, **0** orphans. ColdLion and DesignFlow provenance appear side by side — MARVEL carries both
+ColdLion divisions (`EDGEHOME/CW001/05/MV`, `EDGEHOME/SP001/05/MV`) and its DesignFlow refs.
+19 licensors and 504 properties show ColdLion refs.
+
+DAM's live subset is verified at the **data contract** (85,481 assets, 5,726 style groups, 0
+orphans, 0 asset-vs-parent mismatches); its **screens were not driven**, because `AGENTS.md`
+§0.4 says the Master Data grid is writable by any signed-in user and PopDAM has no read-only
+role. DesignFlow PLM, CRM and PM hold **zero rows on preview** — recorded as **not exercised**,
+never as passed. Their 40 FKs and `api.*` contracts are proven intact. The live PLM smoke moves
+to the Step 9 read-only production window.
+
+Three things a future session should not relearn: the DB Data Admin functions are role-gated
+(CLI calls fail `42501`; a real JWT is required, which is correct); their signature is
+`(p_search, p_include_inactive, p_cursor, p_page_size)` returning a **jsonb envelope**, not a row
+set; and the inactive-visibility rule could not be exercised because there are 21 active + 5
+potential and **zero inactive** licensors.
+
+**Step 7 is complete** — the full bounded package is at
+`docs/verification/coldlion-licensor-property-step7-production-package-20260728/README.md`:
+9-migration manifest (promote the 2026-07-28 hardening with it, or the breaker ships with nothing
+to arm it), exact commands naming `qsllyeztdwjgirsysgai`, pre/post hash captures, the production
+secret named but **not** created, a maturity-accurate read-only smoke checklist, and an
+operational rollback with no schema drop and no canonical delete.
+
+Evidence: §4A.3 and §4A.4.
 
 ### 2026-07-28 update — a false safety claim, corrected
 

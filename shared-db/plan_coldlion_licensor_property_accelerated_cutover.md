@@ -4,12 +4,7 @@
 **Documentation corrections:** 2026-07-26 — Kimi critique corrections applied; see STATUS
 **Decision owner:** Albert Hazan  
 **Repository:** `u2giants/shared-db`  
-**Fresh-session starting point (updated 2026-07-27):** **Step 6** — verify the applications at
-their real maturity levels. Steps 1–3 are complete and Steps 4–5 are complete for every new
-behavior; the readiness command reports `ready=true` on preview with all 542 mappings proven by
-row-by-row identity. The 14-day / 2026-08-09 gate is retired and survives only as labeled
-historical evidence. **No production change is authorized**, no production workflow exists, and
-Phase 7 has not been started.
+**Fresh-session starting point (updated 2026-07-28):** **Step 8** — put the production-window approval request to Albert. Steps 1–7 are complete. The readiness command reports ready=true on preview, all 542 mappings are proven by row-by-row identity, the circuit breaker now **trips itself** off the detection path, and the bounded production package is written. **No production write is authorized**, no production workflow or secret exists, and Phase 7 has not been started.
 
 ## STATUS
 
@@ -21,8 +16,8 @@ Phase 7 has not been started.
 | 3. Build the readiness evaluator | ✅ Complete | 2026-07-27 | `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs` — one command; **`ready=true` on preview**; all 542 approved mappings proven by row-by-row identity (all 8 difference buckets 0). Evidence §4.7 |
 | 4. Strengthen fail-closed production monitoring | ✅ Preview-proven (production lane still gated by Step 8) | 2026-07-28 | **Breaker now AUTO-TRIPS off the detection path** (migration `20260728134500`) — the 2026-07-27 claim that it protected without a human was FALSE and is corrected in evidence §4.8.1. Adds DELETE/linked-INSERT gap closure, anti-disarm, and a 9-trigger enforcement watchdog readiness blocks on. Alerts now delivered by the detecting run itself (seconds, not the throttled */10 cron); health detection hourly |
 | 5. Rehearse the complete cutover and rollback on preview | 🔶 New behaviors rehearsed; app checks are Step 6 | 2026-07-27 | Forced-failure drill, refused real promotion (`run-...-phase4.mjs` exit 1, failed run `15c0b900-…`), append-only evidence, refused unauthorized reset, authorized rollback, proven recovery (542 unchanged, run `5676f13a-…`), protected hashes unchanged throughout. Evidence §4.7.4 |
-| 6. Verify the applications at their real maturity levels | 🔶 Data contracts done; UI checks open | 2026-07-28 | 40/40 FKs valid; DAM live subset clean (85,481 assets / 5,726 style groups, 0 orphans, 0 parent mismatches, 10 ColdLion-linked licensors in real use). CRM/PM/PLM/DAM-schema tables are **zero rows on preview** — nothing to exercise, NOT a pass. DB Data Admin + DAM screens need a browser login; DAM deferred pending a genuinely read-only account (AGENTS §0.4). Evidence §4A.1 |
-| 7. Prepare the production change package | 🔶 Items 1–5 done | 2026-07-28 | Owner-authorized read-only production inventory: **354 applied, 10 pending, 0 ledger corruption**. Bounded manifest = **9 ColdLion migrations**, excluding `20260727230000` (other workstream). Read-only 542-row identity pre-proof on production: **0 missing / 0 cross-typed / 0 code mismatch / 0 existing ColdLion refs**. Items 6–9 (secret proposal, exact commands, rollback) remain. Evidence §4A.2 |
+| 6. Verify the applications at their real maturity levels | ✅ Complete at the accuracy the evidence supports | 2026-07-28 | DB Data Admin **verified** as a real signed-in user on preview (tree/filters/parents/no duplicates/no cross-entity). DAM live subset verified at the data contract (0 orphans, 0 parent mismatches); its **screens deliberately not driven** — no read-only DAM role exists (AGENTS §0.4). DesignFlow PLM, CRM, PM hold **zero rows on preview**: recorded as not exercised, NOT as passed; their 40 FKs and api contracts are proven intact. Live PLM smoke belongs in the Step 9 read-only window. Evidence §4A.3–4A.4 |
+| 7. Prepare the production change package | ✅ Complete | 2026-07-28 | Full package: docs/verification/coldlion-licensor-property-step7-production-package-20260728/README.md — bounded 9-migration manifest (+ the 2026-07-28 hardening, recommended together), exact commands naming qsllyeztdwjgirsysgai, pre/post hash captures, secret named-not-created, read-only smoke checklist by maturity, and an operational rollback with no schema drop. Read-only production identity pre-proof: 0 missing / 0 cross-typed / 0 code mismatch |
 | 8. Obtain Albert's production-window approval | ⬜ Open | 2026-07-26 | Exact migrations/actions/rollback named; durable approval record before execution |
 | 9. Execute the production cutover | ⬜ Open | 2026-07-26 | Separate fresh session; only after Step 8; mapping-identity proof before any write |
 | 10. Run intensified monitoring and close out | ⬜ Open | 2026-07-26 | Hourly cadence + deliberate +1h/+4h/+24h checks, then normal guarded operation |
@@ -760,11 +755,11 @@ Target branch policy:
       (Production-lane workflow itself is deliberately unbuilt until Step 8.)
 - [x] The complete cutover and rollback are rehearsed on preview — for the NEW behaviors.
       Application-maturity checks remain Step 6.
-- [ ] DesignFlow PLM live behavior gate is evidenced.
-- [ ] DAM's applicable live subset is evidenced without overclaiming.
-- [ ] CRM and PM development compatibility is evidenced.
-- [ ] DB Data Admin verification is evidenced.
-- [ ] The bounded production manifest excludes unrelated migrations and never uses `--include-all`.
+- [~] DesignFlow PLM live behaviour gate: NOT evidenced on preview (plm.item is 0 rows there). Deferred to the Step 9 read-only production smoke. Recorded as untested, not passed.
+- [x] DAM's applicable live subset is evidenced at the data-contract level (0 orphans, 0 parent mismatches). Screens deliberately not driven — no read-only DAM role exists.
+- [~] CRM and PM: zero rows on preview, so not exercised. Their FK/api dependency is proven intact. No production-proven claim is made.
+- [x] DB Data Admin verification is evidenced (real signed-in user, preview).
+- [x] The bounded production manifest excludes unrelated migrations and never uses `--include-all` on the full repo set.
 - [ ] Albert explicitly approves the exact production window and actions.
 - [ ] The production cutover is applied only as approved.
 - [ ] Canonical UUID, status, and Property parent hashes remain unchanged.
