@@ -139,6 +139,8 @@ evaluation; it does **not** establish cutover readiness without the other accele
 | **2026-07-28** | **30334798120** | `0 4 * * *` / ColdLion `mirror_only` | **PASS**; ColdLion preview mirror completed; other lanes correctly skipped | sync run **`76da2d9e-1146-4176-a094-bc31225c381e`**; rows **560**; inserted/updated/unchanged **0 / 0 / 560**; licensors/properties **44 / 516**; divisions **2**; cross-entity collisions **30**; snapshot hash **`a69332e05d9064723ffa1dfbd870506c`** | **Partial evidence.** The mirror remained byte-stable and successful. |
 | **2026-07-28** | **30338860067** | `0 5 * * *` / daily comparison | **PASS**; complete scheduled DesignFlow + ColdLion pairing passed comparison with no unexplained differences | observation **`0289efd6-2681-45a3-9cdb-ff3fb81cefdc`**; comparison run **`fed1f419-f386-4564-a46f-5023a6e11563`**; `pass:true`; `diffs:[]`; `unexplained_diff_count:0`; baseline, source lanes, link checks, and immutability all true; canonical licensors/properties **26 / 256**; linked rows **38 / 504**; source refs **542 ColdLion / 505 DesignFlow**; every protected hash matches the prior baseline | **Strong §9.4 evidence, not overall readiness.** The complete scheduled cycle passed after the accelerated safety build. Step 6 application checks remain open. |
 | **2026-07-28** | **30345094507** | `15 */6 * * *` / health | **PASS**; post-comparison preview health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`80c849a7-cc1f-4e42-942e-2a74b89496f2`**; `ok:true`; `issues:[]`; latest observation `0289efd6-2681-45a3-9cdb-ff3fb81cefdc`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the new complete cycle remained healthy. |
+| **2026-07-28** | **30377295386** | `15 */6 * * *` / health | **PASS**; preview guard, tests, preview link, and health passed under the auto-trip workflow; source, comparison, drill, and immediate-alert lanes correctly skipped because no failure occurred | non-drill health **`8775ec1a-3c4c-428c-b99a-be8d7ba1a897`**; `ok:true`; `issues:[]`; latest observation `0289efd6-2681-45a3-9cdb-ff3fb81cefdc`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms healthy operation after automatic breaker enforcement merged. |
+| **2026-07-28** | **30384327471** | `15 */6 * * *` / health | **PASS**; later preview health passed under the same auto-trip workflow; source, comparison, drill, and immediate-alert lanes correctly skipped because no failure occurred | non-drill health **`b228a25b-1aff-4dfb-98d4-2c59a17f2147`**; `ok:true`; `issues:[]`; latest observation `0289efd6-2681-45a3-9cdb-ff3fb81cefdc`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no health regression after the production package and approval request were prepared. |
 
 The workflow checked out `a14fefc9459a3ff8c74ea21c55e58230c47a4296`, resolved the
 exact health cron rather than wall-clock time, displayed preview project
@@ -169,6 +171,13 @@ DesignFlow, ColdLion, comparison, and health cycle passed on preview. ColdLion r
 all protected hashes matched, and there were zero unexplained differences. This reinforces §9.4
 and the deterministic preview proof but does not close Step 6 application checks, authorize
 production, or begin Phase 7.
+
+**Monitoring update at 2026-07-28T17:45:48Z:** two later health runs passed
+after the automatic breaker enforcement, application checks, and bounded production package
+landed. Both runs had `issues:[]`; no immediate alert was expected because no failure occurred.
+Steps 1–7 are now complete in the accelerated plan. The active blocker is Step 8, Albert's
+durable approval of the exact production window and package. This entry does not supply that
+approval, declare overall readiness, access production, or begin Phase 7.
 
 ### 4.6 Secrets and schedule (ACTIVE)
 
