@@ -140,10 +140,12 @@ test("declared field mismatches are rejected even with untampered mappings", () 
   assert.throws(() => validateApprovedMapping(byDistinct), /distinct canonical count does not match the pinned approved Phase 4 set/);
 });
 
-test("wrong target is rejected — production explicitly, anything else as non-preview", () => {
+test("wrong target is rejected — production needs explicit authorization, anything else is always refused", () => {
+  // 2026-07-28: production is no longer flatly impossible, it is AUTHORIZED-ONLY.
+  // The default (no authorization) must still refuse, which is what this asserts.
   const prod = loadDoc();
   prod.target = PRODUCTION_PROJECT_REF;
-  assert.throws(() => validateApprovedMapping(prod), /production qsllyeztdwjgirsysgai; Phase 4 is preview-only/);
+  assert.throws(() => validateApprovedMapping(prod), /production qsllyeztdwjgirsysgai; production requires explicit authorization/);
 
   const other = loadDoc();
   other.target = "aaaaaaaaaaaaaaaaaaaa";

@@ -43,6 +43,11 @@ import {
   describeTarget,
   resolveRunMode,
 } from "./sync-coldlion-licensors-properties.mjs";
+import {
+  assertColdlionApplyTarget,
+  describeAuthorizedTarget,
+  resolveProductionAuthorization,
+} from "./coldlion-production-authorization.mjs";
 
 // =====================================================================================
 // PINNED APPROVED SET — the only payload this runner will ever send. Mirrors the pin
@@ -115,18 +120,32 @@ const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
 
 // Full validation + pin. Throws on ANY deviation; returns { input, expected } for
 // the exact approved set only.
-export function validateApprovedMapping(doc) {
+/**
+ * @param {object} doc the frozen approved-mapping artifact
+ * @param {{allowProduction?: boolean}} opts allowProduction is set ONLY by a fully
+ *   authorized production run (see tools/coldlion-production-authorization.mjs).
+ *
+ * The artifact is stamped `"target": "rjyboqwcdzcocqgmsyel"` because it was approved
+ * during the preview phase. The 542 mappings themselves are ENVIRONMENT-INDEPENDENT:
+ * a read-only check on 2026-07-28 confirmed all 542 canonical UUIDs exist on
+ * production too, with 0 missing, 0 cross-typed and 0 code mismatches, and the
+ * frozen md5 covers only `<entity_type>|<composite>|<canonical_id>` — never the
+ * target. So accepting the same artifact for production changes nothing about WHAT
+ * is approved; it only changes WHERE, and only behind the four-part production
+ * authorization. Without that authorization the preview-only rule is unchanged.
+ */
+export function validateApprovedMapping(doc, { allowProduction = false } = {}) {
   if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
     throw new Error("approved mapping file must be a JSON object");
   }
   if (doc.schema !== APPROVED_SCHEMA) {
     throw new Error(`approved mapping schema must be ${APPROVED_SCHEMA}, got ${JSON.stringify(doc.schema)}`);
   }
-  if (doc.target === PRODUCTION_PROJECT_REF) {
-    throw new Error(`approved mapping target is production ${PRODUCTION_PROJECT_REF}; Phase 4 is preview-only`);
+  if (doc.target === PRODUCTION_PROJECT_REF && !allowProduction) {
+    throw new Error(`approved mapping target is production ${PRODUCTION_PROJECT_REF}; production requires explicit authorization`);
   }
-  if (doc.target !== PREVIEW_PROJECT_REF) {
-    throw new Error(`approved mapping target must be preview ${PREVIEW_PROJECT_REF}, got ${JSON.stringify(doc.target)}`);
+  if (doc.target !== PREVIEW_PROJECT_REF && doc.target !== PRODUCTION_PROJECT_REF) {
+    throw new Error(`approved mapping target must be preview ${PREVIEW_PROJECT_REF} or production ${PRODUCTION_PROJECT_REF}, got ${JSON.stringify(doc.target)}`);
   }
   if (doc.approved_by !== APPROVED_BY) {
     throw new Error(`approved_by must be ${JSON.stringify(APPROVED_BY)} (the recorded Phase 4 approver), got ${JSON.stringify(doc.approved_by)}`);
@@ -179,8 +198,8 @@ export function validateApprovedMapping(doc) {
   return { input: buildLinkInput(doc), expected };
 }
 
-export function loadApprovedMapping(path = APPROVED_MAPPING_PATH) {
-  return validateApprovedMapping(JSON.parse(readFileSync(path, "utf8")));
+export function loadApprovedMapping(path = APPROVED_MAPPING_PATH, opts = {}) {
+  return validateApprovedMapping(JSON.parse(readFileSync(path, "utf8")), opts);
 }
 
 // `select * from public.sync_coldlion_licensors_properties($in$::jsonb, 'link_approved', $exp$::jsonb);`
@@ -191,20 +210,39 @@ export function buildLinkSql(input, expected) {
 // =====================================================================================
 // Operational entrypoint.
 // =====================================================================================
+
+function readLinkedProjectRefSafely() {
+  try {
+    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const { apply, linked, connString, target } = resolveRunMode(process.argv.slice(2), process.env);
-  const linkedProjectRef = linked
-    ? readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim()
-    : null;
-  assertPreviewApplyTarget({ apply, linked, connString, linkedProjectRef });
+  // Read tolerantly: an absent supabase/.temp/project-ref must NOT crash before the
+  // authorization check runs. A raw ENOENT stack in a production window is exactly
+  // the confusing failure that tempts an operator to improvise a bypass; a clear
+  // "you are missing X" refusal does not.
+  const linkedProjectRef = linked ? readLinkedProjectRefSafely() : null;
+  const auth = resolveProductionAuthorization(process.argv.slice(2), process.env);
+  assertColdlionApplyTarget({
+    apply, linked, connString, linkedProjectRef,
+    argv: process.argv.slice(2), env: process.env, assertPreviewApplyTarget,
+  });
 
   let stage = "load-approved-mapping";
   try {
-    const { input, expected } = loadApprovedMapping();
+    const { input, expected } = loadApprovedMapping(APPROVED_MAPPING_PATH, {
+      allowProduction: auth.requested && auth.authorized,
+    });
     const sql = buildLinkSql(input, expected);
 
     process.stdout.write(`${JSON.stringify({
       target,
+      authorized_target: describeAuthorizedTarget(process.argv.slice(2), process.env),
+      production_authorized: auth.requested && auth.authorized,
       mode: apply ? "apply" : "dry-run (no DB write)",
       source_name: SOURCE_NAME,
       approved_mapping: APPROVED_MAPPING_PATH,

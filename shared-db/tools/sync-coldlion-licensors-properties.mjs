@@ -39,6 +39,7 @@ import {
   runSql,
   sqlDollarQuote,
 } from "./coldlion-sync-common.mjs";
+import { assertColdlionApplyTarget, describeAuthorizedTarget } from "./coldlion-production-authorization.mjs";
 
 // =====================================================================================
 // CONFIG — thresholds and required divisions are configuration, not embedded constants.
@@ -466,15 +467,30 @@ export async function collectDetails(apiKey, pairs, fetchImpl = fetch) {
   return { details, pages };
 }
 
+
+function readLinkedProjectRefSafely() {
+  try {
+    return readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const { apply, linked, connString, target } = resolveRunMode(process.argv.slice(2), process.env);
-  const linkedProjectRef = linked
-    ? readFileSync(new URL("../supabase/.temp/project-ref", import.meta.url), "utf8").trim()
-    : null;
-  assertPreviewApplyTarget({ apply, linked, connString, linkedProjectRef });
+  // Read tolerantly: an absent supabase/.temp/project-ref must NOT crash before the
+  // authorization check runs. A raw ENOENT stack in a production window is exactly
+  // the confusing failure that tempts an operator to improvise a bypass; a clear
+  // "you are missing X" refusal does not.
+  const linkedProjectRef = linked ? readLinkedProjectRefSafely() : null;
+  assertColdlionApplyTarget({
+    apply, linked, connString, linkedProjectRef,
+    argv: process.argv.slice(2), env: process.env, assertPreviewApplyTarget,
+  });
 
   process.stdout.write(`${JSON.stringify({
     target,
+    authorized_target: describeAuthorizedTarget(process.argv.slice(2), process.env),
     mode: apply ? "apply" : "dry-run (no DB write)",
     source_name: SOURCE_NAME,
     config: CONFIG,

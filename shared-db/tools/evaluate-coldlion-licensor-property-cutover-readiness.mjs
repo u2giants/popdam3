@@ -41,6 +41,7 @@ import {
   resolveRunMode,
 } from "./phase6-preview-guards.mjs";
 import { parsePhase6FunctionResult } from "./phase6-cli-result-parse.mjs";
+import { assertColdlionApplyTarget } from "./coldlion-production-authorization.mjs";
 import {
   APPROVED_COUNT,
   APPROVED_DISTINCT,
@@ -355,14 +356,22 @@ export function main(argv = process.argv.slice(2), env = process.env) {
 
   const mode = resolveRunMode(argv, env);
   const linkedProjectRef = mode.linked ? readLinkedProjectRef() : null;
-  if (authorization.target !== "production") {
-    assertPreviewApplyTarget({
-      apply: mode.apply,
-      linked: mode.linked,
-      connString: mode.connString,
-      linkedProjectRef,
-    });
-  }
+
+  // FIXED 2026-07-28 (Grok review): this previously skipped the target check
+  // entirely when the target was production, so a production-flagged run could
+  // evaluate — and report GREEN — against whatever project happened to be linked,
+  // including preview. A false green at the END of a cutover window is worse than
+  // a refusal at the start. Readiness now holds exactly the same bar as the write
+  // runners, via the same shared module.
+  assertColdlionApplyTarget({
+    apply: mode.apply,
+    linked: mode.linked,
+    connString: mode.connString,
+    linkedProjectRef,
+    argv,
+    env,
+    assertPreviewApplyTarget,
+  });
 
   const { input, expected } = loadApprovedMapping();
   const sql = buildReadinessProbeSql(input, expected, {
