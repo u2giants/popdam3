@@ -135,6 +135,10 @@ evaluation; it does **not** establish cutover readiness without the other accele
 | **2026-07-27** | **30279033321** | `15 */6 * * *` / health | **PASS**; later preview health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`27083aaf-4936-41bf-b09b-00b31e9294de`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no health regression later in the day. |
 | **2026-07-27** | **30300363303** | `15 */6 * * *` / health | **PASS**; preview guard, tests, preview link, and health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`b7f0b1ca-baf8-496a-b9ad-5320d2d8c7ae`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the last complete scheduled cycle remained healthy after the accelerated safety build began. |
 | **2026-07-28** | **30326393766** | `15 */6 * * *` / health | **PASS**; preview guard, tests, preview link, and health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`f4887126-ff7a-47d7-93f7-b5f955f920a3`**; `ok:true`; `issues:[]`; latest observation `c72852e3-428b-4716-abcb-823bac769505`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no preview health regression after the accelerated readiness implementation merged. |
+| **2026-07-28** | **30333701256** | `30 3 * * *` / DesignFlow | **PASS**; DesignFlow preview sync completed; other lanes correctly skipped | sync run **`2f9ab744-64e1-4fa4-a6ed-76881582da01`**; licensors/properties/customers seen **37 / 468 / 57**; raw records upserted **562** | **Partial evidence.** One source lane passed; this run alone does not prove the full cycle. |
+| **2026-07-28** | **30334798120** | `0 4 * * *` / ColdLion `mirror_only` | **PASS**; ColdLion preview mirror completed; other lanes correctly skipped | sync run **`76da2d9e-1146-4176-a094-bc31225c381e`**; rows **560**; inserted/updated/unchanged **0 / 0 / 560**; licensors/properties **44 / 516**; divisions **2**; cross-entity collisions **30**; snapshot hash **`a69332e05d9064723ffa1dfbd870506c`** | **Partial evidence.** The mirror remained byte-stable and successful. |
+| **2026-07-28** | **30338860067** | `0 5 * * *` / daily comparison | **PASS**; complete scheduled DesignFlow + ColdLion pairing passed comparison with no unexplained differences | observation **`0289efd6-2681-45a3-9cdb-ff3fb81cefdc`**; comparison run **`fed1f419-f386-4564-a46f-5023a6e11563`**; `pass:true`; `diffs:[]`; `unexplained_diff_count:0`; baseline, source lanes, link checks, and immutability all true; canonical licensors/properties **26 / 256**; linked rows **38 / 504**; source refs **542 ColdLion / 505 DesignFlow**; every protected hash matches the prior baseline | **Strong §9.4 evidence, not overall readiness.** The complete scheduled cycle passed after the accelerated safety build. Step 6 application checks remain open. |
+| **2026-07-28** | **30345094507** | `15 */6 * * *` / health | **PASS**; post-comparison preview health passed; source, comparison, and drill lanes correctly skipped | non-drill health **`80c849a7-cc1f-4e42-942e-2a74b89496f2`**; `ok:true`; `issues:[]`; latest observation `0289efd6-2681-45a3-9cdb-ff3fb81cefdc`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the new complete cycle remained healthy. |
 
 The workflow checked out `a14fefc9459a3ff8c74ea21c55e58230c47a4296`, resolved the
 exact health cron rather than wall-clock time, displayed preview project
@@ -159,6 +163,12 @@ exact 542-row identity, circuit-breaker, measured alert delivery, rollback, and 
 `ready=true` preview result. The active plan still requires Step 6 application checks before a
 production package can be prepared. No production readiness or Phase 7 authorization is declared
 by this monitoring entry.
+
+**Monitoring update at 2026-07-28T09:05:47Z:** a new complete scheduled
+DesignFlow, ColdLion, comparison, and health cycle passed on preview. ColdLion remained unchanged,
+all protected hashes matched, and there were zero unexplained differences. This reinforces §9.4
+and the deterministic preview proof but does not close Step 6 application checks, authorize
+production, or begin Phase 7.
 
 ### 4.6 Secrets and schedule (ACTIVE)
 
