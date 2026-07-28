@@ -379,6 +379,155 @@ unchanged throughout.
   (Step 7) are **not** done.
 - Albert's production-window approval (Step 8) has **not** been requested or given.
 
+### 4.8 Hardening — the breaker now trips ITSELF (2026-07-28, APPEND-ONLY)
+
+Nothing in §§4.1–4.7 was changed or re-run. This section records a **correction to a
+false claim §4.7 rested on**, and the work that made the claim true.
+
+#### 4.8.1 The false claim
+
+§4.7 and the 2026-07-27 session reports stated the breaker "blocks unsafe changes in
+milliseconds whether or not a human hears about it". **That was wrong.** Verified on
+2026-07-28: `plm.trip_taxonomy_circuit_breaker` was called by exactly two things — the
+contract test, and a human at a keyboard. Nothing in the detection path called it. The
+2026-07-27 drill tripped the breaker **by hand first**, then watched a promotion fail,
+which proved the refusal but never the arming.
+
+So in steady state the lane was **open**, and protection depended on somebody noticing and
+throwing a switch. The real exposure was:
+
+```text
+time to next detection run  +  alert latency  +  a human running the trip command
+```
+
+The 2026-07-27 work only attacked the middle term. Caught by an independent GLM 5.2 review
+commissioned by Albert on 2026-07-28 (`.ai/reviews/coldlion-go-forward-glm.md`), then
+confirmed directly against the code before acting. Recorded here because a review that
+finds a wrong safety claim is exactly the evidence a future session needs.
+
+Caution for future sessions: the same review also asserted production held ~318–322
+migrations. The actual read was **354**. A second opinion can be right about the principle
+and wrong about the numbers — verify both.
+
+#### 4.8.2 What migration `20260728134500` adds
+
+| Area | Change |
+|---|---|
+| **Auto-trip** | Both Phase 6 detectors already write a CRITICAL row to `plm.taxonomy_sync_alert` on failure, so one `after insert` trigger catches both and any future detector using the same convention. No applied 400-line function was rewritten. A second trigger on `plm.taxonomy_parallel_observation` covers a failed observation even if the alert write were skipped. |
+| **Recursion guard** | The breaker's own alert is excluded by source name **and** `pg_trigger_depth()`. A later failure while already tripped is logged as a `blocked_attempt` and never overwrites the first trip reason. |
+| **Gap closure** | `DELETE` of a ColdLion source ref, and `INSERT` of a mirror row already carrying a canonical link, are now refused. Previously only INSERT/UPDATE of refs and UPDATE of link columns were guarded. |
+| **Anti-disarm** | `service_role` holds `grant all` on the breaker table, so `update ... set state='closed'` bypassed every authorization check. Closing now requires `plm.reset_taxonomy_circuit_breaker()`, which sets a **transaction-local** flag the state guard demands. The flag dies with the transaction, so it can never leave a standing bypass. |
+| **Watchdog** | `plm.taxonomy_breaker_enforcement_status()` reports whether all **9** expected triggers are installed *and* enabled. Readiness blocks on anything less — a "closed" breaker on an unguarded database is otherwise indistinguishable from a safe one. |
+
+#### 4.8.3 The auto-trip drill — nobody touched the switch
+
+| # | Step | Result |
+|---|---|---|
+| 1 | Enforcement watchdog before | `all_enforced: true`, **9/9** triggers installed and enabled; breaker `closed` |
+| 2 | Run the **real** health check in forced-failure mode. **No trip call anywhere.** | health `ok:false`; alert **`eae463fa-e870-454c-a463-b59a36c5d70a`** written |
+| 3 | Breaker state immediately after | **`tripped`**, `tripped_by:` **`auto-trip`**, reason `AUTO-TRIP on critical alert from coldlion_designflow_sync_health`, breaker alert `05950e65-…`, run `22229a3b-…` — **tripped in the same transaction that detected the failure** |
+| 4 | Real promotion attempt | `run-coldlion-licensor-property-phase4.mjs` **exit 1** — refused at `EDGEHOME/CW001/05/1P` |
+| 5 | `DELETE` an approved ColdLion source ref | **refused** (`P0001`, new delete guard) |
+| 6 | Disarm by direct `UPDATE ... state='closed'` | **refused** (`P0001`, anti-disarm guard); breaker still tripped afterwards |
+| 7 | Readiness | **exit 1, `ready=false`**, blocked **only** on `circuit_breaker_is_closed`, naming the auto-trip reason; enforcement still 9/9 |
+| 8 | Authorized reset | `closed`, `reset_by: Albert Hazan` |
+| 9 | Promotion after recovery | **exit 0** — `rows_seen 542`, `unchanged 542`, `inserted 0`, `updated 0`, licensor 38 / property 504 |
+| 10 | Protected snapshot | **every hash identical to the §2 baseline** — licensor UUID `590ea83e…`, property UUID `e0e6c36e…`, statuses `d9b07759…` / `f436d4ac…`, parent edge `7459f682…`, source refs `5585216a…`, refs/links 542 / 38 / 504 |
+
+A trap worth keeping: step 3 first *looked* like a failure because the breaker state was
+read inside the **same** `SELECT` as the forced failure. `plm.taxonomy_circuit_breaker_state`
+is `STABLE`, so it uses the statement snapshot and cannot see a change made mid-statement.
+Always re-read breaker state in a **separate** statement, or you will conclude the auto-trip
+is broken when it actually worked.
+
+#### 4.8.4 Alert timing — fixed at the right end
+
+The `*/10` alert-monitor cron was measured across 2026-07-27/28 at **57, 84, 201, 171, 165
+and 126 minute** gaps. GitHub throttles it; the 15-minute target cannot be met that way.
+
+Fix: **the run that detects the failure delivers the alert itself**, in an `if: failure()`
+step, before it exits. Latency becomes seconds. The cron monitor stays as a slow backstop for
+anything failing outside a GitHub run. Health detection also moved from `15 */6 * * *` (every
+6 hours) to **`15 * * * *`** (hourly), with `tools/phase6-schedule-map.mjs` and its test kept
+in lockstep — the exact-cron lane dispatch depends on them matching.
+
+The deeper point: with auto-trip in place, **alert latency no longer gates safety**. The lane
+stops itself the moment a detector fails. Alert speed now only governs how fast a human starts
+investigating an already-stopped lane.
+
+#### 4.8.5 Tests
+
+129 offline tests pass (was 127). `scripts/check-sql.sh` passes. Rolled-back SQL contracts
+pass, now also proving: a critical alert auto-trips with no human call; a **warning** alert
+does **not** trip; DELETE and linked-INSERT are refused; direct disarm is refused; authorized
+reset works; and canonical status and parents are untouched throughout.
+
+New readiness case `a_closed_breaker_on_an_unguarded_database_never_passes` covers a dropped
+trigger, a disabled trigger, and an unreadable enforcement status.
+
+---
+
+## 4A. Step 6 (partial) and Step 7 evidence — 2026-07-28
+
+### 4A.1 Step 6 — consumer contracts verified on preview
+
+| Check | Result |
+|---|---|
+| Foreign keys into `core.licensor` / `core.property` | **40 constraints, all valid**, none `NOT VALID` |
+| Canonical state | 26 licensors (21 active / 5 potential), 256 properties (all active), **0** properties with a null parent |
+| Duplicate canonical names | **none** (licensor, and property-within-licensor) |
+| ColdLion refs pointing at a non-existent canonical row | **0** |
+| **DAM live subset** | **85,481** assets carry a licensor, **42,700** carry a property, **5,726** style groups carry a licensor — **0 orphans**, and **0** cases where an asset's licensor disagrees with its property's parent licensor |
+| ColdLion-linked licensors in real DAM use | **10** — the cutover touches live data, and that data is sound |
+
+**Explicitly NOT verified, because the data does not exist on preview:** `plm.item`,
+`pim.product`, `pim.project`, `pim.product_submission`, `crm.licensor_approval_thread`,
+`dam.asset`, `dam.style_group`, `dam.style_guide_file`, `core.character` and
+`core.style_guide` are **all zero rows** on preview. That is "nothing to exercise", **not**
+a pass.
+
+`api.db_data_admin_licensor_property_list/tree` could not be called from the CLI —
+`app.require_db_data_admin_access()` correctly refuses a role with no JWT. That check needs a
+browser login and remains **open**.
+
+**DAM screen check deferred.** Per `AGENTS.md` §0.4 the Master Data grid is writable by
+**any** signed-in user and PopDAM has no read-only role, so an ordinary tester login is not a
+safe read-only instrument against production. Deferred until a constrained account exists.
+
+### 4A.2 Step 7 — production read-only inventory (owner-authorized 2026-07-28)
+
+Albert explicitly authorized read-only production access. Performed in a **detached throwaway
+worktree**, removed immediately afterwards; no worktree remains linked to production.
+**No write, no `db push`, no mutation.**
+
+| Measure | Value |
+|---|---|
+| Migrations applied on production | **354** |
+| Highest applied version | `20260727213000` |
+| Ledger rows with no local file | **0** — no corruption, no repair temptation |
+| Pending on production | **10** |
+| **Bounded ColdLion manifest** | `20260724060000`, `20260724061000`, `20260726030000`, `20260726031000`, `20260726032000`, `20260726180000`, `20260727221500`, `20260727223000`, `20260727224500` — **9 files** |
+| Deliberately EXCLUDED | `20260727230000_core_style_guide_axis.sql` — a different workstream. **Never `--include-all`.** |
+
+Object check, not just the ledger: `plm.erp_licensor` / `plm.erp_property` exist on production
+(created by Phase 1 `20260724030000`, already promoted), while
+`plm.taxonomy_parallel_observation`, `plm.taxonomy_sync_alert`, `plm.taxonomy_circuit_breaker`
+and the identity verifier are all **absent** — consistent with the pending list.
+
+**Read-only 542-row identity pre-proof against production, before any write:**
+
+| Measure | Production result |
+|---|---|
+| Approved rows resolved | **542** (38 licensor + 504 property), **271** distinct canonical |
+| Canonical rows missing on production | **0** |
+| Cross-typed (a licensor id that is really a property, or vice versa) | **0** |
+| Code mismatches | **0** |
+| Existing ColdLion source refs on production | **0** — clean slate |
+| Production canonical baseline | 26 licensors, 256 properties, **0** null parents, 505 DesignFlow refs — identical to preview |
+
+Step 7 items 1–5 are satisfied. Items 6–9 (the production secret proposal, the exact command
+set, and the rollback commands) remain, and **Step 8 approval has not been requested.**
+
 ## 5. Historical clock and active exit criteria
 
 | Item | Status |

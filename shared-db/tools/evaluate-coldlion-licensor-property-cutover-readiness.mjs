@@ -245,6 +245,23 @@ export function evaluateReadiness({ authorization, mappingContract, probe }) {
         : "circuit breaker state is unknown"),
   );
 
+  // --- the breaker must actually still be INSTALLED, not just "closed" ---
+  // A dropped or disabled trigger removes protection with no error and no alarm,
+  // and a "closed" breaker on an unguarded database looks identical to a safe one.
+  const enforcement = probe.breaker_enforcement;
+  const enforcementOk =
+    enforcement &&
+    typeof enforcement === "object" &&
+    enforcement.all_enforced === true &&
+    Number(enforcement.installed_count) === Number(enforcement.expected_count) &&
+    Number(enforcement.enabled_count) === Number(enforcement.expected_count);
+  checks.push(
+    check("circuit_breaker_enforcement_is_installed_and_enabled", enforcementOk, enforcement ?? null,
+      enforcement && typeof enforcement === "object"
+        ? `breaker enforcement incomplete: ${enforcement.enabled_count}/${enforcement.expected_count} triggers enabled; missing or disabled: ${JSON.stringify(enforcement.missing_or_disabled ?? [])}`
+        : "breaker enforcement status could not be read; refusing to assume the guards exist"),
+  );
+
   // --- no unacknowledged non-drill critical alert may be outstanding ---
   const openAlerts = Number(probe.open_critical_alerts ?? NaN);
   const alertsOk = Number.isFinite(openAlerts) && openAlerts === 0;
@@ -296,6 +313,7 @@ select jsonb_build_object(
     ${sqlDollarQuote("rd_expected", expected)}::jsonb,
     25),
   'circuit_breaker', public.taxonomy_circuit_breaker_state('coldlion_licensor_property'),
+  'breaker_enforcement', public.taxonomy_breaker_enforcement_status(),
   'latest_observation', (
     select to_jsonb(o) - 'details'
     from plm.taxonomy_parallel_observation o

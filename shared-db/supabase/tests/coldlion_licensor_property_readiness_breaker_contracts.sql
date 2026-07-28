@@ -461,8 +461,129 @@ begin
 end;
 $$;
 
+
+-- =====================================================================================
+-- Auto-trip, gap-closure, and anti-disarm contracts (20260728134500)
+-- =====================================================================================
+--
+-- The breaker built on 2026-07-27 refused writes correctly but NOTHING TRIPPED IT.
+-- Every trip was a human calling the function by hand, so in steady state the lane
+-- was open. These contracts exist so that can never silently regress.
+
+do $$
+declare
+  v_lic uuid;
+  v_alert uuid;
+  v_raised boolean;
+  v_status_before text;
+  v_parent_before text;
+  v_enf jsonb;
+begin
+  select id into v_lic from core.licensor order by id limit 1;
+
+  select md5(coalesce(string_agg(id::text || '|' || status::text, '|' order by id::text), ''))
+    into v_status_before
+  from (select id, status::text from core.licensor
+        union all select id, status::text from core.property) s;
+  select md5(coalesce(string_agg(id::text || '|' || licensor_id::text, '|' order by id::text), ''))
+    into v_parent_before from core.property;
+
+  -- Watchdog reports full enforcement.
+  v_enf := plm.taxonomy_breaker_enforcement_status();
+  if (v_enf->>'all_enforced')::boolean is not true then
+    raise exception 'breaker enforcement incomplete: %', v_enf;
+  end if;
+  if (v_enf->>'expected_count')::int <> (v_enf->>'enabled_count')::int then
+    raise exception 'not every breaker trigger is enabled: %', v_enf;
+  end if;
+
+  if plm.taxonomy_circuit_breaker_is_open('coldlion_licensor_property') then
+    raise exception 'breaker must start closed for this contract test';
+  end if;
+
+  -- AUTO-TRIP: writing a critical alert must trip the breaker with NO human call.
+  v_alert := plm.record_taxonomy_sync_alert(
+    'critical', 'contract_test_detector', 'contract test: simulated detection failure',
+    null, null, null, true, jsonb_build_object('failed_invariant','contract_test'));
+
+  if not plm.taxonomy_circuit_breaker_is_open('coldlion_licensor_property') then
+    raise exception 'AUTO-TRIP FAILED: a critical alert did not trip the breaker by itself';
+  end if;
+  if (plm.taxonomy_circuit_breaker_state('coldlion_licensor_property')->>'tripped_by') <> 'auto-trip' then
+    raise exception 'breaker was tripped, but not by the automatic path';
+  end if;
+
+  -- A non-critical alert must NOT trip (no crying wolf).
+  perform plm.reset_taxonomy_circuit_breaker(jsonb_build_object(
+    'authorized_by','contract test','readiness_pass',true,'readiness_evidence','contract'));
+  perform plm.record_taxonomy_sync_alert(
+    'warning', 'contract_test_detector', 'contract test: warning only', null, null, null, true, '{}'::jsonb);
+  if plm.taxonomy_circuit_breaker_is_open('coldlion_licensor_property') then
+    raise exception 'a WARNING alert must not trip the breaker';
+  end if;
+
+  -- Re-trip for the refusal contracts.
+  perform plm.record_taxonomy_sync_alert(
+    'critical', 'contract_test_detector', 'contract test: re-trip', null, null, null, true,
+    jsonb_build_object('failed_invariant','contract_test'));
+
+  -- GAP CLOSURE 1: DELETE of a ColdLion source ref is refused.
+  v_raised := false;
+  begin
+    delete from core.taxonomy_source_ref
+     where id = (select id from core.taxonomy_source_ref where source_system='coldlion' limit 1);
+  exception when others then v_raised := true; end;
+  if not v_raised then
+    raise exception 'tripped breaker allowed DELETE of a ColdLion source ref';
+  end if;
+
+  -- GAP CLOSURE 2: INSERT of a mirror row already carrying a canonical link is refused.
+  v_raised := false;
+  begin
+    insert into plm.erp_licensor (company_code, division_code, mg_type_code, mg_code, name, licensor_id)
+    values ('CONTRACT','TEST','99','GAPTEST','contract test', v_lic);
+  exception when others then v_raised := true; end;
+  if not v_raised then
+    raise exception 'tripped breaker allowed INSERT of a linked mirror row';
+  end if;
+
+  -- ANTI-DISARM: a direct UPDATE cannot close the breaker.
+  v_raised := false;
+  begin
+    update plm.taxonomy_circuit_breaker set state='closed' where lane='coldlion_licensor_property';
+  exception when others then v_raised := true; end;
+  if not v_raised then
+    raise exception 'the breaker was disarmed by a direct UPDATE, bypassing authorization';
+  end if;
+  if not plm.taxonomy_circuit_breaker_is_open('coldlion_licensor_property') then
+    raise exception 'breaker is no longer tripped after a refused direct close';
+  end if;
+
+  -- Authorized reset still works.
+  perform plm.reset_taxonomy_circuit_breaker(jsonb_build_object(
+    'authorized_by','contract test','readiness_pass',true,'readiness_evidence','contract'));
+  if plm.taxonomy_circuit_breaker_is_open('coldlion_licensor_property') then
+    raise exception 'authorized reset did not close the breaker';
+  end if;
+
+  -- Protected canonical facts untouched by all of the above.
+  if (select md5(coalesce(string_agg(id::text || '|' || status::text, '|' order by id::text), ''))
+      from (select id, status::text from core.licensor
+            union all select id, status::text from core.property) s)
+     is distinct from v_status_before then
+    raise exception 'auto-trip contracts mutated canonical status';
+  end if;
+  if (select md5(coalesce(string_agg(id::text || '|' || licensor_id::text, '|' order by id::text), ''))
+      from core.property) is distinct from v_parent_before then
+    raise exception 'auto-trip contracts mutated Property-to-Licensor parents';
+  end if;
+
+  raise notice 'auto-trip + gap-closure + anti-disarm contracts PASS';
+end;
+$$;
+
 -- The hosted CLI does not surface RAISE NOTICE. Emit an explicit row so a green
 -- run is positive evidence, not merely the absence of an error message.
-select 'coldlion readiness + circuit-breaker contracts PASS' as result;
+select 'coldlion readiness + circuit-breaker + auto-trip contracts PASS' as result;
 
 rollback;

@@ -8,7 +8,7 @@ export const PHASE6_SCHEDULE_JOBS = Object.freeze({
   "30 3 * * *": "designflow",
   "0 4 * * *": "coldlion",
   "0 5 * * *": "compare",
-  "15 */6 * * *": "health",
+  "15 * * * *": "health",
 });
 
 export function jobForSchedule(cronExpression) {

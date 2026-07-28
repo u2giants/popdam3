@@ -17,7 +17,7 @@ test("jobForSchedule maps every registered cron exactly", () => {
   assert.equal(jobForSchedule("30 3 * * *"), "designflow");
   assert.equal(jobForSchedule("0 4 * * *"), "coldlion");
   assert.equal(jobForSchedule("0 5 * * *"), "compare");
-  assert.equal(jobForSchedule("15 */6 * * *"), "health");
+  assert.equal(jobForSchedule("15 * * * *"), "health");
 });
 
 test("jobForSchedule refuses unknown or empty expressions (no wall-clock fallback)", () => {

@@ -617,13 +617,43 @@ breaker reset, readiness back to `ready=true`.
 coldlion-licensor-property-alert-monitor.yml --json event,createdAt` and record the observed
 interval in evidence §4.7.6.
 
-**Exact next action:** plan **Step 6** — verify the applications at their real maturity levels
-(DesignFlow PLM is the only fully live gate; DAM live subset only; CRM/PM are development
-compatibility checks; plus DB Data Admin). Then Step 7's bounded production package, then Step 8's
-approval. Production `qsllyeztdwjgirsysgai` was **not accessed** and remains prohibited.
-**Do not execute Phase 7.**
+**2026-07-28 — CORRECTION, THEN HARDENING. Read this before trusting anything above.**
+The 2026-07-27 claim that the breaker "blocks unsafe changes whether or not a human hears about
+it" was **WRONG**. Nothing tripped it. Every trip was a person calling the function by hand,
+including the 2026-07-27 drill, which tripped it *first* and then watched a promotion fail — so
+the refusal was proven but the **arming never was**. In steady state the lane was **open**.
+Caught by an independent GLM 5.2 review Albert commissioned, then confirmed in the code.
 
-Full evidence: `docs/verification/coldlion-licensor-property-phase6-20260726/README.md` **§4.7**.
+Migration **`20260728134500`** makes the claim true: the breaker now **trips itself** off the
+detection path, in the same transaction that detects the failure. Proven on preview — a real
+forced health failure auto-tripped it (`tripped_by: auto-trip`), which then refused a real
+promotion (**exit 1**), refused a `DELETE` of an approved link, and refused a direct disarm;
+every protected hash stayed identical, and the authorized rollback restored service (**542
+unchanged**). Also added: `DELETE`/linked-`INSERT` gap closure, anti-disarm (a direct
+`update ... state='closed'` is refused), and a **9-trigger enforcement watchdog** that blocks
+readiness if any guard is dropped or disabled — a "closed" breaker on an unguarded database
+otherwise looks perfectly safe. Alerts are now sent by the **detecting run itself** (seconds)
+rather than the `*/10` cron GitHub throttled to **57–201 minute** gaps; health detection moved
+to hourly. Readiness: **`ready=true`**, 8 checks. **129** offline tests green.
+
+**Production was READ, read-only, with Albert's explicit authorization (2026-07-28).**
+354 applied, 10 pending, **zero ledger corruption**. The bounded manifest is **9 ColdLion
+migrations**, deliberately excluding `20260727230000` (another workstream) — never
+`--include-all`. A read-only **542-row identity pre-proof against production** returned
+**0 missing, 0 cross-typed, 0 code mismatch, 0 existing ColdLion refs**, with production's
+canonical baseline identical to preview. **Nothing was written**, and the detached worktree used
+for it was removed.
+
+**Exact next action:** finish Step 6's two browser checks — the DB Data Admin screens, and DAM
+**only once a genuinely read-only account exists** (per `AGENTS.md` §0.4 the Master Data grid is
+writable by any signed-in user, so an ordinary tester login is not a safe read-only instrument).
+Then Step 7 items 6–9 (production secret proposal, exact commands, rollback), then put the Step 8
+approval request to Albert. **Production writes remain prohibited. Do not execute Phase 7
+without that named approval** — a general "go ahead" does not count.
+
+Full evidence: `docs/verification/coldlion-licensor-property-phase6-20260726/README.md`
+**§4.7** (readiness/identity/breaker), **§4.8** (correction + auto-trip hardening), **§4A**
+(Step 6 contracts and the Step 7 production inventory).
 
 Authoritative Phase 6 handoff + evidence:
 [`fix_coldlion_licensor_property_phase6_handoff.md`](fix_coldlion_licensor_property_phase6_handoff.md)

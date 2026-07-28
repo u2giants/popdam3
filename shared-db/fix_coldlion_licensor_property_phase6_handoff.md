@@ -38,7 +38,35 @@ What a developer walking in today must know:
 | Phase 6 overall | **IN PROGRESS** — preview readiness gates PROVEN 2026-07-27; application-maturity checks and production packaging still open |
 | Historical schedule start | **2026-07-26**; retained as evidence, not an exit clock |
 | Active exit gate | Plan Steps 6–8: application checks at real maturity, bounded production package, and Albert's durable production-window approval |
-| **Exact next action** | **Plan Step 6 — verify DesignFlow PLM (primary live gate), the DAM live subset, CRM/PM development compatibility, and DB Data Admin. Do not execute Phase 7.** |
+| **Exact next action** | **Finish Step 6's two browser checks (DB Data Admin screens; DAM only with a genuinely read-only account), then Step 7 items 6–9, then the Step 8 approval request. Do not execute Phase 7 without Albert's named approval.** |
+
+### 2026-07-28 update — a false safety claim, corrected
+
+The 2026-07-27 entry below says the circuit breaker protected the lane regardless of whether a
+human was watching. **It did not.** Nothing tripped it: every trip was a manual function call,
+and the 2026-07-27 drill tripped it by hand *before* testing the refusal. The refusal was real;
+the arming was not. An independent GLM 5.2 review caught this on 2026-07-28.
+
+Migration **`20260728134500`** fixes it. The breaker now **trips itself** from the detection
+path — both Phase 6 detectors already write a CRITICAL alert on failure, so one `after insert`
+trigger arms the breaker in the same transaction. Also closes the `DELETE` and linked-`INSERT`
+gaps, blocks direct disarm (`service_role` could previously just `update ... state='closed'`),
+and adds a 9-trigger enforcement watchdog that readiness blocks on.
+
+Auto-trip drill on preview: a real forced health failure produced alert
+`eae463fa-e870-454c-a463-b59a36c5d70a`, the breaker went to `tripped` with
+`tripped_by: auto-trip` with **no human call**, then refused a real promotion (exit 1), a
+`DELETE` of an approved link, and a direct disarm. Readiness correctly reported `ready=false`
+blocked only on the breaker. Authorized reset recovered, promotion returned **542 unchanged**,
+and every protected hash matched the §2 baseline exactly.
+
+Alert timing was fixed at the right end: the `*/10` cron was measured at **57–201 minute**
+gaps, so the **detecting run now delivers its own alert** (seconds) and health detection runs
+hourly. With auto-trip in place, alert latency no longer gates safety.
+
+Production was read (read-only, owner-authorized): **354 applied, 10 pending, 0 corruption**;
+bounded manifest **9 ColdLion migrations**; read-only 542-row identity pre-proof clean.
+Details: evidence **§4.8** and **§4A**.
 
 ### 2026-07-27 update — accelerated readiness proven on preview
 

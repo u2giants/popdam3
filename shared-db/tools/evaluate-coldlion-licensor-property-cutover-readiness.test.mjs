@@ -63,6 +63,13 @@ function greenProbe(overrides = {}) {
       unexplained_diff_count: 0,
     },
     circuit_breaker: { lane: "coldlion_licensor_property", state: "closed" },
+    breaker_enforcement: {
+      expected_count: 9,
+      installed_count: 9,
+      enabled_count: 9,
+      all_enforced: true,
+      missing_or_disabled: [],
+    },
     open_critical_alerts: 0,
     open_alert_sample: [],
     ...overrides,
@@ -332,6 +339,52 @@ test("tripped_circuit_breaker_or_open_alert_blocks_readiness", () => {
 // ---------------------------------------------------------------------------
 // 5. Probe SQL shape
 // ---------------------------------------------------------------------------
+
+test("a_closed_breaker_on_an_unguarded_database_never_passes", () => {
+  // The whole point: "state: closed" is meaningless if the triggers that do the
+  // refusing have been dropped or disabled. A dropped trigger raises no error
+  // and no alarm, so readiness has to be the thing that notices.
+  const dropped = evaluateGreen({
+    breaker_enforcement: {
+      expected_count: 9,
+      installed_count: 8,
+      enabled_count: 8,
+      all_enforced: false,
+      missing_or_disabled: [
+        { trigger: "coldlion_source_ref_breaker_guard", table: "core.taxonomy_source_ref", installed: false, enabled: false },
+      ],
+    },
+  });
+  assert.equal(dropped.ready, false);
+  assert.ok(dropped.blocked.includes("circuit_breaker_enforcement_is_installed_and_enabled"));
+  assert.ok(dropped.blocking_reasons.some((r) => r.includes("coldlion_source_ref_breaker_guard")));
+
+  // Installed but DISABLED is just as unprotected as missing.
+  const disabled = evaluateGreen({
+    breaker_enforcement: {
+      expected_count: 9,
+      installed_count: 9,
+      enabled_count: 7,
+      all_enforced: false,
+      missing_or_disabled: [
+        { trigger: "coldlion_autotrip_on_critical_alert", table: "plm.taxonomy_sync_alert", installed: true, enabled: false },
+      ],
+    },
+  });
+  assert.equal(disabled.ready, false);
+
+  // An unreadable status must block, never be treated as "fine".
+  for (const bad of [null, undefined, {}, { all_enforced: "yes" }]) {
+    const unknown = evaluateGreen({ breaker_enforcement: bad });
+    assert.equal(unknown.ready, false, `${JSON.stringify(bad)} must block`);
+    assert.ok(unknown.blocked.includes("circuit_breaker_enforcement_is_installed_and_enabled"));
+  }
+});
+
+test("probe_sql_includes_the_enforcement_watchdog", () => {
+  const sql = buildReadinessProbeSql({ mappings: [] }, CONTRACT);
+  assert.ok(sql.includes("public.taxonomy_breaker_enforcement_status"));
+});
 
 test("probe_sql_is_one_preview_statement_and_leaks_no_production_ref", () => {
   const sql = buildReadinessProbeSql({ mappings: [] }, CONTRACT);
