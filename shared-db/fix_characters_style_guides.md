@@ -1,10 +1,18 @@
 # Characters and style guides — canonical migration plan
 
-**Status (2026-07-28): PHASES 0–1 COMPLETE. Licensing review and the three
+**Status (2026-07-28): PHASES 0–2 COMPLETE. Licensing review and the three
 `MULTIPLE` style guides are fully reconciled. No licensing follow-up remains.**
-A Phase 2 migration draft exists on branch `codex/characters-style-guides-phase2-20260727`,
-commit `e0657f7`, but it has no PR and no recorded preview rehearsal. No database change is
-confirmed. Owner approval is still required before preview apply.
+The additive style-axis schema exists and is empty on **preview only**
+(`rjyboqwcdzcocqgmsyel`). **Production is untouched** — `core.style_guide` and
+`core.style_guide_character` do not exist there and migration `20260727230000` is not in its
+ledger. Next: Phase 3 (backfill on preview).
+
+> A concurrent closeout session wrote a status here on 2026-07-28 saying the Phase 2 work was an
+> unmerged draft with "no PR and no recorded preview rehearsal" and that owner approval was still
+> outstanding. That was a true snapshot of an in-flight branch, not a standing block: the owner
+> instructed "start Phase 2" in-session, which is the new approval Phase 0 was waiting for, and
+> Phase 2's own text authorizes the preview apply. The apply and its object-level verification are
+> recorded in the Phase 2 section below.
 
 **Repository:** `u2giants/shared-db` · **Preview:** `rjyboqwcdzcocqgmsyel` ·
 **Production:** `qsllyeztdwjgirsysgai`
@@ -132,7 +140,7 @@ residual across 314 populated licensing/style-guide parents. No database writes 
 
 ---
 
-## Phase 2 — additive schema on preview
+## Phase 2 — additive schema on preview (COMPLETE 2026-07-28)
 
 **Goal:** create `core.style_guide` and `core.style_guide_character` per model doc §5A.
 
@@ -151,7 +159,62 @@ remember an RLS policy is **not** a grant (AGENTS.md §11).
 **Exit:** `scripts/check-sql.sh` clean, `supabase db push --dry-run` clean, applied on preview,
 tables exist and are empty. Production untouched.
 
+**Result:** complete. Migration
+[`supabase/migrations/20260727230000_core_style_guide_axis.sql`](supabase/migrations/20260727230000_core_style_guide_axis.sql).
+
+Verified directly against preview objects (not the ledger — AGENTS.md §4 rule 5):
+
+- both tables exist and hold **0 rows**;
+- `property_id` and `parent_style_guide_id` are nullable, with the
+  `style_guide_not_own_parent` check constraint;
+- FKs: `licensor_id`/`property_id`/`parent_style_guide_id` → `on delete set null`; both bridge
+  FKs → `on delete cascade`; bridge PK is `(style_guide_id, character_id)`;
+- RLS on for both, each with `shared_read` (SELECT) and `admin_write` (ALL);
+- grants: `select` to `authenticated`, full to `service_role` (the policy is not the grant);
+- `set_updated_at` trigger present on `core.style_guide` only (the bridge has no `updated_at`);
+- indexes: licensor, property, parent, `(status, name)`, the partial unique
+  `(licensor_id, code) where code is not null`, and the reverse bridge index on `character_id`.
+- **Production checked and untouched:** both `to_regclass` lookups return null and version
+  `20260727230000` is absent from its ledger.
+
+No likeness column was added, and no placeholder property was invented — both deliberate
+(model doc §2.2 and §5A.0 rule 3).
+
+**Blocker cleared on the way (worth knowing):** the first preview dry-run aborted with
+`Remote migration versions not found in local migrations directory` naming three ColdLion
+versions (`20260727221500`, `20260727223000`, `20260727224500`). They were a concurrent
+workstream's rehearsal that had not yet reached `main`; they landed in `main` shortly after, and a
+plain `git fetch origin main` + rebase cleared it. The suggested
+`supabase migration repair --status reverted` was **not** run and must never be — see
+AGENTS.md §4 rule 1 and
+[`docs/ai-session-instructions/shared-supabase-branch-workflow.md`](docs/ai-session-instructions/shared-supabase-branch-workflow.md).
+Preview was also three merged migrations behind `main`
+(`20260726190000`, `20260726200000`, `20260726210000`), which sort *before* preview's head, so the
+apply needed `--include-all`. That flag is forbidden for **production** (AGENTS.md §5.1); on
+preview it was safe here only because the pending set was verified first to be exactly those three
+merged migrations plus this one, with nothing on preview that was missing from the branch.
+
 **Before finishing:** re-read Phases 3–7 and report drift.
+
+**Drift reported 2026-07-28:**
+
+1. **§8's ColdLion snapshot is stale and understates the risk.** It is dated 2026-07-26 and reads
+   as though ColdLion is between phases. In fact the accelerated plan applied its Step 3/4
+   migrations (readiness evaluator, circuit breaker, verifier cast fix) to **preview** on
+   2026-07-27 and ran monitor cycles on 2026-07-28. ColdLion is actively mid-flight on the same
+   preview database this plan now uses.
+2. **Phase 3 has a new sequencing exposure that §8 does not cover.** §8 only forbids landing
+   **Phase 5** (production apply) in the same window as ColdLion Phase 7. But Phase 3's property
+   rules resolve style guides onto `core.property` rows, and the ColdLion cutover re-sources
+   exactly those rows. A Phase 3 backfill run before ColdLion's Step 9 could bind provenance to
+   property identities that the cutover then re-keys. **Before starting Phase 3, re-read the
+   ColdLion accelerated plan's STATUS table and confirm whether `core.property` identity is
+   settled** — do not rely on §8's date.
+3. **Phase 3 says "the three canonical tables"; Phase 2 created only two.** The third is
+   `core.character`, which already exists and is empty (model doc §5A.0b). Not a contradiction,
+   but Phase 3 owns populating all three, not just the two added here.
+
+Phases 4–7 read correctly and need no change.
 
 ---
 
@@ -326,4 +389,5 @@ model doc §6.
 | 2026-07-27 | Licensing returned all 153 uncertainty rows: 32 existing codes, 118 never designed, 3 multiple. Read-only character reconciliation reduced the 338 multiple appearances to 305 distinct licensing exceptions. |
 | 2026-07-27 | Replaced the 305-row follow-up with character/franchise rules: 256 specific franchise, 18 unique history, 62 Marvel catch-all, 2 sentinels excluded, 0 licensing rows. |
 | 2026-07-27 | Grok review corrected four DC alias mappings, moved six weak franchise guesses to `MV`, excluded nine non-character labels, and expanded tests. Final: 248 specific, 13 unique history, 66 Marvel catch-all, 9 non-character labels, 2 sentinels, 0 licensing rows. |
-| 2026-07-28 | Closeout recorded the unmerged Phase 2 draft at `e0657f7`; no PR, preview apply, or database change is confirmed. |
+| 2026-07-28 | A concurrent closeout session recorded the Phase 2 work as an unmerged draft at `e0657f7` with no PR or preview apply. That was a mid-flight snapshot and is superseded by the next row. |
+| 2026-07-28 | Phase 2 completed. Migration `20260727230000_core_style_guide_axis.sql` created `core.style_guide` and `core.style_guide_character`, applied to preview only and verified empty; production untouched. Recorded three drift findings, chiefly that ColdLion is actively mid-flight on the same preview database and that Phase 3 (not just Phase 5) now carries a `core.property` identity exposure. |
