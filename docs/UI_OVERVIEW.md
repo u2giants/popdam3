@@ -255,6 +255,11 @@ Full AI analysis output from the primary asset: `ai_description`, `scene_descrip
 ### 10. Asset List
 Scrollable list of all member assets with filename, file type, thumbnail status, and AI tagging status. Clicking an asset opens its individual detail view.
 
+Each row leads with a 36x36 preview: the asset's `thumbnail_url` rendered as an
+`object-cover` image when one exists, falling back to the colored file-type tile
+(`fileTypeTileClass`) when it does not. Rows therefore mix images and tiles —
+that is intended, not a rendering bug.
+
 ### 11. Path Information
 Full NAS paths derived from `relative_path` + config:
 - Network path by hostname (`\\NAS_HOST\SHARE\...`)
