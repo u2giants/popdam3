@@ -347,6 +347,11 @@ a shared-db one.
 **Status:** PSG-4 COMPLETE. Stop before PSG-5.
 **Database writes / migrations / rebuilds / activation / deployment:** none
 
+**Fresh-session update, 2026-07-29:** Albert explicitly authorized PSG-5 by asking Codex to
+spin up a PSG-5 implementation sub-agent. That sub-agent remained `pending_init` and performed
+no work. It was stopped when Albert invoked the fresh-session check, so PSG-5 is authorized but
+not started. Begin it in one clean session only.
+
 ### What this application is
 
 PopSG is POP's internal style-guide library at `https://sg.designflow.app`, served by the
@@ -406,9 +411,9 @@ activation, rebuild, or ColdLion production action was part of that merge.
 
 ### Exact next steps
 
-1. Stop until Albert explicitly authorizes PSG-5.
-   **Pass when:** the current chat clearly says to start PSG-5.
-2. At PSG-5 start, re-read the current ColdLion accelerated-cutover status and record its
+1. Start PSG-5 in one clean session from this handoff and the full reconciliation plan.
+   **Pass when:** only one implementing session is active and it has read both files end to end.
+2. Re-read the current ColdLion accelerated-cutover status and record its
    checkpoint before any preview work.
    **Pass when:** the dated PSG-5 evidence names the current phase, observation, and gates.
 3. Implement only the separately approved preview contracts and rebuild path.
@@ -424,9 +429,9 @@ activation, rebuild, or ColdLion production action was part of that merge.
 
 ### Constraints and gotchas
 
-- Batch 02, canonical creates, 6,961 at-risk removals, ambiguous/deferred rows, schema,
-  migrations, RLS, RPCs, database writes, activation, rebuilds, deployment, production, and
-  PSG-5 were not approved by PSG-4.
+- PSG-5 preview implementation is authorized as of 2026-07-29. Batch 02, canonical creates,
+  6,961 at-risk removals, ambiguous/deferred rows, production changes, and PSG-6 remain
+  unapproved.
 - CHEERS and THE EXORCIST remain routed to the ColdLion Phase 5 gate.
 - `the lion king` remains ambiguous and locked.
 - PSG-5 must resolve all eight hard-coded Licensor aliases and refresh the worker baseline.
@@ -439,7 +444,7 @@ preview `rjyboqwcdzcocqgmsyel` and production `qsllyeztdwjgirsysgai`.
 
 ### Open questions and risks
 
-- PSG-5 is not authorized.
+- PSG-5 is authorized but has not started.
 - The moving ColdLion checkpoint must be re-read at PSG-5 entry.
 - No at-risk removal subset has owner approval.
 
