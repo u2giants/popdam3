@@ -379,15 +379,19 @@ preview change. Full record: `fix_popsg_property_taxonomy_reconciliation.md` §2
 
 Re-read `AGENTS.md`, the newest PSG section of this file (PSG-4 APPROVED, below), and the full
 reconciliation plan. Recorded the current ColdLion checkpoint: Steps 0–6 complete/preview-proven,
-Step 7 production package complete but unapplied, **Step 7A open and explicitly blocked by open
-PR #300 and a duplicate migration timestamp `20260728160000`** (shared by
+Step 7 production package complete but unapplied, **Step 7A open and explicitly blocked by the
+live ClickUp correctness PR #311**. PR #300 is closed. The historical duplicate migration version
+`20260728160000` is shared by
 `20260728160000_clickup_incremental_task_import.sql`, already on `main` via `8a7197f`, and
-`20260728160000_popdam_user_tables_foreign_keys.sql`, already on `main` via `0b8425b`) — `gh pr
-view 300` shows `CONFLICTING`. Production remains untouched; Steps 8–10 remain blocked.
+`20260728160000_popdam_user_tables_foreign_keys.sql`, already on `main` via `0b8425b`.
+PR #314 re-issued the skipped ClickUp SQL as
+`20260728174500_clickup_incremental_task_import_reissue.sql`; the historical filenames remain
+immutable. Production remains untouched; Steps 8–10 remain blocked.
 
-A second, independent agent session is concurrently working on ColdLion Step 7A in its own
-isolated worktree of this same repo, and Step 7A's first required action is exactly resolving
-that PR #300 / duplicate-timestamp collision in `supabase/migrations/`. Because PSG-5 also needs
+A second agent was assigned ColdLion Step 7A but stopped without changes after inspecting stale
+state. Ground truth on `origin/main` confirms Step 7A and this handoff exist. No Step 7A agent is
+currently assumed active; a fresh implementing session must still serialize behind PR #311 and
+verify the #314 reissue on preview. Because PSG-5 also needs
 new files in `supabase/migrations/` (the `core.property_alias` / `dam.popsg_property_resolution`
 contracts), this session treated the schema-change-in-flight slot as occupied and **stopped
 before creating any PSG-5 branch, migration, or preview change**, per the one-schema-change-in-
@@ -401,17 +405,16 @@ hard-coded `LICENSOR_ALIASES` remain untouched and unresolved.
 
 Rereading PSG-6/PSG-7 found one new drift to record: PSG-6's "physically bounded production
 migration runner if unrelated migrations remain pending" step must treat the ClickUp/foreign-keys
-timestamp collision as exactly this kind of unrelated pending migration — it must be resolved by
-the Step 7A session before any future PSG-6 bounded-checkout dry run can be trusted by ledger
-count alone. No other PSG-6/PSG-7 drift was found.
+timestamp collision as immutable history. PR #314 re-issued the skipped SQL under a new version;
+future bounded-checkout verification must include the reissue and verify real objects rather than
+trust the duplicated ledger version alone. No other PSG-6/PSG-7 drift was found.
 
 ### Exact next steps
 
-1. Before starting PSG-5 implementation, confirm (fresh `gh pr list` and
-   `ls supabase/migrations | cut -c1-14 | sort | uniq -d`) that the duplicate `20260728160000`
-   timestamp and PR #300 are resolved on `origin/main`.
-   **Pass when:** no duplicate timestamp prefix remains and no open PR carries an unresolved
-   shared-db schema change.
+1. Before starting PSG-5 implementation, confirm with a fresh `gh pr list` that PR #311 has landed
+   or closed, and verify the `20260728174500` ClickUp reissue objects on preview. Do not require the
+   historical `20260728160000` filenames to disappear; applied migrations are immutable.
+   **Pass when:** no open PR owns a shared-db schema change and preview has no unmerged rehearsal.
 2. Only then create a PSG-5 branch and continue exactly at
    `fix_popsg_property_taxonomy_reconciliation.md` §7 "PSG-5 — preview implementation and
    rebuild," restricted to `batch-01-exact-existing`.
@@ -461,12 +464,14 @@ on 2026-07-29 to build a **real recurring ColdLion feed switch**, not a one-time
 - No recurring workflow, migration, database write, production secret, variable, schedule, or
   production action was created in this session.
 - The checkout was clean on `main` after PR #308 merged.
-- Implementation is blocked until shared schema work is serialized. At last check, PR
-  [#300](https://github.com/u2giants/shared-db/pull/300) was open and `origin/main` contained two
-  migrations with timestamp `20260728160000`:
+- Implementation is blocked until shared schema work is serialized. PR #300 is closed and
+  superseded. PR [#311](https://github.com/u2giants/shared-db/pull/311) remains open. The two
+  immutable historical files with timestamp `20260728160000` are:
   `20260728160000_clickup_incremental_task_import.sql` and
   `20260728160000_popdam_user_tables_foreign_keys.sql`. Supabase keys migrations by timestamp
-  alone, so one can silently skip.
+  alone, so the ClickUp file silently skipped. PR #314 added
+  `20260728174500_clickup_incremental_task_import_reissue.sql` to execute it safely under a new
+  version.
 
 ### 4. Everything we tried that did NOT work
 
@@ -476,8 +481,9 @@ on 2026-07-29 to build a **real recurring ColdLion feed switch**, not a one-time
    switch the routine feed. Do not restore the old Step 8 starting point.
 3. Relaxing the preview-only workflow for production is rejected. Preview and production need
    separate workflows and schedule maps so delayed events cannot cross environments.
-4. Starting database implementation now was rejected because PR #300 and the duplicate migration
-   timestamp violate the one-schema-change-at-a-time rule. Never hide this with migration repair.
+4. Starting database implementation now was rejected because the ClickUp work owns the schema
+   slot. The skipped migration was fixed forward by PR #314; never rename applied history or hide
+   it with migration repair.
 
 ### 5. Root causes and key findings
 
@@ -492,11 +498,11 @@ on 2026-07-29 to build a **real recurring ColdLion feed switch**, not a one-time
 
 ### 6. Exact next steps
 
-1. Sync `origin/main`; re-run `gh pr list`; inspect PR #300, migration timestamps, and preview
-   ledger. **Pass when:** no other schema work owns preview and no timestamp is duplicated.
-2. If the collision remains, inspect both database ledgers and real objects. Re-timestamp only the
-   not-yet-applied migration after its dependencies. Never use migration repair as a shortcut.
-   **Pass when:** timestamps are unique and both intended object sets are verified.
+1. Sync `origin/main`; re-run `gh pr list`; inspect PR #311 and the preview ledger.
+   **Pass when:** no other schema work owns preview and no unmerged rehearsal row remains.
+2. Verify the real objects from `20260728174500_clickup_incremental_task_import_reissue.sql`.
+   Keep both historical `20260728160000` files unchanged and never use migration repair.
+   **Pass when:** PopDAM foreign keys and ClickUp reissue objects both exist as intended.
 3. Re-read the full Step 7A plan, the original cutover plan, Phase 6 handoff, and Step 7 production
    package. **Pass when:** the implementation checklist covers every deliverable and exclusion.
 4. Build Step 7A on a new `codex/` branch. Do not create or enable production secrets or variables.
@@ -539,9 +545,10 @@ on 2026-07-29 to build a **real recurring ColdLion feed switch**, not a one-time
 
 ### 9. Open questions and risks
 
-- PR #300 and migration state may change. Re-check ground truth in the fresh session.
-- It is unknown which duplicate-timestamp migration, if either, has applied in either database.
-  Verify objects, not only the ledger.
+- PR #311 and preview state may change. Re-check ground truth in the fresh session.
+- Preview evidence established that PopDAM claimed `20260728160000` and ClickUp skipped; PR #314
+  supplied the forward reissue. Production object state still requires read-only verification
+  before any later production package. Verify objects, not only the ledger.
 - The schema may need an explicit source-description/audit field rather than overloading a curated
   display name. Step 7A must inspect and choose the smallest additive design.
 - Recurring GitHub Actions needs durable production credentials. Build and preview-test the
@@ -553,8 +560,9 @@ on 2026-07-29 to build a **real recurring ColdLion feed switch**, not a one-time
 
 1. **Street-newcomer continuation: Yes.** Sections 1–3 define the system, decision, current state,
    environments, merged commit, and blocker. Section 6 gives ordered work with pass gates.
-2. **Equal effectiveness: Yes.** Sections 4–5 preserve both GLM outcomes, rejected approaches,
-   source ownership, identity rules, and the timestamp collision.
+2. **Equal effectiveness: Yes.** Sections 3–5 preserve both GLM outcomes, the stopped stale-state
+   agent, rejected approaches, source ownership, identity rules, and the fixed-forward timestamp
+   history.
 3. **Failed work included: Yes.** Section 4 records the unrelated first GLM result, invalid
    one-time framing, rejected workflow reuse, and why database work stopped.
 4. **Concrete next steps: Yes.** Every item in Section 6 names the action and its proof.

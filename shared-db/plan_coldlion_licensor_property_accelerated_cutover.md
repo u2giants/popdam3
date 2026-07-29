@@ -18,7 +18,7 @@
 | 5. Rehearse the complete cutover and rollback on preview | 🔶 New behaviors rehearsed; app checks are Step 6 | 2026-07-27 | Forced-failure drill, refused real promotion (`run-...-phase4.mjs` exit 1, failed run `15c0b900-…`), append-only evidence, refused unauthorized reset, authorized rollback, proven recovery (542 unchanged, run `5676f13a-…`), protected hashes unchanged throughout. Evidence §4.7.4 |
 | 6. Verify the applications at their real maturity levels | ✅ Complete at the accuracy the evidence supports | 2026-07-28 | DB Data Admin **verified** as a real signed-in user on preview (tree/filters/parents/no duplicates/no cross-entity). DAM live subset verified at the data contract (0 orphans, 0 parent mismatches); its **screens deliberately not driven** — no read-only DAM role exists (AGENTS §0.4). DesignFlow PLM, CRM, PM hold **zero rows on preview**: recorded as not exercised, NOT as passed; their 40 FKs and api contracts are proven intact. Live PLM smoke belongs in the Step 9 read-only window. Evidence §4A.3–4A.4 |
 | 7. Prepare the production change package | ✅ Complete | 2026-07-28 | Full package: docs/verification/coldlion-licensor-property-step7-production-package-20260728/README.md — bounded 9-migration manifest (+ the 2026-07-28 hardening, recommended together), exact commands naming qsllyeztdwjgirsysgai, pre/post hash captures, secret named-not-created, read-only smoke checklist by maturity, and an operational rollback with no schema drop. Read-only production identity pre-proof: 0 missing / 0 cross-typed / 0 code mismatch |
-| 7A. Build the recurring production feed and monitoring lane | ⬜ Open, blocked by another schema workstream | 2026-07-29 | Albert chose a real recurring feed. First resolve/serialize open PR #300 and the duplicate `20260728160000` migration timestamp; then build a production-only scheduled workflow, guarded promotion mode, health/comparison/alerting, and preview proof. No production write |
+| 7A. Build the recurring production feed and monitoring lane | ⬜ Open, blocked by another schema workstream | 2026-07-29 | Albert chose a real recurring feed. PR #314 re-issued the ClickUp migration skipped by the historical duplicate timestamp; open correctness PR #311 still owns the schema slot. Start after #311 lands/closes and preview is free. No production write |
 | 8. Obtain Albert's production-window approval | ⬜ Blocked by Step 7A | 2026-07-29 | Approval must cover the recurring schedule, production secrets/variables, exact write modes, rollback, and monitoring. A one-time-link approval is no longer acceptable |
 | 9. Execute the production cutover | ⬜ Open | 2026-07-26 | Separate fresh session; only after Step 8; mapping-identity proof before any write |
 | 10. Run intensified monitoring and close out | ⬜ Open | 2026-07-26 | Hourly cadence + deliberate +1h/+4h/+24h checks, then normal guarded operation |
@@ -554,11 +554,14 @@ safe one-time ColdLion mirror and 542-link package, not the routine feed switch 
 Albert chose the real recurring feed on 2026-07-29. The goal wins: Step 8 is blocked until this
 missing lane exists and is proven.
 
-**Serialization gate before editing:** another shared schema workstream is currently open as PR
-`#300`, and `origin/main` currently contains two migrations with version `20260728160000`.
-Supabase keys migrations by version alone, so one can silently skip. Resolve or land that
-workstream and eliminate the duplicate timestamp before creating a branch or migration for this
-step. Do not repair either database ledger to work around it.
+**Serialization gate before editing:** PR #300 is closed and superseded. PR #314 merged the
+additive `20260728174500_clickup_incremental_task_import_reissue.sql`, which re-issues the ClickUp
+migration silently skipped when the PopDAM migration claimed the shared historical version
+`20260728160000`. The two applied/history files keep their original names because applied
+migrations are immutable; do **not** rename or delete either one. Open correctness PR #311 still
+owns the shared schema slot. Wait for #311 to land or close, confirm preview has no unmerged
+rehearsal rows, and only then create a Step 7A branch or migration. Never use migration repair to
+rewrite this history.
 
 Build these concrete pieces:
 
@@ -903,15 +906,15 @@ Target branch policy:
 | Monitoring itself parses output incorrectly | Strict real-output fixtures, duplicate-key rejection, nonzero on malformed data |
 | Automated rollback worsens incident | Disable schedule/promotion first; retain schema, mirrors, and evidence; fix forward via shared-db |
 | One-time link is mistaken for a feed switch | Step 7A blocks approval until recurring production automation and permitted canonical-field behavior are proven |
-| Concurrent migration silently skips | Resolve the duplicate `20260728160000` timestamp and open schema PR before Step 7A creates any migration |
+| Concurrent migration silently skips | Keep the historical duplicate immutable; PR #314 re-issued the skipped SQL as `20260728174500`. Serialize with open correctness PR #311 and verify real objects, not only the ledger |
 
 ### Open questions
 
 Albert decided on 2026-07-29 that the goal is a real recurring ColdLion feed, not a one-time link.
 No further business decision is required to implement and preview-prove Step 7A. Step 8 remains
 the first authorization for production secrets, variables, schedules, and mutation. The concrete
-engineering blocker is serialization: open schema PR #300 and the duplicate `20260728160000`
-migration timestamp must be resolved before Step 7A database work begins.
+engineering blocker is serialization: PR #314 resolved the skipped ClickUp execution with a new
+forward migration, but open correctness PR #311 still owns the schema slot. Step 7A waits for it.
 
 ---
 
