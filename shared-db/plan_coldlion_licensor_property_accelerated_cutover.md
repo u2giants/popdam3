@@ -4,7 +4,7 @@
 **Documentation corrections:** 2026-07-26 — Kimi critique corrections applied; see STATUS
 **Decision owner:** Albert Hazan  
 **Repository:** `u2giants/shared-db`  
-**Fresh-session starting point (updated 2026-07-28):** **Step 8** — put the production-window approval request to Albert. Steps 1–7 are complete. The readiness command reports ready=true on preview, all 542 mappings are proven by row-by-row identity, the circuit breaker now **trips itself** off the detection path, and the bounded production package is written. **No production write is authorized**, no production workflow or secret exists, and Phase 7 has not been started.
+**Fresh-session starting point (updated 2026-07-29):** **Step 7A** — build and prove the missing recurring production ColdLion feed and monitoring lane on preview. Steps 1–7 proved a safe one-time mirror/link package, but Albert chose a **real recurring ColdLion feed switch** on 2026-07-29 after GLM-5.2 found that the package did not deliver the stated goal. **Do not request Step 8 approval and do not touch production until Step 7A is complete.**
 
 ## STATUS
 
@@ -18,7 +18,8 @@
 | 5. Rehearse the complete cutover and rollback on preview | 🔶 New behaviors rehearsed; app checks are Step 6 | 2026-07-27 | Forced-failure drill, refused real promotion (`run-...-phase4.mjs` exit 1, failed run `15c0b900-…`), append-only evidence, refused unauthorized reset, authorized rollback, proven recovery (542 unchanged, run `5676f13a-…`), protected hashes unchanged throughout. Evidence §4.7.4 |
 | 6. Verify the applications at their real maturity levels | ✅ Complete at the accuracy the evidence supports | 2026-07-28 | DB Data Admin **verified** as a real signed-in user on preview (tree/filters/parents/no duplicates/no cross-entity). DAM live subset verified at the data contract (0 orphans, 0 parent mismatches); its **screens deliberately not driven** — no read-only DAM role exists (AGENTS §0.4). DesignFlow PLM, CRM, PM hold **zero rows on preview**: recorded as not exercised, NOT as passed; their 40 FKs and api contracts are proven intact. Live PLM smoke belongs in the Step 9 read-only window. Evidence §4A.3–4A.4 |
 | 7. Prepare the production change package | ✅ Complete | 2026-07-28 | Full package: docs/verification/coldlion-licensor-property-step7-production-package-20260728/README.md — bounded 9-migration manifest (+ the 2026-07-28 hardening, recommended together), exact commands naming qsllyeztdwjgirsysgai, pre/post hash captures, secret named-not-created, read-only smoke checklist by maturity, and an operational rollback with no schema drop. Read-only production identity pre-proof: 0 missing / 0 cross-typed / 0 code mismatch |
-| 8. Obtain Albert's production-window approval | ⬜ Open | 2026-07-26 | Exact migrations/actions/rollback named; durable approval record before execution |
+| 7A. Build the recurring production feed and monitoring lane | ⬜ Open, blocked by another schema workstream | 2026-07-29 | Albert chose a real recurring feed. First resolve/serialize open PR #300 and the duplicate `20260728160000` migration timestamp; then build a production-only scheduled workflow, guarded promotion mode, health/comparison/alerting, and preview proof. No production write |
+| 8. Obtain Albert's production-window approval | ⬜ Blocked by Step 7A | 2026-07-29 | Approval must cover the recurring schedule, production secrets/variables, exact write modes, rollback, and monitoring. A one-time-link approval is no longer acceptable |
 | 9. Execute the production cutover | ⬜ Open | 2026-07-26 | Separate fresh session; only after Step 8; mapping-identity proof before any write |
 | 10. Run intensified monitoring and close out | ⬜ Open | 2026-07-26 | Hourly cadence + deliberate +1h/+4h/+24h checks, then normal guarded operation |
 
@@ -138,6 +139,7 @@ closely.
 - Preserve all existing Phase 4 and Phase 6 preview evidence, including failed runs and drills.
 - Create one repeatable readiness evaluator for the complete cutover preconditions.
 - Strengthen fail-closed monitoring and alerting for the production ColdLion lane.
+- Build a real recurring production lane. A one-time mirror/link run is not a feed switch.
 - Rehearse the exact production cutover and operational rollback on preview.
 - Define application checks that match each application's actual maturity.
 - Prepare a bounded production migration/apply manifest that excludes unrelated backlog.
@@ -158,6 +160,7 @@ closely.
 - Refactoring the item, style-guide, character, likeness, or royalty models.
 - Declaring CRM, PM, or all of DAM production-proven when they are not fully live.
 - Promoting unrelated pending migrations with `--include-all`.
+- Treating the current one-time 542-link package as completion of the feed switch.
 
 ---
 
@@ -544,6 +547,115 @@ Licensor/Property migrations and actions; every command names
 schema drop; every approved mapping row has a prepared identity proof; and the proposed production
 secret action is named but not executed.
 
+### Step 7A — Build and prove the real recurring production feed
+
+**Why this step was added:** GLM-5.2's 2026-07-28 review correctly found that Steps 1–7 built a
+safe one-time ColdLion mirror and 542-link package, not the routine feed switch stated in §1.
+Albert chose the real recurring feed on 2026-07-29. The goal wins: Step 8 is blocked until this
+missing lane exists and is proven.
+
+**Serialization gate before editing:** another shared schema workstream is currently open as PR
+`#300`, and `origin/main` currently contains two migrations with version `20260728160000`.
+Supabase keys migrations by version alone, so one can silently skip. Resolve or land that
+workstream and eliminate the duplicate timestamp before creating a branch or migration for this
+step. Do not repair either database ledger to work around it.
+
+Build these concrete pieces:
+
+1. Add `.github/workflows/coldlion-licensor-property-production.yml`. It must be a separate
+   production-only workflow, never a relaxed copy of the preview guard. It must:
+   - target only `qsllyeztdwjgirsysgai` and refuse every other project ref;
+   - use GitHub environment `production`;
+   - require repository variable `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED=true`;
+   - use secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD_PRODUCTION`, and
+     `COLDLION_API_KEY`, referenced by name only;
+   - run with one non-cancelling concurrency group so snapshot, promotion, comparison, and health
+     cannot overlap;
+   - provide manual `workflow_dispatch` jobs for `coldlion`, `promote`, `compare`, `health`, and
+     `readiness`;
+   - schedule a daily full ColdLion snapshot followed by approved promotion and comparison, plus
+     hourly health checks;
+   - invoke every write runner with the full four-part production authorization and exact project
+     ref;
+   - deliver a GitHub issue from the detecting run on failure and name Albert Hazan as response
+     owner;
+   - skip loudly while disabled, and never silently fall back to preview or dry-run behavior.
+2. Add a production schedule-map module and tests rather than using wall-clock time. Follow
+   `tools/phase6-schedule-map.mjs`, but keep preview and production maps separate so a delayed
+   runner cannot choose the wrong job.
+3. Add a guarded recurring promotion mode. `mirror_only` may refresh all valid ColdLion mirror
+   rows, but promotion may update only source-owned fields that this plan explicitly assigns to
+   ColdLion. It must:
+   - preserve canonical UUIDs, `core.property.licensor_id`, and status;
+   - resolve every row by the full typed key `(company, division, mgTypeCode, mgCode)`, never code
+     alone;
+   - update an existing canonical name/description only through an explicitly approved,
+     deterministic rule with an audit record;
+   - quarantine new, missing, ambiguous, cross-typed, re-keyed, or parentless records;
+   - never auto-create canonical licensors/properties and never auto-inactivate a missing source
+     row;
+   - trip the circuit breaker and fail before partial canonical promotion on any protected
+     invariant.
+4. If the existing schema cannot record source-owned descriptive values and their promotion audit
+   without overloading the curated display name, author one new additive migration under
+   `supabase/migrations/` after the timestamp collision is resolved. Never edit an applied
+   migration. Prefer explicit source fields/audit columns or a typed source table over JSON/EAV.
+5. Extend `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs` so production readiness
+   fails unless the production workflow exists, its schedule map is valid, its enable variable is
+   intentionally off before approval, all required secret names are wired, the breaker watchdog
+   is enforced, and the recurring promotion contract passes.
+6. Extend `tools/rehearse-coldlion-cutover-sequence.mjs` to rehearse two consecutive scheduled
+   cycles on preview:
+   - cycle 1 establishes the approved links and source-owned values;
+   - cycle 2 proves idempotency;
+   - a controlled legitimate ColdLion name change proves the allowed update path;
+   - a new record, missing record, code collision, cross-division collision, wrong type, and
+     attempted parent/status mutation each quarantine or fail closed as specified;
+   - rollback disables the recurring lane and withdraws only ColdLion promotion/link state,
+     without deleting canonical rows or DesignFlow refs.
+7. Update the Step 7 production package, the Phase 6 handoff, the cutover plan, `AGENTS.md` routing,
+   and verification evidence. Remove every statement that a one-time 542-link run completes the
+   feed switch.
+
+**Locked decisions:**
+
+- ColdLion owns its source identity, codes, and source descriptions.
+- `core.*` UUIDs remain stable.
+- Supabase owns status and Property-to-Licensor parents because ColdLion does not provide them.
+- DesignFlow remains a temporary comparison/provider for those missing facts; removing it is
+  Phase 8.
+- New ColdLion records require review. Absence from ColdLion never means delete or inactive.
+- Production automation is disabled until Step 8 explicitly approves its secrets, variable,
+  schedule, modes, window, and rollback.
+
+**Required tests:**
+
+- production workflow hard-refuses preview and arbitrary refs;
+- missing enable variable or any named secret fails loudly;
+- scheduled events map to the exact intended job;
+- concurrency prevents overlapping write cycles;
+- all production runner calls contain the four authorization parts;
+- cycle 2 is idempotent;
+- legitimate source-owned descriptive change is audited and applied;
+- UUID, parent, and status mutations are refused;
+- new/missing/ambiguous/cross-typed/colliding records quarantine;
+- alert delivery failure keeps the workflow red;
+- rollback leaves 26/256 canonical identities, DesignFlow refs, parents, and statuses unchanged.
+
+**Dependency:** Steps 1–7 complete; open schema PRs serialized; duplicate migration timestamps
+eliminated; preview free of another workstream's unmerged ledger rows.
+
+**Fresh-session cut:** this is a separate implementation phase. Re-read this section and the
+latest STATUS table at its start. Stop after the workflow, promotion contract, two-cycle preview
+rehearsal, and independent review are merged and documented. Do not continue into Step 8 in the
+same session.
+
+**Verification gate:** CI is green; SQL checks pass; two preview cycles and all fault cases above
+are proven; the production workflow targets only production but remains disabled; no production
+secret/variable was created and no production write occurred; an independent review returns no
+Critical or High finding; and a fresh-session audit can execute the revised Step 8–10 package
+without guessing.
+
 ### Step 8 — Obtain Albert's production-window approval
 
 Present Albert one concise approval request naming:
@@ -552,8 +664,11 @@ Present Albert one concise approval request naming:
 - exact migration versions;
 - exact data modes (`mirror_only`, approved 542-row `link_approved`, or other explicitly justified
   mode);
-- schedule/variable to be enabled;
+- exact recurring schedules and `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` variable to be
+  enabled;
 - creation/use of GitHub secret `SUPABASE_DB_PASSWORD_PRODUCTION` from the named 1Password item;
+- use of existing `SUPABASE_ACCESS_TOKEN` and `COLDLION_API_KEY` secrets, with confirmation that
+  no value is copied into docs, logs, commands, or commits;
 - the exact 542-row production identity proof and its blocking rules;
 - expected application-visible effect;
 - maximum likely blast radius;
@@ -561,7 +676,7 @@ Present Albert one concise approval request naming:
 - monitoring period and alert behavior;
 - exact operational rollback.
 
-**Dependency:** Step 7.  
+**Dependency:** Step 7A complete and independently reviewed.
 **Verification gate:** Albert explicitly approves the named production window and actions in the
 current chat. General statements such as “go ahead with the project” do not count. Before the
 fresh Step 9 session, copy Albert's exact approval text, timestamp, project, migrations, modes,
@@ -751,8 +866,8 @@ Target branch policy:
 - [x] Historical 14-day evidence and every failed/drill run remain preserved.
 - [x] The deterministic readiness evaluator passes all green and failure fixtures.
       (`ready=true` on preview 2026-07-27; 127 offline tests + rolled-back SQL contracts green.)
-- [x] Production monitoring, circuit breaker, durable alerts, and recovery are proven on preview.
-      (Production-lane workflow itself is deliberately unbuilt until Step 8.)
+- [ ] The real recurring production workflow, promotion contract, monitoring, alerts, and recovery
+      are built and proven through two complete preview cycles (Step 7A).
 - [x] The complete cutover and rollback are rehearsed on preview — for the NEW behaviors.
       Application-maturity checks remain Step 6.
 - [~] DesignFlow PLM live behaviour gate: NOT evidenced on preview (plm.item is 0 rows there). Deferred to the Step 9 read-only production smoke. Recorded as untested, not passed.
@@ -785,13 +900,16 @@ Target branch policy:
 | False claim that all apps are production-proven | Maturity-specific evidence language is mandatory |
 | Monitoring itself parses output incorrectly | Strict real-output fixtures, duplicate-key rejection, nonzero on malformed data |
 | Automated rollback worsens incident | Disable schedule/promotion first; retain schema, mirrors, and evidence; fix forward via shared-db |
+| One-time link is mistaken for a feed switch | Step 7A blocks approval until recurring production automation and permitted canonical-field behavior are proven |
+| Concurrent migration silently skips | Resolve the duplicate `20260728160000` timestamp and open schema PR before Step 7A creates any migration |
 
 ### Open questions
 
-No business decision is required to write or implement Steps 1–7. Step 8 intentionally remains an
-approval gate because it is the first authorization for production mutation. Alert delivery is no
-longer an open question: the heartbeat-within-15-minutes drill is mandatory, with Albert Hazan as
-human escalation owner; if it fails, Step 4 must add and prove the smallest durable channel.
+Albert decided on 2026-07-29 that the goal is a real recurring ColdLion feed, not a one-time link.
+No further business decision is required to implement and preview-prove Step 7A. Step 8 remains
+the first authorization for production secrets, variables, schedules, and mutation. The concrete
+engineering blocker is serialization: open schema PR #300 and the duplicate `20260728160000`
+migration timestamp must be resolved before Step 7A database work begins.
 
 ---
 
@@ -803,8 +921,9 @@ human escalation owner; if it fails, Step 4 must add and prove the smallest dura
 application, trigger, and scope. Sections 5–8 preserve the exact current state, findings, rejected
 approaches, and locked/open decisions. Section 9 gives file-level ordered steps and a verification
 gate for every step. Section 12 identifies environments, tools, branches, and secret locations.
-Step 8 correctly reserves the one decision that cannot be inferred: authorization for the exact
-production mutation window.
+Step 7A now specifies the missing recurring feed, promotion, monitoring, fault cases, tests, and
+serialization gate. Step 8 correctly reserves the one decision that cannot be inferred:
+authorization for the exact production mutation window and automation.
 
 ### 2. Does the plan carry all background, nuance, and reasoning from the planning session?
 
@@ -836,4 +955,4 @@ an integration defect, and Section 13 defines the completion and risk criteria.
 - [x] Definition of done includes commit, push, PR, CI, production verification, monitoring, and
       documentation.
 
-**Self-audit result: PASS — 2026-07-26.**
+**Self-audit result: PASS — re-audited 2026-07-29 after the recurring-feed decision and GLM-5.2 critique.**
