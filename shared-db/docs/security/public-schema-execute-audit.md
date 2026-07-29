@@ -304,3 +304,31 @@ no-op, because `20260728174500` sorts before it.
    the ledger row to one and then tries forever to push the other, failing on
    `schema_migrations_pkey`. This will snag every future push until one is renamed. On
    production the applied one is `popdam_user_tables_foreign_keys`.
+
+   **RESOLVED 2026-07-29** — `20260728160000_clickup_incremental_task_import.sql` was
+   **deleted**. Rationale, verified before deciding:
+
+   - Its DDL is a strict subset of `20260728174500_clickup_incremental_task_import_reissue.sql`.
+     A full diff showed the only content unique to the deleted file was its header and the
+     *unguarded* `ingest.sync_run` audit insert that the re-issue deliberately wrapped in an
+     idempotency guard. Nothing was lost.
+   - It had **never applied anywhere**: the ledger row for `20260728160000` belongs to the
+     PopDAM FK migration on both preview and production.
+   - **Renumbering it (AGENTS.md §4 rule 5's usual recipe) would have caused a regression.**
+     `20260728181500_clickup_incremental_task_import_fixes.sql` (PR #311) does
+     `create or replace function` on both `pim.sync_clickup_tasks` and
+     `public.sync_clickup_tasks`. A renumbered `160000` sorts *after* `181500`, so applying it
+     would have overwritten the PR #311 fixes with the older function bodies.
+   - The PopDAM FK file was **not touched** — it keeps version `20260728160000`, so the CLI
+     still finds a local file for that ledger row and `db push` does not abort with
+     `Remote migration versions not found in local migrations directory`.
+
+   Recurrence is now prevented in CI: `scripts/check-sql.sh` fails on any duplicate version,
+   and that script already gates every PR touching `supabase/migrations/**`.
+
+   **Stale comment to ignore:** the header of `20260728174500_..._reissue.sql` states that the
+   `160000` ClickUp file "remains on disk and will NEVER run anywhere. It is deliberately left
+   untouched." That reasoning predates the discovery of the push-blocking second failure mode.
+   The file is gone. The re-issue itself is applied on preview and is intentionally **not**
+   edited (AGENTS.md §4 rule 4 — never edit an applied migration), so its header still says
+   this; this note is the correction.

@@ -230,11 +230,42 @@ four rules below are non-negotiable for any database change.
    the PopSG one and skipped the table restore, so `dflow.sample_shipment_item`
    never existed in production and the whole dependent feature (movements,
    closeouts, views) could never apply — while the ledger claimed success.
-   **Before adding a migration:** `ls supabase/migrations | cut -c1-14 | sort |
-   uniq -d` must print nothing. **Before trusting a migration:** confirm the
-   OBJECT exists (`to_regclass`), never just the ledger row.
-   Fix for a collision: re-timestamp the not-yet-applied file (pure rename) so
-   it sorts after the winner — and keep dependent migrations in order.
+   *It happened again (2026-07-28):* `20260728160000` was used by BOTH
+   `clickup_incremental_task_import` and `popdam_user_tables_foreign_keys`. See
+   the second-order failure below.
+   **This is now enforced in CI** — `scripts/check-sql.sh` fails the PR on any
+   duplicate version, so you no longer have to remember the manual check
+   (`ls supabase/migrations | cut -c1-14 | sort | uniq -d`, which must print
+   nothing). **Before trusting a migration:** confirm the OBJECT exists
+   (`to_regclass`), never just the ledger row.
+
+   **A duplicate has a SECOND failure mode that outlives the skip: it blocks
+   every future push.** The ledger holds one row per version, so the CLI matches
+   that row to one of the two files and reports the other as pending *forever*.
+   Every `supabase db push` then tries to re-insert the version and aborts:
+
+   ```text
+   ERROR: duplicate key value violates unique constraint "schema_migrations_pkey"
+   Key (version)=(20260728160000) already exists.
+   ```
+
+   `supabase migration list` shows it plainly — the same version twice, once
+   matched and once with an empty REMOTE column.
+
+   Fixing a collision — choose by whether the loser's content has landed yet:
+   - **Not yet applied anywhere:** re-timestamp the loser (pure rename) so it
+     sorts after the winner, keeping dependent migrations in order.
+   - **Already landed via a later re-issue:** **delete** the superseded file.
+     Re-timestamping it would apply stale DDL *after* the newer fixes and
+     `create or replace` the corrected objects back to their old bodies. This
+     was the 2026-07-29 resolution for `20260728160000`: the ClickUp half had
+     been re-issued as `20260728174500` and then fixed by `20260728181500`, so
+     renumbering it would have reverted the fixes.
+
+   Deleting the loser is safe for the ledger **only because the winner keeps the
+   version** — the CLI still finds a local file for every `schema_migrations`
+   row, so it does not abort with `Remote migration versions not found in local
+   migrations directory`.
 
 ## 4.1 App-specific attributes go in per-app extension tables (decided 2026-07-17)
 
@@ -529,6 +560,19 @@ Preview branch credentials live in 1Password item
 Use the same pattern: authenticate the CLI with the Supabase PAT, then link to
 preview project `rjyboqwcdzcocqgmsyel` with that branch's database password
 before running preview dry-runs or pushes.
+
+**That title cannot be used in an `op://` reference** (verified 2026-07-29): the
+parentheses are invalid in a secret reference and `op read` fails with
+`invalid character in secret reference: '('`. Address the item by **ID** instead —
+the password lives in the `DB_PASSWORD` field:
+
+```bash
+PREVIEW_DB_PASSWORD="$(op read 'op://vibe_coding/qbvfk7umc3n75ejekd65zwd4ty/DB_PASSWORD')"
+supabase link --project-ref rjyboqwcdzcocqgmsyel --password "$PREVIEW_DB_PASSWORD"
+```
+
+Item IDs can be re-keyed by 1Password, so if that ID 404s, re-resolve it with
+`op item list --vault vibe_coding --format json` and match on the title.
 
 ## 10. Where to read more
 
