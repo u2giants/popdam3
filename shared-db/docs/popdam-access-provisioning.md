@@ -122,6 +122,49 @@ touching `%@gmail.com` must exclude it — the migration above carries an explic
   vbarot, vdionisio). They can read everything via `shared_read`. Whether to
   upgrade them to `designer` is an open decision — **ask, do not assume**.
 
+## The three user tables now have real foreign keys (2026-07-28)
+
+Until 2026-07-28, `public.profiles`, `public.user_roles` and `public.app_access`
+had **no foreign key constraints at all** — not to each other, not to
+`auth.users`. They merely shared a `user_id` column. Consequences:
+
+- PostgREST could not resolve the embed the admin user-management screen uses
+  (`profiles?select=...,user_roles(role),app_access(app)`), so `admin-api`
+  action `list-users` returned HTTP 500 *"Could not find a relationship between
+  'profiles' and 'user_roles' in the schema cache"* (PGRST200). The Settings →
+  user management screen could not load at all.
+- Deleting an auth user left orphaned profile/role/app-access rows behind.
+
+Migration `20260728160000_popdam_user_tables_foreign_keys.sql` adds:
+
+| Table | Constraint | References |
+|---|---|---|
+| `public.profiles` | `profiles_user_id_fkey` | `auth.users(id)` `on delete cascade` |
+| `public.user_roles` | `user_roles_user_id_fkey` | `public.profiles(user_id)` `on delete cascade` |
+| `public.app_access` | `app_access_user_id_fkey` | `public.profiles(user_id)` `on delete cascade` |
+
+**`user_roles`/`app_access` point at `public.profiles`, not at `auth.users`, on
+purpose.** PostgREST resolves an embed only along a foreign key *between the two
+tables being embedded*. Pointing them at `auth.users` would restore integrity
+but leave the admin screen broken. Do not "correct" this later.
+
+What makes it safe, and what would break it:
+
+- `public.handle_new_user` (trigger `on_auth_user_created_popdam`, **AFTER**
+  INSERT on `auth.users`) inserts `profiles` FIRST, then `user_roles`, then
+  `app_access`, in **both** branches (SSO and invitation). It is the only
+  database function that writes `public.user_roles`. **If any future writer
+  inserts a role or app access before the profile row, signup starts failing.**
+- POP CRM (`popcrm-web`) and PM/PIM (`poppim-web`) contain **zero** references
+  to these three tables — they are PopDAM-only. Re-check that before assuming a
+  new consumer is safe.
+- Preview rehearsal (2026-07-28) proved all three: the PostgREST embed returns
+  HTTP 200, an Azure-provider signup still creates all three rows, and deleting
+  the `auth.users` row cascades all three away.
+- Preview needed two throwaway PopSG test profiles deleted first (their
+  `auth.users` rows were already gone). Production had **zero** orphans in all
+  three tables, so no backfill was required there.
+
 ## Related
 
 - AGENTS §0.4 — `public.style_tracker_rows` open writes are **intentional**; a
