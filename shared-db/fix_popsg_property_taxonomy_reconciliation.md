@@ -508,6 +508,11 @@ Required preview assertions:
 **Gate:** application behavior is visually verified on preview and Albert
 confirms the decision summary matches the approved batch.
 
+**End-of-phase drift check:** before closing PSG-5, re-read PSG-6 and PSG-7 through the end of
+this plan. Record anything PSG-5 changed or discovered that affects their assumptions,
+sequencing, identifiers, safety gates, verification, rollback, or owner approvals. Update this
+plan and the fresh-session handoff before stopping if any downstream instruction has drifted.
+
 ### PSG-6 — shared-db PR, production schema, app rollout, and rebuild
 
 Order is mandatory:

@@ -212,6 +212,12 @@ The reproducible generator and test are
 `scripts/popsg-property-psg4-decision-package.cjs` and
 `scripts/popsg-property-psg4-decision-package.test.cjs`.
 
+The PSG-4 package, test, approval record, GLM review, and completion record were committed as
+`896cfa22071e954b1d70c201d6073b6c9117e2a1`, merged through
+[`shared-db` PR #302](https://github.com/u2giants/shared-db/pull/302), and reached `main` as
+`a1b0c441b4704b9628daf50473afaaca644d82b2`. No database migration, deployment, mapping
+activation, rebuild, or ColdLion production action was part of that merge.
+
 ### Everything that did not work
 
 1. The package could not reuse the frozen Batch 01 CSV for owner audit fields because changing
@@ -242,7 +248,10 @@ The reproducible generator and test are
    preservation, and zero unexplained tag loss.
 4. Do not treat the 6,961-row risk file as approved removal evidence.
    **Pass when:** every removed accepted tag belongs to a separately approved signed subset.
-5. Stop before PSG-6 production work.
+5. Before closing PSG-5, re-read PSG-6 and PSG-7 through plan-end and record any downstream
+   drift in the plan and handoff.
+   **Pass when:** the PSG-5 completion record explicitly reports the forward-impact audit.
+6. Stop before PSG-6 production work.
    **Pass when:** no production change occurs without a named window and separate approval.
 
 ### Constraints and gotchas
@@ -271,6 +280,25 @@ preview `rjyboqwcdzcocqgmsyel` and production `qsllyeztdwjgirsysgai`.
 The handoff self-audit passes. A new developer can identify the application, exact approved
 scope, immutable hashes, failed paths, current limits, next gates, environment, and open risks
 without prior chat context. Every next step has a verification condition.
+
+The canonical five-question audit passes:
+
+1. **Yes.** The application, repos, URL, session goal, exact approved scope, hashes, local Git
+   state, and next actions are in the sections above.
+2. **Yes.** The package construction rule, GLM result, frozen-source constraint, approval
+   context, exclusions, and downstream gates preserve everything known in this session.
+3. **Yes.** All failed paths are recorded with why they failed and the permanent resolution.
+4. **Yes.** Every next step is numbered and has a concrete pass condition.
+5. **Yes.** Every phase, hash, path, URL, database ref, and approval boundary needed next is
+   defined or linked.
+
+The three final synthesis checks also pass:
+
+1. **Yes.** A brand-new developer can continue without prior project or chat knowledge.
+2. **Yes.** They can continue as effectively as this session because the complete evidence,
+   decisions, limits, current local state, and future gates are preserved.
+3. **Yes.** Background, goal, outcome, current state, failed attempts, decisions, constraints,
+   risks, next actions, and verification evidence are present.
 
 ---
 
