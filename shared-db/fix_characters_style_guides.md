@@ -316,18 +316,43 @@ contacted.**
   Toy Story 3, Looney Tunes, Camp Rock…). All are one-row-names-many-characters combinations whose
   components exist nowhere else, so splitting would invent names. Answerable as **one policy
   question**, not 154 rows.
-- **173 characters need a human property decision** (425 appearances): a character's style guides
-  carry equally specific, equally frequent property codes. The rules resolve 425 other conflicts
-  by the reviewed franchise table, code specificity, or majority.
+- **36 characters need a human property decision** (98 appearances): a character's style guides
+  carry equally specific, equally frequent property codes. The rules resolve the rest by the
+  reviewed franchise table, code specificity, or majority.
+
+**Owner answers recorded 2026-07-29 (two of three):**
+
+1. **`MU` → `MV` for the `Marvel Universe` style guide is authorized.** *"MU for Marvel was a typo
+   from Laura. MU is MUPPETS, under Disney. MV is Marvel Assorted Styles."* Recorded as a dated,
+   attributed correction in `authorized-licensing-corrections.csv`; the licensing evidence file is
+   untouched and still shows the original `MU`.
+2. **New cross-licensor validation rule.** A style guide's resolved property must belong to the
+   **same licensor** as the style guide. Mismatches **fail closed** and are reported, never
+   auto-corrected. Re-run over all 211 coded style guides it found **five failures** the old
+   code-only validation could never catch: `Lost Boys (1987)` → `LB` and `Exorcist (1973)` → `EX`
+   (valid Coldlion codes with **no `core.property` row** — dangling FKs), `Black Adam (2022)` →
+   `BP` (BLACK PANTHER, licensor Marvel), `Big Hero 6 TV` → `BK` (BIG LEBOWSKI, licensor NBC), and
+   `Coco` → `CC` (licensor `ZZ` DTR - NO LICENSE). **All five still need an answer.**
+3. **Likeness and movie do not split a character, but the detail is now preserved.** *"For Batman,
+   with likeness we still use code BM… But we do add the fact that it's movie to the description."*
+   Identity and property are unchanged (one Batman, `BM`); the stripped text is captured onto the
+   existing `core.style_guide_character.metadata` jsonb — never on `core.character`, and no
+   likeness boolean anywhere in `core.*` (likeness stays on `dam.style_guide_file`, model doc
+   §2.2). 3,543 appearances carry preserved detail: 2,132 guide context, 1,036 portrayal, 319
+   alias, 91 likeness label, 58 title/year.
+
+**Still open and still blocking the backfill:** the 154 combination rows and the 36 property
+tie-breaks.
 
 Three things the owner must decide before the backfill runs:
 
-1. **Batman resolves to 17 bridge rows, not the 15 in this plan's exit check.** The extra two are
-   `Batman As Portrayed By Christian Bale` (*Batman Begins 2005*) and `Batman (non-talent
-   likeness)` (*Dark Knight Rises 2012*) — both Batman under the owner's own likeness rule. Confirm
-   17 is correct, or the qualifier-stripping rules must be narrowed.
-2. **The 154 combination rows:** exclude them (recommended, invents nothing), split them, or decide
-   the 30 style guides individually.
+1. ~~**Batman resolves to 17 bridge rows, not the 15 in this plan's exit check.**~~ **ANSWERED
+   2026-07-29 — accepted.** The extra two are `Batman As Portrayed By Christian Bale` (*Batman
+   Begins 2005*) and `Batman (non-talent likeness)` (*Dark Knight Rises 2012*), both Batman under
+   the owner's own likeness rule. Movies and actor renditions do not split the character and do not
+   get their own MG06 code. **This plan's "15 bridge rows" exit check is superseded by 17.**
+2. **STILL OPEN — the 154 combination rows:** exclude them (recommended, invents nothing), split
+   them, or decide the 30 style guides individually.
 Two of this phase's own exit checks were unachievable as originally written and are corrected
 above:
 
@@ -337,9 +362,9 @@ above:
   may be invented. Only a *dangling* FK is a failure.
 - **"spot-check Batman: 15 bridge rows"** measures 17 under these rules (see point 1 below).
 
-3. **The licensing answer `MU` for the `Marvel Universe` style guide is almost certainly wrong** —
-   `MU` is **MUPPETS** in Coldlion MG06, and that guide carries 1,041 Marvel appearances. It
-   passed code validation because `MU` is a real code. Re-ask licensing (likely `MV`).
+3. ~~**The licensing answer `MU` for the `Marvel Universe` style guide is almost certainly wrong.**~~
+   **CONFIRMED AND CORRECTED 2026-07-29** — see the owner answers above. Four further defective
+   answers surfaced by the new cross-licensor rule remain open.
 
 ---
 

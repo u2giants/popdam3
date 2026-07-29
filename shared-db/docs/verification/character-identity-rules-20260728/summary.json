@@ -33,19 +33,44 @@
     "GROUPING_LABEL": 31
   },
   "propertyRuleCounts": {
-    "SINGLE_CANDIDATE": 4638,
-    "NO_PROPERTY_CANDIDATE": 1302,
-    "NEEDS_HUMAN": 173,
+    "SINGLE_CANDIDATE": 4665,
+    "NO_PROPERTY_CANDIDATE": 1317,
+    "NEEDS_HUMAN": 36,
     "REVIEWED_FRANCHISE_RULE": 193,
-    "MAJORITY_OF_APPEARANCES": 28,
-    "MOST_SPECIFIC_CODE": 204
+    "MAJORITY_OF_APPEARANCES": 17,
+    "MOST_SPECIFIC_CODE": 310
   },
   "identityDecisionsNeeded": 154,
   "identityDecisionStyleGuides": 30,
-  "propertyDecisionsNeeded": 173,
-  "propertyDecisionAppearances": 425,
+  "propertyDecisionsNeeded": 36,
+  "propertyDecisionAppearances": 98,
   "batman": {
     "appearances": 20,
     "styleGuides": 17
+  },
+  "crossLicensorValidation": {
+    "styleGuidesChecked": 211,
+    "failures": 5,
+    "failureAppearances": 34,
+    "byFailure": {
+      "CODE_NOT_IN_CORE_PROPERTY": 2,
+      "LICENSOR_MISMATCH": 3
+    }
+  },
+  "authorizedCorrections": 1,
+  "preservedRenditionDetail": {
+    "appearances": 3543,
+    "byQualifier": {
+      "likeness_label": 91,
+      "portrayed_by": 1036,
+      "title_year": 58,
+      "guide_context": 2132,
+      "alias": 319
+    }
+  },
+  "canonicalTablesStillEmpty": {
+    "character_rows": "0",
+    "style_guide_rows": "0",
+    "bridge_rows": "0"
   }
 }

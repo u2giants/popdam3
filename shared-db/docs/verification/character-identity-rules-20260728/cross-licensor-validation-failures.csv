@@ -1,0 +1,6 @@
+style_guide,legacy_licensor_id,appearances,answered_code,answered_property,answered_licensor,decision_source,failure,detail
+"Lost Boys, The (1987) ",2,20,LB,(absent from core.property),,ACCEPTED_CLEAR_MG06,CODE_NOT_IN_CORE_PROPERTY,"MG06 code LB is valid in Coldlion but has no row in core.property, so it would leave a dangling property_id"
+Black Adam (2022),2,10,BP,BLACK PANTHER,MV,LICENSING_REVIEW_20260727,LICENSOR_MISMATCH,"BP = BLACK PANTHER belongs to licensor MV (MARVEL), but the style guide's licensor allows only WB, DC, HP, FR"
+"Exorcist, The (1973) ",2,2,EX,(absent from core.property),,ACCEPTED_CLEAR_MG06,CODE_NOT_IN_CORE_PROPERTY,"MG06 code EX is valid in Coldlion but has no row in core.property, so it would leave a dangling property_id"
+Big Hero 6 TV,1,1,BK,BIG LEBOWSKI,NB,LICENSING_REVIEW_20260727,LICENSOR_MISMATCH,"BK = BIG LEBOWSKI belongs to licensor NB (NBC), but the style guide's licensor allows only DY, SW"
+Coco,1,1,CC,COCO,ZZ,ACCEPTED_CLEAR_MG06,LICENSOR_MISMATCH,"CC = COCO belongs to licensor ZZ (DTR - NO LICENSE), but the style guide's licensor allows only DY, SW"

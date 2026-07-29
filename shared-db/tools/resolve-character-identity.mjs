@@ -112,26 +112,53 @@ const LIKENESS_PAREN_2 = /\(\s*non[- ]?talent[- ]?likeness\s*\)/gi;
 const PORTRAYED = /\s*as portrayed by[^()]*/gi;
 const YEAR_PAREN = /\s*\([^()]*\b(?:18|19|20)\d{2}\)\s*/g;
 
+const tidy = (value) => String(value ?? '')
+  .replace(/[()]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 /**
  * Remove qualifiers that describe the *rendition*, not the identity.
- * Returns the stripped name plus the list of rules that fired.
+ *
+ * The removed text is NEVER discarded: the owner (2026-07-29) requires the
+ * movie/rendition fact to survive on the appearance. It is returned in
+ * `captured` and lands on the `core.style_guide_character.metadata` bridge row —
+ * never on `core.character`, and never as a likeness boolean in `core.*`
+ * (likeness belongs to `dam.style_guide_file`, model doc §2.2).
+ *
+ * Returns { value, rules, captured }.
  */
 export function stripQualifiers(characterName, styleGuide = '') {
   let value = String(characterName ?? '');
   const rules = [];
+  const captured = {};
 
-  if (LIKENESS_PAREN.test(value) || LIKENESS_PAREN_2.test(value)) rules.push('STRIP_LIKENESS');
-  LIKENESS_PAREN.lastIndex = 0;
-  LIKENESS_PAREN_2.lastIndex = 0;
-  value = value.replace(LIKENESS_PAREN_2, ' ').replace(LIKENESS_PAREN, ' ');
+  // The two likeness patterns overlap, so dedupe by match position.
+  const likeness = [...new Map([
+    ...value.matchAll(LIKENESS_PAREN_2),
+    ...value.matchAll(LIKENESS_PAREN),
+  ].map((match) => [match.index, tidy(match[0])])).values()];
+  if (likeness.length) {
+    rules.push('STRIP_LIKENESS');
+    captured.likeness = likeness.join('; ');
+    value = value.replace(LIKENESS_PAREN_2, ' ').replace(LIKENESS_PAREN, ' ');
+  }
 
-  if (PORTRAYED.test(value)) rules.push('STRIP_PORTRAYAL');
-  PORTRAYED.lastIndex = 0;
-  value = value.replace(PORTRAYED, ' ');
+  const portrayals = [...value.matchAll(PORTRAYED)]
+    .map((match) => tidy(match[0]).replace(/^as portrayed by\s*/i, ''))
+    .filter(Boolean);
+  if (portrayals.length) {
+    rules.push('STRIP_PORTRAYAL');
+    captured.portrayedBy = portrayals.join('; ');
+    value = value.replace(PORTRAYED, ' ');
+  }
 
-  if (YEAR_PAREN.test(value)) rules.push('STRIP_TITLE_YEAR');
-  YEAR_PAREN.lastIndex = 0;
-  value = value.replace(YEAR_PAREN, ' ');
+  const titles = [...value.matchAll(YEAR_PAREN)].map((match) => tidy(match[0])).filter(Boolean);
+  if (titles.length) {
+    rules.push('STRIP_TITLE_YEAR');
+    captured.titleYear = titles.join('; ');
+    value = value.replace(YEAR_PAREN, ' ');
+  }
 
   // A trailing parenthetical that repeats the style guide is guide context; the
   // bridge row already carries it.
@@ -140,11 +167,22 @@ export function stripQualifiers(characterName, styleGuide = '') {
     const trailing = value.match(/\(([^()]*)\)\s*$/);
     if (trailing && norm(trailing[1]) === guide) {
       rules.push('STRIP_GUIDE_CONTEXT');
+      captured.guideContext = tidy(trailing[1]);
       value = value.slice(0, trailing.index);
     }
   }
 
-  return { value: value.replace(/\s+/g, ' ').trim(), rules };
+  return { value: value.replace(/\s+/g, ' ').trim(), rules, captured };
+}
+
+/** A human-readable rendition phrase for the bridge row's description. */
+export function renditionDescription(captured = {}) {
+  const parts = [];
+  if (captured.titleYear) parts.push(captured.titleYear);
+  if (captured.portrayedBy) parts.push(`as portrayed by ${captured.portrayedBy}`);
+  if (captured.likeness) parts.push(captured.likeness.toLowerCase());
+  if (captured.alias) parts.push(`aka ${captured.alias}`);
+  return parts.join(' · ');
 }
 
 /** "Rogers, Steve" -> "Steve Rogers". Only for a simple two-part personal name. */
@@ -241,10 +279,11 @@ export function prepareAppearance({ styleGuide, characterName }) {
 
   const stripped = stripQualifiers(characterName, styleGuide);
   rules.push(...stripped.rules);
+  const captured = { ...stripped.captured };
   let base = stripped.value;
 
   if (isMultiCharacterLabel(base)) {
-    return { status: 'MULTI_CHARACTER_UNRESOLVED', rules: [...rules, 'MULTI_CHARACTER_LABEL'], reason: 'One row names several characters; splitting changes cardinality', base };
+    return { status: 'MULTI_CHARACTER_UNRESOLVED', rules: [...rules, 'MULTI_CHARACTER_LABEL'], reason: 'One row names several characters; splitting changes cardinality', base, captured };
   }
 
   const inverted = invertSurnameFirst(base);
@@ -271,10 +310,36 @@ export function prepareAppearance({ styleGuide, characterName }) {
   }
 
   if (!norm(primary)) {
-    return { status: 'EMPTY_AFTER_STRIP', rules, reason: 'Nothing left after removing rendition qualifiers', base };
+    return { status: 'EMPTY_AFTER_STRIP', rules, reason: 'Nothing left after removing rendition qualifiers', base, captured };
   }
 
-  return { status: 'CANDIDATE', primary, alias, rules, base };
+  if (alias) captured.alias = alias;
+  return { status: 'CANDIDATE', primary, alias, rules, base, captured };
+}
+
+/**
+ * The `core.style_guide_character.metadata` payload for one appearance.
+ * Only keys with content are emitted, so an appearance with no qualifier gets
+ * just its source provenance.
+ */
+export function bridgeMetadata({ characterName, sourceCharacterId, captured = {}, rules = [] }) {
+  const metadata = {
+    source_character_name: String(characterName ?? ''),
+    identity_rules: [...rules],
+  };
+  if (sourceCharacterId) metadata.source_character_id = String(sourceCharacterId);
+  const rendition = {};
+  if (captured.likeness) rendition.likeness_label = captured.likeness;
+  if (captured.portrayedBy) rendition.portrayed_by = captured.portrayedBy;
+  if (captured.titleYear) rendition.title_year = captured.titleYear;
+  if (captured.guideContext) rendition.guide_context = captured.guideContext;
+  if (captured.alias) rendition.alias = captured.alias;
+  if (Object.keys(rendition).length) {
+    metadata.rendition = rendition;
+    const description = renditionDescription(captured);
+    if (description) metadata.rendition_description = description;
+  }
+  return metadata;
 }
 
 /**
@@ -311,6 +376,7 @@ export function resolveIdentities(appearances) {
         rules: prep.rules.join('+'),
         reason: prep.reason,
         base: prep.base ?? '',
+        captured: prep.captured ?? {},
         identityKey: '',
         identityName: '',
       });
@@ -351,13 +417,24 @@ export function resolveIdentities(appearances) {
     }
     identities.get(identityKey).appearances += 1;
 
+    const captured = { ...prep.captured };
+    // A disambiguating alias is part of the identity, not rendition detail.
+    if (rules.includes('ALIAS_DISAMBIGUATED')) delete captured.alias;
+
     rows.push({
       ...row,
       status: 'AUTO_RESOLVED',
       rules: rules.join('+'),
       reason: '',
+      captured,
       identityKey,
       identityName: identities.get(identityKey).identityName,
+      metadata: bridgeMetadata({
+        characterName: row.characterName,
+        sourceCharacterId: row.sourceCharacterId,
+        captured,
+        rules,
+      }),
     });
   }
 
@@ -472,6 +549,62 @@ export function resolvePropertyForIdentity(candidateCounts, context = {}) {
     rule: 'NEEDS_HUMAN',
     reason: `Equally specific, equally frequent property codes: ${narrowed.map(([code]) => code).sort().join(', ')}`,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Cross-licensor validation (added 2026-07-29 after the MU/MUPPETS defect).
+//
+// Validating only "is this a real Coldlion code" is not enough: `MU` is a real
+// code, but it is MUPPETS under DISNEY, and licensing's typo would have attached
+// it to 1,041 Marvel character appearances. A style guide's resolved property
+// must belong to the SAME licensor as the style guide. Mismatches FAIL CLOSED —
+// they are reported and left unresolved, never auto-corrected.
+// ---------------------------------------------------------------------------
+
+/**
+ * Legacy licensor id in `dflow.properties_and_characters` -> the canonical
+ * `core.licensor` codes that a style guide under it may legitimately resolve to.
+ * Derived from the style guides actually present under each id on preview.
+ */
+export const LEGACY_LICENSOR_ALLOWED_CODES = {
+  1: ['DY', 'SW'], // Disney (sheet label "Dis/Mrv/SW")
+  2: ['WB', 'DC', 'HP', 'FR'], // Warner Bros: WB, DC, Harry Potter, Friends
+  3: ['MV'], // Marvel
+  12: ['WW'], // WWE
+  13: ['CC'], // Coca-Cola
+  14: ['SS'], // Strawberry Shortcake
+};
+
+/**
+ * @param {{legacyLicensorId:string|number, code:string,
+ *          property:{code:string,name:string,licensorCode:string,licensorName:string}|null|undefined}} input
+ * @returns {{ok:boolean, failure?:string, detail?:string}}
+ */
+export function validateStyleGuideProperty({ legacyLicensorId, code, property }) {
+  if (!code || code === 'NONE') return { ok: true };
+  if (!property) {
+    return {
+      ok: false,
+      failure: 'CODE_NOT_IN_CORE_PROPERTY',
+      detail: `MG06 code ${code} is valid in Coldlion but has no row in core.property, so it would leave a dangling property_id`,
+    };
+  }
+  const allowed = LEGACY_LICENSOR_ALLOWED_CODES[legacyLicensorId];
+  if (!allowed) {
+    return {
+      ok: false,
+      failure: 'UNKNOWN_LEGACY_LICENSOR',
+      detail: `legacy licensor ${legacyLicensorId} has no approved canonical licensor list`,
+    };
+  }
+  if (!allowed.includes(property.licensorCode)) {
+    return {
+      ok: false,
+      failure: 'LICENSOR_MISMATCH',
+      detail: `${code} = ${property.name} belongs to licensor ${property.licensorCode} (${property.licensorName}), but the style guide's licensor allows only ${allowed.join(', ')}`,
+    };
+  }
+  return { ok: true };
 }
 
 export default resolveIdentities;

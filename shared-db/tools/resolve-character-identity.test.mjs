@@ -3,6 +3,9 @@ import test from 'node:test';
 
 import {
   aliasesMatch,
+  bridgeMetadata,
+  renditionDescription,
+  validateStyleGuideProperty,
   classifyNonCharacterLabel,
   clusterAliases,
   codeSpecificity,
@@ -194,6 +197,124 @@ test('property conflicts resolve by reviewed rule, then specificity, then majori
   const tie = resolvePropertyForIdentity(new Map([['A9', 1], ['C3', 1]]));
   assert.equal(tie.rule, 'NEEDS_HUMAN');
   assert.equal(tie.code, null);
+});
+
+// --- preserved rendition detail (owner requirement, 2026-07-29) ---
+
+test('stripped qualifier text is captured, never discarded', () => {
+  const result = stripQualifiers('Batman aka Bruce Wayne as portrayed by Christian Bale (Batman Begins 2005)');
+  assert.equal(result.value, 'Batman aka Bruce Wayne');
+  assert.equal(result.captured.portrayedBy, 'Christian Bale');
+  assert.equal(result.captured.titleYear, 'Batman Begins 2005');
+
+  const likeness = stripQualifiers('Batman (non-talent likeness)');
+  assert.equal(likeness.captured.likeness, 'non-talent likeness');
+
+  const guide = stripQualifiers('Ant-Man ( Avengers )', 'Avengers');
+  assert.equal(guide.captured.guideContext, 'Avengers');
+});
+
+test('the rendition description reads as a human phrase', () => {
+  assert.equal(
+    renditionDescription({ titleYear: 'Batman Begins 2005', portrayedBy: 'Christian Bale', likeness: 'Non-Likeness' }),
+    'Batman Begins 2005 · as portrayed by Christian Bale · non-likeness',
+  );
+  assert.equal(renditionDescription({}), '');
+});
+
+test('bridge metadata keeps the source name and only non-empty rendition keys', () => {
+  const metadata = bridgeMetadata({
+    characterName: 'Batman (non-talent likeness)',
+    sourceCharacterId: 'abc',
+    captured: { likeness: 'non-talent likeness' },
+    rules: ['STRIP_LIKENESS', 'PRIMARY_ONLY'],
+  });
+  assert.equal(metadata.source_character_name, 'Batman (non-talent likeness)');
+  assert.equal(metadata.source_character_id, 'abc');
+  assert.deepEqual(metadata.rendition, { likeness_label: 'non-talent likeness' });
+  assert.equal(metadata.rendition_description, 'non-talent likeness');
+  assert.equal('portrayed_by' in metadata.rendition, false);
+
+  const plain = bridgeMetadata({ characterName: 'Batman', rules: ['PRIMARY_ONLY'] });
+  assert.equal('rendition' in plain, false);
+  assert.equal('rendition_description' in plain, false);
+});
+
+test('no likeness boolean is ever emitted into a core column', () => {
+  const metadata = bridgeMetadata({ characterName: 'Batman (non-likeness)', captured: { likeness: 'non-likeness' } });
+  assert.equal('has_likeness' in metadata, false);
+  assert.equal('likeness' in metadata, false);
+});
+
+test('resolved rows carry the metadata; a disambiguating alias is identity not rendition', () => {
+  const { rows } = resolveIdentities([
+    { styleGuide: 'Batman Begins (2005)', licensorId: 2, characterName: 'Batman as portrayed by Christian Bale', sourceCharacterId: '1' },
+    { styleGuide: 'A', licensorId: 2, characterName: 'Robin aka Dick Grayson', sourceCharacterId: '2' },
+    { styleGuide: 'B', licensorId: 2, characterName: 'Robin aka Damian Wayne', sourceCharacterId: '3' },
+  ]);
+  assert.equal(rows[0].metadata.rendition.portrayed_by, 'Christian Bale');
+  assert.equal(rows[0].identityName, 'Batman');
+  // The alias distinguishes the identity here, so it is not repeated as rendition.
+  assert.equal(rows[1].metadata.rendition, undefined);
+  assert.equal(rows[1].identityName, 'Robin aka Dick Grayson');
+});
+
+// --- cross-licensor validation (added after the MU/MUPPETS defect) ---
+
+test('a property under a different licensor fails closed', () => {
+  const result = validateStyleGuideProperty({
+    legacyLicensorId: 3,
+    code: 'MU',
+    property: { code: 'MU', name: 'MUPPETS', licensorCode: 'DY', licensorName: 'DISNEY' },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.failure, 'LICENSOR_MISMATCH');
+  assert.match(result.detail, /MUPPETS/);
+});
+
+test('the correct Marvel code passes for a Marvel style guide', () => {
+  assert.deepEqual(
+    validateStyleGuideProperty({
+      legacyLicensorId: 3,
+      code: 'MV',
+      property: { code: 'MV', name: 'MARVEL ASSORTED STYLES', licensorCode: 'MV', licensorName: 'MARVEL' },
+    }),
+    { ok: true },
+  );
+});
+
+test('a WB style guide may resolve to DC, Harry Potter, or Friends', () => {
+  for (const licensorCode of ['WB', 'DC', 'HP', 'FR']) {
+    assert.equal(validateStyleGuideProperty({
+      legacyLicensorId: 2,
+      code: 'BM',
+      property: { code: 'BM', name: 'BATMAN', licensorCode, licensorName: licensorCode },
+    }).ok, true);
+  }
+  assert.equal(validateStyleGuideProperty({
+    legacyLicensorId: 2,
+    code: 'BP',
+    property: { code: 'BP', name: 'BLACK PANTHER', licensorCode: 'MV', licensorName: 'MARVEL' },
+  }).failure, 'LICENSOR_MISMATCH');
+});
+
+test('a code valid in Coldlion but absent from core.property fails closed', () => {
+  const result = validateStyleGuideProperty({ legacyLicensorId: 2, code: 'LB', property: undefined });
+  assert.equal(result.failure, 'CODE_NOT_IN_CORE_PROPERTY');
+  assert.match(result.detail, /dangling property_id/);
+});
+
+test('an unknown legacy licensor fails closed rather than passing', () => {
+  assert.equal(validateStyleGuideProperty({
+    legacyLicensorId: 99,
+    code: 'BM',
+    property: { code: 'BM', name: 'BATMAN', licensorCode: 'DC', licensorName: 'DC' },
+  }).failure, 'UNKNOWN_LEGACY_LICENSOR');
+});
+
+test('no code and the NONE marker are not validation failures', () => {
+  assert.deepEqual(validateStyleGuideProperty({ legacyLicensorId: 2, code: '' }), { ok: true });
+  assert.deepEqual(validateStyleGuideProperty({ legacyLicensorId: 2, code: 'NONE' }), { ok: true });
 });
 
 test('a franchise code that is not among the candidates is not invented', () => {
