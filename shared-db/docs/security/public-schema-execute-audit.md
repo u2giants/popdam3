@@ -122,9 +122,15 @@ still listing `anon` and `authenticated`.
 
 So the durable guard is an **event trigger**,
 `lock_down_new_public_function_execute_trg`, which revokes EXECUTE from PUBLIC and `anon`
-on every function created in `public`. This mirrors the existing
-`public.rls_auto_enable()` event trigger, which forces RLS on new public tables for the
-same "the platform default is wrong for us" reason.
+on every function **or procedure** created in `public`. (Procedure coverage was added in
+`20260729180000`; the first version filtered on `CREATE FUNCTION` only, which would have
+left a SECURITY DEFINER procedure in `public` exposed. There are none on production today,
+so this was a latent trap rather than a live hole.)
+
+This follows the same approach as `public.rls_auto_enable()`, which forces RLS on new
+public tables for the same "the platform default is wrong for us" reason. Note that only
+`rls_auto_enable`'s *function body* is in this repo — its event-trigger registration was
+created out of band, so treat it as a precedent in spirit rather than a fully auditable one.
 
 The migration ends by creating a throwaway function and asserting `anon` cannot reach it.
 That assertion is what caught the incomplete first version of this fix.
@@ -135,23 +141,54 @@ preserves the existing ACL, so a migration that merely patches a function body w
 otherwise silently strip that function's `authenticated` grant and break a logged-in app
 screen. `ALTER FUNCTION` is not covered because it never widens an ACL.
 
-## 5. Deliberately left reachable by `anon` — read this before "finishing the job"
+## 5. Left reachable by `anon`
 
-Five functions are still `anon`-EXECUTE-able **on purpose**:
+**Resolved by the follow-up migration
+`20260729180000_revoke_anon_execute_style_tracker_and_cover_procedures.sql`.** Read this
+section together with §5.1 below.
 
-| Function | Why |
-|---|---|
-| `has_role` | Called from inside **237 RLS policies**. `anon` holds SELECT on 62 `public` tables, so those policies genuinely evaluate as `anon`. Removing EXECUTE turns an empty result set into a hard `42501` error across every app. |
-| `has_app_access` | Same. |
-| `refresh_style_tracker_item_bridge` | A migration explicitly ran `grant execute ... to anon, authenticated, service_role`. |
-| `search_style_tracker_link_candidates` | Same explicit `anon` grant. |
-| `upsert_style_tracker_value_resolution` | Same explicit `anon` grant. |
+Immediately after `20260729120000`, five **SECURITY DEFINER** functions were still
+`anon`-EXECUTE-able:
 
-The last three are **explicit author decisions, and they look wrong** — particularly
-`upsert_style_tracker_value_resolution`, which is a write function granted to
-unauthenticated callers. Reversing a deliberate grant is a different decision from fixing
-an accidental one, so it was **reported, not silently changed**. This is a recommended
-follow-up, not part of this change.
+| Function | Why | Status |
+|---|---|---|
+| `has_role` | Called from inside RLS policies. `anon` holds SELECT on `public` tables, so those policies genuinely evaluate as `anon`. Removing EXECUTE turns an empty result set into a hard `42501` error across every app. | **Kept, permanently** |
+| `has_app_access` | Same. | **Kept, permanently** |
+| `refresh_style_tracker_item_bridge` | A migration explicitly ran `grant execute ... to anon, authenticated, service_role`. | **anon revoked** in `20260729180000` |
+| `search_style_tracker_link_candidates` | Same explicit `anon` grant. | **anon revoked** in `20260729180000` |
+| `upsert_style_tracker_value_resolution` | Same explicit `anon` grant. | **anon revoked** in `20260729180000` |
+
+The `20260729120000` allowlist names **six** functions, one more than the five above:
+`get_dam_material_facets` is also `anon`-reachable but is **SECURITY INVOKER**, so it was
+never in scope for that migration (the sweep filters on `prosecdef`). Listing it was
+harmless but redundant. It is deliberately left alone: an invoker-rights function runs as
+the caller and is still subject to RLS.
+
+### 5.1 Why the last three had to go, and why revoking them is safe
+
+`upsert_style_tracker_value_resolution` is SECURITY DEFINER and **writes**: it upserts
+`plm.style_tracker_value_resolution` and rewrites `plm.style_tracker_item_bridge`,
+including `creative_designer_id` and flipping `match_status` to matched/verified. Granted
+to `anon`, an unauthenticated caller could link tracker rows to arbitrary entities and mark
+them verified — **unauthenticated data tampering**, confirmed live on production
+2026-07-29. `refresh_style_tracker_item_bridge` allowed an anonymous full bridge rebuild
+(resource abuse); `search_style_tracker_link_candidates` disclosed customer/licensor ids
+and names.
+
+Revoking `anon` does **not** break the app. All three are called from PopDAM's
+`src/pages/StylesPage.tsx` (`u2giants/popdam3`) — a browser page **behind login**. A
+logged-in user authenticates as `authenticated`, not `anon`. Their production ACLs carried
+both grants, so removing `anon` leaves the logged-in path intact. `20260729180000`
+re-asserts `authenticated` and `service_role` explicitly and asserts the app path survived.
+
+### 5.2 The event trigger can strip an `anon` grant on replace
+
+The trigger revokes PUBLIC/`anon` on every `CREATE FUNCTION`, and
+`create or replace function` reports that tag while preserving the ACL. So if a future
+migration ever needs a function to be genuinely anon-callable, it must **re-grant after
+the create** — a body-patch alone will silently drop the `anon` grant. That is the
+intended bias (fail closed, not open), but it needs to be known. `authenticated` is not
+affected, by design.
 
 ## 6. Not changed: `authenticated` on app-facing functions
 
@@ -180,7 +217,15 @@ where n.nspname = 'public'
 order by 1;
 ```
 
-Expected result after this migration: **only the five functions listed in §5.**
+Expected result after **both** migrations: **only `has_role` and `has_app_access`.**
+(Between `20260729120000` and `20260729180000` the expected result was the five SECURITY
+DEFINER functions in §5.)
+
+Figures quoted in this document — "88 of 99", "237 policies", "62 tables", the
+`pgrst.db_schemas` list — are **live measurements** taken from the hosted preview branch on
+2026-07-29, not values derivable from this repo. Re-measure rather than trusting them;
+production differs from preview (production had 87 of 88 exposed, and 64 functions were in
+scope for the revoke there).
 
 End-to-end check with the anon key (this is the proof that matters):
 
