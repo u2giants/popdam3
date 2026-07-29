@@ -256,16 +256,51 @@ grant  execute on function public.f(...) to service_role;   -- or authenticated,
 Never rely on `revoke ... from public` alone, and never assume a function is private
 because no migration granted it — on hosted Supabase the platform grants it for you.
 
-## 9. Production promotion
+## 9. Production status — APPLIED 2026-07-29
 
-This migration is applied to **preview only**.
+Production (`qsllyeztdwjgirsysgai`) is **fixed**, on Albert's explicit authorisation.
 
-Promoting it to production (`qsllyeztdwjgirsysgai`) will revoke `anon` EXECUTE on ~65
-functions and `authenticated` EXECUTE on 13. The anon revocations are safe by
-construction. The 13 `authenticated` revocations are safe **if** those functions are
-genuinely only called by service-role workers, which their own migrations assert.
+Applied migrations: `20260729130000` and `20260729180000`.
+**`20260729120000` was NOT applied to production** — see §9.1.
 
-Production has not been audited by this session — run the §7 query against production
-first, since its function set may differ from preview.
+Result on production:
 
-**Do not apply to production without Albert naming the project and the action.**
+```text
+revoked PUBLIC+anon EXECUTE on 64 SECURITY DEFINER routines
+revoked authenticated EXECUTE on 12 service_role-only routines
+revoked anon EXECUTE on 3 style-tracker functions
+anon-reachable SECURITY DEFINER routines remaining: has_role, has_app_access
+event trigger lock_down_new_public_function_execute_trg: installed, enabled
+style-tracker functions: authenticated retained (PopDAM StylesPage unaffected)
+```
+
+Live end-to-end proof with the **production anon key**, all HTTP 401 / `42501`:
+
+| RPC | Before | After |
+|---|---|---|
+| `execute_readonly_query` | arbitrary SQL as `postgres` | permission denied |
+| `upsert_style_tracker_value_resolution` | unauthenticated write | permission denied |
+| `refresh_style_tracker_item_bridge` | unauthenticated rebuild | permission denied |
+
+### 9.1 Why `20260729120000` is still pending on production
+
+It hard-codes `revoke execute on function public.sync_clickup_tasks(jsonb, text)`, and that
+function **does not exist on production** — its creating migration
+(`20260728174500_clickup_incremental_task_import_reissue`) is one of 15 migrations pending
+there. `revoke` on a missing function raises `undefined_function`, which would have aborted
+the entire apply before locking anything down. `20260729130000` is the catalog-driven,
+production-safe equivalent. `20260729120000` will apply cleanly later as an idempotent
+no-op, because `20260728174500` sorts before it.
+
+### 9.2 Two repo hazards found while doing this — worth fixing separately
+
+1. **`supabase db push --dry-run` under-reports pending migrations.** On production it
+   listed **11**; the true count was **15**. It only shows migrations sorting *before* the
+   remote maximum version. Always diff every local filename against every
+   `schema_migrations` row instead. (AGENTS.md §5 already warns about this; the warning is
+   correct and was load-bearing here.)
+2. **Duplicate migration version `20260728160000`.** Two files share it —
+   `clickup_incremental_task_import` and `popdam_user_tables_foreign_keys`. The CLI matches
+   the ledger row to one and then tries forever to push the other, failing on
+   `schema_migrations_pkey`. This will snag every future push until one is renamed. On
+   production the applied one is `popdam_user_tables_foreign_keys`.
