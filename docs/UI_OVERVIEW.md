@@ -60,14 +60,64 @@ Persistent control bar at the top of the library:
 - **Search box** — full-text search on filename and tags
 - **Filter toggle** — shows/hides the left filter sidebar
 - **Mode toggle** — Groups / Assets
-- **View toggle** — Grid / List
+- **View menu** — a single dropdown holding **both** Grid / List (section "Layout")
+  and, in Groups + Grid only, the card style Gallery / Editorial / Compact
+  (section "Card style"). These were two separate controls until 2026-07-29; the
+  standalone Grid/List segmented control is gone at every screen size. Do not
+  reintroduce it — it was what forced the toolbar to wrap onto a second row.
 - **Sort control** — sort field and direction (e.g. modified_at, SKU, workflow_status)
 - **Sync button** — admin-only; triggers a Bridge Agent scan
 - **Refresh button** — reloads the current query
+- **Scan status pill** — admin-only; shown while a scan is running or stale
 
 The header agent-status pill and the library scan controls are visible only for real admins. Regular users can browse/search/filter without issuing bridge-agent status or scan-control requests.
 
 In **Groups** mode, the displayed group count comes from `useStyleGroupCount`, and the displayed file count is the sum of `style_groups.asset_count` for the same filtered group set (`useStyleGroupAssetCount`). The page intentionally does not run the all-assets list query while Groups mode is active; that query is only needed in Assets mode and can time out when a group-only filter expands to path-based legacy matches.
+
+### Compact Chrome (short or narrow viewports)
+
+Added 2026-07-29 (commit `fb0b13b`) because at 1920x1200 the stacked chrome —
+app header, library toolbar, grid/list toggle row, bulk-action bar — consumed
+~208px of vertical space before a single asset card was visible, and the detail
+flyout's 16:10 hero left its own tab content with no scrollable height.
+
+The switch is **`useCompactChrome()`** in `src/hooks/use-compact-chrome.ts`,
+which is a `useMediaQuery` over `COMPACT_CHROME_QUERY`:
+
+```
+(max-height: 1300px), (max-width: 1700px)
+```
+
+Note it is primarily a **height** query, not the usual width breakpoint — the
+problem being solved is vertical, and 1920x1200 is wide but short. A 2560x1440
+monitor (viewport ~1320px tall) stays in the roomy layout.
+
+What compact mode changes:
+
+| Area | Compact | Roomy |
+|---|---|---|
+| `AppHeader.tsx` nav | Sell-through / Master Data / Setup collapse into a **More** dropdown (`SECONDARY_NAV_LABELS`) | all seven items flat |
+| Header height | `h-12` | `h-14` |
+| Build stamp | commit sha only (date in `title`) | sha + formatted date |
+| Mode toggle labels | "Style groups" / "All files" wrap to two lines inside the same control height | one line |
+| Control height (`H`) | 30px | 34px |
+| Scan pill | dot + found count + stop button; elapsed time and all counters move into the tooltip | "Scanning 1:26 · 119,130 found" |
+| Selection controls | `BulkActionBar variant="inline"` folded into `LibraryTopBar` via its `selectionSlot` prop, replacing the result-count readout | its own full-width row below the toolbar |
+| Detail panel hero | capped at `26vh` | 16:10 (asset panel: 300px when wide) |
+
+Two traps when editing this:
+
+- **Header height is a CSS variable, not a Tailwind literal.** `--pd-header-h`
+  is defined in `src/index.css` (`3.5rem`, overridden to `3rem` inside the same
+  media query) and consumed by the page shells in `Index.tsx` and
+  `StylesPage.tsx` as `h-[calc(100vh-var(--pd-header-h))]`. The old hardcoded
+  `h-[calc(100vh-3.5rem)]` is gone. **If you change `COMPACT_CHROME_QUERY` you
+  must change the matching `@media` block in `index.css` too** — they are
+  duplicated by necessity (a TS constant cannot drive a CSS media query) and
+  drift there produces a page shell that is 8px too tall or short.
+- **`LibraryTopBar.tsx` is inline styles, not Tailwind.** Responsive prefixes
+  like `md:` do not work in it; that is why sizing goes through the `H` constant
+  and `compact` ternaries rather than utility classes.
 
 ### Filter Sidebar (`FilterSidebar.tsx`)
 Faceted filter panel that appears on the left side. Filters include:
@@ -112,6 +162,17 @@ Appears when one or more groups are selected (multi-select via checkbox). Provid
 - Bulk tag (run AI tagging on all selected groups)
 - Bulk workflow status change
 
+Has two presentations, chosen by the `variant` prop (default `"bar"`):
+- **`"bar"`** — its own full-width row with the primary-tinted background, below
+  the toolbar. Used on roomy viewports.
+- **`"inline"`** — chrome-less, shorter controls (`h-7`), abbreviated "N sel."
+  badge, no `ArrowRightLeft` icon, narrower progress bar. Rendered *inside*
+  `LibraryTopBar` through its `selectionSlot` prop on compact viewports, where it
+  takes the place of the result-count readout. See "Compact Chrome" above.
+
+`Index.tsx` picks the variant from `useCompactChrome()` and renders exactly one
+of the two — never both.
+
 ---
 
 ## Detail Panel Layout, Resizing & Responsiveness
@@ -138,8 +199,17 @@ resize/responsive contract, orchestrated from `Index.tsx` via the
   single-stack `<Separator />` dividers are hidden, and the hero image is capped
   at 300px tall. If you add a new section, keep it as a direct child of the
   content container so the column flow and break rules apply to it.
+- **The hero is capped on short viewports.** When `useCompactChrome()` is true
+  both panels cap the hero at `maxHeight: 26vh` (this wins over the asset panel's
+  `wide ? 300` rule). Without the cap a 16:10 hero plus the thumbnail strip and
+  title block filled the panel on a 1200px-tall screen and the tab content below
+  never received enough height to scroll — the reported "can't see any details or
+  a scroll bar" bug. The images are `object-contain`, so breaking the aspect ratio
+  letterboxes rather than crops. `StyleGroupDetailPanel` also shrinks the
+  thumbnail strip (`h-7`), SKU/title type, and tab padding in compact mode.
 
 Shipped 2026-07-02 (commit `5c266f83`). Frontend-only; no DB/backend involvement.
+Compact-viewport hero cap added 2026-07-29 (commit `fb0b13b`), also frontend-only.
 
 ## Style Group Detail Panel (`StyleGroupDetailPanel.tsx`)
 

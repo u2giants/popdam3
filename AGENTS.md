@@ -644,6 +644,12 @@ Use this exact shape for every new quirk:
 **Actually:** the `rich-pdf-extract` op calls DeepSeek directly (`apps/worker/src/deepseek.ts`, key `DEEPSEEK_API_KEY`) because it sends an identical instructions+schema prefix on every one of ~19k calls, and DeepSeek's **automatic prefix caching** bills cache hits at ~1/10 — a saving OpenRouter does not reliably pass through. The op puts the stable prompt in `system` and the variable PDF text in `user` to maximize cache hits, and normalizes extracted `materials` (uppercase) so the DAM Material facet doesn't split on casing.
 **Do not change because:** routing this batch through OpenRouter loses the caching economics. General rule for future cacheable, high-volume LLM batches: prefer the direct provider API. Full detail: `docs/RICH_PDF_EXTRACTION.md`.
 
+### Compact chrome duplicates its media query in TS **and** CSS on purpose (2026-07-29)
+
+**Looks like:** `COMPACT_CHROME_QUERY` in `src/hooks/use-compact-chrome.ts` is the single source of truth for the short-screen library layout, so changing it is enough.
+**Actually:** the same condition `(max-height: 1300px), (max-width: 1700px)` is written **twice** — once in that TS constant (drives React branching) and once as an `@media` block in `src/index.css` that flips `--pd-header-h` between `3.5rem` and `3rem`. A TypeScript constant cannot drive a CSS media query, so the duplication is unavoidable. The page shells in `Index.tsx` and `StylesPage.tsx` size themselves with `h-[calc(100vh-var(--pd-header-h))]`.
+**Do not change because:** editing one and not the other yields a page shell 8px taller or shorter than the header, which shows up as a stray scrollbar or clipped pagination bar rather than an obvious break. Change both together. Also note the query is height-first, not the usual width breakpoint — the problem it solves is vertical space on wide-but-short screens like 1920x1200. Full detail: `docs/UI_OVERVIEW.md` → "Compact Chrome".
+
 ## Credentials and environment
 
 | Variable | Purpose | Stored where | Required in dev | Required in prod |
