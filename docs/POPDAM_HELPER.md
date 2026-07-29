@@ -233,7 +233,17 @@ npm run build          # electron-vite production build → out/
 npm run dist:win       # build + electron-builder --win --x64
 npm run dist:mac       # build + electron-builder --mac
 npm run typecheck      # tsc --noEmit on both tsconfigs
+npm run lint           # eslint src --config ../../eslint.config.js
 ```
+
+**Lint uses the repo-root `eslint.config.js`, not a helper-local config.** The
+helper has no `eslint.config.*` of its own and must not grow one: it previously
+carried an unused `@electron-toolkit/eslint-config-ts` devDependency that
+installed a second ESLint (v10) into `apps/popdam-helper/node_modules`, which
+crashed with `scopeManager.addGlobals is not a function` against the root's
+ESLint 9. That dep was removed 2026-07-29. If lint ever crashes there again,
+check for a duplicate `eslint` in the helper's `node_modules` before touching
+rules. `npm run lint` at the repo root also covers `apps/popdam-helper/src`.
 
 ---
 
