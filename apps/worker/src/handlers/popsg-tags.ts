@@ -1,3 +1,13 @@
+// `tag-popsg-files` lives HERE, in the Railway worker — it is not a Supabase edge
+// function. This file owns both phases and writes the operation's resume cursor
+// (see `processConsensusBatch` below). `supabase/functions/` only carries the
+// registry entry in `_shared/operation-constants.ts`.
+//
+// Cursor contract, mirrored by `isResumableOperationCursor` in
+// `src/hooks/usePersistentOperation.ts`: phase 1 emits a bare UUID, phase 2 emits
+// `consensus:<base64url>`. base64url means `A-Za-z0-9-_` with no `=` padding — keep
+// the writer and the validator on the same encoding if you touch either.
+
 import { db } from "../supabase.js";
 import { logger } from "../logger.js";
 import type { BatchResult, OpState } from "../types.js";

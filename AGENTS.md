@@ -529,6 +529,25 @@ Use this exact shape for every new quirk:
 **Actually:** Returns `{ ok: true, message: "replaced by railway worker" }`. All batch work runs in the Railway worker. The pg_cron schedule that used to call this was removed in migration `20260322000000`.
 **Do not change because:** Adding logic here would conflict with the Railway worker.
 
+### PopSG file tagging (`tag-popsg-files`) runs in the Railway worker, not an edge function
+
+**Looks like:** A tagging/search feature, so it must live in `supabase/functions/`
+alongside the other PopSG API routes.
+**Actually:** The whole op is `apps/worker/src/handlers/popsg-tags.ts`. That file owns
+both phases and writes the resume cursor. `supabase/functions/` only holds the
+registry entry in `_shared/operation-constants.ts`. This is the general rule, not a
+special case: **long-running batch/bulk operations are worker handlers; edge functions
+are request-response only** (see the `bulk-job-runner` quirk above).
+**Cursor detail:** two shapes, both accepted by `isResumableOperationCursor` in
+`src/hooks/usePersistentOperation.ts`. Phase 1 (deterministic) uses a bare UUID.
+Phase 2 (folder consensus) uses `consensus:<base64url>` — `base64url`, so the
+alphabet is `A-Za-z0-9-_` with **no `=` padding**. Do not "fix" the validation regex
+to allow `=`/`+`/`/`; that would be matching an encoding the writer never produces.
+When the op is finished or has no next key, the worker writes `null`, never a bare
+`consensus:`.
+**Do not change because:** Adding a duplicate implementation under
+`supabase/functions/` would fight the worker for the same `BULK_OPERATIONS` entry.
+
 ### `verify_jwt = false` on `admin-api` in `supabase/config.toml`
 
 **Looks like:** Security hole — admin API doesn't verify JWTs at the gateway level.
