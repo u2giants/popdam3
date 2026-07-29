@@ -332,3 +332,26 @@ no-op, because `20260728174500` sorts before it.
    The file is gone. The re-issue itself is applied on preview and is intentionally **not**
    edited (AGENTS.md §4 rule 4 — never edit an applied migration), so its header still says
    this; this note is the correction.
+---
+
+## 10. The other half of this trust boundary — the RLS/GRANT layer
+
+This document covers only **function EXECUTE grants**. The same anonymous-internet trust
+boundary also exists one layer down, guarded by RLS policies and table grants instead — and
+it was leaking too. The independent review of this work
+(`.ai/reviews/20260729-public-execute-lockdown-glm.md`) predicted exactly that, and it was
+right.
+
+Audited and fixed the same day: **four objects in `public` were readable by any anonymous
+caller holding only the anon key** — `style_groups` (10,589 rows), plus three views that
+bypass RLS entirely, `style_tracker_rows_with_bridge` (15,534), `sg_archive_usage` (760) and
+`style_tracker_audit_log_with_user` (345, including staff email addresses).
+
+Full write-up, the 53-object sweep, and the two new rules to remember (policies with no `TO`
+clause apply to `anon`; views have no RLS, so the GRANT is the only guard):
+**[`public-schema-anon-read-audit.md`](public-schema-anon-read-audit.md)**, fixed by
+`supabase/migrations/20260729210000_close_anon_read_leaks_in_public.sql`.
+
+Read the two documents together. The lesson common to both: **on hosted Supabase, `anon`
+gets access to everything new in `public` by default, and neither mistake is observable from
+a local Postgres.**
