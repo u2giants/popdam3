@@ -6,6 +6,8 @@ import { test } from "node:test";
 import {
   CONFIG,
   DEFAULT_LIST_IDS,
+  EXIT_LOCKED,
+  EXIT_PARTIAL_FAILURE,
   PREVIEW_PROJECT_REF,
   PRODUCTION_PROJECT_REF,
   SOURCE_NAME,
@@ -19,7 +21,9 @@ import {
   fetchListTasks,
   mapClickupTaskToRow,
   msToIso,
+  parseImportResult,
   parseListConfig,
+  parseSkipTaskIds,
   parseWatermarkResult,
   resolveRunMode,
   resolveWatermark,
@@ -166,12 +170,16 @@ test("resolveWatermark falls back to a full pull on an unparseable timestamp", (
 // -------------------------------------------------------------------------------------
 // watermark SQL + parsing
 // -------------------------------------------------------------------------------------
-test("buildWatermarkSql reads max(started_at) of succeeded clickup runs only", () => {
+test("buildWatermarkSql reads the latest succeeded run's stored watermark_at", () => {
   const sql = buildWatermarkSql();
-  assert.match(sql, /max\(started_at\)/);
+  // The watermark is the value the previous run STORED in metadata, not its started_at —
+  // a partial-failure run keeps status 'succeeded' but a non-advancing watermark_at.
+  assert.match(sql, /metadata\s*->>\s*'watermark_at'/);
   assert.match(sql, /source_system = 'clickup'/);
   assert.match(sql, new RegExp(`source_name = '${SOURCE_NAME}'`));
   assert.match(sql, /status = 'succeeded'/);
+  assert.match(sql, /order by s\.started_at desc nulls last/);
+  assert.match(sql, /limit 1/);
   assert.doesNotMatch(sql, /finished_at/);
 });
 
@@ -188,22 +196,120 @@ test("parseWatermarkResult reads JSON and psql output, and null when there is no
 // -------------------------------------------------------------------------------------
 // snapshot + SQL construction
 // -------------------------------------------------------------------------------------
-test("buildImportSql dollar-quotes the snapshot and passes the mode through", () => {
+test("buildSnapshot carries the pre-fetch timestamp and normalized skip ids (defects 1, 2)", () => {
   const snapshot = buildSnapshot({
     mode: "incremental",
     watermark: "2026-07-28T10:00:00.000Z",
     lists: [{ id: "901100", terminalReached: true }],
     tasks: [mapClickupTaskToRow(baseTask())],
+    fetchStartedAt: "2026-07-28T10:00:00.000Z",
+    skipTaskIds: [" bad1 ", "bad1", "bad2", "", "  "],
+  });
+  assert.equal(snapshot.fetch_started_at, "2026-07-28T10:00:00.000Z");
+  // trimmed + de-duplicated + blanks dropped — the SQL side btrim()s and compares by = any.
+  assert.deepEqual(snapshot.skip_task_ids, ["bad1", "bad2"]);
+  // Defaults when not supplied (pure dry-run path).
+  const minimal = buildSnapshot({ mode: "full", lists: [], tasks: [] });
+  assert.equal(minimal.fetch_started_at, null);
+  assert.deepEqual(minimal.skip_task_ids, []);
+});
+
+test("buildImportSql emits one jsonb cell and passes fetch_started_at + mode through", () => {
+  const snapshot = buildSnapshot({
+    mode: "incremental",
+    watermark: "2026-07-28T10:00:00.000Z",
+    lists: [{ id: "901100", terminalReached: true }],
+    tasks: [mapClickupTaskToRow(baseTask())],
+    fetchStartedAt: "2026-07-28T10:00:00.000Z",
   });
   const sql = buildImportSql(snapshot);
-  assert.match(sql, /select \* from public\.sync_clickup_tasks\(\$cu_snap\$/);
-  assert.match(sql, /\$cu_snap\$::jsonb, 'incremental'\);/);
+  // Single jsonb cell so the runner can parse locked/rows_failed from any CLI output shape.
+  assert.match(sql, /to_jsonb\(t\) as result from public\.sync_clickup_tasks\(\$cu_snap\$/);
+  assert.match(sql, /\$cu_snap\$::jsonb, 'incremental'\) t;/);
   assert.match(sql, /8687bymye/);
+  assert.match(sql, /fetch_started_at/);
 });
 
 test("buildImportSql never emits a mode the SQL guard would reject", () => {
   const sql = buildImportSql({ mode: "drop everything", lists: [], tasks: [] });
-  assert.match(sql, /'incremental'\);/);
+  assert.match(sql, /'incremental'\) t;/);
+});
+
+// -------------------------------------------------------------------------------------
+// parseSkipTaskIds — defect 2 escape hatch
+// -------------------------------------------------------------------------------------
+test("parseSkipTaskIds trims and drops blanks", () => {
+  assert.deepEqual(parseSkipTaskIds(" a , b , , c "), ["a", "b", "c"]);
+  assert.deepEqual(parseSkipTaskIds(undefined), []);
+  assert.deepEqual(parseSkipTaskIds(""), []);
+});
+
+// -------------------------------------------------------------------------------------
+// parseImportResult — defect 5 (runner acts on locked / rows_failed)
+// -------------------------------------------------------------------------------------
+test("parseImportResult reads a clean JSON row", () => {
+  const r = parseImportResult(
+    JSON.stringify([{ sync_run_id: "11111111-1111-1111-1111-111111111111", mode: "incremental", locked: false, rows_seen: 3, rows_inserted: 1, rows_updated: 1, rows_unchanged: 1, rows_failed: 0, watermark_at: "2026-07-28T09:59:00+00:00", snapshot_hash: "abc" }]),
+  );
+  assert.equal(r.locked, false);
+  assert.equal(r.rows_failed, 0);
+  assert.equal(r.rows_seen, 3);
+  assert.equal(r.watermark_at, "2026-07-28T09:59:00+00:00");
+});
+
+test("parseImportResult reads a partial-failure row and the {rows:[...]} envelope", () => {
+  const r = parseImportResult(
+    JSON.stringify({ rows: [{ locked: false, rows_failed: 2, rows_seen: 5, watermark_at: null }] }),
+  );
+  assert.equal(r.locked, false);
+  assert.equal(r.rows_failed, 2);
+});
+
+test("parseImportResult reads the locked result (advisory lock held)", () => {
+  const r = parseImportResult(
+    JSON.stringify([{ locked: true, rows_seen: 0, rows_failed: 0, watermark_at: null }]),
+  );
+  assert.equal(r.locked, true);
+  assert.equal(r.rows_seen, 0);
+});
+
+test("parseImportResult reads the {result:{...}} to_jsonb cell shape", () => {
+  const r = parseImportResult(
+    JSON.stringify({ result: { locked: false, rows_failed: 1, rows_seen: 2, watermark_at: "2026-07-28T09:59:00+00:00" } }),
+  );
+  assert.equal(r.locked, false);
+  assert.equal(r.rows_failed, 1);
+});
+
+test("parseImportResult reads a Go map[...] dump (Ubuntu hosted supabase db query)", () => {
+  // How the hosted CLI renders the to_jsonb cell as a Go map (phase6 parser handles this).
+  const r = parseImportResult('map[locked:false mode:incremental rows_failed:0 rows_inserted:1 rows_seen:1 rows_unchanged:0 snapshot_hash:abc watermark_at:2026-07-28T09:59:00Z]');
+  assert.equal(r.locked, false);
+  assert.equal(r.rows_failed, 0);
+});
+
+test("parseImportResult reads a psql aligned table row", () => {
+  const psql = [
+    "              result",
+    "----------------------------------",
+    ' {"locked":false,"rows_failed":0,"rows_seen":1,"watermark_at":"2026-07-28T09:59:00+00"}',
+    "(1 row)",
+  ].join("\n");
+  const r = parseImportResult(psql);
+  assert.equal(r.locked, false);
+  assert.equal(r.rows_failed, 0);
+});
+
+test("parseImportResult is fail-closed when no locked boolean is present", () => {
+  assert.equal(parseImportResult(""), null);
+  assert.equal(parseImportResult("not json or a map"), null);
+  assert.equal(parseImportResult(JSON.stringify([{ rows_failed: 3 }])), null);
+});
+
+test("exit codes distinguish locked from partial failure", () => {
+  assert.equal(EXIT_LOCKED, 2);
+  assert.equal(EXIT_PARTIAL_FAILURE, 1);
+  assert.notEqual(EXIT_LOCKED, EXIT_PARTIAL_FAILURE);
 });
 
 test("buildFailedSyncRunSql records a durable clickup failure row", () => {

@@ -7,16 +7,25 @@
 //
 // Design notes
 // ------------
-// * WATERMARK. The cutoff for the next run is the PREVIOUS successful run's
-//   started_at, never its finished_at. A task edited in ClickUp while the run was in
-//   flight has date_updated between started_at and finished_at; a finished_at cutoff
-//   would skip it forever. started_at re-reads it once, which the upsert makes free.
+// * WATERMARK. The cutoff for the next run is the PREVIOUS successful run's stored
+//   watermark_at (in ingest.sync_run.metadata), which THIS runner captures as a PRE-FETCH
+//   timestamp (before any ClickUp API call) and passes through the snapshot as
+//   fetch_started_at. The SQL function stores that timestamp minus a 60s overlap as
+//   watermark_at. A task edited while the run is in flight has date_updated inside the
+//   window; the pre-fetch watermark + overlap re-reads it, and the upsert makes that free.
+//   On partial failure (rows_failed > 0) the function does NOT advance the watermark, so
+//   failed rows are retried; snapshot.skip_task_ids (CLICKUP_SKIP_TASK_IDS) is the escape
+//   hatch for permanently-bad ids.
 // * FIRST RUN. No prior successful run means no watermark, which means mode 'full'
 //   and no date_updated_gt filter — that full pull is also what reconciles the legacy
 //   rows the 20260728160000 backfill claimed onto (external_source, external_id).
 // * NO ROW-BY-ROW JS WRITES. Like every other sync in this repo, JS only builds and
 //   validates the snapshot; all upserting, guarding and run accounting is SQL.
 // * DRY-RUN IS THE DEFAULT. --apply is required to write anything.
+// * EXIT CODES. --apply exits 0 only on a clean, non-locked run. It exits non-zero when
+//   another run held the advisory lock (nothing moved) or when rows_failed > 0 (partial
+//   failure; watermark not advanced), so a scheduled job does not report green on no work.
+//   Dry-run behaviour is unchanged (always exits 0).
 //
 // Usage:
 //   CLICKUP_LIST_IDS=a,b,c DATABASE_URL=postgres://... node tools/sync-clickup-tasks.mjs
@@ -31,6 +40,7 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { runSql, sqlDollarQuote } from "./coldlion-sync-common.mjs";
+import { extractGoMapText, parseGoMap } from "./phase6-cli-result-parse.mjs";
 
 // =====================================================================================
 // CONFIG
@@ -42,6 +52,11 @@ export const CLICKUP_TOKEN_REF = "op://vibe_coding/clickup.com API credentials/a
 export const CLICKUP_WORKSPACE_REF = "op://vibe_coding/clickup.com API credentials/workspace id";
 export const PREVIEW_PROJECT_REF = "rjyboqwcdzcocqgmsyel";
 export const PRODUCTION_PROJECT_REF = "qsllyeztdwjgirsysgai";
+
+// Non-zero exit codes so a scheduled job does not look green when nothing moved. Distinct
+// values distinguish the two "did not complete cleanly" outcomes (defect 5).
+export const EXIT_LOCKED = 2;          // another importer held the advisory lock; no data moved
+export const EXIT_PARTIAL_FAILURE = 1; // rows_failed > 0; watermark NOT advanced (rows retried)
 
 // The five target ClickUp lists. These ids were resolved ONCE from the live ClickUp API
 // on 2026-07-28 (`node tools/sync-clickup-tasks.mjs --discover-lists`, 23 lists in the
@@ -66,6 +81,10 @@ export const CONFIG = {
   includeClosed: (process.env.CLICKUP_INCLUDE_CLOSED ?? "true") !== "false",
   includeSubtasks: (process.env.CLICKUP_INCLUDE_SUBTASKS ?? "true") !== "false",
   maxPages: Number(process.env.CLICKUP_MAX_PAGES ?? 500),
+  // Defect 2 escape hatch: acknowledged permanently-bad ClickUp task ids. The SQL importer
+  // skips these wholesale (counted as rows_skipped, never rows_failed), so they cannot wedge
+  // the watermark. Remove an id from the env to re-enable automatic retry of it.
+  skipTaskIds: parseSkipTaskIds(process.env.CLICKUP_SKIP_TASK_IDS),
 };
 
 // =====================================================================================
@@ -84,6 +103,14 @@ export function parseListConfig(raw) {
       return { id: entry.slice(0, eq).trim(), name: entry.slice(eq + 1).trim() || null };
     })
     .filter((l) => l.id !== "");
+}
+
+// Comma-separated ClickUp task ids -> trimmed, non-empty id list (defect 2 escape hatch).
+export function parseSkipTaskIds(raw) {
+  return String(raw ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
 }
 
 // ClickUp returns epoch milliseconds as a STRING. Anything non-numeric becomes null
@@ -154,11 +181,17 @@ export function resolveWatermark(lastSyncRun) {
 }
 
 export function buildWatermarkSql() {
-  return `select max(started_at) as started_at
-from ingest.sync_run
-where source_system = '${SOURCE_SYSTEM}'
-  and source_name = '${SOURCE_NAME}'
-  and status = 'succeeded';\n`;
+  // The next run's cutoff is the watermark_at the previous successful run STORED (not its
+  // started_at). A partial-failure run keeps status 'succeeded' but stores a non-advancing
+  // watermark_at, so reading the latest run's stored value re-pulls the failed rows.
+  return `select s.metadata ->> 'watermark_at' as started_at
+from ingest.sync_run s
+where s.source_system = '${SOURCE_SYSTEM}'
+  and s.source_name = '${SOURCE_NAME}'
+  and s.status = 'succeeded'
+  and s.metadata ? 'watermark_at'
+order by s.started_at desc nulls last
+limit 1;\n`;
 }
 
 // Parse the single started_at cell out of either `supabase db query` JSON or psql text.
@@ -186,19 +219,135 @@ export function parseWatermarkResult(stdout) {
   return null;
 }
 
-export function buildSnapshot({ mode, watermark, lists, tasks }) {
+export function buildSnapshot({ mode, watermark, lists, tasks, fetchStartedAt, skipTaskIds }) {
   return {
     source: SOURCE_SYSTEM,
     mode,
     watermark: watermark ?? null,
+    // Defect 1: the PRE-FETCH instant, captured before any ClickUp API call. The SQL
+    // function stores this (minus a 60s overlap) as the next run's date_updated_gt.
+    fetch_started_at: fetchStartedAt ?? null,
     lists,
     tasks,
+    // Defect 2 escape hatch: acknowledged permanently-bad ids.
+    skip_task_ids: Array.isArray(skipTaskIds)
+      ? [...new Set(skipTaskIds.map((id) => String(id ?? "").trim()).filter(Boolean))]
+      : [],
   };
 }
 
 export function buildImportSql(snapshot) {
   const mode = snapshot?.mode === "full" ? "full" : "incremental";
-  return `select * from public.sync_clickup_tasks(${sqlDollarQuote("cu_snap", snapshot)}::jsonb, '${mode}');\n`;
+  // Emit a single jsonb cell so the runner can parse locked / rows_failed reliably from
+  // every result shape `runSql` can return: clean JSON (`supabase db query`), the Go
+  // map[...] dump the hosted CLI renders for jsonb, and psql aligned text.
+  return `select to_jsonb(t) as result from public.sync_clickup_tasks(${sqlDollarQuote("cu_snap", snapshot)}::jsonb, '${mode}') t;\n`;
+}
+
+// Parse the importer result row (locked / rows_failed / counters) from any runSql output
+// shape. Fail-closed: returns null when no `locked` boolean can be confirmed, so the runner
+// never mistakes a parse failure for a clean run. Reuses the proven Phase 6 CLI parser for
+// the Go map[...] cell form (defect 5).
+export function parseImportResult(stdout) {
+  if (!stdout || !String(stdout).trim()) return null;
+  const trimmed = String(stdout).trim();
+
+  let row = null;
+  try {
+    row = normalizeResultRow(JSON.parse(trimmed));
+  } catch {
+    // not pure JSON
+  }
+  if (isValidResult(row)) return coerceResult(row);
+
+  // JSON object embedded in CLI/table noise ([\s\S] tolerates psql line wrapping).
+  const m = trimmed.match(/\{[\s\S]*?"locked"\s*:\s*(true|false)[\s\S]*?\}/);
+  if (m) {
+    try {
+      const obj = JSON.parse(m[0]);
+      if (isValidResult(obj)) return coerceResult(obj);
+    } catch {
+      // fall through
+    }
+  }
+
+  // Go-style map[...] cell (Ubuntu hosted `supabase db query` renders jsonb this way).
+  const mapText = extractGoMapText(trimmed);
+  if (mapText) {
+    const obj = parseGoMap(mapText);
+    if (isValidResult(obj)) return coerceResult(obj);
+  }
+
+  // psql aligned table (dev DATABASE_URL path): split header + first data row on pipes.
+  const tableRow = parsePsqlTableRow(trimmed);
+  if (isValidResult(tableRow)) return coerceResult(tableRow);
+
+  return null;
+}
+
+function normalizeResultRow(parsed) {
+  if (!parsed || typeof parsed !== "object") return null;
+  if (Array.isArray(parsed)) return unwrapResultCell(parsed[0]);
+  if (Array.isArray(parsed.rows)) return unwrapResultCell(parsed.rows[0]);
+  if (parsed.result && typeof parsed.result === "object") return parsed.result;
+  return parsed;
+}
+
+function unwrapResultCell(row) {
+  if (!row || typeof row !== "object") return null;
+  if ("locked" in row) return row;
+  if (row.result && typeof row.result === "object") return row.result;
+  if (typeof row.result === "string") {
+    try { return JSON.parse(row.result); } catch { return null; }
+  }
+  const first = Object.values(row)[0];
+  if (first && typeof first === "object") return first;
+  if (typeof first === "string") { try { return JSON.parse(first); } catch { return null; } }
+  return row;
+}
+
+function isValidResult(obj) {
+  return !!obj && typeof obj === "object" && !Array.isArray(obj) && typeof obj.locked === "boolean";
+}
+
+function coerceResult(obj) {
+  const num = (v) => (typeof v === "number" && Number.isFinite(v)
+    ? v : Number.isFinite(Number(v)) ? Number(v) : 0);
+  return {
+    sync_run_id: obj.sync_run_id ?? null,
+    mode: obj.mode ?? null,
+    locked: obj.locked === true,
+    rows_seen: num(obj.rows_seen),
+    rows_inserted: num(obj.rows_inserted),
+    rows_updated: num(obj.rows_updated),
+    rows_unchanged: num(obj.rows_unchanged),
+    rows_failed: num(obj.rows_failed),
+    watermark_at: obj.watermark_at ?? null,
+    snapshot_hash: obj.snapshot_hash ?? null,
+  };
+}
+
+function parsePsqlTableRow(text) {
+  const lines = text.split(/\r?\n/);
+  const header = lines.find((l) => l.includes("locked") && l.includes("rows_failed"));
+  if (!header) return null;
+  const cols = header.split("|").map((c) => c.trim());
+  const lockedIdx = cols.indexOf("locked");
+  if (lockedIdx < 0) return null;
+  const headerIdx = lines.indexOf(header);
+  const dataLine = lines
+    .slice(headerIdx + 1)
+    .find((l) => (l.match(/\|/g) || []).length >= cols.length - 1
+      && !/^[|\s-]+$/.test(l)
+      && !/^\s*\(\d+ rows?\)/.test(l));
+  if (!dataLine) return null;
+  const cells = dataLine.split("|").map((c) => c.trim());
+  const get = (name) => { const i = cols.indexOf(name); return i >= 0 ? cells[i] : undefined; };
+  return {
+    locked: get("locked") === "t",
+    rows_failed: Number(get("rows_failed") ?? "0") || 0,
+    rows_seen: Number(get("rows_seen") ?? "0") || 0,
+  };
 }
 
 // Durable failure row, recorded by the RUNNER in its own transaction (the in-function
@@ -416,6 +565,11 @@ async function main() {
     lists: CONFIG.lists,
   }, null, 2)}\n`);
 
+  // Defect 1: capture the fetch-start instant BEFORE any ClickUp API call. The SQL
+  // function stores this (minus a 60s overlap) as the next run's date_updated_gt, so a
+  // task edited while this run is still pulling lists is re-read instead of lost forever.
+  const fetchStartedAt = new Date().toISOString();
+
   let stage = "watermark";
   try {
     // Watermark read needs a DB target. Without one (pure dry run) we do a full pull.
@@ -455,17 +609,54 @@ async function main() {
     // keeping the last copy (they are identical payloads).
     const byId = new Map();
     for (const task of tasks) byId.set(task.clickup_task_id, task);
-    const snapshot = buildSnapshot({ mode, watermark, lists, tasks: [...byId.values()] });
+    const snapshot = buildSnapshot({
+      mode,
+      watermark,
+      lists,
+      tasks: [...byId.values()],
+      fetchStartedAt,
+      skipTaskIds: CONFIG.skipTaskIds,
+    });
 
     stage = "validate";
     const decision = validateSnapshot(snapshot);
     if (!decision.ok) throw new Error(`Refusing to apply: ${decision.errors.join("; ")}`);
 
-    process.stdout.write(`${JSON.stringify({ counts: decision.counts, apply: run.apply }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({
+      counts: decision.counts,
+      skip_task_ids: snapshot.skip_task_ids,
+      apply: run.apply,
+    }, null, 2)}\n`);
 
     if (run.apply) {
       stage = "apply";
-      process.stdout.write(runSql(buildImportSql(snapshot), { linked: run.linked }));
+      const raw = runSql(buildImportSql(snapshot), { linked: run.linked });
+      process.stdout.write(raw);
+
+      // Defect 5: act on the result instead of printing and ignoring it. A scheduled job
+      // must not report green when another run held the lock or when rows failed.
+      const result = parseImportResult(raw);
+      if (result?.locked) {
+        process.stderr.write(
+          "ClickUp sync skipped: another importer held the advisory lock, so no data moved. Re-run later.\n",
+        );
+        process.exitCode = EXIT_LOCKED;
+        return;
+      }
+      if (result && result.rows_failed > 0) {
+        process.stderr.write(
+          `ClickUp sync completed with ${result.rows_failed} failed row(s); the watermark was NOT advanced ` +
+            "and those rows will be retried next run. Inspect ingest.sync_run metadata.errors; if a task is " +
+            "permanently malformed, add its id to CLICKUP_SKIP_TASK_IDS to stop retrying it.\n",
+        );
+        process.exitCode = EXIT_PARTIAL_FAILURE;
+        return;
+      }
+      if (!result) {
+        process.stderr.write(
+          "WARNING: could not parse the importer result to verify locked/rows_failed; inspect the output above.\n",
+        );
+      }
     } else {
       process.stdout.write(`${JSON.stringify({ sample_row: snapshot.tasks[0] ?? null }, null, 2)}\n`);
       process.stdout.write("Dry-run complete. No database write performed. Re-run with --apply to import.\n");
