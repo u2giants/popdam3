@@ -154,6 +154,10 @@ evaluation; it does **not** establish cutover readiness without the other accele
 | **2026-07-29** | **30450953903** | hourly health | **PASS**; post-comparison health passed and every non-health lane was correctly skipped | non-drill health **`b54186db-c689-4c9c-81d0-e8cd1130ea47`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the complete scheduled cycle remained healthy. |
 | **2026-07-29** | **30465172086** | hourly health | **PASS**; later health passed and every non-health lane was correctly skipped | non-drill health **`e8d16da9-8341-4e0c-b903-a6eee3524e70`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no regression or unexplained difference was reported. |
 | **2026-07-29** | **30475979029** | hourly health | **PASS**; later health passed and every non-health lane was correctly skipped | non-drill health **`46974425-d2d2-4af5-a340-b171432d7612`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no regression or unexplained difference was reported. |
+| **2026-07-29** | **30485408735** | hourly health | **PASS**; later health passed and every non-health lane was correctly skipped | non-drill health **`044c5be9-c72c-4517-b3d0-d98f5673066e`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no regression or unexplained difference was reported. |
+| **2026-07-29** | **30491341597** | hourly health | **PASS**; later health passed and every non-health lane was correctly skipped | non-drill health **`248cf9ee-47ec-4d07-b8f9-ec2788e31d08`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no regression or unexplained difference was reported. |
+| **2026-07-29** | **30495177345** | hourly health | **PASS**; later health passed and every non-health lane was correctly skipped | non-drill health **`7cb4c9fd-3f27-4c6c-9087-f155ffc839fd`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no regression or unexplained difference was reported. |
+| **2026-07-29** | **30498750931** | hourly health | **PASS**; later health passed and every non-health lane was correctly skipped | non-drill health **`9a329221-dfb6-4bf7-b802-8885a33abd79`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no regression or unexplained difference was reported. |
 
 The workflow checked out `a14fefc9459a3ff8c74ea21c55e58230c47a4296`, resolved the
 exact health cron rather than wall-clock time, displayed preview project
@@ -218,6 +222,17 @@ authorized 2026-07-28 recovery. Existing deterministic proof remains intact. Ste
 Albert's durable approval of the exact production window and package, remains open.
 This entry does not supply approval, declare overall readiness, access production, or
 begin Phase 7.
+
+**Monitoring update at 2026-07-29T23:12:33Z:** four later scheduled health runs passed
+with `issues:[]`, zero consecutive ColdLion or DesignFlow failures, and the same latest
+successful observation and source-pair IDs. Each run correctly skipped the source,
+comparison, immediate-alert, and drill lanes. Preview contains no new comparison
+observation after `bd307350-0a1d-40f6-ab8e-a672f740a47f`; no failed, partial,
+parser-error, or drill event occurred in this window. The breaker remains closed after
+its authorized 2026-07-28 recovery. Existing exact typed mapping, protected-value,
+breaker, alert, rollback, and §9.4 proof remains intact. Step 8, Albert's durable approval
+of the exact production window and package, remains open. This entry does not supply
+approval, declare overall readiness, access production, or begin Phase 7.
 
 ### 4.6 Secrets and schedule (ACTIVE)
 
