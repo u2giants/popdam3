@@ -57,6 +57,7 @@ export const PRODUCTION_PROJECT_REF = "qsllyeztdwjgirsysgai";
 // values distinguish the two "did not complete cleanly" outcomes (defect 5).
 export const EXIT_LOCKED = 2;          // another importer held the advisory lock; no data moved
 export const EXIT_PARTIAL_FAILURE = 1; // rows_failed > 0; watermark NOT advanced (rows retried)
+export const EXIT_UNVERIFIED = 3;      // importer result unparseable; locked/rows_failed unconfirmed
 
 // The five target ClickUp lists. These ids were resolved ONCE from the live ClickUp API
 // on 2026-07-28 (`node tools/sync-clickup-tasks.mjs --discover-lists`, 23 lists in the
@@ -282,6 +283,41 @@ export function parseImportResult(stdout) {
   const tableRow = parsePsqlTableRow(trimmed);
   if (isValidResult(tableRow)) return coerceResult(tableRow);
 
+  return null;
+}
+
+// Turn a parsed importer result into the runner's exit decision on the --apply path.
+// Returns null ONLY for a confirmed clean run (locked === false && rows_failed === 0);
+// every other case — including an unparseable result (`null`) — yields a non-zero exit code
+// and a loud message, so a cron job never reports green on an unverified run (defect 5).
+export function classifyApplyOutcome(result) {
+  if (!result) {
+    return {
+      exitCode: EXIT_UNVERIFIED,
+      message:
+        "ERROR: the ClickUp importer ran but its result row could not be parsed, so this run could NOT be " +
+        "confirmed clean (locked=false and rows_failed=0 are both unverified). Treating it as a FAILURE " +
+        "rather than reporting green. The database write may or may not have succeeded: inspect the raw " +
+        "output above and the latest ingest.sync_run row for source_name='" + SOURCE_NAME + "' before " +
+        `re-running. Exiting ${EXIT_UNVERIFIED}.\n`,
+    };
+  }
+  if (result.locked) {
+    return {
+      exitCode: EXIT_LOCKED,
+      message:
+        "ClickUp sync skipped: another importer held the advisory lock, so no data moved. Re-run later.\n",
+    };
+  }
+  if (result.rows_failed > 0) {
+    return {
+      exitCode: EXIT_PARTIAL_FAILURE,
+      message:
+        `ClickUp sync completed with ${result.rows_failed} failed row(s); the watermark was NOT advanced ` +
+        "and those rows will be retried next run. Inspect ingest.sync_run metadata.errors; if a task is " +
+        "permanently malformed, add its id to CLICKUP_SKIP_TASK_IDS to stop retrying it.\n",
+    };
+  }
   return null;
 }
 
@@ -635,27 +671,11 @@ async function main() {
 
       // Defect 5: act on the result instead of printing and ignoring it. A scheduled job
       // must not report green when another run held the lock or when rows failed.
-      const result = parseImportResult(raw);
-      if (result?.locked) {
-        process.stderr.write(
-          "ClickUp sync skipped: another importer held the advisory lock, so no data moved. Re-run later.\n",
-        );
-        process.exitCode = EXIT_LOCKED;
+      const outcome = classifyApplyOutcome(parseImportResult(raw));
+      if (outcome) {
+        process.stderr.write(outcome.message);
+        process.exitCode = outcome.exitCode;
         return;
-      }
-      if (result && result.rows_failed > 0) {
-        process.stderr.write(
-          `ClickUp sync completed with ${result.rows_failed} failed row(s); the watermark was NOT advanced ` +
-            "and those rows will be retried next run. Inspect ingest.sync_run metadata.errors; if a task is " +
-            "permanently malformed, add its id to CLICKUP_SKIP_TASK_IDS to stop retrying it.\n",
-        );
-        process.exitCode = EXIT_PARTIAL_FAILURE;
-        return;
-      }
-      if (!result) {
-        process.stderr.write(
-          "WARNING: could not parse the importer result to verify locked/rows_failed; inspect the output above.\n",
-        );
       }
     } else {
       process.stdout.write(`${JSON.stringify({ sample_row: snapshot.tasks[0] ?? null }, null, 2)}\n`);

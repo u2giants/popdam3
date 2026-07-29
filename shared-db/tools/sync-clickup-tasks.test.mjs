@@ -8,6 +8,7 @@ import {
   DEFAULT_LIST_IDS,
   EXIT_LOCKED,
   EXIT_PARTIAL_FAILURE,
+  EXIT_UNVERIFIED,
   PREVIEW_PROJECT_REF,
   PRODUCTION_PROJECT_REF,
   SOURCE_NAME,
@@ -17,6 +18,7 @@ import {
   buildSnapshot,
   buildTaskUrl,
   buildWatermarkSql,
+  classifyApplyOutcome,
   describeTarget,
   fetchListTasks,
   mapClickupTaskToRow,
@@ -306,10 +308,41 @@ test("parseImportResult is fail-closed when no locked boolean is present", () =>
   assert.equal(parseImportResult(JSON.stringify([{ rows_failed: 3 }])), null);
 });
 
-test("exit codes distinguish locked from partial failure", () => {
+test("exit codes distinguish locked, partial failure and an unverified run", () => {
   assert.equal(EXIT_LOCKED, 2);
   assert.equal(EXIT_PARTIAL_FAILURE, 1);
-  assert.notEqual(EXIT_LOCKED, EXIT_PARTIAL_FAILURE);
+  assert.equal(EXIT_UNVERIFIED, 3);
+  assert.equal(new Set([EXIT_LOCKED, EXIT_PARTIAL_FAILURE, EXIT_UNVERIFIED]).size, 3);
+  for (const code of [EXIT_LOCKED, EXIT_PARTIAL_FAILURE, EXIT_UNVERIFIED]) {
+    assert.notEqual(code, 0, "every not-clean outcome must exit non-zero");
+  }
+});
+
+// -------------------------------------------------------------------------------------
+// classifyApplyOutcome — the --apply exit decision (defect 5)
+// -------------------------------------------------------------------------------------
+test("classifyApplyOutcome fails non-zero on an unparseable result instead of exiting 0", () => {
+  // The fail-closed null from parseImportResult must NOT leave the process green.
+  for (const raw of ["", "not json or a map", JSON.stringify([{ rows_failed: 3 }])]) {
+    const parsed = parseImportResult(raw);
+    assert.equal(parsed, null, "precondition: this output is unparseable");
+    const outcome = classifyApplyOutcome(parsed);
+    assert.ok(outcome, "an unparseable result must produce an outcome, not silence");
+    assert.equal(outcome.exitCode, EXIT_UNVERIFIED);
+    assert.notEqual(outcome.exitCode, 0);
+    assert.match(outcome.message, /could not be parsed/);
+    assert.match(outcome.message, /FAILURE/);
+    assert.match(outcome.message, /ingest\.sync_run/);
+    assert.match(outcome.message, /clickup_tasks_api/);
+  }
+});
+
+test("classifyApplyOutcome returns null only for a confirmed clean run", () => {
+  assert.equal(classifyApplyOutcome({ locked: false, rows_failed: 0 }), null);
+  assert.equal(classifyApplyOutcome({ locked: true, rows_failed: 0 }).exitCode, EXIT_LOCKED);
+  assert.equal(classifyApplyOutcome({ locked: false, rows_failed: 2 }).exitCode, EXIT_PARTIAL_FAILURE);
+  assert.match(classifyApplyOutcome({ locked: true, rows_failed: 0 }).message, /advisory lock/);
+  assert.match(classifyApplyOutcome({ locked: false, rows_failed: 2 }).message, /2 failed row/);
 });
 
 test("buildFailedSyncRunSql records a durable clickup failure row", () => {

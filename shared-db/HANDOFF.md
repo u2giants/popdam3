@@ -201,6 +201,15 @@ Also adds a **unique index on `btrim(clickup_task_id)`** (non-null, non-blank) s
 4. **No-op upserts bumped `updated_at`**, making every task look freshly edited and poisoning the `(clickup_list_id, updated_at)` index.
 5. **Runner exited 0 when nothing happened** — on `locked = true` and on `rows_failed > 0`. A cron job would report green while data did not move.
 
+**Follow-up to defect 5 (2026-07-29, after #311 merged).** A GLM-5.2 review of #311 found one remaining hole: when `parseImportResult` returned `null` (an unparseable but non-exceptional importer result) the runner only printed a warning and still exited **0** — the exact "green when unconfirmed" failure defect 5 was meant to close. The `--apply` exit decision now lives in one pure exported function, `classifyApplyOutcome(result)`, which returns `null` **only** for a confirmed-clean run (`locked === false && rows_failed === 0`) and otherwise a `{exitCode, message}`. Exit codes on the `--apply` path:
+
+| code | constant | meaning |
+| --- | --- | --- |
+| 0 | — | confirmed clean: `locked=false` and `rows_failed=0` were both parsed from the result row |
+| 1 | `EXIT_PARTIAL_FAILURE` | `rows_failed > 0`; watermark NOT advanced, those rows retry next run |
+| 2 | `EXIT_LOCKED` | another importer held the advisory lock; no data moved, re-run later |
+| 3 | `EXIT_UNVERIFIED` | result row unparseable — the write may or may not have happened; inspect the raw output and the latest `ingest.sync_run` row for `source_name='clickup_tasks_api'` before re-running |
+
 #### 5.3 Duplicate migration timestamps silently skip a migration
 
 Root cause of §3. `20260728160000_popdam_user_tables_foreign_keys.sql` landed first (`0b8425b`); the ClickUp migration was authored on a branch cut **before** that commit and merged later via PR #305. Nothing caught the collision: `scripts/check-sql.sh` has no duplicate-version check, and no workflow in `.github/workflows/` does either.
