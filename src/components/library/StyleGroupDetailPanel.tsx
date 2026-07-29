@@ -1415,15 +1415,26 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                               if (thumbIdx >= 0) setCarouselIndex(thumbIdx);
                             }}
                           >
-                            {/* File type tile */}
-                            <div
-                              className={cn(
-                                "h-9 w-9 shrink-0 rounded-md flex items-center justify-center text-[10px] font-bold uppercase",
-                                fileTypeTileClass(asset.file_type)
-                              )}
-                            >
-                              {asset.file_type}
-                            </div>
+                            {/* Thumbnail, falling back to a file type tile */}
+                            {hasThumb ? (
+                              <div className="h-9 w-9 shrink-0 rounded-md overflow-hidden border border-[var(--pd-border,hsl(var(--border)))] bg-[var(--pd-surface-2,hsl(var(--muted)/0.5))]">
+                                <img
+                                  src={asset.thumbnail_url!}
+                                  alt={asset.filename}
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                className={cn(
+                                  "h-9 w-9 shrink-0 rounded-md flex items-center justify-center text-[10px] font-bold uppercase",
+                                  fileTypeTileClass(asset.file_type)
+                                )}
+                              >
+                                {asset.file_type}
+                              </div>
+                            )}
 
                             {/* Info */}
                             <div className="flex-1 min-w-0 space-y-0.5">
