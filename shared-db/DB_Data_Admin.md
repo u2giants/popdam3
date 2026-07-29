@@ -571,7 +571,7 @@ or source-reference edits.
 
 The tree answers "what does this Licensor own?". A separate **Properties** tab answers the
 opposite question — "show me every Property, filterable and sortable as one table" — with
-columns for Property, code, Licensor, Licensor code, status, Character count, PLM context,
+columns for Property, code, Licensor, Licensor code, status, Character count, PLM divisions,
 and source. It is the same RevoGrid, set-filter and text-filter surface used by Customers and
 Vendors, minus inline editing.
 
@@ -582,6 +582,25 @@ from the tree payload in `apps/db-data-admin/src/lib/property-rows.ts`.
 
 Orphans appear in the table as ordinary rows parented to `(no licensor)`, plus a banner naming
 the exact count — never filtered out, for the same reason the tree surfaces them loudly.
+
+#### Reading the PLM divisions column
+
+`POP Lic (CW001) · GS, Spruce Lic (SP001) · GS` means the record is set up in **both** licensed
+divisions, under merch-group code `GS` in each. One entry per `plm.property_import` /
+`plm.licensor_import` row.
+
+The tree contract originally identified a division only by its raw `plm."divisionCode"."divCode_id"`
+value, so this rendered as the unreadable `1 · property · GS, 8 · property · GS`. Migration
+`20260728171500` adds `division_name` and `division_external_code` to every `plm_context` entry.
+Both this table and the tree's source-context chips render the name; a division id with no
+lookup row falls back to the raw id rather than disappearing.
+
+`mg_type` stays in the contract but is never displayed: it is a fixed literal per branch
+('property' on every property, 'licensor' on every licensor), so it added the same dead word to
+every row.
+
+Divisions `1` and `7` share the name `POP Lic`, which is why the external company-division code
+is shown alongside the name rather than instead of it.
 
 The table has no "Updated" column. The tree contract carries `updated_at` on Licensors and on
 orphan Properties, but not on Properties nested under a Licensor, and a column that is blank
