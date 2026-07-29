@@ -74,6 +74,7 @@ export const OP_NAMES: Record<string, string> = {
   "cleanup-mega-group-tags": "Clean Mega-Group Tags",
   "relink-orphaned-assets": "Relink Orphaned Assets",
   "rich-pdf-extract": "Rich PDF Extract",
+  "tag-popsg-files": "Tag PopSG Files",
 };
 
 // Operations in DIFFERENT lanes can run simultaneously — UNLESS they appear
@@ -94,6 +95,7 @@ export const OP_LANES: Record<string, string> = {
   "cleanup-mega-group-tags": "style-groups",
   "relink-orphaned-assets": "style-groups",
   "rich-pdf-extract": "rich-pdf",
+  "tag-popsg-files": "popsg-tags",
 };
 
 export function getLane(opKey: string): string {

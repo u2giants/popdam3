@@ -328,8 +328,11 @@ Configures DigitalOcean Spaces connection (bucket, region, endpoint, public base
 
 ### Tab: AI Tagging
 - Configure AI tagging instructions (custom prompt additions stored in `admin_config`).
-- Taxonomy endpoint URLs for `sync-external`.
-- Taxonomy sync controls (sync all licensors / sync one).
+- Legacy taxonomy endpoint fields and sync controls remain visible, but
+  `sync-external` was retired on 2026-07-23 and returns HTTP 410. They no longer
+  populate licensors, properties, or `public.characters`; see
+  `docs/SCHEMA.md` §2.3 for the character catalog's verified and unverified
+  source lineage.
 - Untagged asset count and AI tagging controls (tag untagged / tag all).
 - Tag propagation controls.
 - Vision Bake-Off for comparing five OpenRouter vision models against the same

@@ -40,10 +40,16 @@ const CONFIG_KEY = "BULK_OPERATIONS"; // used for polling reads only
 const POLL_ACTIVE_MS = 3_000;
 const POLL_IDLE_MS = 30_000;
 const AI_CURSOR_RE = /^ai1:\d+:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_CURSOR_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const POPSG_CONSENSUS_CURSOR_RE = /^consensus:[A-Za-z0-9_-]+$/;
 
 export function isResumableOperationCursor(operationKey: string, cursor: unknown): boolean {
   const isAiTagOperation = operationKey === "ai-tag-untagged" || operationKey === "ai-tag-all" || operationKey === "ai-tag-groups";
   if (isAiTagOperation) return typeof cursor === "string" && AI_CURSOR_RE.test(cursor);
+  if (operationKey === "tag-popsg-files") {
+    return typeof cursor === "string"
+      && (UUID_CURSOR_RE.test(cursor) || POPSG_CONSENSUS_CURSOR_RE.test(cursor));
+  }
   return typeof cursor === "number" && Number.isFinite(cursor) && cursor >= 0;
 }
 
