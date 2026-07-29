@@ -171,6 +171,21 @@ Text Filter plus a Set Filter. See
 [docs/db-data-admin-column-multi-filter.md](docs/db-data-admin-column-multi-filter.md) for
 the component contract, the reusable helper module, and how to lift it into another app.
 
+**Guarded in-table editing shipped on 2026-07-28.** Customer and Vendor grids have an
+**Edit table** mode backed by RevoGrid's documented cell and range-edit events. Only global
+Status and the CRM, PM/PIM, and DAM application statuses are editable in the grid. Global
+Status uses a strict Active/Potential/Inactive dropdown; application statuses use a strict
+Active/Inactive dropdown. Name, ERP, PLM, alias count, and timestamps are read-only.
+Copy/paste and drag-fill use the same guarded, audited single-record RPCs as the record
+editor and preserve optimistic-concurrency checks.
+
+The toolbar keeps up to 10 local undo actions. A multi-row drag-fill is one action. Undo
+performs real compensating writes through the same audited RPCs with reason
+`Undid table edit`; it does not merely repaint the browser. Refresh and entity-tab changes
+clear the local undo history. The circular-arrows control is **Refresh table** and both it
+and Undo expose accessible labels plus native hover tooltips. Implementation and operating
+detail: [`apps/db-data-admin/README.md`](apps/db-data-admin/README.md).
+
 ---
 
 ## 4. Shared entities and application extension tables

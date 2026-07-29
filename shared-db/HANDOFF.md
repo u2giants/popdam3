@@ -1,5 +1,28 @@
 # HANDOFF — shared-db current state
 
+> **COMPLETED — DB Data Admin guarded in-table editing (2026-07-28):**
+> Development at `https://data-dev.designflow.app` now supports an **Edit table** mode
+> for Customer/Vendor status fields, strict dropdown values, RevoGrid copy/paste and
+> drag-fill, and up to 10 audited undo actions. Name is read-only. The circular-arrows
+> button is explicitly labelled and tooltipped **Refresh table**. A multi-row drag-fill
+> is one undo step; refresh/entity changes clear local history. PRs
+> [#293](https://github.com/u2giants/shared-db/pull/293),
+> [#294](https://github.com/u2giants/shared-db/pull/294), and
+> [#296](https://github.com/u2giants/shared-db/pull/296) merged; live build
+> `c005516a18e405642934ef7050c022ff2cf5b50f` returned HTTP 200 and was verified from
+> the HTML `build-sha`. Final checks: 77 unit tests, 9 Chromium browser tests, lint,
+> audit, and production build passed. This workstream has no open next step and must
+> not be confused with the unrelated open workstreams below. Canonical behavior is in
+> `DB_Data_Admin.md` §3 and `apps/db-data-admin/README.md` → “In-table editing.”
+>
+> **Fresh-developer self-audit for this completed workstream:** yes, with evidence.
+> The application/purpose and environment are defined in the existing DB Data Admin
+> handoff §§1–3; the exact shipped behavior, allowed fields, undo semantics, PRs, live
+> SHA, and verification are in the banner above; failed paths are recorded in GitHub
+> history and no failed implementation remains to continue; next action is explicitly
+> “none.” The existing unrelated handoff sections retain their own background, failures,
+> exact next steps, constraints, access notes, risks, and self-audits.
+
 ## OPEN FIX — `search_style_tracker_link_candidates` is blind to alias rows and to master rows with no PLM source ref (2026-07-27)
 
 **Status:** NOT STARTED. Spec only — no branch, no migration, no DB write yet.
