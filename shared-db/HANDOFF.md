@@ -1,5 +1,62 @@
 # HANDOFF — shared-db current state
 
+## FRESH-SESSION BOUNDARY — PopSG Property reconciliation PSG-5 BLOCKED BEFORE SCHEMA WORK (2026-07-29)
+
+**Status:** PSG-5 authorized by Albert on 2026-07-29 but stopped before any migration, branch, or
+preview change. Full record: `fix_popsg_property_taxonomy_reconciliation.md` §20.
+**Database writes / migrations / rebuilds / activation / deployment:** none.
+
+### What this session did
+
+Re-read `AGENTS.md`, the newest PSG section of this file (PSG-4 APPROVED, below), and the full
+reconciliation plan. Recorded the current ColdLion checkpoint: Steps 0–6 complete/preview-proven,
+Step 7 production package complete but unapplied, **Step 7A open and explicitly blocked by open
+PR #300 and a duplicate migration timestamp `20260728160000`** (shared by
+`20260728160000_clickup_incremental_task_import.sql`, already on `main` via `8a7197f`, and
+`20260728160000_popdam_user_tables_foreign_keys.sql`, already on `main` via `0b8425b`) — `gh pr
+view 300` shows `CONFLICTING`. Production remains untouched; Steps 8–10 remain blocked.
+
+A second, independent agent session is concurrently working on ColdLion Step 7A in its own
+isolated worktree of this same repo, and Step 7A's first required action is exactly resolving
+that PR #300 / duplicate-timestamp collision in `supabase/migrations/`. Because PSG-5 also needs
+new files in `supabase/migrations/` (the `core.property_alias` / `dam.popsg_property_resolution`
+contracts), this session treated the schema-change-in-flight slot as occupied and **stopped
+before creating any PSG-5 branch, migration, or preview change**, per the one-schema-change-in-
+flight rule and this session's explicit instruction to report rather than silently resolve a
+detected collision.
+
+All PSG-4 limits are preserved: only `batch-01-exact-existing` (51 rows / 44,331 files, SHA-256
+`f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e`) is approved. Batch 02,
+canonical creates, the 6,961-row at-risk removals, ambiguous/deferred rows, and the eight
+hard-coded `LICENSOR_ALIASES` remain untouched and unresolved.
+
+Rereading PSG-6/PSG-7 found one new drift to record: PSG-6's "physically bounded production
+migration runner if unrelated migrations remain pending" step must treat the ClickUp/foreign-keys
+timestamp collision as exactly this kind of unrelated pending migration — it must be resolved by
+the Step 7A session before any future PSG-6 bounded-checkout dry run can be trusted by ledger
+count alone. No other PSG-6/PSG-7 drift was found.
+
+### Exact next steps
+
+1. Before starting PSG-5 implementation, confirm (fresh `gh pr list` and
+   `ls supabase/migrations | cut -c1-14 | sort | uniq -d`) that the duplicate `20260728160000`
+   timestamp and PR #300 are resolved on `origin/main`.
+   **Pass when:** no duplicate timestamp prefix remains and no open PR carries an unresolved
+   shared-db schema change.
+2. Only then create a PSG-5 branch and continue exactly at
+   `fix_popsg_property_taxonomy_reconciliation.md` §7 "PSG-5 — preview implementation and
+   rebuild," restricted to `batch-01-exact-existing`.
+3. Recheck the ColdLion checkpoint again immediately before that preview work, since it is a
+   moving target (currently Step 7A open).
+4. Stop at the PSG-6 production-approval gate; do not begin PSG-6.
+
+### Access and environment
+
+No secret was read or created; neither Supabase project was accessed. This session ran in an
+isolated git worktree fast-forwarded to `origin/main` (`fa890ae`) and made no push.
+
+---
+
 ## FRESH-SESSION BOUNDARY — real recurring ColdLion Licensor/Property feed (2026-07-29)
 
 ### 1. What this application is

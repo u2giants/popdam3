@@ -1031,3 +1031,96 @@ mapping became effective.
 PSG-5 remains a separate fresh-session phase requiring explicit owner authorization. It must
 recheck the current ColdLion checkpoint before any preview work and must preserve every exclusion
 above.
+
+---
+
+## 20. PSG-5 entry record — stopped before schema work — 2026-07-29
+
+**Status:** BLOCKED before any schema/preview change. No migration authored. No branch created.
+Stop before PSG-5 implementation; re-enter after the collision below is resolved.
+
+Albert authorized PSG-5 on 2026-07-29 (recorded in `HANDOFF.md` → "PopSG Property reconciliation
+PSG-4 APPROVED" fresh-session update). This session re-read this plan end to end, `HANDOFF.md`'s
+newest PSG section, and `AGENTS.md` before starting.
+
+### ColdLion checkpoint recorded before preview work (rule §7/§11)
+
+Read from `plan_coldlion_licensor_property_accelerated_cutover.md` STATUS table, current as of
+2026-07-29:
+
+- Steps 0–6 are complete or preview-proven. Step 7 (production change package) is complete but
+  **not applied** — production still has zero ColdLion Licensor/Property mirror rows.
+- **Step 7A (build the real recurring production feed) is OPEN, explicitly blocked by another
+  schema workstream**: open PR #300 (`add incremental ClickUp task import`) and a **duplicate
+  migration timestamp `20260728160000`** shared by
+  `20260728160000_clickup_incremental_task_import.sql` (already on `main`, via commit `8a7197f`)
+  and `20260728160000_popdam_user_tables_foreign_keys.sql` (already on `main`, via commit
+  `0b8425b`). PR #300's own branch copy of the ClickUp migration now shows `gh pr view 300` as
+  `CONFLICTING` against `main` — the collision is real and already landed in two places with the
+  same version key, exactly the AGENTS.md §4 rule-5 failure mode (whichever ledger row wins,
+  the other migration silently never runs).
+- Steps 8–10 (production approval, cutover, monitoring) remain open/blocked behind Step 7A.
+- The plan explicitly states "**Step 7A must not overlap PopSG PSG-6**" — this governs the
+  future production PSG-6 phase, not the preview-only PSG-5 phase itself.
+
+### Why this session stopped before any schema change
+
+A second, independent agent is concurrently working in this same `shared-db` checkout (isolated
+in its own worktree) on ColdLion Step 7A, whose first required action is exactly "first
+resolve/serialize open PR #300 and the duplicate `20260728160000` migration timestamp." That is
+an in-flight schema-affecting workstream touching `supabase/migrations/`, the same directory
+PSG-5 §6 requires new timestamped migrations in (`core.property_alias`,
+`dam.popsg_property_resolution`, and the guarded RPCs).
+
+Per the one-schema-change-in-flight rule (`AGENTS.md` §4 rule 1) and this session's explicit
+instruction to stop rather than silently resolve a detected collision, **this session did not
+create a PSG-5 migration, branch, or preview change**. `git fetch --all`, `git branch -r`, and
+`gh pr list --state open` were re-run before starting; open PRs were #307 (docs-only,
+`docs/local-replay-unsupported`), #300 (the conflicting ClickUp migration above), and #238
+(docs-only, unrelated). No PSG-5 branch existed yet from any other session.
+
+### Preserved PSG-4 limits (unchanged)
+
+Only `batch-01-exact-existing` (51 `exact_existing`, same-parent decisions / 44,331 active files,
+SHA-256 `f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e`) is approved. Batch 02,
+canonical creates, the 6,961-row `currently-tagged-at-risk.csv` removals, ambiguous rows
+(including `the lion king`), deferred rows, CHEERS/THE EXORCIST (routed to ColdLion Phase 5), and
+all eight hard-coded `LICENSOR_ALIASES` remain unapproved/unresolved. None of these were
+activated, written, or perturbed this session.
+
+### Forward-impact reread of PSG-6 and PSG-7 (required before closing PSG-5)
+
+- **PSG-6** still correctly requires re-reading the moving status header in
+  `fix_coldlion_licensor_property_phase6_handoff.md` (last updated 2026-07-28, still current) and
+  Albert's sign-off that PSG-6 cannot perturb cutover-plan §9.4. No drift found in that
+  requirement. PSG-6's own gate ("production dry run lists only approved migrations") now has a
+  concrete, named example of what must NOT happen: the duplicate `20260728160000` timestamp
+  proves a bounded-checkout dry run must be re-verified object-by-object, not by ledger row count
+  alone, before any future PSG-6 production apply.
+  New drift to record: PSG-6 step 5 says "physically bounded production migration runner if
+  unrelated migrations remain pending" — the ClickUp/foreign-keys collision is exactly this kind
+  of unrelated pending migration and must be resolved (by Step 7A's owning session) before a
+  PSG-6 bounded checkout can safely enumerate "only its own" migrations.
+- **PSG-7** acceptance criteria are unchanged; no drift found.
+- No other later-phase assumption, sequencing, rollback, or production-safety rule drifted.
+
+### Exact next steps
+
+1. Confirm (fresh `gh pr list` / `git branch -r`) that the Step 7A session has resolved PR #300
+   and the duplicate `20260728160000` timestamp, or that it has explicitly serialized/ceded the
+   schema-change slot.
+   **Pass when:** `ls supabase/migrations | cut -c1-14 | sort | uniq -d` prints nothing on
+   `origin/main` and no open PR carries an unresolved schema change.
+2. Only then create the PSG-5 branch, author the `core.property_alias` /
+   `dam.popsg_property_resolution` migrations restricted to `batch-01-exact-existing`, and run
+   `scripts/check-sql.sh` and a preview dry run.
+3. Continue PSG-5 exactly as specified in §7 "PSG-5 — preview implementation and rebuild" above,
+   including resolving all eight `LICENSOR_ALIASES` and taking a fresh worker behavior baseline.
+4. Stop at the PSG-6 production approval gate; do not begin PSG-6.
+
+### Access and environment
+
+No secret was read or created. Neither Supabase project (preview `rjyboqwcdzcocqgmsyel` or
+production `qsllyeztdwjgirsysgai`) was accessed or written to. This session ran in an isolated
+git worktree (`.claude/worktrees/agent-adc3dd20d3ac74d92`) fast-forwarded to `origin/main`
+(`fa890ae`); it made no push and created no branch.
