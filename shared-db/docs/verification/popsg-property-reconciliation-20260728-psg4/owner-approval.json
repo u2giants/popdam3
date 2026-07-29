@@ -1,0 +1,38 @@
+{
+  "phase": "PSG-4",
+  "status": "approved",
+  "decision_owner": "Albert Hazan",
+  "decision_recorded_at": "2026-07-28T17:49:09-04:00",
+  "owner_message_verbatim": "Approves",
+  "approval_context": "Albert approved after receiving GLM 5.2's independent APPROVE recommendation and being asked to choose approval or rejection for this exact bounded package.",
+  "approved_package_sha256": "e4ad02fd19491cef12a9a78204e7fca457c0ebefcc5197099e30cd39a64e0f68",
+  "approved_source_sha256": "f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e",
+  "approved_scope": {
+    "batch_id": "batch-01-exact-existing",
+    "disposition": "exact_existing",
+    "rows": 51,
+    "active_files": 44331,
+    "same_parent_targets_only": true
+  },
+  "explicitly_not_approved": [
+    "batch-02-non-property",
+    "canonical creates",
+    "6961 at-risk removals",
+    "ambiguous rows",
+    "deferred rows",
+    "schema, migrations, RLS, or RPCs",
+    "database writes",
+    "mapping activation",
+    "tag rebuilds",
+    "deployment",
+    "production",
+    "PSG-5"
+  ],
+  "technical_review": {
+    "reviewer": "GLM 5.2",
+    "verdict": "APPROVE",
+    "report": ".ai/reviews/psg4-glm52-review.md",
+    "critical_findings": 0,
+    "high_findings": 0
+  }
+}

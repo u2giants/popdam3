@@ -173,7 +173,108 @@ a shared-db one.
 
 ---
 
-## FRESH-SESSION BOUNDARY — PopSG Property reconciliation PSG-3 UI SHELL
+## FRESH-SESSION BOUNDARY — PopSG Property reconciliation PSG-4 APPROVED
+
+**Date:** 2026-07-28
+**Status:** PSG-4 COMPLETE. Stop before PSG-5.
+**Database writes / migrations / rebuilds / activation / deployment:** none
+
+### What this application is
+
+PopSG is POP's internal style-guide library at `https://sg.designflow.app`, served by the
+`u2giants/popdam3` application. Its folder-derived Property names are being reconciled to the
+shared canonical Property catalogue in `u2giants/shared-db` without fuzzy matches,
+cross-Licensor links, or silent tag loss.
+
+### What this session did
+
+This session built the PSG-4 owner decision package for the frozen
+`batch-01-exact-existing` evidence. The package adds the missing per-row reason, parent proof,
+evidence reviewer, and timestamp without changing the frozen Batch 01 bytes.
+
+GLM 5.2 independently reviewed the complete package in read-only mode and returned `APPROVE`
+with zero Critical or High findings. Albert then replied `Approves` to the exact approval or
+rejection choice. The durable record is
+`docs/verification/popsg-property-reconciliation-20260728-psg4/owner-approval.json`.
+
+### Current state
+
+PSG-4 package SHA-256:
+`e4ad02fd19491cef12a9a78204e7fca457c0ebefcc5197099e30cd39a64e0f68`.
+Frozen Batch 01 SHA-256:
+`f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e`.
+The approval covers exactly 51 same-parent `exact_existing` decisions affecting 44,331 active
+files. All 51 parent edges pass. No proposal is effective or activated.
+
+The complete package is under
+`docs/verification/popsg-property-reconciliation-20260728-psg4/`.
+The reproducible generator and test are
+`scripts/popsg-property-psg4-decision-package.cjs` and
+`scripts/popsg-property-psg4-decision-package.test.cjs`.
+
+### Everything that did not work
+
+1. The package could not reuse the frozen Batch 01 CSV for owner audit fields because changing
+   it would break the already-approved source hash. The permanent solution is a separate PSG-4
+   decision package bound to the unchanged source hash.
+2. GLM 5.2 could not execute the Node test inside its locked review mode. It independently
+   checked the hashes and code instead. Codex ran the test separately and it passed.
+3. The owner did not repeat the long formal approval sentence. The approval record preserves
+   the verbatim `Approves` response and the exact package, source, scope, exclusions, GLM review,
+   and preceding approve-or-reject context so the bounded intent is unambiguous.
+
+### Root causes and key findings
+
+- The original PSG-2 proposal rows proved the target parent IDs but did not include PSG-4's
+  reviewer and timestamp fields.
+- A separate immutable decision package closes that audit gap without changing the frozen source.
+- Approval records a business decision only. No backend activation path exists yet.
+
+### Exact next steps
+
+1. Stop until Albert explicitly authorizes PSG-5.
+   **Pass when:** the current chat clearly says to start PSG-5.
+2. At PSG-5 start, re-read the current ColdLion accelerated-cutover status and record its
+   checkpoint before any preview work.
+   **Pass when:** the dated PSG-5 evidence names the current phase, observation, and gates.
+3. Implement only the separately approved preview contracts and rebuild path.
+   **Pass when:** preview tests prove exact same-parent behavior, role limits, manual/rejected
+   preservation, and zero unexplained tag loss.
+4. Do not treat the 6,961-row risk file as approved removal evidence.
+   **Pass when:** every removed accepted tag belongs to a separately approved signed subset.
+5. Stop before PSG-6 production work.
+   **Pass when:** no production change occurs without a named window and separate approval.
+
+### Constraints and gotchas
+
+- Batch 02, canonical creates, 6,961 at-risk removals, ambiguous/deferred rows, schema,
+  migrations, RLS, RPCs, database writes, activation, rebuilds, deployment, production, and
+  PSG-5 were not approved by PSG-4.
+- CHEERS and THE EXORCIST remain routed to the ColdLion Phase 5 gate.
+- `the lion king` remains ambiguous and locked.
+- PSG-5 must resolve all eight hard-coded Licensor aliases and refresh the worker baseline.
+- PSG-6 must not overlap ColdLion Phase 7.
+
+### Access and environment
+
+No secret was read or created. Neither Supabase project was accessed. Canonical refs remain
+preview `rjyboqwcdzcocqgmsyel` and production `qsllyeztdwjgirsysgai`.
+
+### Open questions and risks
+
+- PSG-5 is not authorized.
+- The moving ColdLion checkpoint must be re-read at PSG-5 entry.
+- No at-risk removal subset has owner approval.
+
+### Self-audit
+
+The handoff self-audit passes. A new developer can identify the application, exact approved
+scope, immutable hashes, failed paths, current limits, next gates, environment, and open risks
+without prior chat context. Every next step has a verification condition.
+
+---
+
+## PRIOR FRESH-SESSION BOUNDARY — PopSG Property reconciliation PSG-3 UI SHELL
 
 **Date:** 2026-07-27
 **Status:** PSG-3 pending-only UI shell deployed and healthy; stop before PSG-4

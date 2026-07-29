@@ -1000,3 +1000,29 @@ Albert's explicit current-chat instruction.
 
 The moving ColdLion accelerated plan still has Steps 1–10 open and production Phase 7 forbidden.
 Stop before PSG-4 until Albert explicitly starts it.
+
+---
+
+## 19. PSG-4 owner decision record — 2026-07-28
+
+**Status:** COMPLETE. Stop before PSG-5.
+
+Albert approved PSG-4 package
+`e4ad02fd19491cef12a9a78204e7fca457c0ebefcc5197099e30cd39a64e0f68`
+after GLM 5.2 independently returned `APPROVE` with zero Critical or High findings.
+The package is bound to the unchanged Batch 01 source SHA-256
+`f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e`.
+
+The bounded approval covers only 51 `exact_existing`, same-parent decisions affecting
+44,331 active files. All 51 rows have a disposition, reason, parent proof, evidence reviewer,
+and review timestamp. The owner approval record is
+[`docs/verification/popsg-property-reconciliation-20260728-psg4/owner-approval.json`](docs/verification/popsg-property-reconciliation-20260728-psg4/owner-approval.json).
+
+This approval does not cover Batch 02, canonical creates, the 6,961 at-risk removals,
+ambiguous/deferred rows, schema, migrations, RLS, RPCs, database writes, mapping activation,
+tag rebuilds, deployment, production, or PSG-5. No database was accessed or changed. No
+mapping became effective.
+
+PSG-5 remains a separate fresh-session phase requiring explicit owner authorization. It must
+recheck the current ColdLion checkpoint before any preview work and must preserve every exclusion
+above.

@@ -1,0 +1,45 @@
+{
+  "phase": "PSG-4",
+  "status": "pending_explicit_owner_approval",
+  "package_format": "popsg-psg4-package-v1",
+  "generated_at": "2026-07-28T16:35:58-04:00",
+  "source": {
+    "path": "docs/verification/popsg-property-reconciliation-20260727-psg2/batch-01-exact-existing.csv",
+    "sha256": "f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e",
+    "unchanged": true,
+    "rows": 51,
+    "active_files": 44331
+  },
+  "files": {
+    "decisions.csv": {
+      "sha256": "d2e6bac10878f7cbe2d980e132e896a2fa3a2ca92e9d4fbbeda1cd26e362005d",
+      "rows": 51,
+      "active_files": 44331
+    },
+    "approval-language.txt": {
+      "sha256": "e5f5f057c9f7f58edc2307a5c1c20c046db6c81b0c4382c87b61469d38b6a870"
+    }
+  },
+  "package_hash_inputs": {
+    "source_sha256": "f59118aa0eac1772473ec21b427b6b79ad923c16328d5e8318015fd53a46643e",
+    "decisions_sha256": "d2e6bac10878f7cbe2d980e132e896a2fa3a2ca92e9d4fbbeda1cd26e362005d",
+    "approval_template_sha256": "7b9b48a61bba8b662900569e86917d43422300ce3107a3ab3e60ca4b4119cb28",
+    "rows": 51,
+    "active_files": 44331
+  },
+  "package_sha256": "e4ad02fd19491cef12a9a78204e7fca457c0ebefcc5197099e30cd39a64e0f68",
+  "exclusions": [
+    "batch-02-non-property",
+    "canonical creates",
+    "6961 at-risk removals",
+    "ambiguous rows",
+    "deferred rows",
+    "schema, migrations, RLS, or RPCs",
+    "database writes",
+    "mapping activation",
+    "tag rebuilds",
+    "deployment",
+    "production",
+    "PSG-5"
+  ]
+}
