@@ -648,7 +648,9 @@ eliminated; preview free of another workstream's unmerged ledger rows.
 **Fresh-session cut:** this is a separate implementation phase. Re-read this section and the
 latest STATUS table at its start. Stop after the workflow, promotion contract, two-cycle preview
 rehearsal, and independent review are merged and documented. Do not continue into Step 8 in the
-same session.
+same session. At Step 7A closeout, re-read every downstream section from Step 8 through the end of
+this plan and report or correct any drift caused by the implementation or anything learned during
+it before handing off the next phase.
 
 **Verification gate:** CI is green; SQL checks pass; two preview cycles and all fault cases above
 are proven; the production workflow targets only production but remains disabled; no production

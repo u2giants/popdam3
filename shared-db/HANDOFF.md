@@ -1,5 +1,150 @@
 # HANDOFF — shared-db current state
 
+## FRESH-SESSION BOUNDARY — real recurring ColdLion Licensor/Property feed (2026-07-29)
+
+### 1. What this application is
+
+`u2giants/shared-db` owns the one Supabase database shared by POP's CRM, DAM, PM/PIM,
+DB Data Admin, PopSG, and DesignFlow PLM applications. Production is
+`qsllyeztdwjgirsysgai`; preview is `rjyboqwcdzcocqgmsyel`. `core.licensor` and
+`core.property` are stable master tables whose UUIDs are used across those apps.
+
+DesignFlow is the current production feed. Its 468 Property staging rows collapse to 256
+canonical Properties. ColdLion is POP's ERP and the intended recurring source for source
+identity, codes, and source descriptions. Supabase must continue to own Property-to-Licensor
+parents and active/inactive status because ColdLion does not provide those facts.
+
+### 2. What we set out to do this session, and why
+
+Albert asked whether the 256 Properties came from DesignFlow and whether a ColdLion switch was
+planned. After confirming both, he requested a GLM-5.2 critique. GLM found the prepared package
+was a safe one-time mirror plus 542 source links, including 504 Property links, but not a recurring
+feed. It had no production schedule, monitoring, or canonical-field update path. Albert decided
+on 2026-07-29 to build a **real recurring ColdLion feed switch**, not a one-time link.
+
+### 3. Current state
+
+- The corrected plan merged through [PR #308](https://github.com/u2giants/shared-db/pull/308),
+  commit `3dac90bb2360529e6bc56243f1a33c6f88f361a1`.
+- [`plan_coldlion_licensor_property_accelerated_cutover.md`](plan_coldlion_licensor_property_accelerated_cutover.md)
+  starts the next session at Step 7A and blocks Step 8 production approval.
+- Step 7A specifies a separate production workflow, schedule map, guarded promotion, quarantine,
+  readiness checks, two preview cycles, fault tests, monitoring, alerts, and rollback.
+- The successful GLM review is
+  [`.ai/reviews/glm52-coldlion-recurring-feed-plan-review.md`](.ai/reviews/glm52-coldlion-recurring-feed-plan-review.md).
+- No recurring workflow, migration, database write, production secret, variable, schedule, or
+  production action was created in this session.
+- The checkout was clean on `main` after PR #308 merged.
+- Implementation is blocked until shared schema work is serialized. At last check, PR
+  [#300](https://github.com/u2giants/shared-db/pull/300) was open and `origin/main` contained two
+  migrations with timestamp `20260728160000`:
+  `20260728160000_clickup_incremental_task_import.sql` and
+  `20260728160000_popdam_user_tables_foreign_keys.sql`. Supabase keys migrations by timestamp
+  alone, so one can silently skip.
+
+### 4. Everything we tried that did NOT work
+
+1. The first GLM run returned an unrelated `CLAUDE.md` draft. It was rejected. A corrected brief
+   explicitly blocked that task, and the second GLM-5.2 run produced the committed review.
+2. The old plan treated one-time links as enough for production approval. GLM proved that did not
+   switch the routine feed. Do not restore the old Step 8 starting point.
+3. Relaxing the preview-only workflow for production is rejected. Preview and production need
+   separate workflows and schedule maps so delayed events cannot cross environments.
+4. Starting database implementation now was rejected because PR #300 and the duplicate migration
+   timestamp violate the one-schema-change-at-a-time rule. Never hide this with migration repair.
+
+### 5. Root causes and key findings
+
+- A ColdLion source link is provenance, not a recurring feed.
+- A real switch needs scheduled refresh, guarded promotion, monitoring, alerting, and a defined
+  rule for source-owned description changes.
+- Canonical UUIDs, status, and `core.property.licensor_id` must never change from feed presence.
+- Merch-group identity requires `(company, division, mgTypeCode, mgCode)`. Code alone is unsafe.
+- New, missing, ambiguous, cross-typed, re-keyed, or parentless ColdLion rows must quarantine.
+  Missing rows must never auto-delete or auto-inactivate canonical records.
+- DesignFlow remains temporary corroboration for parent/status facts until separate Phase 8 work.
+
+### 6. Exact next steps
+
+1. Sync `origin/main`; re-run `gh pr list`; inspect PR #300, migration timestamps, and preview
+   ledger. **Pass when:** no other schema work owns preview and no timestamp is duplicated.
+2. If the collision remains, inspect both database ledgers and real objects. Re-timestamp only the
+   not-yet-applied migration after its dependencies. Never use migration repair as a shortcut.
+   **Pass when:** timestamps are unique and both intended object sets are verified.
+3. Re-read the full Step 7A plan, the original cutover plan, Phase 6 handoff, and Step 7 production
+   package. **Pass when:** the implementation checklist covers every deliverable and exclusion.
+4. Build Step 7A on a new `codex/` branch. Do not create or enable production secrets or variables.
+   **Pass when:** offline tests and SQL checks pass and production remains disabled.
+5. Apply any new additive migration to preview only after a bounded dry run. Rehearse two cycles
+   and all named fault cases. **Pass when:** cycle two is idempotent; allowed changes are audited;
+   unsafe cases fail or quarantine; protected hashes stay unchanged.
+6. Obtain an independent review with no Critical or High issue. Update the plan, handoff,
+   evidence, and production package, then merge the PR. **Pass when:** Step 7A records the PR,
+   merged SHA, tests, preview runs, and evidence while production remains untouched.
+7. At Step 7A closeout, re-read every downstream section from Step 8 to plan end. Correct or report
+   all drift before handoff. **Pass when:** docs and code agree and no one-time-link claim remains.
+8. Stop and use another fresh session for Step 8 approval. **Pass when:** Albert receives one exact
+   request covering migrations, schedules, secrets, variables, modes, monitoring, and rollback.
+
+### 7. Constraints and gotchas
+
+- Shared-db uses branch + PR; preview first; one schema change in flight at a time.
+- Never edit an applied migration, reuse a timestamp, or use `--include-all` on the full set.
+- Never run direct shared-database DDL or use dashboard edits.
+- Preserve UUIDs, statuses, parents, and DesignFlow refs.
+- Never match merch groups by code alone or auto-create/delete/inactivate canonical rows.
+- Production and preview workflows must stay separate.
+- Production stays read-only until an exact later Step 8 approval.
+- Step 7A must not overlap PopSG PSG-6 or another shared schema rehearsal.
+
+### 8. Access and environment
+
+- Repo: `C:\repos\shared-db`; GitHub: `u2giants/shared-db`.
+- Start from clean `main`, then create a `codex/` branch after serialization.
+- Verify commit identity is `Albert Hazan <u2giants@users.noreply.github.com>`.
+- `gh` worked for fetch, PR, merge, and verification.
+- Preview: `rjyboqwcdzcocqgmsyel`. Production: `qsllyeztdwjgirsysgai`.
+- Secrets live in 1Password vault `vibe_coding`: Supabase CLI token, production DB password,
+  preview credentials, and ColdLion API key. Never expose values.
+- Future GitHub secret names are `SUPABASE_ACCESS_TOKEN`,
+  `SUPABASE_DB_PASSWORD_PRODUCTION`, and `COLDLION_API_KEY`. Creating or filling the production
+  secret waits for Step 8 approval.
+- This is Windows PowerShell. POSIX commands must explicitly use Git Bash, never WSL.
+
+### 9. Open questions and risks
+
+- PR #300 and migration state may change. Re-check ground truth in the fresh session.
+- It is unknown which duplicate-timestamp migration, if either, has applied in either database.
+  Verify objects, not only the ledger.
+- The schema may need an explicit source-description/audit field rather than overloading a curated
+  display name. Step 7A must inspect and choose the smallest additive design.
+- Recurring GitHub Actions needs durable production credentials. Build and preview-test the
+  workflow now; secret creation, enabling, and first production use wait for Step 8.
+- GitHub cron is not exact. Select work from `github.event.schedule`, not wall-clock time, and
+  deliver failure alerts from the detecting run.
+
+### Fresh-session self-audit
+
+1. **Street-newcomer continuation: Yes.** Sections 1–3 define the system, decision, current state,
+   environments, merged commit, and blocker. Section 6 gives ordered work with pass gates.
+2. **Equal effectiveness: Yes.** Sections 4–5 preserve both GLM outcomes, rejected approaches,
+   source ownership, identity rules, and the timestamp collision.
+3. **Failed work included: Yes.** Section 4 records the unrelated first GLM result, invalid
+   one-time framing, rejected workflow reuse, and why database work stopped.
+4. **Concrete next steps: Yes.** Every item in Section 6 names the action and its proof.
+5. **Terms and access explained: Yes.** Sections 1, 3, 7, and 8 define repos, projects, tables,
+   PRs, commit, secrets, shells, and phase boundaries.
+
+Final synthesis:
+
+1. **Comprehensive for a brand-new developer: Yes.** Sections 1–9 cover all required knowledge.
+2. **Detailed enough to continue as well as this session: Yes.** The merged plan plus Sections
+   3–6 preserve the full decision and implementation boundary.
+3. **Every relevant detail is present: Yes.** Changing external facts are explicitly routed to
+   fresh read-only verification rather than guessed.
+
+**Self-audit result: PASS — 2026-07-29.**
+
 > **COMPLETED — DB Data Admin guarded in-table editing (2026-07-28):**
 > Development at `https://data-dev.designflow.app` now supports an **Edit table** mode
 > for Customer/Vendor status fields, strict dropdown values, RevoGrid copy/paste and
