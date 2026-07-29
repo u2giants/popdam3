@@ -151,6 +151,9 @@ evaluation; it does **not** establish cutover readiness without the other accele
 | **2026-07-29** | **30429060180** | hourly health | **PASS**; health passed after both source lanes; all other lanes correctly skipped | non-drill health **`4c35b69f-738c-4ddc-a31c-b7397e60ce66`**; `ok:true`; `issues:[]`; ColdLion run `2f0c0811-6e2a-48f5-b928-7a20b21b51e7`; DesignFlow run `f6bde4eb-43b8-4ca6-9129-e5fa7a816c60`; latest observation `2f5c9ef5-71ac-4c2f-86c5-aa7cf143649f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** Both fresh source lanes were healthy; the scheduled comparison had not run yet. |
 | **2026-07-29** | **30432352656** | `0 5 * * *` / daily comparison | **PASS**; the complete scheduled DesignFlow and ColdLion pair passed comparison with no unexplained differences | observation **`bd307350-0a1d-40f6-ab8e-a672f740a47f`**; comparison run **`81ab7383-4fe9-4064-9eaf-c5e643ece0ff`**; `pass:true`; `diffs:[]`; `unexplained_diff_count:0`; baseline, both source lanes, link checks, and immutability all true; canonical licensors/properties **26 / 256**; linked rows **38 / 504**; source refs **542 ColdLion / 505 DesignFlow**; UUID, status, parent, and source-reference hashes match the frozen baseline | **Strong §9.4 evidence, not production authorization.** It proves a new complete green cycle and unchanged protected values. Exact typed identity, breaker, alert, and rollback remain proven by the existing deterministic evidence. |
 | **2026-07-29** | **30441061565** | hourly health | **PASS**; post-comparison health passed and every non-health lane was correctly skipped | non-drill health **`0cf27c54-e10e-4109-ae0a-5a4b4e2f4ec9`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the new complete cycle remained healthy. |
+| **2026-07-29** | **30450953903** | hourly health | **PASS**; post-comparison health passed and every non-health lane was correctly skipped | non-drill health **`b54186db-c689-4c9c-81d0-e8cd1130ea47`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms the complete scheduled cycle remained healthy. |
+| **2026-07-29** | **30465172086** | hourly health | **PASS**; later health passed and every non-health lane was correctly skipped | non-drill health **`e8d16da9-8341-4e0c-b903-a6eee3524e70`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no regression or unexplained difference was reported. |
+| **2026-07-29** | **30475979029** | hourly health | **PASS**; later health passed and every non-health lane was correctly skipped | non-drill health **`46974425-d2d2-4af5-a340-b171432d7612`**; `ok:true`; `issues:[]`; latest observation `bd307350-0a1d-40f6-ab8e-a672f740a47f`; refs/links **542 / 38 / 504** | **Supporting evidence only.** It confirms no regression or unexplained difference was reported. |
 
 The workflow checked out `a14fefc9459a3ff8c74ea21c55e58230c47a4296`, resolved the
 exact health cron rather than wall-clock time, displayed preview project
@@ -201,6 +204,17 @@ hashes. Preview also contains two additional non-drill, append-only observations
 zero unexplained differences and the same protected hashes. No failed, partial,
 parser-error, or drill event occurred in this monitoring window. The breaker remains
 closed after its authorized 2026-07-28 recovery. Steps 1–7 remain proven. Step 8,
+Albert's durable approval of the exact production window and package, remains open.
+This entry does not supply approval, declare overall readiness, access production, or
+begin Phase 7.
+
+**Monitoring update at 2026-07-29T17:35:18Z:** three later scheduled health runs passed
+with `issues:[]`, zero consecutive source failures, and the same latest successful
+observation and source-pair IDs. The immediate-alert, source, comparison, and drill lanes
+were correctly skipped because these were healthy hourly checks. Preview contains no new
+comparison observation after `bd307350-0a1d-40f6-ab8e-a672f740a47f`; no failed, partial,
+parser-error, or drill event occurred in this window. The breaker remains closed after its
+authorized 2026-07-28 recovery. Existing deterministic proof remains intact. Step 8,
 Albert's durable approval of the exact production window and package, remains open.
 This entry does not supply approval, declare overall readiness, access production, or
 begin Phase 7.
