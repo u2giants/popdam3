@@ -120,7 +120,9 @@ export async function startCheckout(params: {
     expected_hash: string | null;
     expected_size: number | null;
   };
-  root_mappings: Array<{ root_id: string; local_path?: string }>;
+  // Server-side roots derived from SCAN_ROOTS. There is no local_path here —
+  // that is a helper-local concept, merged in by checkoutManager.
+  root_mappings: Array<{ root_id: string; display_name: string; server_path: string }>;
   open_after_checkout: boolean;
 }> {
   return post("/checkouts/start", params);
@@ -207,11 +209,12 @@ export async function getOpenCheckouts(): Promise<{
     verify_error?: string | null;
     redrive_requested?: boolean;
     resolution?: string | null;
-    assets: {
+    // Embedded join — absent/null if the asset row was removed.
+    assets?: {
       id: string;
       filename: string;
       relative_path: string;
-    };
+    } | null;
   }>;
 }> {
   return get("/checkouts/open");

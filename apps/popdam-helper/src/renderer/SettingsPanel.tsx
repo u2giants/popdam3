@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { LocalConfig, RootMapping, ValidationResult } from "../shared/types";
 
 interface ServerRoot {
@@ -66,9 +66,10 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
     | { status: "error"; message: string };
   const [rootValidStates, setRootValidStates] = useState<Record<string, RootValidState>>({});
 
-  async function fetchRoots(cfg?: typeof config): Promise<void> {
-    const activeConfig = cfg ?? config;
-    if (!activeConfig?.damUrl) return;
+  // Stable (no closure over state) so the mount effect below can depend on it
+  // without re-running every time `config` changes.
+  const fetchRootsFor = useCallback(async (activeConfig: LocalConfig): Promise<void> => {
+    if (!activeConfig.damUrl) return;
     setRootsFetching(true);
     setRootsFetchError(null);
     try {
@@ -91,7 +92,36 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
     } finally {
       setRootsFetching(false);
     }
-  }
+  }, []);
+
+  const fetchRoots = useCallback(
+    async (cfg?: typeof config): Promise<void> => {
+      const activeConfig = cfg ?? config;
+      if (!activeConfig) return;
+      await fetchRootsFor(activeConfig);
+    },
+    [config, fetchRootsFor],
+  );
+
+  // Plain read of storage health, with no config save. Stable, for the same
+  // reason as fetchRootsFor.
+  const readStorageHealth = useCallback(async (): Promise<void> => {
+    const res = await window.popdam.getStorageHealth();
+    if (res.ok && res.data) setStorageHealth(res.data);
+  }, []);
+
+  const refreshStorageHealth = useCallback(
+    async (nextConfig = config): Promise<void> => {
+      if (nextConfig) {
+        await window.popdam.saveConfig({
+          preferredProvider: nextConfig.preferredProvider,
+          seaDriveRoot: nextConfig.seaDriveRoot,
+        });
+      }
+      await readStorageHealth();
+    },
+    [config, readStorageHealth],
+  );
 
   useEffect(() => {
     window.popdam.getConfig().then((res) => {
@@ -100,7 +130,7 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
         const paths: Record<string, string> = {};
         for (const m of res.data.rootMappings) paths[m.root_id] = m.local_path;
         setLocalPaths(paths);
-        if (res.data.damUrl) fetchRoots(res.data);
+        if (res.data.damUrl) fetchRootsFor(res.data);
       }
     });
     window.popdam.hasSynologyCredentials().then((res) => {
@@ -109,19 +139,8 @@ export default function SettingsPanel({ onBack, focusSection }: Props): React.Re
     window.popdam.getAuthState().then((res) => {
       setAuthEmail(res.data?.loggedIn ? (res.data.email ?? null) : null);
     });
-    refreshStorageHealth();
-  }, []);
-
-  async function refreshStorageHealth(nextConfig = config): Promise<void> {
-    if (nextConfig) {
-      await window.popdam.saveConfig({
-        preferredProvider: nextConfig.preferredProvider,
-        seaDriveRoot: nextConfig.seaDriveRoot,
-      });
-    }
-    const res = await window.popdam.getStorageHealth();
-    if (res.ok && res.data) setStorageHealth(res.data);
-  }
+    readStorageHealth();
+  }, [fetchRootsFor, readStorageHealth]);
 
   async function handleSave(): Promise<void> {
     if (!config) return;

@@ -61,7 +61,7 @@ export async function loadActiveCheckouts(): Promise<void> {
     const res = await getOpenCheckouts();
     const config = getConfig();
     for (const co of res.checkouts ?? []) {
-      const assetInfo = (co as any).assets ?? {};
+      const assetInfo = co.assets ?? { id: "", filename: "", relative_path: "" };
       const record: CheckoutRecord = {
         id: co.id,
         assetId: assetInfo.id ?? "",
@@ -159,12 +159,12 @@ async function resolveCopyAndOpen(
 ): Promise<{ checkoutId: string; workspacePath: string }> {
   // Merge server root_mappings with locally saved paths
   const localMappings = config.rootMappings;
-  const mergedMappings: RootMapping[] = root_mappings.map((rm: any) => {
+  const mergedMappings: RootMapping[] = root_mappings.map((rm) => {
     const local = localMappings.find((l) => l.root_id === rm.root_id);
     return {
       root_id: rm.root_id,
-      display_name: rm.display_name ?? rm.root_id,
-      local_path: local?.local_path ?? rm.local_path ?? "",
+      display_name: rm.display_name || rm.root_id,
+      local_path: local?.local_path ?? "",
       marker_verified: local?.marker_verified ?? false,
     };
   });
