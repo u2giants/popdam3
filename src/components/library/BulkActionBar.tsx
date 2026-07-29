@@ -18,14 +18,22 @@ import { X, Sparkles, ArrowRightLeft, Loader2, CheckCircle2, AlertCircle, Square
 import { Constants } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { usePersistentOperation } from "@/hooks/usePersistentOperation";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 interface BulkActionBarProps {
   selectedGroups: StyleGroup[];
   onClearSelection: () => void;
+  /**
+   * "bar" = its own full-width row (roomy screens).
+   * "inline" = chrome-less cluster folded into LibraryTopBar (compact chrome),
+   *            so selection does not cost an extra row of vertical space.
+   */
+  variant?: "bar" | "inline";
 }
 
-export default function BulkActionBar({ selectedGroups, onClearSelection }: BulkActionBarProps) {
+export default function BulkActionBar({ selectedGroups, onClearSelection, variant = "bar" }: BulkActionBarProps) {
+  const inline = variant === "inline";
   const queryClient = useQueryClient();
   const [workflowValue, setWorkflowValue] = useState<string>("");
 
@@ -105,13 +113,21 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
   });
 
   return (
-    <div className="flex items-center gap-3 border-b border-primary/30 bg-primary/5 px-4 py-2.5 animate-in slide-in-from-top duration-200">
+    <div
+      className={cn(
+        "flex items-center",
+        inline
+          ? "gap-2 min-w-0"
+          : "gap-3 border-b border-primary/30 bg-primary/5 px-4 py-2.5 animate-in slide-in-from-top duration-200",
+      )}
+    >
       {/* Selection count */}
-      <div className="flex items-center gap-2">
-        <Badge variant="default" className="text-xs">
-          {selectedGroups.length} group{selectedGroups.length !== 1 ? "s" : ""} selected
+      <div className="flex items-center gap-1.5">
+        <Badge variant="default" className={inline ? "text-[11px] px-1.5 whitespace-nowrap" : "text-xs"}>
+          {selectedGroups.length}
+          {inline ? " sel." : ` group${selectedGroups.length !== 1 ? "s" : ""} selected`}
         </Badge>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClearSelection}>
+        <Button variant="ghost" size="icon" className={inline ? "h-5 w-5" : "h-6 w-6"} onClick={onClearSelection}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -124,7 +140,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5"
+                className={cn("gap-1.5", inline ? "h-7 px-2 text-xs" : "h-8")}
                 onClick={() => op.stop()}
               >
                 <Square className="h-3 w-3 fill-current" />
@@ -134,7 +150,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5"
+                className={cn("gap-1.5", inline ? "h-7 px-2 text-xs" : "h-8")}
                 onClick={handleBulkAiTag}
                 disabled={op.isActive || selectedGroups.length === 0}
                 title={selectedGroups.length === 0 ? "Select groups to AI tag" : op.isActive ? "AI tagging in progress..." : "AI tag selected groups"}
@@ -154,7 +170,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
 
       {/* Bulk workflow change */}
       <div className="flex items-center gap-1.5">
-        <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground" />
+        {!inline && <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground" />}
         <Select
           value={workflowValue}
           onValueChange={(v) => {
@@ -163,7 +179,7 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
           }}
           disabled={bulkWorkflow.isPending}
         >
-          <SelectTrigger className="h-8 w-[160px] text-xs bg-background">
+          <SelectTrigger className={cn("text-xs bg-background", inline ? "h-7 w-[130px]" : "h-8 w-[160px]")}>
             <SelectValue placeholder="Set workflow…" />
           </SelectTrigger>
           <SelectContent>
@@ -178,11 +194,11 @@ export default function BulkActionBar({ selectedGroups, onClearSelection }: Bulk
 
       {/* Progress indicator */}
       {(isRunning || isDone || isFailed) && (
-        <div className="flex items-center gap-2 ml-auto">
+        <div className={cn("flex items-center gap-2", inline ? "" : "ml-auto")}>
           {isRunning ? (
             <>
               <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              <Progress value={progressPercent} className="w-32 h-2" />
+              <Progress value={progressPercent} className={cn("h-2", inline ? "w-16" : "w-32")} />
               <span className="text-xs text-muted-foreground whitespace-nowrap">
                 {processed}/{total}
               </span>

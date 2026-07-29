@@ -17,6 +17,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CardStyle, ViewMode, SortField, SortDirection, LibraryMode } from "@/types/assets";
 import type { ScanProgress } from "@/hooks/useScanProgress";
+import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { cn } from "@/lib/utils";
 
 function useElapsed(active: boolean): string {
@@ -80,6 +81,11 @@ interface LibraryTopBarProps {
   scanProgress?: ScanProgress | null;
   ungroupedCount?: number | null;
   canManageScan?: boolean;
+  /**
+   * Compact chrome only: bulk-selection controls folded into this bar so the
+   * separate BulkActionBar row disappears. Replaces the result count readout.
+   */
+  selectionSlot?: React.ReactNode;
 }
 
 const GROUP_SORT_OPTIONS: { value: SortField; label: string }[] = [
@@ -103,6 +109,38 @@ const CARD_STYLE_OPTIONS: { value: CardStyle; label: string }[] = [
   { value: "editorial", label: "Editorial" },
   { value: "compact", label: "Compact" },
 ];
+
+const VIEW_MODE_OPTIONS: { value: ViewMode; label: string; icon: typeof LayoutGrid }[] = [
+  { value: "grid", label: "Grid", icon: LayoutGrid },
+  { value: "list", label: "List", icon: List },
+];
+
+const VIEW_MENU_HEADING_STYLE: React.CSSProperties = {
+  padding: "5px 10px 3px",
+  fontSize: "10px",
+  fontWeight: 600,
+  letterSpacing: "0.04em",
+  textTransform: "uppercase",
+  color: "var(--pd-fg-muted)",
+};
+
+function viewMenuItemStyle(active: boolean): React.CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    width: "100%",
+    padding: "7px 10px",
+    borderRadius: "5px",
+    border: "none",
+    background: active ? "var(--pd-accent-soft)" : "transparent",
+    color: active ? "var(--pd-accent)" : "var(--pd-fg)",
+    fontSize: "13px",
+    fontWeight: active ? 500 : 400,
+    cursor: "pointer",
+    textAlign: "left",
+  };
+}
 
 function useOutsideClick(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
   useEffect(() => {
@@ -145,7 +183,10 @@ export default function LibraryTopBar({
   scanProgress,
   ungroupedCount,
   canManageScan = true,
+  selectionSlot,
 }: LibraryTopBarProps) {
+  const compact = useCompactChrome();
+  const H = compact ? 30 : 34;
   const isScanRunning = scanProgress?.status === "running";
   const isScanStale = scanProgress?.status === "stale";
   const elapsed = useElapsed(isScanRunning || isScanStale);
@@ -189,11 +230,11 @@ export default function LibraryTopBar({
       style={{
         borderBottom: "1px solid var(--pd-border)",
         background: "var(--pd-surface)",
-        padding: "12px 18px",
+        padding: compact ? "6px 12px" : "12px 18px",
         display: "flex",
         flexWrap: "wrap",
         alignItems: "center",
-        gap: "8px",
+        gap: compact ? "6px" : "8px",
       }}
     >
       {/* 1. Filters button */}
@@ -204,8 +245,8 @@ export default function LibraryTopBar({
           display: "inline-flex",
           alignItems: "center",
           gap: "6px",
-          height: "34px",
-          padding: "0 10px",
+          height: `${H}px`,
+          padding: compact ? "0 8px" : "0 10px",
           borderRadius: "6px",
           border: "1px solid var(--pd-border)",
           background: filtersOpen ? "var(--pd-accent-soft)" : "transparent",
@@ -256,20 +297,23 @@ export default function LibraryTopBar({
             display: "inline-flex",
             alignItems: "center",
             gap: "5px",
-            height: "34px",
-            padding: "0 10px",
+            height: `${H}px`,
+            padding: compact ? "0 8px" : "0 10px",
             border: "none",
             borderRight: "1px solid var(--pd-border)",
             background: libraryMode === "groups" ? "var(--pd-accent-soft)" : "transparent",
             color: libraryMode === "groups" ? "var(--pd-accent)" : "var(--pd-fg-muted)",
-            fontSize: "13px",
+            fontSize: compact ? "11px" : "13px",
             fontWeight: 500,
             cursor: "pointer",
-            whiteSpace: "nowrap",
+            whiteSpace: compact ? "normal" : "nowrap",
+            lineHeight: compact ? 1.05 : undefined,
+            textAlign: "left",
           }}
         >
-          <Layers style={{ width: 14, height: 14 }} />
-          Style groups
+          <Layers style={{ width: 14, height: 14, flexShrink: 0 }} />
+          {/* Compact: wraps to two lines inside the same 30px control height */}
+          {compact ? <span>Style<br />groups</span> : "Style groups"}
         </button>
         <button
           type="button"
@@ -278,19 +322,21 @@ export default function LibraryTopBar({
             display: "inline-flex",
             alignItems: "center",
             gap: "5px",
-            height: "34px",
-            padding: "0 10px",
+            height: `${H}px`,
+            padding: compact ? "0 8px" : "0 10px",
             border: "none",
             background: libraryMode === "assets" ? "var(--pd-accent-soft)" : "transparent",
             color: libraryMode === "assets" ? "var(--pd-accent)" : "var(--pd-fg-muted)",
-            fontSize: "13px",
+            fontSize: compact ? "11px" : "13px",
             fontWeight: 500,
             cursor: "pointer",
-            whiteSpace: "nowrap",
+            whiteSpace: compact ? "normal" : "nowrap",
+            lineHeight: compact ? 1.05 : undefined,
+            textAlign: "left",
           }}
         >
-          <File style={{ width: 14, height: 14 }} />
-          All files
+          <File style={{ width: 14, height: 14, flexShrink: 0 }} />
+          {compact ? <span>All<br />files</span> : "All files"}
         </button>
       </div>
 
@@ -322,7 +368,7 @@ export default function LibraryTopBar({
           onChange={(e) => onSearchChange(e.target.value)}
           style={{
             width: "100%",
-            height: "34px",
+            height: `${H}px`,
             paddingLeft: "32px",
             paddingRight: search ? "30px" : "10px",
             borderRadius: "6px",
@@ -357,10 +403,25 @@ export default function LibraryTopBar({
         )}
       </div>
 
-      {/* 4. Result count */}
+      {/* 4. Result count — replaced by the folded-in selection controls when
+             something is selected in compact chrome mode. */}
+      {selectionSlot ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            marginLeft: "auto",
+            flexShrink: 0,
+            minWidth: 0,
+          }}
+        >
+          {selectionSlot}
+        </div>
+      ) : (
       <span
         style={{
-          fontSize: "13px",
+          fontSize: compact ? "12px" : "13px",
           color: "var(--pd-fg-muted)",
           whiteSpace: "nowrap",
           flexShrink: 0,
@@ -391,6 +452,7 @@ export default function LibraryTopBar({
           </>
         )}
       </span>
+      )}
 
       {/* 5. Divider */}
       <div
@@ -402,83 +464,106 @@ export default function LibraryTopBar({
         }}
       />
 
-      {/* 6. Card-layout dropdown (groups + grid only) */}
-      {showCardStyleDropdown && (
-        <div ref={cardRef} style={{ position: "relative", flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={() => setCardOpen((v) => !v)}
+      {/* 6. View menu — grid/list mode AND card layout under one control, so the
+             old separate grid/list segmented row is gone. */}
+      <div ref={cardRef} style={{ position: "relative", flexShrink: 0 }}>
+        <button
+          type="button"
+          onClick={() => setCardOpen((v) => !v)}
+          title="View options"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            height: `${H}px`,
+            padding: compact ? "0 8px" : "0 10px",
+            borderRadius: "6px",
+            border: "1px solid var(--pd-border)",
+            background: "transparent",
+            color: "var(--pd-fg)",
+            fontSize: "13px",
+            fontWeight: 500,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {viewMode === "grid" ? (
+            <LayoutGrid style={{ width: 14, height: 14 }} />
+          ) : (
+            <List style={{ width: 14, height: 14 }} />
+          )}
+          {!compact && (viewMode === "grid" ? (showCardStyleDropdown ? currentCardLabel : "Grid") : "List")}
+          <ChevronDown style={{ width: 13, height: 13, color: "var(--pd-fg-muted)", marginLeft: 2 }} />
+        </button>
+        {cardOpen && (
+          <div
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "5px",
-              height: "34px",
-              padding: "0 10px",
-              borderRadius: "6px",
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              right: 0,
+              zIndex: 50,
+              minWidth: "160px",
+              borderRadius: "8px",
               border: "1px solid var(--pd-border)",
-              background: "transparent",
-              color: "var(--pd-fg)",
-              fontSize: "13px",
-              fontWeight: 500,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
+              background: "var(--pd-surface)",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              padding: "4px",
             }}
           >
-            <LayoutGrid style={{ width: 14, height: 14 }} />
-            {currentCardLabel}
-            <ChevronDown style={{ width: 13, height: 13, color: "var(--pd-fg-muted)", marginLeft: 2 }} />
-          </button>
-          {cardOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: "calc(100% + 4px)",
-                left: 0,
-                zIndex: 50,
-                minWidth: "140px",
-                borderRadius: "8px",
-                border: "1px solid var(--pd-border)",
-                background: "var(--pd-surface)",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                padding: "4px",
-              }}
-            >
-              {CARD_STYLE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    onCardStyleChange(opt.value);
-                    setCardOpen(false);
-                  }}
+            <div style={VIEW_MENU_HEADING_STYLE}>Layout</div>
+            {VIEW_MODE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onViewModeChange(opt.value);
+                  setCardOpen(false);
+                }}
+                style={viewMenuItemStyle(viewMode === opt.value)}
+              >
+                {viewMode === opt.value ? (
+                  <Check style={{ width: 13, height: 13, flexShrink: 0 }} />
+                ) : (
+                  <span style={{ width: 13, height: 13, flexShrink: 0 }} />
+                )}
+                <opt.icon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                {opt.label}
+              </button>
+            ))}
+
+            {showCardStyleDropdown && (
+              <>
+                <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    width: "100%",
-                    padding: "7px 10px",
-                    borderRadius: "5px",
-                    border: "none",
-                    background: cardStyle === opt.value ? "var(--pd-accent-soft)" : "transparent",
-                    color: cardStyle === opt.value ? "var(--pd-accent)" : "var(--pd-fg)",
-                    fontSize: "13px",
-                    fontWeight: cardStyle === opt.value ? 500 : 400,
-                    cursor: "pointer",
-                    textAlign: "left",
+                    height: "1px",
+                    background: "var(--pd-border)",
+                    margin: "4px 0",
                   }}
-                >
-                  {cardStyle === opt.value ? (
-                    <Check style={{ width: 13, height: 13, flexShrink: 0 }} />
-                  ) : (
-                    <span style={{ width: 13, height: 13, flexShrink: 0 }} />
-                  )}
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+                />
+                <div style={VIEW_MENU_HEADING_STYLE}>Card style</div>
+                {CARD_STYLE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onCardStyleChange(opt.value);
+                      setCardOpen(false);
+                    }}
+                    style={viewMenuItemStyle(cardStyle === opt.value)}
+                  >
+                    {cardStyle === opt.value ? (
+                      <Check style={{ width: 13, height: 13, flexShrink: 0 }} />
+                    ) : (
+                      <span style={{ width: 13, height: 13, flexShrink: 0 }} />
+                    )}
+                    {opt.label}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 7. Sort dropdown + direction button (joined) */}
       <div
@@ -499,8 +584,8 @@ export default function LibraryTopBar({
             display: "inline-flex",
             alignItems: "center",
             gap: "5px",
-            height: "34px",
-            padding: "0 10px",
+            height: `${H}px`,
+            padding: compact ? "0 8px" : "0 10px",
             borderRadius: "6px 0 0 6px",
             border: "none",
             borderRight: "1px solid var(--pd-border)",
@@ -523,8 +608,8 @@ export default function LibraryTopBar({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: "34px",
-            height: "34px",
+            width: `${H}px`,
+            height: `${H}px`,
             borderRadius: "0 6px 6px 0",
             border: "none",
             background: "transparent",
@@ -605,8 +690,8 @@ export default function LibraryTopBar({
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    width: "34px",
-                    height: "34px",
+                    width: `${H}px`,
+                    height: `${H}px`,
                     borderRadius: "6px",
                     border: "1px solid var(--pd-border)",
                     background: "transparent",
@@ -641,8 +726,8 @@ export default function LibraryTopBar({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "5px",
-                  height: "34px",
-                  padding: "0 8px",
+                  height: `${H}px`,
+                  padding: compact ? "0 6px" : "0 8px",
                   borderRadius: "6px",
                   border: "1px solid var(--pd-border)",
                   background: isScanStale ? "var(--pd-warning-soft, rgba(234,179,8,0.1))" : "transparent",
@@ -663,12 +748,28 @@ export default function LibraryTopBar({
                     animation: isScanStale ? "none" : "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite",
                   }}
                 />
-                <span style={{ fontWeight: 500, color: "var(--pd-fg)" }}>
-                  {isScanStale ? "Stuck" : "Scanning"}
-                </span>
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>{elapsed}</span>
-                {scanProgress?.counters && (
-                  <span>· {(scanProgress.counters.candidates_found ?? 0).toLocaleString()} found</span>
+                {/* Compact: dot + found count only. The word, the elapsed timer
+                    and everything else stay in the hover tooltip. */}
+                {compact ? (
+                  isScanStale ? (
+                    <span style={{ fontWeight: 500, color: "var(--pd-fg)" }}>Stuck</span>
+                  ) : (
+                    scanProgress?.counters && (
+                      <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {(scanProgress.counters.candidates_found ?? 0).toLocaleString()}
+                      </span>
+                    )
+                  )
+                ) : (
+                  <>
+                    <span style={{ fontWeight: 500, color: "var(--pd-fg)" }}>
+                      {isScanStale ? "Stuck" : "Scanning"}
+                    </span>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{elapsed}</span>
+                    {scanProgress?.counters && (
+                      <span>· {(scanProgress.counters.candidates_found ?? 0).toLocaleString()} found</span>
+                    )}
+                  </>
                 )}
                 <button
                   type="button"
@@ -694,6 +795,7 @@ export default function LibraryTopBar({
             <TooltipContent side="bottom" className="max-w-[300px]">
               {scanProgress?.counters ? (
                 <div style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <div style={{ fontWeight: 600 }}>{isScanStale ? "Stuck" : "Scanning"} · {elapsed}</div>
                   <div>{(scanProgress.counters.files_total_encountered ?? scanProgress.counters.files_checked ?? 0).toLocaleString()} seen</div>
                   <div>{(scanProgress.counters.candidates_found ?? 0).toLocaleString()} found</div>
                   <div>{(scanProgress.counters.ingested_new ?? 0).toLocaleString()} new</div>
@@ -717,54 +819,6 @@ export default function LibraryTopBar({
         </TooltipProvider>
       )}
 
-      {/* 8. View segmented control */}
-      <div
-        style={{
-          display: "inline-flex",
-          borderRadius: "6px",
-          border: "1px solid var(--pd-border)",
-          overflow: "hidden",
-          flexShrink: 0,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => onViewModeChange("grid")}
-          title="Grid view"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "34px",
-            height: "34px",
-            border: "none",
-            borderRight: "1px solid var(--pd-border)",
-            background: viewMode === "grid" ? "var(--pd-accent-soft)" : "transparent",
-            color: viewMode === "grid" ? "var(--pd-accent)" : "var(--pd-fg-muted)",
-            cursor: "pointer",
-          }}
-        >
-          <LayoutGrid style={{ width: 15, height: 15 }} />
-        </button>
-        <button
-          type="button"
-          onClick={() => onViewModeChange("list")}
-          title="List view"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "34px",
-            height: "34px",
-            border: "none",
-            background: viewMode === "list" ? "var(--pd-accent-soft)" : "transparent",
-            color: viewMode === "list" ? "var(--pd-accent)" : "var(--pd-fg-muted)",
-            cursor: "pointer",
-          }}
-        >
-          <List style={{ width: 15, height: 15 }} />
-        </button>
-      </div>
     </div>
   );
 }

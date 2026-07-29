@@ -1553,7 +1553,7 @@ export default function StylesPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col bg-background">
+    <div className="flex h-[calc(100vh-var(--pd-header-h))] flex-col bg-background">
       <div className="border-b border-border bg-background px-4 py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3">

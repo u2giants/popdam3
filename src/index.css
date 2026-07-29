@@ -9,6 +9,13 @@
   --pd-shadow-md: 0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.05);
   --pd-shadow-lg: 0 8px 24px rgba(0,0,0,.12), 0 4px 8px rgba(0,0,0,.06);
   --acc-h: 264; --acc-c: .17;
+  /* App header height. Kept in a var so page shells can size themselves with
+     h-[calc(100vh-var(--pd-header-h))] and stay correct in compact chrome mode.
+     Must stay in sync with COMPACT_CHROME_QUERY in src/hooks/use-compact-chrome.ts. */
+  --pd-header-h: 3.5rem;
+}
+@media (max-height: 1300px), (max-width: 1700px) {
+  :root { --pd-header-h: 3rem; }
 }
 :root[data-accent="indigo"] { --acc-h: 264; --acc-c: .17; }
 :root[data-accent="teal"]   { --acc-h: 192; --acc-c: .12; }

@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { Constants } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
+import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import CheckoutBar from "@/components/library/CheckoutBar";
 
 // ── File type colours (same palette as AssetGrid) ─────────────
@@ -175,6 +176,7 @@ const WIDE_THRESHOLD = 620;
 
 export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 408 }: AssetDetailPanelProps) {
   const wide = width >= WIDE_THRESHOLD;
+  const compact = useCompactChrome();
   const queryClient = useQueryClient();
   const [editingTags, setEditingTags] = useState(false);
   const [tagInput, setTagInput] = useState("");
@@ -450,7 +452,14 @@ export default function AssetDetailPanel({ asset, onClose, onOpenGroup, width = 
         style={{ width, borderColor: "var(--pd-border)", background: "var(--pd-surface)" }}>
 
         {/* ── Hero 16:10 ────────────────────────────────────────── */}
-        <div className="relative w-full shrink-0" style={{ aspectRatio: "8/5", maxHeight: wide ? 300 : undefined }}>
+        <div
+          className="relative w-full shrink-0"
+          style={{
+            aspectRatio: "8/5",
+            // Short screens: cap the hero so the detail content below can scroll.
+            maxHeight: compact ? "26vh" : wide ? 300 : undefined,
+          }}
+        >
           {asset.thumbnail_url ? (
             <img
               src={asset.thumbnail_url}

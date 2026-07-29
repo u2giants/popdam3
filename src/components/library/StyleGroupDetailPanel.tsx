@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/context-menu";
 import CheckoutBar from "@/components/library/CheckoutBar";
 import { cn } from "@/lib/utils";
+import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { Constants } from "@/integrations/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 
@@ -476,6 +477,7 @@ function skuToHue(sku: string): number {
 
 export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: StyleGroupDetailPanelProps) {
   const wide = width >= WIDE_THRESHOLD;
+  const compact = useCompactChrome();
   const queryClient = useQueryClient();
   const { call: adminApi } = useAdminApi();
   const [localPrimaryId, setLocalPrimaryId] = useState<string | null>(group.primary_asset_id);
@@ -817,7 +819,12 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
           {/* ── Hero (16:10) ──────────────────────────────────── */}
           <div
             className="relative flex-shrink-0 overflow-hidden cursor-pointer"
-            style={{ aspectRatio: "16/10" }}
+            style={{
+              aspectRatio: "16/10",
+              // On short screens a 16:10 hero eats the whole panel and the tab
+              // content below never gets enough height to scroll. Cap it.
+              maxHeight: compact ? "26vh" : undefined,
+            }}
             onClick={() => { if (displayThumbnail) setLightboxUrl(displayThumbnail); }}
           >
             {displayThumbnail ? (
@@ -896,12 +903,16 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
 
           {/* Thumbnail strip */}
           {thumbStrip.length > 1 && (
-            <div className="flex gap-1 overflow-x-auto px-3 py-1.5 bg-[var(--pd-surface-2,hsl(var(--muted)/0.3))] border-b border-[var(--pd-border,hsl(var(--border)))]">
+            <div className={cn(
+              "flex gap-1 overflow-x-auto px-3 bg-[var(--pd-surface-2,hsl(var(--muted)/0.3))] border-b border-[var(--pd-border,hsl(var(--border)))]",
+              compact ? "py-1" : "py-1.5",
+            )}>
               {thumbStrip.map((a, idx) => (
                 <button
                   key={a.id}
                   className={cn(
-                    "h-9 w-9 shrink-0 rounded overflow-hidden border-2 transition-colors",
+                    "shrink-0 rounded overflow-hidden border-2 transition-colors",
+                    compact ? "h-7 w-7" : "h-9 w-9",
                     carouselIndex === idx ? "border-primary" : "border-transparent hover:border-muted-foreground/30"
                   )}
                   onClick={() => { setSelectedAssetId(null); setCarouselIndex(idx); }}
@@ -913,15 +924,24 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
           )}
 
           {/* ── Title block ───────────────────────────────────── */}
-          <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b border-[var(--pd-border,hsl(var(--border)))]">
+          <div className={cn(
+            "flex-shrink-0 px-4 border-b border-[var(--pd-border,hsl(var(--border)))]",
+            compact ? "pt-1.5 pb-1.5" : "pt-3 pb-2",
+          )}>
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1 space-y-0.5">
+              <div className={cn("min-w-0 flex-1", compact ? "space-y-0" : "space-y-0.5")}>
                 {/* Mono SKU */}
-                <p className="font-mono text-[13px] font-[600] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] tracking-tight">
+                <p className={cn(
+                  "font-mono font-[600] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] tracking-tight",
+                  compact ? "text-[11px]" : "text-[13px]",
+                )}>
                   {group.sku}
                 </p>
                 {/* Property name / ERP description */}
-                <p className="text-[19px] font-[800] text-[var(--pd-fg,hsl(var(--foreground)))] leading-tight truncate">
+                <p className={cn(
+                  "font-[800] text-[var(--pd-fg,hsl(var(--foreground)))] leading-tight truncate",
+                  compact ? "text-[15px]" : "text-[19px]",
+                )}>
                   {itemDescription ?? group.sku}
                 </p>
                 {/* WfTag + Category · Stage */}
@@ -975,7 +995,8 @@ export default function StyleGroupDetailPanel({ group, onClose, width = 408 }: S
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     className={cn(
-                      "px-4 py-2.5 text-[13px] transition-colors relative whitespace-nowrap",
+                      "text-[13px] transition-colors relative whitespace-nowrap",
+                      compact ? "px-3 py-1.5" : "px-4 py-2.5",
                       isActive
                         ? "font-[600] text-[var(--pd-fg,hsl(var(--foreground)))]"
                         : "font-[400] text-[var(--pd-fg-muted,hsl(var(--muted-foreground)))] hover:text-[var(--pd-fg,hsl(var(--foreground)))]"

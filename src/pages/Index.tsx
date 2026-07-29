@@ -21,6 +21,7 @@ import { useScanLifecycle } from "@/hooks/useScanLifecycle";
 import { useSelectionManager } from "@/hooks/useSelectionManager";
 import { useResizablePanel } from "@/hooks/useResizablePanel";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useCompactChrome } from "@/hooks/use-compact-chrome";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
@@ -47,6 +48,7 @@ export default function LibraryPage() {
 
   // ── Detail panel resize (side-by-side layout only; below 1400px it overlays)
   const isDesktop = useMediaQuery("(min-width: 1400px)");
+  const compactChrome = useCompactChrome();
   const { width: detailWidth, dragging: detailDragging, reset: resetDetailWidth, handleProps: detailHandleProps } =
     useResizablePanel({
       storageKey: "pd-detail-panel-width",
@@ -160,7 +162,7 @@ export default function LibraryPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+    <div className="flex h-[calc(100vh-var(--pd-header-h))] flex-col">
       <LibraryTopBar
         search={searchInput}
         onSearchChange={handleSearchChange}
@@ -197,9 +199,19 @@ export default function LibraryPage() {
         scanProgress={scanProgress}
         ungroupedCount={isGroupsMode && !hasLibraryFilters ? ungroupedCount : null}
         canManageScan={isAdmin}
+        selectionSlot={
+          compactChrome && isGroupsMode && selectedIds.size > 0 ? (
+            <BulkActionBar
+              variant="inline"
+              selectedGroups={selectedGroups}
+              onClearSelection={() => setSelectedIds(new Set())}
+            />
+          ) : undefined
+        }
       />
 
-      {isGroupsMode && selectedIds.size > 0 && (
+      {/* Roomy screens keep the selection controls on their own row. */}
+      {!compactChrome && isGroupsMode && selectedIds.size > 0 && (
         <BulkActionBar
           selectedGroups={selectedGroups}
           onClearSelection={() => setSelectedIds(new Set())}

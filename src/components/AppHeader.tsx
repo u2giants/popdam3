@@ -45,11 +45,14 @@ import {
   Bell,
   Database,
   ImageDown,
+  MoreHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import { useState } from "react";
 import { CURRENT_APP, IS_POPSG } from "@/lib/app-mode";
+import { useCompactChrome } from "@/hooks/use-compact-chrome";
 
 const popdamNavItems = [
   { to: "/", label: "Library", icon: Library },
@@ -68,6 +71,12 @@ const popsgNavItems = [
 ];
 
 const navItems = IS_POPSG ? popsgNavItems : popdamNavItems;
+
+/**
+ * Nav entries that collapse into a single "More" menu in compact chrome mode,
+ * so the header keeps room for the status cluster on short/narrow screens.
+ */
+const SECONDARY_NAV_LABELS = new Set(["Sell-through", "Master Data", "Setup"]);
 
 const ACCENT_OPTIONS: { value: Accent; label: string; color: string }[] = [
   { value: "indigo", label: "Indigo", color: "#6366f1" },
@@ -351,7 +360,7 @@ function AppearanceButton({
 
 // ---------- Desktop nav ----------
 
-function DesktopNav() {
+function DesktopNav({ compact }: { compact: boolean }) {
   const location = useLocation();
 
   function isNavActive(to: string): boolean {
@@ -359,29 +368,36 @@ function DesktopNav() {
     return location.pathname.startsWith(to);
   }
 
+  const secondary = compact ? navItems.filter((i) => SECONDARY_NAV_LABELS.has(i.label)) : [];
+  const primary = compact ? navItems.filter((i) => !SECONDARY_NAV_LABELS.has(i.label)) : navItems;
+
+  const itemClass = cn(
+    "flex items-center gap-1.5 rounded-md text-sm transition-colors",
+    compact ? "px-2 py-1" : "px-3 py-1.5",
+  );
+
+  function styleFor(active: boolean) {
+    return active
+      ? {
+          background: "var(--pd-accent-soft, var(--accent))",
+          color: "var(--pd-accent-soft-fg, var(--accent-foreground))",
+          fontWeight: 600,
+        }
+      : {
+          color: "var(--pd-fg-muted, var(--muted-foreground))",
+        };
+  }
+
+  const secondaryActive = secondary.some((i) => "to" in i && isNavActive(i.to));
+
   return (
-    <nav className="hidden md:flex items-center gap-0.5 ml-2">
-      {navItems.map((item) => {
+    <nav className={cn("hidden md:flex items-center ml-2", compact ? "gap-0" : "gap-0.5")}>
+      {primary.map((item) => {
         const active = "to" in item ? isNavActive(item.to) : false;
-        const className = "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors";
-        const style = active
-          ? {
-              background: "var(--pd-accent-soft, var(--accent))",
-              color: "var(--pd-accent-soft-fg, var(--accent-foreground))",
-              fontWeight: 600,
-            }
-          : {
-              color: "var(--pd-fg-muted, var(--muted-foreground))",
-            };
 
         if ("href" in item) {
           return (
-            <a
-              key={item.href}
-              href={item.href}
-              className={className}
-              style={style}
-            >
+            <a key={item.href} href={item.href} className={itemClass} style={styleFor(active)}>
               <item.icon className="h-4 w-4" />
               {item.label}
             </a>
@@ -389,17 +405,43 @@ function DesktopNav() {
         }
 
         return (
-          <Link
-            key={item.to}
-            to={item.to}
-            className={className}
-            style={style}
-          >
+          <Link key={item.to} to={item.to} className={itemClass} style={styleFor(active)}>
             <item.icon className="h-4 w-4" />
             {item.label}
           </Link>
         );
       })}
+
+      {secondary.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className={itemClass} style={styleFor(secondaryActive)}>
+              <MoreHorizontal className="h-4 w-4" />
+              More
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48">
+            {secondary.map((item) =>
+              "href" in item ? (
+                <DropdownMenuItem key={item.href} asChild>
+                  <a href={item.href} className="flex items-center gap-2">
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </a>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem key={item.to} asChild>
+                  <Link to={item.to} className="flex items-center gap-2">
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                </DropdownMenuItem>
+              ),
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </nav>
   );
 }
@@ -414,6 +456,7 @@ export default function AppHeader() {
   const agent = useAgentStatus(isRealAdmin);
   const { theme, setTheme, accent, setAccent } = useAppearance();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const compact = useCompactChrome();
 
   const initials = initialsOf(name, email);
 
@@ -434,7 +477,10 @@ export default function AppHeader() {
       )}
 
       <header
-        className="sticky top-0 z-50 flex h-14 items-center justify-between px-4"
+        className={cn(
+          "sticky top-0 z-50 flex items-center justify-between px-4",
+          compact ? "h-12" : "h-14",
+        )}
         style={{
           background: "var(--pd-hdr-bg, var(--background))",
           backdropFilter: "blur(14px)",
@@ -513,17 +559,17 @@ export default function AppHeader() {
           </Link>
 
           {/* Desktop nav — hidden below 720px (Tailwind sm = 640px; we use md = 768px) */}
-          <DesktopNav />
+          <DesktopNav compact={compact} />
         </div>
 
         {/* ---- Right: status + tools + user ---- */}
         <div className="flex items-center" style={{ gap: "8px" }}>
-          {/* Build stamp */}
+          {/* Build stamp — full text on tall screens, sha only when compact */}
           <span
             className="hidden lg:inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground select-all"
-            title="Build info"
+            title={`${__APP_COMMIT__} · ${formatDateTime(__APP_DATE__)}`}
           >
-            {__APP_COMMIT__} · {formatDateTime(__APP_DATE__)}
+            {compact ? __APP_COMMIT__ : `${__APP_COMMIT__} · ${formatDateTime(__APP_DATE__)}`}
           </span>
 
           {/* Sync status pill */}
