@@ -254,9 +254,47 @@ Anon-key `GET` against the preview REST API:
 | `style_tracker_audit_log_with_user` | `206` | `401` |
 | `sg_archive_usage` | `206`, `0-0/749` | `401` |
 
-### Production (`qsllyeztdwjgirsysgai`)
+### Production (`qsllyeztdwjgirsysgai`) — APPLIED 2026-07-29
 
-See the "Production promotion" note appended below when promoted.
+Merged as `35e8dee` (PR #326) and promoted the same day. Promotion used the AGENTS.md
+§5.1 bounded temp checkout: 16 migrations were pending on production, 15 of them belonging
+to other workstreams (ColdLion phases, `core_style_guide_axis`,
+`db_data_admin_tree_plm_division_names`, the ClickUp re-issue and fixes, and
+`20260729120000`). Those 15 files were deleted from the temp checkout only, leaving 358 files
+(357 applied + this one). `supabase db push --dry-run` then named **exactly** this migration,
+and `--include-all` was not needed because `20260729210000` sorts above production's highest
+applied version. **No other workstream was promoted.**
+
+Assertions on production:
+
+```
+NOTICE: OK: public.style_groups -- anon sees 0 rows, authenticated sees 10589 rows.
+NOTICE: OK: anon is denied SELECT on public.style_tracker_rows_with_bridge (42501, as intended).
+NOTICE: OK: anon is denied SELECT on public.style_tracker_audit_log_with_user (42501, as intended).
+NOTICE: OK: anon is denied SELECT on public.sg_archive_usage (42501, as intended).
+NOTICE: OK: authenticated can still read public.style_tracker_rows_with_bridge (15534 rows).
+NOTICE: OK: authenticated can still read public.style_tracker_audit_log_with_user (345 rows).
+NOTICE: OK: authenticated can still read public.sg_archive_usage (760 rows).
+NOTICE: All anon read-leak assertions passed.
+```
+
+Independent end-to-end proof with the **production anon key**:
+
+| Object | Before | After |
+|---|---|---|
+| `style_groups` | `206`, `0-0/10589` | `200`, `*/0`, body `[]` |
+| `style_tracker_rows_with_bridge` | `206`, `0-0/15534` | `401` `42501 permission denied for view` |
+| `style_tracker_audit_log_with_user` | `206`, `0-0/345` | `401` `42501` |
+| `sg_archive_usage` | `206`, `0-0/760` | `401` `42501` |
+
+The `style_groups` policy on production now reads `roles = {authenticated}` (was `{public}`),
+`USING (true)`, name unchanged. The admin policy is unchanged.
+
+**Post-fix full re-sweep of production.** The three views have dropped out of the
+anon-privileged set entirely (53 relations → 50). Every remaining relation was re-probed
+with the anon key: **`admin_config` is the only object that returns any data**, and that is
+the single intentional `SCAN_REQUEST` row described in §4.1. Re-confirmed that **every**
+anon-granted table still has RLS enabled.
 
 ## 7. The pattern to remember
 
