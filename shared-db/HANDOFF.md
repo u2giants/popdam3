@@ -208,7 +208,11 @@ Also adds a **unique index on `btrim(clickup_task_id)`** (non-null, non-blank) s
 | 0 | — | confirmed clean: `locked=false` and `rows_failed=0` were both parsed from the result row |
 | 1 | `EXIT_PARTIAL_FAILURE` | `rows_failed > 0`; watermark NOT advanced, those rows retry next run |
 | 2 | `EXIT_LOCKED` | another importer held the advisory lock; no data moved, re-run later |
-| 3 | `EXIT_UNVERIFIED` | result row unparseable — the write may or may not have happened; inspect the raw output and the latest `ingest.sync_run` row for `source_name='clickup_tasks_api'` before re-running |
+| 3 | `EXIT_UNVERIFIED` | result row unparseable, **or** parsed but not positively confirming `locked === false` and a numeric `rows_failed === 0` — the write may or may not have happened; inspect the raw output and the latest `ingest.sync_run` row for `source_name='clickup_tasks_api'` before re-running |
+
+Note that exit **1** is shared with the top-level `catch` (any thrown fetch/SQL/validation error). That predates this work; codes 2 and 3 are unambiguous.
+
+**Grok-4.5 review of #324 (read-only)** returned PASS WITH CONCERN — no correctness hole on the real `--apply` path, locked-vs-partial precedence preserved from #311, and no in-repo consumer of these exit codes to break. Its three low-severity items were all fixed in the follow-up [#330](https://github.com/u2giants/shared-db/pull/330): the file-header and "two outcomes" comments now list all three non-zero codes; `classifyApplyOutcome` now *positively confirms* clean instead of treating "nothing matched above" as success (so a half-shaped row like `{}` or `rows_failed: null` exits 3, not 0), with both `locked === true` and `locked === false` compared strictly; and tests now cover locked-over-`rows_failed` precedence plus nine half-shaped inputs. 44 tests pass.
 
 #### 5.3 Duplicate migration timestamps silently skip a migration
 

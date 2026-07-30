@@ -22,10 +22,11 @@
 // * NO ROW-BY-ROW JS WRITES. Like every other sync in this repo, JS only builds and
 //   validates the snapshot; all upserting, guarding and run accounting is SQL.
 // * DRY-RUN IS THE DEFAULT. --apply is required to write anything.
-// * EXIT CODES. --apply exits 0 only on a clean, non-locked run. It exits non-zero when
-//   another run held the advisory lock (nothing moved) or when rows_failed > 0 (partial
-//   failure; watermark not advanced), so a scheduled job does not report green on no work.
-//   Dry-run behaviour is unchanged (always exits 0).
+// * EXIT CODES. --apply exits 0 ONLY on a run parsed and confirmed clean (locked=false and
+//   rows_failed=0). It exits 1 on partial failure (rows_failed > 0; watermark not advanced),
+//   2 when another run held the advisory lock (nothing moved), and 3 when the importer result
+//   could not be parsed at all (outcome unverifiable). A scheduled job therefore never reports
+//   green on no work OR on an unconfirmed run. Dry-run behaviour is unchanged (always exits 0).
 //
 // Usage:
 //   CLICKUP_LIST_IDS=a,b,c DATABASE_URL=postgres://... node tools/sync-clickup-tasks.mjs
@@ -53,8 +54,9 @@ export const CLICKUP_WORKSPACE_REF = "op://vibe_coding/clickup.com API credentia
 export const PREVIEW_PROJECT_REF = "rjyboqwcdzcocqgmsyel";
 export const PRODUCTION_PROJECT_REF = "qsllyeztdwjgirsysgai";
 
-// Non-zero exit codes so a scheduled job does not look green when nothing moved. Distinct
-// values distinguish the two "did not complete cleanly" outcomes (defect 5).
+// Non-zero exit codes so a scheduled job does not look green when nothing moved or when the
+// outcome could not be confirmed. Distinct values distinguish the three "did not complete
+// cleanly" outcomes (defect 5).
 export const EXIT_LOCKED = 2;          // another importer held the advisory lock; no data moved
 export const EXIT_PARTIAL_FAILURE = 1; // rows_failed > 0; watermark NOT advanced (rows retried)
 export const EXIT_UNVERIFIED = 3;      // importer result unparseable; locked/rows_failed unconfirmed
@@ -302,7 +304,10 @@ export function classifyApplyOutcome(result) {
         `re-running. Exiting ${EXIT_UNVERIFIED}.\n`,
     };
   }
-  if (result.locked) {
+  // Strict === true: parseImportResult only ever yields a real boolean here (coerceResult),
+  // so a truthy non-boolean means the shape is untrustworthy and belongs in EXIT_UNVERIFIED
+  // below rather than being reported as a confident "another run holds the lock".
+  if (result.locked === true) {
     return {
       exitCode: EXIT_LOCKED,
       message:
@@ -318,7 +323,22 @@ export function classifyApplyOutcome(result) {
         "permanently malformed, add its id to CLICKUP_SKIP_TASK_IDS to stop retrying it.\n",
     };
   }
-  return null;
+  // Positively confirm clean rather than treating "nothing matched above" as success. Reaching
+  // here with a shape parseImportResult would never emit (e.g. locked absent, rows_failed NaN)
+  // means the outcome is still unverified, so it must not fall through to exit 0.
+  const failed = result.rows_failed;
+  const failedIsZero =
+    (typeof failed === "number" || (typeof failed === "string" && failed.trim() !== "")) &&
+    Number(failed) === 0;
+  if (result.locked === false && failedIsZero) return null;
+  return {
+    exitCode: EXIT_UNVERIFIED,
+    message:
+      "ERROR: the ClickUp importer result was present but did not positively confirm a clean run " +
+      `(locked=${JSON.stringify(result.locked)}, rows_failed=${JSON.stringify(result.rows_failed)}). ` +
+      "Treating it as a FAILURE rather than reporting green. Inspect the raw output above and the latest " +
+      `ingest.sync_run row for source_name='${SOURCE_NAME}'. Exiting ${EXIT_UNVERIFIED}.\n`,
+  };
 }
 
 function normalizeResultRow(parsed) {

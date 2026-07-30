@@ -345,6 +345,31 @@ test("classifyApplyOutcome returns null only for a confirmed clean run", () => {
   assert.match(classifyApplyOutcome({ locked: false, rows_failed: 2 }).message, /2 failed row/);
 });
 
+test("classifyApplyOutcome reports locked ahead of rows_failed, as the inline block did", () => {
+  // A locked run moved no data at all, so that is the actionable message even if the row
+  // also carries a non-zero rows_failed counter. Precedence must match PR #311.
+  const outcome = classifyApplyOutcome({ locked: true, rows_failed: 5 });
+  assert.equal(outcome.exitCode, EXIT_LOCKED);
+  assert.match(outcome.message, /advisory lock/);
+});
+
+test("classifyApplyOutcome will not call a half-shaped result clean", () => {
+  // These shapes parseImportResult would never emit, but the exit decision must be
+  // fail-closed on its own rather than relying on its caller to pre-validate.
+  for (const result of [{}, { rows_failed: 0 }, { locked: "false", rows_failed: 0 },
+    { locked: false }, { locked: false, rows_failed: NaN },
+    { locked: false, rows_failed: "abc" }, { locked: false, rows_failed: null },
+    { locked: false, rows_failed: "" }, { locked: false, rows_failed: false }]) {
+    const outcome = classifyApplyOutcome(result);
+    assert.ok(outcome, `must not treat ${JSON.stringify(result)} as a confirmed clean run`);
+    assert.equal(outcome.exitCode, EXIT_UNVERIFIED);
+    assert.notEqual(outcome.exitCode, 0);
+  }
+  assert.equal(classifyApplyOutcome(undefined).exitCode, EXIT_UNVERIFIED);
+  // A numeric-string zero from a text-mode parser is still a genuine clean confirmation.
+  assert.equal(classifyApplyOutcome({ locked: false, rows_failed: "0" }), null);
+});
+
 test("buildFailedSyncRunSql records a durable clickup failure row", () => {
   const sql = buildFailedSyncRunSql("fetch", "HTTP 429");
   assert.match(sql, /insert into ingest\.sync_run/);
