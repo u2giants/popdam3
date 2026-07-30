@@ -1,5 +1,14 @@
 # HANDOFF — shared-db current state
 
+> **Separate workstream, also read if you are touching privileges or promoting to production:**
+> [`fix_public_schema_anon_lockdown.md`](fix_public_schema_anon_lockdown.md) (2026-07-30) — the
+> `public`-schema anonymous-access lockdown. That work is **complete and live on production**;
+> the file covers five non-urgent follow-ups. Two things in it affect *this* workstream:
+> **(a)** `20260729120000` is still pending on production and must be promoted **with or after**
+> the ClickUp migrations (`20260728174500`), never before, or the apply aborts with
+> `undefined_function`; **(b)** new functions in `public` are now locked down by default, so
+> every migration must state its grants explicitly — see `AGENTS.md` §10.2.
+
 ## FRESH-SESSION BOUNDARY — ClickUp importer + duplicate-timestamp remediation (2026-07-29)
 
 **Written:** 2026-07-29. **Author:** AI session working from `/worksp/poppim-web`.
