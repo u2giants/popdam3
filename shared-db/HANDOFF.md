@@ -189,7 +189,7 @@ There are **no** rows with a null `external_source`. The backfill claimed nothin
 
 Data quality made the fix safe: **17,909 distinct `clickup_task_id` values over 17,909 rows, zero duplicates, and no id appearing under more than one `external_source`.**
 
-**Fix (commit `0783254`):** resolve each incoming task by trimmed `clickup_task_id` **first** and update that row in place, leaving `external_source`/`external_id` untouched (the Directus key stays as the historical record). The ClickUp-key upsert remains but only as the new-task path. The dead backfill is removed. New counters `rows_matched_by_clickup_task_id`, `rows_matched_by_clickup_key`, `rows_matched_foreign_source` plus a per-source breakdown make legacy matching **visible** rather than inferred.
+**Fix (commit `0783254`):** resolve each incoming task by trimmed `clickup_task_id` **first** and update that row in place, leaving `external_source`/`external_id` untouched (the legacy identifier written by the one-time, long-since-decommissioned Directus import is left in place on the row as historical data). The ClickUp-key upsert remains but only as the new-task path. The dead backfill is removed. New counters `rows_matched_by_clickup_task_id`, `rows_matched_by_clickup_key`, `rows_matched_foreign_source` plus a per-source breakdown make legacy matching **visible** rather than inferred.
 
 Also adds a **unique index on `btrim(clickup_task_id)`** (non-null, non-blank) so this cannot silently recur. **This is a shared-schema change affecting all four apps** — see §7.
 
