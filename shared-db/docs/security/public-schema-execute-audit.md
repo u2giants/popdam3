@@ -299,11 +299,14 @@ no-op, because `20260728174500` sorts before it.
    remote maximum version. Always diff every local filename against every
    `schema_migrations` row instead. (AGENTS.md §5 already warns about this; the warning is
    correct and was load-bearing here.)
-2. **Duplicate migration version `20260728160000`.** Two files share it —
-   `clickup_incremental_task_import` and `popdam_user_tables_foreign_keys`. The CLI matches
-   the ledger row to one and then tries forever to push the other, failing on
-   `schema_migrations_pkey`. This will snag every future push until one is renamed. On
-   production the applied one is `popdam_user_tables_foreign_keys`.
+2. **Duplicate migration version `20260728160000` — RESOLVED 2026-07-29, no action needed.**
+   Two files shared that version (`clickup_incremental_task_import` and
+   `popdam_user_tables_foreign_keys`). The CLI matched the ledger row to one and then tried
+   to push the other on every run, failing on `schema_migrations_pkey`. It had to be worked
+   around four times during this session. A separate session fixed it; verified afterwards:
+   373 migration files, 373 unique version prefixes, no orphan ledger rows. On production
+   the applied one is `popdam_user_tables_foreign_keys`. Kept here only so the workarounds
+   referenced elsewhere in this document make sense.
 
    **RESOLVED 2026-07-29** — `20260728160000_clickup_incremental_task_import.sql` was
    **deleted**. Rationale, verified before deciding:

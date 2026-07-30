@@ -582,6 +582,7 @@ Item IDs can be re-keyed by 1Password, so if that ID 404s, re-resolve it with
 - Migration risks: [`docs/unified-supabase-migration-gaps.md`](docs/unified-supabase-migration-gaps.md)
 - CRM production cutover (migrations promoted, Azure OAuth, auto-provision, data import): [`docs/app-migration-notes/popcrm-web-production-cutover-20260621.md`](docs/app-migration-notes/popcrm-web-production-cutover-20260621.md)
 - CRM crm.* direct-write DML grants (fixes Triage 42501 on department create; RLS ≠ grant): [`docs/app-migration-notes/popcrm-web-20260716.md`](docs/app-migration-notes/popcrm-web-20260716.md)
+- **`public` schema anon lockdown (2026-07-29) — read before creating a function or a view in `public`:** [`docs/security/public-schema-execute-audit.md`](docs/security/public-schema-execute-audit.md) (EXECUTE grants; 88 of 99 SECURITY DEFINER functions were anon-callable) and [`docs/security/public-schema-anon-read-audit.md`](docs/security/public-schema-anon-read-audit.md) (table/view reads; ~27,000 rows were anon-readable). Summarised as a standing rule in §10.2 above.
 - **PopDAM access — read before granting/revoking/debugging a user's access:** [`docs/popdam-access-provisioning.md`](docs/popdam-access-provisioning.md). Permissions run on **three independent axes across two schemas**. `public.app_access('popdam')` alone lets someone log in and **see nothing**: every `core.*`/`api.*` policy is **app-schema** gated (`app.has_any_role(...)`), so a user with no active `app.user_role` gets `HTTP 200` with an empty array — success-shaped and data-free. On 2026-07-26, **18 of 35 PopDAM users** were in exactly that state.
 
 ## 10.1 Clean-slate local replay is unsupported — use the dependency closure
@@ -629,6 +630,56 @@ preview remain the authoritative gates.
 project from nothing. That is a disaster-recovery gap, not a day-to-day one. Closing it
 would need a checked-in baseline schema dump (new file outside `migrations/`, so it would
 not violate the never-edit-a-prior-migration rule). Not done as of 2026-07-29.
+
+## 10.2 Grants in `public` are locked down by default (added 2026-07-29 — READ THIS BEFORE CREATING A FUNCTION)
+
+**A behaviour change landed on preview AND production on 2026-07-29. It affects every
+migration that creates a function in `public`, in every workstream.**
+
+An event trigger, `lock_down_new_public_function_execute_trg`, now fires on every
+`CREATE FUNCTION` / `CREATE PROCEDURE` in schema `public` and immediately revokes EXECUTE
+from **PUBLIC and `anon`**. The `public`-schema default privileges for role `postgres` no
+longer grant EXECUTE to `anon`/`authenticated` either.
+
+**What this means for you:** a new function in `public` is reachable by **nobody except
+`postgres` and `service_role`** unless your migration grants it explicitly. Always state
+the grant:
+
+```sql
+create or replace function public.f(...) ... ;
+
+revoke execute on function public.f(...) from public, anon, authenticated;
+grant  execute on function public.f(...) to service_role;   -- and/or authenticated
+```
+
+Notes and traps:
+
+- The trigger revokes `anon`/PUBLIC only — **never `authenticated`** — deliberately, so a
+  later `create or replace` that merely patches a function body cannot silently strip an
+  app-facing grant. Do not "improve" it to include `authenticated`.
+- Because `create or replace` reports the `CREATE FUNCTION` tag, it **does** re-strip
+  `anon`. If a function must genuinely be anon-callable, re-grant *after* the create.
+- Its failures are `raise warning` only, so a failed revoke shows up in the Postgres log
+  and nowhere else. There is **no automated alarm yet** that the lockdown still holds.
+- `anon` holds schema `USAGE` on **`public` only** — every other schema is closed to it at
+  the schema level. That is why `public` is the schema that matters here.
+- **Views ignore RLS unless created with `security_invoker = true`.** A view owned by
+  `postgres` (which is `BYPASSRLS`) runs as owner and defeats the RLS on its base tables,
+  and a view has no RLS of its own — so the GRANT is the only guard. Three views leaked
+  ~16,600 rows to `anon` this way. When you add a view over an RLS-protected table, either
+  set `security_invoker = true` or revoke `anon`/PUBLIC explicitly, and verify with the
+  anon key.
+
+Full background, the audit queries to re-run, and what was deliberately left alone:
+[`docs/security/public-schema-execute-audit.md`](docs/security/public-schema-execute-audit.md)
+and [`docs/security/public-schema-anon-read-audit.md`](docs/security/public-schema-anon-read-audit.md).
+
+**Still pending on production:** `20260729120000_lock_down_public_security_definer_execute.sql`
+hard-codes `revoke ... on function public.sync_clickup_tasks(...)`, which does not exist on
+production yet. Promote it **together with or after** the ClickUp migrations
+(`20260728174500...`), never before, or the apply aborts with `undefined_function`. Its
+production-safe equivalent (`20260729130000`) is already applied, so nothing is exposed in
+the meantime.
 
 ## 11. Hosted-Supabase gotchas (do not relearn these the hard way)
 
