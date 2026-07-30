@@ -584,6 +584,52 @@ Item IDs can be re-keyed by 1Password, so if that ID 404s, re-resolve it with
 - CRM crm.* direct-write DML grants (fixes Triage 42501 on department create; RLS ≠ grant): [`docs/app-migration-notes/popcrm-web-20260716.md`](docs/app-migration-notes/popcrm-web-20260716.md)
 - **PopDAM access — read before granting/revoking/debugging a user's access:** [`docs/popdam-access-provisioning.md`](docs/popdam-access-provisioning.md). Permissions run on **three independent axes across two schemas**. `public.app_access('popdam')` alone lets someone log in and **see nothing**: every `core.*`/`api.*` policy is **app-schema** gated (`app.has_any_role(...)`), so a user with no active `app.user_role` gets `HTTP 200` with an empty array — success-shaped and data-free. On 2026-07-26, **18 of 35 PopDAM users** were in exactly that state.
 
+## 10.1 Clean-slate local replay is unsupported — use the dependency closure
+
+Applying every migration in filename order against an empty local Postgres **cannot
+work, and never could**. This is by design, not a bug, and not something to "fix".
+
+Roughly 170 of the migration files are intentionally **empty markers**. They exist so
+the Supabase CLI ledger lines up with objects that were created *before* `shared-db`
+became canonical (legacy PopDAM/DesignFlow tables). Nothing in this repo ever creates
+those objects. So on a from-scratch database, every later migration that references one
+fails. A full replay produces ~63 failures of exactly this class: `assets`,
+`style_groups`, `style_guide_files`, `style_tracker_rows`, `licensors`, `user_roles`,
+`admin_config`, the `dflow.sample*` / `plm.sample*` families, `has_app_access()`, and
+`supabase_migrations.schema_migrations`.
+
+**Do not read this as a migration ordering bug.** Two separate AI sessions burned time
+concluding that `20260323165935_assets_updated_at_trigger.sql` ran before
+`20260326212850_assets_add_updated_at_column.sql`. Both of those files are empty markers.
+They cannot fail. The filenames merely look misordered.
+
+**Deploys are not affected.** CI links to a live project and runs `supabase db push`,
+which applies only migrations missing from that project's ledger. The markers are already
+recorded there, so they are skipped. Production remains dry-run + allowlist bounded.
+
+**To exercise a migration locally**, apply only its dependency closure, not the whole set.
+For anything touching the core domain tables that is:
+
+```
+20260621150714_foundation.sql
+20260621150815_app_core.sql
+20260621151024_domain_tables.sql
+20260621151155_api_rls_realtime.sql
+<your migration>
+```
+
+plus a shim for what hosted Supabase provides and stock Postgres does not: schema `auth`
+with a minimal `auth.users` table and `auth.jwt()` / `auth.uid()` / `auth.role()`
+functions, and the roles `service_role`, `authenticated`, `anon`, `supabase_admin`
+(some migrations also want `authenticator`, an `extensions` schema with `pg_trgm`, and
+`storage` tables). `scripts/check-sql.sh` plus `supabase db push --dry-run` against
+preview remain the authoritative gates.
+
+**Known limitation:** because of the above, this repo alone cannot rebuild the shared
+project from nothing. That is a disaster-recovery gap, not a day-to-day one. Closing it
+would need a checked-in baseline schema dump (new file outside `migrations/`, so it would
+not violate the never-edit-a-prior-migration rule). Not done as of 2026-07-29.
+
 ## 11. Hosted-Supabase gotchas (do not relearn these the hard way)
 
 These bit the CRM production cutover (2026-06-21). PM/PIM will hit the same ones.
