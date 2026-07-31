@@ -1,13 +1,15 @@
 -- Rollback-safe contract tests for
--- 20260731210000_core_licensor_alias.sql
+--   20260731210000_core_licensor_alias.sql                          (the table + NBC ruling)
+--   20260731220000_licensor_alias_owner_approval_remaining_five.sql (the five-alias ruling)
 --
 -- Run against a disposable DB or preview AFTER the migration is applied.
 -- Every fixture rolls back. Do not run as a long-lived production session.
 --
 -- Proves, in order:
 --   A. The ten seeded aliases exist, resolve to the intended canonical Licensor, and
---      carry exactly the provenance they are supposed to: the seven inherited from the
---      worker code array are inherited_unverified, and ONLY the NBC family is approved.
+--      carry exactly the provenance they are supposed to: the EIGHT Albert actually ruled
+--      on are owner_approved, and the two dormant ones (Nickelodeon, Viacom) — which he
+--      was told needed no decision and did not rule on — stay inherited_unverified.
 --   B. Normalization matches the frozen popsg-property-observation-v1 behaviour that
 --      produced the blast-radius corpus (same function as core.property_alias).
 --   C. Conflicting/duplicate aliases are rejected: one normalized string may never
@@ -17,6 +19,12 @@
 --   E. Dormant rows are flagged, and dormancy requires evidence.
 --   F. The public-schema lockdown did not leave the read path ungranted
 --      (AGENTS.md section 10.2 -- the failure mode that looks like success).
+--   G. Albert's NBC-family ruling of 2026-07-31.
+--   H. Albert's five-live-alias ruling of 2026-07-31 ("all correct"), including that the
+--      approval date reads as 2026-07-31 in BOTH UTC and the server's local timezone, that
+--      the Sesame Workshop company-vs-show caveat he was given before ruling survives in
+--      the evidence, and that neither the two dormant rows nor the NBC family were
+--      disturbed.
 
 begin;
 
@@ -54,11 +62,14 @@ begin
       ('NBC Universal',      'NBC',               false,  'owner_approved'),
       ('NBCU',               'NBC',               true,   'owner_approved'),
       ('NBCUniversal',       'NBC',               true,   'owner_approved'),
-      ('Marvel Style Guide', 'Marvel',            false,  'inherited_unverified'),
-      ('One Piece',          'TOEI - ONE PIECE',  false,  'inherited_unverified'),
-      ('Peanuts',            'Peanuts Worldwide', false,  'inherited_unverified'),
-      ('Sesame Workshop',    'Sesame Street',     false,  'inherited_unverified'),
-      ('Paramount',          'Viacom Multi',      false,  'inherited_unverified'),
+      -- The five LIVE aliases: approved by Albert on 2026-07-31 ("all correct"),
+      -- recorded by 20260731220000. See section H.
+      ('Marvel Style Guide', 'Marvel',            false,  'owner_approved'),
+      ('One Piece',          'TOEI - ONE PIECE',  false,  'owner_approved'),
+      ('Peanuts',            'Peanuts Worldwide', false,  'owner_approved'),
+      ('Sesame Workshop',    'Sesame Street',     false,  'owner_approved'),
+      ('Paramount',          'Viacom Multi',      false,  'owner_approved'),
+      -- The two DORMANT aliases: no ruling was given, none may be inferred.
       ('Nickelodeon',        'Viacom Multi',      true,   'inherited_unverified'),
       ('Viacom',             'Viacom Multi',      true,   'inherited_unverified')
     ) as s(alias, target, dormant, expected_status)
@@ -105,36 +116,41 @@ begin
     end if;
   end loop;
   raise notice 'A1. PASS - all 10 aliases resolve to their intended canonical Licensor';
-  raise notice 'A2. PASS - provenance is exact per row: NBC family approved, the rest inherited';
+  raise notice 'A2. PASS - provenance is exact per row: the eight ruled-on approved, the two dormant inherited';
   raise notice 'E1. PASS - dormant rows are flagged with evidence';
 
-  -- A3. NOTHING outside the NBC family claims owner approval. This is the guard against
-  -- a later session quietly ratifying Marvel or Paramount on the back of Albert's NBC
-  -- ruling, which covered the NBC family and nothing else.
+  -- A3. NOTHING outside the EIGHT aliases Albert actually ruled on claims owner approval.
+  -- Albert gave two rulings, both on 2026-07-31: the NBC family (three rows), and the five
+  -- live aliases ("all correct"). He gave no ruling on anything else, and none may be
+  -- inferred. This is the guard against a later session quietly ratifying a row on the
+  -- back of a ruling that did not cover it.
   select count(*) into v_count
     from core.licensor_alias
    where approval_status = 'owner_approved'
-     and alias not in ('NBC Universal', 'NBCU', 'NBCUniversal');
+     and alias not in ('NBC Universal', 'NBCU', 'NBCUniversal',
+                       'Marvel Style Guide', 'One Piece', 'Peanuts',
+                       'Sesame Workshop', 'Paramount');
   if v_count <> 0 then
     raise exception
-      'A3. FAIL - % row(s) outside the NBC family claim owner approval. Albert ruled only on NBC.',
-      v_count;
+      'A3. FAIL - % row(s) outside the eight Albert ruled on claim owner approval.', v_count;
   end if;
-  raise notice 'A3. PASS - only the NBC family is owner-approved';
+  raise notice 'A3. PASS - only the eight ruled-on aliases are owner-approved';
 
-  -- A4. The seven inherited aliases are all still present and all still unverified,
-  -- by name. A count alone would not notice a swap.
+  -- A4. The two DORMANT aliases are still present and still unverified, BY NAME, with no
+  -- approval fields at all. A count alone would not notice a swap. These two carry zero
+  -- measured files and were explicitly presented to Albert as needing no decision; he did
+  -- not rule on them, so they must not drift into looking ratified.
   select count(*) into v_count
     from core.licensor_alias
    where approval_status = 'inherited_unverified'
-     and alias in ('Marvel Style Guide', 'One Piece', 'Peanuts', 'Sesame Workshop',
-                   'Paramount', 'Nickelodeon', 'Viacom');
-  if v_count <> 7 then
+     and approved_by is null and approved_at is null and approval_evidence is null
+     and alias in ('Nickelodeon', 'Viacom');
+  if v_count <> 2 then
     raise exception
-      'A4. FAIL - expected all 7 non-NBC inherited aliases to remain inherited_unverified, found %',
-      v_count;
+      'A4. FAIL - expected Nickelodeon and Viacom to remain inherited_unverified with no '
+      'approval fields, found % of 2', v_count;
   end if;
-  raise notice 'A4. PASS - all 7 non-NBC aliases remain inherited_unverified';
+  raise notice 'A4. PASS - Nickelodeon and Viacom remain inherited_unverified';
 
   -- ==========================================================================
   -- B. Normalization matches the frozen corpus behaviour
@@ -549,6 +565,154 @@ begin
     raise exception 'G6. FAIL - resolve_licensor_alias(''NBCUniversal'') does not return canonical NBC';
   end if;
   raise notice 'G6. PASS - NBCU and NBCUniversal now resolve through the alias table';
+
+  -- ==========================================================================
+  -- H. The five LIVE aliases -- Albert's second owner ruling of 2026-07-31
+  --    (migration 20260731220000_licensor_alias_owner_approval_remaining_five.sql)
+  -- ==========================================================================
+  -- Albert was shown this exact table --
+  --   Marvel Style Guide | Marvel            | 14,636
+  --   One Piece          | TOEI - ONE PIECE  |  8,383
+  --   Peanuts            | Peanuts Worldwide |  3,509
+  --   Sesame Workshop    | Sesame Street     |  1,630
+  --   Paramount          | Viacom Multi      |  9,052
+  -- -- and asked "Is that correct?". He answered, verbatim: "all correct".
+  --
+  -- He was told BEFORE ruling that Sesame Workshop -> Sesame Street was the mapping that
+  -- would be scrutinised hardest, being the only COMPANY-name -> SHOW-name direction while
+  -- the other four run the other way. He approved it anyway. H2 pins that caveat into the
+  -- stored evidence so the reasoning behind the decision cannot quietly fall out of the
+  -- record.
+
+  -- H1. All five are owner_approved, attributed to Albert, with ALL THREE approval fields
+  -- populated. Asserted per alias BY NAME, so a swap cannot hide behind a count.
+  foreach v_norm in array array['Marvel Style Guide', 'One Piece', 'Peanuts',
+                                'Sesame Workshop', 'Paramount']
+  loop
+    select count(*) into v_count
+      from core.licensor_alias
+     where alias = v_norm
+       and approval_status = 'owner_approved'
+       and approved_by = 'Albert Hazan'
+       and approved_at is not null
+       and approval_evidence is not null;
+    if v_count <> 1 then
+      raise exception
+        'H1. FAIL - alias % is not owner_approved by Albert Hazan with a complete audit trail',
+        quote_literal(v_norm);
+    end if;
+  end loop;
+  raise notice 'H1. PASS - all five live aliases are owner_approved by Albert Hazan';
+
+  -- H2. The evidence carries his ruling VERBATIM, the exact question he was asked, the
+  -- date, the file counts he was shown, and the Sesame Workshop caveat. An approval whose
+  -- evidence has been softened into a vague summary is not this approval any more.
+  select count(*) into v_count
+    from core.licensor_alias
+   where alias in ('Marvel Style Guide', 'One Piece', 'Peanuts', 'Sesame Workshop', 'Paramount')
+     and approval_evidence like '%"all correct"%'          -- the verbatim ruling
+     and approval_evidence like '%Is that correct?%'       -- the verbatim question
+     and approval_evidence like '%2026-07-31%'             -- the date it was given
+     and approval_evidence like '%14,636%'                 -- the table he was shown
+     and approval_evidence like '%1,630%'
+     and approval_evidence like '%COMPANY name to a SHOW name%';  -- the Sesame caveat
+  if v_count <> 5 then
+    raise exception
+      'H2. FAIL - expected all 5 rows to quote "all correct" verbatim, the question asked, '
+      'the date, the file counts shown, and the Sesame Workshop company-vs-show caveat; '
+      'found % complete', v_count;
+  end if;
+  raise notice 'H2. PASS - evidence carries the verbatim ruling, the question, and the Sesame caveat';
+
+  -- H3. THE DATE IS RIGHT IN BOTH TIMEZONES. This database runs America/New_York, so a
+  -- ruling stored at midnight UTC reads back through `approved_at::date` as 2026-07-30 and
+  -- the audit trail would name the wrong day for Albert's decision. Both assertions must
+  -- hold simultaneously, which is what forces the stored value off the midnight boundary
+  -- (it is pinned at 12:00 UTC). Same failure that contract test G3 caught for the NBC
+  -- family during the 20260731210000 preview rehearsal.
+  select count(*) into v_count
+    from core.licensor_alias
+   where alias in ('Marvel Style Guide', 'One Piece', 'Peanuts', 'Sesame Workshop', 'Paramount')
+     and (approved_at at time zone 'UTC')::date = date '2026-07-31'   -- explicit UTC
+     and approved_at::date = date '2026-07-31';                       -- server-local
+  if v_count <> 5 then
+    raise exception
+      'H3. FAIL - expected all 5 approvals to date as 2026-07-31 in BOTH UTC and the '
+      'server''s local timezone; found %. A midnight-UTC value misdates the ruling to '
+      '2026-07-30 for a New York reader.', v_count;
+  end if;
+  raise notice 'H3. PASS - the approval date reads as 2026-07-31 in both UTC and server-local time';
+
+  -- H4. Nickelodeon and Viacom were NOT swept up. Stated again here, next to the ruling
+  -- that could plausibly have over-reached, and BY NAME.
+  foreach v_norm in array array['Nickelodeon', 'Viacom']
+  loop
+    select approval_status into v_status
+      from core.licensor_alias where alias = v_norm;
+    if v_status <> 'inherited_unverified' then
+      raise exception
+        'H4. FAIL - % is recorded as %, expected inherited_unverified. It is dormant '
+        '(zero measured files), Albert was told it needed no decision, and he did not rule '
+        'on it. Approving it would invent a ruling he never gave.',
+        quote_literal(v_norm), v_status;
+    end if;
+  end loop;
+  raise notice 'H4. PASS - Nickelodeon and Viacom were not swept into the five-alias ruling';
+
+  -- H5. The NBC family's EARLIER approval survived intact -- same approver, same date,
+  -- still quoting the NBC ruling and NOT the five-alias one. Asserted by name so a later
+  -- bulk re-approval that overwrote their evidence would be caught.
+  foreach v_norm in array array['NBC Universal', 'NBCU', 'NBCUniversal']
+  loop
+    select count(*) into v_count
+      from core.licensor_alias
+     where alias = v_norm
+       and approval_status = 'owner_approved'
+       and approved_by = 'Albert Hazan'
+       and (approved_at at time zone 'UTC')::date = date '2026-07-31'
+       and approved_at::date = date '2026-07-31'
+       and approval_evidence like
+           '%NBC Universal really means NBC, really means NBCU, really means NBCUniversal%';
+    if v_count <> 1 then
+      raise exception
+        'H5. FAIL - the NBC-family approval on % was disturbed. It must still be '
+        'owner_approved by Albert Hazan, dated 2026-07-31, quoting the NBC ruling verbatim.',
+        quote_literal(v_norm);
+    end if;
+  end loop;
+  raise notice 'H5. PASS - the NBC family''s existing approval is untouched';
+
+  -- H6. The eight approvals did not change any ROUTING. Approval is an audit act, not a
+  -- remapping: each of the five still resolves to exactly the canonical Licensor it
+  -- resolved to before, and is still not dormant.
+  for v_seed in
+    select * from (values
+      ('Marvel Style Guide', 'Marvel'),
+      ('One Piece',          'TOEI - ONE PIECE'),
+      ('Peanuts',            'Peanuts Worldwide'),
+      ('Sesame Workshop',    'Sesame Street'),
+      ('Paramount',          'Viacom Multi')
+    ) as s(alias, target)
+  loop
+    select l.id into v_target
+      from core.licensor l
+     where core.normalize_popsg_property_observation(l.name)
+             = core.normalize_popsg_property_observation(v_seed.target)
+        or core.normalize_popsg_property_observation(coalesce(l.code, ''))
+             = core.normalize_popsg_property_observation(v_seed.target);
+
+    if public.resolve_licensor_alias(v_seed.alias) is distinct from v_target then
+      raise exception
+        'H6. FAIL - approving % changed where it routes. Approval is an audit act and must '
+        'not remap anything; it should still resolve to %.',
+        quote_literal(v_seed.alias), v_seed.target;
+    end if;
+
+    if (select is_dormant from core.licensor_alias where alias = v_seed.alias) then
+      raise exception 'H6. FAIL - live alias % was flagged dormant', quote_literal(v_seed.alias);
+    end if;
+  end loop;
+  raise notice 'H6. PASS - approval changed the audit record only; routing is unchanged';
 
   raise notice '';
   raise notice 'ALL core.licensor_alias CONTRACT TESTS PASSED';

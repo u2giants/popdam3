@@ -1728,9 +1728,12 @@ holds ~15 deliberately unpromoted migrations from other workstreams — never `-
   **UPDATE 2026-07-31 — half-answered, see PSG-5a below.** Albert chose to MIGRATE them into
   `core.licensor_alias` (plan §22.13). He did NOT ratify that any individual mapping is correct;
   all eight were recorded `inherited_unverified`. **Then, later the same day, he ruled on the NBC
-  family only — see PSG-5b below.** Current state: **10 rows, 3 `owner_approved` (NBC Universal,
-  NBCU, NBCUniversal), 7 `inherited_unverified`.** The correctness question is still open for
-  those 7: Marvel Style Guide, One Piece, Peanuts, Sesame Workshop, Paramount, Nickelodeon, Viacom.
+  family only — see PSG-5b below.** **UPDATE 2026-07-31, LATER STILL — NOW FULLY ANSWERED, see
+  PSG-5c below.** Albert then ruled "all correct" on the five remaining LIVE aliases (Marvel Style
+  Guide, One Piece, Peanuts, Sesame Workshop, Paramount). Current state: **10 rows, 8
+  `owner_approved`, 2 `inherited_unverified`** — and the two remaining (`Nickelodeon`, `Viacom`) are
+  dormant with a measured zero files, were presented to him as needing no decision, and were
+  deliberately left unruled. **This owner gate is CLOSED; do not re-ask Albert about it.**
 - No at-risk removal subset has owner approval, and none should be inferred.
 
 ### PSG-5a (2026-07-31) — the eight `LICENSOR_ALIASES` moved from code into `core.licensor_alias`
@@ -1878,6 +1881,78 @@ was called. **The PR is left OPEN and unmerged.**
 - Consider a single `public.resolve_licensor(text)` that does canonical-name/code match first and
   alias fallback second, mirroring the worker. Today callers must implement that two-step order
   themselves, which is exactly how `NBC` could be mistaken for an unresolved string.
+
+### PSG-5c (2026-07-31) — Albert's SECOND ruling: the five remaining LIVE aliases approved
+
+**⚠️ This supersedes the "7 still `inherited_unverified`" statements in PSG-5a and PSG-5b above.**
+Current state is **10 rows: 8 `owner_approved`, 2 `inherited_unverified`.** The owner gate on the
+Licensor aliases (plan §13 decision 7 / §22.6) is **CLOSED**.
+
+**The ruling, verbatim, given by Albert in session on 2026-07-31.** He was shown this exact table:
+
+| Folder says | Filed under canonical Licensor | Files (frozen measurement) |
+| --- | --- | --- |
+| Marvel Style Guide | Marvel | 14,636 |
+| One Piece | TOEI - ONE PIECE | 8,383 |
+| Peanuts | Peanuts Worldwide | 3,509 |
+| Sesame Workshop | Sesame Street | 1,630 |
+| Paramount | Viacom Multi | 9,052 |
+
+and asked, verbatim, **"Is that correct?"**. He answered, verbatim:
+
+> "all correct"
+
+**THE CAVEAT HE WAS GIVEN BEFORE HE RULED — AND RULED ANYWAY.** He was told explicitly, before
+answering, that **Sesame Workshop → Sesame Street was the one mapping that would be scrutinised
+hardest, because it is the only mapping from a COMPANY name to a SHOW name while the other four run
+the other way.** He approved it anyway, with that flag in front of him. This is recorded verbatim in
+the `approval_evidence` of all five rows and pinned by contract test **H2**, so a future reader can
+see the odd one out was named as odd and accepted with eyes open — not slipped through in a batch.
+**Do not "re-open" Sesame Workshop on the grounds that it looks inconsistent. That inconsistency was
+put to the owner and accepted.**
+
+**Implemented as a NEW FORWARD migration**, `20260731220000_licensor_alias_owner_approval_remaining_five.sql`,
+branch `feat/licensor-alias-owner-approval-20260731`. `20260731210000` was NOT edited — it is merged
+to `main` and already applied to preview, so editing it is both forbidden (AGENTS.md §4 rule 4) and
+inert (the ledger keys on the version, so an edited file at a recorded version never re-runs).
+
+**Recorded through `public.approve_licensor_alias()`**, the sanctioned path, not by writing the
+approval columns. `approved_by` = `Albert Hazan`. `approved_at` pinned to
+`2026-07-31 12:00:00+00` — **midday UTC, not midnight, for the same load-bearing reason as PSG-5b
+item 2**: the database runs `America/New_York`, so a midnight-UTC value reads back through
+`approved_at::date` as **2026-07-30** and would misdate the owner's decision. Contract test **H3**
+asserts the date in explicit UTC *and* in server-local time simultaneously, which is what forces the
+value off the midnight boundary. Verified on preview: `show timezone` → `America/New_York`, and all
+eight approved rows read `2026-07-31` in both.
+
+**Nickelodeon and Viacom were deliberately NOT approved** and remain `inherited_unverified` with all
+three approval fields NULL. Both are dormant with a measured **zero** files in the frozen PSG-1
+corpus; they were presented to Albert as needing no decision and **he did not rule on them.**
+Approving them would invent a ruling he never gave. Tests **A4** and **H4** pin this **by name**.
+
+**Tests.** `supabase/tests/core_licensor_alias_contracts.sql` extended with **section H** (H1–H6) and
+sections A2/A3/A4 updated to the new expected state. All assertions are by name, never by count
+alone. **All 40 assertions pass** against the applied preview baseline (`BEGIN … ROLLBACK`). H5
+specifically re-asserts that the NBC family's earlier approval is untouched — same approver, same
+date, still quoting the NBC ruling and not the five-alias one. H6 asserts that approving changed
+**routing not at all**: approval is an audit act, and each alias still resolves where it always did.
+
+**Preview.** Dry-run listed **only** `20260731220000_…`; applied to `rjyboqwcdzcocqgmsyel` with
+`project-ref` confirmed before every push; `--include-all` never used. Production
+`qsllyeztdwjgirsysgai` was never linked, queried or pushed to, and **no Supabase MCP tool was
+called**. **The PR is left OPEN and unmerged.**
+
+**⚠️ STILL NO RUNTIME EFFECT — READ BEFORE ASSUMING ANYTHING CHANGED.** The PopDAM worker
+(`u2giants/popdam3`, `apps/worker/src/handlers/popsg-tags.ts`) continues to resolve Licensor strings
+from its own hard-coded `LICENSOR_ALIASES` array. It does not read `core.licensor_alias`, and nothing
+in `shared-db` can make it. Until that worker is switched over to `public.resolve_licensor_alias()`
+(plan §22.13 cutover), this migration changes the **audit record only** — it records that a human
+ratified five mappings that were already in force. No file is re-routed and no tag is recomputed.
+That repository was deliberately not modified.
+
+**What this unblocks.** The owner gate was the last *decision* blocking the PSG-5 rebuild. Every
+alias now either carries an owner ruling or is dormant-with-zero-files by measurement. The remaining
+PSG-5 work is execution, not authorisation — see the updated open-questions bullet above.
 
 ### Self-audit
 
