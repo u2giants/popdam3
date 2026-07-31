@@ -9,6 +9,16 @@
 > `undefined_function`; **(b)** new functions in `public` are now locked down by default, so
 > every migration must state its grants explicitly — see `AGENTS.md` §10.2.
 
+> **Separate workstream, unfinished, does NOT touch this one's migrations:** characters and style
+> guides. Phases 0–2 are complete (schema live and **empty** on preview, production untouched);
+> **Phase 3 is blocked** on a second licensing round sent 2026-07-31 and on an owner ruling for
+> the missing property codes `EX` / `LB` / `JL`. **Read the STATUS table at the top of
+> [`fix_characters_style_guides.md`](fix_characters_style_guides.md) first — do not re-derive the
+> phases.** Cross-workflow context, including the failed paths, is in
+> [`coordinator_take_over.md`](coordinator_take_over.md). **Phase 3 writes rows into three shared
+> tables when it runs, so it must be scheduled by whoever owns collision control — do not start
+> it opportunistically.**
+
 ## OPEN, NOT MERGED — ColdLion promotion serialization lock (2026-07-31)
 
 **Branch:** `claude/adoring-bose-f6e5ef`. **Migration:** `supabase/migrations/20260731180000_coldlion_recurring_promotion_serialization_lock.sql`.

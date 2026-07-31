@@ -612,6 +612,34 @@ Item IDs can be re-keyed by 1Password, so if that ID 404s, re-resolve it with
 - **`public` schema anon lockdown (2026-07-29) — read before creating a function or a view in `public`:** [`docs/security/public-schema-execute-audit.md`](docs/security/public-schema-execute-audit.md) (EXECUTE grants; 88 of 99 SECURITY DEFINER functions were anon-callable) and [`docs/security/public-schema-anon-read-audit.md`](docs/security/public-schema-anon-read-audit.md) (table/view reads; ~27,000 rows were anon-readable). Summarised as a standing rule in §10.2 above.
 - **PopDAM access — read before granting/revoking/debugging a user's access:** [`docs/popdam-access-provisioning.md`](docs/popdam-access-provisioning.md). Permissions run on **three independent axes across two schemas**. `public.app_access('popdam')` alone lets someone log in and **see nothing**: every `core.*`/`api.*` policy is **app-schema** gated (`app.has_any_role(...)`), so a user with no active `app.user_role` gets `HTTP 200` with an empty array — success-shaped and data-free. On 2026-07-26, **18 of 35 PopDAM users** were in exactly that state.
 
+- **Cross-workflow take-over (2026-07-31):** [`coordinator_take_over.md`](coordinator_take_over.md).
+  Splits four in-flight threads — characters/style guides, ColdLion source-of-truth, licensing
+  coordination, shared-db hygiene — into what is done, what is verified vs merely documented, what
+  blocks each, and the failed paths not to repeat. **Read its §1 table before picking up any of
+  those four.** Characters/style guides has its own STATUS table in
+  [`fix_characters_style_guides.md`](fix_characters_style_guides.md) — **read that table first; do
+  not re-derive or re-plan the phases.**
+
+## 10.3 A CLI runner that "succeeds" silently on Windows — check the entry guard (added 2026-07-31)
+
+A Node CLI in `tools/` that builds its direct-invocation guard **by hand** does nothing on
+Windows and **exits 0**:
+
+```js
+// BROKEN — always false on Windows
+import.meta.url === `file://${process.argv[1].replace(/\\/g, "/")}`
+```
+
+`import.meta.url` yields `file:///C:/…` (three slashes); the hand-built string yields
+`file://C:/…` (two). No output, no error, **no `ingest.sync_run` row** — it reads as success.
+`tools/sync-coldlion-vendors.mjs` shipped this and any Windows run since 2026-07-22 imported
+nothing while looking fine (fixed 2026-07-31, PR #334). **Always use
+`pathToFileURL(process.argv[1]).href`.** Every other tool in `tools/` already did.
+
+Related, unfixed: those runners tell you to install `pg` in a scratch dir and set `NODE_PATH`.
+**`NODE_PATH` is CommonJS-only** — `await import("pg")` resolves relative to the tool's own
+location, so this does not work for ESM tools.
+
 ## 10.1 Clean-slate local replay is unsupported — use the dependency closure
 
 Applying every migration in filename order against an empty local Postgres **cannot

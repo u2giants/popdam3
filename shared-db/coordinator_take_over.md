@@ -4,6 +4,7 @@
 **From:** a single Claude Code session working in `C:\repos\shared-db` on 2026-07-27 → 2026-07-31
 **To:** the coordinating Claude session that owns collision control across shared-db workflows
 **Repo:** `u2giants/shared-db` · **branch:** `main` · **head at handover:** `75066fe`
+**Last refreshed:** 2026-07-31 (end-of-session docs pass — §3.2 blocker cleared, §4.3 sheet sent)
 **Preview DB:** `rjyboqwcdzcocqgmsyel` · **Production DB:** `qsllyeztdwjgirsysgai`
 
 > **Read this first if you know nothing about any of it.** This document assumes zero
@@ -16,10 +17,15 @@
 ## 0. The one-paragraph summary
 
 Four separate threads of work ran in one session. Two are finished and merged. One is half
-finished and waiting on an outside person. One is blocked by another team's unmerged pull
-request, and that blocker currently affects **every** workstream in this repo, not just mine.
-Nothing in my work has written a single row to any production database, and only one thing
-(a schema-only migration) has written to preview.
+finished and waiting on an outside person (licensing). The fourth was blocked by another team's
+unmerged pull request — **that blocker cleared on 2026-07-31 when PR #331 merged**, so schema
+testing across the repo is unfrozen again.
+
+Nothing in my work has written a single row to any production database, and the only thing
+written to preview is one schema-only migration that created two **empty** tables.
+
+**The one live risk to manage:** workflow 1's Phase 3 is the only piece that will write data into
+shared tables, and it is not started. Schedule it; do not let it start opportunistically.
 
 ---
 
@@ -28,8 +34,8 @@ Nothing in my work has written a single row to any production database, and only
 | # | Workflow | State | Blocked by | Touches shared tables? |
 |---|---|---|---|---|
 | 1 | Characters & style guides — Phase 3 | Rules built and tested, **backfill not started** | Laura's round-2 answers + a scheduling slot | **YES — will write 3 tables** |
-| 2 | ColdLion as source of truth | Built, **unmerged** | PR #331 needs merging; then owner approval | Yes, later |
-| 3 | Licensing coordination (Laura) | Round 1 answered, round 2 sheet ready to send | Laura | No |
+| 2 | ColdLion as source of truth | PR #331 **merged 2026-07-31**; PR #335 (docs) still open | Owner approval for the production window | Yes, later |
+| 3 | Licensing coordination (Laura) | Round 2 **sent 2026-07-31** | Laura's reply | No |
 | 4 | Shared-db hygiene / silent failures | Two fixes merged, findings open | Nothing | No |
 
 **If your four workflows are split differently, map by topic, not by number.** The important
@@ -138,32 +144,38 @@ Properties, Licensors, Vendors, Customers, and all merch groups.
 Full written plan: **PR #335** (`docs/coldlion-source-of-truth-plan.md`) — **open, not merged.**
 Merge or reject it; it is documentation only.
 
-### 3.2 THE BIGGEST BLOCKER IN THIS ENTIRE HANDOVER
+### 3.2 ~~THE BIGGEST BLOCKER IN THIS ENTIRE HANDOVER~~ — ✅ RESOLVED 2026-07-31
+
+> **This blocker is CLEARED. Do not act on it.** PR #331 was **merged 2026-07-31 13:59** by
+> another session, which also landed a follow-up fix (#344). The repo-wide dry-run freeze
+> described below is over. The section is kept because the *pattern* recurs constantly in this
+> repo and the response rule below is the thing to remember — not because the PR is still open.
 
 **PR #331** — `feat(coldlion): build and preview-prove the real recurring production
 Licensor/Property feed (Step 7A)`.
 
-- **Verified:** open, `MERGEABLE`, `CLEAN`.
-- **Verified:** preview's migration ledger holds **exactly four** versions that are absent from
-  `main`, and all four belong to this PR:
+- **Was verified on 2026-07-31 (historical):** open, `MERGEABLE`, `CLEAN`.
+- **Was verified (historical):** preview's migration ledger held **exactly four** versions absent
+  from `main`, all four belonging to this PR:
   - `20260729230000_coldlion_licensor_property_recurring_promotion`
   - `20260729234500_coldlion_recurring_promotion_collision_rule_fix`
   - `20260729235500_coldlion_recurring_promotion_ambiguous_column_fix`
   - `20260730000500_coldlion_recurring_promotion_absence_detection_fix`
 
-**Consequence:** until #331 lands, **no session in any workstream can run
+**The consequence, which is the durable lesson:** while migrations are applied to preview from a
+branch that has not landed in `main`, **no session in any workstream can run
 `supabase db push --dry-run` against preview.** It aborts with *"Remote migration versions not
-found in local migrations directory."* This is a repo-wide freeze on schema testing, not a
-ColdLion-only problem.
+found in local migrations directory."* That is a repo-wide freeze on schema testing, not a
+problem for the owning workstream alone. **This happened three separate times in four days.**
 
 > **NEVER run the repair command the CLI suggests** (`supabase migration repair --status
 > reverted …`). It deletes another team's ledger rows while their objects stay in the database,
 > so their next push collides. The correct fix is to land the branch. See AGENTS.md §4 rule 1
 > and `docs/ai-session-instructions/shared-supabase-branch-workflow.md`.
 
-I asked the owner for permission to merge #331 and **did not receive it**. It is unmerged.
-**This decision was explicitly handed to you.** Merging affects preview only; it does **not**
-touch production.
+**The standing rule for the coordinator:** a branch that has rehearsed migrations on preview must
+open its PR and land it **the same session**. Anything left rehearsed-but-unmerged overnight
+blocks everyone.
 
 ### 3.3 The "542 approved mappings" gate — what it actually means
 
@@ -256,7 +268,7 @@ Laura is the licensing coordinator. She is **not** technical and does not read o
 - `A005` Coco confirmed as `CC` again; `CC` sits under a licensor literally named
   "DTR - NO LICENSE" while the guide is Disney.
 
-### 4.3 Round 2 — built, ready to send, NOT sent
+### 4.3 Round 2 — SENT 2026-07-31, awaiting reply
 
 `docs/verification/character-identity-rules-20260728/licensing-questions-for-laura-round2-20260731.xlsx`
 
@@ -269,7 +281,13 @@ Laura is the licensing coordinator. She is **not** technical and does not read o
 - Columns include *what you answered last time* and *why I am asking again*, so she can see
   exactly what went wrong per row without being blamed for it.
 
-**Owner still has to send it.** No contact with Laura happens from any session.
+**Sent by the owner on 2026-07-31.** No session ever contacts Laura directly.
+
+**When it comes back, re-validate every answer against `core.property` on preview before
+accepting any of it.** Round 1 arrived looking 194/195 complete and was only 29 usable.
+Use `tools/validate-licensing-answers.mjs` (7 unit tests) — it reports blanks, multi-code
+answers, answers outside the offered options, and codes absent from `core.property`, and exits
+non-zero if any are found. The sheet generator is `tools/build-licensing-questions-round2.py`.
 
 ---
 
@@ -359,13 +377,14 @@ Laura is the licensing coordinator. She is **not** technical and does not read o
 
 ## 8. Exact next steps, in priority order
 
-1. **Merge PR #331.** Unblocks `supabase db push --dry-run` for **every** workstream.
-   **Pass when:** preview's ledger has no versions missing from `main`, and a dry-run from a
-   fresh `main` checkout runs clean.
-2. **Decide PR #335** (ColdLion source-of-truth plan, docs only). Merge or reject.
+1. ~~**Merge PR #331.**~~ ✅ **DONE 2026-07-31 13:59** by another session, plus follow-up #344.
+   Verified: no preview ledger versions are missing from `main`. **Do not redo.**
+2. **Decide PR #335** (ColdLion source-of-truth plan, docs only). **Still OPEN.** Merge or reject.
    **Pass when:** the PR is closed one way or the other.
-3. **Owner sends the round-2 sheet to Laura** (§4.3). Nothing else in workflow 1 can finish first.
-   **Pass when:** the returned file has all 166 dropdowns populated.
+3. ~~**Owner sends the round-2 sheet to Laura.**~~ ✅ **DONE 2026-07-31** — owner confirmed sent.
+   Now simply **waiting on her reply**. **Pass when:** the returned file has the 166 dropdowns
+   populated, and **every answer is re-validated against `core.property` before acceptance** —
+   round 1 looked 194/195 complete and was only 29 usable (§4.2).
 4. **Fix the 66 missing property codes** — specifically `EX`, `LB` and `JL`, which real answers
    now depend on. This is an owner policy decision, not a licensing one (§3.3).
    **Pass when:** the owner has either approved creating them or ruled them out in writing.
