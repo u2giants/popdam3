@@ -523,60 +523,287 @@ after it is filed. Only the coordinator moves a block out of here.
 > Priority order for the top of the session is the opening agenda in
 > `HANDOFF.md` §U4. Items are listed here in roughly that order.
 
-### REQUEST — Re-run the ColdLion 18-case rehearsal against the CURRENT function body — 2026-07-31 — session: queue-seeding agent
-
-**1. What outcome is needed, and why.** Prove that the ColdLion licensor/property
-promotion still behaves correctly *as it exists today*. The celebrated "14/14
-passed" evidence describes the function at migration `20260730000500`; four
-`CREATE OR REPLACE` migrations landed after it and were applied to preview but
-never re-rehearsed. **Applied is not rehearsed.** Four cases (`10a`–`10d`) have
-**never executed at all**. Output must be a **dated evidence artifact committed
-to the repo**, not a chat message.
-
-**2. Which application(s) depend on this.** ColdLion → DesignFlow → shared
-Supabase licensor/property taxonomy; downstream popdam3 and PopSG.
-
-**3. Is it blocking anything, and how urgently?** **BLOCKING.** This is the gate
-on everything ColdLion, including Step 8 production switch-on. **HIGHEST
-PRIORITY — dispatch this first.**
-
-**4. Deadline, if any.** None stated. Production remains off until it is done.
-
-**5. What I already know about the current schema.** Read from `HANDOFF.md`,
-**not verified live**: preview holds all ColdLion migrations through
-`20260731200000`; the four unrehearsed versions are `20260731163000`, `180000`,
-`190000`, `200000`. Authoritative detail: `HANDOFF.md` §U1.2 and §U4 item 4;
-cases at `tools/rehearse-coldlion-recurring-cycles.mjs` lines 398–442.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started: no
-branch for this work, no migration, no preview or production push, no `supabase`
-CLI, no Supabase MCP, no psql, no chip.
+> **Refreshed 2026-07-31 23:11 UTC** by the outgoing coordinator. Six blocks were
+> moved to `## COMPLETED` (rehearsal → #362, manifest → #360, EX/LB/JL framing →
+> #369, B8 → #358, B13 → done, B14 → #367). The nine blocks immediately below are
+> NEW this refresh. Everything else is carried forward unchanged. **Authoritative
+> detail for all of it: `HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md`
+> and `HANDOFF.md`. Do not act on the summaries here.**
 
 ---
 
-### REQUEST — Re-derive the true production migration manifest + read-only dry-run proof — 2026-07-31 — session: queue-seeding agent
+### REQUEST — Establish what the 3 UNATTRIBUTED worktrees are before anyone sweeps — 2026-07-31 — session: outgoing coordinator (t16)
 
-**1. What outcome is needed, and why.** Establish, from a **live ledger
-comparison** (production `supabase migration list` vs the repo) rather than from
-any document, exactly which migrations Step 8 would promote — the plan says four,
-the true manifest is roughly **eighteen** — and prove via the read-only
-`production-dry-run` lane that the ~15 unrelated pending production migrations
-stay out. Never `--include-all`.
+**1. What outcome is needed, and why.** `git worktree list` returns 34 entries. 31
+are attributed to a named agent or session; **3 are not, and no PR has ever existed
+for any of their branches** (`nbc-alias-work`, `worktree-agent-a9b9b048681d1744f`,
+`claude/elastic-babbage-df8f2e`). They are clean, but **clean is not finished** —
+that is exactly backlog **B11**. Establish what they are before any sweep touches
+them. This supersedes the counts in the older "Sweep the 22 worktrees" block below.
 
-**2. Which application(s) depend on this.** All four apps share the database that
-would receive the promotion.
+**2. Which application(s) depend on this.** None — repository hygiene, but with a
+real data-loss failure mode.
 
-**3. Is it blocking anything, and how urgently?** **BLOCKING** Step 8. Can run in
-parallel with the rehearsal. **HIGH.**
+**3. Is it blocking anything, and how urgently?** Not blocking. **But it blocks the
+sweep**, and a sweep run without it repeats the B11 incident (a sweep already
+deleted a live agent's workspace today).
+
+**4. Deadline, if any.** None. **Do not rush it — an honest unknown is safe, a
+wrong "safe to clean" is not.**
+
+**5. What I already know about the current schema.** N/A — no schema involved. All
+34 worktrees verified CLEAN at 2026-07-31 ~23:20 UTC; merged-ness established via
+`gh pr view`/`gh pr list --state all`, **not branch-tip ancestry** (this repo
+squash-merges, so ancestry gives the wrong answer). Full ledger: handover §3.8.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** **No worktree removed, no
+branch deleted, no prune, no force — nothing was cleaned.** No branch created beyond
+this handover's own, no migration, no preview or production push, no `supabase` CLI,
+no Supabase MCP call, no psql, no chip, no database call of any kind.
+
+---
+
+### REQUEST — ⚠️ FIRST ACTION: un-park the shared checkout `C:\repos\shared-db` from an intake branch — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** The shared checkout is sitting on branch
+`intake/coldlion-comparison-handover-20260731`, **not `main`**. It is clean, so
+nothing is at risk of loss, but the next session that opens it and assumes `main`
+will read stale files or branch from the wrong base. This supersedes the older
+"Update the stale shared checkout" block further down, which described a
+different (staleness) problem.
+
+**2. Which application(s) depend on this.** None directly — it is a working-copy
+hazard affecting every future shared-db session on `t16`.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but it is the
+single most likely way the next session goes wrong. **Do it before anything else.**
 
 **4. Deadline, if any.** None.
 
-**5. What I already know about the current schema.** From documents only:
-385 migration files, max version `20260731220000`, next free `20260731230000` —
-**re-derive**. Authoritative detail: `HANDOFF.md` §U1.2 and §U4 item 5.
+**5. What I already know about the current schema.** N/A — no schema involved.
+Exact commands and the verification gate: handover §3.2.
 
-**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
-database contact of any kind.
+**6. Confirmation of what I have NOT done. [MANDATORY]** The outgoing coordinator
+did not switch the shared checkout (its own work was done in an isolated
+worktree). No branch deleted, no migration, no preview or production push, no
+`supabase` CLI, no Supabase MCP call, no psql, no chip.
+
+---
+
+### REQUEST — Make the production migration lane able to produce a plan again (NEW Step 8 blocker) — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** The production lane **cannot produce a
+plan today**: 6 of the 14 promotable ColdLion migrations sort older than
+production's ledger head, so the Supabase CLI refuses them without
+`--include-all`, which the workflow does not pass. This needs a **workflow
+change**, bounded to an explicit file list — a blanket `--include-all` is exactly
+how an unintended migration gets applied.
+
+**2. Which application(s) depend on this.** All four — it gates the ColdLion
+licensor/property taxonomy reaching production.
+
+**3. Is it blocking anything, and how urgently?** **Blocking Step 8.** Nobody is
+idle, but Step 8 cannot even be put to Albert until this is solved.
+
+**4. Deadline, if any.** None stated.
+
+**5. What I already know about the current schema.** Verified live at ~22:45 UTC:
+production ledger 359 rows, head `20260731230000`, exactly **27 pending**. Related
+ordering trap (`20260729120000` after `20260728174500` → `undefined_function`
+42883) confirmed. Detail: handover §5.3, §5.4;
+`docs/coldlion-production-migration-manifest-20260731.md`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No design written, no
+workflow edited, no branch, no migration, no production apply, no `supabase` CLI
+run by this session, no Supabase MCP call, no psql, no chip.
+
+---
+
+### REQUEST — Ingest the two un-ingested intake PRs #365 and #366 — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** Both PRs are intake handovers from
+uncoordinated sessions. Neither has been ingested. **Do not merge them
+unverified** — that launders unchecked claims into `main`. Verify every claim
+against the live repo and live schema, then dispatch or explicitly drop, then move
+each block to `## TAKEN OVER` per Part B2.1.
+
+**2. Which application(s) depend on this.** Unknown until the blocks are read;
+both concern ColdLion.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but they are open
+PRs accumulating drift against a moving `main`.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Nothing verified from these
+blocks — that is the point. Both PRs re-checked as `MERGEABLE` at 23:11 UTC.
+Detail: handover §3.5.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Not merged, not closed,
+not ingested, not verified. No branch, no migration, no database call of any kind.
+
+---
+
+### REQUEST — Diagnose the hourly preview ColdLion alert-monitor failure (READ-ONLY FIRST) — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** The preview alert monitor has failed
+**every hour since 20:02 UTC** with "An undelivered ColdLion taxonomy alert exists.
+Human response owner: Albert Hazan." It is almost certainly residue of the ENOBUFS
+breaker trip, but that is **unproven** and it names Albert. Establish what it is
+before anything is acknowledged or cleared.
+
+**2. Which application(s) depend on this.** None directly; it is the ColdLion
+ingestion lane's own alerting in preview.
+
+**3. Is it blocking anything, and how urgently?** Not blocking work, but it is a
+**live red alarm** and every hour it repeats erodes trust in the alerting.
+
+**4. Deadline, if any.** None, but it is noisy now.
+
+**5. What I already know about the current schema.** Preview
+`rjyboqwcdzcocqgmsyel` carries `ingest.sync_run` failure rows and breaker events
+from the ENOBUFS defect, and the breaker was reset twice **by an agent** so
+`reset_by` names a sub-agent, not a human. Read live by a sub-agent, not by this
+session. Detail: handover §3.4, §3.6.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing touched: no alert
+acknowledged, no breaker reset, no branch, no migration, no `supabase` CLI, no
+Supabase MCP call, no psql, no chip, **no database call of any kind by this
+session.**
+
+---
+
+### REQUEST — Put the 5 remaining ColdLion property-code contract questions to Albert (READY TO ASK) — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** Five unmatched ColdLion property codes
+need an owner ruling before they can be admitted: `AM1`/`AM2` (Anchorman), `MGM`
+(Mighty Mouse), `WND` (It's a Wonderful Life), `EP` (Emily in Paris). The
+supporting table now exists, so this is **askable today**. Recommendation on
+record: admit all 33 unmatched codes.
+
+**2. Which application(s) depend on this.** PopDAM and DesignFlow most directly;
+the taxonomy is shared by all four.
+
+**3. Is it blocking anything, and how urgently?** Blocks admitting the unmatched
+codes. Not urgent, but it is cheap and unblocks cleanly.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** 33 unmatched codes (not 66);
+27 of them created in ColdLion on 2026-07-30. Artefact:
+`docs/coldlion-unmatched-properties-by-licensor-20260731.md` (PR #369).
+⛔ **Do NOT re-ask the six licensor-alias rulings (settled in PR #352), do NOT
+re-open Sesame Workshop → Sesame Street, and do NOT re-ask `EX`/`LB`/`JL` — Laura
+answered those correctly in round 1.** Detail: handover §5.7, §6 step 4.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Albert has not been
+asked. No branch, no migration, no preview or production push, no `supabase` CLI,
+no Supabase MCP call, no psql, no chip.
+
+---
+
+### REQUEST — Re-offer the "prove which database you are connected to" rule — Albert DECLINED TO ANSWER — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** A proposed `AGENTS.md` rule requiring an
+agent to prove which database it is connected to **before any `DELETE` / `UPDATE`
+/ `DROP`** was put to Albert and he **did not answer**. **Silence is not
+approval.** It is open and must be re-offered plainly for an explicit yes or no.
+
+**2. Which application(s) depend on this.** All four — it is a safety rule over
+the shared database.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. But the 442-row
+production delete this rule was prompted by has already happened once.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — process rule, not
+schema. The proposed text is in the 2026-07-31 coordinator session transcript.
+Detail: handover §9 decision 4, §6 step 5.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** The rule was **NOT**
+added to `AGENTS.md` — deliberately, because it was not approved. No branch, no
+migration, no database call of any kind.
+
+---
+
+### REQUEST — Characters / style-guides Phase 1 (read-only, dispatchable NOW) — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** Compare PopDAM's existing character /
+style-guide mapping against the licensing team's 174-row review, as a **read-only**
+document. **Phase 0** (reconciling the two into a decision) is blocked on Albert;
+**Phase 1 is not blocked and can be dispatched immediately.**
+
+**2. Which application(s) depend on this.** PopDAM primarily; the resulting
+taxonomy is shared.
+
+**3. Is it blocking anything, and how urgently?** Phase 1 is not blocking. Doing
+it now shortens Phase 0 once Albert answers.
+
+**4. Deadline, if any.** Laura's round-2 reply (166-row characters sheet, sent
+2026-07-31) is awaited and may supersede parts of it.
+
+**5. What I already know about the current schema.** Not verified live by this
+session. `HANDOFF.md` is authoritative. Detail: handover §6 step 10, §9.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Not started. No branch,
+no migration, no preview or production push, no `supabase` CLI, no Supabase MCP
+call, no psql, no chip.
+
+---
+
+### REQUEST — Add supersession pointers to the 2 LIVE docs still asserting the bronze layer is immutable — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** Albert's ruling ("ColdLion ERP data is
+canonical, follow it") is recorded in `AGENTS.md` §6.3, but **5 further places**
+still assert the bronze layer is immutable. Two of them are **LIVE documents a
+future session could act on** and still need a supersession pointer:
+`HANDOFF.md:5381` and `fix_schema_for_api.md:40,159`.
+
+**2. Which application(s) depend on this.** None directly — it prevents a future
+session acting on a superseded rule.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. Low effort, real
+contradiction risk.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A — documentation only.
+⛔ **Do NOT edit the two applied migrations carrying stale comments
+(`20260722171500`, `20260722213000`)** — editing an applied migration changes
+nothing in the database and desynchronises the file from the ledger. That omission
+was deliberate. Detail: handover §5.8, part (b) block 19.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No document edited beyond
+this file and the handover. No branch touching those files, no migration, no
+database call of any kind.
+
+---
+
+### REQUEST — PopDAM data quality: 8 Exorcist assets filed under NBCUniversal instead of Warner Bros — 2026-07-31 — session: outgoing coordinator (t16)
+
+**1. What outcome is needed, and why.** PopDAM files 8 Exorcist assets under NBC
+when **Warner Bros** is the correct licensor. Found incidentally while building the
+unmatched-property table. Wrong licensor attribution on licensed assets is a
+compliance-adjacent error, not cosmetic.
+
+**2. Which application(s) depend on this.** PopDAM (`popdam3`); the licensor
+taxonomy is shared with the other three.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. Small and
+self-contained.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** ⚠️ **PopDAM's property codes
+are a COLLIDING code space** — its `BB` is Big Bird, ColdLion's `BB` is The Brady
+Bunch. Do not join PopDAM codes to ColdLion codes without an explicit mapping;
+PopDAM asset counts were deliberately discarded from the #369 analysis for exactly
+this reason. Detail: handover §5.7, §4.10.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing changed in
+PopDAM or in the database. No branch, no migration, no preview or production push,
+no `supabase` CLI, no Supabase MCP call, no psql, no chip.
 
 ---
 
@@ -663,32 +890,6 @@ Start only on a deliberate, dedicated dispatch.
 
 **5. What I already know about the current schema.** As above; unverified.
 Authoritative detail: `HANDOFF.md` §U1.3, §U1.4 and §U4 item 10.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
-database contact.
-
----
-
-### REQUEST — Frame the `EX` / `LB` / `JL` property codes (and the 66 unmatched ColdLion codes) as an answerable question for Albert — 2026-07-31 — session: queue-seeding agent
-
-**1. What outcome is needed, and why.** These codes are inherited from an earlier
-session and **nobody has yet put them to Albert in a form he can rule on** — no
-list, no proposed mapping, no "is this correct?" table. **Producing that question
-IS the task.** The format that has actually worked is the approval table in
-`HANDOFF.md` §U1.3. Asking him an unframed question wastes the one resource that
-cannot be parallelised.
-
-**2. Which application(s) depend on this.** Shared licensor/property taxonomy;
-ColdLion feed; DesignFlow.
-
-**3. Is it blocking anything, and how urgently?** Blocked on **nothing** — it can
-start immediately, and it must be finished **before** Albert is asked anything
-about these codes. **MEDIUM-HIGH** (it unblocks an Albert decision).
-
-**4. Deadline, if any.** None.
-
-**5. What I already know about the current schema.** Only what `HANDOFF.md` §U1.5
-item 4 and §U4 item 7 state. Nothing verified live.
 
 **6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
 database contact.
@@ -919,28 +1120,6 @@ highest-value with B6.**
 
 ---
 
-### REQUEST — Backlog B8 — unit test for `tools/emit-coldlion-rollback-sql.mjs` — 2026-07-31 — session: queue-seeding agent
-
-**1. What outcome is needed, and why.** No test file exists, though every other
-Step 7A tool has one and CI would pick it up automatically. **This is the
-emergency rollback lever** — the thing somebody runs under pressure, during an
-incident, against production, probably at night. It has been executed exactly
-**once**. Follow B7: assert it **refuses**.
-
-**2. Which application(s) depend on this.** ColdLion production promotion safety.
-
-**3. Is it blocking anything, and how urgently?** Not formally blocking Step 8,
-but it is the rollback plan for Step 8. **HIGH.**
-
-**4. Deadline, if any.** Best done before production switch-on.
-
-**5. What I already know about the current schema.** N/A — the test is fully
-offline, no database. Authoritative detail: `HANDOFF.md` backlog **B8**.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
-
----
-
 ### REQUEST — Backlog B9 — no "armed but read-only" state for the production enable variable — 2026-07-31 — session: queue-seeding agent
 
 **1. What outcome is needed, and why.** The read-only `readiness` lane sits
@@ -1044,71 +1223,6 @@ process killed; no database contact.
 
 ---
 
-### REQUEST — Backlog B13 — CI check that every BACKLOG `B<n>` has a queue entry — 2026-07-31 — session: handoff/intake-sync agent
-
-**1. What outcome is needed, and why.** A **warn-only** CI job that lists any
-`### B<n>` in `HANDOFF.md`'s `## BACKLOG` with no matching
-`### REQUEST — Backlog B<n> —` heading anywhere in this file. It makes the
-documentation rule in § B2.0 mechanical instead of a manual obligation nobody
-owns. Authoritative detail, including the recommended design and its five known
-failure modes: `HANDOFF.md` backlog **B13**.
-
-**2. Which application(s) depend on this.** None — repo process hygiene only.
-
-**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM.**
-
-**4. Deadline, if any.** None.
-
-**5. What I already know about the current schema.** No schema involvement. Must
-be **warn-only, never blocking** — same posture as Guard B in
-`scripts/check-sql.sh`. A blocking version would gate database work on
-documentation bookkeeping and would be disabled the first time it fired
-spuriously.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Assessed only. **No
-script, no workflow, and no `tools/` change was written** — that was an explicit
-limit on the assessing session. No database contact.
-
----
-
-### REQUEST — Backlog B14 — remove the buffered cycle-state-probe cliff (not just raise it) before Step 8 — 2026-07-31 — session: B14 queue-entry agent
-
-**1. What outcome is needed, and why.** A client-side tooling fault must stop
-being able to take the ColdLion feed down. PR #362 raised the `runSql` output
-buffer so an oversized cycle-state probe is now *diagnosable*, but the cliff was
-moved, not removed: an overflow still throws, still writes a durable failed sync
-run, and two in a row still auto-trip the circuit breaker — identical blast
-radius, better message. The outcome needed is that the probe stops returning the
-whole ColdLion mirror as one buffered document, and/or that a spawn-level fault
-is not counted as a sync failure at all. **The design is not chosen — that is
-the coordinator's call.** Authoritative detail: `### B14` in `HANDOFF.md`.
-
-**2. Which application(s) depend on this.** ColdLion → DesignFlow → shared
-Supabase licensor/property taxonomy; downstream popdam3 and PopSG. The same
-`runSql` helper powers the real recurring production feed.
-
-**3. Is it blocking anything, and how urgently?** **BLOCKING Step 8** — this must
-be resolved **before the production lane is enabled**, because once enabled this
-path runs unattended against the production mirror on a schedule. **HIGH.** Not
-blocking anything today while production stays off.
-
-**4. Deadline, if any.** None. It is a gate on Step 8, not a dated commitment.
-
-**5. What I already know about the current schema.** No schema involvement — this
-is tooling. Read from the repo on branch `rehearsal/coldlion-recurring-20260731`,
-**not verified against any live database**: `runSql` in
-`tools/coldlion-sync-common.mjs` now passes a 256 MiB `maxBuffer`, and
-`tools/coldlion-sync-common-runsql.test.mjs` pins that **current** behaviour
-offline — those tests will keep passing after a proper fix and are not evidence
-of one. `HANDOFF.md` is authoritative for the rest; do not act on this summary.
-
-**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started: no
-branch created for this work, no migration file written, no push to preview or
-production, no `supabase` CLI command, no Supabase MCP call, no psql, no
-background task chip, and no database contact of any kind. The only file this
-session wrote is this one.
-
----
 
 ## IN PROGRESS
 
@@ -1155,7 +1269,192 @@ Requests that landed, each annotated with the PR number and merge date. Pruned
 to `docs/intake-archive/` under the retention rule in Part B2.2 — archived,
 never deleted.
 
-_(none yet)_
+> **Refreshed 2026-07-31 23:11 UTC by the outgoing coordinator (`HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md`).** The six blocks below were moved here VERBATIM from `## REQUEST QUEUE` under the Part B2.1 lifecycle. Each is preceded by a single completion line naming the PR and merge date; the block body itself is unedited. Nothing was deleted. None is yet past the Part B2.2 retention threshold, so nothing was archived this sweep.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-07-31]** **COMPLETED 2026-07-31 — PR #362 (merged).** 18/18 PASS incl. cases 10a-10d (first execution ever); four tooling defects found and fixed. Conditions closed on the same PR; follow-on B14 raised and since resolved by PR #367. Detail: `HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md` part (b) blocks 5-8.
+
+### REQUEST — Re-run the ColdLion 18-case rehearsal against the CURRENT function body — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Prove that the ColdLion licensor/property
+promotion still behaves correctly *as it exists today*. The celebrated "14/14
+passed" evidence describes the function at migration `20260730000500`; four
+`CREATE OR REPLACE` migrations landed after it and were applied to preview but
+never re-rehearsed. **Applied is not rehearsed.** Four cases (`10a`–`10d`) have
+**never executed at all**. Output must be a **dated evidence artifact committed
+to the repo**, not a chat message.
+
+**2. Which application(s) depend on this.** ColdLion → DesignFlow → shared
+Supabase licensor/property taxonomy; downstream popdam3 and PopSG.
+
+**3. Is it blocking anything, and how urgently?** **BLOCKING.** This is the gate
+on everything ColdLion, including Step 8 production switch-on. **HIGHEST
+PRIORITY — dispatch this first.**
+
+**4. Deadline, if any.** None stated. Production remains off until it is done.
+
+**5. What I already know about the current schema.** Read from `HANDOFF.md`,
+**not verified live**: preview holds all ColdLion migrations through
+`20260731200000`; the four unrehearsed versions are `20260731163000`, `180000`,
+`190000`, `200000`. Authoritative detail: `HANDOFF.md` §U1.2 and §U4 item 4;
+cases at `tools/rehearse-coldlion-recurring-cycles.mjs` lines 398–442.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started: no
+branch for this work, no migration, no preview or production push, no `supabase`
+CLI, no Supabase MCP, no psql, no chip.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-07-31]** **COMPLETED 2026-07-31 — PR #360 (merged).** Truth is **27 pending**, not 4; the '~15 unrelated' figure was wrong (it is 9). Independently re-verified CORRECT by a second read-only agent, which also confirmed production was NOT mutated. Artefact: `docs/coldlion-production-migration-manifest-20260731.md`. Detail: `HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md` part (b) blocks 3-4.
+
+### REQUEST — Re-derive the true production migration manifest + read-only dry-run proof — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Establish, from a **live ledger
+comparison** (production `supabase migration list` vs the repo) rather than from
+any document, exactly which migrations Step 8 would promote — the plan says four,
+the true manifest is roughly **eighteen** — and prove via the read-only
+`production-dry-run` lane that the ~15 unrelated pending production migrations
+stay out. Never `--include-all`.
+
+**2. Which application(s) depend on this.** All four apps share the database that
+would receive the promotion.
+
+**3. Is it blocking anything, and how urgently?** **BLOCKING** Step 8. Can run in
+parallel with the rehearsal. **HIGH.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** From documents only:
+385 migration files, max version `20260731220000`, next free `20260731230000` —
+**re-derive**. Authoritative detail: `HANDOFF.md` §U1.2 and §U4 item 5.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+database contact of any kind.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-07-31]** **COMPLETED 2026-07-31 — PR #369 (merged).** Premise was stale: **33 unmatched codes, not 66.** Table delivered at `docs/coldlion-unmatched-properties-by-licensor-20260731.md`. Only 5 rows genuinely need Albert; a new REQUEST QUEUE entry now carries that ask. Detail: `HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md` part (b) block 17.
+
+### REQUEST — Frame the `EX` / `LB` / `JL` property codes (and the 66 unmatched ColdLion codes) as an answerable question for Albert — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** These codes are inherited from an earlier
+session and **nobody has yet put them to Albert in a form he can rule on** — no
+list, no proposed mapping, no "is this correct?" table. **Producing that question
+IS the task.** The format that has actually worked is the approval table in
+`HANDOFF.md` §U1.3. Asking him an unframed question wastes the one resource that
+cannot be parallelised.
+
+**2. Which application(s) depend on this.** Shared licensor/property taxonomy;
+ColdLion feed; DesignFlow.
+
+**3. Is it blocking anything, and how urgently?** Blocked on **nothing** — it can
+start immediately, and it must be finished **before** Albert is asked anything
+about these codes. **MEDIUM-HIGH** (it unblocks an Albert decision).
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Only what `HANDOFF.md` §U1.5
+item 4 and §U4 item 7 state. Nothing verified live.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+database contact.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-07-31]** **COMPLETED 2026-07-31 — PR #358 (merged).** 5 tests added, 4 mutations each watched fail, tool restored byte-identical. `compositeKeyOf`'s empty-segment behaviour pinned, not fixed (cannot occur against the frozen artifact). Detail: `HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md` part (b) block 2.
+
+### REQUEST — Backlog B8 — unit test for `tools/emit-coldlion-rollback-sql.mjs` — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** No test file exists, though every other
+Step 7A tool has one and CI would pick it up automatically. **This is the
+emergency rollback lever** — the thing somebody runs under pressure, during an
+incident, against production, probably at night. It has been executed exactly
+**once**. Follow B7: assert it **refuses**.
+
+**2. Which application(s) depend on this.** ColdLion production promotion safety.
+
+**3. Is it blocking anything, and how urgently?** Not formally blocking Step 8,
+but it is the rollback plan for Step 8. **HIGH.**
+
+**4. Deadline, if any.** Best done before production switch-on.
+
+**5. What I already know about the current schema.** N/A — the test is fully
+offline, no database. Authoritative detail: `HANDOFF.md` backlog **B8**.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-07-31]** **COMPLETED 2026-07-31.** Marked DONE in `HANDOFF.md` (`### B13 ... (DONE 2026-07-31)`, line ~1909). The `Backlog / Queue Sync` check is live and was exercised this session.
+
+### REQUEST — Backlog B13 — CI check that every BACKLOG `B<n>` has a queue entry — 2026-07-31 — session: handoff/intake-sync agent
+
+**1. What outcome is needed, and why.** A **warn-only** CI job that lists any
+`### B<n>` in `HANDOFF.md`'s `## BACKLOG` with no matching
+`### REQUEST — Backlog B<n> —` heading anywhere in this file. It makes the
+documentation rule in § B2.0 mechanical instead of a manual obligation nobody
+owns. Authoritative detail, including the recommended design and its five known
+failure modes: `HANDOFF.md` backlog **B13**.
+
+**2. Which application(s) depend on this.** None — repo process hygiene only.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** No schema involvement. Must
+be **warn-only, never blocking** — same posture as Guard B in
+`scripts/check-sql.sh`. A blocking version would gate database work on
+documentation bookkeeping and would be disabled the first time it fired
+spuriously.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Assessed only. **No
+script, no workflow, and no `tools/` change was written** — that was an explicit
+limit on the assessing session. No database contact.
+
+---
+
+**[moved from `REQUEST QUEUE` 2026-07-31]** **COMPLETED 2026-07-31 — PR #367 (merged).** Root-caused, not raised: paging + spawn-fault classification, `SPAWN_MAX_BUFFER_BYTES` on BOTH spawn paths, page size **measured** (mean 496 B from 570 real records) not estimated, 22/22 mutations killed, CI 428/428. **No longer a Step 8 blocker.** Detail: `HANDOFF.d/20260731T231155Z-t16-coordinator-session-handover.md` part (b) block 18.
+
+### REQUEST — Backlog B14 — remove the buffered cycle-state-probe cliff (not just raise it) before Step 8 — 2026-07-31 — session: B14 queue-entry agent
+
+**1. What outcome is needed, and why.** A client-side tooling fault must stop
+being able to take the ColdLion feed down. PR #362 raised the `runSql` output
+buffer so an oversized cycle-state probe is now *diagnosable*, but the cliff was
+moved, not removed: an overflow still throws, still writes a durable failed sync
+run, and two in a row still auto-trip the circuit breaker — identical blast
+radius, better message. The outcome needed is that the probe stops returning the
+whole ColdLion mirror as one buffered document, and/or that a spawn-level fault
+is not counted as a sync failure at all. **The design is not chosen — that is
+the coordinator's call.** Authoritative detail: `### B14` in `HANDOFF.md`.
+
+**2. Which application(s) depend on this.** ColdLion → DesignFlow → shared
+Supabase licensor/property taxonomy; downstream popdam3 and PopSG. The same
+`runSql` helper powers the real recurring production feed.
+
+**3. Is it blocking anything, and how urgently?** **BLOCKING Step 8** — this must
+be resolved **before the production lane is enabled**, because once enabled this
+path runs unattended against the production mirror on a schedule. **HIGH.** Not
+blocking anything today while production stays off.
+
+**4. Deadline, if any.** None. It is a gate on Step 8, not a dated commitment.
+
+**5. What I already know about the current schema.** No schema involvement — this
+is tooling. Read from the repo on branch `rehearsal/coldlion-recurring-20260731`,
+**not verified against any live database**: `runSql` in
+`tools/coldlion-sync-common.mjs` now passes a 256 MiB `maxBuffer`, and
+`tools/coldlion-sync-common-runsql.test.mjs` pins that **current** behaviour
+offline — those tests will keep passing after a proper fix and are not evidence
+of one. `HANDOFF.md` is authoritative for the rest; do not act on this summary.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started: no
+branch created for this work, no migration file written, no push to preview or
+production, no `supabase` CLI command, no Supabase MCP call, no psql, no
+background task chip, and no database contact of any kind. The only file this
+session wrote is this one.
+
+---
 
 ---
 
