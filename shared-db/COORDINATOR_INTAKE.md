@@ -18,7 +18,7 @@
 >
 > 1. the **most recent COORDINATOR HANDOVER section at the top of `HANDOFF.md`**,
 >    including its opening agenda and its "waiting on Albert" list; and
-> 2. the **`## BACKLOG` section of `HANDOFF.md`** (items **B1–B12**).
+> 2. the **`## BACKLOG` section of `HANDOFF.md`** (items **B1–B13**).
 >
 > If the queues below are empty and `HANDOFF.md` has a backlog, **the backlog is
 > your work.** Never report "nothing to do" on the strength of this file alone.
@@ -351,6 +351,37 @@ Then:
 in CI enforces any of it today. If the coordinator does not do it, it does not
 happen — and the evidence that it does not happen by itself is that a single
 day's work left **23 worktrees and about 30 stale local branch labels** behind.
+
+### B2.0 — WHOSE JOB IT IS TO KEEP THE `REQUEST QUEUE` CURRENT
+
+The banner at the top of this file says an empty queue does not mean there is no
+work. This is the other half of that: **someone is named and accountable for the
+queue not being empty when there IS work.** Two owners, no gap between them:
+
+- **The outgoing coordinator, at handover.** Before a coordinator session ends,
+  it **MUST** seed or refresh the `REQUEST QUEUE` with **every** outstanding
+  item — everything in `HANDOFF.md`'s most recent opening agenda, its
+  waiting-on-Albert list, and **every `B<n>` in its `## BACKLOG`** — plus
+  anything it dispatched that did not finish. This is a **required completion
+  criterion** of the handover, carrying the same weight as the per-sub-agent
+  blocks: a handover that leaves the queue un-seeded is **INCOMPLETE**. See the
+  **`shared-db-handover`** skill, path (B), "Seed the queue".
+- **The active coordinator, as work completes.** Every time an item lands, is
+  dropped, or a new one appears, move or add its block the same session — not
+  "at handover". The lifecycle in B2.1 is worked continuously, not in a batch at
+  the end.
+
+**Short entries, never duplicated detail.** A queue entry is a heading, one or
+two sentences of the outcome needed, and a pointer to the section of
+`HANDOFF.md` that holds the detail. Copying detail here is how the two documents
+drift apart, which has already gone wrong repeatedly. **`HANDOFF.md` is
+authoritative; where it and this file disagree, `HANDOFF.md` wins.**
+
+**Why this is written down.** On 2026-07-31 a fresh coordinator read the three
+empty queue sections, reported "there is no pending work", and was wrong by
+about twenty jobs. The outgoing coordinator had written a long narrative
+handover and never populated the queue — because at that time nothing required
+it of anyone. Now it does, and it names who.
 
 ### B2.1 — Section lifecycle
 
@@ -1010,6 +1041,33 @@ backlog **B12** and §U1.75.
 
 **6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
 process killed; no database contact.
+
+---
+
+### REQUEST — Backlog B13 — CI check that every BACKLOG `B<n>` has a queue entry — 2026-07-31 — session: handoff/intake-sync agent
+
+**1. What outcome is needed, and why.** A **warn-only** CI job that lists any
+`### B<n>` in `HANDOFF.md`'s `## BACKLOG` with no matching
+`### REQUEST — Backlog B<n> —` heading anywhere in this file. It makes the
+documentation rule in § B2.0 mechanical instead of a manual obligation nobody
+owns. Authoritative detail, including the recommended design and its five known
+failure modes: `HANDOFF.md` backlog **B13**.
+
+**2. Which application(s) depend on this.** None — repo process hygiene only.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** No schema involvement. Must
+be **warn-only, never blocking** — same posture as Guard B in
+`scripts/check-sql.sh`. A blocking version would gate database work on
+documentation bookkeeping and would be disabled the first time it fired
+spuriously.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Assessed only. **No
+script, no workflow, and no `tools/` change was written** — that was an explicit
+limit on the assessing session. No database contact.
 
 ---
 

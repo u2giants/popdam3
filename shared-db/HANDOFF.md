@@ -1508,6 +1508,12 @@ yet.** Until it lands, these tests are not enforced by CI on pull requests.
 
 ## BACKLOG — repository-level improvements, NOT STARTED (recorded 2026-07-31)
 
+> **Every `B<n>` below must ALSO appear as a short entry in the `## REQUEST QUEUE` of
+> `COORDINATOR_INTAKE.md`** (heading form `### REQUEST — Backlog B<n> — …`), pointing back here
+> for the detail rather than repeating it. **Keeping that true is the outgoing coordinator's
+> responsibility at handover** — a handover that leaves it un-seeded is incomplete. See
+> `COORDINATOR_INTAKE.md` § B2.0 and the `shared-db-handover` skill.
+
 **Status: documentation only. Nothing in this section has been implemented.** It was written by
 a planning session that was explicitly forbidden from changing anything except this file — no
 `.gitattributes`, no workflow, no migration, no script, no database contact.
@@ -1899,6 +1905,63 @@ guessing:
 
 **Status at the 2026-07-31 handover:** four orphaned processes existed on the machine and **Albert
 was given the `Stop-Process` commands to clear them. Whether he ran them is UNVERIFIED.**
+
+### B13 — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry (MEDIUM — assessed 2026-07-31, deliberately NOT implemented)
+
+**The problem it would solve.** On 2026-07-31 a fresh coordinator read the empty queues in
+`COORDINATOR_INTAKE.md` and reported "there is no pending work" while ~20 jobs sat in this
+BACKLOG. The fix shipped that night is documentation — this file's banner, the
+`COORDINATOR_INTAKE.md` § B2.0 ownership statement, and a required completion criterion in the
+`shared-db-handover` skill. **All three are prose, and prose rots.** The only fix that cannot
+rot is mechanical.
+
+**Feasibility: YES, narrowly, and only in warn-mode.** Both documents are prose, so any general
+"is this item queued?" matching is hopeless. But there is one workable anchor: the queue already
+uses the heading convention `### REQUEST — Backlog B<n> — …`. That makes the check a heading-to-
+heading comparison, not prose matching:
+
+1. From `HANDOFF.md`, collect every `^### B(\d+) —` under the `## BACKLOG` section.
+2. From `COORDINATOR_INTAKE.md`, collect every `B(\d+)` appearing in a `^### REQUEST — Backlog
+   B(\d+) —` heading, in **any** section (`REQUEST QUEUE`, `IN PROGRESS`, `COMPLETED`) — an item
+   that has been dispatched or finished must NOT be flagged as missing.
+3. Report the set difference as a **warning**, and post it as a PR comment / job summary.
+
+**Recommendation: implement it as a WARN-ONLY job that never fails a PR** — the same deliberate
+posture as Guard B in `scripts/check-sql.sh`, which skips with a warning rather than blocking.
+A blocking check here would gate unrelated database work on documentation bookkeeping, and the
+first time it fired spuriously somebody would add `--no-verify` or delete the job, leaving us
+worse off than with no check at all. Warn-only still solves the actual failure: it makes the
+drift **visible at review time**, which is the one thing prose could not do.
+
+**Failure modes to accept going in:**
+
+- **Heading-convention drift.** A future coordinator titles an entry `### REQUEST — B7 …` or
+  `### REQUEST — line endings …` and the check reports a false "missing" even though the work is
+  queued. Mitigation: the convention is now written down in § B2.0 and in the skill; and warn-only
+  means a false positive costs a glance, not a blocked PR.
+- **Deliberately unqueued items.** Some `B<n>` may be intentionally parked (obsolete,
+  superseded, or an owner decision). The check cannot know. Needs an opt-out marker — e.g. the
+  literal text `NOT QUEUED (deliberate)` in the item's heading line — or it will nag forever.
+- **Renumbering / retired items.** If a `B<n>` is deleted from this file, a stale queue entry
+  for it is invisible to a one-directional check. The reverse direction (queue entry with no
+  backlog item) is a separate check and is **not** worth adding — those are legitimate: most
+  queue entries are ordinary requests that were never backlog items.
+- **`paths:` filter trap (see B2).** If the workflow is gated on
+  `paths: [HANDOFF.md, COORDINATOR_INTAKE.md]`, editing only one of the two files still triggers
+  it (either path matches), so that is fine — but a PR that touches **neither** file cannot
+  surface pre-existing drift. That is acceptable: the check exists to catch drift **as it is
+  created**, at handover time, which is exactly when one of these two files changes.
+- **Section-boundary parsing.** `## BACKLOG` is followed by ~400 lines and then unrelated `##`
+  sections; the extractor must stop at the next `^## ` heading, and must not be confused by the
+  `### B2.x` sub-headings that exist inside `COORDINATOR_INTAKE.md`'s Part B2 (they are `B2.0`,
+  `B2.1` — not `### REQUEST — Backlog B2 —`, so the anchored regex above already excludes them,
+  but a looser `grep -o 'B[0-9]'` would produce a flood of false matches; do not write it that
+  way).
+
+**Effort:** roughly 40 lines of shell or Node plus a small workflow, no database contact, fully
+testable offline against the two committed files. **Explicitly not implemented in the session
+that assessed it** — that session's scope was limited to `HANDOFF.md` and `COORDINATOR_INTAKE.md`
+and was forbidden from adding scripts or workflows.
 
 ### B5 — Other items carried forward from elsewhere in this file
 
