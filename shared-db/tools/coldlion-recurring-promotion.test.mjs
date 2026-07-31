@@ -15,12 +15,14 @@ import {
   PROMOTION_RULE_ID,
   PROTECTED_FIELDS,
   SOURCE_OWNED_FIELDS,
+  compareStableC,
   computeProvenanceRefreshes,
   decideNamePromotion,
   findProtectedFieldViolations,
   isNoOpCycle,
   normalizeName,
   planRecurringPromotion,
+  rankFanInArms,
   typedKey,
 } from "./coldlion-recurring-promotion.mjs";
 
@@ -302,6 +304,189 @@ test("approved fan-in with AGREEING names is NOT a collision", () => {
   assert.equal(plan.quarantines.length, 0, JSON.stringify(reasonsOf(plan)));
   assert.equal(plan.unchanged.length, 2);
   assert.equal(plan.refuse, false);
+});
+
+// =====================================================================================
+// FIX 5 — the deterministic fan-in tie-break
+// =====================================================================================
+// Two approved arms of one canonical row whose raw names differ ONLY IN CASE normalize to
+// the same value, so they are correctly NOT a collision — but both used to qualify to write
+// the curated name, and the winner followed row order. Identical input could yield a
+// different curated name from run to run, and flip back and forth across cycles.
+// The winner must now be a stated property of the data: byte order on
+// (normalized name, raw name, typed key). Do NOT replace compareStableC with `<` or
+// localeCompare — a locale-aware comparison ranks the two spellings EQUAL and hands the
+// choice straight back to row order, which is the bug.
+
+// Two arms of ONE canonical licensor, differing only in the case of the source name.
+// The curated name is a third presentation of the same name, so both arms are eligible.
+function caseOnlyFanIn() {
+  return {
+    sourceRows: [
+      licensorSource({ division: "CW001", name: "ACME Studios" }),
+      licensorSource({ division: "SP001", name: "Acme Studios" }),
+    ],
+    linkedRows: [
+      licensorLink({ division: "CW001", canonical_name: "acme studios", source_ref_name: "ACME Studios" }),
+      licensorLink({ division: "SP001", canonical_name: "acme studios", source_ref_name: "Acme Studios" }),
+    ],
+  };
+}
+
+const curatedWinner = (plan) => {
+  const writers = plan.promotions.filter((p) => p.curated_name_changed);
+  return writers.length === 1 ? writers[0] : null;
+};
+
+test("case-only fan-in is not a collision, and EXACTLY ONE arm writes the curated name", () => {
+  const plan = planRecurringPromotion(caseOnlyFanIn());
+
+  assert.equal(plan.quarantines.length, 0, JSON.stringify(reasonsOf(plan)));
+  assert.equal(plan.refuse, false);
+  // The bug: both arms wrote core.licensor.name and the survivor depended on row order.
+  assert.equal(plan.counts.curated_name_changes, 1);
+
+  const winner = curatedWinner(plan);
+  assert.ok(winner, "exactly one arm must carry the curated name change");
+  // Byte order: "ACME Studios" < "Acme Studios" because 'C' (0x43) < 'c' (0x63).
+  assert.equal(winner.key, "EDGEHOME/CW001/05/BM");
+  assert.equal(winner.proposed_fields["core.licensor.name"], "ACME Studios");
+  assert.equal(winner.curated_name_tiebreak.outcome, "won");
+  assert.equal(winner.curated_name_tiebreak.arm_count, 2);
+});
+
+test("the losing fan-in arm is recorded, never silently dropped", () => {
+  const plan = planRecurringPromotion(caseOnlyFanIn());
+  const all = [...plan.promotions, ...plan.unchanged];
+  const loser = all.find((p) => p.key === "EDGEHOME/SP001/05/BM");
+
+  assert.ok(loser, "the losing arm must still appear in the plan");
+  assert.equal(loser.curated_name_tiebreak.outcome, "lost");
+  assert.equal(loser.curated_name_tiebreak.winner_key, "EDGEHOME/CW001/05/BM");
+  assert.equal(loser.curated_name_tiebreak.winner_name, "ACME Studios");
+  // And it never writes the curated name.
+  assert.equal(loser.proposed_fields?.["core.licensor.name"], undefined);
+});
+
+test("a losing arm still refreshes its OWN provenance — ColdLion owns that unconditionally", () => {
+  // Same fan-in, but SP001's provenance row is stale, so that arm has real work to do.
+  const input = caseOnlyFanIn();
+  input.linkedRows[1] = licensorLink({
+    division: "SP001", canonical_name: "acme studios", source_ref_name: "something stale",
+  });
+  const plan = planRecurringPromotion(input);
+
+  const loser = plan.promotions.find((p) => p.key === "EDGEHOME/SP001/05/BM");
+  assert.ok(loser, "the losing arm keeps its provenance promotion");
+  assert.equal(loser.curated_name_changed, false);
+  assert.equal(loser.proposed_fields["core.taxonomy_source_ref.source_name"], "Acme Studios");
+  assert.equal(loser.proposed_fields["core.licensor.name"], undefined);
+  assert.equal(plan.counts.curated_name_changes, 1);
+});
+
+test("the winner is the SAME no matter what order the rows arrive in, every time", () => {
+  const base = caseOnlyFanIn();
+  const orderings = [
+    base,
+    { sourceRows: [...base.sourceRows].reverse(), linkedRows: base.linkedRows },
+    { sourceRows: base.sourceRows, linkedRows: [...base.linkedRows].reverse() },
+    { sourceRows: [...base.sourceRows].reverse(), linkedRows: [...base.linkedRows].reverse() },
+  ];
+
+  for (const input of orderings) {
+    for (let repeat = 0; repeat < 5; repeat += 1) {
+      const plan = planRecurringPromotion(input);
+      const winner = curatedWinner(plan);
+      assert.ok(winner, "one and only one curated-name writer, in every ordering");
+      assert.equal(winner.proposed_fields["core.licensor.name"], "ACME Studios");
+      assert.equal(winner.key, "EDGEHOME/CW001/05/BM");
+      assert.equal(plan.counts.curated_name_changes, 1);
+    }
+  }
+});
+
+test("the winning spelling does not flip back on the next cycle", () => {
+  // Cycle 1 settles the curated name on "ACME Studios". Cycle 2 sees exactly that state and
+  // the same two source arms. It must be a clean no-op — a flip back to "Acme Studios" would
+  // be churn with no upstream cause, which is what made this a bug rather than a preference.
+  const cycle2 = planRecurringPromotion({
+    sourceRows: caseOnlyFanIn().sourceRows,
+    linkedRows: [
+      licensorLink({ division: "CW001", canonical_name: "ACME Studios", source_ref_name: "ACME Studios" }),
+      licensorLink({ division: "SP001", canonical_name: "ACME Studios", source_ref_name: "Acme Studios" }),
+    ],
+  });
+
+  assert.equal(cycle2.counts.curated_name_changes, 0);
+  assert.equal(cycle2.quarantines.length, 0);
+  assert.equal(isNoOpCycle(cycle2), true);
+});
+
+test("rankFanInArms orders by normalized name, then raw name, then typed key — as bytes", () => {
+  const arm = (key, source_name) => ({
+    key, entity_type: "licensor", canonical_id: LIC_UUID, source_name,
+  });
+
+  // Raw name breaks the tie when the normalized names match.
+  assert.deepEqual(
+    rankFanInArms([arm("B/x/05/1", "Acme Studios"), arm("A/x/05/1", "ACME Studios")]).map((a) => a.key),
+    ["A/x/05/1", "B/x/05/1"],
+  );
+  // Byte-identical names fall through to the typed key, so the order is TOTAL.
+  assert.deepEqual(
+    rankFanInArms([arm("Z/x/05/1", "Acme"), arm("A/x/05/1", "Acme")]).map((a) => a.key),
+    ["A/x/05/1", "Z/x/05/1"],
+  );
+  // Byte order, not locale order: uppercase sorts before lowercase, and a locale-aware
+  // comparison would call these equal.
+  assert.ok(compareStableC("ACME", "Acme") < 0);
+  assert.equal(compareStableC("Acme", "Acme"), 0);
+  assert.equal("ACME".localeCompare("Acme", "en"), -("Acme".localeCompare("ACME", "en")));
+});
+
+test("the SQL side carries the same explicit ordering", () => {
+  // If the migration's ORDER BY is ever dropped or its collations removed, the database
+  // silently returns to row-order-dependent winners while this JavaScript stays correct —
+  // and the two would then disagree about the curated name with nothing to catch it.
+  const migration = readFileSync(
+    fileURLToPath(new URL(
+      "../supabase/migrations/20260731200000_coldlion_recurring_promotion_fanin_name_tiebreak.sql",
+      import.meta.url,
+    )),
+    "utf8",
+  );
+  const normalized = migration.replace(/\s+/g, " ");
+  assert.match(
+    normalized,
+    /order by e\.normalized_source_name collate "C", e\.source_name collate "C", e\.typed_key collate "C"/,
+    "the migration must rank fan-in arms by normalized name, raw name, then typed key — all collate \"C\"",
+  );
+  assert.match(normalized, /partition by e\.entity_type, e\.canonical_id/);
+
+  // The subtle regression: restoring `source_name is distinct from canonical_name` to the
+  // ELIGIBILITY filter looks harmless, keeps every within-cycle test green, and brings back
+  // the cross-cycle flip — the arm that already matches must stay in the ranking.
+  const eligibleBlock = normalized.slice(
+    normalized.indexOf("with eligible as ("),
+    normalized.indexOf("ranked as ("),
+  );
+  assert.ok(eligibleBlock.length > 0, "the eligible CTE must still exist");
+  assert.doesNotMatch(
+    eligibleBlock,
+    /is distinct from r\.canonical_name/,
+    "the tie-break group must include the arm that already spells the curated name",
+  );
+  // ...and the distinctness test must live on the UPDATEs instead.
+  assert.equal(
+    (normalized.match(/and e\.source_name is distinct from e\.canonical_name/g) ?? []).length,
+    2,
+    "both curated-name UPDATEs must write only when the winner's spelling actually differs",
+  );
+  // Exactly one arm may write the curated name: both UPDATEs must read from `winner`.
+  assert.match(normalized, /update core\.licensor l set name = e\.source_name, updated_at = now\(\) from winner e/);
+  assert.match(normalized, /update core\.property p set name = e\.source_name, updated_at = now\(\) from winner e/);
+  // And the losing arms must still be audited.
+  assert.match(normalized, /where r\.arm_rank > 1/);
 });
 
 test("a CODE COLLISION quarantines when the fan-in arms DISAGREE on the name", () => {

@@ -52,6 +52,8 @@
 // makes the contract testable row by row, which is the only way to prove a compensating
 // pair of errors (one missing + one extra) cannot pass as "counts match".
 
+import { Buffer } from "node:buffer";
+
 export const PROMOTION_RULE_ID = "coldlion_source_name_normalized_equivalent_v1";
 export const PROMOTION_MODE = "promote_source_owned";
 export const HUMAN_RESPONSE_OWNER = "Albert Hazan";
@@ -193,6 +195,73 @@ export function decideNamePromotion(canonicalName, sourceName) {
 }
 
 // =====================================================================================
+// The deterministic fan-in tie-break (FIX 5, 2026-07-31)
+// =====================================================================================
+//
+// Approved multi-key fan-in means one canonical row is legitimately fed by several typed
+// keys. The collision rule above only quarantines fan-in whose arms disagree AFTER
+// normalization. So two arms carrying "ACME Studios" and "Acme Studios" are correctly NOT a
+// collision — they are the same name — but they still propose two different raw spellings for
+// one curated name, and something has to choose.
+//
+// Before this fix nothing did. In SQL both arms qualified in one `update … from eligible`,
+// and PostgreSQL updates a target row once from an arbitrary qualifying source row, so the
+// winner followed row order. Identical input could therefore yield a different curated name
+// from run to run and flip back and forth across cycles — churn in every downstream consumer,
+// with an audit trail showing a name "changing" when ColdLion had said nothing new.
+//
+// The winner is now a stated property of the data, under one total order used by BOTH
+// implementations:
+//     1. normalized name   2. raw source name   3. typed key
+// each compared as raw UTF-8 BYTES. Byte order is what makes this reproducible: SQL uses
+// `collate "C"`, which is byte order and independent of the database locale, and a
+// locale-aware collation would rank "ACME Studios" and "Acme Studios" EQUAL and hand the
+// decision straight back to row order — the very bug being fixed. JavaScript's default `<`
+// compares UTF-16 code units, which is NOT byte order for supplementary characters, so this
+// compares Buffers instead of using localeCompare or `<`.
+//
+// The losing arms are never dropped in silence: each stays in the plan carrying its own
+// provenance refresh (ColdLion owns its source descriptive value on every arm) plus an
+// explicit curated_name_tiebreak record naming the winner. Only the curated display name is
+// decided here.
+
+/** Byte-order comparison, the JavaScript equal of SQL `collate "C"`. */
+export function compareStableC(a, b) {
+  return Buffer.compare(
+    Buffer.from(String(a ?? ""), "utf8"),
+    Buffer.from(String(b ?? ""), "utf8"),
+  );
+}
+
+/** The field a promotion would write the curated display name into. */
+function curatedNameField(entityType) {
+  return entityType === "licensor" ? "core.licensor.name" : "core.property.name";
+}
+
+/**
+ * Rank the fan-in arms of ONE canonical row, winner first.
+ *
+ * The group being ranked is EVERY arm whose source name is normalized-equivalent to the
+ * curated name — including the arm that already spells it exactly as the curated name does.
+ * That inclusion is what stops the value oscillating between cycles, and it is easy to get
+ * wrong: ranking only the arms that PROPOSE A CHANGE looks correct and is stable within one
+ * cycle, but after cycle 1 settles the name on arm A's spelling, arm A drops out of the
+ * "wants to change it" set, arm B becomes the only candidate and wins, cycle 2 rewrites the
+ * name to B's spelling — and cycle 3 hands it back to A, forever.
+ *
+ * @param {Array} arms {key, source_name} entries that all target the same canonical row
+ * @returns {Array} the same entries, ordered winner-first
+ */
+export function rankFanInArms(arms = []) {
+  return [...arms].sort(
+    (a, b) =>
+      compareStableC(normalizeName(a.source_name), normalizeName(b.source_name)) ||
+      compareStableC(a.source_name, b.source_name) ||
+      compareStableC(a.key, b.key),
+  );
+}
+
+// =====================================================================================
 // Protected-invariant refusal (fail closed BEFORE any canonical write)
 // =====================================================================================
 
@@ -316,6 +385,8 @@ export function planRecurringPromotion({
   const promotions = [];
   const unchanged = [];
   const quarantines = [];
+  /** every arm that reached the curated-name rule, for the fan-in tie-break below */
+  const curatedArms = [];
 
   const quarantine = (row, reason, detail, extra = {}) => {
     quarantines.push({ key: typedKey(row), entity_type: row?.entityType ?? null, reason, detail, ...extra });
@@ -480,16 +551,29 @@ export function planRecurringPromotion({
       continue;
     }
 
-    const canonicalField = source.entityType === "licensor" ? "core.licensor.name" : "core.property.name";
+    const canonicalField = curatedNameField(source.entityType);
     const proposed_fields = { ...provenanceFields };
     if (nameDecision.decision === "apply") proposed_fields[canonicalField] = source.name;
+
+    // Every arm that reached the name rule — whether it proposes a change or already
+    // matches — joins the tie-break group for its canonical row. See rankFanInArms.
+    const arm = {
+      key,
+      entity_type: source.entityType,
+      canonical_id: link.canonical_id,
+      source_name: source.name,
+      canonical_name: link.canonical_name ?? null,
+      proposes_change: nameDecision.decision === "apply",
+      promotion: null,
+    };
+    curatedArms.push(arm);
 
     if (Object.keys(proposed_fields).length === 0) {
       unchanged.push({ key, entity_type: source.entityType, canonical_id: link.canonical_id });
       continue;
     }
 
-    promotions.push({
+    arm.promotion = {
       key,
       entity_type: source.entityType,
       canonical_id: link.canonical_id,
@@ -501,6 +585,72 @@ export function planRecurringPromotion({
         "core.taxonomy_source_ref.source_name": link.source_ref_name ?? null,
       },
       proposed_fields,
+    };
+    promotions.push(arm.promotion);
+  }
+
+  // --- deterministic fan-in tie-break for the CURATED display name -------------------
+  // Several approved arms may legitimately feed one canonical row. When more than one of
+  // them proposes a curated-name change, exactly ONE writes it, chosen by rankFanInArms —
+  // never by iteration order. Mirrors section 5.9 of
+  // supabase/migrations/20260731200000_coldlion_recurring_promotion_fanin_name_tiebreak.sql.
+  const armsByCanonical = new Map();
+  for (const arm of curatedArms) {
+    if (!armsByCanonical.has(arm.canonical_id)) armsByCanonical.set(arm.canonical_id, []);
+    armsByCanonical.get(arm.canonical_id).push(arm);
+  }
+  for (const arms of armsByCanonical.values()) {
+    if (arms.length <= 1) continue;
+    if (!arms.some((a) => a.proposes_change)) continue;
+
+    const ranked = rankFanInArms(arms);
+    const winner = ranked[0];
+
+    for (const arm of ranked) {
+      if (arm === winner && arm.proposes_change) {
+        arm.promotion.curated_name_tiebreak = {
+          outcome: "won",
+          arm_count: arms.length,
+          arms: ranked.map((a) => a.key),
+        };
+        continue;
+      }
+      if (arm === winner) continue; // winner already spells it the curated way: nobody writes
+
+      if (arm.promotion) {
+        // The curated name is withdrawn from this arm. Its provenance field (if any) stays:
+        // ColdLion owns its source descriptive value on every arm, unconditionally.
+        delete arm.promotion.proposed_fields[curatedNameField(arm.entity_type)];
+        arm.promotion.curated_name_changed = false;
+      }
+      if (!arm.proposes_change) continue; // this arm never wanted to write anything
+
+      // An arm that proposed a change always has a promotion entry: the curated field was
+      // in its proposed_fields, so proposed_fields was non-empty.
+      arm.promotion.curated_name_tiebreak = {
+        outcome: "lost",
+        arm_count: arms.length,
+        winner_key: winner.key,
+        winner_name: winner.source_name,
+        detail: winner.proposes_change
+          ? "fan-in tie-break: another arm of the same canonical row ranked ahead of this one under (normalized name, raw name, typed key), all compared as bytes. Its own provenance refresh is unaffected."
+          : "fan-in tie-break: the highest-ranked arm already spells the curated name exactly, so no arm rewrites it. Rewriting it to this arm's spelling would flip the value back and forth every cycle.",
+      };
+    }
+  }
+
+  // A losing arm with nothing else left to promote is simply unchanged — not a silent drop.
+  const finalPromotions = [];
+  for (const p of promotions) {
+    if (Object.keys(p.proposed_fields).length > 0) {
+      finalPromotions.push(p);
+      continue;
+    }
+    unchanged.push({
+      key: p.key,
+      entity_type: p.entity_type,
+      canonical_id: p.canonical_id,
+      curated_name_tiebreak: p.curated_name_tiebreak ?? null,
     });
   }
 
@@ -519,7 +669,7 @@ export function planRecurringPromotion({
     });
   }
 
-  const protectedViolations = findProtectedFieldViolations(promotions);
+  const protectedViolations = findProtectedFieldViolations(finalPromotions);
 
   // The second cross-checked set. It deliberately OVERLAPS `promotions` (a clean row whose
   // source_name changed appears in both) — the database asserts both sets independently, and
@@ -530,7 +680,7 @@ export function planRecurringPromotion({
     mode: PROMOTION_MODE,
     rule: PROMOTION_RULE_ID,
     human_response_owner: HUMAN_RESPONSE_OWNER,
-    promotions,
+    promotions: finalPromotions,
     unchanged,
     // Sent to plm.promote_coldlion_source_owned and compared against its own recomputation.
     // The key must always be PRESENT, even when empty: the database refuses a plan that omits
@@ -544,8 +694,12 @@ export function planRecurringPromotion({
     counts: {
       source_rows: sourceRows.length,
       linked_rows: linkedRows.length,
-      promotions: promotions.length,
-      curated_name_changes: promotions.filter((p) => p.curated_name_changed).length,
+      // `finalPromotions`, not `promotions`: the fan-in tie-break pass reduces each canonical
+      // row to its single winning arm, and the counts must report what will actually be
+      // written. Provenance counts come from the separate provenance set — every arm keeps
+      // refreshing its own provenance row, so that set is NOT narrowed by the tie-break.
+      promotions: finalPromotions.length,
+      curated_name_changes: finalPromotions.filter((p) => p.curated_name_changed).length,
       provenance_refreshes: provenanceRefreshes.length,
       provenance_source_code_refreshes: provenanceRefreshes.filter((p) =>
         p.fields.includes("core.taxonomy_source_ref.source_code"),
