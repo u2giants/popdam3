@@ -66,12 +66,38 @@
 // buildFailedSyncRunSql). Two healthy overlapping cycles would then trip the breaker and
 // block promotion until an authorized reset — an outage manufactured out of a normal race.
 //
+// A CLIENT-SIDE TOOLING FAULT IS NOT A SYNC FAILURE EITHER (added 2026-07-31, backlog B14)
+// -----------------------------------------------------------------------------------------
+// The same reasoning applies to a fault at the SPAWN boundary: if the Supabase CLI or psql
+// could not be executed at all (ENOENT, ENOBUFS, EACCES — the cases where Node sets
+// result.error), the database was never asked anything and cannot have failed. runSql tags
+// those CLIENT_SPAWN_FAULT and this runner exits 4 without recording a durable failed row or
+// an alert. Previously an ENOBUFS from this repo's own buffering defect wrote a failed row,
+// and two in a row auto-tripped the breaker — a production outage manufactured out of a
+// client-side bug and blamed on the data. An EXTERNAL signal kill is deliberately NOT in that
+// set: on Linux it leaves result.error undefined, so it takes the recorded-failure path.
+//
+// AND NEITHER IS A BENIGN MID-READ SNAPSHOT RACE (added 2026-07-31, backlog B14 review)
+// -------------------------------------------------------------------------------------
+// The cycle state is read as several bounded pages, so the mirror lane can commit a new
+// snapshot part-way through. That is the same healthy-overlap class as the lane-lock skip
+// above. The read restarts from page 0 once; if it is still racing after that, the runner
+// exits 5 having promoted and recorded NOTHING. Recording it would let two unlucky overlaps
+// in consecutive cycles auto-trip the breaker on a completely healthy feed.
+//
 // Exit codes: 0 promoted (or clean no-op), 1 refused/failed, 2 unparseable result,
-//             3 skipped because another promotion already holds the lane lock.
+//             3 skipped because another promotion already holds the lane lock,
+//             4 client-side tooling fault (nothing recorded, breaker untouched),
+//             5 benign mid-read snapshot race (nothing recorded, breaker untouched).
 
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { buildFailedSyncRunSql, runSql, sqlDollarQuote } from "./coldlion-sync-common.mjs";
+import {
+  buildFailedSyncRunSql,
+  isClientSpawnFault,
+  runSql,
+  sqlDollarQuote,
+} from "./coldlion-sync-common.mjs";
 import {
   PREVIEW_PROJECT_REF,
   PRODUCTION_PROJECT_REF,
@@ -112,6 +138,88 @@ export const SKIPPED_ALREADY_RUNNING_MODE = "skipped_already_running";
 /** Exit code for that outcome — distinct from success (0) and from failure (1). */
 export const EXIT_SKIPPED_ALREADY_RUNNING = 3;
 
+/**
+ * Exit code for a CLIENT-SIDE tooling fault (the Supabase CLI / psql could not be executed at
+ * all: ENOENT, ENOBUFS, EACCES — an external signal kill is excluded, see
+ * CLIENT_SPAWN_FAULT_CODE). Distinct from success (0), from a real failure (1),
+ * from unparseable (2) and from a lane skip (3), because it must take NEITHER the success path
+ * NOR the failure path. The failure path records a durable failed `ingest.sync_run` row and a
+ * critical alert, and two consecutive failed rows auto-trip the circuit breaker — so letting a
+ * defect in OUR tooling down that path manufactures a production outage out of a client-side
+ * bug and blames the database for it. The job still did not run, so it is not success either.
+ */
+export const EXIT_CLIENT_TOOLING_FAULT = 4;
+
+/**
+ * Exit code for a benign READ RACE: the ColdLion mirror lane committed a new snapshot while
+ * this runner was paging the cycle state, and it was still doing so after the bounded retry.
+ *
+ * Like EXIT_SKIPPED_ALREADY_RUNNING, this is NOT a failure and must never be recorded as one.
+ * Two healthy lanes overlapping is the normal-race class that exit 3 already exists for; if a
+ * mid-read snapshot could write a durable failed row, two unlucky overlaps in consecutive
+ * cycles would auto-trip the breaker on a completely healthy feed — the exact defect class
+ * backlog B14 exists to remove, arriving through a different door. Nothing was promoted and
+ * nothing was recorded; the next scheduled cycle reads a settled mirror.
+ */
+export const EXIT_CYCLE_STATE_RACE = 5;
+
+/**
+ * WORST-CASE serialized bytes for ONE cycle-state row, used to derive the page size.
+ *
+ * MEASURED, NOT ESTIMATED. tools/coldlion-cycle-state-paging.test.mjs rebuilds the exact probe
+ * row shape from the REAL ColdLion rows committed at
+ * docs/verification/coldlion-licensor-property-phase2b-20260724/{licensors,properties}.csv
+ * (570 real rows) and asserts the largest one still fits inside this budget. Measured on that
+ * data: mean 496 bytes, p95 536, MAX 581. That mean independently reproduces the incident
+ * figure — 1,305,075 recorded bytes / 496 = ~2,630 mirror rows — which is what makes it
+ * trustworthy rather than a guess.
+ *
+ * 2048 is ~3.5x the largest real row, so every text field in the widest row observed could
+ * more than triple before the budget is wrong. The test re-measures on every CI run, so growth
+ * in the real data cannot silently invalidate it.
+ */
+export const CYCLE_STATE_MAX_ROW_BYTES = 2048;
+
+/**
+ * Target bytes for one page: HALF of Node's 1 MiB spawnSync default. Deliberately sized against
+ * the DEFAULT rather than against the raised ceiling, so a page fits even on a hypothetical
+ * path where maxBuffer was never applied.
+ */
+export const CYCLE_STATE_PAGE_TARGET_BYTES = 512 * 1024;
+
+/**
+ * Rows per probe response — DERIVED from the two constants above, never hand-tuned. The payload
+ * is bounded by this constant instead of by the number of ColdLion licensors, properties and
+ * source refs, which only ever goes up.
+ *
+ * Note what this is and is NOT load-bearing for: since runSql now applies the same 256 MiB
+ * maxBuffer on BOTH the psql and the Supabase-CLI paths, correctness no longer depends on this
+ * arithmetic at all. The budget keeps pages small and predictable; the ceiling is what makes
+ * being wrong about the budget survivable.
+ */
+export const CYCLE_STATE_PAGE_SIZE = Math.floor(
+  CYCLE_STATE_PAGE_TARGET_BYTES / CYCLE_STATE_MAX_ROW_BYTES,
+);
+
+/** Refuse to loop forever if the database keeps handing back full pages. */
+export const CYCLE_STATE_MAX_PAGES = 10000;
+
+/**
+ * How many times the whole paged read may be attempted. A new mirror snapshot landing mid-read
+ * invalidates the pages already collected, so the read restarts from page 0 against the new
+ * snapshot — ONCE. Bounded on purpose: an unbounded retry against a lane that is committing
+ * snapshots faster than this runner can page would spin forever.
+ */
+export const CYCLE_STATE_MAX_ATTEMPTS = 2;
+
+/** Tag for the benign mid-read snapshot race, so the runner can refuse to record it. */
+export const CYCLE_STATE_RACE_CODE = "CYCLE_STATE_RACE";
+
+/** Is this the benign read race rather than a genuine fault? */
+export function isCycleStateRace(error) {
+  return error?.code === CYCLE_STATE_RACE_CODE;
+}
+
 export { PROMOTION_MODE, PROMOTION_RULE_ID, HUMAN_RESPONSE_OWNER };
 
 // =====================================================================================
@@ -124,24 +232,42 @@ export { PROMOTION_MODE, PROMOTION_RULE_ID, HUMAN_RESPONSE_OWNER };
  * from a timestamp window. A time window would call a delayed snapshot "missing" and a
  * stale one "present"; the run id cannot be wrong about which snapshot a row came from.
  */
-export function buildCycleStateSql() {
+export function buildCycleStateSql({ offset = 0, limit = CYCLE_STATE_PAGE_SIZE } = {}) {
+  if (!Number.isInteger(offset) || offset < 0) throw new Error(`invalid probe offset ${offset}`);
+  if (!Number.isInteger(limit) || limit <= 0) throw new Error(`invalid probe limit ${limit}`);
   return `with snapshot as (
   select id from ingest.sync_run
   where source_name = 'coldlion_licensors_properties_api' and status = 'succeeded'
   order by started_at desc nulls last limit 1
 ),
 mirror as (
-  select 'licensor'::text as entity_type, company_code, division_code, mg_type_code, mg_code,
-         name as source_name, licensor_id as canonical_id, resolution_status, last_sync_run_id
-  from plm.erp_licensor
-  union all
-  select 'property'::text, company_code, division_code, mg_type_code, mg_code,
-         name, property_id, resolution_status, last_sync_run_id
-  from plm.erp_property
+  -- PAGED WINDOW. This probe used to return the ENTIRE ColdLion mirror as one buffered JSON
+  -- document; every layer it crossed (the CLI's buffer, Node's spawnSync maxBuffer, the
+  -- string, the parsed object) scaled linearly with the row count, and raising maxBuffer only
+  -- moved that cliff. The window is applied HERE, on the union, because the selection
+  -- predicate below uses only mirror columns — so no join has to be evaluated for rows
+  -- outside the page, and the payload is bounded by CYCLE_STATE_PAGE_SIZE instead of by the
+  -- size of the mirror. Aggregating server-side was NOT an option: the planner in
+  -- coldlion-recurring-promotion.mjs decides row by row and genuinely needs every row.
+  select * from (
+    select 'licensor'::text as entity_type, company_code, division_code, mg_type_code, mg_code,
+           name as source_name, licensor_id as canonical_id, resolution_status, last_sync_run_id
+    from plm.erp_licensor
+    union all
+    select 'property'::text, company_code, division_code, mg_type_code, mg_code,
+           name, property_id, resolution_status, last_sync_run_id
+    from plm.erp_property
+  ) u
+  where u.resolution_status = 'manually_matched'
+     or u.last_sync_run_id = (select id from snapshot)
+  order by u.entity_type, u.company_code, u.division_code, u.mg_type_code, u.mg_code
+  offset ${offset} limit ${limit}
 )
 select jsonb_build_object(
   'ok', true,
   'snapshot_run_id', (select id from snapshot),
+  'page_offset', ${offset}::bigint,
+  'page_limit', ${limit}::bigint,
   'rows', coalesce((
     select jsonb_agg(jsonb_build_object(
       'entityType', m.entity_type,
@@ -183,6 +309,120 @@ select jsonb_build_object(
        or m.last_sync_run_id = (select id from snapshot)
   ), '[]'::jsonb)
 ) as cycle;\n`;
+}
+
+/**
+ * Read the WHOLE cycle state as a sequence of bounded pages and stitch it back together.
+ *
+ * Two guards, both of which fail CLOSED, because offset paging over a table another lane can
+ * write to is only safe if you check that it did not move underneath you:
+ *   1. every page must report the SAME `snapshot_run_id`; a change means a new mirror snapshot
+ *      landed mid-read, so the pages describe two different cycles;
+ *   2. no typed key may appear twice; a duplicate means the ordered window shifted, which also
+ *      means some other row was skipped entirely — and a silently skipped row would look to the
+ *      planner exactly like a record ColdLion stopped sending.
+ *
+ * Returns null (not a throw) when a page is unparseable, preserving the runner's existing
+ * exit-2 behaviour for that case.
+ */
+export function readCycleState({
+  linked = false,
+  pageSize = CYCLE_STATE_PAGE_SIZE,
+  runSqlImpl = runSql,
+  parse = parsePhase6FunctionResult,
+} = {}) {
+  let attempts = 0;
+  let last = null;
+
+  while (attempts < CYCLE_STATE_MAX_ATTEMPTS) {
+    attempts += 1;
+    last = readCycleStatePass({ linked, pageSize, runSqlImpl, parse });
+    if (!last.restart) return last.cycle; // may legitimately be null (unparseable -> exit 2)
+    // The pages collected so far describe a mirror that moved underneath them. They are
+    // discarded WHOLE and the read restarts from page 0 — never stitched together, and never
+    // allowed to proceed on partial data.
+  }
+
+  if (last.kind === "snapshot") {
+    // Still racing after the bounded retry. BENIGN: the mirror lane is committing snapshots
+    // faster than this runner can page. Tagged so the caller refuses to record it as a failure —
+    // otherwise two unlucky overlaps in consecutive cycles would auto-trip the breaker on a
+    // completely healthy feed, which is the very defect class B14 exists to remove.
+    const error = new Error(
+      `the ColdLion mirror snapshot changed mid-read on all ${CYCLE_STATE_MAX_ATTEMPTS} attempts ` +
+        `(${last.detail}); aborting without promoting. This is a benign overlap with the mirror ` +
+        "lane, not a database fault, and is NOT recorded as a sync failure.",
+    );
+    error.code = CYCLE_STATE_RACE_CODE;
+    throw error;
+  }
+
+  // A duplicate key that survives a clean restart is NOT a benign race: the snapshot held still
+  // and the ordered window shifted anyway, so the read itself is broken (a non-deterministic
+  // ORDER BY, or rows mutating inside a settled snapshot). A shifted window also means some
+  // OTHER row was skipped entirely, and a skipped row looks to the planner exactly like a
+  // record ColdLion stopped sending. That is a real fault: loud, durable and recorded.
+  throw new Error(
+    `cycle-state paging returned a duplicate typed key on all ${CYCLE_STATE_MAX_ATTEMPTS} ` +
+      `attempts (${last.detail}); the ordered window is not stable, so at least one other row ` +
+      "was skipped. Failing closed.",
+  );
+}
+
+/**
+ * ONE full paged read. Returns `{restart:true, kind, detail}` when the read must be abandoned
+ * and retried from page 0, otherwise `{restart:false, cycle}`.
+ */
+function readCycleStatePass({ linked, pageSize, runSqlImpl, parse }) {
+  const rows = [];
+  const seenKeys = new Set();
+  let snapshotRunId = null;
+  let pages = 0;
+
+  for (let offset = 0; ; offset += pageSize) {
+    if (pages >= CYCLE_STATE_MAX_PAGES) {
+      throw new Error(
+        `cycle-state probe exceeded ${CYCLE_STATE_MAX_PAGES} pages of ${pageSize} rows; refusing to loop`,
+      );
+    }
+    const page = parse(runSqlImpl(buildCycleStateSql({ offset, limit: pageSize }), { linked }), {
+      requiredKey: "ok",
+    });
+    if (!page) return { restart: false, cycle: null };
+    pages += 1;
+
+    if (pages === 1) {
+      snapshotRunId = page.snapshot_run_id ?? null;
+    } else if (String(page.snapshot_run_id ?? "") !== String(snapshotRunId ?? "")) {
+      return {
+        restart: true,
+        kind: "snapshot",
+        detail: `${snapshotRunId} -> ${page.snapshot_run_id}`,
+      };
+    }
+
+    const pageRows = Array.isArray(page.rows) ? page.rows : [];
+    for (const row of pageRows) {
+      // NUL separator: these key parts are Postgres text values, which cannot contain NUL, so
+      // the concatenation is injective — two different key tuples can never alias into one
+      // string and mask a genuine duplicate.
+      const key = [row?.entityType, row?.company, row?.division, row?.mgTypeCode, row?.mgCode].join(
+        " ",
+      );
+      if (seenKeys.has(key)) {
+        return { restart: true, kind: "duplicate", detail: key.replace(/ /g, "/") };
+      }
+      seenKeys.add(key);
+      rows.push(row);
+    }
+
+    if (pageRows.length < pageSize) break;
+  }
+
+  return {
+    restart: false,
+    cycle: { ok: true, snapshot_run_id: snapshotRunId, rows, pages_fetched: pages },
+  };
 }
 
 export function buildPromoteSql(plan, { isDrill = false } = {}) {
@@ -345,6 +585,10 @@ export function main(argv = process.argv.slice(2), env = process.env) {
   if (!mode.apply) {
     process.stdout.write(buildCycleStateSql());
     process.stdout.write(
+      `-- This is PAGE 1 of the cycle-state probe. --apply reads successive pages of ` +
+        `${CYCLE_STATE_PAGE_SIZE} rows until a short page ends the read.\n`,
+    );
+    process.stdout.write(
       "Dry-run complete. No database write performed. Re-run with --apply --linked to promote.\n",
     );
     return 0;
@@ -352,8 +596,7 @@ export function main(argv = process.argv.slice(2), env = process.env) {
 
   let stage = "read-cycle-state";
   try {
-    const stateOut = runSql(buildCycleStateSql(), { linked: mode.linked });
-    const cycle = parsePhase6FunctionResult(stateOut, { requiredKey: "ok" });
+    const cycle = readCycleState({ linked: mode.linked });
     if (!cycle) {
       process.stderr.write(
         "PROMOTION UNPARSEABLE: the cycle-state probe could not be parsed; failing closed with exit 2\n",
@@ -374,6 +617,8 @@ export function main(argv = process.argv.slice(2), env = process.env) {
       `${JSON.stringify(
         {
           snapshot_run_id: cycle.snapshot_run_id,
+          cycle_state_pages: cycle.pages_fetched,
+          cycle_state_rows: cycle.rows.length,
           counts: plan.counts,
           quarantine_reasons: plan.quarantines.reduce((acc, q) => {
             acc[q.reason] = (acc[q.reason] ?? 0) + 1;
@@ -435,6 +680,36 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     );
     return 0;
   } catch (error) {
+    // A CLIENT-SIDE tooling fault is not the database failing, and must NEVER reach the durable
+    // failure path below: that path writes a failed ingest.sync_run row and a critical alert,
+    // and two consecutive failed rows auto-trip the coldlion_licensor_property breaker. An
+    // ENOBUFS/ENOENT/EACCES in this repo's own tooling would then take down a healthy
+    // production feed while blaming the data. Reported loudly and separately instead.
+    if (isCycleStateRace(error)) {
+      process.stderr.write(
+        `CYCLE-STATE RACE at stage ${stage}: ${error.message}
+` +
+          `No durable failed ingest.sync_run row and no critical alert were recorded, so this ` +
+          `does NOT count toward the two-consecutive-failure circuit breaker. Nothing was ` +
+          `promoted and nothing partial was used. The next scheduled cycle reads a settled ` +
+          `mirror and promotes whatever this one deferred.
+`,
+      );
+      return EXIT_CYCLE_STATE_RACE;
+    }
+
+    if (isClientSpawnFault(error)) {
+      process.stderr.write(
+        `CLIENT TOOLING FAULT at stage ${stage}: ${error.message}\n` +
+          `No durable failed ingest.sync_run row and no critical alert were recorded, so this ` +
+          `does NOT count toward the two-consecutive-failure circuit breaker. Nothing was ` +
+          `promoted. Fix the runner host (the Supabase CLI / psql could not be executed) and ` +
+          `re-run; the database was never told anything was wrong because nothing was.\n` +
+          `Human response owner: ${HUMAN_RESPONSE_OWNER}\n`,
+      );
+      return EXIT_CLIENT_TOOLING_FAULT;
+    }
+
     // Durable, separate-transaction alert so the breaker trip survives the rollback.
     try {
       runSql(buildPromotionAlertSql(stage, error?.message ?? String(error)), { linked: mode.linked });

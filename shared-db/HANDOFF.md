@@ -1983,7 +1983,105 @@ testable offline against the two committed files. **Explicitly not implemented i
 that assessed it** — that session's scope was limited to `HANDOFF.md` and `COORDINATOR_INTAKE.md`
 and was forbidden from adding scripts or workflows.
 
-### B14 — The ENOBUFS fix MOVES the cliff, it does not remove it — and it still auto-trips the breaker (HIGH — recorded 2026-07-31, NOT implemented; **must be resolved BEFORE the production lane is enabled at Step 8**)
+### B14 — The ENOBUFS fix MOVES the cliff, it does not remove it — and it still auto-trips the breaker (**RESOLVED 2026-07-31** — no longer a Step 8 blocker)
+
+> **RESOLVED 2026-07-31 in PR `fix/b14-coldlion-probe-bounded`.** Both halves were implemented;
+> the item below is kept in full because it is the reasoning that produced the design, and
+> because a future reader must be able to see WHY the cheap fix was not enough.
+>
+> **Half 1 — the probe no longer returns the whole mirror.** `buildCycleStateSql` in
+> `tools/promote-coldlion-source-owned.mjs` now takes `{ offset, limit }` and applies an
+> explicit `order by … offset … limit …` window **inside the `mirror` CTE**, before the lateral
+> and provenance joins. That placement is the whole reason the change is small: the selection
+> predicate uses only `mirror` columns, so the window can sit there without touching a single
+> pinned expression in the outer `jsonb_build_object`. The new `readCycleState()` reads
+> successive pages of `CYCLE_STATE_PAGE_SIZE` (1000) rows and stops on the first short page,
+> so the payload is bounded by a constant instead of by the row count. At roughly 700 bytes of
+> JSON per row a full page is ~0.7 MB — it would fit **even under Node's 1 MiB default**, which
+> makes the 256 MiB `maxBuffer` a second line of defence rather than the only one. It is kept
+> for that reason, and because `runSql` is generic.
+>
+> **Server-side aggregation was considered and REJECTED, with evidence.** The "aggregates and a
+> hash" option in the list below cannot work here: `planRecurringPromotion` in
+> `tools/coldlion-recurring-promotion.mjs` decides **row by row** (curated-name equivalence,
+> quarantine reasons, per-row provenance fields), and `splitCycleState` consumes **every key**
+> the probe emits. There is no aggregate that preserves what the planner needs. Paging is the
+> smallest change that actually removes the cliff.
+>
+> **Offset paging is only safe if you check the window did not move**, so `readCycleState` fails
+> CLOSED on two conditions: every page must report the **same `snapshot_run_id`** (a change means
+> a new mirror snapshot landed mid-read and the pages describe different cycles), and **no typed
+> key may appear twice** (a duplicate is the observable symptom of a shifted window, which means
+> some other row was skipped entirely — and a skipped row looks to the planner exactly like a
+> record ColdLion stopped sending). There is also a max-page guard so a database handing back
+> endlessly full pages cannot spin forever.
+>
+> **Half 2 — a client-side fault can no longer trip the breaker.** `runSql` now tags every
+> spawn-boundary fault (ENOBUFS, ENOENT, EACCES, a kill) with `code = "CLIENT_SPAWN_FAULT"` via
+> `clientSpawnFaultError()`, and the runner's catch block checks `isClientSpawnFault(error)`
+> **first**, printing a loud `CLIENT TOOLING FAULT` and returning the new
+> `EXIT_CLIENT_TOOLING_FAULT` = **4** — distinct from success (0), failure (1), unparseable (2)
+> and lane skip (3). It records **no** durable failed `ingest.sync_run` row and **no** critical
+> alert, so it cannot contribute to the two-consecutive-failure autotrip. If the CLI could not
+> be executed, the database was never asked anything and cannot have failed. The same tagging
+> was applied to the `psql` branch, where a non-ENOENT spawn error previously surfaced as the
+> undiagnosable `"psql failed"`.
+>
+> **Proof, all offline.** `tools/coldlion-cycle-state-paging.test.mjs` (14 tests) pins both
+> halves. The breaker half is proved against the **real** `main()` across the **real** spawn
+> boundary: with `PATH` pointing at an empty directory the CLI genuinely ENOENTs, and the test
+> asserts exit 4, the absence of the two `could not record …` warnings, and that **zero** SQL
+> statements of any kind were sent — with a contrast test that a genuine non-zero CLI exit
+> still attempts both `record_taxonomy_sync_alert` and the failed `ingest.sync_run` insert, so
+> the new guard is not too wide. Every assertion was mutation-tested: 12 separate mutations of
+> the code under test each made a test fail, and both source files were restored byte-identical
+> (verified by SHA-256).
+>
+> **REVIEW ROUND 2 (Kimi K3, MERGE WITH CHANGES) — three further corrections, all real.**
+>
+> An independent review confirmed the primary safety property (no path to a wrong canonical
+> write; the total ordering holds, the joins cannot drop a page row, a short page is a sound
+> termination signal, and the NUL separator in the duplicate-key guard is injective at byte
+> level). It also found three defects in the first version of the fix:
+>
+> 1. **The fix had installed a NEW healthy-race breaker trip.** A snapshot change or a duplicate
+>    key threw a plain `Error`, which the catch recorded as a durable failed row plus a critical
+>    alert — so two unlucky overlaps with the mirror lane in consecutive cycles would auto-trip
+>    the breaker on a healthy feed. That is the same defect class B14 exists to fix, arriving
+>    through another door. Now: the read **restarts from page 0 once**
+>    (`CYCLE_STATE_MAX_ATTEMPTS` = 2; the collected pages are discarded whole, never stitched,
+>    never partial). A snapshot race that survives the retry is tagged `CYCLE_STATE_RACE` and
+>    exits **5**, recording nothing. A DUPLICATE that survives a clean restart is deliberately
+>    treated differently — it stays a real, recorded fault, because the snapshot held still and
+>    the window shifted anyway, which means the read itself is broken and a row was silently
+>    skipped.
+> 2. **The psql path still had the original 1 MiB cliff.** `maxBuffer` had been applied only to
+>    the Supabase-CLI spawn, so wherever `DATABASE_URL` is set the ENOBUFS cliff was completely
+>    untouched. Both spawns now take the same `SPAWN_MAX_BUFFER_BYTES` constant, and a test
+>    asserts it appears on both and that no hand-written literal returns. An asymmetry between
+>    two branches doing the same job is how this defect survived in the first place.
+> 3. **The page size rested on a GUESS.** It was derived from an estimated "~700 bytes/row".
+>    It is now **measured**: the test rebuilds the exact probe row shape from the 570 REAL
+>    ColdLion rows committed under
+>    `docs/verification/coldlion-licensor-property-phase2b-20260724/` — mean **496 B**, p95 536,
+>    **max 581**. That mean independently reproduces the incident figure (1,305,075 / 496 =
+>    ~2,630 mirror rows), which is what makes it evidence rather than another guess. The budget
+>    is `CYCLE_STATE_MAX_ROW_BYTES` = 2048 (~3.5x the largest real row) and
+>    `CYCLE_STATE_PAGE_SIZE` = 256 is **derived** from it, never hand-tuned. CI re-measures on
+>    every run, so growth in the real data fails the test before it can be wrong in production.
+>
+> A Low finding was also corrected: the comments claimed a killed process is tagged a client
+> fault. On Linux — which CI and the production lane both run on — an external SIGKILL leaves
+> `error` undefined and takes the ordinary recorded-failure path. The comments now say so
+> rather than manufacturing false confidence.
+>
+> **22 mutations** were watched to fail across the two rounds (12 for the round-2 behaviour, 10
+> re-verifying the round-1 guards after the restructure), with both sources restored
+> byte-identical each time.
+>
+> **No existing test was weakened or deleted.** `tools/coldlion-sync-common-runsql.test.mjs`
+> still passes unchanged: the argv, `--output json`, the raised `maxBuffer` and the diagnosable
+> spawn-fault message are all preserved.
 
 **Read this as a correction to the defect-1 fix in PR #362, not as a complaint about it.** The
 fix is right and should stay. What it is NOT is a resolution of the underlying problem, and the
