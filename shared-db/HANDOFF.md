@@ -1047,6 +1047,25 @@ been merged to `origin/main` for more than 30 days and still exists. Nobody shou
 without reading `COORDINATOR_INTAKE.md` Part B2 first; the thresholds live there and must not
 be duplicated into a workflow that then drifts.
 
+### B11 — A paused agent looks exactly like a finished one to a worktree sweep (MEDIUM — recorded 2026-07-31, NOT implemented)
+
+**Real incident, this session.** An agent had deliberately **stopped and was awaiting
+re-dispatch** — it had correctly refused to race an unmerged PR — and a concurrent cleanup agent
+deleted its worktree. The cleanup agent broke no rule: the worktree was clean, unlocked, and held
+no unmerged work. The affected agent recovered by creating a fresh worktree, so nothing was lost
+this time; it easily could have been.
+
+**The gap:** the cleanup criteria in `COORDINATOR_INTAKE.md` Part B2 and the `cleanup-worktree`
+procedure treat *clean + unlocked + work merged* as sufficient to retire a worktree. That is
+**necessary but not sufficient** — it must also be established that **no coordinator intends to
+re-dispatch that agent**. A paused-awaiting-redispatch agent is indistinguishable from a finished
+one.
+
+**Proposed fix (not built):** the coordinator maintains the authoritative list of agents it may
+still resume and no sweep runs without checking it; or an agent awaiting re-dispatch marks its
+worktree in a way a sweep can see. `COORDINATOR_INTAKE.md` Part B2 remains the authority for
+retention numbers — do not restate thresholds here.
+
 ### B5 — Other items carried forward from elsewhere in this file
 
 These are already documented in detail in their own sections above; they are listed here only so
