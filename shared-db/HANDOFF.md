@@ -55,6 +55,229 @@ yet.** Until it lands, these tests are not enforced by CI on pull requests.
 
 ---
 
+## BACKLOG — repository-level improvements, NOT STARTED (recorded 2026-07-31)
+
+**Status: documentation only. Nothing in this section has been implemented.** It was written by
+a planning session that was explicitly forbidden from changing anything except this file — no
+`.gitattributes`, no workflow, no migration, no script, no database contact.
+
+**This is also the place follow-up work goes from now on.** Read
+[§ Backlog discipline](#b4--backlog-discipline--never-create-background-task-chips-for-shared-db-work)
+below before you create a task chip, spin up a parallel agent, or "just quickly" fix one of
+these. Items are ordered by value. Each one is written for a developer who has never seen this
+repository and has no memory of any prior chat session.
+
+---
+
+### B1 — Line endings: add `.gitattributes` and force LF (highest value, needs its own coordinated PR)
+
+**The problem.** This repository has **no `.gitattributes` file at all**, and the Windows
+checkouts run with `core.autocrlf=true` (verify with `git config core.autocrlf` — it prints
+`true`). Git therefore stores LF in history but **writes `.sql` files to disk with CRLF** on
+Windows. `supabase db push` sends the file bytes verbatim, so a function pushed from a Windows
+machine lands in preview with `\r` embedded in its `prosrc`; the same function pushed from
+Linux does not. Postgres does not care — the SQL executes identically — but **anything that
+reads the text does.**
+
+**The concrete evidence that this is real, not theoretical.**
+`tools/promote-coldlion-source-owned.test.mjs` reads the migration file and strips SQL comments
+before asserting on it, so that a sentence of English prose in a comment cannot accidentally
+satisfy an assertion about SQL. The stripper is:
+
+```js
+.split("\n")
+.map((line) => line.replace(/--.*$/, ""))
+```
+
+In JavaScript regex, `.` does **not** match `\r`. With CRLF line endings, `split("\n")` leaves
+every line ending in a trailing `"\r"`, so `.*` stops before that `\r`, the unanchored `$` never
+matches, and **the comment is silently not stripped**. Commented-out prose then leaks into the
+text the assertions scan. Measured on the live file: the quarantine predicate matched **3 times
+with CRLF vs 2 with LF**, and `contains 'grant'` was **true with CRLF and false with LF**. That
+is the exact and complete explanation for the two test failures that reproduce locally on
+Windows but pass in CI on Linux. Nobody should burn another session rediscovering this.
+
+**Also affected (same root cause):** byte comparison of `pg_get_functiondef` output between an
+environment pushed from Windows and one pushed from Linux; any checksum or hash taken over a
+function definition; and ordinary diff noise on `.sql` files.
+
+**Exactly what to do.**
+
+1. Add a `.gitattributes` at the repository root. Minimum viable content:
+   ```
+   * text=auto eol=lf
+   ```
+   If a narrower change is preferred, `*.sql text eol=lf` is the strict minimum, and `*.mjs`,
+   `*.yml`, `*.sh` should be included too — the test tooling, the workflows and the shell
+   scripts have the same exposure.
+2. In the **same** PR, harden the comment stripper in
+   `tools/promote-coldlion-source-owned.test.mjs` — either drop the `$` anchor (`/--.*/`) or
+   normalize the file on read (`.replace(/\r\n/g, "\n")`). Sweep for the same
+   `.split("\n")` + `$`-anchored-regex pattern in the other `tools/*.test.mjs` files and fix
+   every occurrence.
+3. Renormalize the working tree once: `git add --renormalize .` and commit whatever it changes.
+
+**Two caveats that must be respected — this is why it is its own PR and not a drive-by.**
+
+- **(a) It rewrites the working tree on the next checkout of every clone and every live git
+  worktree.** Multiple agent worktrees are routinely open against this repo at once. Land this
+  when **few or no other sessions are open**, announce it, and expect every other worktree to
+  need a fresh checkout afterwards. Do not bundle it with unrelated changes — the diff must be
+  reviewable as "line endings only".
+- **(b) The `.gitattributes` alone is not the fix.** Without step 2 the regex stays fragile and
+  breaks again the moment CRLF reappears on any machine (a new clone before the attributes file
+  is fetched, an editor that rewrites endings, a zip download). Both halves ship together or
+  neither does.
+
+**How to verify it worked.**
+- `git config core.autocrlf` may still say `true`; that is fine — `.gitattributes` overrides it.
+- `node -e "const b=require('fs').readFileSync('supabase/migrations/<file>.sql');console.log(b.includes(13))"`
+  prints `false` on a fresh checkout on Windows.
+- The `tools/*.test.mjs` suite passes on Windows **and** on Linux, and still passes if you
+  deliberately convert a migration to CRLF locally before running it (that is the real proof the
+  stripper was hardened, not just the file).
+
+**Priority: HIGH.** It is the only item here that is actively costing debugging time today.
+
+---
+
+### B2 — Repo-wide checkers are gated behind narrow `paths:` filters (a guard that cannot re-run)
+
+**The problem.** The `DB Data Admin` GitHub Actions workflow has a `verify` job that runs
+`scripts/check-domain-ownership.mjs`. That script scans **every tracked text file** in the repo
+via `git ls-files`. But the workflow itself only triggers on a narrow `paths:` filter, and that
+filter **does not include `HANDOFF.md`**. The result is a guard that can be tripped by a file it
+does not watch, and — worse — **cannot be un-tripped**: fixing the offending line in an unwatched
+file triggers no run, so `main` keeps displaying a stale red verdict indefinitely. This trap is
+written up in `AGENTS.md` §5.2, added by **PR #336, which is still OPEN** at the time of writing.
+
+**The concrete evidence.** PR #328 fixed the offending line (commit `53f849f`) and fired **no
+workflow run at all**. What actually turned `main` green again was the unrelated PR #307
+(commit `f1b9e8b`), which happened to touch `AGENTS.md` — a path that *is* in the filter.
+
+**Exactly what to do (assessed and recommended, deliberately not implemented here).**
+Add a **separate, tiny `domain-ownership` workflow** with **no `paths:` filter**, running only
+the two `node` commands for the ownership check. It is cheap, it runs on every push and pull
+request, and it is decoupled from anything heavy.
+
+**Why the obvious fix is the WRONG fix — do not do this.** Widening the existing `paths:`
+filter looks like a one-line change, but that same filter also gates a **Docker image build**,
+the **Playwright browser tests**, and the Coolify **`deploy-development`** job. Widening it
+would fire a full build-and-deploy on every unrelated documentation PR. The cost lands on every
+future contributor. Keep the heavy workflow narrow; give the cheap repo-wide guard its own
+trigger.
+
+**How to verify it worked.** Open a pull request that changes **only** `HANDOFF.md` and confirm
+the new `domain-ownership` check appears and runs on it, while the Docker build, the Playwright
+job and `deploy-development` do **not**.
+
+**Priority: MEDIUM.** No data is at risk; the cost is a misleading red/green signal on `main`.
+Note the sequencing: `AGENTS.md` §5.2 describing this lives in the still-open PR #336, so land
+or close that first to avoid conflicting edits.
+
+---
+
+### B3 — `SECURITY DEFINER` default-privilege exposure across the existing database
+
+**The problem.** The production Supabase advisors report a large, long-standing backlog of
+privilege findings — all of it **predating** the current workstreams:
+
+| Advisor finding | Approximate count |
+|---|---|
+| `anon_security_definer_function_executable` | ~88 |
+| `authenticated_security_definer_function_executable` | ~118 |
+| `function_search_path_mutable` | ~38 |
+| `security_definer_view` (ERROR level) | 15 |
+
+**What has already been fixed, and what has not.** Migration `20260729120000` (PR #316) fixed
+the **root cause going forward**: it stripped default `EXECUTE` privileges in the `public`
+schema and installed a `ddl_command_end` event trigger,
+`lock_down_new_public_function_execute_trg`, which auto-revokes `EXECUTE` on newly created
+`public` functions. See `AGENTS.md` §10.2 — every new migration must now state its grants
+explicitly. **The roughly 200 pre-existing functions were never swept.** That sweep is the
+outstanding work.
+
+**The nuance that makes this an audit and not a script — do not skip this paragraph.**
+A grant to `authenticated` is **not automatically a defect.** This was established by a
+three-way review (Claude + Grok 4.5 + GLM 5.2). Many of these functions gate their own body
+with `app.has_role('administrator')`, which resolves the caller through the **request JWT**
+(`auth.uid()`), not through `current_user`. Such a function is correctly secured even though
+`authenticated` can execute it — revoking the grant would simply break a working admin screen.
+A blanket `REVOKE` sweep is therefore **the wrong answer and will cause an outage.**
+
+**Exactly what to do.** Enumerate the flagged functions; for each one classify it as
+(a) genuinely exposed — no in-body role gate — or (b) correctly gated by `app.has_role(...)` or
+equivalent. Only category (a) gets revoked. Handle `function_search_path_mutable` separately and
+mechanically (`SET search_path` on the function). Treat the 15 ERROR-level `security_definer_view`
+findings as their own sub-task; views do not have the same gating story as functions. Do this in
+small batches with a preview apply and a functional check of the affected admin screens between
+batches — never one giant migration.
+
+**How to verify it worked.** The advisor counts fall batch by batch (Supabase advisors), and the
+DB Data Admin screens plus each consuming app still work after every batch. The end state is
+zero ERROR-level findings and every remaining `authenticated` grant individually justified in
+writing.
+
+**Priority: MEDIUM–HIGH by severity, LOW by urgency.** It is long-standing, the bleeding has
+already been stopped for new code, and doing it carelessly is more dangerous than leaving it.
+
+---
+
+### B4 — Backlog discipline: never create background task chips for shared-db work
+
+**The rule.** Follow-up work for `shared-db` is recorded **in this backlog section**, where it
+sits inert until a coordinator deliberately dispatches it to a sub-agent in its own git
+worktree. Do **not** create background task chips. If a chip is ever genuinely unavoidable, its
+title **must** begin `DO NOT START —` so that nobody launches it by accident. See the
+`shared-db-orchestrator` skill for the full coordination model.
+
+**Why — the incident this rule comes from.** After a review, five follow-up chips were created.
+Each chip launches an **independent session outside any coordinator's control**, and none of
+them can see the others. **Four of the five** authored forward migrations doing
+`CREATE OR REPLACE` on the **same** function, `plm.promote_coldlion_source_owned`, and **three
+of them chose the identical migration version `20260731170000`.**
+
+`CREATE OR REPLACE` is last-writer-wins. Merging any two of those branches would have **silently
+erased** the other's work — no conflict, no error, no failing test. Each pull request passed CI
+on its own, because the duplicate-version guard only ever sees a single branch at a time; the
+collision is invisible until after the merge.
+
+Untangling it required merging **one at a time** and **re-deriving** each change on top of the
+previous merged function body. Merge commits: `691d5ea`, `01f0214`, `6a00e31`, `49d2ac1`,
+`cc0d1dd`.
+
+**How to verify the rule is being followed.** No open task chips referencing `shared-db`; every
+follow-up appears as a written item in this section; and before any dispatch, the coordinator
+confirms that no two in-flight branches touch the same function or claim the same migration
+version.
+
+**Priority: HIGH — process, effective immediately.** It costs nothing to follow and the failure
+mode is silent data-logic loss.
+
+---
+
+### B5 — Other items carried forward from elsewhere in this file
+
+These are already documented in detail in their own sections above; they are listed here only so
+that one place answers "what is outstanding?".
+
+- **ColdLion promotion serialization lock** — branch `claude/adoring-bose-f6e5ef`, migration
+  `20260731180000`, open and not merged. Two gates in order: land PR #338 first, then prove it
+  on preview. See the "OPEN, NOT MERGED" section at the top of this file.
+- **`origin/fix/wire-coldlion-step7a-tests-ci` has no PR open.** Until it lands, the
+  `tools/*.test.mjs` suite is **not enforced by CI on pull requests** — which is precisely how
+  B1's CRLF failure escaped notice.
+- **`20260729120000` is still pending on production** and must be promoted **with or after** the
+  ClickUp migrations (`20260728174500`), never before, or the apply aborts with
+  `undefined_function`. See `fix_public_schema_anon_lockdown.md`.
+- **Characters and style guides, Phase 0** — blocked on an **owner decision** (promote DAM's
+  existing character→property mapping vs the 174-row licensing-team review). Phase 1 is
+  read-only and can start now regardless.
+- **PopSG PSG-5 — the eight Licensor aliases** remain a blocking owner gate; that is Albert's
+  call, not an AI's.
+
+---
+
 ## FRESH-SESSION BOUNDARY — ClickUp importer + duplicate-timestamp remediation (2026-07-29)
 
 **Written:** 2026-07-29. **Author:** AI session working from `/worksp/poppim-web`.
@@ -1887,6 +2110,17 @@ change written, no database modified.**
 - **Licensing-team review sheet + regenerator:** [`docs/verification/style-guide-property-mapping-20260726/`](docs/verification/style-guide-property-mapping-20260726/README.md)
 
 Merged: PRs #197 `db97cd9`, #203 `31e6583`, #215 `f9c8758`, #236 `5bd2f5f`, #237 `1a9a4b1`.
+
+**STATUS UPDATE — licensing coordination with Laura, round-2 sheet SENT (2026-07-31).** The
+round-2 workbook
+`docs/verification/character-identity-rules-20260728/licensing-questions-for-laura-round2-20260731.xlsx`
+(166 open rows, every answer cell a locked dropdown — 166 data validations verified) was built
+and merged, and **Albert sent it to Laura on 2026-07-31.** The workstream is now **awaiting
+Laura's response**; no further action is available to any AI session until the completed sheet
+comes back. Note that `coordinator_take_over.md` §4.3 still reads "built, ready to send, NOT
+sent" and "Owner still has to send it" — **that is now superseded by this entry**; it was left
+unedited only because the session recording this was scoped to `HANDOFF.md` alone. No contact
+with Laura happens from any session.
 
 **Exact next action:** Phase 0 — blocking **owner decision** (promote DAM's existing
 character→property mapping vs the 174-row licensing-team review). Phase 1 is read-only and can
