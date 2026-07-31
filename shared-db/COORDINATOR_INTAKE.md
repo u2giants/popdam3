@@ -1,5 +1,28 @@
 # COORDINATOR_INTAKE.md — hand your work over to the one coordinator
 
+> # ⛔ AN EMPTY QUEUE DOES **NOT** MEAN THERE IS NO WORK.
+>
+> **Read this before you conclude anything about the state of this project.**
+>
+> The queues in this file track **incoming requests and handovers only**. They
+> are frequently empty, and an empty `REQUEST QUEUE`, `INTAKE QUEUE` or
+> `IN PROGRESS` section is **not** evidence that there is nothing to do. It has
+> already happened once that a fresh coordinator read these three empty sections
+> and reported "there is no pending work" while a large, urgent backlog was
+> sitting in `HANDOFF.md`. Every word of that report was technically true and
+> the conclusion was completely wrong.
+>
+> **`HANDOFF.md` is the authoritative record of outstanding work — not this
+> file.** Before you decide the project is idle, before you tell anyone there is
+> nothing pending, and before you plan a session, you **MUST** read:
+>
+> 1. the **most recent COORDINATOR HANDOVER section at the top of `HANDOFF.md`**,
+>    including its opening agenda and its "waiting on Albert" list; and
+> 2. the **`## BACKLOG` section of `HANDOFF.md`** (items **B1–B12**).
+>
+> If the queues below are empty and `HANDOFF.md` has a backlog, **the backlog is
+> your work.** Never report "nothing to do" on the strength of this file alone.
+
 **This repo runs ONE coordinator session at a time.** Every piece of work is
 dispatched by that coordinator to sub-agents in isolated git worktrees. Nothing
 happens outside it.
@@ -457,7 +480,536 @@ Work that has been **requested but not started**. Newest first. Append your
 block using the Part 0 template — do not edit anyone else's, including your own
 after it is filed. Only the coordinator moves a block out of here.
 
-_(none yet)_
+> **Seeded 2026-07-31 from `HANDOFF.md`.** The entries below are the real
+> outstanding work of this project, transcribed into queue form so it is visible
+> instead of buried in prose. **They are deliberately SHORT and they are NOT the
+> authoritative detail** — for every one of them, `HANDOFF.md` is authoritative
+> and must be read before acting. If an entry here and `HANDOFF.md` disagree,
+> **`HANDOFF.md` wins** and this entry is stale. Do not copy detail back into
+> this file; that is how the two documents drift apart, which has already gone
+> wrong repeatedly in this repo.
+>
+> Priority order for the top of the session is the opening agenda in
+> `HANDOFF.md` §U4. Items are listed here in roughly that order.
+
+### REQUEST — Re-run the ColdLion 18-case rehearsal against the CURRENT function body — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Prove that the ColdLion licensor/property
+promotion still behaves correctly *as it exists today*. The celebrated "14/14
+passed" evidence describes the function at migration `20260730000500`; four
+`CREATE OR REPLACE` migrations landed after it and were applied to preview but
+never re-rehearsed. **Applied is not rehearsed.** Four cases (`10a`–`10d`) have
+**never executed at all**. Output must be a **dated evidence artifact committed
+to the repo**, not a chat message.
+
+**2. Which application(s) depend on this.** ColdLion → DesignFlow → shared
+Supabase licensor/property taxonomy; downstream popdam3 and PopSG.
+
+**3. Is it blocking anything, and how urgently?** **BLOCKING.** This is the gate
+on everything ColdLion, including Step 8 production switch-on. **HIGHEST
+PRIORITY — dispatch this first.**
+
+**4. Deadline, if any.** None stated. Production remains off until it is done.
+
+**5. What I already know about the current schema.** Read from `HANDOFF.md`,
+**not verified live**: preview holds all ColdLion migrations through
+`20260731200000`; the four unrehearsed versions are `20260731163000`, `180000`,
+`190000`, `200000`. Authoritative detail: `HANDOFF.md` §U1.2 and §U4 item 4;
+cases at `tools/rehearse-coldlion-recurring-cycles.mjs` lines 398–442.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started: no
+branch for this work, no migration, no preview or production push, no `supabase`
+CLI, no Supabase MCP, no psql, no chip.
+
+---
+
+### REQUEST — Re-derive the true production migration manifest + read-only dry-run proof — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Establish, from a **live ledger
+comparison** (production `supabase migration list` vs the repo) rather than from
+any document, exactly which migrations Step 8 would promote — the plan says four,
+the true manifest is roughly **eighteen** — and prove via the read-only
+`production-dry-run` lane that the ~15 unrelated pending production migrations
+stay out. Never `--include-all`.
+
+**2. Which application(s) depend on this.** All four apps share the database that
+would receive the promotion.
+
+**3. Is it blocking anything, and how urgently?** **BLOCKING** Step 8. Can run in
+parallel with the rehearsal. **HIGH.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** From documents only:
+385 migration files, max version `20260731220000`, next free `20260731230000` —
+**re-derive**. Authoritative detail: `HANDOFF.md` §U1.2 and §U4 item 5.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+database contact of any kind.
+
+---
+
+### REQUEST — Assemble the ColdLion Step 8 approval package for Albert — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Give Albert a single package he can
+approve or refuse. It must contain **all five prerequisites**: the fresh 18-case
+rehearsal artifact; every migration named by **exact version** (from the live
+ledger comparison, not counted from a document); the read-only bounded-promotion
+dry-run proof; a **production backup and written "before" baseline** (last
+claimed 26 licensors / 256 properties / 542 links — UNVERIFIED); and Albert's
+**written acceptance of the weaker production alerting** (the alert-monitor
+workflow is preview-only and hard-refuses the production ref).
+
+**2. Which application(s) depend on this.** ColdLion feed into production
+taxonomy; DesignFlow and popdam3 downstream.
+
+**3. Is it blocking anything, and how urgently?** Blocked on the two entries
+above — **do not start it before they land.** HIGH once unblocked.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** No Step 8 approval artifact
+exists. `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs` lines
+399–407 **refuses** an enabled production variable until
+`docs/verification/coldlion-licensor-property-step8-approval-*/approval.json`
+exists — the paperwork is a working interlock. **Read the 🛑 CRITICAL switch-on
+ORDER section of `HANDOFF.md` before touching anything ColdLion: promote →
+verify → only then enable; arming production is a single command.**
+Authoritative detail: `HANDOFF.md` §U1.2, the 🛑 CRITICAL section, and §U4 item 6.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; the
+`COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` variable has not been created,
+set, or requested.
+
+---
+
+### REQUEST — popdam3 worker alias cutover (DIFFERENT REPO) — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** The PopDAM worker in **`u2giants/popdam3`**
+still resolves aliases from its own hard-coded arrays. It must read
+`core.licensor_alias` and `core.property_alias` instead, and must **prove
+`normalizePopSGTag` is byte-identical in behaviour to
+`core.normalize_popsg_property_observation` across all 21 frozen fixtures** — two
+normalisers disagreeing by one character silently file assets under the wrong
+licensor. **Until this lands, every licensor-alias approval recorded in this
+database has ZERO runtime effect** and nobody should be told PSG-5 is finished.
+
+**2. Which application(s) depend on this.** popdam3 (PopDAM); PopSG tagging.
+
+**3. Is it blocking anything, and how urgently?** Not blocking shared-db, but it
+is the only thing standing between the completed alias work and any visible
+benefit. **HIGH.** ⚠️ **Different repository** — it needs its own slot and its
+own owner, and is not something a shared-db coordinator starts on its own.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** `core.licensor_alias` (10
+rows, 8 `owner_approved`, 2 `inherited_unverified`) and `core.property_alias`
+exist on preview — **UNVERIFIED, read from a document.** Authoritative detail:
+`HANDOFF.md` §U1.4 and §U4 item 9.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started in
+either repo; no database contact.
+
+---
+
+### REQUEST — PopSG PSG-5 rebuild — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** The PSG-5 database work is merged
+(`691d5ea`, PR #338) and the **owner gate is now CLOSED** — Albert ruled "all
+correct" on all eight licensor aliases on 2026-07-31. **Do not re-ask him, and do
+not re-open Sesame Workshop → Sesame Street; the inconsistency was named to him
+and accepted.** The actual next step for PSG-5 is the **popdam3 cutover above**,
+not further work here. The rebuild itself is on the **do-NOT-start-
+opportunistically** list because it competes for the same shared tables.
+
+**2. Which application(s) depend on this.** popdam3 / PopSG.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **LOW — hold.**
+Start only on a deliberate, dedicated dispatch.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** As above; unverified.
+Authoritative detail: `HANDOFF.md` §U1.3, §U1.4 and §U4 item 10.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+database contact.
+
+---
+
+### REQUEST — Frame the `EX` / `LB` / `JL` property codes (and the 66 unmatched ColdLion codes) as an answerable question for Albert — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** These codes are inherited from an earlier
+session and **nobody has yet put them to Albert in a form he can rule on** — no
+list, no proposed mapping, no "is this correct?" table. **Producing that question
+IS the task.** The format that has actually worked is the approval table in
+`HANDOFF.md` §U1.3. Asking him an unframed question wastes the one resource that
+cannot be parallelised.
+
+**2. Which application(s) depend on this.** Shared licensor/property taxonomy;
+ColdLion feed; DesignFlow.
+
+**3. Is it blocking anything, and how urgently?** Blocked on **nothing** — it can
+start immediately, and it must be finished **before** Albert is asked anything
+about these codes. **MEDIUM-HIGH** (it unblocks an Albert decision).
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Only what `HANDOFF.md` §U1.5
+item 4 and §U4 item 7 state. Nothing verified live.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+database contact.
+
+---
+
+### REQUEST — Sweep the 22 worktrees and ~42 stale local branch labels — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** One day's work left **22 worktrees** and
+**~42 local branch labels** already merged into `origin/main`. They were
+**deliberately left**: the sweeping session was isolated to its own worktree and
+**could not verify the dirty state** of the other 21, and a third-party agent was
+concurrently live. ⚠️ **Backlog B11 caution: a PAUSED agent is indistinguishable
+from a finished one** — a sweep earlier that day deleted a paused agent's
+worktree while breaking no rule. Also: **branch-tip ancestry is NOT a valid
+merged-test here** (squash merges); use `gh pr view <n> --json state`.
+
+**2. Which application(s) depend on this.** None — repo hygiene only.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **LOW.** Run
+**only when the repo is quiet**, from a session that can actually inspect each
+worktree's dirty state, using the **`cleanup-worktree`** skill. Delete **local
+labels only** (`git branch -d`, never `-D`); never delete a remote branch.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` §U1.6, §U3.7, §U3.8, backlog **B11**, and §U4 item 11. Note the
+older "sweep ~30 stale local branch labels" note at the bottom of this file is
+the same item at an earlier count.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** No worktree removed, no
+branch deleted, no prune run.
+
+---
+
+### REQUEST — Update the stale shared checkout `C:/repos/shared-db` — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** The shared checkout's local `main` was
+**nine commits behind** `origin/main` at the last handover. Every session that
+starts there begins from a stale tree. One command: `git -C C:/repos/shared-db
+pull`. **Check first that no agent is mid-edit in it.**
+
+**2. Which application(s) depend on this.** None — local environment only.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but it is
+**agenda item 2** and takes seconds. **MEDIUM.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` §U1.6 row 1 and §U4 item 2.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing pulled, nothing
+checked out, no worktree touched.
+
+---
+
+### REQUEST — Backlog B1 — add `.gitattributes` and force LF — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** No `.gitattributes` exists; Windows
+checkouts write `.sql` with CRLF, which breaks a comment-stripper regex in
+`tools/promote-coldlion-source-owned.test.mjs` and produces tests that fail on
+Windows but pass in CI. **Both halves ship together** — the attributes file *and*
+the hardened stripper — or neither. **Impact was downgraded 2026-07-31: CRLF is a
+non-issue for automation.**
+
+**2. Which application(s) depend on this.** None directly; developer tooling.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM.** ⚠️ It
+**rewrites the working tree of every clone and every live worktree** — land it
+only when few sessions are open. Explicitly on the do-NOT-start-opportunistically
+list.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` backlog **B1**.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
+
+---
+
+### REQUEST — Backlog B2 — repo-wide checkers gated behind narrow `paths:` filters — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** `scripts/check-domain-ownership.mjs`
+scans every tracked file but its workflow only triggers on a narrow `paths:`
+filter that excludes `HANDOFF.md` — so the guard can be tripped by a file it does
+not watch and **cannot be un-tripped**, leaving `main` stale-red indefinitely.
+Fix is a **separate tiny workflow with no `paths:` filter**. ⚠️ **Widening the
+existing filter is the WRONG fix** — it also gates a Docker build, Playwright
+tests and a Coolify deploy.
+
+**2. Which application(s) depend on this.** DB Data Admin CI.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` backlog **B2**; `AGENTS.md` §5.2.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
+
+---
+
+### REQUEST — Backlog B3 — sweep pre-existing `SECURITY DEFINER` privilege exposure — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Roughly 200 pre-existing functions carry
+default `EXECUTE` grants (advisors report ~88 anon, ~118 authenticated, ~38
+mutable search_path, 15 ERROR-level security-definer views). The **root cause
+going forward is already fixed** (`20260729120000`); the historical sweep is not.
+⚠️ **This is an AUDIT, not a script** — a grant to `authenticated` is not
+automatically a defect.
+
+**2. Which application(s) depend on this.** All four apps.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM** —
+security debt, large, needs its own dedicated slot.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** Counts above read from a
+document, **UNVERIFIED**. Authoritative detail: `HANDOFF.md` backlog **B3**;
+`AGENTS.md` §10.2.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+database contact.
+
+---
+
+### REQUEST — Backlog B4 — backlog discipline: never create background task chips — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Already **in force as a written rule**
+(standing fact 5 above, and `AGENTS.md`). Listed here only so nothing in the
+backlog is invisible. Four chip-spawned sessions authored competing
+`CREATE OR REPLACE` migrations against the same function, three sharing one
+version — they would have silently erased each other.
+
+**2. Which application(s) depend on this.** N/A — process.
+
+**3. Is it blocking anything, and how urgently?** Not blocking; **no action
+required** unless someone wants to add enforcement. **LOW.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` backlog **B4**; `HANDOFF.md` §U3.1.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no chip
+created.
+
+---
+
+### REQUEST — Backlog B5 — items carried forward from elsewhere in HANDOFF.md — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** B5 is an index, not a task. It still
+holds two live constraints worth surfacing: **`20260729120000` is still pending
+on production** and must be promoted **with or after** the ClickUp migrations
+(`20260728174500`), never before, or the apply aborts with `undefined_function`;
+and **characters/style guides Phase 0 is blocked on an owner decision** while
+**Phase 1 is read-only and can start now**. Its PSG-5 bullet ("eight licensor
+aliases remain a blocking owner gate") is **STALE — that gate is closed.**
+
+**2. Which application(s) depend on this.** Shared database; DesignFlow;
+licensing team.
+
+**3. Is it blocking anything, and how urgently?** The migration-ordering
+constraint is a **hard constraint on any production promotion**. **MEDIUM.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** From documents only.
+Authoritative detail: `HANDOFF.md` backlog **B5** and
+`fix_public_schema_anon_lockdown.md`.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+database contact.
+
+---
+
+### REQUEST — Backlog B6 — cross-PR object collision guard — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** CI cannot see a sibling **open** PR, so
+two PRs that both `create or replace` the same database object both pass and
+whichever merges second **silently overwrites** the first. The four-way collision
+that actually happened on 2026-07-31 **would pass CI again today, unchanged.**
+This is the root cause of the chip incident and the reason single-writer
+ownership is a convention rather than a mechanism.
+
+**2. Which application(s) depend on this.** All — it protects the shared schema.
+
+**3. Is it blocking anything, and how urgently?** Not blocking, but **this and B7
+are the highest-value items in the backlog. HIGH.** ⚠️ Do not implement
+opportunistically — it changes CI for every workstream and needs its own
+coordinated PR and a token that can read the repo's PRs.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` backlog **B6**.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
+
+---
+
+### REQUEST — Backlog B7 — mandatory negative-path assertions (prove the guard FIRES) — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Three separate defects on 2026-07-31
+installed cleanly, compiled, passed review — **and did nothing**: a `BEFORE`
+trigger reading a `GENERATED ... STORED` column, a function that failed on every
+call, and an alert path that never recorded. Existence checks are **worthless**
+against this class of defect. Tests must assert the guard **refuses**, not merely
+that it exists.
+
+**2. Which application(s) depend on this.** All — test discipline for the shared
+schema.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **HIGH — joint
+highest-value with B6.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` backlog **B7**.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
+
+---
+
+### REQUEST — Backlog B8 — unit test for `tools/emit-coldlion-rollback-sql.mjs` — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** No test file exists, though every other
+Step 7A tool has one and CI would pick it up automatically. **This is the
+emergency rollback lever** — the thing somebody runs under pressure, during an
+incident, against production, probably at night. It has been executed exactly
+**once**. Follow B7: assert it **refuses**.
+
+**2. Which application(s) depend on this.** ColdLion production promotion safety.
+
+**3. Is it blocking anything, and how urgently?** Not formally blocking Step 8,
+but it is the rollback plan for Step 8. **HIGH.**
+
+**4. Deadline, if any.** Best done before production switch-on.
+
+**5. What I already know about the current schema.** N/A — the test is fully
+offline, no database. Authoritative detail: `HANDOFF.md` backlog **B8**.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
+
+---
+
+### REQUEST — Backlog B9 — no "armed but read-only" state for the production enable variable — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** The read-only `readiness` lane sits
+inside the `production` job, gated on the enable variable — so setting
+`COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` **simultaneously arms the 06:00
+snapshot, the 06:30 promotion (which WRITES to production), the 07:00 comparison
+and the hourly health lane.** The one check you want to run *before* committing is
+only available *after* committing.
+
+**2. Which application(s) depend on this.** ColdLion production feed.
+
+**3. Is it blocking anything, and how urgently?** Not formally blocking, but it
+materially raises the risk of Step 8. **MEDIUM** — worth doing **before** switch-
+on. Its own PR, its own review; it changes the production workflow.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` backlog **B9** and the 🛑 CRITICAL switch-on ORDER section.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; the
+variable has not been created or set.
+
+---
+
+### REQUEST — Backlog B10 — CI enforcement of this file's lifecycle and retention — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Part B2 of this file is **manual
+discipline with no enforcement** — which is exactly how one day left 22 worktrees
+and ~42 stale branch labels behind. A CI job could warn or fail when
+`COMPLETED`/`TAKEN OVER` blocks exceed the 10-block / 30-day threshold, and when a
+long-merged local branch still exists. ⚠️ **Do not duplicate the thresholds into a
+workflow** — Part B2 is the authority and a copy will drift.
+
+**2. Which application(s) depend on this.** None — coordination hygiene.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM-LOW.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` backlog **B10** and Part B2 above.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started.
+
+---
+
+### REQUEST — Backlog B11 — a paused agent is indistinguishable from a finished one — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** A cleanup agent deleted the worktree of an
+agent that had deliberately **paused awaiting re-dispatch**, while breaking no
+rule — the worktree was clean, unlocked and held no unmerged work. **The criteria
+themselves are insufficient.** A mechanism is needed: either the coordinator keeps
+the authoritative list of resumable agents and no sweep runs without checking it,
+or a paused agent marks its worktree visibly.
+
+**2. Which application(s) depend on this.** None — coordination safety.
+
+**3. Is it blocking anything, and how urgently?** It **gates the worktree sweep
+above** — until it exists, bias hard toward leaving worktrees alone. **MEDIUM.**
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** N/A. Authoritative detail:
+`HANDOFF.md` backlog **B11** and §U3.7.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+worktree removed.
+
+---
+
+### REQUEST — Backlog B12 — the WSL `psql` wrapper leaks orphaned processes — 2026-07-31 — session: queue-seeding agent
+
+**1. What outcome is needed, and why.** Something launches `psql` **through WSL**
+and, when the invocation goes wrong, leaves the process alive **indefinitely**.
+It is a **recurring leak**, not a one-off. A stuck process is indistinguishable at
+a glance from a legitimate long-running one — and a real ClickUp importer run
+genuinely took 52 minutes the same day. Fix: an explicit timeout plus guaranteed
+cleanup of the temporary SQL and password files, and document the read-only
+diagnostic recipe (Actions → local processes → `pg_stat_activity`/`pg_locks`).
+
+**2. Which application(s) depend on this.** None — local tooling; but it burns
+coordinator and owner attention.
+
+**3. Is it blocking anything, and how urgently?** Not blocking. **MEDIUM.** Do
+**not** implement opportunistically — it touches shared local tooling.
+
+**4. Deadline, if any.** None.
+
+**5. What I already know about the current schema.** ⚠️ **Count discrepancy, do
+not assume either figure.** `HANDOFF.md` (both §U1.75 and B12) records **FOUR**
+orphaned processes — one from 14:32 on 2026-07-31 (Windows PIDs 19072 / 61204,
+Linux PID 17739) and two from the evening of 2026-07-29. A later report puts the
+observed count at **SIX**. Nobody has reconciled the two, and whether Albert ran
+the `Stop-Process` commands he was given is **UNVERIFIED**. **Re-count the live
+processes before believing any number.** Authoritative detail: `HANDOFF.md`
+backlog **B12** and §U1.75.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started; no
+process killed; no database contact.
 
 ---
 
@@ -468,6 +1020,35 @@ with the branch name and the sub-agent handling it. Moved here and out again by
 the coordinator only.
 
 _(none yet)_
+
+---
+
+## WAITING ON OTHER PEOPLE — visible, but NOT actionable by a coordinator
+
+These are genuinely outside the coordinator's control. They are listed here so
+they are not forgotten and **so they are not mistaken for work that can be
+dispatched.** Do not dispatch a sub-agent at any of them.
+
+1. **Albert — merge `ai-devops` PR #1, then run "sync my dotfiles" on his other
+   machines.** That PR carries the `shared-db-orchestrator` and
+   `shared-db-handover` skills, which currently exist on **one machine only**.
+   Until it lands, every other machine runs shared-db sessions without the
+   coordination rules — the exact condition that produced the chip incident.
+   *Coordinator's only action: chase it.* (`HANDOFF.md` §U1.5 item 1, §U4 item 8.)
+
+2. **Laura — reply to the round-2 licensing xlsx, SENT 2026-07-31.** Nothing to
+   do but wait. (`HANDOFF.md` §U1.5 item 3.)
+
+3. **Albert — the ColdLion Step 8 production decision. ⛔ NOT YET ASKABLE.** The
+   rehearsal prerequisite is unmet, so there is nothing to put to him. **Do not
+   ask him about Step 8, and do not create or set
+   `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED`,** until the rehearsal and the
+   approval package in the REQUEST QUEUE are complete. (`HANDOFF.md` §U1.2,
+   §U1.5 item 2.)
+
+**Note:** the `EX` / `LB` / `JL` property codes are deliberately **not** on this
+list. They are not waiting on Albert — they are waiting on **us** to frame them
+as an answerable question, which is a live item in the REQUEST QUEUE above.
 
 ---
 
@@ -536,6 +1117,12 @@ _(none yet)_
 > being added by **PR #347**, which was still OPEN when this file was written.
 > **Once #347 has merged, move the item below into `HANDOFF.md`'s BACKLOG
 > section and delete it from here.**
+
+> **Superseded 2026-07-31.** PR #347 has merged, so `HANDOFF.md` now has its
+> `## BACKLOG` section. This item is also now a live entry in the REQUEST QUEUE
+> above ("Sweep the 22 worktrees and ~42 stale local branch labels") at the
+> current, higher count. The note below is kept only as the original record —
+> **use the REQUEST QUEUE entry and `HANDOFF.md`, not these numbers.**
 
 ### Backlog — sweep ~30 stale local branch labels
 
