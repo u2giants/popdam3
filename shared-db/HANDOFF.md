@@ -5,6 +5,507 @@
 > worktrees. Write your handover into the intake queue in
 > [`COORDINATOR_INTAKE.md`](COORDINATOR_INTAKE.md) and stop.
 
+<!-- ============================================================================
+     COORDINATOR HANDOVER — 2026-07-31 17:55 UTC
+     Read this whole section before anything else in this file.
+     ============================================================================ -->
+
+## COORDINATOR HANDOVER — 2026-07-31 (written 17:55 UTC) — START HERE
+
+You are taking over the **coordinator** seat for `u2giants/shared-db`. This repo runs
+**one coordinator at a time**; the coordinator does no work itself and dispatches every
+task to a sub-agent in its own git worktree (skill `shared-db-orchestrator`). This section
+has the two halves that skill requires: **coordination state** and **one block per
+sub-agent**. If you only read the first half you will undo work.
+
+### 0. Ground truth, verified at write time (re-verify before you act — this goes stale within the hour)
+
+Everything below was re-derived by this session at **2026-07-31 17:54–17:55 UTC**
+(`git fetch --all`, `git ls-remote`, `gh pr list`, `git worktree list`). **No database was
+contacted.** Anything needing production is marked UNVERIFIED.
+
+| Fact | Value | How verified | When |
+| --- | --- | --- | --- |
+| `origin/main` tip | `defcb20a11c98f34e2c85e5363bc881d7f691dd9` — *"docs: plan for making ColdLion the source of truth for every core table it feeds (#335)"*, committed 2026-07-31 13:43:24 -0400 | `git ls-remote origin refs/heads/main` (not just the local ref) | 17:54 UTC |
+| Migration files on `origin/main` | **383** | `git ls-tree -r --name-only origin/main supabase/migrations/ \| wc -l` | 17:54 UTC |
+| **Max migration version on `main`** | **`20260731200000`** (`..._coldlion_recurring_promotion_fanin_name_tiebreak.sql`) | same listing, sorted | 17:54 UTC |
+| Highest version **pending in an open PR** | **`20260731210000`** (`core_licensor_alias.sql`, PR #345) — allocate `20260731220000` or later for anything new | `gh pr view 345 --json files` | 17:55 UTC |
+| Open PRs | **#345, #348, #349** — all three still OPEN, all three `MERGEABLE` | `gh pr list --state open` | 17:55 UTC |
+| Worktrees present | **18** (list in §1.6) | `git worktree list` | 17:54 UTC |
+| Git identity | `Albert Hazan <u2giants@users.noreply.github.com>` — correct | `git var GIT_COMMITTER_IDENT` | 17:54 UTC |
+| Step 8 approval artifact | **NONE EXISTS.** `docs/verification/` contains only `db-data-admin-step8-*` files, which are an unrelated UI feature. There is no `coldlion-licensor-property-step8-approval-*/approval.json`. | `ls docs/verification/` | 17:55 UTC |
+
+> **A worked example of why you must re-verify:** this session was handed a snapshot saying
+> `main` was at `6720511` (the #339 merge). By the time it wrote, `main` was **eight commits
+> further on**, at `defcb20`. Nothing warned anyone. Believing the snapshot would have meant
+> re-doing merged work.
+
+---
+
+# HALF ONE — COORDINATION STATE
+
+### 1.1 The four workstreams, and where each actually stands
+
+**1. Poppim ClickUp importer — COMPLETE, merged, nothing outstanding.**
+The importer was going to insert a **duplicate row for every one of the 17,859 products that
+already existed**. It relied on a backfill that claimed rows where `external_source IS NULL`;
+production has **zero** such rows, so the backfill claimed nothing and every product looked
+new. Fixed to match on trimmed `clickup_task_id` first, plus a partial unique index and five
+further correctness defects (PR #311, plus #314 re-issue, #324, #330). Rehearsed **twice** on
+preview: first run 52 minutes, 22 net inserts, 17,909 → 17,931 rows, zero duplicates; second
+run **7 seconds with nothing to do**, which is the proof that the incremental watermark works.
+Do not reopen this.
+
+**2. ColdLion recurring Licensor/Property feed — Step 7A merged (`0798c095`), plus four
+corrective migrations. Step 8 (switching production on) is Albert's gate, and the answer today
+is NOT YET.** See §1.2 — it is the single most important thing in this handover.
+
+**3. PopSG PSG-5 — database contracts MERGED (`691d5ea`, PR #338).** Built `core.property_alias`
+and `dam.popsg_property_resolution`, with a **structural** cross-parent guard (a composite
+foreign key) so a Property physically cannot be filed under the wrong Licensor — not even by a
+direct privileged write that bypasses the application. **The rebuild has NOT been run.**
+
+**4. Repo health and cross-session coordination.** Timestamp/backdating guards merged (#322,
+#325); the ColdLion Step 7A tool tests are now actually wired into CI (#340); `main` is green;
+two skills written and tuned; stale worktrees swept; `COORDINATOR_INTAKE.md` authored (PR #348,
+still open).
+
+---
+
+### 1.2 ⛔ THE MOST IMPORTANT THING HERE — Step 8 readiness is **NOT YET**, for a reason that is easy to miss
+
+Everyone who reads the ColdLion docs finds the same celebrated evidence: *"14/14 rehearsal
+cases passed, two identical consecutive cycles."* **That evidence describes the promotion
+function as it existed at migration `20260730000500`.**
+
+**Four further `CREATE OR REPLACE` of that same function landed afterwards:**
+
+| Version | What it changed | PR |
+| --- | --- | --- |
+| `20260731163000` | removed dead in-function failure recording | #341 |
+| `20260731180000` | serialized promotion behind an advisory lock | #343 |
+| `20260731190000` | **widened the cross-check predicate** (source_code + held-row provenance) | #342 |
+| `20260731200000` | **changed fan-in curated-name selection** to be deterministic | #344 |
+
+Those four **were applied to preview**. The rehearsal was **never re-run against them**.
+
+> **Applied ≠ rehearsed.** This is the trap. A migration being present on preview says the SQL
+> parsed and ran. It says nothing about whether the function still behaves correctly.
+
+The suite is now **18 cases**: 14 passed against an **older function body**; four —
+**`10a`–`10d`, in `tools/rehearse-coldlion-recurring-cycles.mjs` lines 398–442** (verified
+present at those lines, 17:55 UTC) — **have never executed at all**. And the two migrations
+that changed the most (`190000` fan-in cross-check predicate, `200000` fan-in name selection)
+touch **exactly the machinery whose earlier bugs only the rehearsal caught**. An independent
+GLM 5.2 review reached the same verdict: **NOT YET**.
+
+#### The five things required before Step 8 can even be proposed
+
+1. **A fresh, dated, 18-case rehearsal against the CURRENT function body**, with a durable
+   evidence artifact committed to the repo. Not a chat message — a file.
+2. **A written approval package naming EVERY migration by exact version.** The plan document
+   and the Step 7 package each list **four**; the true manifest is roughly **eighteen**. The
+   real list **must be re-derived from a live ledger comparison** (production `supabase
+   migration list` vs. the repo), not copied from any document in this repo.
+   **This paperwork is a functioning interlock, not a formality:**
+   `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs` **lines 399–407** (verified
+   17:55 UTC) refuses to accept an enabled production variable unless a directory matching
+   `docs/verification/coldlion-licensor-property-step8-approval-*/` containing `approval.json`
+   exists. **None exists today.** The code comment says it plainly: *"With none present, the
+   variable must still be off."*
+3. **Proof that the ~15 unrelated pending production migrations stay out.** Use the
+   **read-only `production` dry-run lane** in `.github/workflows/shared-supabase-migrations.yml`
+   (job `production-dry-run`, verified 17:55 UTC). That workflow **can never apply to
+   production** — it hard-refuses `apply` — and it enforces an explicit
+   `production_allowlist` of exact versions, a pinned `origin/main` SHA, and a typed
+   confirmation string `DRY-RUN <sha>`. Use it. Do not hand-run `supabase db push`.
+4. **A production backup, and a written "before" baseline.** Last claimed baseline:
+   **26 licensors, 256 properties, 542 links** — **UNVERIFIED by this session** (requires
+   production access, which this session correctly did not use). Last claimed 2026-07-31.
+   Re-measure it yourself before the window.
+5. **Written acceptance of the monitoring gap.**
+   `.github/workflows/coldlion-licensor-property-alert-monitor.yml` is **PREVIEW-ONLY** — its
+   own header says so and it **hard-refuses the production ref** `qsllyeztdwjgirsysgai`
+   (verified 17:55 UTC). So on the day production is switched on, production has only the
+   hourly `health` lane plus whatever issue the failing run raises for itself. Albert must
+   accept that in writing, or a production monitor must be built first.
+
+**Until all five exist: do not create, do not set, and do not ask anyone to set
+`COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED`.**
+
+---
+
+### 1.3 What is waiting on Albert (and nothing else is blocked on him)
+
+1. **Step 8 approval** — the production switch-on above. Not until §1.2 is satisfied.
+2. **Six remaining licensor-alias rulings:** Marvel, One Piece, Peanuts, Sesame Workshop,
+   Paramount, plus the dormant Nickelodeon/Viacom pair. **NBC is already ruled and recorded**
+   (in PR #345) — do not re-ask him.
+3. **The property codes `EX` / `LB` / `JL`**, and the **66 unmatched ColdLion codes** inherited
+   from an earlier session.
+4. **Laura's reply.** The round-2 licensing xlsx was **SENT 2026-07-31**; awaiting response.
+
+---
+
+### 1.4 Open PRs — state, what each holds, and the order they must land
+
+All three verified OPEN and MERGEABLE at 17:55 UTC. **All four open PRs including this one
+touch `HANDOFF.md`**, so they will conflict if merged carelessly. Merge **one at a time**,
+oldest first, and let each re-run CI.
+
+| PR | Branch | Files it holds | Notes |
+| --- | --- | --- | --- |
+| **#349** | `docs/handoff-corrections-20260731` | `HANDOFF.md` | **Must land first.** Corrects three stale sections, adds the CRITICAL ColdLion switch-on ordering warning, and adds backlog items **B6/B7**. This handover deliberately **does not restate its content** — read #349 itself. |
+| **#348** | `docs/coordinator-intake-20260731` | `AGENTS.md`, `COORDINATOR_INTAKE.md`, `HANDOFF.md` | Creates the intake queue other sessions file into. |
+| **#345** | `feat/core-licensor-alias-20260731` | `HANDOFF.md`, `fix_popsg_property_taxonomy_reconciliation.md`, `supabase/migrations/20260731210000_core_licensor_alias.sql`, `supabase/tests/core_licensor_alias_contracts.sql` | The only open PR carrying a **migration**. Moves eight hard-coded licensor aliases into `core.licensor_alias`, adds the two missing NBC variants, records Albert's NBC ruling. |
+| **this one** | `docs/coordinator-handover-20260731-1755` | `HANDOFF.md` only | Rebase after the other three. |
+
+> **Known stale text this handover does NOT fix, because #349 owns it:** the section headed
+> *"OPEN, NOT MERGED — ColdLion promotion serialization lock (2026-07-31)"* near the top of
+> this file is **wrong** — that work merged as PR #343 (`6a00e31`). Land #349; do not fix it
+> in a competing PR.
+
+---
+
+### 1.5 Single-writer ownership right now
+
+The repo's rule is **one writer per file at a time**. As of 17:55 UTC:
+
+- **`supabase/migrations/`** — held by **PR #345** (`20260731210000`). Nobody else may add a
+  migration until #345 lands or is closed. Next free version: **`20260731220000`**.
+- **`HANDOFF.md`** — contended by **#349, #348, #345 and this PR**. #349 has priority.
+- **`AGENTS.md`** — held by **PR #348**. Do not edit it.
+- **`COORDINATOR_INTAKE.md`** — held by **PR #348** (it creates the file). Do not edit it.
+- **`tools/`, `scripts/`, `.github/workflows/`** — unowned and free.
+
+---
+
+### 1.6 Preview `rjyboqwcdzcocqgmsyel` is **NOT a clean baseline**
+
+Anyone who rehearses against it assuming a virgin database will get a false result. What is
+sitting on it (as last relayed by the agents that put it there — **UNVERIFIED by this session,
+which made no database contact**; last claimed 2026-07-31):
+
+- The two **ClickUp** migrations **and importer data rows** in `pim.product` and
+  `ingest.sync_run`.
+- **All ColdLion migrations through `20260731200000`** — including the four that were never
+  re-rehearsed (§1.2).
+- ColdLion **audit table: 0 rows**; **quarantine table: 180 rows**.
+- The **PSG-5** objects (`core.property_alias`, `dam.popsg_property_resolution`).
+- **`core.licensor_alias` with 10 rows** — 3 `owner_approved`, 7 `inherited_unverified`.
+- `plm.taxonomy_breaker_enforcement_status()` now reports **`expected_count: 11`** (was 9).
+  **That is EXPECTED, not drift.** Do not "fix" it.
+
+**Production `qsllyeztdwjgirsysgai` is never touched from a session.** The Supabase MCP is
+bound to **PRODUCTION** and takes **no project parameter** — see §3.6.
+
+---
+
+### 1.7 Worktrees — all 18 accounted for (`git worktree list`, 17:54 UTC)
+
+| Worktree | Branch | State |
+| --- | --- | --- |
+| `C:/repos/shared-db` | `main` | the shared checkout — its local `main` was **stale at `6720511`**; run `git pull` there |
+| `agent-a2209c948a524d76a` | `docs/handoff-corrections-20260731` | **LIVE** — PR #349 open |
+| `agent-a18e8dbd5e9f2a218` | `docs/coordinator-intake-20260731` | **LIVE** — PR #348 open |
+| `agent-ae7a53ae600b5b683` | `feat/core-licensor-alias-20260731` | **LIVE** — PR #345 open |
+| `agent-a8fd75e9b517885c6` | `nbc-alias-work` (`7390e5a`) | **LIVE, and NOT on any PR.** Holds *"record Albert's NBC ruling and add the two variants that matched nothing"*. Confirm it is fully represented in #345 before anyone retires it. |
+| `agent-a7c7145b2908491b5` | `docs/coordinator-handover-20260731-1755` | **LIVE** — this handover; **locked** |
+| `agent-a9b9b048681d1744f` | `worktree-agent-a9b9b048681d1744f` (`510c3a6`) | **CHIP-INCIDENT REMNANT** — a duplicate authoring of the fan-in tiebreak fix. Superseded by merged `cc0d1dd`. Safe to clean. |
+| `elastic-babbage-df8f2e` | `claude/elastic-babbage-df8f2e` (`3222667`) | **CHIP-INCIDENT REMNANT** — a *third* authoring of the same fan-in tiebreak fix. Superseded. Safe to clean. |
+| `happy-proskuriakova-a20b47` | `claude/coldlion-promotion-dead-failure-update-20260731` | finished — #341 merged |
+| `intelligent-benz-f7502b` | `claude/intelligent-benz-f7502b` | finished — #342 merged |
+| `adoring-bose-f6e5ef` | `claude/adoring-bose-f6e5ef` | finished — #343 merged |
+| `intelligent-bhabha-81eb99` | `fix/wire-coldlion-step7a-tests-ci` | finished — #340 merged |
+| `agent-a9b5bd066c13f571c` | `docs/psg5-entry-record-slot-blocked-20260731` | finished — #338 merged |
+| `agent-acdee405d4b4b9701` | `docs/ci-stale-verdict-paths-filter-20260731` | finished — #336 merged |
+| `agent-aed50174cbc6255a3` | `docs/handoff-improvement-plan-20260731` | finished — #347 merged |
+| `admiring-mestorf-037019` | `fix/clickup-runner-confirm-clean-run` | finished — #330 merged |
+| `cool-morse-9da2b5` | `fix/duplicate-migration-version-20260728160000` | finished — #322 merged |
+| `wizardly-montalcini-ffdabe` | `docs/handoff-public-schema-anon-lockdown` | finished — #333 merged |
+
+**Do not bulk-prune.** Two of these (`nbc-alias-work`, and the three open-PR worktrees) hold
+work that is not on `main`. Use the `cleanup-worktree` skill, which never treats age as proof.
+
+---
+
+# HALF TWO — ONE BLOCK PER SUB-AGENT
+
+Roughly 25 agents ran across this and the immediately preceding coordinator seats. The blocks
+below are reconstructed from `gh pr list --state all`, `git log`, and `git worktree list`. **Where
+an agent's work survives only as a merged PR, that is stated** — no detail has been invented.
+The **"deliberately did NOT do"** line is the one that stops the next session undoing good work.
+
+## Workstream 1 — Poppim ClickUp importer (COMPLETE)
+
+### Agent: ClickUp importer correctness — `fix/clickup-importer-correctness` (PR #311)
+- **Asked to do:** review and fix the incremental ClickUp task importer before it ran against production.
+- **Actually did:** rewrote the matching strategy and landed six fixes; merged as `833f134`. Superseded and closed the original PR #300 (`claude/clickup-incremental-import-20260728`).
+- **Found — the headline finding of the whole session:** the importer would have inserted **17,859 duplicate products**. It matched existing rows via a backfill that claimed rows where `external_source IS NULL`; **production has zero such rows**, so nothing was ever claimed and every existing product presented as new. Fixed by matching on **trimmed `clickup_task_id` first**, backed by a **partial unique index** so the database refuses a duplicate even if the code regresses. Four other reviews had passed this code.
+- **PR / branch:** #311, MERGED.
+- **Worktree:** not present in the current list — retired.
+- **Deliberately did NOT do:** did not run against production. Rehearsal was preview-only.
+
+### Agent: migration re-issue — `fix/duplicate-migration-version-20260728160000` (PR #322)
+- **Asked to do:** work out why a merged migration had had no effect.
+- **Actually did:** merged as `df69c72`; the ClickUp migration was re-issued under a fresh version as PR #314 (`79581e2`).
+- **Found — MUST SURVIVE:** **two migration files sharing one version number cause the second to be silently skipped.** Supabase records the version, not the file; the second never runs and **nothing errors**. Confirmed **read-only against production**. The remedy is **re-issue under a new version, never rename the old file** — renaming does not make an already-recorded version re-run, and rewriting history breaks every other clone.
+- **PR / branch:** #322 (fix) and #314 (re-issue), both MERGED.
+- **Worktree:** `cool-morse-9da2b5` — finished, safe to clean.
+- **Deliberately did NOT do:** did **not** rename or delete the original migration file, precisely because that would have looked fixed while changing nothing.
+
+### Agent: migration-version CI guards — `ci/migration-version-guards-20260729` (PR #325)
+- **Asked to do:** make the above impossible to repeat.
+- **Actually did:** added **Guard B** (backdated migration) on top of #322's duplicate check. Merged `c37af1b`.
+- **Found:** only visible as the merged PR.
+- **Worktree:** not present — retired.
+- **Deliberately did NOT do, and this is the gap:** these guards are **branch-local**. They compare a PR against `main`. They **cannot see a second PR** doing the same thing at the same time — which is exactly how the chip incident (§3.3) slipped through. See backlog **B6**.
+
+### Agents: ClickUp runner hardening — PRs #324, #330
+- **Asked to do:** stop the runner reporting success it had not verified.
+- **Actually did:** #324 (`1fa95cc`) exits non-zero when the importer result cannot be parsed; #330 (`86bc012`) **positively confirms a clean run** instead of assuming one. Both MERGED.
+- **Found:** the runner previously treated "no error" as "success" — a silent-failure pattern.
+- **Worktree:** `admiring-mestorf-037019` — finished, safe to clean.
+- **Deliberately did NOT do:** did not change importer logic; scope was the runner's reporting only.
+
+## Workstream 2 — ColdLion recurring Licensor/Property feed
+
+### Agent: Step 7A build — `codex/coldlion-step7a-recurring-production-feed` (PR #331)
+- **Asked to do:** build the real recurring production Licensor/Property feed and prove it on preview.
+- **Actually did:** built it; merged as **`0798c095`** (commit `2c89664`). This is the Step 7A body of work.
+- **Found — the five defects the rehearsal caught (MUST SURVIVE):**
+  1. **The collision rule would have quarantined 542 of 542 approved rows — the entire feed — while the run reported healthy.** The approved mapping deliberately **fans 542 source rows into 271 canonical rows**; the rule treated any canonical row reachable from more than one typed key as a collision. Fixed by `20260729234500`.
+  2. **The alert path never actually recorded**, so the circuit breaker could never trip — a monitor that looked installed and was inert.
+  3. An **ambiguous column** reference (`20260729235500`).
+  4. **Absence detection** was wrong (`20260730000500`).
+  5. Plus the dead in-function failure recording later removed by #341.
+- **PR / branch:** #331, MERGED.
+- **Worktree:** not present — retired.
+- **Deliberately did NOT do:** did **not** switch production on. Step 8 was left as an explicit owner gate — correctly, see §1.2.
+
+### Agent: dead failure recording — `claude/coldlion-promotion-dead-failure-update-20260731` (PR #341)
+- **Asked to do:** remove failure-recording code inside `plm.promote_coldlion_source_owned` that could never run.
+- **Actually did:** merged `01f0214`. Migration `20260731163000`.
+- **Found:** one of the **three "installed but inert" defects** (§3.4) — code present, never reached.
+- **Worktree:** `happy-proskuriakova-a20b47` — finished, safe to clean.
+- **Deliberately did NOT do:** did not re-run the rehearsal after changing the function body. **This is part of why Step 8 is NOT YET.**
+
+### Agent: cross-check provenance coverage — `claude/intelligent-benz-f7502b` (PR #342)
+- **Asked to do:** extend the Step 5.6 plan cross-check to every write path.
+- **Actually did:** merged `49d2ac1`. Migration `20260731190000` — widened the cross-check to the `source_code` and held-row provenance paths.
+- **Found:** **two blind spots** in the old, narrower assertion, both now encoded as rehearsal cases **10b** and **10c**: (b) a **`source_code`-only drift** where all names agree, so the curated-name set is empty and the old cross-check saw a perfectly quiet cycle while the database was still rewriting `core.taxonomy_source_ref.source_code`; (c) a **row held for review** still has its provenance refreshed by design, but the old assertion required `quarantine_reason IS NULL`, so that write fell outside it. Case **10a** refuses an out-of-date runner (a plan with no `provenance_refreshes` key); case **10d** proves the new guard does **not cry wolf** on a healthy cycle — *"a guard that fails on a healthy cycle gets switched off, which is the same outcome as having no guard."*
+- **Worktree:** `intelligent-benz-f7502b` — finished, safe to clean.
+- **Deliberately did NOT do:** **wrote cases 10a–10d but never executed them.** They sit at `tools/rehearse-coldlion-recurring-cycles.mjs` lines 398–442 and **have never run**. Running them is task #1 for the next coordinator.
+
+### Agent: serialization lock — `claude/adoring-bose-f6e5ef` (PR #343)
+- **Asked to do:** stop two promotion runs overlapping.
+- **Actually did:** merged `6a00e31`. Migration `20260731180000` — an advisory lock around Step 7A promotion.
+- **Worktree:** `adoring-bose-f6e5ef` — finished, safe to clean.
+- **Deliberately did NOT do:** did not re-rehearse. Note the top of this file still describes this PR as *"OPEN, NOT MERGED"* — stale text that **PR #349 corrects**.
+
+### Agents: fan-in name tiebreak — `fix/coldlion-fanin-name-tiebreak-20260731` (PR #344) **and two duplicate authorings**
+- **Asked to do:** make the fan-in curated-name winner deterministic.
+- **Actually did:** merged as `cc0d1dd`, migration `20260731200000`.
+- **Found — this is the physical evidence of the chip incident (§3.3):** **three separate worktrees each independently authored this same fix.** Verified at 17:54 UTC: `agent-a9b9b048681d1744f` holds `510c3a6` and `elastic-babbage-df8f2e` holds `3222667`, both titled *"fix(coldlion): make the fan-in curated-name winner deterministic"*, alongside the merged `cc0d1dd`. Two are dead duplicates.
+- **Worktree:** the merged branch's worktree is gone; the two duplicates are **live and safe to clean** once someone confirms nothing unique is in them.
+- **Deliberately did NOT do:** did not re-rehearse — this is the migration that changed name selection, i.e. the one **most** in need of a fresh rehearsal.
+
+### Agent: wire Step 7A tests into CI — `fix/wire-coldlion-step7a-tests-ci` (PR #340)
+- **Asked to do:** make the ColdLion Step 7A tool tests actually run.
+- **Actually did:** merged `36c50a9` — they now run on every PR and every push to `main`.
+- **Found:** the tests existed but **were not executed by CI** — another "installed but inert" instance (§3.4).
+- **Worktree:** `intelligent-bhabha-81eb99` — finished, safe to clean.
+- **Deliberately did NOT do:** did not widen coverage; scope was wiring only.
+
+### Agent: Windows vendor-sync no-op — `fix/coldlion-vendors-windows-noop-20260731` (PR #334)
+- **Asked to do:** find why the ColdLion vendor sync did nothing.
+- **Actually did:** merged `400b590` — *"stop the ColdLion vendor sync silently doing nothing on Windows"*.
+- **Found:** a **silent** platform-specific no-op — it reported success while syncing nothing.
+- **Worktree:** not present — retired.
+
+### Agent: source-of-truth plan — `docs/coldlion-source-of-truth-plan-20260731` (PR #335)
+- **Actually did:** merged `defcb20` — currently the `main` tip. A plan for making ColdLion the source of truth for every core table it feeds.
+- **Deliberately did NOT do:** authored **no SQL and no migration**. Plan only. Do not treat it as executed work.
+
+### Agents: ColdLion health monitors — PRs #306, #317, #329
+- **Actually did:** recorded preview cycle health on 2026-07-29 (`d8ad7bb`, `3002490`, `7111fdd`). All MERGED, all documentation.
+- **Found:** those recordings describe the **pre-`20260731` function body** and are **not** evidence for the current one.
+
+## Workstream 3 — PopSG PSG-5
+
+### Agent: PSG-5 database contracts — `docs/psg5-entry-record-slot-blocked-20260731` (PR #338)
+- **Asked to do:** build the PopSG Property reconciliation contracts.
+- **Actually did:** merged **`691d5ea`**. Migrations `20260731150000_popsg_property_resolution_contracts.sql` and `20260731153000_popsg_property_alias_redundancy_trigger_fix.sql`. Created `core.property_alias` and `dam.popsg_property_resolution`.
+- **Found:** the cross-parent guard had to be **structural**, not procedural — implemented as a **composite foreign key**, so a Property cannot be filed under the wrong Licensor **even under a direct privileged write** that bypasses every application check. The second migration fixed a redundancy trigger the tests caught.
+- **Worktree:** `agent-a9b5bd066c13f571c` — finished, safe to clean.
+- **Deliberately did NOT do:** **did not run the rebuild.** The contracts exist; the data has not been reconciled. Do not assume PopSG properties are resolved.
+
+### Agents: earlier PSG-5 attempts — PRs #310, #312
+- **Actually did:** recorded a fresh-session authorization (#310) and then recorded that PSG-5 **stopped before schema work** because of a collision with PR #300 (#312). Both MERGED, both documentation.
+- **Deliberately did NOT do:** wrote **no SQL** — correctly refused to author schema while the slot was occupied. This is the behaviour to copy, not the exception.
+
+### Agent: licensor alias table + NBC ruling — `feat/core-licensor-alias-20260731` (PR #345, **STILL OPEN**)
+- **Asked to do:** move the eight hard-coded Licensor aliases into a real table and record Albert's NBC ruling.
+- **Actually did:** authored `supabase/migrations/20260731210000_core_licensor_alias.sql` and `supabase/tests/core_licensor_alias_contracts.sql`. **NOT MERGED.**
+- **Found — the NBC finding, MUST SURVIVE:** all four spellings **normalise to four DIFFERENT keys**; **`NBCU` and `NBCUniversal` matched nothing at all**; and **`NBC` itself correctly must NOT be an alias row**. Also caught a **timezone bug** that would have dated Albert's ruling **2026-07-30 instead of 2026-07-31** — i.e. the audit trail would have recorded the wrong day for an owner decision. Also found the approval RPC's guard is **null-permissive** (a null slips past it) — recorded to backlog, not fixed here.
+- **Worktree:** `agent-ae7a53ae600b5b683` — **LIVE**. Related loose worktree `agent-a8fd75e9b517885c6` (branch `nbc-alias-work`, `7390e5a`) is **also live and on no PR**.
+- **Deliberately did NOT do — READ THIS BEFORE CELEBRATING:** **`core.licensor_alias` has ZERO runtime effect until the PopDAM worker in `u2giants/popdam3` is switched over to read it.** That worker still reads **its own hard-coded array**. Landing #345 changes nothing user-visible. The popdam3 change is a **separate task in a separate repo** and has not been started.
+
+### Agent: Grok — independent review of the alias work
+- **Asked to do:** independently review the alias shadowing guard.
+- **Found:** the guard is **one-way**. It stops a new alias colliding with an existing licensor name, but **nothing stops a later licensor RENAME colliding with an existing alias**. Crucially, Grok also established that **the same gap already exists in the already-shipped `core.property_alias`** — so this is a **repo-wide pattern, not a regression introduced by #345**, and must not be used as a reason to block #345.
+- **Deliberately did NOT do:** did not fix it. Backlog item.
+
+### Agent: GLM 5.2 — independent reviews (ColdLion readiness, and the alias work)
+- **Found (correct):** independently returned **NOT YET** on Step 8 readiness, agreeing with §1.2.
+- **Found (WRONG — and this matters more):** GLM produced **two "High" severity findings that were both wrong on inspection**, and **one of them contradicted GLM's own earlier conclusion in the same review.**
+- **The protocol this produced, which must survive:** treat **every** Critical/High finding from any reviewing model as a **hypothesis requiring line-level evidence before it blocks a merge**. The merge gate is **"no UNRESOLVED findings"**, not **"zero findings"**. A wrong "High" that nobody checks costs a whole session.
+
+## Workstream 4 — repo health and coordination
+
+### Agent: stale CI verdict — `docs/ci-stale-verdict-paths-filter-20260731` (PR #336)
+- **Actually did:** merged `1f2af58`, documented as **`AGENTS.md` §5.2** (verified present at line 360, 17:55 UTC).
+- **Found — the stale-red-CI trap:** a repo-wide checker sitting behind a **narrow `paths:` filter** reports a **stale verdict**. A correct fix can leave the light **red** simply because **nothing re-ran**. Before you debug a red check, confirm it actually ran against the current commit. See backlog **B2**.
+- **Worktree:** `agent-acdee405d4b4b9701` — finished, safe to clean.
+
+### Agent: improvement backlog — `docs/handoff-improvement-plan-20260731` (PR #347)
+- **Actually did:** merged `3635a16` — recorded backlog **B1–B5** and marked the Laura round-2 sheet **SENT**.
+- **Worktree:** `agent-aed50174cbc6255a3` — finished, safe to clean.
+
+### Agent: handoff corrections — `docs/handoff-corrections-20260731` (PR **#349, STILL OPEN**)
+- **Asked to do:** correct stale sections of `HANDOFF.md` and add the ColdLion switch-on ordering warning.
+- **Actually did:** authored corrections to three stale sections, the **CRITICAL ColdLion switch-on ordering warning**, and backlog items **B6** (cross-PR object guard) and **B7** (prove it fires).
+- **PR / branch:** **#349, OPEN, MERGEABLE, `HANDOFF.md` only.**
+- **Worktree:** `agent-a2209c948a524d76a` — **LIVE**.
+- **Deliberately NOT duplicated here:** this handover **references** #349 rather than restating it, to avoid a merge conflict on the same file. **#349 must land first.**
+
+### Agent: coordinator intake — `docs/coordinator-intake-20260731` (PR **#348, STILL OPEN**)
+- **Actually did:** authored `COORDINATOR_INTAKE.md` plus `AGENTS.md` and `HANDOFF.md` edits — the queue and template non-coordinator sessions use to hand work in.
+- **Worktree:** `agent-a18e8dbd5e9f2a218` — **LIVE**.
+
+### Agents: public-schema lockdown — PRs #316, #318, #319, #320, #326, #327, #332, #333
+- **Actually did:** closed anonymous EXECUTE and anonymous READ leaks in the `public` schema; **live on production**; documented in `fix_public_schema_anon_lockdown.md` and `AGENTS.md` §10.2.
+- **Found:** the anon key could execute `SECURITY DEFINER` functions in `public` (#316), and three RLS-bypassing views plus `style_groups` leaked reads (#326).
+- **Standing consequence:** new functions in `public` are **locked down by default**, so **every** new migration must state its grants **explicitly** or the function will be unusable.
+- **Worktree:** `wizardly-montalcini-ffdabe` — finished, safe to clean.
+- **Deliberately did NOT do:** left five non-urgent follow-ups open, listed in that file.
+
+### Agents: characters / style guides and licensing sheets — PRs #297–#299, #321, #323, #339, #346
+- **Actually did:** Phase 3 identity rules, owner answers, the 195-question licensing sheet for Laura, the round-2 xlsx with locked dropdowns, and session close-outs. All MERGED.
+- **Deliberately did NOT do:** **Phase 3 has not run.** It **writes rows into three shared tables**, so it must be scheduled by whoever owns collision control — **do not start it opportunistically.** Read the STATUS table at the top of `fix_characters_style_guides.md`; do not re-derive the phases.
+
+---
+
+# 3. WHAT WE TRIED THAT DID **NOT** WORK
+
+### 3.1 Background task chips — never again
+Spawning background task chips for shared-db work **created independent sessions with no shared
+register**. This is the single largest source of waste in this repo. The rule is in backlog
+**B4** and in `shared-db-orchestrator`: **the coordinator dispatches sub-agents in worktrees; it
+never creates chips.**
+
+### 3.2 Trusting plan documents over the live repo
+Repeatedly wrong. The plan and the Step 7 package each name **four** migrations where the true
+manifest is roughly **eighteen**. Documents here go stale **within the hour**. Always
+`git fetch`, `gh pr list`, `git worktree list`, and re-derive.
+
+### 3.3 The self-inflicted chip incident, and blind rebasing — the expensive one
+Five background chips spawned five independent sessions. **Four of them each authored a forward
+migration doing `CREATE OR REPLACE` on the SAME function**, and **three of them picked the same
+version, `20260731170000`**. Every one **passed CI on its own**, because the migration guards
+are **branch-local** and compare only against `main` — they cannot see a sibling PR.
+
+Then the attempted fix made it worse: **blind rebasing / cherry-picking of competing
+`CREATE OR REPLACE` migrations applies with NO textual conflict**, because each migration is a
+**new file**. **Git cannot warn you.** The result is a stack of files that all look fine and a
+function body that is whichever one ran last.
+
+**What actually worked:** merge **one at a time**, and after each merge **RE-DERIVE the next
+change on top of the previous merged function body** — never replay the original diff. That is
+how `20260731163000` / `180000` / `190000` / `200000` ended up as a coherent sequence.
+
+**The root cause is STILL UNFIXED.** There is no cross-PR guard that detects two open PRs
+replacing the same database object. That is backlog **B6**. Until it exists, **§1.5
+single-writer ownership is the only protection**, and it is a convention, not a mechanism.
+
+### 3.4 Assuming an installed thing works — three "installed but inert" defects
+1. A **`BEFORE` trigger reading a `GENERATED ... STORED` column.** The column is always NULL at
+   `BEFORE` time, so the trigger **never fired — and never errored.** Perfectly silent.
+2. A **function that failed on every single call.**
+3. The **ColdLion alert path that never recorded**, so the circuit breaker could never trip.
+   A monitor that cannot fire is worse than no monitor, because everyone believes it.
+
+**The rule (backlog B7): prove it FIRES. Not that it exists.** Every guard, trigger, monitor and
+test must be demonstrated triggering on a deliberately broken input before it counts as done.
+
+### 3.5 GLM on large exploratory briefs
+GLM **hung for roughly 40 minutes** on large open-ended briefs. What works: **compact,
+self-contained briefs**; if it hangs, **retry once, tighter**; then **fall back to your own
+review** rather than waiting. Budget for this — do not block a merge on a hung reviewer.
+
+### 3.6 The Supabase MCP is bound to PRODUCTION
+It takes **no project parameter**. Anything you run through it hits
+**`qsllyeztdwjgirsysgai` — production**. If you must know which project you are on, call
+**`get_project_url` FIRST**. For preview work, use the **Supabase CLI / psql against
+`rjyboqwcdzcocqgmsyel`**, never the MCP. **This session made no database contact of any kind.**
+
+---
+
+# 4. THE FRESH COORDINATOR'S OPENING AGENDA, IN ORDER
+
+1. **Re-verify §0.** `git fetch --all`, `git ls-remote origin refs/heads/main`, `gh pr list`,
+   `git worktree list`, and re-derive the max migration version. Do not trust the table above;
+   it was true at 17:55 UTC on 2026-07-31 and nothing keeps it true.
+2. **Update the shared checkout.** `C:/repos/shared-db` had a **stale local `main` at
+   `6720511`** while `origin/main` was at `defcb20`.
+3. **Merge PR #349 first.** It corrects stale text including the wrong *"OPEN, NOT MERGED —
+   serialization lock"* section, and adds backlog B6/B7.
+4. **Then #348**, then **#345**, then **rebase and merge this handover PR**. One at a time; let
+   CI re-run after each; remember §3.4 — a red light may be a **stale verdict** (`AGENTS.md` §5.2).
+5. **Reconcile the loose `nbc-alias-work` worktree** against #345 before anyone cleans it.
+6. **Dispatch ONE sub-agent to run the full 18-case rehearsal** against the current promotion
+   function on preview, and commit a dated evidence artifact. This is the gate on everything
+   ColdLion. Cases 10a–10d have **never executed**.
+7. **Dispatch ONE sub-agent to re-derive the true production migration manifest** from a live
+   ledger comparison, and to run the read-only `production` dry-run lane to prove the ~15
+   unrelated pending migrations stay out.
+8. **Only then** assemble the Step 8 approval package for Albert — and remember the evaluator
+   at lines 399–407 will refuse an enabled variable until `approval.json` exists.
+9. **Do not start** Phase 3 (characters), the PSG-5 rebuild, or the popdam3 alias cutover
+   opportunistically. Each writes to shared tables or another repo and needs its own slot.
+10. **Retire the two chip-incident worktrees** (`agent-a9b9b048681d1744f`,
+    `elastic-babbage-df8f2e`) via the `cleanup-worktree` skill.
+
+---
+
+# 5. FRESH-DEVELOPER SELF-AUDIT
+
+**Question:** could a developer who walked in this morning with zero knowledge of this
+application, this session, or what was tried and failed, continue with **no questions**?
+
+**Answer: yes, for the coordination work**, and here is the evidence: every moving fact in §0
+carries the command that produced it and the minute it was checked; every open PR has its
+branch, its files, its merge position and its blocking relationship; every one of the 18
+worktrees is classified live/finished/remnant with a reason; every sub-agent block states what
+it deliberately did **not** do; and the four traps that cost this team the most time — the
+silently-skipped duplicate migration version, the applied-but-never-rehearsed function, the
+chip incident with its no-textual-conflict rebase trap, and the three inert-but-installed
+guards — are each written out with the mechanism, not just the conclusion.
+
+**Where it is honestly incomplete, and the newcomer is told so explicitly:** every figure that
+requires production or preview database access — the 26/256/542 baseline, the preview row
+counts, the ~15 pending production migrations — is marked **UNVERIFIED** with the date it was
+last claimed, because this session made **no database contact**. The newcomer's **first** action
+on that material is to re-measure it, and §4 says so. That is the correct outcome: an unverified
+number that is labelled unverified costs an hour; one presented as fact costs a production
+incident.
+
+<!-- ============================================================================
+     END COORDINATOR HANDOVER — 2026-07-31 17:55 UTC
+     ============================================================================ -->
+
+---
+
 > **Separate workstream, also read if you are touching privileges or promoting to production:**
 > [`fix_public_schema_anon_lockdown.md`](fix_public_schema_anon_lockdown.md) (2026-07-30) — the
 > `public`-schema anonymous-access lockdown. That work is **complete and live on production**;
