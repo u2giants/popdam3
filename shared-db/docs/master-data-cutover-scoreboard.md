@@ -6,7 +6,9 @@ it still fed by the DesignFlow PLM API?* Every fact below was previously discove
 only by reading four separate documents and then querying the database. That cost has been
 paid at least twice; this page ends it.
 
-Production rows below were verified against `qsllyeztdwjgirsysgai` on **2026-07-23**.
+Production rows below were verified against `qsllyeztdwjgirsysgai` on **2026-07-23**; Customer
+and Vendor counts refreshed against a live read on **2026-07-31** (see the note under the
+scoreboard table — the 929/529 canonical counts below were stale and have been corrected).
 
 > **Licensor/Property correction — 2026-07-26:** direct ColdLion mirrors now exist on preview
 > `rjyboqwcdzcocqgmsyel`: `plm.erp_licensor` (44) and `plm.erp_property` (516), with 542
@@ -15,6 +17,15 @@ Production rows below were verified against `qsllyeztdwjgirsysgai` on **2026-07-
 > production window. The former 14-day wait is retired. Read
 > [`plan_coldlion_licensor_property_accelerated_cutover.md`](../plan_coldlion_licensor_property_accelerated_cutover.md)
 > before re-deriving the current state.
+>
+> **Status as of 2026-07-31:** Steps 1–7 of the accelerated plan are complete on preview.
+> Step 7A (the recurring production feed/monitoring lane) is **built and CI-green** in
+> [PR #331](https://github.com/u2giants/shared-db/pull/331), which is still **open and
+> unmerged** — that merge is the one concrete task left before Step 8 (Albert's explicit
+> production-window approval) can even be requested. Nothing else is technically blocking;
+> ColdLion does not supply the licensor→property relationship or active/inactive status, so
+> per §6 those two facts are being kept as permanently curated Supabase data either way — the
+> cutover only changes where the names/codes come from, not the relationship data.
 
 ---
 
@@ -49,14 +60,16 @@ preview; their presence does not mean production has cut over.
 
 | Entity | Status | Live source | Staging / mirror table | Rows | Canonical table | Rows |
 |---|---|---|---|---|---|---|
-| **Customer** | ✅ **Cut over to ColdLion** | ColdLion `/customers` | `plm.erp_customer` | 836 | `core.customer` | 929 |
-| **Vendor / factory** | ✅ **Cut over to ColdLion** | ColdLion `/vendors` | `plm.erp_vendor` | 97 | `core.factory` | 529 |
+| **Customer** | ✅ **Cut over to ColdLion** | ColdLion `/customers` | `plm.erp_customer` | 836 | `core.customer` | 862 |
+| **Vendor / factory** | ✅ **Cut over to ColdLion** | ColdLion `/vendors` | `plm.erp_vendor` | 97 | `core.factory` | 93 |
 | **Licensor** | ⏳ **Production DesignFlow; preview ColdLion readiness** | DesignFlow PLM API in production | preview `plm.erp_licensor` | 44 | preview `core.licensor` | 26 |
 | **Property** | ⏳ **Production DesignFlow; preview ColdLion readiness** | DesignFlow PLM API in production | preview `plm.erp_property` | 516 | `core.property` | 256 |
 
-The historical production baseline was **505 / 505 `designflow_plm`**, zero ColdLion. Preview now
-has 505 DesignFlow plus 542 approved ColdLion source refs. Before claiming production cutover,
-re-measure production read-only and run the accelerated plan's exact mapping-identity proof:
+The historical production baseline was **505 / 505 `designflow_plm`**, zero ColdLion. A live
+re-check on 2026-07-31 confirmed production is unchanged: still 505/505 `designflow_plm`, zero
+`coldlion`. Preview separately has 505 DesignFlow plus 542 approved ColdLion source refs. Before
+claiming production cutover, re-measure production read-only and run the accelerated plan's
+exact mapping-identity proof:
 
 ```sql
 select source_system, count(*) from core.taxonomy_source_ref group by 1;
@@ -66,6 +79,8 @@ select source_system, count(*) from core.taxonomy_source_ref group by 1;
 
 | Table | Last imported |
 |---|---|
+| ColdLion `/customers` → `plm.erp_customer` | 2026-07-17 (14 days stale as of this doc's 2026-07-31 refresh) |
+| ColdLion `/vendors` → `plm.erp_vendor` | 2026-07-22 (9 days stale as of this doc's 2026-07-31 refresh) |
 | `plm.customer_import` (legacy) | 2026-07-17 |
 | `plm.licensor_import` | 2026-07-08 |
 | `plm.property_import` | 2026-07-08 |
