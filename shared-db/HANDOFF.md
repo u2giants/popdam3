@@ -1020,6 +1020,33 @@ the crons** — e.g. a separate job not gated on the enable variable, or a disti
 `..._READINESS_ONLY` mode. This must be done in its own PR with its own review; it changes the
 production workflow.
 
+### B10 — Coordinator intake lifecycle/retention is MANUAL; CI could enforce it (MEDIUM — recorded 2026-07-31, NOT implemented)
+
+`COORDINATOR_INTAKE.md` at the repo root is the mailbox for (a) **requests** for database work
+from anyone who has not started it, and (b) **handovers** from sessions that had started and
+were told to stop. Its Part B2 now defines a full lifecycle and retention discipline:
+
+- `REQUEST QUEUE` → `IN PROGRESS` → `COMPLETED`, and `INTAKE QUEUE` → `TAKEN OVER`. **Only the
+  coordinator moves a block between sections.**
+- Blocks in `COMPLETED` / `TAKEN OVER` are pruned once older than **30 days** or outside the
+  **most recent 10** in their section, and are **archived verbatim** to
+  `docs/intake-archive/YYYY-MM-DD-intake-archive.md` — never deleted. The "what did NOT work"
+  section of each block is the most valuable content the process produces.
+- When a block reaches `COMPLETED`, its branch must be **verified merged** to `origin/main`, its
+  worktree retired via the **`cleanup-worktree`** skill, and its **local** label deleted with
+  `git branch -d` only when merged and checked out nowhere. Remote branches are deleted by the
+  merge, never by hand. A worktree is **never** removed while dirty, locked, or held by a live
+  process.
+- The coordinator runs this sweep **at session start and again at handover**.
+
+**Backlog item (not built, deliberately):** all of the above is manual discipline with no
+enforcement — which is exactly how one day's work left 23 worktrees and ~30 stale local branch
+labels behind. A CI job could enforce it mechanically: fail or warn when `COMPLETED` /
+`TAKEN OVER` blocks exceed the 10-block / 30-day threshold, and warn when a local branch has
+been merged to `origin/main` for more than 30 days and still exists. Nobody should build this
+without reading `COORDINATOR_INTAKE.md` Part B2 first; the thresholds live there and must not
+be duplicated into a workflow that then drifts.
+
 ### B5 — Other items carried forward from elsewhere in this file
 
 These are already documented in detail in their own sections above; they are listed here only so
