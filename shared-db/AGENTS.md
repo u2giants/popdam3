@@ -357,6 +357,57 @@ migrations still had to be replayed as no-ops on 2026-07-27 just to close the le
 worked example, including the verification queries:
 [`docs/migration-backlog-triage-2026-07-27.md`](docs/migration-backlog-triage-2026-07-27.md).
 
+### 5.2 A red check on `main` can be a STALE verdict — the domain-ownership guard scans more than its trigger watches (learned 2026-07-31)
+
+**Read this before you debug a failing check on `main`.** The `DB Data Admin` workflow
+(`.github/workflows/db-data-admin.yml`) has a `verify` job whose first step,
+*"Enforce DB Data Admin domain ownership"*, runs `scripts/check-domain-ownership.mjs`. That
+script enumerates **every tracked text file** in the repo via `git ls-files` — all `.md`,
+`.yml`, `.json`, `.mjs`, `.ts`, `.html`, `.css`, … including `HANDOFF.md`, `docs/**`,
+`supabase/**` and the workflow files themselves.
+
+But the workflow's `on: pull_request` / `on: push` `paths:` filter lists only:
+`apps/db-data-admin/**`, `AGENTS.md`, `DB_Data_Admin.md`, `README.md`,
+`docs/db-data-admin-domain-ownership.md`, `scripts/check-domain-ownership.mjs`,
+`.github/workflows/db-data-admin.yml`.
+
+**The scanner is repo-wide; the trigger is narrow.** So a violation can be introduced by a file
+the filter ignores (e.g. `HANDOFF.md`) and get flagged the next time the workflow happens to
+run — and, worse, *fixing that file does not re-run the workflow*, so `main` keeps displaying the
+old failure forever.
+
+Both halves were proven on 2026-07-31:
+
+- **PR #328** corrected the offending wording in `HANDOFF.md` and merged as `53f849f`.
+  **No workflow run fired at all.** `main` stayed red on the stale result.
+- **PR #307**, an unrelated docs edit to `AGENTS.md` (which *is* in the filter), merged as
+  `f1b9e8b` and **did** trigger the run — which passed. That, not the actual fix, is what turned
+  `main` green.
+
+**How to recognise it.** Either symptom means "stale verdict", not "still broken":
+(a) a red check on `main` whose reported content is already corrected in the current tree —
+check the run's commit SHA, not just the red X; or (b) a guard that never fires on a file you
+know it scans.
+
+**How to respond.**
+
+1. Don't re-fix code that is already correct. Re-run the check against the current tip: use
+   `gh workflow run` (manual dispatch) where the workflow allows it, or `gh run rerun <id>`
+   against the newest run, or push a no-op touch to a file that *is* inside the `paths:` filter
+   (`AGENTS.md` is the usual one).
+2. Confirm green against the **current** `main` SHA — `gh run list --branch main --limit 5`
+   shows which commit each verdict belongs to.
+3. **When adding any repo-wide checker, make its trigger cover everything it scans.** If the
+   checker rides inside a heavy job, split it into its own cheap workflow rather than widening
+   the heavy job's filter — see the note below.
+
+The obvious fix here (adding `HANDOFF.md` and friends to the filter) is **not** safe as written:
+that same filter also gates the `container` build, Playwright browser tests and the Coolify
+`deploy-development` job, so widening it would run a full build-and-deploy on every unrelated
+docs PR. The correct permanent fix is a separate, tiny `domain-ownership` workflow with no
+`paths:` filter, running only the two `node` commands. Not yet built — do it the next time this
+bites.
+
 ## 6. How to tell if a change is already in flight
 
 Before starting database work, run these and read the result:
