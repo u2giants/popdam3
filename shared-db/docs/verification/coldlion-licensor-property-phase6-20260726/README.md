@@ -234,6 +234,48 @@ breaker, alert, rollback, and §9.4 proof remains intact. Step 8, Albert's durab
 of the exact production window and package, remains open. This entry does not supply
 approval, declare overall readiness, access production, or begin Phase 7.
 
+**Monitoring update at 2026-07-31T18:56:08Z:** all **24** scheduled runs after the prior
+entry are preserved here. Twenty-three succeeded. One failed before it could reach the
+preview database.
+
+| UTC date | Scheduled workflow runs | Result and append-only evidence |
+|---|---|---|
+| **2026-07-30** | health **30501822963**, **30511070369**, **30520217874**, **30531541262**, **30540890269**, **30551883098**, **30562894019**, **30571594227**, **30579637830**; DesignFlow **30518405481**; ColdLion **30519596699**; comparison **30523053876** | **All 12 passed.** Source runs `cf29e14d-00d4-49f6-bd64-aebfd0411bcf` and `9f0cfdec-d098-46da-aaf4-fe96dfe752d5` produced comparison `8d6f8f49-1241-4ea3-b58f-3d060e987247` and observation **`b9254ddc-cdc1-463a-ab2d-5da21cf3a58d`**. The observation passed every §9.4 check with zero unexplained differences and unchanged protected hashes. |
+| **2026-07-31** | health **30586597073**, **30592951202**, **30602563977**, **30610975124**, **30621453509**, **30629871589**, **30639230244**, **30649043245**, **30656235835**; DesignFlow **30609691194**; ColdLion **30610484202**; comparison **30613933425** | **11 passed; 1 failed.** DesignFlow run `28ee103c-0bf8-4270-a052-06d324ccfbc2` saw 37 licensors, 468 properties, and 57 customers. ColdLion run `ff84e673-4a91-486c-9834-26f530be282b` saw **614** rows: 44 licensors and 570 properties, with 54 inserted, 258 updated, and 302 unchanged. Comparison `b2c962a9-7eb3-4f8e-b42c-61d4c60db884` produced observation **`eaef69a5-1ac6-445e-b831-fb3493ba5ea0`**. It passed every §9.4 check with zero unexplained differences and unchanged protected hashes. |
+
+The failed scheduled run **30639230244** is intentionally not hidden by the later green
+runs. Its preview guard and 115 offline tests passed. The Supabase management service then
+returned a retryable Cloudflare **502** during `supabase link`, so the health query never ran
+and no preview observation was written. The workflow's immediate-alert step also failed
+because the project link did not exist, so it could not write the durable database alert.
+Runs **30649043245** and **30656235835** later passed after the service recovered. This is
+proof of recovery, not erasure of the failure. It exposes an **open alert-delivery gap for
+failures that happen before linking**. The GitHub Actions red run is the only durable alert
+for this event.
+
+The July 31 ColdLion mirror changed materially from the prior 560-row snapshot to 614 rows.
+That source change did not alter the approved canonical package: ColdLion refs remained 542,
+linked rows remained 38 licensors / 504 properties, and the licensor UUID, property UUID,
+status, parent-edge, and source-ref hashes all matched the frozen baseline. A fresh preview
+readiness evaluation at **2026-07-31T18:56:08Z** appended health run
+**`75c15b95-2fa2-4b83-b160-f7cae7130c66`** and independently rechecked every approved typed
+key. It returned `ready:true`; mapping hash `1230f5a12d0f2a3029f1d3df17fc5b5f`;
+542/542 resolved to the approved UUIDs; and **0** missing, extra, changed-UUID, cross-typed,
+duplicate, or mismatched links. Breaker enforcement remained 11/11, the breaker was closed
+after its previously authorized reset, and no critical database alert was open.
+
+The manual Step 7A preview rehearsal evidence is preserved separately in
+[`../coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](../coldlion-licensor-property-step7a-recurring-feed-20260729/README.md),
+including its two failed promotion attempts, automatic trip, alerts, fixes, authorized reset,
+and successful re-proof. Those failures remain evidence and are not reclassified as success.
+
+**Ruling:** the new complete source cycles, exact typed identity, protected invariants,
+breaker, prior alert drill, rollback proof, and §9.4 checks are green on preview. Overall
+production work is still blocked by Step 8, Albert's durable approval, and the newly exposed
+pre-link alert-delivery gap must be fixed or explicitly accepted before production approval.
+This entry does not grant approval, declare production readiness, access production, or begin
+Phase 7. The retired 14-day gate is not counted.
+
 ### 4.6 Secrets and schedule (ACTIVE)
 
 | Item | Status |
