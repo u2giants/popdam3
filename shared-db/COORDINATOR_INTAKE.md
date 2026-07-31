@@ -1071,6 +1071,45 @@ limit on the assessing session. No database contact.
 
 ---
 
+### REQUEST — Backlog B14 — remove the buffered cycle-state-probe cliff (not just raise it) before Step 8 — 2026-07-31 — session: B14 queue-entry agent
+
+**1. What outcome is needed, and why.** A client-side tooling fault must stop
+being able to take the ColdLion feed down. PR #362 raised the `runSql` output
+buffer so an oversized cycle-state probe is now *diagnosable*, but the cliff was
+moved, not removed: an overflow still throws, still writes a durable failed sync
+run, and two in a row still auto-trip the circuit breaker — identical blast
+radius, better message. The outcome needed is that the probe stops returning the
+whole ColdLion mirror as one buffered document, and/or that a spawn-level fault
+is not counted as a sync failure at all. **The design is not chosen — that is
+the coordinator's call.** Authoritative detail: `### B14` in `HANDOFF.md`.
+
+**2. Which application(s) depend on this.** ColdLion → DesignFlow → shared
+Supabase licensor/property taxonomy; downstream popdam3 and PopSG. The same
+`runSql` helper powers the real recurring production feed.
+
+**3. Is it blocking anything, and how urgently?** **BLOCKING Step 8** — this must
+be resolved **before the production lane is enabled**, because once enabled this
+path runs unattended against the production mirror on a schedule. **HIGH.** Not
+blocking anything today while production stays off.
+
+**4. Deadline, if any.** None. It is a gate on Step 8, not a dated commitment.
+
+**5. What I already know about the current schema.** No schema involvement — this
+is tooling. Read from the repo on branch `rehearsal/coldlion-recurring-20260731`,
+**not verified against any live database**: `runSql` in
+`tools/coldlion-sync-common.mjs` now passes a 256 MiB `maxBuffer`, and
+`tools/coldlion-sync-common-runsql.test.mjs` pins that **current** behaviour
+offline — those tests will keep passing after a proper fix and are not evidence
+of one. `HANDOFF.md` is authoritative for the rest; do not act on this summary.
+
+**6. Confirmation of what I have NOT done. [MANDATORY]** Nothing started: no
+branch created for this work, no migration file written, no push to preview or
+production, no `supabase` CLI command, no Supabase MCP call, no psql, no
+background task chip, and no database contact of any kind. The only file this
+session wrote is this one.
+
+---
+
 ## IN PROGRESS
 
 Requests the coordinator has verified and dispatched. Each block is annotated

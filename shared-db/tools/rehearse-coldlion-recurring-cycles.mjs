@@ -44,9 +44,15 @@ function sql(text, { rollback = false } = {}) {
   const file = join(dir, "q.sql");
   try {
     writeFileSync(file, rollback ? `begin;\n${text}\nrollback;\n` : text, "utf8");
-    const r = spawnSync("supabase", ["db", "query", "--linked", "--file", file], {
+    // `--output json` is NOT the default: `supabase db query` renders an ASCII TABLE unless
+    // asked otherwise. Every assertion below matches on JSON (`"hits": 2`, `"unchanged_rows"`),
+    // so without this flag the box-drawing output matched nothing and 16 of 18 cases reported
+    // FAIL while the database was in fact answering correctly. A test that cannot read the
+    // answer is not evidence of a defect.
+    const r = spawnSync("supabase", ["db", "query", "--linked", "--output", "json", "--file", file], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 256 * 1024 * 1024,
     });
     return { ok: r.status === 0, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
   } finally {
@@ -136,10 +142,14 @@ function protectedFieldTriggeredBy(table, mutation) {
        before update on ${table}
        for each row execute function pg_temp.rehearsal_protected_mutation();
      -- A legitimate presentation-only change, which the approved rule WILL try to apply.
+     -- ALL ARMS, not one: since 20260731200000 every canonical row is fed by two typed keys
+     -- and the section 5.9 tie-break picks deterministically between them. Flipping a single
+     -- arm leaves the other arm's name winning the tie-break, so the promotion correctly
+     -- writes NOTHING — and a promotion that writes nothing never fires the trigger below,
+     -- which made this guard look broken when it was merely never invoked.
      update plm.erp_licensor e
         set name = case when e.name = upper(e.name) then initcap(e.name) else upper(e.name) end
-      where (e.company_code, e.division_code, e.mg_type_code, e.mg_code)
-            = (select company_code, division_code, mg_type_code, mg_code from ${TARGET_LIC} t);
+      where e.licensor_id = (select licensor_id from ${TARGET_LIC} t);
      select * from plm.promote_coldlion_source_owned(${EXPECTED}, null, true);`,
     { rollback: true },
   );
@@ -213,11 +223,12 @@ record(
 // 1. A controlled LEGITIMATE ColdLion name change proves the allowed update path.
 //    initcap/upper only changes presentation, so it is normalized-equivalent and the one
 //    approved deterministic rule may apply it.
+//    ALL ARMS of the canonical row, for the section 5.9 tie-break reason explained in
+//    protectedFieldTriggeredBy: a single-arm case flip is correctly a no-op after 20260731200000.
 const legit = promoteAfter(`
 update plm.erp_licensor e
    set name = case when e.name = upper(e.name) then initcap(e.name) else upper(e.name) end
- where (e.company_code, e.division_code, e.mg_type_code, e.mg_code)
-       = (select company_code, division_code, mg_type_code, mg_code from ${TARGET_LIC} t);`);
+ where e.licensor_id = (select licensor_id from ${TARGET_LIC} t);`);
 const legitRes = resultOf(legit.out);
 record(
   "a legitimate ColdLion presentation change IS applied and audited",

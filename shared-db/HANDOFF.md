@@ -1983,6 +1983,64 @@ testable offline against the two committed files. **Explicitly not implemented i
 that assessed it** — that session's scope was limited to `HANDOFF.md` and `COORDINATOR_INTAKE.md`
 and was forbidden from adding scripts or workflows.
 
+### B14 — The ENOBUFS fix MOVES the cliff, it does not remove it — and it still auto-trips the breaker (HIGH — recorded 2026-07-31, NOT implemented; **must be resolved BEFORE the production lane is enabled at Step 8**)
+
+**Read this as a correction to the defect-1 fix in PR #362, not as a complaint about it.** The
+fix is right and should stay. What it is NOT is a resolution of the underlying problem, and the
+PR's own wording ("sized well above any plausible payload") reads more final than the facts
+support.
+
+**What the fix actually did.** `runSql` in `tools/coldlion-sync-common.mjs` now passes
+`maxBuffer: 256 * 1024 * 1024` to `spawnSync`. Node's default is exactly **1 MiB**. The real
+cycle-state probe returned **1,305,075 bytes** on the **preview** clone, which overflowed the
+default: `error` came back **ENOBUFS**, `status` came back **null** and `stderr` came back
+**EMPTY**, so a client-side buffer overflow was reported as the generic
+`supabase db query failed` — a database failure that had not happened.
+
+**Why that is a raised limit, not a removed one.**
+
+- 1,305,075 bytes is **today's** size, on **preview**, which is already production-scale data.
+  256 MiB is roughly **200× headroom** — comfortable, but finite and undated. Nothing measures
+  it, nothing alerts as it approaches, and nothing fails a build when it grows. The number of
+  ColdLion licensors, properties and source refs only goes up.
+- **Crucially, the fix does NOT stop an ENOBUFS from auto-tripping the circuit breaker.** Trace
+  it: an overflow still sets `result.error`, `runSql` still **throws**, the throw still lands in
+  the **same catch**, that catch still records a **durable failed `ingest.sync_run` row**, and
+  **two consecutive failures still auto-trip** the `coldlion_licensor_property` breaker. All the
+  fix changed is that the operator now gets a message naming ENOBUFS instead of a misleading one.
+  **The blast radius is identical.** A better diagnostic on an outage is not the absence of an
+  outage.
+
+**The real root cause.** The cycle-state probe returns **the entire ColdLion mirror as ONE JSON
+document**, fully buffered in memory, marshalled through a child process's stdout pipe and then
+`JSON.parse`d whole. Every layer of that — the CLI's buffer, Node's `maxBuffer`, the string, the
+parsed object — scales linearly with the mirror. `maxBuffer` is the only one of those with a knob
+on it, so it is the only one that got turned. The others are still there.
+
+**What "resolved" would look like** (design not yet chosen — do not treat any of these as the
+decision):
+
+- Have the probe return **aggregates and a hash** rather than the whole mirror, so the payload
+  size is bounded by the schema instead of by the row count. This is the direction that actually
+  removes the cliff.
+- Or **page/stream** the probe, so no single response has to fit in any one buffer.
+- Or, at minimum, **classify a spawn-level fault as NOT a sync failure**: an ENOBUFS/ENOENT/timeout
+  is a client-side fault and must not write a durable `failed` row or count toward the two
+  consecutive failures that trip the breaker. That alone would decouple a tooling defect from a
+  production outage, and is the cheapest of the three.
+
+**Why this must be settled before Step 8.** Once the production lane is enabled, this path runs
+against the **production** mirror on a schedule, unattended. A payload that outgrows the ceiling
+there trips the breaker on a **real** feed, out of hours, for a reason that has nothing to do with
+the data being wrong. Enabling the lane while the failure mode is merely better-labelled is
+accepting a known, dated outage.
+
+**What IS now pinned** (so nobody re-derives this): `tools/coldlion-sync-common-runsql.test.mjs`
+(added in PR #362) proves offline that `runSql` still passes `--output json`, that `maxBuffer` is
+above the 1 MiB default, and that a spawn fault produces a diagnosable error. Those tests pin the
+**current** behaviour deliberately. They will keep passing after this item is fixed properly, and
+they are not evidence that it has been.
+
 ### B5 — Other items carried forward from elsewhere in this file
 
 These are already documented in detail in their own sections above; they are listed here only so

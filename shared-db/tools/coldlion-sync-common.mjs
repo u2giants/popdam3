@@ -74,13 +74,29 @@ export function runSql(sql, { linked = false } = {}) {
   const file = join(dir, "query.sql");
   try {
     writeFileSync(file, sql, "utf8");
+    // `--output json` is NOT the default. The default box-table renderer wraps a 1.3 MB JSON
+    // cell across box-drawn lines, interleaving `|` borders into the payload, which is not
+    // recoverable. Ask for json and let parsePhase6FunctionResult unwrap the column name.
     const args = linked
-      ? ["db", "query", "--linked", "--file", file]
-      : ["db", "query", "--db-url", databaseUrl, "--file", file];
+      ? ["db", "query", "--linked", "--output", "json", "--file", file]
+      : ["db", "query", "--db-url", databaseUrl, "--output", "json", "--file", file];
     const result = spawnSync("supabase", args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
+      // The cycle-state probe returns the WHOLE ColdLion mirror as one JSON document — over
+      // 1.3 MB on the preview clone. Node's default spawnSync maxBuffer is exactly 1 MiB, so
+      // the read was killed with ENOBUFS, `status` came back null, `stderr` came back EMPTY,
+      // and the error below reported the generic "supabase db query failed". That misreads a
+      // client-side buffer overflow as a database failure, and two of them in a row AUTO-TRIP
+      // the coldlion_licensor_property circuit breaker. Sized well above any plausible payload.
+      maxBuffer: 256 * 1024 * 1024,
     });
+    if (result.error) {
+      // Never let a spawn-level fault (ENOBUFS, ENOENT, timeout) masquerade as a SQL failure.
+      throw new Error(
+        `supabase db query could not be executed (${result.error.code ?? "spawn error"}): ${result.error.message}`,
+      );
+    }
     if (result.status !== 0) throw new Error(result.stderr || "supabase db query failed");
     return result.stdout;
   } finally {

@@ -87,7 +87,30 @@ function tryParseJsonShapes(trimmed, requiredKey) {
 }
 
 function normalizeJsonCandidate(parsed) {
-  if (Array.isArray(parsed)) return parsed[0] ?? null;
+  if (Array.isArray(parsed)) {
+    const row = parsed[0] ?? null;
+    if (!row || typeof row !== "object" || Array.isArray(row)) return row;
+    // `supabase db query --output json` returns rows keyed by COLUMN NAME, so a
+    // `select jsonb_build_object('ok', true, ...)` arrives as
+    //   [ { "jsonb_build_object": { "ok": true, ... } } ]
+    // The result object is one level deeper than the pre-existing `{rows:[…]}` envelope
+    // this function already unwrapped. Without this step the probe was reported
+    // UNPARSEABLE (exit 2) even though the database had answered correctly.
+    const keys = Object.keys(row);
+    if (!("ok" in row) && !("pass" in row) && keys.length === 1) {
+      const only = row[keys[0]];
+      if (only && typeof only === "object" && !Array.isArray(only)) return only;
+      if (typeof only === "string") {
+        try {
+          return JSON.parse(only);
+        } catch {
+          const mapText = extractGoMapText(only);
+          return mapText ? parseGoMap(mapText) : row;
+        }
+      }
+    }
+    return row;
+  }
   if (Array.isArray(parsed?.rows)) {
     const row = parsed.rows[0];
     if (row && typeof row === "object") {
