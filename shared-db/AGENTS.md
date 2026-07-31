@@ -14,6 +14,16 @@ shares the Supabase database**: PM/PIM `poppim-web`, CRM `popcrm-web`, DAM
 touching code or the database. It exists to stop separate
 AI sessions from breaking each other through the one database they all depend on.
 
+> **Started in `shared-db` and you are not the coordinator? Stop and hand over.**
+> This repo runs **one coordinator session**, which dispatches every task to
+> sub-agents in isolated worktrees. Any other session writes its handover into
+> the intake queue in [`COORDINATOR_INTAKE.md`](COORDINATOR_INTAKE.md) and stops.
+> That file also carries the standing facts an incoming session needs (silent
+> duplicate-version skips, the production-bound Supabase MCP, preview as a shared
+> mutable resource) and the ban on background task chips in this repo. Skills:
+> `shared-db-orchestrator` to run a coordinator session, `shared-db-handover` to
+> close one out.
+
 ## 0. Shared-db gatekeeper rule for consumer repos
 
 `shared-db` is the gatekeeper for every database schema change in the shared

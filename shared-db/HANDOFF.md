@@ -1,5 +1,10 @@
 # HANDOFF — shared-db current state
 
+> **Not the coordinator session? Do not start or continue work here.** This repo
+> runs one coordinator, which dispatches everything to sub-agents in isolated
+> worktrees. Write your handover into the intake queue in
+> [`COORDINATOR_INTAKE.md`](COORDINATOR_INTAKE.md) and stop.
+
 > **Separate workstream, also read if you are touching privileges or promoting to production:**
 > [`fix_public_schema_anon_lockdown.md`](fix_public_schema_anon_lockdown.md) (2026-07-30) — the
 > `public`-schema anonymous-access lockdown. That work is **complete and live on production**;
