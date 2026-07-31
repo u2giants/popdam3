@@ -545,6 +545,35 @@ is live — `plm.sync_coldlion_vendors` via `public.sync_coldlion_vendors`, with
 design/state: [`fix_vendor_sync.md`](fix_vendor_sync.md). Detail:
 [`docs/coldlion-erp-api-reference.md`](docs/coldlion-erp-api-reference.md) (✅ box).
 
+### 6.3 OWNER RULING — Coldlion ERP data is canonical (Albert Hazan, 2026-07-31)
+
+> **Coldlion ERP data is canonical.** When Coldlion inactivates or removes a vendor, property or
+> licensor, **follow it** — do not preserve the old value on the grounds that the raw/bronze record
+> is immutable. Ruled by Albert Hazan, 2026-07-31.
+
+Why this is written down: on 2026-07-31 a session deleted 442 ColdLion vendor rows from bronze
+`ingest.raw_record` on **production** `qsllyeztdwjgirsysgai` (539 → 97 surviving rows;
+`pg_stat_all_tables.n_tup_del` for `ingest.raw_record` reads exactly 442). The owner reviewed it and
+confirmed it was **intended and correct** — those vendors had been inactivated in the ERP. **This is
+not an incident. Do not propose a restore, a PITR, or a corrective migration for it.**
+
+**What this ruling supersedes.** Two migrations that are already **applied to production** carry
+comments asserting the opposite. They are applied, the ledger records their versions, and the CLI
+will never re-run them — so **do not edit them**; editing changes nothing in the database and
+desynchronises file from ledger. Read them as historical, and read this ruling as the current
+policy:
+
+| Applied migration | Stale comment it carries |
+| --- | --- |
+| `20260722171500_refresh_erp_vendor_mirror_to_corrected_vendors.sql` | "Bronze `ingest.raw_record` is intentionally left untouched — it is the immutable [record]" |
+| `20260722213000_vendor_sync_guarded_importer.sql` | "Bronze `ingest.raw_record` still holds the original payload"; "Bronze: always land the raw row (nothing is ever lost)" |
+
+Scope note: this ruling is about **ColdLion-sourced master data** (vendors, properties, licensors)
+following the ERP. It does **not** relax the append-only rule for **evidence and audit** tables
+(`plm.coldlion_promotion_audit`, `plm.coldlion_promotion_quarantine`,
+`plm.taxonomy_parallel_observation`, `plm.taxonomy_circuit_breaker_event`,
+`app.db_data_admin_audit_event`) — those stay append-only and must not be deleted.
+
 ## 7. When two apps need conflicting database changes
 
 Serialize, do not parallelize. Land one change, let it sync, test it, then start
