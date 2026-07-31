@@ -1599,3 +1599,217 @@ The Supabase PAT and the preview DB password were read from 1Password vault `vib
 (serially, never in parallel) and used only to authenticate the CLI and psql. **No secret value was
 written to any file, doc, or commit.** Production `qsllyeztdwjgirsysgai` was never linked, queried,
 or pushed to, and no Supabase MCP tool was called at any point.
+
+### 22.13 PSG-5a — the eight Licensor aliases are now DATA, not code (`core.licensor_alias`)
+
+Albert ruled option **(a)** from section 22.6: migrate the eight into a durable recorded contract.
+Migration `20260731210000_core_licensor_alias.sql` (branch `feat/core-licensor-alias-20260731`).
+
+**This is a recording, not a ratification.** Albert approved MOVING the eight mappings into the
+database. He did NOT rule that any individual mapping is factually correct. Origin, author and
+authority of the original array remain unknown — no memo, contract reference or sign-off exists in
+either repository. The table therefore refuses to blur the two states.
+
+#### What was built
+
+- **`core.licensor_alias`** — shape follows the three proven siblings (`core.customer_alias`
+  20260716143231, `core.factory_alias` 20260717192922, `core.property_alias` 20260731150000).
+  The normalizer is `core.normalize_popsg_property_observation` — the SAME one `core.property_alias`
+  uses, and a SQL restatement of the JS `normalize()` in the frozen inventory script that produced
+  the section 22.6 blast-radius numbers. The simple `lower()`+whitespace normalizer used by
+  `customer_alias`/`factory_alias` is deliberately NOT copied (section 6.4 forbids it here).
+- **Provenance columns:** `approval_status` (`inherited_unverified` | `owner_approved`),
+  `approved_by`, `approved_at`, `approval_evidence`. CHECK constraints make `owner_approved`
+  unrepresentable without all three of approver, timestamp and evidence, and make an
+  `inherited_unverified` row unable to carry approval fields that would make it LOOK approved.
+  A direct `service_role` write cannot bypass either.
+- **Dormancy:** `is_dormant` + `dormancy_evidence`. `Nickelodeon` and `Viacom` are seeded dormant
+  against the frozen 2026-07-26/27 measurement (0 files, 0 relationships). Claiming dormancy
+  without a measurement reference is refused.
+- **Uniqueness is GLOBAL on `normalized_alias`**, not parent-scoped. This is the one deliberate
+  divergence from `core.property_alias`: a Property alias is disambiguated by its Licensor parent,
+  but a Licensor alias IS the top-level lookup key with no outer scope. Two live aliases can never
+  resolve the same normalized string to different Licensors.
+- **Shadowing guard:** trigger `core.reject_shadowing_licensor_alias()` refuses any alias that
+  normalizes to the canonical name or code of ANY Licensor — redundant against its own target, and
+  file-re-routing sabotage against a different one. It computes from `new.alias` and never reads the
+  generated column (the 20260731153000 lesson).
+- **FK is `on delete restrict`**, matching `core.property_alias`'s licensor edge. There is no
+  `core.merge_licensor()`, so nothing legitimately needs to delete a parent, and a 25,731-file
+  routing rule must never disappear silently.
+- **RLS:** SELECT-only policy for the standard shared role set; no write policy for `authenticated`
+  at all. `revoke all` then `grant select` to `authenticated`, `grant all` to `service_role`.
+
+#### Read path (grants stated explicitly — AGENTS.md section 10.2)
+
+- `public.resolve_licensor_alias(text) -> uuid` — observed string to canonical Licensor id, NULL
+  when nothing matches (the `licensor_unresolved` case the worker already handles).
+- `public.list_licensor_aliases()` — every alias with its resolved Licensor and full provenance.
+- `public.approve_licensor_alias(alias, approved_by, approval_evidence)` — the ONLY way a row
+  becomes `owner_approved`; administrator/`service_role` only, and refuses to approve anonymously
+  or without an evidence reference.
+
+All three are `revoke ... from public, anon` then `grant execute to authenticated, service_role`,
+and the test suite asserts `auth_exec=t`, `svc_exec=t`, `anon_exec=f`, `PUBLIC=f` both from the raw
+ACL and from `has_function_privilege()`.
+
+#### Target resolution
+
+All six distinct target names resolved to EXACTLY ONE `core.licensor` row each (26 licensors in
+preview): `NBC` [NB], `MARVEL` [MV], `TOEI - ONE PIECE` [1P], `PEANUTS WORLDWIDE` [PN],
+`SESAME STREET` [SM], `VIACOM MULTI` [VM]. None of the eight ALIAS strings collides with an existing
+canonical Licensor name or code, so no alias shadows a real record. The seed loop raises and aborts
+the migration if any target ever resolves to other than exactly one row — it does not guess,
+fuzzy-match, or create a Licensor.
+
+#### Verification
+
+Tests: `supabase/tests/core_licensor_alias_contracts.sql` — 34 assertions covering seed resolution,
+provenance, normalization against the frozen corpus, conflict rejection, dormancy, grants, RLS and
+(section G) the NBC family ruling. ALL PASSED. `scripts/check-sql.sh` passes, including the
+duplicate-version guard.
+
+> **SUPERSEDED 2026-07-31 (later the same day).** This section originally read "**Nothing was
+> applied to preview**": at the time, four ColdLion migrations (`20260731163000`, `20260731180000`,
+> `20260731190000`, `20260731200000`) were merged to `main` but not yet pushed to
+> `rjyboqwcdzcocqgmsyel`, so pushing would have moved another session's baseline. **Those four have
+> since been applied to preview by their own session.** `supabase db push --dry-run --linked` now
+> lists `20260731210000_core_licensor_alias.sql` and nothing else, and it **has been applied to
+> preview**. See section 22.14 for what preview's baseline now contains.
+
+One normalization sharp edge was found and is now asserted permanently: camel-case splitting fires
+only on a lower/digit -> UPPER boundary, so `NBCUniversal` normalizes to `nbcuniversal`, NOT
+`nbc universal`. Fixture `caps_run_no_split` locks this in so nobody "fixes" the normalizer and
+silently re-parents 25,731 files.
+
+#### popdam3 cutover — REQUIRED, and NOT done here
+
+The `LICENSOR_ALIASES` array in `u2giants/popdam3` (`apps/worker/src/handlers/popsg-tags.ts`) is
+**deliberately left in place**. It is a different repository and was not modified. To cut over:
+
+1. Worker loads the aliases at startup via `public.list_licensor_aliases()` (or resolves per
+   observation with `public.resolve_licensor_alias()`), using its `service_role` credential.
+2. Worker asserts on load that every entry in the frozen code array is present in the table and
+   points at the same Licensor id. **A mismatch must fail loudly, never fall back silently.**
+3. Run BOTH paths in parallel in production for at least one full sync cycle and prove they produce
+   identical Licensor resolutions for every observed folder string.
+4. **Only after step 3 passes in production** may the code array be deleted. Removing it before the
+   table is proven puts 63,000+ file-to-Licensor resolutions on an unverified read path.
+5. The array must NOT be deleted in the same release that introduces the table read.
+
+Until then the table is additive and inert: it changes no worker behaviour whatsoever.
+
+#### What is still NOT decided
+
+Whether each of the **seven non-NBC** mappings is factually correct remains an open business
+question for Albert. The mechanism to record his answer exists (`public.approve_licensor_alias`) and
+has now been exercised for real — see section 22.14 — but he has ruled on the NBC family ONLY, so
+Marvel Style Guide, One Piece, Peanuts, Sesame Workshop, Paramount, Nickelodeon and Viacom all still
+correctly read `inherited_unverified`. Section 22.6's owner gate is **narrowed, not closed**: the
+aliases are now durable, auditable and impossible to change by accident, and the NBC family is
+ratified, but the remaining alias-dependent Batch 01 rows still rest on mappings nobody has
+ratified.
+
+### 22.14 PSG-5b — Albert's NBC ruling, and the two variants that matched nothing
+
+On **2026-07-31**, in session, Albert ruled, verbatim:
+
+> "NBC Universal really means NBC, really means NBCU, really means NBCUniversal"
+
+So four observed strings denote the one canonical Licensor **`NBC`** (id
+`154bf54b-6f7d-4999-b0fb-c2828b12b56a`, code `NB`): `NBC Universal`, `NBC`, `NBCU`, `NBCUniversal`.
+
+#### Why this was more than a one-line change
+
+The inherited code array contained only `["NBC Universal", "NBC"]`. The normalizer splits camel case
+**only** on a lower/digit → UPPER boundary, so an ALL-CAPS run followed by a capitalised word does
+not split. Measured against the frozen JS `normalize()` in
+`scripts/popsg-property-psg1-inventory.cjs`:
+
+| observed string | normalized form | matched before this change? |
+| --- | --- | --- |
+| `NBC Universal` | `nbc universal` | yes — the one alias in the code array |
+| `NBC` | `nbc` | yes — it is the canonical Licensor's own name |
+| `NBCU` | `nbcu` | **no — matched nothing at all** |
+| `NBCUniversal` | `nbcuniversal` | **no — matched nothing at all** |
+
+Four strings, **four different normalized forms**. `NBCU` and `NBCUniversal` do not collapse into
+`nbc universal`, so before this change they resolved to nothing and any folder spelled that way
+would have landed in `licensor_unresolved`. These four normalized forms are now pinned as fixtures
+(tests section G1/G1b) so that a later "fix" to the normalizer cannot silently merge them.
+
+`NBC` is deliberately **not** an alias row. Resolution tries a direct canonical name/code match
+before consulting aliases (frozen script lines 261-263), and the shadowing/redundancy trigger
+correctly refuses an alias equal to its own target's name. So the ruling's four strings map to
+**three** alias rows plus the canonical record. Test G4 pins that, so nobody "fixes" the apparent
+off-by-one by inserting `NBC`.
+
+#### Blast radius of the two new variants: ZERO today, by measurement
+
+The frozen PSG-1 corpus (`docs/verification/popsg-property-reconciliation-20260727-psg1/
+inventory.csv`, 372 observation rows) holds exactly **21** distinct normalized folder-level Licensor
+strings. `nbc universal` appears in **55** rows. **`nbcu` and `nbcuniversal` appear in ZERO.** The
+only `NBCU` string anywhere in that corpus is a *property* folder, `_NBCU CLEARED EDITORIAL`, under
+licensor `NBC UNIVERSAL` — already resolved, and not a Licensor-level observation.
+
+So **no PopSG folder or file is going unaliased today** because of these two variants: none exists.
+Production was **not** queried; this is read off the frozen evidence in this repository. Both rows
+are therefore flagged `is_dormant` with that measurement as `dormancy_evidence`, exactly like
+Nickelodeon and Viacom, and carry `source_system = 'owner_ruling'` rather than
+`'popdam_worker_code'` so a later reader can tell inherited folklore from a human decision.
+
+#### How the owner approval was recorded
+
+Through **`public.approve_licensor_alias()`** — the table's only sanctioned approval path — and not
+by writing the approval columns directly. This is the **first real use** of that RPC. The two new
+variants are seeded `inherited_unverified` and promoted by the RPC in the same migration, so the
+mechanism is exercised rather than bypassed. `approved_by` = `Albert Hazan`, `approval_evidence`
+quotes the ruling verbatim and cites that it was given in session on 2026-07-31.
+
+Two things had to be handled honestly rather than glossed over:
+
+- **`approved_at` is pinned to the ruling date, not to migration-run time.** The RPC can only stamp
+  `now()`, which would have made preview say 2026-07-31 and production say whatever day it was
+  promoted — two different answers to "when did Albert decide this" for one decision. The migration
+  therefore sets `approved_at` explicitly after the RPC call. *Backlog: give
+  `approve_licensor_alias()` an optional approval-timestamp parameter so historical approvals do not
+  need this follow-up write.*
+- **It is stored at 12:00 UTC, not midnight.** This database's session TimeZone is
+  `America/New_York`. Stored at `2026-07-31 00:00:00+00`, `approved_at::date` renders as
+  **2026-07-30** — the audit trail would have named the wrong day for the owner's decision. Caught
+  by contract test G3 during the preview rehearsal, not in review. The test now asserts the date in
+  explicit UTC *and* in the server's local timezone, which is what forces the value off the midnight
+  boundary.
+- **The RPC's privilege guard is null-permissive.** It reads
+  `if not (app.has_role('administrator') or auth.role() = 'service_role')`. In a migration there is
+  no JWT, `auth.role()` returns NULL, the whole expression is NULL, and `if NULL then` does not
+  fire — so the guard would have admitted the call *by accident*. The migration does not rely on
+  that: it sets a transaction-local `request.jwt.claims` of `{"role":"service_role"}` to assert
+  service-level authority explicitly, and resets it. *Backlog: make the guard NULL-safe.* Not
+  exploitable through PostgREST (`anon` has no EXECUTE, and a real `authenticated` caller always
+  carries a role claim), so it is recorded rather than fixed here.
+
+#### Scope: the NBC family ONLY
+
+Seven aliases were **not** touched and remain `inherited_unverified`: Marvel Style Guide, One Piece,
+Peanuts, Sesame Workshop, Paramount, Nickelodeon, Viacom. Tests A2/A3/A4 assert this by name, not by
+count, so a later session cannot quietly ratify Marvel on the back of Albert's NBC ruling.
+
+Final state: **10 alias rows — 3 `owner_approved` (the NBC family), 7 `inherited_unverified`.**
+
+#### ⚠️ ADDING THESE ROWS IS NECESSARY BUT **NOT SUFFICIENT**
+
+`NBCU` and `NBCUniversal` **do not take effect yet.** The PopDAM worker still resolves Licensor
+strings from its own hard-coded `LICENSOR_ALIASES` array in `u2giants/popdam3`
+(`apps/worker/src/handlers/popsg-tags.ts`). It does not read `core.licensor_alias`, and nothing in
+`shared-db` can make it. Until the cutover in section 22.13 ("popdam3 cutover") is done, these two
+rows are a **recorded decision with no runtime effect**. That worker repository was deliberately not
+modified by this change.
+
+#### Verification
+
+Applied to preview `rjyboqwcdzcocqgmsyel` on 2026-07-31 after a full `BEGIN … ROLLBACK` rehearsal.
+`supabase db push --dry-run --linked` listed only `20260731210000_core_licensor_alias.sql`.
+All **34** contract assertions pass against the applied preview baseline, including the six new
+section-G NBC assertions. Production `qsllyeztdwjgirsysgai` was never linked, queried or pushed to,
+and no Supabase MCP tool was called.
