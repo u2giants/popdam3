@@ -1906,7 +1906,27 @@ guessing:
 **Status at the 2026-07-31 handover:** four orphaned processes existed on the machine and **Albert
 was given the `Stop-Process` commands to clear them. Whether he ran them is UNVERIFIED.**
 
-### B13 — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry (MEDIUM — assessed 2026-07-31, deliberately NOT implemented)
+### B13 — CI check: every BACKLOG `B<n>` should have a `REQUEST QUEUE` entry (DONE 2026-07-31)
+
+> **DONE — implemented 2026-07-31.** The check is
+> [`scripts/check-backlog-queue-sync.mjs`](scripts/check-backlog-queue-sync.mjs), unit-tested by
+> `scripts/check-backlog-queue-sync.test.mjs`, and wired into CI by
+> [`.github/workflows/backlog-queue-sync.yml`](.github/workflows/backlog-queue-sync.yml) — its own
+> small workflow with **no `paths:` filter**, per AGENTS.md §5.2, because the check reads both
+> `HANDOFF.md` and `COORDINATOR_INTAKE.md` and widening the `DB Data Admin` filter would fire a
+> Docker build, the Playwright tests and the Coolify deploy on every docs PR.
+>
+> **Two deliberate departures from the assessment below.** (a) It **fails** on a genuinely
+> unqueued item rather than only warning — an empty queue is the exact defect, and a warning is
+> just more prose to ignore. The false-positive risk the assessment worried about is handled
+> instead by making the check *refuse to judge* whenever it cannot parse either document with
+> confidence: missing file, renamed `## BACKLOG` or `## REQUEST QUEUE` heading, or no `### B<n>`
+> items found all produce a loud warning and **exit 0**, mirroring Guard B in
+> `scripts/check-sql.sh`. (b) The opt-out marker is `no-queue-entry-needed: <reason>` written
+> inside the `### B<n>` item itself, and the check **reports** every exclusion, so a parked item
+> stays visible instead of silently disappearing. An item the coordinator has already moved to
+> `## IN PROGRESS` / `## COMPLETED` / `## TAKEN OVER` counts as queued. The reverse direction — a
+> queue entry naming a `B<n>` that no longer exists — is reported and never fails.
 
 **The problem it would solve.** On 2026-07-31 a fresh coordinator read the empty queues in
 `COORDINATOR_INTAKE.md` and reported "there is no pending work" while ~20 jobs sat in this
