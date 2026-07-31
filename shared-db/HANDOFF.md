@@ -19,33 +19,191 @@
 > tables when it runs, so it must be scheduled by whoever owns collision control — do not start
 > it opportunistically.**
 
-## OPEN, NOT MERGED — ColdLion promotion serialization lock (2026-07-31)
+## 🛑 BLOCKING — Step 8 readiness verdict is **NOT YET**: the 14/14 rehearsal does NOT describe the function that would run in production (2026-07-31)
 
-**Branch:** `claude/adoring-bose-f6e5ef`. **Migration:** `supabase/migrations/20260731180000_coldlion_recurring_promotion_serialization_lock.sql`.
+**This is the single most important fact in this file. It outranks the ordering warning below —
+both apply, but this one says Step 8 cannot be approved at all yet.** Verdict from a Step 8
+readiness assessment (GLM 5.2 plus independent verification), 2026-07-31.
 
-**What it is.** A forward correction adding transaction-scoped advisory lock `720260729` to
-`plm.promote_coldlion_source_owned`, so a manual ColdLion drill and the scheduled promotion can
-no longer promote the same rows at once. Raised as a Medium finding against PR #331. Full
-rationale, the skip contract, and the reason a skip must be `cancelled` and never `failed`:
+**The problem.** The rehearsal evidence everyone cites — "14/14, two identical cycles" in
+[`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md)
+§4 — was run against `plm.promote_coldlion_source_owned` **as of migration `20260730000500`**.
+**Since then FOUR further `create or replace` of that same function landed:** `20260731163000`,
+`20260731180000`, `20260731190000`, `20260731200000`. The rehearsed body no longer exists.
+
+**Applied ≠ rehearsed — state this precisely, the nuance matters:**
+
+- Those four migrations **WERE** subsequently applied to preview (the preview ledger confirms
+  `20260731163000 / 180000 / 190000 / 200000`). The line in
+  [`docs/verification/coldlion-promotion-crosscheck-coverage-20260731/README.md`](docs/verification/coldlion-promotion-crosscheck-coverage-20260731/README.md)
+  saying "**NOT yet applied to preview, NOT rehearsed against a database**" is therefore **half
+  stale**: the "not applied" half is out of date, **the "not rehearsed" half is still true.**
+- **The rehearsal was never re-run.** That same README adds **four new fault cases `10a`–`10d`**
+  to `tools/rehearse-coldlion-recurring-cycles.mjs` (lines 398–442) — refusal of an out-of-date
+  runner plan, the `source_code`-drift blind spot, the held-row provenance blind spot, and a
+  don't-cry-wolf healthy-cycle case. **None of the four has ever been executed.**
+- So the suite is now **18 cases: 14 passed against an older function body, 4 never run.**
+  There is **zero** rehearsal evidence for the body that is live on preview today.
+
+**Why that is not a paperwork quibble.** `20260731200000` changes the **fan-in name-selection**
+logic and `20260731190000` changes the **cross-check predicate** and adds a **fail-closed
+refusal of out-of-date runner plans**. That is precisely the machinery whose earlier bugs the
+rehearsal was **the only thing that caught**. Reasoning about it offline is what produced those
+bugs in the first place.
+
+**Also a discoverability failure:** versions `20260731163000`, `20260731190000` and
+`20260731200000` appear **nowhere** in `HANDOFF.md` (before this correction) or in
+`plan_coldlion_licensor_property_accelerated_cutover.md` — only inside their own migration files
+and that one README. Anyone building the Step 8 migration list from the plan would silently omit
+them.
+
+**REQUIRED NEXT ACTION:** a **fresh, dated rehearsal against the CURRENT function body, all 18
+cases green, with a durable evidence artifact** committed under `docs/verification/`. Until that
+exists, Step 8 is not approvable.
+
+### The five things Albert should require before approving Step 8
+
+1. **The fresh 18-case rehearsal above**, against the current body, dated, with the artifact
+   committed.
+2. **A written, dated approval package naming EVERY migration by exact version.** The plan and
+   the Step 7 change package each list **four**; the true manifest is roughly **18**. It must be
+   **re-derived from a live ledger comparison, never counted from memory or from the plan.**
+   Note this is a real interlock, not bureaucracy:
+   `tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs` (lines 399–407) scans for
+   `docs/verification/coldlion-licensor-property-step8-approval-*/approval.json` and **blocks an
+   enabled variable when none exists**. **No such directory exists today** (verified by listing
+   `docs/verification/`).
+3. **Proof the ~15 unrelated pending production migrations stay out.** A cheap, read-only proof
+   already exists: `.github/workflows/shared-supabase-migrations.yml` refuses a production apply
+   outright and offers a `production` **DRY-RUN** that runs
+   `scripts/production_migration_guard.py prepare` with an explicit **comma-separated version
+   allowlist**. **Require that dry-run output before the window opens.**
+4. **A production backup plus a "before" baseline capture** — **26 licensors, 256 properties,
+   542 links** — so that "did anything change?" is answerable with a fact rather than an opinion.
+5. **An explicit written acceptance of weaker production alerting.**
+   `.github/workflows/coldlion-licensor-property-alert-monitor.yml` is **PREVIEW-ONLY and
+   hard-refuses the production ref** (verified: it hard-codes the preview ref and aborts if it
+   equals `qsllyeztdwjgirsysgai`). In production the **only** channels are the hourly `health`
+   lane and the failing run's own GitHub issue — **so a durable alert recorded by a run that
+   exits 0 can sit unseen for up to an hour.** Albert should accept that in writing, or the gap
+   should be closed first.
+
+### Open items that are RESOLVED — do NOT carry these forward (corrected 2026-07-31)
+
+- **`SUPABASE_DB_PASSWORD_PRODUCTION` already exists** (created 2026-07-10). Step 8's "create
+  the secret" step is **moot**; what is actually needed is **validation** that it works.
+- **The four Step 7A test files ARE wired into CI.**
+  `.github/workflows/tools-offline-tests.yml` globs `tools/*.test.mjs` on **every pull request
+  and every push to `main`**, with an explicit guard that fails if any of the four goes missing
+  (verified at lines 34–35, 64–93). All green. Earlier text in this file saying the suite is
+  "not enforced by CI" is **stale** — see the note in B1/B5.
+- **The "ColdLion Phase 6 Parallel Run (preview)" failure is resolved.** The **16:54 run on
+  2026-07-31 succeeded**; the 14:35 failure was a one-off. Do not re-investigate it.
+- **CRLF is a non-issue for automation.** Nothing in `tools/`, `scripts/`, or any workflow calls
+  `pg_get_functiondef`. It is a **manual-comparison nuisance only**. Keep backlog item B1
+  (`.gitattributes`), but **its stated impact is downgraded** — it is tidiness plus local test
+  noise, not a correctness risk to the lane.
+
+### For accuracy — the rollback tool is genuinely good, with one honest limit
+
+`tools/emit-coldlion-rollback-sql.mjs` **refuses to emit for anything other than exactly 542
+mappings**, rejects unsafe composite keys, deletes **only** those 542 `core.taxonomy_source_ref`
+rows, and clears the mirror link and `resolution_status` together. **It touches no canonical row,
+no status and no parent.** Its one real limitation: **it does NOT restore an overwritten name** —
+those must be reconstructed by hand from the audit log. Because only normalization-equivalent
+name changes are possible, that is **cosmetic cleanup rather than a crisis** — but say it plainly
+rather than implying a full restore. **It also has no unit test (see B8).**
+
+---
+
+## 🛑 CRITICAL — ColdLion production switch-on ORDER (read before touching anything ColdLion)
+
+**Corrected 2026-07-31. Do not shorten this section. Getting the order wrong writes bad data to
+production overnight, unattended, with nobody watching.**
+
+> **Read this together with the 🛑 BLOCKING section immediately above.** That one says Step 8 is
+> **not approvable yet** (the rehearsal does not cover the current function body). This one says
+> that **when** it becomes approvable, the switch-on has a mandatory order. Both apply.
+
+**The trap.** `.github/workflows/coldlion-licensor-property-production.yml` is **already on
+`main` and already carries live `schedule:` crons** — `0 6 * * *` (coldlion snapshot),
+`30 6 * * *` (**promote — this one WRITES to production**), `0 7 * * *` (compare) and
+`45 * * * *` (health, hourly). Those crons fire today. They no-op for exactly **one** reason:
+the repository variable `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` does not exist, so the
+`gate` job short-circuits. **Arming the whole thing is therefore a single `gh variable set`
+command**, after which all four lanes — promote included — go live within 24 hours with no
+human present.
+
+**What is NOT in production yet.** The four ColdLion correctness migrations
+`20260731163000`, `20260731180000`, `20260731190000`, `20260731200000` are merged to `main`
+and **applied to PREVIEW only**. **Production still holds the OLD function body** of
+`plm.promote_coldlion_source_owned` — unserialized, without the provenance cross-check, without
+the fan-in tie-break, and with the dead failure-recording handler.
+
+**Therefore the switch-on order is MANDATORY and is three steps, in this order:**
+
+1. **Promote exactly those four migrations to production** using the bounded procedure in
+   `AGENTS.md` §5. **NEVER `--include-all`** — production also holds roughly **15 deliberately
+   unpromoted migrations** belonging to other workstreams, and `--include-all` would apply all
+   of them in one unreviewed shot.
+2. **Verify the production function body actually contains all four changes** before trusting
+   it: advisory lock **`720260729`**, the **`v_server_prov_keys`** cross-check, the
+   **`arm_rank`** tie-break, and **NO `exception when others` handler** in the function body.
+   Read the deployed definition — do not infer it from the ledger.
+3. **Only then** set `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED`.
+
+**Plainly: if the variable is flipped first, the OLD, unserialized function body runs against
+live production data nightly and unattended** — reintroducing exactly the skipped-cycle and
+fan-in hazards that the 2026-07-31 rehearsal was run to remove.
+
+**Step 8 is Albert's approval gate — and "Step 8 = approval" must NOT be read as "enable the
+workflow."** Approval *precedes* the careful promotion sequence above; it does not replace it.
+Nobody may set that variable as the first action after an approval.
+
+---
+
+## RESOLVED — ColdLion promotion serialization lock, MERGED and APPLIED TO PREVIEW (2026-07-31)
+
+**Corrected 2026-07-31.** This section previously read "OPEN, NOT MERGED", claimed migration
+`20260731180000` was sitting unmerged on branch `claude/adoring-bose-f6e5ef`, and listed two
+gates ("land PR #338 first", "then preview-prove it"). **All of that is now false. Both gates
+were satisfied and the work shipped.** The stale text caused at least one later session to
+re-plan work that was already done.
+
+**What actually happened, with evidence:**
+
+- **PR #338** (PSG-5, `20260731150000` + `20260731153000`) **merged** — merge commit
+  `691d5ea`. Gate 1 satisfied.
+- **`20260731180000_coldlion_recurring_promotion_serialization_lock.sql` is on `main`**, landed
+  as commit `6a00e31` via **PR #343**. The branch `claude/adoring-bose-f6e5ef` is no longer the
+  place to look for it.
+- **All four ColdLion correctness migrations were then APPLIED TO PREVIEW:**
+  `20260731163000`, `20260731180000`, `20260731190000`, `20260731200000`. The preview ledger
+  reads `20260731150000, 20260731153000, 20260731163000, 20260731180000, 20260731190000,
+  20260731200000`. Gate 2 satisfied.
+
+**What each of the four does** (all four are `create or replace` on
+`plm.promote_coldlion_source_owned`, so the LAST one, `20260731200000`, defines the body that
+is live on preview):
+
+- `20260731163000` — removes the dead in-function failure recording; no body-level
+  `exception when others` handler remains.
+- `20260731180000` — transaction-scoped advisory lock **`720260729`**, so a manual ColdLion
+  drill and the scheduled promotion can no longer promote the same rows at once. A skip returns
+  `mode = skipped_already_running` and must be recorded `cancelled`, never `failed`.
+- `20260731190000` — the two-set §5.6 cross-check (`promotions` AND `provenance_refreshes`) via
+  `v_server_prov_keys`.
+- `20260731200000` — the fan-in name tie-break (`arm_rank`), carrying the other three forward
+  unchanged.
+
+Rationale, the skip contract, and why a skip must be `cancelled`:
 [`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md)
 § "Fault 6" and [`docs/advisory-lock-registry.md`](docs/advisory-lock-registry.md).
 
-**Why it is not merged yet — two gates, in this order:**
-
-1. **Serialization (AGENTS.md §4 rule 1).** PR #338 (PSG-5, `20260731150000` +
-   `20260731153000`) is a schema change already applied to preview. Land that one first.
-   Nothing here was pushed to preview, precisely so the two do not interleave in preview's
-   persistent ledger.
-2. **Preview proof.** After #338 lands: apply `20260731180000` to preview, then run
-   `supabase/tests/coldlion_promotion_serialization_lock.sql` against preview. Cases S3–S8
-   need the `dblink` extension to force real two-connection contention; if it is absent they
-   SKIP loudly and the contention must instead be shown with two `psql` sessions — session A
-   `begin; select pg_advisory_lock(720260729);`, session B calls the function and must return
-   `mode = skipped_already_running`.
-
-**Not done, deliberately:** the production lane is untouched and still disabled, and
-`COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` was **not** created. Step 8 (Albert's
-production approval) is unchanged.
+**Still deliberately NOT done:** none of the four is promoted to **production**, the production
+lane is still disabled, and `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` was **not** created.
+Step 8 (Albert's production approval) is unchanged. **See the 🛑 CRITICAL section immediately
+above for the mandatory order — it is not "flip the variable".**
 
 **Depends on a sibling branch:** `origin/fix/wire-coldlion-step7a-tests-ci` adds
 `.github/workflows/tools-offline-tests.yml`, which runs `tools/*.test.mjs` on every pull
@@ -69,7 +227,14 @@ repository and has no memory of any prior chat session.
 
 ---
 
-### B1 — Line endings: add `.gitattributes` and force LF (highest value, needs its own coordinated PR)
+### B1 — Line endings: add `.gitattributes` and force LF (IMPACT DOWNGRADED 2026-07-31 — still worth doing, no longer "highest value")
+
+> **Impact downgraded, corrected 2026-07-31.** **CRLF is a non-issue for automation.** Nothing
+> in `tools/`, `scripts/`, or any workflow calls `pg_get_functiondef`, so the "byte comparison
+> of function definitions" worry below is **manual-comparison nuisance only** — it is not a
+> correctness risk to the ColdLion lane or to any shipped guard. The local Windows test-noise
+> problem described below is real and worth fixing; the severity framing is not. Keep the item,
+> do it when convenient, do not treat it as blocking anything.
 
 **The problem.** This repository has **no `.gitattributes` file at all**, and the Windows
 checkouts run with `core.autocrlf=true` (verify with `git config core.autocrlf` — it prints
@@ -256,17 +421,114 @@ mode is silent data-logic loss.
 
 ---
 
+### B6 — Cross-PR object collision guard (HIGH — recorded 2026-07-31, NOT implemented)
+
+**The problem.** `scripts/check-sql.sh` cannot see a sibling **open** PR, so two PRs that both
+`create or replace` the same database object both pass CI, and whichever merges second silently
+overwrites the first.
+
+- **Guard A** only de-duplicates migration **filenames within the working tree** — it compares
+  the files present in one checkout.
+- **Guard B** only compares the **branch's new migration versions against the base branch's
+  newest** version.
+
+Neither guard queries GitHub for other open pull requests. The **four-way `CREATE OR REPLACE`
+collision on `plm.promote_coldlion_source_owned` that actually happened on 2026-07-31 would
+pass CI again today, unchanged.**
+
+**Proposed fix (two parts, not yet built).**
+
+1. A CI check that extracts the set of database objects a PR creates-or-replaces (parse
+   `create or replace function|view|procedure` plus `create trigger` out of the PR's new
+   migration files) and **fails if any other open PR touches the same object**. It needs
+   `gh pr list` + per-PR changed-file inspection, so it must run with a token that can read
+   the repo's PRs.
+2. A rule, enforced by that same check: **a migration containing `create or replace function`
+   must be rebased onto the current `origin/main` immediately before merge.** A stale base is a
+   failure, not a warning — a stale base is exactly how a lost overwrite happens.
+
+**Do not implement this opportunistically.** It changes CI for every workstream; it needs its
+own coordinated PR.
+
+### B7 — Mandatory negative-path assertions: prove the guard FIRES (MEDIUM — recorded 2026-07-31, NOT implemented)
+
+**The problem.** Three separate defects during the 2026-07-31 session **installed cleanly,
+compiled, passed review — and did absolutely nothing.** Each was "present" and inert:
+
+1. A **`BEFORE` trigger reading a `GENERATED ... STORED` column.** The generated value does not
+   exist yet at `BEFORE` time, so the column read as NULL, the trigger's condition never held,
+   it never fired — and it never raised an error either.
+2. A **function that failed on every single call.** Nothing tested a real call, so nothing
+   noticed.
+3. An **alert path that never recorded**, so the circuit breaker it fed could never trip.
+
+Existence checks (`does the trigger exist?`, `does the function compile?`) passed for all three.
+That class of check is worthless for this class of defect.
+
+**The rule to adopt:** *every guard, trigger and alert ships with a test that **commits the
+violation** and asserts the **observable consequence***. Not "the object exists" — insert the
+row that should be rejected and assert it was rejected; force the condition that should raise
+the alert and assert the alert row landed; call the function with real arguments and assert the
+returned shape. Prove it **fires**, not that it exists.
+
+**Also (LOW).** **Guard B in `scripts/check-sql.sh` uses a strict `<` comparison**, so a
+migration whose version **exactly equals** the base branch's newest version passes the guard.
+Action: confirm that branch protection on `main` requires branches to be **up to date** before
+merge (which would close the practical hole), and if it does not, either enable it or change
+the comparison to `<=`. **Verify before changing — do not edit `scripts/check-sql.sh` as a
+drive-by.**
+
+### B8 — `tools/emit-coldlion-rollback-sql.mjs` has NO unit test (HIGH — recorded 2026-07-31, NOT implemented)
+
+**No `tools/emit-coldlion-rollback-sql.test.mjs` exists** (verified by listing `tools/`). Every
+other Step 7A tool has one, and `.github/workflows/tools-offline-tests.yml` would pick a new test
+up automatically via its `tools/*.test.mjs` glob — so this is a gap, not a design decision.
+
+**Why HIGH:** this is the **emergency lever**. It is the thing somebody runs **under pressure,
+during an incident, against production**, probably at night. It has been executed **exactly
+once** — against preview, inside a rolled-back transaction — and never since. A tool whose only
+proof of correctness is a single manual run a week earlier is not a rollback plan.
+
+**What the test must cover** (all offline, no database): the exactly-542-mapping refusal, the
+unsafe-composite-key rejection, that the emitted SQL deletes **only** those 542
+`core.taxonomy_source_ref` rows, and that it clears the mirror link and `resolution_status`
+together. Follow B7 — assert it **refuses**, do not merely assert it emits.
+
+### B9 — The enable variable is over-coupled: there is no "armed but read-only" state (MEDIUM — recorded 2026-07-31, NOT implemented)
+
+In `.github/workflows/coldlion-licensor-property-production.yml` the **`readiness` lane sits
+inside the `production` job**, which is gated on `needs.gate.outputs.enabled == 'true'`
+(verified: job `production` at line 204, `if:` at line 206, the readiness step at lines 323–327).
+`readiness` is dispatch-only and read-only — it just runs
+`tools/evaluate-coldlion-licensor-property-cutover-readiness.mjs` — **but it cannot run at all
+until the variable is set.**
+
+**Consequence:** there is **no intermediate state**. Setting
+`COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` to run a read-only readiness check
+**simultaneously arms the 06:00 snapshot, the 06:30 promotion (which writes to production), the
+07:00 comparison and the hourly health lane.** The one thing you would want to run *before*
+committing is only available *after* committing.
+
+**Fix:** decompose the gate so `readiness` can run against production **read-only without arming
+the crons** — e.g. a separate job not gated on the enable variable, or a distinct
+`..._READINESS_ONLY` mode. This must be done in its own PR with its own review; it changes the
+production workflow.
+
 ### B5 — Other items carried forward from elsewhere in this file
 
 These are already documented in detail in their own sections above; they are listed here only so
 that one place answers "what is outstanding?".
 
-- **ColdLion promotion serialization lock** — branch `claude/adoring-bose-f6e5ef`, migration
-  `20260731180000`, open and not merged. Two gates in order: land PR #338 first, then prove it
-  on preview. See the "OPEN, NOT MERGED" section at the top of this file.
-- **`origin/fix/wire-coldlion-step7a-tests-ci` has no PR open.** Until it lands, the
-  `tools/*.test.mjs` suite is **not enforced by CI on pull requests** — which is precisely how
-  B1's CRLF failure escaped notice.
+- **ColdLion promotion serialization lock — DONE, no longer outstanding** (corrected
+  2026-07-31). `20260731180000` merged to `main` as `6a00e31` (PR #343) and, with
+  `20260731163000`, `20260731190000` and `20260731200000`, applied to preview. Both former
+  gates are satisfied. What IS outstanding is the **production** promotion of those four, which
+  must follow the mandatory order in the 🛑 CRITICAL section at the top of this file.
+- ~~**`origin/fix/wire-coldlion-step7a-tests-ci` has no PR open** and the `tools/*.test.mjs`
+  suite is not enforced by CI.~~ **RESOLVED — corrected 2026-07-31.**
+  `.github/workflows/tools-offline-tests.yml` is on `main` and globs `tools/*.test.mjs` on
+  **every pull request and every push to `main`**, with an explicit guard that fails if any of
+  the four Step 7A test files goes missing. All green. Do not carry this forward.
 - **`20260729120000` is still pending on production** and must be promoted **with or after** the
   ClickUp migrations (`20260728174500`), never before, or the apply aborts with
   `undefined_function`. See `fix_public_schema_anon_lockdown.md`.
@@ -320,15 +582,24 @@ Consumer repos (e.g. `poppim-web`) carry a **read-only mirror** at `<repo>/share
 
 ### 3. Current state — what is true right now
 
-#### Open PRs from this session
+#### Open PRs — REPOSITORY-WIDE, not just this session
 
-| PR | Branch | State | Blocking? |
+> ### ⚠️ DO NOT TRUST THIS TABLE. RE-RUN `gh pr list` INSTEAD.
+>
+> **Accurate as of 2026-07-31, 18:0x UTC — and only as of that instant.** This repository runs
+> several concurrent sessions, so this table goes stale **within hours**, sometimes within
+> minutes. It has already caused real damage once: it listed **#311 and #307 as open long after
+> both were merged**, and listed none of the PRs that were actually open. **Before you act on
+> any row, re-verify with `gh pr list --state open`. Never plan work from this table alone.**
+
+| PR | Branch | State | Notes |
 |---|---|---|---|
-| [#311](https://github.com/u2giants/shared-db/pull/311) | `fix/clickup-importer-correctness` | open, **BLOCKED** | yes — see §6 step 2 |
-| [#307](https://github.com/u2giants/shared-db/pull/307) | `docs/local-replay-unsupported` | open, mergeable | no |
-| [#300](https://github.com/u2giants/shared-db/pull/300) | `claude/clickup-incremental-import-20260728` | **closed**, superseded by #311 | no |
+| [#348](https://github.com/u2giants/shared-db/pull/348) | `docs/coordinator-intake-20260731` | open, mergeable | docs only — `COORDINATOR_INTAKE.md` |
+| [#345](https://github.com/u2giants/shared-db/pull/345) | `feat/core-licensor-alias-20260731` | open, mergeable | PSG-5 — moves the eight hard-coded Licensor aliases into `core.licensor_alias`; still being extended |
 
-(#238 is open but unrelated to this session — not ours.)
+**Merged earlier the same day (do not re-open or re-plan these):** #311 and #307 (both merged —
+the previous version of this table wrongly showed them open), #331, #334, #335, #336, #337,
+#338 (`691d5ea`), #339, #340, #341, #342, #343 (`6a00e31`), #344, #346, #347.
 
 `fix/clickup-importer-correctness` is pushed, 2 commits ahead of `main`:
 - `cab6813` forward migration fixing 5 correctness defects
@@ -1836,8 +2107,14 @@ PSG-1 is complete. The authoritative package is
   with a blank Property. It is excluded from all candidate evidence and proposals.
 - The eight hard-coded aliases resolve 62,941 active files and remain business authority until
   Albert reviews them.
-- Production still has 318 migration ledger versions and 336 repo migration files. There are no
-  duplicate 14-digit versions. PSG-1 added no migration.
+- **Migration counts — corrected 2026-07-31.** The repo has **383** migration files
+  (`ls supabase/migrations | wc -l` on `main`, 2026-07-31). The figure of 336 previously written
+  here was a snapshot from the PSG-1 session and had gone stale by 47 files. The production
+  ledger count of **318 is UNVERIFIED** — that number was last claimed during PSG-1 (on or about
+  2026-07-27) and has **not** been re-checked since; re-checking it requires production database
+  access, which the correcting session deliberately did not use. Treat 318 as historical, not
+  current. There were no duplicate 14-digit versions as of the last check. PSG-1 added no
+  migration.
 - Preview Phase 6 remains at 44 ColdLion Licensors and 516 ColdLion Properties.
 
 ### 6. Exact next steps
