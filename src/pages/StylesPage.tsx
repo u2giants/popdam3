@@ -1272,6 +1272,16 @@ export default function StylesPage() {
     };
   };
 
+  const openColumnsPanel = () => {
+    const api = gridRef.current?.api;
+    if (!api) {
+      toast.error("The columns panel is not ready yet.");
+      return;
+    }
+    api.setSideBarVisible(true);
+    api.openToolPanel("columns");
+  };
+
   const saveView = useMutation({
     mutationFn: async (name: string) => {
       if (!user?.id) throw new Error("You must be signed in to save a view.");
@@ -1579,7 +1589,7 @@ export default function StylesPage() {
             <Button variant="outline" size="sm" onClick={() => setShowAllRows((value) => !value)} disabled={rowsQuery.isFetching}>
               {showAllRows ? "Latest 2,500" : "Show All"}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => gridRef.current?.api.openToolPanel("columns")}>
+            <Button variant="outline" size="sm" onClick={openColumnsPanel}>
               <Columns3 className="h-4 w-4" />
               Columns
             </Button>
