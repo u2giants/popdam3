@@ -41,7 +41,23 @@
 //   node tools/promote-coldlion-source-owned.mjs --apply --linked \
 //        --production --production-authorized --project-ref qsllyeztdwjgirsysgai
 //
-// Exit codes: 0 promoted (or clean no-op), 1 refused/failed, 2 unparseable result.
+// ONE PROMOTION AT A TIME, AND A SKIP IS NOT A FAILURE
+// ----------------------------------------------------
+// The scheduled lane and a manual drill can both reach the database at once, so
+// plm.promote_coldlion_source_owned takes transaction-scoped advisory lock 720260729
+// (docs/advisory-lock-registry.md) as its very first statement. A caller that cannot take
+// it does not wait and does not silently no-op: it commits a CANCELLED ingest.sync_run row
+// with metadata.outcome = skipped_already_running and returns mode = skipped_already_running.
+//
+// This runner reports that as its own exit code, 3 — deliberately distinct from BOTH success
+// (0) and failure (1). It must never take the failure path for a skip, because that path
+// records a durable FAILED sync_run row and calls record_taxonomy_sync_alert, and two
+// consecutive failed rows fire the pg_notify breaker (tools/coldlion-sync-common.mjs
+// buildFailedSyncRunSql). Two healthy overlapping cycles would then trip the breaker and
+// block promotion until an authorized reset — an outage manufactured out of a normal race.
+//
+// Exit codes: 0 promoted (or clean no-op), 1 refused/failed, 2 unparseable result,
+//             3 skipped because another promotion already holds the lane lock.
 
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -72,6 +88,19 @@ import {
 } from "./run-coldlion-licensor-property-phase4.mjs";
 
 export const SOURCE_NAME = "coldlion_licensors_properties_promote_source_owned";
+
+/**
+ * The transaction-scoped advisory lock key that serializes the promotion lane, mirrored
+ * from the migration so a test can prove the two never drift apart. Registered in
+ * docs/advisory-lock-registry.md.
+ */
+export const PROMOTION_ADVISORY_LOCK_KEY = 720260729;
+
+/** The exact `mode` the database returns when it lost the race for that lock. */
+export const SKIPPED_ALREADY_RUNNING_MODE = "skipped_already_running";
+
+/** Exit code for that outcome — distinct from success (0) and from failure (1). */
+export const EXIT_SKIPPED_ALREADY_RUNNING = 3;
 
 export { PROMOTION_MODE, PROMOTION_RULE_ID, HUMAN_RESPONSE_OWNER };
 
@@ -184,6 +213,19 @@ export function splitCycleState(cycle) {
       source_ref_name: r.source_ref_name,
     }));
   return { sourceRows, linkedRows };
+}
+
+/**
+ * Did the database report that another promotion already holds the lane advisory lock?
+ *
+ * Matched on the `mode` column value the function returns, which is the only thing the
+ * database promises about this outcome. Deliberately NOT matched on the word "skipped"
+ * alone: a quarantine reason, an audit decision_detail or a psql NOTICE could easily
+ * contain that word, and reading a real failure as a benign skip is the dangerous
+ * direction of this error — it would let a broken cycle exit 0-ish and never alert.
+ */
+export function isAlreadyRunningSkip(output) {
+  return new RegExp(`\\b${SKIPPED_ALREADY_RUNNING_MODE}\\b`).test(String(output ?? ""));
 }
 
 /** The durable critical alert that survives the aborted promotion and trips the breaker. */
@@ -316,6 +358,21 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     stage = "promote";
     const promoteOut = runSql(buildPromoteSql(plan, { isDrill }), { linked: mode.linked });
     process.stdout.write(promoteOut);
+
+    // Checked BEFORE the refusal heuristic below. The skip message contains no "refused"
+    // or "ABORTED", but keeping the order explicit means a future edit to that heuristic
+    // cannot start swallowing skips into the failure path and tripping the breaker.
+    if (isAlreadyRunningSkip(promoteOut)) {
+      process.stdout.write(
+        `PROMOTION SKIPPED: another promotion already holds advisory lock ${PROMOTION_ADVISORY_LOCK_KEY}, ` +
+          `so this cycle did not read or write anything. The database committed a cancelled ` +
+          `ingest.sync_run row under ${SOURCE_NAME} with metadata.outcome=${SKIPPED_ALREADY_RUNNING_MODE}.\n` +
+          `This is NOT a failure: no durable failed row and no alert were recorded, so it does not ` +
+          `count toward the two-consecutive-failure breaker. The next scheduled cycle promotes ` +
+          `whatever this one deferred.\n`,
+      );
+      return EXIT_SKIPPED_ALREADY_RUNNING;
+    }
 
     if (/protected|ABORTED|refused/i.test(promoteOut) && !/"protected_violations": *0/.test(promoteOut)) {
       // The database prints its refusal; treat anything that is not an explicit zero-violation

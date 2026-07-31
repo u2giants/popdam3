@@ -418,6 +418,16 @@ is Step 8, Albert's production approval.** Two rules that catch sessions out:
   because the approved mapping deliberately fans 542 source rows into 271 canonical rows. Fan-in
   quarantines only when the arms propose *different* names. This is enforced by a regression test.
 
+- **A skipped promotion cycle is NOT a failed one.** Since 2026-07-31 the promotion is
+  serialized by transaction-scoped advisory lock `720260729` (registry:
+  [`docs/advisory-lock-registry.md`](docs/advisory-lock-registry.md)), because the scheduled
+  lane and a manual drill could otherwise promote the same rows at once and leave an
+  unreadable audit trail. A caller that loses that race records an `ingest.sync_run` row with
+  `status = 'cancelled'` and `metadata.outcome = 'skipped_already_running'`, and the runner
+  exits **3**. Never "tidy" that into `failed` or into exit 1: the two-consecutive-**failed**-row
+  `pg_notify` breaker in `tools/coldlion-sync-common.mjs` would then trip on two perfectly
+  healthy overlapping cycles and block promotion until an authorized reset.
+
 Evidence and the full defect list:
 [`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md). Albert decided on 2026-07-26 to replace the original
 14-day elapsed-time gate with an invariant-based readiness gate plus rapid post-cutover monitoring.

@@ -83,6 +83,51 @@ re-run it. Same pattern as the existing `20260727223000`, `20260727224500`, `202
 | `20260729234500` | **Fault 1 + 2** fix |
 | `20260729235500` | **Fault 3** fix |
 | `20260730000500` | **Fault 4** fix |
+| `20260731180000` | **Fault 6** fix — serialization guard (added 2026-07-31, after this document's original evidence run) |
+
+### Fault 6 — no serialization: a drill and the schedule could promote at the same time
+
+Raised 2026-07-31 by an independent review of PR #331 as a **Medium** finding, not by the
+rehearsal — the rehearsal runs cycles in sequence, so it structurally could not see this.
+
+The recurring lane has two callers: the scheduled workflow and a manual drill. Nothing stopped
+them overlapping, and nothing stopped one scheduled run overrunning into the next. Two
+concurrent cycles read the same mirror rows and the same approved links and both apply.
+
+The canonical layer was never actually at risk — the protected-invariant guard still holds and
+the source-owned writes are idempotent. The damage is **bookkeeping**: two `ingest.sync_run`
+rows open under the same `source_name`, duplicate `plm.coldlion_promotion_audit` rows for the
+same field on the same entity, and a second cycle reporting `provenance_refreshes` /
+`curated_name_changes` for work the first one already did. On the production lane that audit
+trail is the evidence Albert signs off against, so an unreadable trail is the whole problem.
+
+Fixed by `pg_try_advisory_xact_lock(720260729)` as the **first** statement in
+`plm.promote_coldlion_source_owned` — ahead of the breaker check and ahead of the
+approved-contract check, so a second caller decides "skip" before computing anything. The key is
+a documented literal, not `hashtext(...)`, because `hashtext()` is only stable within a
+PostgreSQL major version; it is registered in [`docs/advisory-lock-registry.md`](../../advisory-lock-registry.md).
+
+**Losing the race is a recorded outcome, never a silent no-op** (and this is the part that took
+the most care):
+
+| Layer | Skip is reported as |
+|---|---|
+| Database | `ingest.sync_run` row, `status = 'cancelled'` (**not** `failed`), `metadata.outcome = 'skipped_already_running'`; returns `mode = 'skipped_already_running'` with zero counts |
+| Runner | exit code **3** — distinct from success (0) and failure (1) |
+| Alerting | **nothing fires.** No durable failed row, no `record_taxonomy_sync_alert` |
+| Workflow | exit 3 → green job + `::notice::` |
+
+The `cancelled`-not-`failed` distinction is load-bearing. `buildFailedSyncRunSql` in
+`tools/coldlion-sync-common.mjs` fires `pg_notify('coldlion_sync_alert', …)` on **two
+consecutive FAILED rows**. Had the skip been recorded as a failure, two healthy overlapping
+cycles would have tripped the breaker and blocked promotion until an authorized reset — an
+outage manufactured out of a normal race. Tests:
+`tools/coldlion-promotion-serialization-lock.test.mjs` (offline, 17 cases) and
+`supabase/tests/coldlion_promotion_serialization_lock.sql` (preview, real two-connection
+contention via dblink).
+
+This migration does **not** enable the production lane and does **not** create
+`COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED`. Step 8 is unchanged and still pending.
 
 ### The four defects — all found by the rehearsal, none by unit tests
 

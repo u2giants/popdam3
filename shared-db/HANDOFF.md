@@ -9,6 +9,42 @@
 > `undefined_function`; **(b)** new functions in `public` are now locked down by default, so
 > every migration must state its grants explicitly — see `AGENTS.md` §10.2.
 
+## OPEN, NOT MERGED — ColdLion promotion serialization lock (2026-07-31)
+
+**Branch:** `claude/adoring-bose-f6e5ef`. **Migration:** `supabase/migrations/20260731180000_coldlion_recurring_promotion_serialization_lock.sql`.
+
+**What it is.** A forward correction adding transaction-scoped advisory lock `720260729` to
+`plm.promote_coldlion_source_owned`, so a manual ColdLion drill and the scheduled promotion can
+no longer promote the same rows at once. Raised as a Medium finding against PR #331. Full
+rationale, the skip contract, and the reason a skip must be `cancelled` and never `failed`:
+[`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md)
+§ "Fault 6" and [`docs/advisory-lock-registry.md`](docs/advisory-lock-registry.md).
+
+**Why it is not merged yet — two gates, in this order:**
+
+1. **Serialization (AGENTS.md §4 rule 1).** PR #338 (PSG-5, `20260731150000` +
+   `20260731153000`) is a schema change already applied to preview. Land that one first.
+   Nothing here was pushed to preview, precisely so the two do not interleave in preview's
+   persistent ledger.
+2. **Preview proof.** After #338 lands: apply `20260731180000` to preview, then run
+   `supabase/tests/coldlion_promotion_serialization_lock.sql` against preview. Cases S3–S8
+   need the `dblink` extension to force real two-connection contention; if it is absent they
+   SKIP loudly and the contention must instead be shown with two `psql` sessions — session A
+   `begin; select pg_advisory_lock(720260729);`, session B calls the function and must return
+   `mode = skipped_already_running`.
+
+**Not done, deliberately:** the production lane is untouched and still disabled, and
+`COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` was **not** created. Step 8 (Albert's
+production approval) is unchanged.
+
+**Depends on a sibling branch:** `origin/fix/wire-coldlion-step7a-tests-ci` adds
+`.github/workflows/tools-offline-tests.yml`, which runs `tools/*.test.mjs` on every pull
+request via a glob. The new `tools/coldlion-promotion-serialization-lock.test.mjs` is picked up
+by that glob automatically — no CI wiring was duplicated here. **That branch has no PR open
+yet.** Until it lands, these tests are not enforced by CI on pull requests.
+
+---
+
 ## FRESH-SESSION BOUNDARY — ClickUp importer + duplicate-timestamp remediation (2026-07-29)
 
 **Written:** 2026-07-29. **Author:** AI session working from `/worksp/poppim-web`.
