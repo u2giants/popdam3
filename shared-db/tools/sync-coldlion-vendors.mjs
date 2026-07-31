@@ -17,6 +17,7 @@
 // mutating). --apply commits. Neither is auto-run on import (helpers are unit-tested).
 
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 // `pg` is loaded lazily (via loadPg) so the pure, unit-tested helpers below import without
 // it. `pg` is not a repo dependency — install it into a scratch dir when running for real
@@ -122,7 +123,13 @@ async function run({ dryRun }) {
   }
 }
 
-const invokedDirectly = process.argv[1] && import.meta.url === `file://${process.argv[1].replace(/\\/g, "/")}`;
+// Use pathToFileURL, never a hand-built `file://` string. On Windows an absolute path
+// produces `file:///C:/...` (three slashes) while the hand-built form produced
+// `file://C:/...` (two), so this guard was always false and the runner exited 0 having
+// done NOTHING — a silent no-op, not an error. Every other tool here already uses
+// pathToFileURL; this was the only one that did not.
+const invokedDirectly =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
   const args = new Set(process.argv.slice(2));
   if (!args.has("--dry-run") && !args.has("--apply")) {
