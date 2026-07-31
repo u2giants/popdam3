@@ -366,7 +366,95 @@ record(
   tripped.out.slice(-300),
 );
 
-// 10. Rollback withdraws only ColdLion promotion state, never canonical rows.
+// ---------------------------------------------------------------------------
+// 10. THE STEP 5.6 PLAN CROSS-CHECK MUST COVER ALL THREE CHANGE PATHS.
+//
+// Every fault case above calls the function with p_client_plan = null, i.e. with no plan to
+// cross-check at all — so none of them exercise the assertion itself. These four do.
+//
+// The fault they exist for: until 2026-07-31 the cross-check compared ONLY the curated-name
+// set, so the source_code refresh and the held-row provenance refresh were applied with
+// nothing checking them. A guard that is narrower than what it guards reports "plan verified"
+// over unverified writes, which is worse than no guard at all.
+// ---------------------------------------------------------------------------
+
+/** A syntactically valid plan carrying whichever keys a case wants to test. */
+function planJson(over = {}) {
+  return `'${JSON.stringify({
+    rule: "coldlion_source_name_normalized_equivalent_v1",
+    promotions: [],
+    provenance_refreshes: [],
+    ...over,
+  }).replace(/'/g, "''")}'::jsonb`;
+}
+
+function promoteWithPlan(mutationSql, planLiteral) {
+  return sql(
+    `${mutationSql}\nselect * from plm.promote_coldlion_source_owned(${EXPECTED}, ${planLiteral}, true);`,
+    { rollback: true },
+  );
+}
+
+// 10a. An out-of-date runner — a plan with NO provenance_refreshes key — must be REFUSED,
+//      not quietly accepted under the old, narrower assertion.
+const oldRunner = promoteWithPlan(
+  "",
+  `'${JSON.stringify({ rule: "coldlion_source_name_normalized_equivalent_v1", promotions: [] })}'::jsonb`,
+);
+record(
+  "a plan with NO provenance_refreshes key is refused as an out-of-date runner",
+  /no provenance_refreshes key|predates the provenance cross-check/i.test(oldRunner.out),
+  oldRunner.out.slice(-300),
+);
+
+// 10b. THE FIRST BLIND SPOT — a source_code drift. Names agree everywhere, so the curated-name
+//      set is empty and the OLD cross-check saw a perfectly quiet cycle. The database still
+//      rewrites taxonomy_source_ref.source_code, so a plan that predicts nothing must now be
+//      refused with the provenance-set message.
+const codeDrift = promoteWithPlan(
+  `update core.taxonomy_source_ref r set source_code = r.source_code || '-DRIFT'
+    where r.source_system = 'coldlion'
+      and r.source_id = (select t.company_code||'/'||t.division_code||'/'||t.mg_type_code||'/'||t.mg_code
+                         from ${TARGET_LIC} t);`,
+  planJson(),
+);
+record(
+  "a source_code-only drift is CAUGHT by the provenance cross-check (was invisible before)",
+  /provenance refreshed|core\.taxonomy_source_ref\.source_name \/ \.source_code/i.test(codeDrift.out),
+  codeDrift.out.slice(-400),
+);
+
+// 10c. THE SECOND BLIND SPOT — a row held for review still has its provenance refreshed, by
+//      design, so that ColdLion's truth is never lost while a human confirms the rename. The
+//      old assertion required quarantine_reason IS NULL, so that write was outside it.
+const heldRow = promoteWithPlan(
+  `update plm.erp_licensor e set name = 'COMPLETELY DIFFERENT ENTITY NAME'
+    where (e.company_code, e.division_code, e.mg_type_code, e.mg_code)
+          = (select company_code, division_code, mg_type_code, mg_code from ${TARGET_LIC} t);`,
+  planJson(),
+);
+record(
+  "a HELD row's provenance refresh is CAUGHT by the provenance cross-check (was invisible before)",
+  /provenance refreshed|core\.taxonomy_source_ref\.source_name \/ \.source_code/i.test(heldRow.out),
+  heldRow.out.slice(-400),
+);
+
+// 10d. And the guard must not cry wolf: the real runner, computing both sets from the same
+//      tables, agrees with the database and the cycle completes. A guard that fails on a
+//      healthy cycle gets switched off, which is the same outcome as having no guard.
+const agreeing = spawnSync(
+  "node",
+  ["tools/promote-coldlion-source-owned.mjs", "--apply", "--linked", "--drill"],
+  { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+);
+const agreeingOut = `${agreeing.stdout ?? ""}${agreeing.stderr ?? ""}`;
+record(
+  "the real runner's two sets AGREE with the database — the guard does not cry wolf",
+  agreeing.status === 0 && !/disagree/i.test(agreeingOut),
+  agreeingOut.slice(-400),
+);
+
+// 11. Rollback withdraws only ColdLion promotion state, never canonical rows.
 const HASHES = `select jsonb_build_object(
   'lic_uuid', (select md5(coalesce(string_agg(id::text,'|' order by id::text),'')) from core.licensor),
   'prop_uuid', (select md5(coalesce(string_agg(id::text,'|' order by id::text),'')) from core.property),

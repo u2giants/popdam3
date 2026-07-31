@@ -15,6 +15,7 @@ import {
   PROMOTION_RULE_ID,
   PROTECTED_FIELDS,
   SOURCE_OWNED_FIELDS,
+  computeProvenanceRefreshes,
   decideNamePromotion,
   findProtectedFieldViolations,
   isNoOpCycle,
@@ -391,6 +392,7 @@ test("the plan reports every count needed for an audit record", () => {
   });
   assert.deepEqual(plan.counts, {
     source_rows: 2, linked_rows: 2, promotions: 1, curated_name_changes: 1,
+    provenance_refreshes: 0, provenance_source_code_refreshes: 0,
     unchanged: 1, quarantines: 0, protected_violations: 0,
   });
   assert.equal(plan.human_response_owner, "Albert Hazan");
@@ -402,4 +404,155 @@ test("empty input is a clean no-op, not an error and not a mass quarantine", () 
   assert.equal(plan.promotions.length, 0);
   assert.equal(plan.quarantines.length, 0);
   assert.equal(isNoOpCycle(plan), true);
+});
+
+// =====================================================================================
+// THE PROVENANCE-REFRESH SET — the second cross-checked set (added 2026-07-31)
+//
+// The Step 5.6 plan cross-check used to compare ONLY the curated-name set, so two whole
+// mutation paths in plm.promote_coldlion_source_owned were applied with no independent
+// agreement behind them: the source_code refresh, and the refresh of a row held for review.
+// Every test below is written against a row that produces NO curated-name promotion, because
+// that is precisely the shape the old cross-check could not see.
+// =====================================================================================
+
+function provenanceRow(over = {}) {
+  return {
+    company: "EDGEHOME", division: "CW001", mgTypeCode: "05", mgCode: "BM",
+    entityType: "licensor", name: "Batman",
+    source_ref_id: "44444444-4444-4444-8444-444444444444",
+    source_ref_name: "Batman", source_ref_code: "BM", ...over,
+  };
+}
+
+test("a source_code-only drift IS a planned provenance refresh (the first blind spot)", () => {
+  // Names agree everywhere. Nothing is promoted, nothing is quarantined — and yet the
+  // database rewrites taxonomy_source_ref.source_code. Before this set existed, that write
+  // was invisible to the cross-check on BOTH sides.
+  const plan = planRecurringPromotion({
+    sourceRows: [licensorSource()],
+    linkedRows: [licensorLink()],
+    provenanceRows: [provenanceRow({ source_ref_code: "BM-OLD" })],
+  });
+  assert.equal(plan.promotions.length, 0, "no curated-name promotion — that is the point");
+  assert.equal(plan.quarantines.length, 0);
+  assert.deepEqual(plan.provenance_refreshes, [
+    { key: "EDGEHOME/CW001/05/BM", entity_type: "licensor", fields: ["core.taxonomy_source_ref.source_code"] },
+  ]);
+  assert.equal(plan.counts.provenance_source_code_refreshes, 1);
+});
+
+test("a HELD row still plans its provenance refresh (the second blind spot)", () => {
+  // "Superman" is not a presentation variant of "Batman", so the curated name is held for
+  // review — but ColdLion's truth still lands in provenance, by design. That write was
+  // outside the old assertion, which required quarantine_reason IS NULL.
+  const plan = planRecurringPromotion({
+    sourceRows: [licensorSource({ name: "Superman" })],
+    linkedRows: [licensorLink()],
+    provenanceRows: [provenanceRow({ name: "Superman" })],
+  });
+  assert.deepEqual(reasonsOf(plan), ["source_name_divergence"]);
+  assert.equal(plan.promotions.length, 0);
+  assert.deepEqual(plan.provenance_refreshes.map((p) => p.key), ["EDGEHOME/CW001/05/BM"]);
+  assert.deepEqual(plan.provenance_refreshes[0].fields, ["core.taxonomy_source_ref.source_name"]);
+});
+
+test("both fields drifting on one row report both fields, sorted, once", () => {
+  const plan = planRecurringPromotion({
+    provenanceRows: [provenanceRow({ source_ref_name: "BATMAN-OLD", source_ref_code: "BM-OLD" })],
+  });
+  assert.deepEqual(plan.provenance_refreshes[0].fields, [
+    "core.taxonomy_source_ref.source_code",
+    "core.taxonomy_source_ref.source_name",
+  ]);
+});
+
+test("a row with nothing to refresh is NOT in the set — the steady state stays empty", () => {
+  const plan = planRecurringPromotion({
+    sourceRows: [licensorSource()], linkedRows: [licensorLink()],
+    provenanceRows: [provenanceRow()],
+  });
+  assert.deepEqual(plan.provenance_refreshes, []);
+  assert.equal(isNoOpCycle(plan), true);
+});
+
+test("a row with NO provenance row is excluded — a missing ref cannot be updated", () => {
+  // SQL: `and p.source_ref_id is not null`. Null id must not be conflated with a ref whose
+  // stored name and code happen to be null, or the two sides disagree and the cycle aborts.
+  const plan = planRecurringPromotion({
+    provenanceRows: [provenanceRow({ source_ref_id: null, source_ref_name: null, source_ref_code: null })],
+  });
+  assert.deepEqual(plan.provenance_refreshes, []);
+});
+
+test("wrong_type is the ONE exclusion, matching the SQL predicate term for term", () => {
+  for (const bad of [{ division: "" }, { mgTypeCode: "5" }, { mgTypeCode: "ab" }, { mgCode: "  " }, { company: "" }]) {
+    const plan = planRecurringPromotion({
+      provenanceRows: [provenanceRow({ source_ref_name: "drifted", ...bad })],
+    });
+    assert.deepEqual(plan.provenance_refreshes, [], `${JSON.stringify(bad)} is wrong_type and must be excluded`);
+  }
+  // ...and every OTHER quarantine reason is still refreshed. A rekeyed record is held for
+  // review, but ColdLion's descriptive truth is still recorded.
+  const rekeyed = planRecurringPromotion({
+    sourceRows: [licensorSource({ name: "BATMAN" })],
+    linkedRows: [licensorLink({ canonical_code: "BATMAN-OLD" })],
+    provenanceRows: [provenanceRow({ name: "BATMAN" })],
+  });
+  assert.deepEqual(reasonsOf(rekeyed), ["rekeyed_record"]);
+  assert.equal(rekeyed.provenance_refreshes.length, 1);
+});
+
+test("one typed key on two mirror rows collapses to ONE entry — sets, not bags", () => {
+  // A licensor and a property can share a typed key space and resolve to the same provenance
+  // row. The database compares DISTINCT keys; a bag comparison here would raise a false
+  // disagreement and fail-close a healthy cycle.
+  const plan = planRecurringPromotion({
+    provenanceRows: [
+      provenanceRow({ source_ref_name: "drifted" }),
+      provenanceRow({ entityType: "property", name: "Batman", source_ref_name: "drifted" }),
+    ],
+  });
+  assert.equal(plan.provenance_refreshes.length, 1);
+});
+
+test("the set is sorted by typed key, so both sides compare identically", () => {
+  const plan = planRecurringPromotion({
+    provenanceRows: [
+      provenanceRow({ mgCode: "ZZ", source_ref_code: "x" }),
+      provenanceRow({ mgCode: "AA", source_ref_code: "x" }),
+      provenanceRow({ mgCode: "MM", source_ref_code: "x" }),
+    ],
+  });
+  assert.deepEqual(plan.provenance_refreshes.map((p) => p.key), [
+    "EDGEHOME/CW001/05/AA", "EDGEHOME/CW001/05/MM", "EDGEHOME/CW001/05/ZZ",
+  ]);
+});
+
+test("the plan ALWAYS carries the provenance_refreshes key, even when empty", () => {
+  // The database refuses a plan that OMITS the key (an out-of-date runner) but accepts an
+  // empty array. Emitting `undefined` on a quiet cycle would fail every healthy run.
+  assert.ok(Array.isArray(planRecurringPromotion({}).provenance_refreshes));
+  assert.ok(Array.isArray(planRecurringPromotion({ sourceRows: [licensorSource()] }).provenance_refreshes));
+});
+
+test("a pending provenance refresh means the cycle is NOT a no-op", () => {
+  // isNoOpCycle is the idempotency proof. A cycle that still writes source_code is not idle,
+  // and reporting it as idle would assert idempotency about a mutating run.
+  const plan = planRecurringPromotion({
+    sourceRows: [licensorSource()], linkedRows: [licensorLink()],
+    provenanceRows: [provenanceRow({ source_ref_code: "BM-OLD" })],
+  });
+  assert.equal(plan.promotions.length, 0);
+  assert.equal(isNoOpCycle(plan), false);
+});
+
+test("computeProvenanceRefreshes is pure and tolerates junk input", () => {
+  assert.deepEqual(computeProvenanceRefreshes(), []);
+  assert.deepEqual(computeProvenanceRefreshes(null), []);
+  assert.deepEqual(computeProvenanceRefreshes([null, undefined, {}]), []);
+  const rows = [provenanceRow({ source_ref_code: "drift" })];
+  const frozen = JSON.stringify(rows);
+  computeProvenanceRefreshes(rows);
+  assert.equal(JSON.stringify(rows), frozen, "input must not be mutated");
 });

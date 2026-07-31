@@ -18,6 +18,16 @@
 // is not ColdLion being wrong, it is OUR mapping/promotion logic being wrong. One
 // implementation cannot catch its own bug; two that must agree can.
 //
+// THE PLAN CARRIES TWO CROSS-CHECKED SETS, NOT ONE (corrected 2026-07-31)
+// ----------------------------------------------------------------------
+// `promotions` is the curated-name set. `provenance_refreshes` is every row whose
+// core.taxonomy_source_ref.source_name / .source_code the database will rewrite — which is a
+// WIDER set, because provenance is refreshed on a source_code-only drift and on rows whose
+// curated name is held for review. Until 2026-07-31 only `promotions` was compared, so those
+// two write paths were applied with nothing checking them (GLM-5.2 review of PR #331).
+// A plan without a `provenance_refreshes` key is now REFUSED by the database as an
+// out-of-date runner, rather than silently accepted under the old, narrower assertion.
+//
 // WHAT IT CAN AND CANNOT CHANGE
 //   Can : core.taxonomy_source_ref.source_name / .source_code  (always, for valid links)
 //         core.licensor.name / core.property.name              (only under the one approved
@@ -141,13 +151,21 @@ select jsonb_build_object(
       'mgCode', m.mg_code,
       'name', m.source_name,
       'resolution_status', m.resolution_status,
-      'present_this_cycle', (m.last_sync_run_id = (select id from snapshot)),
+      -- coalesce to FALSE, matching the database's FIX 4. A NULL last_sync_run_id must mean
+      -- "not present this cycle", never "unknown" — an unknown here would reach JavaScript
+      -- as null and silently take neither branch.
+      'present_this_cycle', coalesce(m.last_sync_run_id = (select id from snapshot), false),
       'canonical_id', m.canonical_id,
       'canonical_name', c.canonical_name,
       'canonical_code', c.canonical_code,
       'canonical_status', c.canonical_status,
       'canonical_licensor_id', c.canonical_licensor_id,
-      'source_ref_name', r.source_name)
+      'source_ref_id', r.id,
+      'source_ref_name', r.source_name,
+      -- The provenance layer's stored source_code. Without it the runner cannot predict the
+      -- source_code refresh the database performs, and the Step 5.6 cross-check of that
+      -- write would have nothing to compare against.
+      'source_ref_code', r.source_code)
       order by m.entity_type, m.company_code, m.division_code, m.mg_type_code, m.mg_code)
     from mirror m
     left join lateral (
@@ -180,10 +198,18 @@ export function buildPromoteSql(plan, { isDrill = false } = {}) {
 }
 
 /**
- * Split the database's cycle state into the two inputs the pure planner takes.
+ * Split the database's cycle state into the three inputs the pure planner takes.
  * `sourceRows` = what ColdLion sent this cycle. `linkedRows` = the approved links that
  * exist, whether or not ColdLion sent them — that is what makes an ABSENT record visible
  * as a review item instead of silently disappearing.
+ *
+ * `provenanceRows` = rows that are BOTH present this cycle AND approved-linked, which is the
+ * exact scope of the database's provenance write. It has to be derived HERE, from the intact
+ * row, rather than by intersecting the first two lists afterwards: sourceRows and linkedRows
+ * are filtered on different predicates, so a typed key can appear in both while the two
+ * entries come from DIFFERENT mirror rows (one present but unlinked, one linked but absent).
+ * Intersecting by key would claim a provenance write on a row the database never touches, and
+ * the Step 5.6 cross-check would then fail-closed on a perfectly healthy cycle.
  */
 export function splitCycleState(cycle) {
   const rows = Array.isArray(cycle?.rows) ? cycle.rows : [];
@@ -212,7 +238,20 @@ export function splitCycleState(cycle) {
       canonical_licensor_id: r.canonical_licensor_id,
       source_ref_name: r.source_ref_name,
     }));
-  return { sourceRows, linkedRows };
+  const provenanceRows = rows
+    .filter((r) => r.present_this_cycle === true && r.resolution_status === "manually_matched")
+    .map((r) => ({
+      company: r.company,
+      division: r.division,
+      mgTypeCode: r.mgTypeCode,
+      mgCode: r.mgCode,
+      entityType: r.entityType,
+      name: r.name,
+      source_ref_id: r.source_ref_id ?? null,
+      source_ref_name: r.source_ref_name,
+      source_ref_code: r.source_ref_code,
+    }));
+  return { sourceRows, linkedRows, provenanceRows };
 }
 
 /**
@@ -328,8 +367,8 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     }
 
     stage = "plan";
-    const { sourceRows, linkedRows } = splitCycleState(cycle);
-    const plan = planRecurringPromotion({ sourceRows, linkedRows });
+    const { sourceRows, linkedRows, provenanceRows } = splitCycleState(cycle);
+    const plan = planRecurringPromotion({ sourceRows, linkedRows, provenanceRows });
 
     process.stdout.write(
       `${JSON.stringify(
@@ -343,6 +382,13 @@ export function main(argv = process.argv.slice(2), env = process.env) {
           curated_name_changes: plan.promotions
             .filter((p) => p.curated_name_changed)
             .map((p) => ({ key: p.key, from: p.old_values, to: p.proposed_fields })),
+          // Printed separately from curated_name_changes because these are the writes that
+          // used to happen with no cross-check at all: source_code refreshes, and refreshes
+          // of rows whose curated name is held for review.
+          provenance_refreshes: plan.provenance_refreshes.map((p) => ({
+            key: p.key,
+            fields: p.fields,
+          })),
         },
         null,
         2,
@@ -383,6 +429,8 @@ export function main(argv = process.argv.slice(2), env = process.env) {
 
     process.stdout.write(
       `PROMOTION COMPLETE: ${plan.counts.curated_name_changes} curated name change(s), ` +
+        `${plan.counts.provenance_refreshes} provenance refresh(es) ` +
+        `(${plan.counts.provenance_source_code_refreshes} touching source_code), ` +
         `${plan.counts.quarantines} quarantined for review, protected invariants unchanged.\n`,
     );
     return 0;

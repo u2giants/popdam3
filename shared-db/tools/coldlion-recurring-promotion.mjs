@@ -215,6 +215,72 @@ export function findProtectedFieldViolations(payloadRows = []) {
 }
 
 // =====================================================================================
+// The provenance-refresh set — the SECOND cross-checked set (added 2026-07-31)
+// =====================================================================================
+
+/**
+ * Every row whose ColdLion provenance (core.taxonomy_source_ref.source_name /
+ * .source_code) the database is about to rewrite.
+ *
+ * WHY THIS EXISTS AS ITS OWN SET
+ * ------------------------------
+ * `promotions` is the curated-name set. It is NOT the set of rows the database mutates.
+ * plm.promote_coldlion_source_owned refreshes provenance for a strictly wider set, and
+ * until 2026-07-31 the Step 5.6 plan cross-check only ever compared the narrow one — so two
+ * whole mutation paths were applied with no independent agreement behind them:
+ *
+ *   1. source_code-only refresh. A row whose names all agree but whose stored source_code
+ *      has drifted from mgCode is still written. Nothing proposed it, nothing checked it.
+ *   2. Held-row refresh. A row quarantined as source_name_divergence (or any reason other
+ *      than wrong_type) still has its provenance refreshed — deliberately, so ColdLion's
+ *      truth is never lost while a human reviews the curated name — but it is excluded from
+ *      `promotions` by definition, so it fell outside the assertion too.
+ *
+ * The predicate below is the SQL 5.8 UPDATE predicate, term for term. Keep them identical;
+ * a divergence turns a fail-closed guard back into a blind spot.
+ *
+ * `wrong_type` is the one exclusion, matching SQL. Everything else — including rows with no
+ * canonical link at all — is in scope exactly as the database has it.
+ *
+ * @param {Array} provenanceRows rows that are BOTH present this cycle and approved-linked
+ * @returns {Array<{key: string, entity_type: string|null, fields: string[]}>} sorted by key,
+ *   one entry per distinct typed key (a key can arrive on more than one mirror row and both
+ *   resolve to the same provenance row; the database compares sets, so this does too)
+ */
+export function computeProvenanceRefreshes(provenanceRows = []) {
+  const byKey = new Map();
+  for (const row of Array.isArray(provenanceRows) ? provenanceRows : []) {
+    // SQL: `and p.source_ref_id is not null`. A provenance row that does not exist cannot be
+    // updated, and a null id is not the same as one whose name and code are both null.
+    if (row?.source_ref_id === null || row?.source_ref_id === undefined) continue;
+    // SQL: `and p.quarantine_reason is distinct from 'wrong_type'`. The SQL wrong_type arm
+    // fires on a malformed typed key; isCompleteTypedKey is the same test in JavaScript.
+    if (!isCompleteTypedKey(row)) continue;
+    if (row.entityType !== "licensor" && row.entityType !== "property") continue;
+
+    const fields = [];
+    if (String(row.source_ref_name ?? "") !== String(row.name ?? "")) {
+      fields.push("core.taxonomy_source_ref.source_name");
+    }
+    if (String(row.source_ref_code ?? "") !== String(row.mgCode ?? "")) {
+      fields.push("core.taxonomy_source_ref.source_code");
+    }
+    if (fields.length === 0) continue;
+
+    const key = typedKey(row);
+    const existing = byKey.get(key);
+    if (existing) {
+      for (const f of fields) if (!existing.fields.includes(f)) existing.fields.push(f);
+      continue;
+    }
+    byKey.set(key, { key, entity_type: row.entityType ?? null, fields });
+  }
+  return [...byKey.values()]
+    .map((entry) => ({ ...entry, fields: entry.fields.slice().sort() }))
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+}
+
+// =====================================================================================
 // The whole-cycle plan
 // =====================================================================================
 
@@ -227,13 +293,26 @@ export function findProtectedFieldViolations(payloadRows = []) {
  * @param {Array} input.linkedRows   the approved links currently in the database:
  *   {company, division, mgTypeCode, mgCode, entityType, canonical_id, canonical_name,
  *    canonical_code, canonical_status, canonical_licensor_id, source_ref_name}
+ * @param {Array} input.provenanceRows  every mirror row that is BOTH present this cycle and
+ *   approved-linked, carrying the provenance row as it currently stands:
+ *   {company, division, mgTypeCode, mgCode, entityType, name, source_ref_id,
+ *    source_ref_name, source_ref_code}. This is a separate input, not derived from the two
+ *   above, because the database's provenance write is scoped per MIRROR ROW
+ *   (resolution_status = 'manually_matched' AND present_this_cycle on the same row), which
+ *   cannot be reconstructed from sourceRows/linkedRows once they have been split apart: a
+ *   key can be present via one row and linked via a different one, and those rows are not
+ *   written. See computeProvenanceRefreshes.
  * @returns {{
  *   mode: string, rule: string, promotions: Array, unchanged: Array,
- *   quarantines: Array, protected_violations: Array, refuse: boolean,
- *   counts: Record<string, number>
+ *   provenance_refreshes: Array, quarantines: Array, protected_violations: Array,
+ *   refuse: boolean, counts: Record<string, number>
  * }}
  */
-export function planRecurringPromotion({ sourceRows = [], linkedRows = [] } = {}) {
+export function planRecurringPromotion({
+  sourceRows = [],
+  linkedRows = [],
+  provenanceRows = [],
+} = {}) {
   const promotions = [];
   const unchanged = [];
   const quarantines = [];
@@ -442,12 +521,21 @@ export function planRecurringPromotion({ sourceRows = [], linkedRows = [] } = {}
 
   const protectedViolations = findProtectedFieldViolations(promotions);
 
+  // The second cross-checked set. It deliberately OVERLAPS `promotions` (a clean row whose
+  // source_name changed appears in both) — the database asserts both sets independently, and
+  // merging them would trade one blind spot for another.
+  const provenanceRefreshes = computeProvenanceRefreshes(provenanceRows);
+
   return {
     mode: PROMOTION_MODE,
     rule: PROMOTION_RULE_ID,
     human_response_owner: HUMAN_RESPONSE_OWNER,
     promotions,
     unchanged,
+    // Sent to plm.promote_coldlion_source_owned and compared against its own recomputation.
+    // The key must always be PRESENT, even when empty: the database refuses a plan that omits
+    // it, because an absent key means a runner that predates this cross-check.
+    provenance_refreshes: provenanceRefreshes,
     quarantines,
     protected_violations: protectedViolations,
     // Fail closed: a protected violation aborts the ENTIRE cycle before any canonical
@@ -458,6 +546,10 @@ export function planRecurringPromotion({ sourceRows = [], linkedRows = [] } = {}
       linked_rows: linkedRows.length,
       promotions: promotions.length,
       curated_name_changes: promotions.filter((p) => p.curated_name_changed).length,
+      provenance_refreshes: provenanceRefreshes.length,
+      provenance_source_code_refreshes: provenanceRefreshes.filter((p) =>
+        p.fields.includes("core.taxonomy_source_ref.source_code"),
+      ).length,
       unchanged: unchanged.length,
       quarantines: quarantines.length,
       protected_violations: protectedViolations.length,
@@ -466,9 +558,19 @@ export function planRecurringPromotion({ sourceRows = [], linkedRows = [] } = {}
 }
 
 /**
- * Idempotency proof helper: a plan whose promotions list is empty (everything unchanged
- * or already quarantined) means a second identical cycle changes nothing.
+ * Idempotency proof helper: a plan that writes NOTHING means a second identical cycle
+ * changes nothing.
+ *
+ * `promotions.length === 0` alone was not that proof. A cycle with no curated-name work but
+ * a pending source_code refresh, or a held row whose provenance is still catching up, does
+ * write to core.taxonomy_source_ref — so calling it a no-op would have reported "idempotent"
+ * about a cycle that still mutates rows. Both sets must be empty.
  */
 export function isNoOpCycle(plan) {
-  return Boolean(plan) && plan.refuse === false && plan.promotions.length === 0;
+  return (
+    Boolean(plan) &&
+    plan.refuse === false &&
+    plan.promotions.length === 0 &&
+    (plan.provenance_refreshes ?? []).length === 0
+  );
 }
