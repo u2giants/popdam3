@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Phase 6 sync health checker (preview only).
+// ColdLion/DesignFlow sync health checker.
 //
 // Calls public.check_taxonomy_sync_health(...) which inspects live ingest.sync_run
 // rows and Phase 4 link counts. Exit non-zero on any issue so CI fails loudly.
@@ -11,6 +11,15 @@
 //
 // --force-fail writes a durable alert + failed health run without mutating
 // canonical UUID/status/parent/source-ref data (safe alert proof).
+//
+// PRODUCTION (added 2026-07-29 for accelerated plan Step 7A): preview remains the
+// default and needs nothing extra. The recurring PRODUCTION lane needs an hourly
+// health check too, and this runner was hard preview-only — so the production lane
+// could not have run at all. It now uses the SAME shared four-part authorization
+// module as the other ColdLion runners (--production, --production-authorized,
+// --project-ref qsllyeztdwjgirsysgai, COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED=true).
+// With none of those flags the behaviour is byte-for-byte the previous preview-only
+// behaviour, so every existing guard test still means what it meant before.
 
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -21,6 +30,11 @@ import {
   assertPreviewApplyTarget,
   resolveRunMode,
 } from "./phase6-preview-guards.mjs";
+import {
+  assertColdlionApplyTarget,
+  describeAuthorizedTarget,
+  resolveProductionAuthorization,
+} from "./coldlion-production-authorization.mjs";
 import {
   parseHealthResult,
   healthExitCode,
@@ -51,14 +65,22 @@ function readLinkedProjectRef() {
 }
 
 function main(argv = process.argv.slice(2), env = process.env) {
-  assertNoProductionEnv(env);
+  const auth = resolveProductionAuthorization(argv, env);
+  // The preview lane keeps its hard production-environment refusal. An authorized
+  // production run legitimately points at production, so that blanket refusal must
+  // not fire there — the target is instead proven by assertColdlionApplyTarget below,
+  // which holds exactly the same four-part bar as every other ColdLion write runner.
+  if (!auth.requested) assertNoProductionEnv(env);
   const mode = resolveRunMode(argv, env);
   const linkedProjectRef = mode.linked ? readLinkedProjectRef() : null;
-  assertPreviewApplyTarget({
+  assertColdlionApplyTarget({
     apply: mode.apply,
     linked: mode.linked,
     connString: mode.connString,
     linkedProjectRef,
+    argv,
+    env,
+    assertPreviewApplyTarget,
   });
 
   const sql = buildHealthSql({
@@ -71,6 +93,7 @@ function main(argv = process.argv.slice(2), env = process.env) {
       {
         tool: "check-coldlion-designflow-sync-health",
         target: mode.target,
+        authorized_target: describeAuthorizedTarget(argv, env),
         mode: mode.apply ? "apply" : "dry-run (no DB write)",
         force_fail: mode.forceFail,
         preview_project_ref: PREVIEW_PROJECT_REF,

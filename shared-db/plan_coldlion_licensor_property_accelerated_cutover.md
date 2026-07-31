@@ -18,8 +18,8 @@
 | 5. Rehearse the complete cutover and rollback on preview | 🔶 New behaviors rehearsed; app checks are Step 6 | 2026-07-27 | Forced-failure drill, refused real promotion (`run-...-phase4.mjs` exit 1, failed run `15c0b900-…`), append-only evidence, refused unauthorized reset, authorized rollback, proven recovery (542 unchanged, run `5676f13a-…`), protected hashes unchanged throughout. Evidence §4.7.4 |
 | 6. Verify the applications at their real maturity levels | ✅ Complete at the accuracy the evidence supports | 2026-07-28 | DB Data Admin **verified** as a real signed-in user on preview (tree/filters/parents/no duplicates/no cross-entity). DAM live subset verified at the data contract (0 orphans, 0 parent mismatches); its **screens deliberately not driven** — no read-only DAM role exists (AGENTS §0.4). DesignFlow PLM, CRM, PM hold **zero rows on preview**: recorded as not exercised, NOT as passed; their 40 FKs and api contracts are proven intact. Live PLM smoke belongs in the Step 9 read-only window. Evidence §4A.3–4A.4 |
 | 7. Prepare the production change package | ✅ Complete | 2026-07-28 | Full package: docs/verification/coldlion-licensor-property-step7-production-package-20260728/README.md — bounded 9-migration manifest (+ the 2026-07-28 hardening, recommended together), exact commands naming qsllyeztdwjgirsysgai, pre/post hash captures, secret named-not-created, read-only smoke checklist by maturity, and an operational rollback with no schema drop. Read-only production identity pre-proof: 0 missing / 0 cross-typed / 0 code mismatch |
-| 7A. Build the recurring production feed and monitoring lane | ⬜ Open, blocked by another schema workstream | 2026-07-29 | Albert chose a real recurring feed. PR #314 re-issued the ClickUp migration skipped by the historical duplicate timestamp; open correctness PR #311 still owns the schema slot. Start after #311 lands/closes and preview is free. No production write |
-| 8. Obtain Albert's production-window approval | ⬜ Blocked by Step 7A | 2026-07-29 | Approval must cover the recurring schedule, production secrets/variables, exact write modes, rollback, and monitoring. A one-time-link approval is no longer acceptable |
+| 7A. Build the recurring production feed and monitoring lane | ✅ Built and preview-proven; production lane exists but is DISABLED | 2026-07-29 | Serialization gate satisfied (#311/#322 landed, no duplicate versions). All 7 items delivered. Two-cycle + fault-case rehearsal **14/14**; readiness **ready=true**; offline suite **192/192**. **Four SQL defects and one runner defect found and fixed by the rehearsal** — see evidence §3. Migrations `20260729230000`, `20260729234500`, `20260729235500`, `20260730000500` applied to **preview only**. No production write; `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` not created. Evidence: `docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md` |
+| 8. Obtain Albert's production-window approval | ⬜ Open — this is the next action | 2026-07-29 | Unblocked by Step 7A. Approval must cover the recurring schedule, production secrets/variables, exact write modes, rollback, and monitoring. A one-time-link approval is no longer acceptable. See the Step 8–10 drift notes below: the manifest grows by exactly these **four** migrations (re-derive the total from the read-only production ledger comparison — do not reuse a remembered count), and the approval must additionally name the promotion mode `promote_source_owned`, the four recurring schedules, and the enable variable |
 | 9. Execute the production cutover | ⬜ Open | 2026-07-26 | Separate fresh session; only after Step 8; mapping-identity proof before any write |
 | 10. Run intensified monitoring and close out | ⬜ Open | 2026-07-26 | Hourly cadence + deliberate +1h/+4h/+24h checks, then normal guarded operation |
 
@@ -661,6 +661,101 @@ secret/variable was created and no production write occurred; an independent rev
 Critical or High finding; and a fresh-session audit can execute the revised Step 8–10 package
 without guessing.
 
+#### Step 7A closeout — 2026-07-29
+
+**Status: built and preview-proven. The production lane exists and is DISABLED.**
+Full evidence:
+[`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md).
+
+Delivered: the production-only workflow
+(`.github/workflows/coldlion-licensor-property-production.yml`), a separate production schedule
+map (`tools/coldlion-production-schedule-map.mjs`), the guarded promotion contract
+(`tools/coldlion-recurring-promotion.mjs` + `tools/promote-coldlion-source-owned.mjs`), four
+additive migrations, the production-lane readiness checks
+(`tools/coldlion-production-lane-readiness.mjs`), and the two-cycle fault rehearsal
+(`tools/rehearse-coldlion-recurring-cycles.mjs`, 14/14). Readiness returns `ready=true` on
+preview; the offline suite is 192/192.
+
+**Four migrations instead of the budgeted one.** Each extra one is a forward correction of a
+defect the rehearsal caught. No applied migration was edited — AGENTS.md §4 rule 4 forbids it, and
+editing could not have repaired preview anyway because the ledger already recorded those
+versions. Same pattern as `20260727223000`, `20260727224500`, `20260728134500`.
+
+**The rehearsal earned its cost.** Every defect below existed while the JavaScript unit tests were
+green:
+
+1. `42703` — a select-list alias used in `WHERE`; the promotion function raised on **every** call
+   and had never executed.
+2. **The collision rule quarantined 542 of 542 approved rows — the entire feed** — because it
+   treated the approved 542→271 fan-in as a fault. Behind defect 1 it would have looked "safe"
+   while promoting nothing forever. The corrected rule quarantines fan-in **only when the arms
+   propose different names**. *Do not simplify it back to `key_count > 1`.*
+3. `42702` — `sync_run_id` ambiguous between the `RETURNS TABLE` column and the audit table.
+4. **Silent failure:** three-valued logic made `not present_this_cycle` `NULL`, so a record
+   ColdLion stopped sending was neither promoted nor quarantined — it just vanished. This defeats
+   the locked decision "absence never means delete or inactive", which only holds if absence is
+   detected.
+5. **Runner:** `record_taxonomy_sync_alert` was called with the wrong argument order, so the
+   durable alert failed to record and **the breaker did not trip**. A repo-wide sweep confirmed
+   this was the only miscalled site. After the fix the whole chain fired unprompted: failure →
+   alert → autotrip → breaker tripped → next promotion refused.
+
+### Steps 8–10 drift review (written at Step 7A closeout, 2026-07-29)
+
+Required by Step 7A's fresh-session cut. Every downstream section was re-read after the
+implementation; these are the changes a Step 8–10 session must absorb.
+
+**Affecting Step 8:**
+
+1. **The migration manifest grew by exactly four:** `20260729230000`, `20260729234500`,
+   `20260729235500`, `20260730000500`. Do **not** reuse the Step 7 package's remembered count —
+   re-derive the total from the read-only production ledger comparison, because production's
+   pending set also contains other workstreams' migrations.
+2. **The approval must now name three things Step 8 did not previously list:** the promotion mode
+   `promote_source_owned` (in addition to `mirror_only` and the approved 542-row `link_approved`);
+   the four recurring schedules `0 6 * * *` / `30 6 * * *` / `0 7 * * *` / `45 * * * *`; and the
+   repository variable `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` that arms the whole lane.
+3. **The approval artifact is now load-bearing, not just paperwork.** Readiness only tolerates an
+   enabled production variable when
+   `docs/verification/coldlion-licensor-property-step8-approval-*/approval.json` exists. Create
+   that artifact when the approval is given, or readiness will (correctly) block.
+
+**Affecting Step 9:**
+
+4. **A new ordered step exists.** After the guarded `mirror_only` snapshot (existing step 10) and
+   the approved linking (existing step 11), the recurring lane's promotion must run:
+   `node tools/promote-coldlion-source-owned.mjs --apply --linked --production
+   --production-authorized --project-ref qsllyeztdwjgirsysgai`. It refuses to run if no successful
+   `mirror_only` snapshot exists, on purpose.
+5. **Object verification must cover the new objects,** not just the ledger:
+   `plm.promote_coldlion_source_owned`, `plm.coldlion_normalize_name`,
+   `plm.coldlion_promotion_audit`, `plm.coldlion_promotion_quarantine`, and
+   `plm.taxonomy_breaker_enforcement_status()` reporting **`expected_count: 11`** (was 9).
+6. **`tools/check-coldlion-designflow-sync-health.mjs` was preview-only and could not have run the
+   production hourly lane at all.** It now takes the same four-part production authorization as
+   the other runners. Same for `tools/dispatch-coldlion-taxonomy-alerts.mjs`, which the production
+   workflow needs in order to deliver its own alert.
+
+**Affecting Step 10:**
+
+7. **Intensified monitoring gains a queue that did not exist before.** The recurring feed produces
+   `plm.coldlion_promotion_quarantine` rows, and a quarantine means *the canonical layer was
+   deliberately not changed and a human must decide*. The +1h/+4h/+24h checks must include
+   reviewing new quarantine rows via `api.coldlion_promotion_quarantine_list`. An unattended
+   quarantine queue silently becomes stale master data.
+8. **A first production cycle is expected to quarantine, not to be empty.** On preview each clean
+   cycle quarantines 18 `new_source_record` rows — the deliberately unapproved ColdLion-only
+   candidates (NASA, ZAG, FRIDA KAHLO and similar). A cycle reporting **zero** quarantines on
+   production is more suspicious than one reporting a stable count.
+9. **Rollback is unchanged in shape but gains one lever:** setting
+   `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` to anything other than `true` stops the entire
+   recurring lane immediately, without touching schema, mirrors, canonical rows, or DesignFlow
+   refs. That is the first response, ahead of any data action.
+
+**No drift found in:** the locked field-ownership decisions, the 542-row approved scope, the
+production prohibition before Step 8, the `--include-all` prohibition, or the maturity-specific
+application claims. Those all survive Step 7A unchanged.
+
 ### Step 8 — Obtain Albert's production-window approval
 
 Present Albert one concise approval request naming:
@@ -871,8 +966,12 @@ Target branch policy:
 - [x] Historical 14-day evidence and every failed/drill run remain preserved.
 - [x] The deterministic readiness evaluator passes all green and failure fixtures.
       (`ready=true` on preview 2026-07-27; 127 offline tests + rolled-back SQL contracts green.)
-- [ ] The real recurring production workflow, promotion contract, monitoring, alerts, and recovery
-      are built and proven through two complete preview cycles (Step 7A).
+- [x] The real recurring production workflow, promotion contract, monitoring, alerts, and recovery
+      are built and proven through two complete preview cycles (Step 7A, 2026-07-29).
+      Rehearsal 14/14, readiness `ready=true`, offline suite 192/192. The production workflow
+      exists and is DISABLED; no production secret or variable was created and no production
+      write occurred. Four SQL defects and one runner defect were found and fixed by the
+      rehearsal before any approval was requested.
 - [x] The complete cutover and rollback are rehearsed on preview — for the NEW behaviors.
       Application-maturity checks remain Step 6.
 - [~] DesignFlow PLM live behaviour gate: NOT evidenced on preview (plm.item is 0 rows there). Deferred to the Step 9 read-only production smoke. Recorded as untested, not passed.

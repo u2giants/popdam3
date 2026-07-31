@@ -8,6 +8,18 @@
 > Read its STATUS table first. This decision does not itself authorize production: the existing
 > production prohibition stays in force until the replacement preview and approval gates pass.
 
+> **Step 7A update — 2026-07-29:** the Phase 6 machinery described below is the **preview**
+> parallel-run lane. The **recurring PRODUCTION** lane is a separate, deliberately opposite
+> workflow, `.github/workflows/coldlion-licensor-property-production.yml`, which hard-refuses
+> preview exactly as the Phase 6 workflow hard-refuses production. Never edit either into the
+> other. The production lane is built and preview-proven but **DISABLED** pending Step 8.
+> A one-time 542-link run does **not** complete the feed switch. Evidence:
+> [`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md).
+> Note also that `tools/check-coldlion-designflow-sync-health.mjs` and
+> `tools/dispatch-coldlion-taxonomy-alerts.mjs` are no longer preview-only: they now accept the
+> same four-part production authorization as the other ColdLion runners, because the production
+> hourly health lane and its self-delivered alert could not otherwise run at all.
+
 ## 1. What this application is
 
 `u2giants/shared-db` owns the shared Supabase schema and data-integration contracts. Licensors and

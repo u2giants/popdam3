@@ -10,6 +10,30 @@ This document is the complete package Step 9 would execute **if and only if** Al
 the Step 8 approval naming the exact migrations, modes, window, and rollback.
 A general "go ahead" is explicitly **not** that approval.
 
+> ## ⚠️ SUPERSEDED IN PART BY STEP 7A (2026-07-29) — THIS PACKAGE IS NOT THE FEED SWITCH
+>
+> **A one-time 542-link run does NOT complete the ColdLion feed switch.** This package describes
+> a safe **one-time** mirror + approved-link operation. GLM-5.2's 2026-07-28 review correctly
+> found that this is not the routine feed switch the plan's §1 goal states, and Albert chose the
+> real recurring feed on 2026-07-29. Anywhere this document reads as "and then the cutover is
+> done", read it as "and then the **recurring lane** must also be enabled".
+>
+> Step 7A built that recurring lane. What this package still needs, on top of everything below:
+>
+> - **Four more migrations** in the manifest: `20260729230000`, `20260729234500`,
+>   `20260729235500`, `20260730000500`. The count in §1 below is therefore **stale** —
+>   re-derive the manifest from a fresh read-only ledger comparison.
+> - **A third data mode**, `promote_source_owned`, run by
+>   `tools/promote-coldlion-source-owned.mjs` after the `mirror_only` snapshot.
+> - **The recurring workflow** `.github/workflows/coldlion-licensor-property-production.yml`,
+>   its four schedules, and the repository variable
+>   `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` — all of which Step 8 must approve by name.
+> - **A quarantine review queue** (`api.coldlion_promotion_quarantine_list`) that did not exist
+>   when this package was written.
+>
+> Full detail:
+> [`../coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](../coldlion-licensor-property-step7a-recurring-feed-20260729/README.md).
+
 Everything below was derived from an **owner-authorized read-only** production inspection on
 2026-07-28. Nothing was written, and the detached worktree used for it was removed.
 

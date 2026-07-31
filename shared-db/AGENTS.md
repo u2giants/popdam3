@@ -402,7 +402,24 @@ art source, artist, age group, or `mgTypeCode` must start at
 
 For the active ColdLion Licensor/Property source cutover, read the STATUS table in
 [`plan_coldlion_licensor_property_accelerated_cutover.md`](plan_coldlion_licensor_property_accelerated_cutover.md)
-before re-deriving or re-planning anything. Albert decided on 2026-07-26 to replace the original
+before re-deriving or re-planning anything.
+
+**Step 7A (the real recurring feed) is BUILT and preview-proven as of 2026-07-29; the next action
+is Step 8, Albert's production approval.** Two rules that catch sessions out:
+
+- **A one-time 542-link run is NOT the feed switch.** The recurring lane is
+  `.github/workflows/coldlion-licensor-property-production.yml` (production-only, currently
+  **DISABLED**), driven by `tools/promote-coldlion-source-owned.mjs` in mode
+  `promote_source_owned`. It is the deliberate mirror image of the preview-only
+  `coldlion-licensor-property-phase6-parallel.yml`: each hard-refuses the other's project.
+  **Never edit one into the other.**
+- **Do not "simplify" the promotion collision rule.** Quarantining any canonical row reachable
+  from more than one typed key quarantines **542 of 542 approved rows — the entire feed** —
+  because the approved mapping deliberately fans 542 source rows into 271 canonical rows. Fan-in
+  quarantines only when the arms propose *different* names. This is enforced by a regression test.
+
+Evidence and the full defect list:
+[`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md). Albert decided on 2026-07-26 to replace the original
 14-day elapsed-time gate with an invariant-based readiness gate plus rapid post-cutover monitoring.
 The existing production prohibition remains in force until that plan's preview rehearsal,
 readiness, and explicit production-approval gates pass.

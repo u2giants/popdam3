@@ -453,6 +453,33 @@ isolated git worktree fast-forwarded to `origin/main` (`fa890ae`) and made no pu
 
 ## FRESH-SESSION BOUNDARY — real recurring ColdLion Licensor/Property feed (2026-07-29)
 
+> ### ✅ STEP 7A IS BUILT AND PREVIEW-PROVEN (2026-07-29 evening). Next action: **Step 8**.
+>
+> The recurring lane now exists. `.github/workflows/coldlion-licensor-property-production.yml`
+> targets production only and is **DISABLED**; the repository variable
+> `COLDLION_LICENSOR_PROPERTY_PRODUCTION_ENABLED` was **not** created, no production secret was
+> created, and **no production write, link or query occurred**. Four migrations
+> (`20260729230000`, `20260729234500`, `20260729235500`, `20260730000500`) are applied to
+> **preview only**.
+>
+> Two-cycle + fault rehearsal **14/14**, readiness **`ready=true`**, offline suite **192/192**.
+>
+> **A one-time 542-link run does NOT complete the feed switch** — that statement is now removed
+> or corrected wherever it appeared.
+>
+> The rehearsal found **four SQL defects and one runner defect that all the unit tests missed**,
+> including a collision rule that would have quarantined **542 of 542 rows (the entire feed)** and
+> a silent failure that made records ColdLion stopped sending simply vanish. Read
+> [`docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md`](docs/verification/coldlion-licensor-property-step7a-recurring-feed-20260729/README.md)
+> **before touching this workstream**, and read the "Steps 8–10 drift review" section of the plan
+> before starting Step 8.
+>
+> **Preview coordination:** preview is additive-schema-ahead of `main`. Two things another session
+> should expect and not treat as drift: `plm.taxonomy_breaker_enforcement_status()` now reports
+> `expected_count: 11` (was 9), and the promotion lane writes append-only rows to
+> `plm.coldlion_promotion_audit` / `plm.coldlion_promotion_quarantine`. No canonical row, name,
+> status, parent edge or UUID was changed; health is green (38 / 504 / 542).
+
 ### 1. What this application is
 
 `u2giants/shared-db` owns the one Supabase database shared by POP's CRM, DAM, PM/PIM,

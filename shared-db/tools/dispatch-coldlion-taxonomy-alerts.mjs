@@ -40,6 +40,15 @@ import {
   resolveRunMode,
 } from "./phase6-preview-guards.mjs";
 import { parsePhase6FunctionResult } from "./phase6-cli-result-parse.mjs";
+// Added 2026-07-29 (accelerated plan Step 7A): the recurring PRODUCTION lane delivers
+// its own alert from the detecting run, so the dispatcher must be reachable under the
+// same four-part production authorization as every other ColdLion runner. Without any
+// production flag its behaviour is unchanged and still preview-only.
+import {
+  assertColdlionApplyTarget,
+  describeAuthorizedTarget,
+  resolveProductionAuthorization,
+} from "./coldlion-production-authorization.mjs";
 
 export const HUMAN_RESPONSE_OWNER = "Albert Hazan";
 export const ALERT_DELIVERY_TARGET_MINUTES = 15;
@@ -147,14 +156,18 @@ function readLinkedProjectRef() {
 }
 
 export function main(argv = process.argv.slice(2), env = process.env) {
-  assertNoProductionEnv(env);
+  const auth = resolveProductionAuthorization(argv, env);
+  if (!auth.requested) assertNoProductionEnv(env);
   const mode = resolveRunMode(argv, env);
   const linkedProjectRef = mode.linked ? readLinkedProjectRef() : null;
-  assertPreviewApplyTarget({
+  assertColdlionApplyTarget({
     apply: mode.apply,
     linked: mode.linked,
     connString: mode.connString,
     linkedProjectRef,
+    argv,
+    env,
+    assertPreviewApplyTarget,
   });
 
   const outIndex = argv.indexOf("--out");
@@ -166,6 +179,7 @@ export function main(argv = process.argv.slice(2), env = process.env) {
       {
         tool: "dispatch-coldlion-taxonomy-alerts",
         target: mode.target,
+        authorized_target: describeAuthorizedTarget(argv, env),
         mode: mode.apply ? "apply (read-only query)" : "dry-run",
         preview_project_ref: PREVIEW_PROJECT_REF,
         human_response_owner: HUMAN_RESPONSE_OWNER,

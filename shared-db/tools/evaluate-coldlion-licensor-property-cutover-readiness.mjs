@@ -30,9 +30,27 @@
 //
 // Exit codes: 0 ready, 1 not ready (blocking reasons printed), 2 unparseable result.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { runSql, sqlDollarQuote } from "./coldlion-sync-common.mjs";
+// Step 7A item 5: production readiness must additionally prove the RECURRING lane exists,
+// is schedule-valid, is still intentionally disabled, has its secret names wired, keeps the
+// breaker watchdog enforced, and passes the recurring promotion contract. Without these, a
+// green readiness result would only be describing the one-time 542-link package.
+import {
+  COLDLION_PRODUCTION_SCHEDULE_JOBS,
+  assertPreviewAndProductionMapsDisjoint,
+} from "./coldlion-production-schedule-map.mjs";
+import {
+  PRODUCTION_ENABLE_VARIABLE,
+  PRODUCTION_WORKFLOW_PATH,
+  evaluateProductionLaneReadiness,
+  promotionContractIsIntact,
+} from "./coldlion-production-lane-readiness.mjs";
+import {
+  PROTECTED_FIELDS,
+  SOURCE_OWNED_FIELDS,
+} from "./coldlion-recurring-promotion.mjs";
 import {
   PREVIEW_PROJECT_REF,
   PRODUCTION_PROJECT_REF,
@@ -133,10 +151,16 @@ const IDENTITY_DIFFERENCE_KEYS = [
  *   authorization: {target: string, authorized: boolean, blocking_reason: string|null},
  *   mappingContract: {hash: string, count: number, distinct_canonical: number}|null,
  *   probe: Record<string, unknown>|null,
+ *   productionLane: Array|null,
  * }} inputs
  */
-export function evaluateReadiness({ authorization, mappingContract, probe }) {
+export function evaluateReadiness({ authorization, mappingContract, probe, productionLane = null }) {
   const checks = [];
+
+  // Step 7A item 5: the recurring-production-lane checks. They are evaluated for BOTH
+  // targets on purpose — a preview run should surface a broken or prematurely-enabled
+  // production lane too, rather than discovering it during the production window.
+  if (Array.isArray(productionLane)) checks.push(...productionLane);
 
   checks.push(
     check(
@@ -315,6 +339,14 @@ select jsonb_build_object(
     25),
   'circuit_breaker', public.taxonomy_circuit_breaker_state('coldlion_licensor_property'),
   'breaker_enforcement', public.taxonomy_breaker_enforcement_status(),
+  -- Step 7A: verify the REAL OBJECTS of the recurring promotion lane, not the migration
+  -- ledger. The ledger can record a migration whose object is absent (seen on preview
+  -- 2026-07-23), so readiness asks the catalog directly.
+  'promotion_objects', jsonb_build_object(
+    'promote_function', to_regprocedure('plm.promote_coldlion_source_owned(jsonb,jsonb,boolean)')::text,
+    'normalize_function', to_regprocedure('plm.coldlion_normalize_name(text)')::text,
+    'audit_table', to_regclass('plm.coldlion_promotion_audit')::text,
+    'quarantine_table', to_regclass('plm.coldlion_promotion_quarantine')::text),
   'latest_observation', (
     select to_jsonb(o) - 'details'
     from plm.taxonomy_parallel_observation o
@@ -346,6 +378,55 @@ function readLinkedProjectRef() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Gather everything the production-lane checks need from the filesystem and environment.
+ * Kept separate from the pure evaluator so the checks stay unit-testable.
+ */
+export function collectProductionLaneInputs(env = process.env, probe = null) {
+  let workflowText = null;
+  let registeredCrons = [];
+  try {
+    workflowText = readFileSync(new URL(`../${PRODUCTION_WORKFLOW_PATH}`, import.meta.url), "utf8");
+    registeredCrons = [...workflowText.matchAll(/- cron:\s*"([^"]+)"/g)].map((m) => m[1]);
+  } catch {
+    workflowText = null;
+  }
+
+  // A durable Step 8 approval artifact is what makes an ENABLED production variable
+  // legitimate. With none present, the variable must still be off.
+  let approvalArtifacts = [];
+  try {
+    const dir = new URL("../docs/verification/", import.meta.url);
+    approvalArtifacts = readdirSync(dir)
+      .filter((name) => /^coldlion-licensor-property-step8-approval-/.test(name))
+      .filter((name) => existsSync(new URL(`${name}/approval.json`, dir)));
+  } catch {
+    approvalArtifacts = [];
+  }
+
+  let mapsDisjoint = false;
+  try {
+    mapsDisjoint = assertPreviewAndProductionMapsDisjoint();
+  } catch {
+    mapsDisjoint = false;
+  }
+
+  return {
+    workflowText,
+    registeredCrons,
+    scheduleMap: COLDLION_PRODUCTION_SCHEDULE_JOBS,
+    enableVariable: env[PRODUCTION_ENABLE_VARIABLE] ?? null,
+    approvalArtifacts,
+    promotionContractOk:
+      mapsDisjoint &&
+      promotionContractIsIntact({
+        sourceOwned: SOURCE_OWNED_FIELDS,
+        protectedFields: PROTECTED_FIELDS,
+      }),
+    promotionObjects: probe && typeof probe === "object" ? probe.promotion_objects ?? null : null,
+  };
 }
 
 export function main(argv = process.argv.slice(2), env = process.env) {
@@ -417,7 +498,15 @@ export function main(argv = process.argv.slice(2), env = process.env) {
     return 2;
   }
 
-  const report = evaluateReadiness({ authorization, mappingContract: expected, probe });
+  const productionLane = evaluateProductionLaneReadiness(
+    collectProductionLaneInputs(env, probe),
+  );
+  const report = evaluateReadiness({
+    authorization,
+    mappingContract: expected,
+    probe,
+    productionLane,
+  });
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 
   if (report.ready) {
